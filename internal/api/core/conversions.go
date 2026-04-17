@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"maps"
 	"path/filepath"
@@ -164,7 +165,7 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		Decision:   event.Decision,
 		Error:      event.Error,
 		Usage:      TokenUsagePayloadFromUsage(event.Usage),
-		Raw:        PayloadJSON(string(event.Raw)),
+		Raw:        payloadJSONBytes(event.Raw),
 	}
 }
 
@@ -490,6 +491,22 @@ func PayloadJSON(raw string) json.RawMessage {
 	}
 
 	encoded, err := json.Marshal(trimmed)
+	if err != nil {
+		return json.RawMessage("null")
+	}
+	return json.RawMessage(encoded)
+}
+
+func payloadJSONBytes(raw []byte) json.RawMessage {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return json.RawMessage("null")
+	}
+	if json.Valid(trimmed) {
+		return append(json.RawMessage(nil), trimmed...)
+	}
+
+	encoded, err := json.Marshal(string(trimmed))
 	if err != nil {
 		return json.RawMessage("null")
 	}

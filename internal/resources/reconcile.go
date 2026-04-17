@@ -440,28 +440,37 @@ func (d *reconcileDriver) Trigger(ctx context.Context, kind ResourceKind, reason
 	}
 
 	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	if d.closed {
+		d.mu.Unlock()
 		return errors.New("resources: reconcile driver is closed")
 	}
 	if _, ok := d.projectors[normalizedKind]; !ok {
+		d.mu.Unlock()
 		return fmt.Errorf("%w: reconcile kind %q is not registered", ErrValidation, normalizedKind)
 	}
 
-	for idx, scheduledKind := range d.scheduleCascade(normalizedKind) {
+	scheduledKinds := d.scheduleCascade(normalizedKind)
+	events := make([]ReconcileEvent, 0, len(scheduledKinds)*2)
+	for idx, scheduledKind := range scheduledKinds {
 		scheduledReason := normalizedReason
 		if idx > 0 {
 			scheduledReason = ReconcileReasonDependency
 		}
-		d.emitEventLocked(ctx, ReconcileEvent{
+		events = append(events, ReconcileEvent{
 			Type:   ReconcileEventRequested,
 			Kind:   scheduledKind,
 			Reason: scheduledReason,
 		})
-		d.enqueueLocked(scheduledKind, scheduledReason)
+		if coalesced := d.enqueueLocked(scheduledKind, scheduledReason); coalesced != nil {
+			events = append(events, *coalesced)
+		}
 	}
-	d.notifyLocked()
+	d.mu.Unlock()
+
+	for _, event := range events {
+		d.emitEvent(ctx, event)
+	}
+	d.notify()
 	return nil
 }
 
@@ -565,21 +574,20 @@ func (d *reconcileDriver) scheduleCascade(root ResourceKind) []ResourceKind {
 	return append(ordered, reachable...)
 }
 
-func (d *reconcileDriver) enqueueLocked(kind ResourceKind, reason ReconcileReason) {
+func (d *reconcileDriver) enqueueLocked(kind ResourceKind, reason ReconcileReason) *ReconcileEvent {
 	state := d.kindStates[kind]
 	if state == nil {
-		return
+		return nil
 	}
 
 	if state.running {
 		state.dirty = true
 		state.dirtyReason = reason
-		d.emitEventLocked(context.Background(), ReconcileEvent{
+		return &ReconcileEvent{
 			Type:   ReconcileEventCoalesced,
 			Kind:   kind,
 			Reason: reason,
-		})
-		return
+		}
 	}
 
 	if state.pending {
@@ -588,18 +596,18 @@ func (d *reconcileDriver) enqueueLocked(kind ResourceKind, reason ReconcileReaso
 			state.readyAt = time.Time{}
 		}
 		state.pendingReason = reason
-		d.emitEventLocked(context.Background(), ReconcileEvent{
+		return &ReconcileEvent{
 			Type:   ReconcileEventCoalesced,
 			Kind:   kind,
 			Reason: reason,
-		})
-		return
+		}
 	}
 
 	state.pending = true
 	state.pendingReason = reason
 	state.readyAt = time.Time{}
 	d.queue = append(d.queue, kind)
+	return nil
 }
 
 func (d *reconcileDriver) run() {
@@ -1009,13 +1017,6 @@ func (d *reconcileDriver) handleBootSuccess(ctx context.Context, kind ResourceKi
 }
 
 func (d *reconcileDriver) emitEvent(ctx context.Context, event ReconcileEvent) {
-	if d.eventSink == nil {
-		return
-	}
-	d.eventSink.ObserveReconcileEvent(ctx, event)
-}
-
-func (d *reconcileDriver) emitEventLocked(ctx context.Context, event ReconcileEvent) {
 	if d.eventSink == nil {
 		return
 	}

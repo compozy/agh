@@ -543,6 +543,11 @@ func TestCreateInstanceRequestValidate(t *testing.T) {
 	if err := req.Validate(); err != nil {
 		t.Fatalf("CreateInstanceRequest.Validate() error = %v", err)
 	}
+
+	req.DeliveryDefaults = json.RawMessage(`{"thread_id":{"nested":"bad"}}`)
+	if err := req.Validate(); err == nil {
+		t.Fatal("CreateInstanceRequest.Validate() error = nil, want invalid delivery defaults failure")
+	}
 }
 
 func TestUpdateInstanceRequestValidate(t *testing.T) {
@@ -562,6 +567,12 @@ func TestUpdateInstanceRequestValidate(t *testing.T) {
 	}
 	if err := req.Validate(); err != nil {
 		t.Fatalf("UpdateInstanceRequest.Validate() error = %v", err)
+	}
+
+	invalidDeliveryDefaults := json.RawMessage(`{"mode":true}`)
+	req.DeliveryDefaults = &invalidDeliveryDefaults
+	if err := req.Validate(); err == nil {
+		t.Fatal("UpdateInstanceRequest.Validate() error = nil, want invalid delivery defaults failure")
 	}
 }
 

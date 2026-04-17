@@ -127,6 +127,18 @@ func (h HookSet) environment() EnvironmentHooks {
 	return noopEnvironmentHooks{}
 }
 
+func (h HookSet) hasEnvironmentHooks() bool {
+	if h.Environment == nil {
+		return false
+	}
+	switch h.Environment.(type) {
+	case noopEnvironmentHooks, *noopEnvironmentHooks:
+		return false
+	default:
+		return true
+	}
+}
+
 func (h HookSet) prompt() PromptHooks {
 	if h.Prompt != nil {
 		return h.Prompt

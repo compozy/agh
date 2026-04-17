@@ -370,7 +370,7 @@ func (i BridgeInstance) Validate() error {
 	if _, err := normalizeRawJSON(normalized.ProviderConfig, "bridge instance provider config"); err != nil {
 		return err
 	}
-	if _, err := normalizeRawJSON(normalized.DeliveryDefaults, "bridge instance delivery defaults"); err != nil {
+	if _, err := NormalizeDeliveryDefaultsJSON(normalized.DeliveryDefaults); err != nil {
 		return err
 	}
 	if normalized.Degradation != nil {

@@ -704,11 +704,10 @@ func cloneResourceRecords[T any](records []resources.Record[T], cloneSpec func(T
 	if len(records) == 0 {
 		return nil
 	}
-	cloned := make([]resources.Record[T], 0, len(records))
-	for _, record := range records {
-		next := record
-		next.Spec = cloneSpec(record.Spec)
-		cloned = append(cloned, next)
+	cloned := make([]resources.Record[T], len(records))
+	for idx := range records {
+		cloned[idx] = records[idx]
+		cloned[idx].Spec = cloneSpec(records[idx].Spec)
 	}
 	return cloned
 }

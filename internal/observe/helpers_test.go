@@ -408,6 +408,21 @@ func TestHelperFunctions(t *testing.T) {
 	}
 }
 
+func TestSummarizeEventPrefersPermissionSpecificFields(t *testing.T) {
+	t.Parallel()
+
+	got := summarizeEvent(acp.AgentEvent{
+		Type:     acp.EventTypePermission,
+		Title:    "permission.request",
+		Resource: "/tmp/secret.txt",
+		Decision: "deny",
+		Text:     "fallback text",
+	})
+	if got != "permission.request" {
+		t.Fatalf("summarizeEvent(permission) = %q, want %q", got, "permission.request")
+	}
+}
+
 func TestObserverVersionSourceUsedByHealth(t *testing.T) {
 	t.Parallel()
 

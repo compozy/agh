@@ -194,7 +194,7 @@ func (r *Resolver) ResolveOrRegister(ctx context.Context, path string) (Resolved
 
 	resolved, err := r.Resolve(ctx, ws.ID)
 	if err != nil {
-		deleteErr := r.store.DeleteWorkspace(ctx, ws.ID)
+		deleteErr := r.store.DeleteWorkspace(context.WithoutCancel(ctx), ws.ID)
 		if deleteErr != nil && !errors.Is(deleteErr, ErrWorkspaceNotFound) {
 			return ResolvedWorkspace{}, errors.Join(
 				err,

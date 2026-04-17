@@ -53,8 +53,14 @@ type HomePaths struct {
 
 // ResolveHomeDir resolves the global AGH home directory, honoring AGH_HOME when present.
 func ResolveHomeDir() (string, error) {
-	if override := strings.TrimSpace(os.Getenv("AGH_HOME")); override != "" {
-		return resolveAbsoluteDir(override)
+	return resolveHomeDir(processEnvLookup)
+}
+
+func resolveHomeDir(lookup envLookup) (string, error) {
+	if lookup != nil {
+		if override, ok := lookup("AGH_HOME"); ok && strings.TrimSpace(override) != "" {
+			return resolveAbsoluteDir(override)
+		}
 	}
 
 	userHome, err := os.UserHomeDir()
@@ -67,7 +73,11 @@ func ResolveHomeDir() (string, error) {
 
 // ResolveHomePaths resolves the canonical AGH home layout.
 func ResolveHomePaths() (HomePaths, error) {
-	homeDir, err := ResolveHomeDir()
+	return resolveHomePaths(processEnvLookup)
+}
+
+func resolveHomePaths(lookup envLookup) (HomePaths, error) {
+	homeDir, err := resolveHomeDir(lookup)
 	if err != nil {
 		return HomePaths{}, err
 	}

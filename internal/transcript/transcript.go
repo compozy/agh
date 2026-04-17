@@ -2,6 +2,7 @@
 package transcript
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -453,10 +454,13 @@ func buildToolResult(toolName string, failed bool, contentText string, rawOutput
 	result := &ToolResult{}
 
 	displayText := strings.TrimSpace(firstNonEmpty(contentText, stringifyValue(rawOutput)))
-	raw := rawMessageFromValue(rawOutput)
+	raw, mapped := rawToolResultOutput(rawOutput)
 	if len(raw) > 0 {
 		result.RawOutput = acp.CloneRawMessage(raw)
-		if mapped := map[string]any(nil); json.Unmarshal(raw, &mapped) == nil {
+		if mapped == nil {
+			mapped = rawToolResultObject(raw)
+		}
+		if mapped != nil {
 			result.Stdout = firstNonEmpty(result.Stdout, nestedString(mapped, "stdout"))
 			result.Stderr = firstNonEmpty(result.Stderr, nestedString(mapped, "stderr"))
 			result.FilePath = firstNonEmpty(
@@ -609,7 +613,7 @@ func rawMessageFromValue(value any) json.RawMessage {
 }
 
 func rawMessageIsEmptyObject(value json.RawMessage) bool {
-	return strings.TrimSpace(string(value)) == "{}"
+	return bytes.Equal(bytes.TrimSpace(value), []byte("{}"))
 }
 
 func cloneToolResult(value *ToolResult) *ToolResult {
@@ -647,6 +651,32 @@ func firstNonNil(values ...any) any {
 		}
 	}
 	return nil
+}
+
+func rawToolResultOutput(value any) (json.RawMessage, map[string]any) {
+	switch typed := value.(type) {
+	case nil:
+		return nil, nil
+	case json.RawMessage:
+		return acp.CloneRawMessage(typed), nil
+	case map[string]any:
+		return rawMessageFromValue(typed), typed
+	default:
+		return rawMessageFromValue(value), nil
+	}
+}
+
+func rawToolResultObject(raw json.RawMessage) map[string]any {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return nil
+	}
+
+	var mapped map[string]any
+	if err := json.Unmarshal(trimmed, &mapped); err != nil {
+		return nil
+	}
+	return mapped
 }
 
 func canonicalPayload(

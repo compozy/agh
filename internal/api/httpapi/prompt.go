@@ -144,7 +144,8 @@ func extractPromptMessage(req promptRequest) (string, error) {
 
 		parts := make([]string, 0, len(msg.Parts))
 		for _, part := range msg.Parts {
-			if strings.TrimSpace(part.Type) != "" && part.Type != "text" {
+			partType := strings.TrimSpace(part.Type)
+			if partType != "" && !strings.EqualFold(partType, "text") {
 				continue
 			}
 			if text := strings.TrimSpace(part.Text); text != "" {

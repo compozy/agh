@@ -122,7 +122,7 @@ func (r UpdateInstanceRequest) validateOptionalFields() error {
 		}
 	}
 	if r.DeliveryDefaults != nil {
-		if _, err := normalizeRawJSON(*r.DeliveryDefaults, "bridge instance delivery defaults"); err != nil {
+		if _, err := NormalizeDeliveryDefaultsJSON(*r.DeliveryDefaults); err != nil {
 			return err
 		}
 	}
@@ -286,7 +286,7 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 		instance.ProviderConfig = normalized
 	}
 	if req.DeliveryDefaults != nil {
-		normalized, err := normalizeRawJSON(*req.DeliveryDefaults, "bridge instance delivery defaults")
+		normalized, err := NormalizeDeliveryDefaultsJSON(*req.DeliveryDefaults)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"bridges: update bridge instance %q: normalize delivery defaults: %w",
@@ -626,7 +626,7 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 	}
 	instance.ProviderConfig = providerConfig
 
-	deliveryDefaults, err := normalizeRawJSON(instance.DeliveryDefaults, "bridge instance delivery defaults")
+	deliveryDefaults, err := NormalizeDeliveryDefaultsJSON(instance.DeliveryDefaults)
 	if err != nil {
 		return BridgeInstance{}, err
 	}

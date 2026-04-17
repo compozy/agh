@@ -251,6 +251,95 @@ func TestStoreDeleteRemovesFileAndIndexEntry(t *testing.T) {
 	}
 }
 
+func TestStoreDeletePreservesLinesThatOnlyMentionFilenameInDescription(t *testing.T) {
+	t.Parallel()
+
+	env := newTestStoreEnv(t)
+	payload := mustMemoryContent(t, testMemoryMeta{
+		Name:        "User Preferences",
+		Description: "Preferred tools",
+		Type:        MemoryTypeUser,
+	}, "Prefers rg over grep.\n")
+
+	if err := env.store.Write(ScopeGlobal, "user_preferences.md", payload); err != nil {
+		t.Fatalf("Store.Write() error = %v", err)
+	}
+
+	indexContent := strings.Join([]string{
+		"- [User Preferences](user_preferences.md) - Preferred tools",
+		"- [Related Notes](other.md) - Mirrors notes from (user_preferences.md)",
+		"",
+	}, "\n")
+	if err := os.WriteFile(
+		filepath.Join(env.store.globalDir, indexFilename),
+		[]byte(indexContent),
+		filePerm,
+	); err != nil {
+		t.Fatalf("write index file: %v", err)
+	}
+
+	if err := env.store.Delete(ScopeGlobal, "user_preferences.md"); err != nil {
+		t.Fatalf("Store.Delete() error = %v", err)
+	}
+
+	indexBytes, err := os.ReadFile(filepath.Join(env.store.globalDir, indexFilename))
+	if err != nil {
+		t.Fatalf("os.ReadFile(index) error = %v", err)
+	}
+	got := string(indexBytes)
+	if strings.Contains(got, "- [User Preferences](user_preferences.md)") {
+		t.Fatalf("index content still references deleted file: %q", got)
+	}
+	if !strings.Contains(got, "- [Related Notes](other.md) - Mirrors notes from (user_preferences.md)") {
+		t.Fatalf("index content removed unrelated descriptive line: %q", got)
+	}
+}
+
+func TestStoreDeleteRemovesIndexEntryForFilenameWithParentheses(t *testing.T) {
+	t.Parallel()
+
+	env := newTestStoreEnv(t)
+	filename := "user(preferences).md"
+	payload := mustMemoryContent(t, testMemoryMeta{
+		Name:        "User Preferences",
+		Description: "Preferred tools",
+		Type:        MemoryTypeUser,
+	}, "Prefers rg over grep.\n")
+
+	if err := env.store.Write(ScopeGlobal, filename, payload); err != nil {
+		t.Fatalf("Store.Write() error = %v", err)
+	}
+
+	indexContent := strings.Join([]string{
+		"- [User Preferences](user(preferences).md) - Preferred tools",
+		"- [Other](other.md) - Another note",
+		"",
+	}, "\n")
+	if err := os.WriteFile(
+		filepath.Join(env.store.globalDir, indexFilename),
+		[]byte(indexContent),
+		filePerm,
+	); err != nil {
+		t.Fatalf("write index file: %v", err)
+	}
+
+	if err := env.store.Delete(ScopeGlobal, filename); err != nil {
+		t.Fatalf("Store.Delete() error = %v", err)
+	}
+
+	indexBytes, err := os.ReadFile(filepath.Join(env.store.globalDir, indexFilename))
+	if err != nil {
+		t.Fatalf("os.ReadFile(index) error = %v", err)
+	}
+	got := string(indexBytes)
+	if strings.Contains(got, "- [User Preferences](user(preferences).md)") {
+		t.Fatalf("index content still references deleted file: %q", got)
+	}
+	if !strings.Contains(got, "- [Other](other.md) - Another note") {
+		t.Fatalf("index content removed unrelated line: %q", got)
+	}
+}
+
 func TestStoreDeleteMissingFile(t *testing.T) {
 	t.Parallel()
 
@@ -351,6 +440,64 @@ func TestStoreScanCapsAtTwoHundredFiles(t *testing.T) {
 			t.Fatalf("pathFor(%q) error = %v", filename, err)
 		}
 		modTime := base.Add(time.Duration(idx) * time.Minute)
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			t.Fatalf("os.Chtimes(%q) error = %v", path, err)
+		}
+	}
+
+	headers, err := env.store.Scan(ScopeWorkspace)
+	if err != nil {
+		t.Fatalf("Store.Scan() error = %v", err)
+	}
+
+	if got, want := len(headers), 200; got != want {
+		t.Fatalf("len(headers) = %d, want %d", got, want)
+	}
+	if headers[0].Filename != "204.md" {
+		t.Fatalf("headers[0].Filename = %q, want %q", headers[0].Filename, "204.md")
+	}
+	if headers[len(headers)-1].Filename != "005.md" {
+		t.Fatalf("headers[last].Filename = %q, want %q", headers[len(headers)-1].Filename, "005.md")
+	}
+}
+
+func TestStoreScanCapsAtTwoHundredFilesAfterSkippingMalformedNewestEntries(t *testing.T) {
+	t.Parallel()
+
+	env := newTestStoreEnv(t)
+	base := time.Now().Add(-205 * time.Minute)
+
+	for idx := range 205 {
+		filename := fmt.Sprintf("%03d.md", idx)
+		payload := mustMemoryContent(t, testMemoryMeta{
+			Name:        fmt.Sprintf("Memory %03d", idx),
+			Description: "Cap test",
+			Type:        MemoryTypeReference,
+		}, "Reference entry\n")
+		if err := env.store.Write(ScopeWorkspace, filename, payload); err != nil {
+			t.Fatalf("Store.Write(%q) error = %v", filename, err)
+		}
+
+		path, err := env.store.pathFor(ScopeWorkspace, filename)
+		if err != nil {
+			t.Fatalf("pathFor(%q) error = %v", filename, err)
+		}
+		modTime := base.Add(time.Duration(idx) * time.Minute)
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			t.Fatalf("os.Chtimes(%q) error = %v", path, err)
+		}
+	}
+
+	for idx := range 3 {
+		filename := fmt.Sprintf("broken-%d.md", idx)
+		path, err := env.store.pathFor(ScopeWorkspace, filename)
+		if err != nil {
+			t.Fatalf("pathFor(%q) error = %v", filename, err)
+		}
+		if err := os.WriteFile(path, []byte("not frontmatter\n"), filePerm); err != nil {
+			t.Fatalf("write malformed file %q: %v", filename, err)
+		}
+		modTime := base.Add(time.Duration(205+idx) * time.Minute)
 		if err := os.Chtimes(path, modTime, modTime); err != nil {
 			t.Fatalf("os.Chtimes(%q) error = %v", path, err)
 		}

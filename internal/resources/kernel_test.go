@@ -919,6 +919,30 @@ func TestKernelHelperPathsAndMissingState(t *testing.T) {
 	}
 }
 
+func TestKernelLockSourceReleasesIdleEntries(t *testing.T) {
+	t.Parallel()
+
+	kernel, _ := openTestKernel(t)
+	source := ResourceSource{Kind: ResourceSourceKind("extension"), ID: "ext-lock"}
+
+	unlock := kernel.lockSource(source)
+
+	kernel.sourceLocksMu.Lock()
+	if got, want := len(kernel.sourceLocks), 1; got != want {
+		kernel.sourceLocksMu.Unlock()
+		t.Fatalf("len(sourceLocks) while held = %d, want %d", got, want)
+	}
+	kernel.sourceLocksMu.Unlock()
+
+	unlock()
+
+	kernel.sourceLocksMu.Lock()
+	defer kernel.sourceLocksMu.Unlock()
+	if got := len(kernel.sourceLocks); got != 0 {
+		t.Fatalf("len(sourceLocks) after unlock = %d, want 0", got)
+	}
+}
+
 func TestKernelAdditionalValidationBranches(t *testing.T) {
 	t.Parallel()
 

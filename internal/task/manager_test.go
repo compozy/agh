@@ -1771,6 +1771,107 @@ func TestManagerHelperCoverage(t *testing.T) {
 	}
 }
 
+func TestTaskStatusFromSnapshot(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, 4, 14, 16, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name                   string
+		currentStatus          Status
+		unresolvedDependencies bool
+		runs                   []Run
+		want                   Status
+	}{
+		{
+			name:          "canceled task stays canceled",
+			currentStatus: TaskStatusCanceled,
+			runs: []Run{{
+				Status: TaskRunStatusRunning,
+			}},
+			want: TaskStatusCanceled,
+		},
+		{
+			name:          "active run wins immediately",
+			currentStatus: TaskStatusReady,
+			runs: []Run{
+				{Status: TaskRunStatusCompleted, Attempt: 1, QueuedAt: base},
+				{Status: TaskRunStatusRunning, Attempt: 2, QueuedAt: base.Add(time.Second)},
+			},
+			want: TaskStatusInProgress,
+		},
+		{
+			name:                   "queued run with unresolved dependency is blocked",
+			currentStatus:          TaskStatusReady,
+			unresolvedDependencies: true,
+			runs: []Run{{
+				Status: TaskRunStatusQueued,
+			}},
+			want: TaskStatusBlocked,
+		},
+		{
+			name:          "queued run without unresolved dependency is ready",
+			currentStatus: TaskStatusBlocked,
+			runs: []Run{{
+				Status: TaskRunStatusClaimed,
+			}},
+			want: TaskStatusReady,
+		},
+		{
+			name:          "latest completed terminal run wins",
+			currentStatus: TaskStatusReady,
+			runs: []Run{
+				{ID: "run-1", Status: TaskRunStatusFailed, Attempt: 1, QueuedAt: base},
+				{ID: "run-2", Status: TaskRunStatusCompleted, Attempt: 2, QueuedAt: base.Add(time.Second)},
+			},
+			want: TaskStatusCompleted,
+		},
+		{
+			name:                   "no runs with unresolved dependency is blocked",
+			currentStatus:          TaskStatusReady,
+			unresolvedDependencies: true,
+			want:                   TaskStatusBlocked,
+		},
+		{
+			name:          "terminal status with no runs is preserved",
+			currentStatus: TaskStatusFailed,
+			want:          TaskStatusFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := taskStatusFromSnapshot(tt.currentStatus, tt.unresolvedDependencies, tt.runs); got != tt.want {
+				t.Fatalf("taskStatusFromSnapshot() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeRawJSONAndSameRawJSONTrimWhitespace(t *testing.T) {
+	t.Parallel()
+
+	trimmed := json.RawMessage(`{"ok":true}`)
+	spaced := json.RawMessage(" \n\t" + string(trimmed) + "\n\t ")
+
+	if got := normalizeRawJSON(nil); got != nil {
+		t.Fatalf("normalizeRawJSON(nil) = %q, want nil", string(got))
+	}
+	if got := normalizeRawJSON(json.RawMessage(" \n\t ")); got != nil {
+		t.Fatalf("normalizeRawJSON(blank) = %q, want nil", string(got))
+	}
+	if got := normalizeRawJSON(spaced); string(got) != string(trimmed) {
+		t.Fatalf("normalizeRawJSON(spaced) = %q, want %q", string(got), string(trimmed))
+	}
+	if !sameRawJSON(spaced, trimmed) {
+		t.Fatal("sameRawJSON(spaced, trimmed) = false, want true")
+	}
+	if sameRawJSON(trimmed, json.RawMessage(`{"ok":false}`)) {
+		t.Fatal("sameRawJSON(trimmed, changed) = true, want false")
+	}
+}
+
 func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 	t.Parallel()
 

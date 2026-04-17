@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -89,6 +90,90 @@ func TestDriverOptionsAndNormalization(t *testing.T) {
 	) {
 		t.Fatalf("normalizeStartOpts() additional dirs = %#v, want %#v", got, want)
 	}
+}
+
+func TestFallbackPermissionEventRaw(t *testing.T) {
+	t.Parallel()
+
+	raw := fallbackPermissionEventRaw("request-1", decisionRejectOnce)
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(fallbackPermissionEventRaw()) error = %v", err)
+	}
+	if got := decoded["request_id"]; got != "request-1" {
+		t.Fatalf("request_id = %v, want request-1", got)
+	}
+	if got := decoded["decision"]; got != string(decisionRejectOnce) {
+		t.Fatalf("decision = %v, want %q", got, decisionRejectOnce)
+	}
+
+	pending := fallbackPermissionEventRaw("request-2", decisionPending)
+	decoded = nil
+	if err := json.Unmarshal(pending, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(pending fallbackPermissionEventRaw()) error = %v", err)
+	}
+	if _, ok := decoded["decision"]; ok {
+		t.Fatalf("pending fallback included decision field: %#v", decoded)
+	}
+}
+
+func TestWatchTerminalShutdown(t *testing.T) {
+	t.Parallel()
+
+	t.Run("exits when terminal finishes first", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		terminalDone := make(chan struct{})
+		shutdownCalls := make(chan struct{}, 1)
+		watcherDone := watchTerminalShutdown(ctx, terminalDone, func() {
+			shutdownCalls <- struct{}{}
+		})
+
+		close(terminalDone)
+
+		select {
+		case <-watcherDone:
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("watchTerminalShutdown() did not exit after terminal completion")
+		}
+
+		cancel()
+		select {
+		case <-shutdownCalls:
+			t.Fatal("watchTerminalShutdown() called shutdown after terminal completion")
+		case <-time.After(20 * time.Millisecond):
+		}
+	})
+
+	t.Run("runs shutdown when manager context cancels first", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		terminalDone := make(chan struct{})
+		shutdownCalls := make(chan struct{}, 1)
+		watcherDone := watchTerminalShutdown(ctx, terminalDone, func() {
+			shutdownCalls <- struct{}{}
+		})
+
+		cancel()
+
+		select {
+		case <-shutdownCalls:
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("watchTerminalShutdown() did not run shutdown callback after context cancellation")
+		}
+
+		select {
+		case <-watcherDone:
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("watchTerminalShutdown() did not exit after context cancellation")
+		}
+	})
 }
 
 func TestNormalizeStartOptsRejectsInvalidAdditionalDirs(t *testing.T) {
@@ -927,6 +1012,42 @@ func TestHelperUtilities(t *testing.T) {
 	}
 	if chooseString(nil, acpsdk.Ptr("usd")) == nil {
 		t.Fatal("chooseString(nil, fallback) = nil, want fallback")
+	}
+}
+
+func TestTrimUTF8LeadingBytesPreservesTrailingPartialRune(t *testing.T) {
+	t.Parallel()
+
+	input := append([]byte("hello"), 0xE2)
+	got := trimUTF8LeadingBytes(append([]byte(nil), input...))
+	if !bytes.Equal(got, input) {
+		t.Fatalf("trimUTF8LeadingBytes() = %v, want %v", got, input)
+	}
+}
+
+func TestManagedTerminalAppendOutputOverflowPreservesTrailingPartialRune(t *testing.T) {
+	t.Parallel()
+
+	term := &managedTerminal{
+		output: bytes.Repeat([]byte("a"), defaultTerminalOutputLimit),
+	}
+
+	term.appendOutput([]byte{0xE2})
+
+	if !term.truncated {
+		t.Fatal("appendOutput() did not mark output as truncated")
+	}
+	if len(term.output) != defaultTerminalOutputLimit {
+		t.Fatalf("len(term.output) = %d, want %d", len(term.output), defaultTerminalOutputLimit)
+	}
+	if cap(term.output) > defaultTerminalOutputLimit {
+		t.Fatalf("cap(term.output) = %d, want <= %d", cap(term.output), defaultTerminalOutputLimit)
+	}
+	if term.output[len(term.output)-1] != 0xE2 {
+		t.Fatalf("last output byte = 0x%x, want 0xE2", term.output[len(term.output)-1])
+	}
+	if term.output[0] != 'a' {
+		t.Fatalf("first output byte = 0x%x, want 'a'", term.output[0])
 	}
 }
 

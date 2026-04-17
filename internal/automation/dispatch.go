@@ -968,6 +968,13 @@ func (r DispatchRequest) prompt() (string, error) {
 }
 
 func renderTriggerPrompt(raw string, envelope *ActivationEnvelope) (string, error) {
+	if envelope == nil {
+		return "", errors.New("automation: activation envelope is required")
+	}
+	if !strings.Contains(raw, "{{") && !strings.Contains(raw, "}}") {
+		return strings.TrimSpace(raw), nil
+	}
+
 	tmpl, err := ParseTriggerPromptTemplate(raw)
 	if err != nil {
 		return "", err

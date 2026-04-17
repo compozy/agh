@@ -136,6 +136,70 @@ func TestBundleServiceReconcileLoadsBundleResourcesOncePerRun(t *testing.T) {
 	}
 }
 
+func TestBundleServiceListActivationsLoadsBundleResourcesOncePerRun(t *testing.T) {
+	t.Parallel()
+
+	ext := newMarketingExtension()
+	store := &countingBundleStore{memoryStore: newMemoryStore()}
+	store.bundles = []resources.Record[BundleResourceSpec]{{
+		Kind:    BundleResourceKind,
+		ID:      BundleResourceID(ext.Info.Name, ext.Bundles[0].Name),
+		Version: 11,
+		Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Spec: BundleResourceSpec{
+			ExtensionName:              ext.Info.Name,
+			Bundle:                     ext.Bundles[0],
+			OwnerBridgePlatform:        ext.Manifest.Bridge.Platform,
+			OwnerProvidesBridgeAdapter: true,
+		},
+	}}
+	firstID := ActivationResourceID("marketing-team", "marketing", "default", ScopeWorkspace, "ws-1")
+	secondID := ActivationResourceID("marketing-team", "marketing", "default", ScopeWorkspace, "ws-2")
+	store.activations[firstID] = Activation{
+		ID:            firstID,
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeWorkspace,
+		WorkspaceID:   "ws-1",
+	}
+	store.activations[secondID] = Activation{
+		ID:            secondID,
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeWorkspace,
+		WorkspaceID:   "ws-2",
+	}
+
+	service := NewService(
+		store,
+		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: "marketing-team"}}},
+		func(name string) (*extensionpkg.Extension, error) {
+			if name != "marketing-team" {
+				return nil, extensionpkg.ErrExtensionNotFound
+			}
+			return ext, nil
+		},
+		WithConfiguredDefaultChannel("default"),
+		WithLogger(discardBundleTestLogger()),
+		WithNow(func() time.Time {
+			return time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+		}),
+	)
+
+	listed, err := service.ListActivations(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ListActivations() error = %v", err)
+	}
+	if got, want := len(listed), 2; got != want {
+		t.Fatalf("len(ListActivations()) = %d, want %d", got, want)
+	}
+	if got, want := store.listBundleResourcesCalls, 1; got != want {
+		t.Fatalf("ListBundleResources() calls = %d, want %d", got, want)
+	}
+}
+
 type nonBundleActivationPlan struct{}
 
 func (nonBundleActivationPlan) Kind() resources.ResourceKind {

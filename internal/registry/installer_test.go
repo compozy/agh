@@ -551,6 +551,47 @@ func TestComputeInstallChecksumChangesWhenRegularFileChanges(t *testing.T) {
 	}
 }
 
+func TestComputeInstallChecksumStableAcrossCreationOrder(t *testing.T) {
+	t.Parallel()
+
+	firstRoot := t.TempDir()
+	secondRoot := t.TempDir()
+
+	populate := func(root string, names []string) {
+		t.Helper()
+		for _, name := range names {
+			writeTestFile(t, filepath.Join(root, name), "payload-"+name)
+		}
+	}
+
+	populate(firstRoot, []string{
+		filepath.Join("zeta", "three.txt"),
+		filepath.Join("alpha", "one.txt"),
+		filepath.Join("beta", "two.txt"),
+	})
+	populate(secondRoot, []string{
+		filepath.Join("beta", "two.txt"),
+		filepath.Join("zeta", "three.txt"),
+		filepath.Join("alpha", "one.txt"),
+	})
+
+	first, err := computeInstallChecksum(firstRoot)
+	if err != nil {
+		t.Fatalf("computeInstallChecksum(firstRoot) error = %v", err)
+	}
+	second, err := computeInstallChecksum(secondRoot)
+	if err != nil {
+		t.Fatalf("computeInstallChecksum(secondRoot) error = %v", err)
+	}
+	if first != second {
+		t.Fatalf(
+			"computeInstallChecksum() = %q and %q for identical trees with different creation order, want stable checksum",
+			first,
+			second,
+		)
+	}
+}
+
 func TestInstallerHelperClosers(t *testing.T) {
 	t.Parallel()
 

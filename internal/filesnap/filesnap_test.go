@@ -49,10 +49,7 @@ func TestEqual(t *testing.T) {
 	t.Run("Should report equal maps as equal", func(t *testing.T) {
 		t.Parallel()
 
-		left := map[string]Snapshot{
-			"a": {ModTime: modTime, Size: 1},
-			"b": {ModTime: modTime.Add(time.Second), Size: 2},
-		}
+		left := equalTestSnapshots(modTime)
 		if !Equal(left, Clone(left)) {
 			t.Fatal("Equal(clone) = false, want true")
 		}
@@ -61,22 +58,29 @@ func TestEqual(t *testing.T) {
 	t.Run("Should reject maps with different sizes", func(t *testing.T) {
 		t.Parallel()
 
-		left := map[string]Snapshot{
-			"a": {ModTime: modTime, Size: 1},
-			"b": {ModTime: modTime.Add(time.Second), Size: 2},
-		}
+		left := equalTestSnapshots(modTime)
 		if Equal(left, map[string]Snapshot{"a": left["a"]}) {
 			t.Fatal("Equal(different sizes) = true, want false")
+		}
+	})
+
+	t.Run("Should reject maps with different keys", func(t *testing.T) {
+		t.Parallel()
+
+		left := equalTestSnapshots(modTime)
+		right := map[string]Snapshot{
+			"b": left["b"],
+			"c": left["a"],
+		}
+		if Equal(left, right) {
+			t.Fatal("Equal(different keys) = true, want false")
 		}
 	})
 
 	t.Run("Should reject maps with different snapshot values", func(t *testing.T) {
 		t.Parallel()
 
-		left := map[string]Snapshot{
-			"a": {ModTime: modTime, Size: 1},
-			"b": {ModTime: modTime.Add(time.Second), Size: 2},
-		}
+		left := equalTestSnapshots(modTime)
 		right := Clone(left)
 		right["b"] = Snapshot{ModTime: modTime.Add(2 * time.Second), Size: 2}
 		if Equal(left, right) {
@@ -115,4 +119,11 @@ func TestCloneReturnsIndependentCopy(t *testing.T) {
 			t.Fatalf("Clone(nil) = %#v, want empty map", got)
 		}
 	})
+}
+
+func equalTestSnapshots(modTime time.Time) map[string]Snapshot {
+	return map[string]Snapshot{
+		"a": {ModTime: modTime, Size: 1},
+		"b": {ModTime: modTime.Add(time.Second), Size: 2},
+	}
 }

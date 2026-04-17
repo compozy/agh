@@ -79,6 +79,80 @@ func TestPipelineExecuteSequentialComposition(t *testing.T) {
 	}
 }
 
+func TestPipelineExecuteSortsUnorderedHooks(t *testing.T) {
+	t.Parallel()
+
+	seen := make([]string, 0, 2)
+	pipe := pipeline[pipelineTestPayload, pipelineTestPatch]{
+		event: HookSessionPreCreate,
+		hooks: func(pipelineTestPayload) []*ResolvedHook {
+			return []*ResolvedHook{
+				{
+					RegisteredHook: RegisteredHook{
+						Name:     "hook-b",
+						Event:    HookSessionPreCreate,
+						Source:   HookSourceConfig,
+						Mode:     HookModeSync,
+						Priority: 10,
+						Executor: NewTypedNativeExecutor(
+							func(_ context.Context, _ RegisteredHook, payload pipelineTestPayload) (pipelineTestPatch, error) {
+								seen = append(seen, payload.Value)
+								return pipelineTestPatch{Append: "B"}, nil
+							},
+						),
+					},
+					Decl: HookDecl{
+						Name:         "hook-b",
+						Event:        HookSessionPreCreate,
+						Source:       HookSourceConfig,
+						Mode:         HookModeSync,
+						Priority:     10,
+						ExecutorKind: HookExecutorNative,
+					},
+				},
+				{
+					RegisteredHook: RegisteredHook{
+						Name:     "hook-a",
+						Event:    HookSessionPreCreate,
+						Source:   HookSourceNative,
+						Mode:     HookModeSync,
+						Priority: 100,
+						Executor: NewTypedNativeExecutor(
+							func(_ context.Context, _ RegisteredHook, payload pipelineTestPayload) (pipelineTestPatch, error) {
+								seen = append(seen, payload.Value)
+								return pipelineTestPatch{Append: "A"}, nil
+							},
+						),
+					},
+					Decl: HookDecl{
+						Name:         "hook-a",
+						Event:        HookSessionPreCreate,
+						Source:       HookSourceNative,
+						Mode:         HookModeSync,
+						Priority:     100,
+						ExecutorKind: HookExecutorNative,
+					},
+				},
+			}
+		},
+		apply:  applyPipelineTestPatch,
+		encode: failPipelineEncode(t),
+		decode: failPipelineDecode(t),
+		denied: func(patch pipelineTestPatch) bool { return patch.Deny },
+	}
+
+	result, err := pipe.execute(t.Context(), pipelineTestPayload{})
+	if err != nil {
+		t.Fatalf("execute() error = %v, want nil", err)
+	}
+	if result.Value != "AB" {
+		t.Fatalf("result.Value = %q, want %q", result.Value, "AB")
+	}
+	if got := strings.Join(seen, ","); got != ",A" {
+		t.Fatalf("payload sequence = %q, want %q", got, ",A")
+	}
+}
+
 func TestPipelineExecuteShortCircuitsOnExplicitDeny(t *testing.T) {
 	t.Parallel()
 

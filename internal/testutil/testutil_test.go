@@ -34,6 +34,27 @@ func TestContextIsCanceledOnCleanup(t *testing.T) {
 	}
 }
 
+func TestContextCreatedDuringCleanupRemainsUsable(t *testing.T) {
+	t.Parallel()
+
+	errCh := make(chan error, 1)
+
+	t.Run("subtest", func(t *testing.T) {
+		t.Cleanup(func() {
+			ctx := Context(t)
+			if err := ctx.Err(); err != nil {
+				errCh <- fmt.Errorf("Context() err during cleanup = %v, want nil", err)
+				return
+			}
+			errCh <- nil
+		})
+	})
+
+	if err := <-errCh; err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestEqualStringSlices(t *testing.T) {
 	t.Parallel()
 

@@ -217,3 +217,29 @@ func TestWebhookLimiterConstructorsHandleDisabledConfig(t *testing.T) {
 		t.Fatalf("NewInFlightLimiter(0) = %#v, want nil", limiter)
 	}
 }
+
+func TestFixedWindowRateLimiterEvictsExpiredKeys(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+	limiter := NewFixedWindowRateLimiter(1, time.Minute)
+	if limiter == nil {
+		t.Fatal("NewFixedWindowRateLimiter() = nil, want non-nil")
+	}
+	limiter.now = func() time.Time { return now }
+
+	if !limiter.Allow("first-client") {
+		t.Fatal("Allow(first-client) = false, want true")
+	}
+	now = now.Add(2 * time.Minute)
+	if !limiter.Allow("second-client") {
+		t.Fatal("Allow(second-client) = false, want true")
+	}
+
+	if _, ok := limiter.counts["first-client"]; ok {
+		t.Fatal("expired limiter key retained after window rollover")
+	}
+	if got, want := len(limiter.counts), 1; got != want {
+		t.Fatalf("len(limiter.counts) = %d, want %d", got, want)
+	}
+}

@@ -387,34 +387,18 @@ func NormalizeDeliveryDefaultsJSON(raw json.RawMessage) (json.RawMessage, error)
 		return nil, fmt.Errorf("bridges: bridge instance delivery defaults must be a JSON object or null: %w", err)
 	}
 
-	defaults := deliveryTargetDefaults{}
 	for key, value := range fields {
 		text, fieldErr := requireDeliveryDefaultStringField(value, key)
 		if fieldErr != nil {
 			return nil, fieldErr
 		}
-		switch key {
-		case "peer_id":
-			defaults.PeerID = strings.TrimSpace(text)
-		case "thread_id":
-			defaults.ThreadID = strings.TrimSpace(text)
-		case "group_id":
-			defaults.GroupID = strings.TrimSpace(text)
-		case "mode":
-			defaults.Mode = DeliveryMode(text).Normalize()
-			if err := defaults.Mode.Validate(); err != nil {
+		if key == "mode" {
+			if err := DeliveryMode(text).Normalize().Validate(); err != nil {
 				return nil, err
 			}
-		default:
-			return nil, fmt.Errorf("bridges: bridge instance delivery defaults field %q is not supported", key)
 		}
 	}
-
-	defaults = defaults.normalize()
-	if defaults.ThreadID != "" && defaults.PeerID == "" && defaults.GroupID == "" {
-		return nil, errors.New("bridges: bridge instance delivery defaults thread_id requires peer_id or group_id")
-	}
-	return json.Marshal(defaults)
+	return normalized, nil
 }
 
 func requireDeliveryDefaultStringField(raw json.RawMessage, field string) (string, error) {

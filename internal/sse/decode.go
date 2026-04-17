@@ -13,6 +13,7 @@ import (
 )
 
 const maxLineBytes = 1024 * 1024
+const maxEventBytes = maxLineBytes
 
 // Event is one parsed server-sent event frame.
 type Event struct {
@@ -44,18 +45,21 @@ func Decode(ctx context.Context, body io.Reader, handler Handler) error {
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineBytes)
 
 	event := Event{}
-	dataLines := make([]string, 0, 4)
-	emit := func() error {
-		if event.ID == "" && event.Event == "" && len(dataLines) == 0 {
-			return nil
+	dataBuffer := make([]byte, 0, 256)
+	emit := func() (bool, error) {
+		if event.ID == "" && event.Event == "" && len(dataBuffer) == 0 {
+			return false, nil
 		}
-		if len(dataLines) > 0 {
-			event.Data = json.RawMessage(strings.Join(dataLines, "\n"))
+		if len(dataBuffer) > 0 {
+			event.Data = append(json.RawMessage(nil), dataBuffer...)
 		}
 		err := handler(event)
 		event = Event{}
-		dataLines = dataLines[:0]
-		return err
+		dataBuffer = dataBuffer[:0]
+		if errors.Is(err, ErrStop) {
+			return true, nil
+		}
+		return false, err
 	}
 
 	for scanner.Scan() {
@@ -63,10 +67,17 @@ func Decode(ctx context.Context, body io.Reader, handler Handler) error {
 			return err
 		}
 
-		shouldEmit := decodeLine(scanner.Text(), &event, &dataLines)
+		shouldEmit, err := decodeLine(scanner.Text(), &event, &dataBuffer)
+		if err != nil {
+			return err
+		}
 		if shouldEmit {
-			if err := handleDecodedEvent(emit()); err != nil {
+			stop, err := emit()
+			if err != nil {
 				return err
+			}
+			if stop {
+				return nil
 			}
 		}
 	}
@@ -74,42 +85,57 @@ func Decode(ctx context.Context, body io.Reader, handler Handler) error {
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("sse: read stream: %w", err)
 	}
-	if err := handleDecodedEvent(emit()); err != nil {
+	stop, err := emit()
+	if err != nil {
 		return err
+	}
+	if stop {
+		return nil
 	}
 	return nil
 }
 
-func decodeLine(line string, event *Event, dataLines *[]string) bool {
+func decodeLine(line string, event *Event, dataBuffer *[]byte) (bool, error) {
 	if line == "" {
-		return true
+		return true, nil
 	}
 	if strings.HasPrefix(line, ":") {
-		return false
+		return false, nil
 	}
 
 	field, value, found := strings.Cut(line, ":")
 	if !found {
-		return false
+		return false, nil
 	}
 
+	value = strings.TrimPrefix(value, " ")
 	switch field {
 	case "id":
-		event.ID = strings.TrimPrefix(value, " ")
+		event.ID = value
 	case "event":
-		event.Event = strings.TrimPrefix(value, " ")
+		event.Event = value
 	case "data":
-		*dataLines = append(*dataLines, strings.TrimPrefix(value, " "))
+		if err := appendDataLine(dataBuffer, value); err != nil {
+			return false, err
+		}
 	}
 
-	return false
+	return false, nil
 }
 
-func handleDecodedEvent(err error) error {
-	if errors.Is(err, ErrStop) {
-		return nil
+func appendDataLine(dataBuffer *[]byte, line string) error {
+	extraBytes := len(line)
+	if len(*dataBuffer) > 0 {
+		extraBytes++
 	}
-	return err
+	if len(*dataBuffer)+extraBytes > maxEventBytes {
+		return fmt.Errorf("sse: event exceeds %d bytes", maxEventBytes)
+	}
+	if len(*dataBuffer) > 0 {
+		*dataBuffer = append(*dataBuffer, '\n')
+	}
+	*dataBuffer = append(*dataBuffer, line...)
+	return nil
 }
 
 func readerIsNil(reader io.Reader) bool {

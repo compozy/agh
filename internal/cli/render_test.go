@@ -154,6 +154,16 @@ func TestFormatHelpers(t *testing.T) {
 	if got := renderToonObject("demo", []string{"id"}, []string{"value"}); !strings.Contains(got, "demo{id}:") {
 		t.Fatalf("renderToonObject() = %q, want TOON object", got)
 	}
+	if got := renderToonArray(
+		"demo",
+		[]string{"id", "text"},
+		[][]string{{"1", `hello, "world"`}},
+	); got != "demo[1]{id,text}:\n  1,\"hello, \\\"world\\\"\"" {
+		t.Fatalf("renderToonArray() = %q, want escaped TOON row", got)
+	}
+	if got := renderToonArray("demo", []string{"id"}, nil); got != "demo[0]{id}:\n  (empty)" {
+		t.Fatalf("renderToonArray() empty = %q, want empty marker", got)
+	}
 }
 
 func TestListBundleRendersJSONHumanAndToon(t *testing.T) {

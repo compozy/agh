@@ -1,10 +1,7 @@
 // Package version provides build metadata injected via ldflags.
 package version
 
-import (
-	"fmt"
-	"sync"
-)
+import "sync"
 
 // Values set at build time via -ldflags.
 var (
@@ -56,5 +53,5 @@ func OverrideVersionForTesting(current string) func() {
 
 // String returns a readable single-line build summary.
 func (i Info) String() string {
-	return fmt.Sprintf("%s (%s, %s)", i.Version, i.Commit, i.BuildDate)
+	return i.Version + " (" + i.Commit + ", " + i.BuildDate + ")"
 }

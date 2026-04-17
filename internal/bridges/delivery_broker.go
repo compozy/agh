@@ -34,6 +34,11 @@ type routeWorker struct {
 	wakeCh           chan struct{}
 }
 
+type turnIndexKey struct {
+	sessionID string
+	turnID    string
+}
+
 type activeDelivery struct {
 	deliveryID       string
 	sessionID        string
@@ -96,7 +101,7 @@ type Broker struct {
 	wg sync.WaitGroup
 
 	deliveries   map[string]*activeDelivery
-	turnIndex    map[string]string
+	turnIndex    map[turnIndexKey]string
 	sessionIndex map[string]map[string]struct{}
 	routes       map[string]*routeWorker
 	metrics      map[string]*instanceDeliveryMetrics
@@ -115,7 +120,7 @@ func NewBroker(transport DeliveryTransport, opts ...DeliveryBrokerOption) *Broke
 		requestTimeout: defaultDeliveryRequestTimeout,
 		lifecycleCtx:   context.Background(),
 		deliveries:     make(map[string]*activeDelivery),
-		turnIndex:      make(map[string]string),
+		turnIndex:      make(map[turnIndexKey]string),
 		sessionIndex:   make(map[string]map[string]struct{}),
 		routes:         make(map[string]*routeWorker),
 		metrics:        make(map[string]*instanceDeliveryMetrics),
@@ -247,7 +252,7 @@ func (b *Broker) RegisterPromptDelivery(
 	}
 
 	b.mu.Lock()
-	deliveryKey := turnLookupKey(normalized.SessionID, normalized.TurnID)
+	deliveryKey := newTurnIndexKey(normalized.SessionID, normalized.TurnID)
 	if existingID, ok := b.turnIndex[deliveryKey]; ok {
 		existing := b.deliveries[existingID]
 		b.mu.Unlock()
@@ -386,7 +391,7 @@ func (b *Broker) ProjectEvent(ctx context.Context, sessionID string, event Deliv
 	}
 
 	b.mu.Lock()
-	deliveryID, ok := b.turnIndex[turnLookupKey(sessionID, turnID)]
+	deliveryID, ok := b.turnIndex[newTurnIndexKey(sessionID, turnID)]
 	if !ok {
 		b.mu.Unlock()
 		return nil
@@ -970,7 +975,7 @@ func (b *Broker) removeDeliveryLocked(route *routeWorker, delivery *activeDelive
 		return
 	}
 	delete(b.deliveries, delivery.deliveryID)
-	delete(b.turnIndex, turnLookupKey(delivery.sessionID, delivery.turnID))
+	delete(b.turnIndex, newTurnIndexKey(delivery.sessionID, delivery.turnID))
 	if deliverySet := b.sessionIndex[delivery.sessionID]; deliverySet != nil {
 		delete(deliverySet, delivery.deliveryID)
 		if len(deliverySet) == 0 {
@@ -1117,8 +1122,11 @@ func (d *activeDelivery) hasQueuedItems() bool {
 	return d.queuedStart || d.queuedDelta || d.queuedTerminal || d.queuedResume
 }
 
-func turnLookupKey(sessionID string, turnID string) string {
-	return strings.TrimSpace(sessionID) + "\x00" + strings.TrimSpace(turnID)
+func newTurnIndexKey(sessionID string, turnID string) turnIndexKey {
+	return turnIndexKey{
+		sessionID: sessionID,
+		turnID:    turnID,
+	}
 }
 
 func newDeliveryID() string {

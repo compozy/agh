@@ -399,6 +399,28 @@ func TestMarshalAgentEventPreservesRawToolResultShape(t *testing.T) {
 	}
 }
 
+func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
+	t.Parallel()
+
+	result := buildToolResult("Read", false, "", json.RawMessage(`{
+		"stdout":"workspace\n",
+		"content":"workspace\n",
+		"structuredPatch":{"ops":[{"op":"replace","path":"/tmp/demo.txt"}]}
+	}`))
+	if result == nil {
+		t.Fatal("buildToolResult() = nil, want populated result")
+	}
+	if got := result.Stdout; got != "workspace\n" {
+		t.Fatalf("Stdout = %q, want %q", got, "workspace\n")
+	}
+	if got := result.Content; got != "workspace\n" {
+		t.Fatalf("Content = %q, want %q", got, "workspace\n")
+	}
+	if len(result.StructuredPatch) == 0 {
+		t.Fatal("StructuredPatch = empty, want preserved patch payload")
+	}
+}
+
 func TestUnmarshalAgentEventRoundTrip(t *testing.T) {
 	t.Parallel()
 

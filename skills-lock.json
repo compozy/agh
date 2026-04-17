@@ -646,6 +646,11 @@
             "sourceType": "github",
             "computedHash": "d5b85c8a332919e5d0e810fd4abd08d3661e9ac206f967915586ba103c796130"
         },
+        "security-review": {
+            "source": "getsentry/skills",
+            "sourceType": "github",
+            "computedHash": "ec9792f5fd065e020c48ab5a57707c83435c286c449ba98dfa726d7b1842c868"
+        },
         "sentry-cli": {
             "source": "pedronauck/skills",
             "sourceType": "github",

@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -91,6 +90,10 @@ type parsedAutomationTrigger struct {
 
 // Validate ensures the automation config is internally consistent.
 func (c AutomationConfig) Validate() error {
+	return c.validateWithEnv(processEnvLookup)
+}
+
+func (c AutomationConfig) validateWithEnv(lookup envLookup) error {
 	if strings.TrimSpace(c.Timezone) == "" {
 		return errors.New("automation.timezone is required")
 	}
@@ -110,7 +113,7 @@ func (c AutomationConfig) Validate() error {
 		}
 	}
 	for i, trigger := range c.Triggers {
-		if err := trigger.Validate(fmt.Sprintf("automation.triggers[%d]", i)); err != nil {
+		if err := trigger.validateWithEnv(fmt.Sprintf("automation.triggers[%d]", i), lookup); err != nil {
 			return err
 		}
 	}
@@ -163,6 +166,10 @@ func (j AutomationJob) Validate(path string) error {
 
 // Validate ensures the config-defined trigger is internally consistent before runtime resolution.
 func (t AutomationTrigger) Validate(path string) error {
+	return t.validateWithEnv(path, processEnvLookup)
+}
+
+func (t AutomationTrigger) validateWithEnv(path string, lookup envLookup) error {
 	if strings.TrimSpace(t.Name) == "" {
 		return errors.New(path + ".name is required")
 	}
@@ -201,7 +208,10 @@ func (t AutomationTrigger) Validate(path string) error {
 		if envName == "" {
 			return errors.New(path + ".webhook_secret_env is required when event is \"webhook\"")
 		}
-		secret, ok := os.LookupEnv(envName)
+		secret, ok := processEnvLookup(envName)
+		if lookup != nil {
+			secret, ok = lookup(envName)
+		}
 		if !ok || strings.TrimSpace(secret) == "" {
 			return fmt.Errorf(
 				"%s.webhook_secret_env must reference a non-empty environment variable: %q",

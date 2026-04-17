@@ -22,7 +22,7 @@ func (r *Resolver) Register(ctx context.Context, opts RegisterOptions) (Workspac
 
 	resolved, err := r.Resolve(ctx, ws.ID)
 	if err != nil {
-		deleteErr := r.store.DeleteWorkspace(ctx, ws.ID)
+		deleteErr := r.store.DeleteWorkspace(context.WithoutCancel(ctx), ws.ID)
 		if deleteErr != nil && !errors.Is(deleteErr, ErrWorkspaceNotFound) {
 			return Workspace{}, errors.Join(
 				err,

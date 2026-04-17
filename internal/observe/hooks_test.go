@@ -135,6 +135,22 @@ func TestObserverHookRunQueriesHandleMissingDBAndEvents(t *testing.T) {
 	}
 }
 
+func TestObserverHookRunQueriesRejectUnsafeSessionID(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	_, err := h.observer.QueryHookRuns(testutil.Context(t), store.HookRunQuery{
+		SessionID: "../escape",
+	})
+	if err == nil {
+		t.Fatal("QueryHookRuns(unsafe session id) error = nil, want non-nil")
+	}
+	if got := err.Error(); got != `observe: invalid session id "../escape"` {
+		t.Fatalf("QueryHookRuns(unsafe session id) error = %q, want invalid session id", got)
+	}
+}
+
 func TestObserverHookOptionsUseCustomSourcesAndStores(t *testing.T) {
 	t.Parallel()
 

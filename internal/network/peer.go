@@ -382,30 +382,25 @@ func (r *PeerRegistry) ListPeers(channel string, at time.Time) []PeerInfo {
 
 	r.expireRemotesLocked(at)
 	trimmedChannel := strings.TrimSpace(channel)
-	peers := make([]PeerInfo, 0, len(r.localsByID))
-	for _, local := range r.localsByID {
-		if trimmedChannel == "" || local.Channel == trimmedChannel {
-			peers = append(peers, peerInfoFromLocal(local))
-		}
+	if trimmedChannel != "" {
+		return listPeersForChannelLocked(r, trimmedChannel)
 	}
-	for currentChannel, entries := range r.remotesByChannel {
-		if trimmedChannel != "" && currentChannel != trimmedChannel {
-			continue
-		}
+
+	total := len(r.localsByID)
+	for _, entries := range r.remotesByChannel {
+		total += len(entries)
+	}
+
+	peers := make([]PeerInfo, 0, total)
+	for _, local := range r.localsByID {
+		peers = append(peers, peerInfoFromLocal(local))
+	}
+	for _, entries := range r.remotesByChannel {
 		for _, entry := range entries {
 			peers = append(peers, peerInfoFromRemote(entry))
 		}
 	}
-	sort.Slice(peers, func(i int, j int) bool {
-		if peers[i].Channel != peers[j].Channel {
-			return peers[i].Channel < peers[j].Channel
-		}
-		if peers[i].Local != peers[j].Local {
-			return peers[i].Local
-		}
-		return peers[i].PeerID < peers[j].PeerID
-	})
-
+	sortPeerInfos(peers)
 	return peers
 }
 
@@ -593,4 +588,38 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func listPeersForChannelLocked(r *PeerRegistry, channel string) []PeerInfo {
+	sessionIDs := r.localsByChannel[channel]
+	remoteEntries := r.remotesByChannel[channel]
+	if len(sessionIDs) == 0 && len(remoteEntries) == 0 {
+		return nil
+	}
+
+	peers := make([]PeerInfo, 0, len(sessionIDs)+len(remoteEntries))
+	for _, sessionID := range sessionIDs {
+		local, ok := r.localsByID[sessionID]
+		if !ok {
+			continue
+		}
+		peers = append(peers, peerInfoFromLocal(local))
+	}
+	for _, entry := range remoteEntries {
+		peers = append(peers, peerInfoFromRemote(entry))
+	}
+	sortPeerInfos(peers)
+	return peers
+}
+
+func sortPeerInfos(peers []PeerInfo) {
+	sort.Slice(peers, func(i int, j int) bool {
+		if peers[i].Channel != peers[j].Channel {
+			return peers[i].Channel < peers[j].Channel
+		}
+		if peers[i].Local != peers[j].Local {
+			return peers[i].Local
+		}
+		return peers[i].PeerID < peers[j].PeerID
+	})
 }

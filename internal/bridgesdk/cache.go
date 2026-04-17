@@ -78,7 +78,7 @@ func (c *InstanceCache) Snapshot() *subprocess.InitializeBridgeRuntime {
 	for _, id := range c.idsLocked() {
 		runtime.ManagedInstances = append(runtime.ManagedInstances, cloneManagedInstance(c.managed[id]))
 	}
-	return subprocess.CloneInitializeBridgeRuntime(runtime)
+	return runtime
 }
 
 // Get returns one managed instance snapshot by id.

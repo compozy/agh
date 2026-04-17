@@ -15,7 +15,7 @@ const legacyDreamAgentName = "claude"
 
 // LoadGlobalConfig loads only the user-global AGH config from the resolved home.
 func LoadGlobalConfig(homePaths HomePaths) (Config, error) {
-	return loadWithHome(homePaths, "", false)
+	return loadWithHome(homePaths, "", false, processEnvLookup)
 }
 
 // ResolveAgentName resolves an explicit session agent name or falls back to config defaults.

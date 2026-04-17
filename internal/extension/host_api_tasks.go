@@ -15,17 +15,12 @@ import (
 )
 
 func (h *HostAPIHandler) handleTasks(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITasksParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -42,11 +37,6 @@ func (h *HostAPIHandler) handleTasks(ctx context.Context, raw json.RawMessage) (
 }
 
 func (h *HostAPIHandler) handleTasksGet(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskTargetParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -56,7 +46,7 @@ func (h *HostAPIHandler) handleTasksGet(ctx context.Context, raw json.RawMessage
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -69,17 +59,12 @@ func (h *HostAPIHandler) handleTasksGet(ctx context.Context, raw json.RawMessage
 }
 
 func (h *HostAPIHandler) handleTasksCreate(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskCreateParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -96,11 +81,6 @@ func (h *HostAPIHandler) handleTasksCreate(ctx context.Context, raw json.RawMess
 }
 
 func (h *HostAPIHandler) handleTasksUpdate(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskUpdateParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -113,7 +93,7 @@ func (h *HostAPIHandler) handleTasksUpdate(ctx context.Context, raw json.RawMess
 		return nil, invalidParamsRPCError(errors.New("task update must include at least one mutable field"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -130,11 +110,6 @@ func (h *HostAPIHandler) handleTasksUpdate(ctx context.Context, raw json.RawMess
 }
 
 func (h *HostAPIHandler) handleTasksCancel(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskCancelParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -144,7 +119,7 @@ func (h *HostAPIHandler) handleTasksCancel(ctx context.Context, raw json.RawMess
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -161,11 +136,6 @@ func (h *HostAPIHandler) handleTasksCancel(ctx context.Context, raw json.RawMess
 }
 
 func (h *HostAPIHandler) handleTasksRuns(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskRunsParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -175,7 +145,7 @@ func (h *HostAPIHandler) handleTasksRuns(ctx context.Context, raw json.RawMessag
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -192,11 +162,6 @@ func (h *HostAPIHandler) handleTasksRuns(ctx context.Context, raw json.RawMessag
 }
 
 func (h *HostAPIHandler) handleTasksRunsEnqueue(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskRunEnqueueParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -206,7 +171,7 @@ func (h *HostAPIHandler) handleTasksRunsEnqueue(ctx context.Context, raw json.Ra
 		return nil, invalidParamsRPCError(errors.New("task_id is required"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -223,11 +188,6 @@ func (h *HostAPIHandler) handleTasksRunsEnqueue(ctx context.Context, raw json.Ra
 }
 
 func (h *HostAPIHandler) handleTasksRunsClaim(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskRunClaimParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -237,7 +197,7 @@ func (h *HostAPIHandler) handleTasksRunsClaim(ctx context.Context, raw json.RawM
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -254,11 +214,6 @@ func (h *HostAPIHandler) handleTasksRunsClaim(ctx context.Context, raw json.RawM
 }
 
 func (h *HostAPIHandler) handleTasksRunsStart(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskRunStartParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -268,7 +223,7 @@ func (h *HostAPIHandler) handleTasksRunsStart(ctx context.Context, raw json.RawM
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -285,11 +240,6 @@ func (h *HostAPIHandler) handleTasksRunsStart(ctx context.Context, raw json.RawM
 }
 
 func (h *HostAPIHandler) handleTasksRunsAttachSession(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskRunAttachSessionParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -299,7 +249,7 @@ func (h *HostAPIHandler) handleTasksRunsAttachSession(ctx context.Context, raw j
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -316,11 +266,6 @@ func (h *HostAPIHandler) handleTasksRunsAttachSession(ctx context.Context, raw j
 }
 
 func (h *HostAPIHandler) handleTasksRunsComplete(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskRunCompleteParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -330,7 +275,7 @@ func (h *HostAPIHandler) handleTasksRunsComplete(ctx context.Context, raw json.R
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -347,11 +292,6 @@ func (h *HostAPIHandler) handleTasksRunsComplete(ctx context.Context, raw json.R
 }
 
 func (h *HostAPIHandler) handleTasksRunsFail(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskRunFailParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -361,7 +301,7 @@ func (h *HostAPIHandler) handleTasksRunsFail(ctx context.Context, raw json.RawMe
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -378,11 +318,6 @@ func (h *HostAPIHandler) handleTasksRunsFail(ctx context.Context, raw json.RawMe
 }
 
 func (h *HostAPIHandler) handleTasksRunsCancel(ctx context.Context, raw json.RawMessage) (any, error) {
-	manager, err := h.taskManager()
-	if err != nil {
-		return nil, err
-	}
-
 	var params hostAPITaskRunCancelParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
@@ -392,7 +327,7 @@ func (h *HostAPIHandler) handleTasksRunsCancel(ctx context.Context, raw json.Raw
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	actor, err := h.taskActorContext(ctx)
+	manager, actor, err := h.taskManagerAndActor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -416,6 +351,18 @@ func (h *HostAPIHandler) taskManager() (hostAPITaskManager, error) {
 		return nil, errors.New("extension: task manager is not configured")
 	}
 	return h.tasks, nil
+}
+
+func (h *HostAPIHandler) taskManagerAndActor(ctx context.Context) (hostAPITaskManager, taskpkg.ActorContext, error) {
+	manager, err := h.taskManager()
+	if err != nil {
+		return nil, taskpkg.ActorContext{}, err
+	}
+	actor, err := h.taskActorContext(ctx)
+	if err != nil {
+		return nil, taskpkg.ActorContext{}, err
+	}
+	return manager, actor, nil
 }
 
 func (h *HostAPIHandler) taskActorContext(ctx context.Context) (taskpkg.ActorContext, error) {

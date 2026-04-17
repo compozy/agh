@@ -193,6 +193,45 @@ func TestBuildConformanceMatrixAggregatesTargetsPerProvider(t *testing.T) {
 	}
 }
 
+func TestBuildConformanceMatrixDoesNotMergeDistinctPipeSeparatedKeys(t *testing.T) {
+	matrix := BuildConformanceMatrix(
+		ProviderConformanceSummary{
+			Provider: "github|enterprise",
+			Platform: "cloud",
+			Targets:  []CoverageTarget{CoverageTargetRestartRecovery},
+			ManagedInstances: []ManagedInstanceOutcome{{
+				InstanceID:  "brg-ghe-cloud",
+				FinalStatus: bridgepkg.BridgeStatusReady,
+			}},
+		},
+		ProviderConformanceSummary{
+			Provider: "github",
+			Platform: "enterprise|cloud",
+			Targets:  []CoverageTarget{CoverageTargetAuthDegradation},
+			ManagedInstances: []ManagedInstanceOutcome{{
+				InstanceID:  "brg-github-enterprise-cloud",
+				FinalStatus: bridgepkg.BridgeStatusAuthRequired,
+			}},
+		},
+	)
+
+	if got, want := len(matrix), 2; got != want {
+		t.Fatalf("len(matrix) = %d, want %d", got, want)
+	}
+	if got, want := matrix[0].Provider, "github"; got != want {
+		t.Fatalf("matrix[0].Provider = %q, want %q", got, want)
+	}
+	if got, want := matrix[0].Platform, "enterprise|cloud"; got != want {
+		t.Fatalf("matrix[0].Platform = %q, want %q", got, want)
+	}
+	if got, want := matrix[1].Provider, "github|enterprise"; got != want {
+		t.Fatalf("matrix[1].Provider = %q, want %q", got, want)
+	}
+	if got, want := matrix[1].Platform, "cloud"; got != want {
+		t.Fatalf("matrix[1].Platform = %q, want %q", got, want)
+	}
+}
+
 func TestValidateConformanceMatrixRejectsMissingTargetsAndInsufficientMultiInstanceCoverage(t *testing.T) {
 	err := ValidateConformanceMatrix([]ProviderConformanceSummary{{
 		Provider: "github",

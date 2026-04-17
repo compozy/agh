@@ -790,6 +790,54 @@ func TestProcess_CreatesOutputDir(t *testing.T) {
 	}
 }
 
+func TestProcessRejectsNonManagedOutputDir(t *testing.T) {
+	t.Parallel()
+
+	srcDir := t.TempDir()
+	dstDir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(srcDir, "agh.md"), []byte("## agh\n\nAGH agent OS\n"), 0o644); err != nil {
+		t.Fatalf("write source file: %v", err)
+	}
+
+	sentinelPath := filepath.Join(dstDir, "notes.txt")
+	const sentinelBody = "do not delete"
+	if err := os.WriteFile(sentinelPath, []byte(sentinelBody), 0o600); err != nil {
+		t.Fatalf("write sentinel: %v", err)
+	}
+
+	err := Process(context.Background(), srcDir, dstDir)
+	if err == nil || !strings.Contains(err.Error(), "refusing to clean non-empty unmanaged output dir") {
+		t.Fatalf("Process() error = %v, want unmanaged output-dir refusal", err)
+	}
+
+	got, readErr := os.ReadFile(sentinelPath)
+	if readErr != nil {
+		t.Fatalf("sentinel should remain after refusal: %v", readErr)
+	}
+	if string(got) != sentinelBody {
+		t.Fatalf("sentinel content changed = %q, want %q", got, sentinelBody)
+	}
+}
+
+func TestProcessAllowsRerunIntoGeneratedOutputDir(t *testing.T) {
+	t.Parallel()
+
+	srcDir := t.TempDir()
+	dstDir := filepath.Join(t.TempDir(), "output")
+	content := "## agh\n\nAGH agent OS\n"
+	if err := os.WriteFile(filepath.Join(srcDir, "agh.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write source file: %v", err)
+	}
+
+	if err := Process(context.Background(), srcDir, dstDir); err != nil {
+		t.Fatalf("initial Process() error = %v", err)
+	}
+	if err := Process(context.Background(), srcDir, dstDir); err != nil {
+		t.Fatalf("rerun Process() error = %v", err)
+	}
+}
+
 func TestProcess_StopsWhenContextCanceled(t *testing.T) {
 	t.Parallel()
 

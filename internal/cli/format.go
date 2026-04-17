@@ -199,31 +199,42 @@ func renderHumanBlocks(blocks ...string) string {
 }
 
 func renderToonObject(name string, fields []string, values []string) string {
-	lines := []string{
-		fmt.Sprintf("%s{%s}:", name, strings.Join(fields, ",")),
-		"  " + strings.Join(renderToonValues(values), ","),
-	}
-	return strings.Join(lines, "\n")
+	var builder strings.Builder
+	builder.WriteString(name)
+	builder.WriteByte('{')
+	builder.WriteString(strings.Join(fields, ","))
+	builder.WriteString("}:\n  ")
+	writeToonValues(&builder, values)
+	return builder.String()
 }
 
 func renderToonArray(name string, fields []string, rows [][]string) string {
-	lines := []string{fmt.Sprintf("%s[%d]{%s}:", name, len(rows), strings.Join(fields, ","))}
+	var builder strings.Builder
+	builder.WriteString(name)
+	builder.WriteByte('[')
+	builder.WriteString(strconv.Itoa(len(rows)))
+	builder.WriteByte(']')
+	builder.WriteByte('{')
+	builder.WriteString(strings.Join(fields, ","))
+	builder.WriteString("}:")
 	if len(rows) == 0 {
-		lines = append(lines, "  (empty)")
-		return strings.Join(lines, "\n")
+		builder.WriteString("\n  (empty)")
+		return builder.String()
 	}
 	for _, row := range rows {
-		lines = append(lines, "  "+strings.Join(renderToonValues(row), ","))
+		builder.WriteString("\n  ")
+		writeToonValues(&builder, row)
 	}
-	return strings.Join(lines, "\n")
+	return builder.String()
 }
 
-func renderToonValues(values []string) []string {
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		out = append(out, toonValue(value))
+func writeToonValues(builder *strings.Builder, values []string) {
+	for i, value := range values {
+		if i > 0 {
+			builder.WriteByte(',')
+		}
+		builder.WriteString(toonValue(value))
 	}
-	return out
 }
 
 func toonValue(value string) string {

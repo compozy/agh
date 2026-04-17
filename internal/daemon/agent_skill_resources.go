@@ -180,12 +180,69 @@ func (c *resourceAgentCatalog) ResolveAgent(
 	if c == nil || c.catalog == nil {
 		return resolveAgentFromWorkspaceSnapshot(target, resolved)
 	}
-	for _, agent := range c.agentsForWorkspace(resolved) {
-		if strings.TrimSpace(agent.Name) == target {
-			return cloneAgentDef(agent), nil
-		}
+	if agent, ok := c.lookupAgent(target, resolved); ok {
+		return agent, nil
+	}
+	if resolved != nil {
+		return resolveAgentFromWorkspaceSnapshot(target, resolved)
 	}
 	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
+}
+
+func (c *resourceAgentCatalog) lookupAgent(
+	target string,
+	resolved *workspacepkg.ResolvedWorkspace,
+) (aghconfig.AgentDef, bool) {
+	if c == nil || c.catalog == nil {
+		return aghconfig.AgentDef{}, false
+	}
+
+	workspaceID := ""
+	if resolved != nil {
+		workspaceID = strings.TrimSpace(resolved.ID)
+	}
+
+	var (
+		globalKey      string
+		globalAgent    aghconfig.AgentDef
+		globalFound    bool
+		workspaceKey   string
+		workspaceAgent aghconfig.AgentDef
+		workspaceFound bool
+	)
+
+	for _, record := range c.catalog.Snapshot() {
+		if strings.TrimSpace(record.Spec.Name) != target {
+			continue
+		}
+
+		sortKey := agentRecordSortKey(record)
+		switch record.Scope.Kind.Normalize() {
+		case resources.ResourceScopeKindGlobal:
+			if !globalFound || sortKey > globalKey {
+				globalKey = sortKey
+				globalAgent = cloneAgentDef(record.Spec)
+				globalFound = true
+			}
+		case resources.ResourceScopeKindWorkspace:
+			if workspaceID == "" || strings.TrimSpace(record.Scope.ID) != workspaceID {
+				continue
+			}
+			if !workspaceFound || sortKey > workspaceKey {
+				workspaceKey = sortKey
+				workspaceAgent = cloneAgentDef(record.Spec)
+				workspaceFound = true
+			}
+		}
+	}
+
+	if workspaceFound {
+		return workspaceAgent, true
+	}
+	if globalFound {
+		return globalAgent, true
+	}
+	return aghconfig.AgentDef{}, false
 }
 
 func resolveAgentFromWorkspaceSnapshot(

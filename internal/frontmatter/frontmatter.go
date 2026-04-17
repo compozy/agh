@@ -3,12 +3,15 @@ package frontmatter
 import (
 	"bytes"
 	"errors"
-	"strings"
 )
 
 const delimiter = "---"
 
 var (
+	delimiterBytes = []byte(delimiter)
+	crlfBytes      = []byte("\r\n")
+	lfBytes        = []byte("\n")
+
 	// ErrMissing reports content that does not start with a valid YAML frontmatter block.
 	ErrMissing = errors.New("frontmatter: missing YAML frontmatter")
 	// ErrUnterminated reports content whose opening delimiter has no matching closing delimiter.
@@ -24,12 +27,12 @@ type Parts struct {
 // Split normalizes line endings and separates YAML frontmatter from the body.
 func Split(content []byte) (Parts, error) {
 	normalized := normalizeLineEndings(content)
-	if !bytes.HasPrefix(normalized, []byte(delimiter)) {
+	if !bytes.HasPrefix(normalized, delimiterBytes) {
 		return Parts{}, ErrMissing
 	}
 
 	openLineEnd := nextLineBoundary(normalized, 0)
-	if string(normalized[:openLineEnd]) != delimiter {
+	if !bytes.Equal(normalized[:openLineEnd], delimiterBytes) {
 		return Parts{}, ErrMissing
 	}
 
@@ -72,7 +75,11 @@ func Decode(content []byte, decode func([]byte) error) (string, error) {
 }
 
 func normalizeLineEndings(content []byte) []byte {
-	return []byte(strings.ReplaceAll(string(content), "\r\n", "\n"))
+	if bytes.IndexByte(content, '\r') < 0 {
+		return bytes.Clone(content)
+	}
+
+	return bytes.ReplaceAll(content, crlfBytes, lfBytes)
 }
 
 func nextLineBoundary(content []byte, start int) int {
@@ -91,7 +98,7 @@ func findClosingDelimiter(content []byte, start int) (int, int, bool) {
 	lineStart := start
 	for lineStart <= len(content) {
 		lineEnd := nextLineBoundary(content, lineStart)
-		if string(content[lineStart:lineEnd]) == delimiter {
+		if bytes.Equal(content[lineStart:lineEnd], delimiterBytes) {
 			return lineStart, lineEnd, true
 		}
 		if lineEnd == len(content) {

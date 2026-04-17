@@ -124,11 +124,16 @@ type Kernel struct {
 	maxSnapshotBytes   int
 
 	sourceLocksMu sync.Mutex
-	sourceLocks   map[string]*sync.Mutex
+	sourceLocks   map[string]*sourceLock
 }
 
 var _ RawStore = (*Kernel)(nil)
 var _ SourceSessionManager = (*Kernel)(nil)
+
+type sourceLock struct {
+	mu   sync.Mutex
+	refs int
+}
 
 // NewKernel constructs a new raw resource persistence kernel over the supplied database.
 func NewKernel(db *sql.DB, opts ...Option) (*Kernel, error) {
@@ -142,7 +147,7 @@ func NewKernel(db *sql.DB, opts ...Option) (*Kernel, error) {
 		maxSpecBytes:       defaultMaxSpecBytes,
 		maxSnapshotRecords: defaultMaxSnapshotRecords,
 		maxSnapshotBytes:   defaultMaxSnapshotBytes,
-		sourceLocks:        make(map[string]*sync.Mutex),
+		sourceLocks:        make(map[string]*sourceLock),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -1324,14 +1329,23 @@ func (k *Kernel) lockSource(source ResourceSource) func() {
 	k.sourceLocksMu.Lock()
 	lock, ok := k.sourceLocks[key]
 	if !ok {
-		lock = &sync.Mutex{}
+		lock = &sourceLock{}
 		k.sourceLocks[key] = lock
 	}
+	lock.refs++
 	k.sourceLocksMu.Unlock()
 
-	lock.Lock()
+	lock.mu.Lock()
 	return func() {
-		lock.Unlock()
+		lock.mu.Unlock()
+
+		k.sourceLocksMu.Lock()
+		defer k.sourceLocksMu.Unlock()
+
+		lock.refs--
+		if lock.refs == 0 {
+			delete(k.sourceLocks, key)
+		}
 	}
 }
 

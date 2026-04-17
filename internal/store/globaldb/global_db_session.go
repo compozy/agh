@@ -364,7 +364,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	if detail := store.NullString(stopDetail); detail != nil {
 		session.StopDetail = *detail
 	}
-	session.Environment = scanSessionEnvironment(
+	environment, err := scanSessionEnvironment(
 		envID,
 		envBackend,
 		envProfile,
@@ -374,12 +374,12 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		envLastSyncAt,
 		envLastSyncError,
 	)
-
-	createdAt, err := store.ParseTimestamp(createdAtRaw)
 	if err != nil {
 		return store.SessionInfo{}, err
 	}
-	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
+	session.Environment = environment
+
+	createdAt, updatedAt, err := parseSessionInfoTimestamps(createdAtRaw, updatedAtRaw)
 	if err != nil {
 		return store.SessionInfo{}, err
 	}
@@ -398,7 +398,7 @@ func scanSessionEnvironment(
 	providerStateJSON string,
 	lastSyncAt sql.NullString,
 	lastSyncError string,
-) *store.SessionEnvironmentMeta {
+) (*store.SessionEnvironmentMeta, error) {
 	environmentID = strings.TrimSpace(environmentID)
 	backend = strings.TrimSpace(backend)
 	profile = strings.TrimSpace(profile)
@@ -411,7 +411,7 @@ func scanSessionEnvironment(
 		instanceID == "" &&
 		state == "" &&
 		providerStateJSON == "" {
-		return nil
+		return nil, nil
 	}
 
 	meta := &store.SessionEnvironmentMeta{
@@ -425,12 +425,26 @@ func scanSessionEnvironment(
 		meta.ProviderState = []byte(providerStateJSON)
 	}
 	if lastSyncAt.Valid && strings.TrimSpace(lastSyncAt.String) != "" {
-		if parsed, err := store.ParseTimestamp(lastSyncAt.String); err == nil {
-			meta.LastSyncAt = &parsed
+		parsed, err := store.ParseTimestamp(lastSyncAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("store: parse session environment last sync at: %w", err)
 		}
+		meta.LastSyncAt = &parsed
 	}
 	meta.LastSyncError = strings.TrimSpace(lastSyncError)
-	return meta
+	return meta, nil
+}
+
+func parseSessionInfoTimestamps(createdAtRaw string, updatedAtRaw string) (time.Time, time.Time, error) {
+	createdAt, err := store.ParseTimestamp(createdAtRaw)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	return createdAt, updatedAt, nil
 }
 
 func sessionEnvironmentID(meta *store.SessionEnvironmentMeta) string {

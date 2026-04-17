@@ -45,7 +45,7 @@ func WriteSSE(writer FlushWriter, msg SSEMessage) error {
 		payload = []byte("null")
 	}
 
-	return WriteSSERaw(writer, msg.ID, string(payload), msg.Name)
+	return writeSSERaw(writer, msg.ID, payload, msg.Name)
 }
 
 func (h *BaseHandlers) writeSSEBestEffort(writer FlushWriter, msg SSEMessage) {
@@ -62,21 +62,46 @@ func (h *BaseHandlers) logSSEWriteFailure(eventName string, err error) {
 
 // WriteSSERaw writes one SSE message using a pre-encoded payload.
 func WriteSSERaw(writer FlushWriter, id string, raw string, names ...string) error {
+	return writeSSERaw(writer, id, []byte(raw), names...)
+}
+
+func writeSSERaw(writer FlushWriter, id string, raw []byte, names ...string) error {
 	if writer == nil {
 		return errors.New("sse writer is required")
 	}
+	if len(raw) == 0 {
+		raw = []byte("null")
+	}
 
 	if id != "" {
-		if _, err := io.WriteString(writer, "id: "+id+"\n"); err != nil {
+		if _, err := io.WriteString(writer, "id: "); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(writer, id); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(writer, "\n"); err != nil {
 			return err
 		}
 	}
 	if len(names) > 0 && strings.TrimSpace(names[0]) != "" {
-		if _, err := io.WriteString(writer, "event: "+names[0]+"\n"); err != nil {
+		if _, err := io.WriteString(writer, "event: "); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(writer, names[0]); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(writer, "\n"); err != nil {
 			return err
 		}
 	}
-	if _, err := io.WriteString(writer, "data: "+raw+"\n\n"); err != nil {
+	if _, err := io.WriteString(writer, "data: "); err != nil {
+		return err
+	}
+	if _, err := writer.Write(raw); err != nil {
+		return err
+	}
+	if _, err := io.WriteString(writer, "\n\n"); err != nil {
 		return err
 	}
 	writer.Flush()

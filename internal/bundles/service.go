@@ -293,14 +293,31 @@ func (s *Service) ListActivations(ctx context.Context) ([]ActivationPreview, err
 	if err != nil {
 		return nil, err
 	}
+	bundleRecords, err := s.store.ListBundleResources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	bundleLookup := newBundleRecordLookup(bundleRecords)
 
 	items := make([]ActivationPreview, 0, len(activations))
 	for _, activation := range activations {
-		item, getErr := s.GetActivation(ctx, activation.ID)
-		if getErr != nil {
-			return nil, getErr
+		resolved, resolveErr := s.resolveActivationFromBundleLookup(activation, bundleLookup)
+		if resolveErr != nil {
+			return nil, resolveErr
 		}
-		items = append(items, item)
+		inventory, inventoryErr := s.store.ListBundleActivationInventory(ctx, activation.ID)
+		if inventoryErr != nil {
+			return nil, inventoryErr
+		}
+		if len(inventory) > 0 {
+			resolved.inventory = inventory
+		}
+		items = append(items, ActivationPreview{
+			Activation: cloneActivation(resolved.activation),
+			Bundle:     cloneBundleSpec(resolved.bundle),
+			Profile:    cloneBundleProfile(resolved.profile),
+			Inventory:  cloneInventoryItems(resolved.inventory),
+		})
 	}
 	return items, nil
 }
@@ -561,52 +578,7 @@ func (s *Service) collectDesiredState(ctx context.Context, activations []Activat
 	if err != nil {
 		return reconcileState{}, err
 	}
-
-	state := reconcileState{
-		activeActivationIDs:   make(map[string]struct{}, len(activations)),
-		desiredJobs:           make([]automationpkg.Job, 0),
-		desiredTriggers:       make([]automationpkg.Trigger, 0),
-		desiredBridges:        make([]bridgepkg.BridgeInstance, 0),
-		inventoryByActivation: make(map[string][]InventoryItem, len(activations)),
-		declaredChannels:      make([]DeclaredChannel, 0),
-		effectiveDefault:      strings.TrimSpace(s.configuredDefault),
-		effectiveSource:       "config",
-	}
-
-	claimedActivation := ""
-	errs := make([]error, 0)
-	for _, activation := range activations {
-		state.activeActivationIDs[strings.TrimSpace(activation.ID)] = struct{}{}
-		resolved, resolveErr := s.resolveActivationFromBundleRecords(activation, bundleRecords)
-		if resolveErr != nil {
-			errs = append(errs, resolveErr)
-			state.inventoryByActivation[activation.ID] = nil
-			continue
-		}
-
-		state.inventoryByActivation[activation.ID] = cloneInventoryItems(resolved.inventory)
-		state.declaredChannels = append(state.declaredChannels, resolved.channels...)
-		state.desiredJobs = append(state.desiredJobs, resolved.jobs...)
-		state.desiredTriggers = append(state.desiredTriggers, resolved.triggers...)
-		state.desiredBridges = append(state.desiredBridges, resolved.bridges...)
-		s.warnSpecHashDrift(ctx, activation, resolved.specContentHash)
-
-		claimedActivation, state.effectiveDefault, state.effectiveSource, resolveErr = resolveActivationDefaultChannel(
-			activation,
-			resolved.profile,
-			claimedActivation,
-			state.effectiveDefault,
-			state.effectiveSource,
-		)
-		if resolveErr != nil {
-			errs = append(errs, resolveErr)
-		}
-	}
-
-	if len(errs) > 0 {
-		return reconcileState{}, errors.Join(errs...)
-	}
-	return state, nil
+	return s.collectDesiredStateFromBundleRecords(ctx, activations, bundleRecords)
 }
 
 func resolveActivationDefaultChannel(
@@ -732,6 +704,57 @@ func findBundleResourceRecord(
 		}
 	}
 	return resources.Record[BundleResourceSpec]{}, false, nil
+}
+
+type bundleRecordKey struct {
+	extensionName string
+	bundleName    string
+}
+
+type bundleRecordLookup struct {
+	exact   map[bundleRecordKey]resources.Record[BundleResourceSpec]
+	records []resources.Record[BundleResourceSpec]
+}
+
+func newBundleRecordLookup(records []resources.Record[BundleResourceSpec]) bundleRecordLookup {
+	exact := make(map[bundleRecordKey]resources.Record[BundleResourceSpec], len(records))
+	for _, record := range records {
+		key := newBundleRecordKey(record.Spec.ExtensionName, record.Spec.Bundle.Name)
+		if key.extensionName == "" || key.bundleName == "" {
+			continue
+		}
+		exact[key] = record
+	}
+	return bundleRecordLookup{
+		exact:   exact,
+		records: records,
+	}
+}
+
+func findBundleResourceRecordIndexed(
+	lookup bundleRecordLookup,
+	extensionName string,
+	bundleName string,
+) (resources.Record[BundleResourceSpec], bool) {
+	key := newBundleRecordKey(extensionName, bundleName)
+	record, ok := lookup.exact[key]
+	if ok {
+		return record, true
+	}
+	for _, candidate := range lookup.records {
+		if strings.EqualFold(strings.TrimSpace(candidate.Spec.ExtensionName), key.extensionName) &&
+			strings.EqualFold(strings.TrimSpace(candidate.Spec.Bundle.Name), key.bundleName) {
+			return candidate, true
+		}
+	}
+	return resources.Record[BundleResourceSpec]{}, false
+}
+
+func newBundleRecordKey(extensionName string, bundleName string) bundleRecordKey {
+	return bundleRecordKey{
+		extensionName: strings.TrimSpace(extensionName),
+		bundleName:    strings.TrimSpace(bundleName),
+	}
 }
 
 func declaredChannelsForProfile(

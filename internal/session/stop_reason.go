@@ -108,6 +108,7 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 		return m.finalizeStopped(ctx, session, nil)
 	}
 
+	doneBeforeStop := isProcessDone(proc)
 	stopErr := m.driver.Stop(ctx, proc)
 	if stopErr == nil && !isProcessDone(proc) {
 		select {
@@ -116,7 +117,7 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 			return fmt.Errorf("session: wait for process stop completion for %q: %w", id, ctx.Err())
 		}
 	}
-	if stopErr != nil && !isProcessDone(proc) {
+	if stopErr != nil && !doneBeforeStop {
 		return fmt.Errorf("session: stop session process for %q: %w", id, stopErr)
 	}
 

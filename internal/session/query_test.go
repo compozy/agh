@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -164,6 +165,21 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	}
 }
 
+func TestManagerStatusRejectsTraversalSessionID(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	escapedID := createEscapedStoredSession(t, h)
+
+	info, err := h.manager.Status(testutil.Context(t), "../"+escapedID)
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("Status(traversal) error = %v, want ErrSessionNotFound", err)
+	}
+	if info != nil {
+		t.Fatalf("Status(traversal) info = %#v, want nil", info)
+	}
+}
+
 func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -295,6 +311,21 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	}
 	if got := stoppedHistory[1].Events[0].Type; got != EventTypeSessionStopped {
 		t.Fatalf("History(stopped)[1] first event type = %q, want %q", got, EventTypeSessionStopped)
+	}
+}
+
+func TestManagerEventsRejectTraversalSessionID(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	escapedID := createEscapedStoredSession(t, h)
+
+	events, err := h.manager.Events(testutil.Context(t), "../"+escapedID, store.EventQuery{})
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("Events(traversal) error = %v, want ErrSessionNotFound", err)
+	}
+	if events != nil {
+		t.Fatalf("Events(traversal) = %#v, want nil", events)
 	}
 }
 
@@ -543,6 +574,50 @@ func writeStoppedSessionArtifacts(t *testing.T, h *harness, id string, withDB bo
 	}
 
 	return dbPath
+}
+
+func createEscapedStoredSession(t *testing.T, h *harness) string {
+	t.Helper()
+
+	escapedID := "escaped-session"
+	escapedDir := filepath.Join(filepath.Dir(h.homePaths.SessionsDir), escapedID)
+	if err := os.MkdirAll(escapedDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", escapedDir, err)
+	}
+
+	now := time.Now().UTC()
+	if err := store.WriteSessionMeta(store.SessionMetaFile(escapedDir), store.SessionMeta{
+		ID:          escapedID,
+		Name:        "escaped",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		SessionType: string(SessionTypeUser),
+		State:       string(StateStopped),
+		CreatedAt:   now.Add(-time.Minute),
+		UpdatedAt:   now,
+	}); err != nil {
+		t.Fatalf("WriteSessionMeta(%q) error = %v", escapedDir, err)
+	}
+
+	recorder, err := h.manager.openStore(testutil.Context(t), escapedID, store.SessionDBFile(escapedDir))
+	if err != nil {
+		t.Fatalf("openStore(%q) error = %v", escapedID, err)
+	}
+	t.Cleanup(func() {
+		_ = recorder.Close(testutil.Context(t))
+	})
+
+	if err := recorder.Record(testutil.Context(t), store.SessionEvent{
+		TurnID:    "turn-1",
+		Type:      acp.EventTypeAgentMessage,
+		AgentName: "coder",
+		Content:   `{"type":"agent_message","text":"escaped"}`,
+		Timestamp: now,
+	}); err != nil {
+		t.Fatalf("Record() error = %v", err)
+	}
+
+	return escapedID
 }
 
 type queryRecorderStub struct {

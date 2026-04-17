@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -82,8 +83,9 @@ func ComputeDirectoryHash(skillDir string) (string, error) {
 
 	sort.Strings(entries)
 	hasher := sha256.New()
+	buffer := make([]byte, 32*1024)
 	for _, relPath := range entries {
-		if err := writeHashEntry(hasher, absRoot, relPath); err != nil {
+		if err := writeHashEntry(hasher, absRoot, relPath, buffer); err != nil {
 			return "", err
 		}
 	}
@@ -155,7 +157,7 @@ func VerifyHash(skillDir string, provenance *Provenance) error {
 	}
 }
 
-func writeHashEntry(hasher hash.Hash, root string, relPath string) error {
+func writeHashEntry(hasher hash.Hash, root string, relPath string, buffer []byte) error {
 	normalizedPath := filepath.ToSlash(relPath)
 	absPath := filepath.Join(root, relPath)
 
@@ -165,10 +167,11 @@ func writeHashEntry(hasher hash.Hash, root string, relPath string) error {
 	}
 
 	if info.Mode().IsRegular() {
-		content, err := os.ReadFile(absPath)
+		file, err := os.Open(absPath)
 		if err != nil {
-			return fmt.Errorf("skills: read hashed path %q: %w", absPath, err)
+			return fmt.Errorf("skills: open hashed path %q: %w", absPath, err)
 		}
+		defer file.Close()
 
 		if err := writeHashString(
 			hasher,
@@ -176,7 +179,19 @@ func writeHashEntry(hasher hash.Hash, root string, relPath string) error {
 		); err != nil {
 			return err
 		}
-		if _, err := hasher.Write(content); err != nil {
+		for {
+			n, err := file.Read(buffer)
+			if n > 0 {
+				if _, writeErr := hasher.Write(buffer[:n]); writeErr != nil {
+					return fmt.Errorf("skills: hash regular file %q: %w", absPath, writeErr)
+				}
+			}
+			if err == nil {
+				continue
+			}
+			if errors.Is(err, io.EOF) {
+				break
+			}
 			return fmt.Errorf("skills: hash regular file %q: %w", absPath, err)
 		}
 		if _, err := hasher.Write([]byte{0}); err != nil {

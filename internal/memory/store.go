@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
@@ -166,7 +167,9 @@ func (s *Store) Scan(scope Scope) ([]Header, error) {
 		return nil, fmt.Errorf("memory: scan %q: %w", dir, err)
 	}
 
-	headers := make([]Header, 0, len(entries))
+	capacity := min(len(entries), maxScanEntries)
+	headers := make([]Header, 0, capacity)
+	candidates := make([]scanCandidate, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || shouldSkipFile(entry.Name()) {
 			continue
@@ -186,38 +189,45 @@ func (s *Store) Scan(scope Scope) ([]Header, error) {
 			continue
 		}
 
-		path := filepath.Join(dir, entry.Name())
-		content, err := os.ReadFile(path)
+		candidates = append(candidates, scanCandidate{
+			name:    entry.Name(),
+			path:    filepath.Join(dir, entry.Name()),
+			modTime: info.ModTime(),
+		})
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].modTime.Equal(candidates[j].modTime) {
+			return candidates[i].name < candidates[j].name
+		}
+		return candidates[i].modTime.After(candidates[j].modTime)
+	})
+
+	for _, candidate := range candidates {
+		content, err := os.ReadFile(candidate.path)
 		if err != nil {
-			s.warn("memory: skip unreadable memory file", "scope", scope, "path", path, "error", err)
+			s.warn("memory: skip unreadable memory file", "scope", scope, "path", candidate.path, "error", err)
 			continue
 		}
 
 		var header Header
 		if _, err := parseFrontmatter(content, &header); err != nil {
-			s.warn("memory: skip malformed memory file", "scope", scope, "path", path, "error", err)
+			s.warn("memory: skip malformed memory file", "scope", scope, "path", candidate.path, "error", err)
 			continue
 		}
 		if err := header.Validate(); err != nil {
-			s.warn("memory: skip invalid memory metadata", "scope", scope, "path", path, "error", err)
+			s.warn("memory: skip invalid memory metadata", "scope", scope, "path", candidate.path, "error", err)
 			continue
 		}
 
-		header.Filename = entry.Name()
-		header.FilePath = path
-		header.ModTime = info.ModTime()
+		header.Filename = candidate.name
+		header.FilePath = candidate.path
+		header.ModTime = candidate.modTime
 		headers = append(headers, header)
-	}
 
-	sort.SliceStable(headers, func(i, j int) bool {
-		if headers[i].ModTime.Equal(headers[j].ModTime) {
-			return headers[i].Filename < headers[j].Filename
+		if len(headers) == maxScanEntries {
+			break
 		}
-		return headers[i].ModTime.After(headers[j].ModTime)
-	})
-
-	if len(headers) > maxScanEntries {
-		headers = headers[:maxScanEntries]
 	}
 
 	return headers, nil
@@ -308,12 +318,11 @@ func (s *Store) removeIndexEntry(scope Scope, filename string) error {
 		return fmt.Errorf("memory: load index %q: %w", indexPath, err)
 	}
 
-	needle := "(" + filename + ")"
 	lines := strings.SplitAfter(string(indexContent), "\n")
 	filtered := make([]string, 0, len(lines))
 	removed := false
 	for _, line := range lines {
-		if strings.Contains(line, needle) {
+		if indexLineTargetsFilename(line, filename) {
 			removed = true
 			continue
 		}
@@ -337,6 +346,12 @@ func (s *Store) warn(msg string, args ...any) {
 	}
 
 	slog.Warn(msg, args...)
+}
+
+type scanCandidate struct {
+	name    string
+	path    string
+	modTime time.Time
 }
 
 func truncateIndex(content string, maxLines int, maxBytes int) (string, bool) {
@@ -383,6 +398,38 @@ func truncateToUTF8Boundary(value string, maxBytes int) string {
 	}
 
 	return truncated
+}
+
+func indexLineTargetsFilename(line string, filename string) bool {
+	target, ok := firstMarkdownLinkTarget(line)
+	return ok && target == strings.TrimSpace(filename)
+}
+
+func firstMarkdownLinkTarget(line string) (string, bool) {
+	start := strings.Index(line, "](")
+	if start < 0 {
+		return "", false
+	}
+	start += 2
+
+	depth := 0
+	for idx := start; idx < len(line); idx++ {
+		switch line[idx] {
+		case '\\':
+			if idx+1 < len(line) {
+				idx++
+			}
+		case '(':
+			depth++
+		case ')':
+			if depth == 0 {
+				return strings.TrimSpace(line[start:idx]), true
+			}
+			depth--
+		}
+	}
+
+	return "", false
 }
 
 func shouldSkipFile(name string) bool {

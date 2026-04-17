@@ -55,7 +55,7 @@ func (p pipeline[P, R]) executeWithDisposition(ctx context.Context, payload P) (
 
 	current := payload
 	report := dispatchReport{Trace: make([]hookTraceEntry, 0)}
-	for _, hook := range OrderedResolvedHooks(p.hooks(payload)) {
+	for _, hook := range orderedResolvedHooksIfNeeded(p.hooks(payload)) {
 		if hook == nil {
 			continue
 		}

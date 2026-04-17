@@ -2,9 +2,11 @@ package fileutil
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -76,6 +78,33 @@ func TestAtomicWriteFileRejectsBlankPath(t *testing.T) {
 
 	if err := AtomicWriteFile("   ", []byte("content"), 0o644); err == nil {
 		t.Fatal("AtomicWriteFile(blank path) error = nil, want non-nil")
+	}
+}
+
+func TestAtomicWriteFilePreservesLiteralWhitespaceInPath(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "target.txt ")
+	trimmedPath := strings.TrimSpace(path)
+	if path == trimmedPath {
+		t.Fatal("test fixture path did not retain trailing whitespace")
+	}
+
+	content := []byte("content with trailing-space filename")
+	if err := AtomicWriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("AtomicWriteFile() error = %v", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(literal path) error = %v", err)
+	}
+	if !bytes.Equal(got, content) {
+		t.Fatalf("ReadFile(literal path) = %q, want %q", string(got), string(content))
+	}
+
+	if _, err := os.Stat(trimmedPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(trimmed path) error = %v, want %v", err, os.ErrNotExist)
 	}
 }
 

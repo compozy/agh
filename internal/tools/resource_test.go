@@ -7,13 +7,20 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
-func TestToolResourceCodecCanonicalizesInputSchema(t *testing.T) {
-	t.Parallel()
+func mustToolResourceCodec(t *testing.T) resources.KindCodec[Tool] {
+	t.Helper()
 
 	codec, err := NewResourceCodec()
 	if err != nil {
 		t.Fatalf("NewResourceCodec() error = %v", err)
 	}
+	return codec
+}
+
+func TestToolResourceCodecCanonicalizesInputSchema(t *testing.T) {
+	t.Parallel()
+
+	codec := mustToolResourceCodec(t)
 
 	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
 	spec, err := codec.DecodeAndValidate(testutil.Context(t), scope, []byte(`{
@@ -44,12 +51,9 @@ func TestToolResourceCodecCanonicalizesInputSchema(t *testing.T) {
 func TestToolResourceCodecRejectsInvalidSchema(t *testing.T) {
 	t.Parallel()
 
-	codec, err := NewResourceCodec()
-	if err != nil {
-		t.Fatalf("NewResourceCodec() error = %v", err)
-	}
+	codec := mustToolResourceCodec(t)
 
-	_, err = codec.DecodeAndValidate(
+	_, err := codec.DecodeAndValidate(
 		testutil.Context(t),
 		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 		[]byte(`{

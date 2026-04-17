@@ -106,9 +106,14 @@ func SummarizeConformanceReport(
 	return summary
 }
 
+type providerPlatformKey struct {
+	provider string
+	platform string
+}
+
 // BuildConformanceMatrix clones and canonicalizes provider summaries for reporting and validation.
 func BuildConformanceMatrix(entries ...ProviderConformanceSummary) []ProviderConformanceSummary {
-	merged := make(map[string]ProviderConformanceSummary, len(entries))
+	merged := make(map[providerPlatformKey]ProviderConformanceSummary, len(entries))
 	for _, entry := range entries {
 		normalized := ProviderConformanceSummary{
 			Provider: strings.TrimSpace(entry.Provider),
@@ -120,7 +125,10 @@ func BuildConformanceMatrix(entries ...ProviderConformanceSummary) []ProviderCon
 			return strings.Compare(left.InstanceID, right.InstanceID)
 		})
 
-		key := normalized.Provider + "|" + normalized.Platform
+		key := providerPlatformKey{
+			provider: normalized.Provider,
+			platform: normalized.Platform,
+		}
 		if existing, ok := merged[key]; ok {
 			existing.Targets = normalizeCoverageTargets(append(existing.Targets, normalized.Targets...))
 			existing.ManagedInstances = mergeManagedInstanceOutcomes(
@@ -158,11 +166,8 @@ func ValidateConformanceMatrix(entries []ProviderConformanceSummary, requiredTar
 		})
 	}
 
-	seenProviders := make(map[string]struct{}, len(matrix))
 	coveredTargets := make(map[CoverageTarget]int)
 	for _, entry := range matrix {
-		key := entry.Provider + "|" + entry.Platform
-		seenProviders[key] = struct{}{}
 		issues = append(issues, validateConformanceMatrixEntry(entry)...)
 		for _, target := range entry.Targets {
 			coveredTargets[target]++

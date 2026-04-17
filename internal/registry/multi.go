@@ -296,8 +296,13 @@ func mergeListings(results []searchResult) []Listing {
 		return []Listing{}
 	}
 
-	order := make([]string, 0)
-	merged := make(map[string]Listing)
+	totalListings := 0
+	for _, result := range results {
+		totalListings += len(result.listings)
+	}
+
+	order := make([]string, 0, totalListings)
+	merged := make(map[string]Listing, totalListings)
 
 	for _, result := range results {
 		for _, listing := range result.listings {
@@ -329,7 +334,7 @@ func normalizeListings(listings []Listing, source string) []Listing {
 		return nil
 	}
 
-	normalized := make([]Listing, 0, len(listings))
+	next := 0
 	for _, listing := range listings {
 		listing.Slug = strings.TrimSpace(listing.Slug)
 		if listing.Slug == "" {
@@ -338,10 +343,13 @@ func normalizeListings(listings []Listing, source string) []Listing {
 		if strings.TrimSpace(listing.Source) == "" {
 			listing.Source = source
 		}
-		normalized = append(normalized, listing)
+		listings[next] = listing
+		next++
 	}
-
-	return normalized
+	if next == 0 {
+		return nil
+	}
+	return listings[:next]
 }
 
 func checkMultiRegistryContext(ctx context.Context) error {

@@ -1323,6 +1323,85 @@ agent = "dotenv-agent"
 	}
 }
 
+func TestLoadUsesDotEnvForAGHHomeWithoutMutatingProcessEnv(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "dotenv-home")
+
+	unsetEnvForTest(t, "AGH_HOME")
+	writeFile(t, filepath.Join(workspaceRoot, ".env"), "AGH_HOME="+homeRoot+"\n")
+
+	homePaths, err := ResolveHomePathsFrom(homeRoot)
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	writeFile(t, homePaths.ConfigFile, `
+[defaults]
+agent = "dotenv-agent"
+`)
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Defaults.Agent != "dotenv-agent" {
+		t.Fatalf("Load() Defaults.Agent = %q, want %q", cfg.Defaults.Agent, "dotenv-agent")
+	}
+	if _, ok := os.LookupEnv("AGH_HOME"); ok {
+		t.Fatal("Load() mutated process AGH_HOME, want workspace dotenv scoped to the current load only")
+	}
+}
+
+func TestLoadForHomeDoesNotLeakDotEnvSecretsAcrossWorkspaceLoads(t *testing.T) {
+	const secretEnv = "AGH_CONFIG_TASK09_WEBHOOK_SECRET"
+
+	unsetEnvForTest(t, secretEnv)
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[automation]
+timezone = "UTC"
+max_concurrent_jobs = 1
+default_fire_limit = { max = 1, window = "5m" }
+
+[[automation.triggers]]
+scope = "global"
+name = "deploy"
+event = "webhook"
+endpoint_slug = "deploy-review"
+agent = "summarizer"
+prompt = "Review {{ index .Data \"payload\" }}"
+webhook_secret_env = "`+secretEnv+`"
+`)
+
+	workspaceWithEnv := t.TempDir()
+	writeFile(t, filepath.Join(workspaceWithEnv, ".env"), secretEnv+"=workspace-only-secret\n")
+
+	if _, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceWithEnv)); err != nil {
+		t.Fatalf("LoadForHome(workspaceWithEnv) error = %v", err)
+	}
+
+	workspaceWithoutEnv := t.TempDir()
+	_, err = LoadForHome(homePaths, WithWorkspaceRoot(workspaceWithoutEnv))
+	if err == nil {
+		t.Fatal(
+			"LoadForHome(workspaceWithoutEnv) error = nil, want missing webhook secret env after isolated dotenv load",
+		)
+	}
+	if got := err.Error(); !strings.Contains(got, "webhook_secret_env") {
+		t.Fatalf("LoadForHome(workspaceWithoutEnv) error = %q, want webhook_secret_env detail", got)
+	}
+}
+
 func TestLoadWithoutDotEnvOptionIgnoresDotEnv(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	envHome := filepath.Join(t.TempDir(), "dotenv-home")
@@ -1529,4 +1608,25 @@ func writeFile(t *testing.T, path string, contents string) {
 	if err := os.WriteFile(path, []byte(strings.TrimLeft(contents, "\n")), 0o644); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)
 	}
+}
+
+func unsetEnvForTest(t *testing.T, key string) {
+	t.Helper()
+
+	value, hadValue := os.LookupEnv(key)
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("Unsetenv(%q) error = %v", key, err)
+	}
+
+	t.Cleanup(func() {
+		var err error
+		if hadValue {
+			err = os.Setenv(key, value)
+		} else {
+			err = os.Unsetenv(key)
+		}
+		if err != nil {
+			t.Fatalf("restore env %q error = %v", key, err)
+		}
+	})
 }
