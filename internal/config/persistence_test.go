@@ -64,6 +64,78 @@ enabled = true
 	}
 }
 
+func TestEditConfigOverlayUpdatesExistingBooleanValue(t *testing.T) {
+	t.Parallel()
+
+	editor, err := newOverlayEditor(ConfigName, []byte("[memory]\nenabled = true\nglobal_dir = \"/tmp/memory\"\n"))
+	if err != nil {
+		t.Fatalf("newOverlayEditor() error = %v", err)
+	}
+	if err := editor.SetValue([]string{"memory", "enabled"}, false); err != nil {
+		t.Fatalf("editor.SetValue() error = %v", err)
+	}
+	rendered, err := editor.Bytes()
+	if err != nil {
+		t.Fatalf("editor.Bytes() error = %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		"[memory]",
+		"enabled = false",
+		`global_dir = "/tmp/memory"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered config missing %q\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "=\n") {
+		t.Fatalf("rendered config corrupted by boolean update\n%s", text)
+	}
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	if err != nil {
+		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[memory]
+enabled = true
+global_dir = "/tmp/memory"
+`)
+
+	cfg, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+		return editor.SetValue([]string{"memory", "enabled"}, false)
+	})
+	if err != nil {
+		t.Fatalf("EditConfigOverlay() error = %v", err)
+	}
+	if got, want := cfg.Memory.Enabled, false; got != want {
+		t.Fatalf("EditConfigOverlay() Memory.Enabled = %v, want %v", got, want)
+	}
+
+	contents, err := os.ReadFile(homePaths.ConfigFile)
+	if err != nil {
+		t.Fatalf("ReadFile(config) error = %v", err)
+	}
+	text = string(contents)
+	for _, want := range []string{
+		"[memory]",
+		"enabled = false",
+		`global_dir = "/tmp/memory"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("config contents missing %q\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "false[memory]") {
+		t.Fatalf("config contents corrupted by boolean update\n%s", text)
+	}
+}
+
 func TestEditConfigOverlayRejectsUnsupportedMutation(t *testing.T) {
 	t.Parallel()
 
@@ -446,6 +518,59 @@ command = "keep"
 	} {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("rendered hooks config still contains %q\n%s", unwanted, text)
+		}
+	}
+}
+
+func TestOverlayEditorDeleteArrayTableItemRemovesNestedSubtables(t *testing.T) {
+	t.Parallel()
+
+	editor, err := newOverlayEditor(ConfigName, []byte(`
+[[hooks.declarations]]
+name = "alpha"
+event = "tool.pre_call"
+
+[hooks.declarations.executor]
+command = "/bin/alpha"
+args = ["--json"]
+
+[[hooks.declarations]]
+name = "beta"
+event = "tool.post_call"
+command = "/bin/beta"
+`))
+	if err != nil {
+		t.Fatalf("newOverlayEditor() error = %v", err)
+	}
+
+	deleted, err := editor.DeleteArrayTableItem([]string{"hooks", "declarations"}, "name", "alpha")
+	if err != nil {
+		t.Fatalf("editor.DeleteArrayTableItem(alpha) error = %v", err)
+	}
+	if !deleted {
+		t.Fatal("editor.DeleteArrayTableItem(alpha) deleted = false, want true")
+	}
+
+	rendered, err := editor.Bytes()
+	if err != nil {
+		t.Fatalf("editor.Bytes() error = %v", err)
+	}
+	text := string(rendered)
+	for _, unwanted := range []string{
+		`name = "alpha"`,
+		"[hooks.declarations.executor]",
+		`command = "/bin/alpha"`,
+	} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("rendered config still contains %q\n%s", unwanted, text)
+		}
+	}
+	for _, want := range []string{
+		`name = "beta"`,
+		`command = "/bin/beta"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered config missing %q\n%s", want, text)
 		}
 	}
 }

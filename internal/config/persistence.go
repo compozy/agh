@@ -645,11 +645,24 @@ func setValueInOverlayDocument(source []byte, path []string, value any) ([]byte,
 	}
 
 	if existing := document.findKeyValue(path); existing != nil {
-		rendered, err := renderBareValue(value)
+		if isUsableValueRange(existing.raw, existing.value) {
+			rendered, err := renderBareValue(value)
+			if err != nil {
+				return nil, err
+			}
+			return replaceRange(source, existing.value, []byte(rendered)), nil
+		}
+
+		relativePath := path
+		if len(existing.containerPath) > 0 && len(path) >= len(existing.containerPath) {
+			relativePath = path[len(existing.containerPath):]
+		}
+		line, err := renderKeyValueLine(relativePath, value)
 		if err != nil {
 			return nil, err
 		}
-		return replaceRange(source, existing.value, []byte(rendered)), nil
+		start, end := lineReplacementOffsets(source, existing.raw)
+		return replaceOffsets(source, start, end, []byte(line)), nil
 	}
 
 	tablePath := path[:len(path)-1]
@@ -1041,6 +1054,11 @@ func (d *overlayDocument) arrayTableBlocks(path []string) []overlayBlock {
 				break
 			}
 			if next.kind == tomlast.Table || next.kind == tomlast.ArrayTable {
+				if pathHasPrefix(next.path, path) && len(next.path) > len(path) {
+					block.endIdx = nextIdx
+					block.end = rangeEnd(next.raw)
+					continue
+				}
 				break
 			}
 			block.endIdx = nextIdx
@@ -1096,6 +1114,34 @@ func renderBareValue(value any) (string, error) {
 		return "", fmt.Errorf("config: encode TOML value: malformed fragment %q", rendered)
 	}
 	return strings.TrimSpace(after), nil
+}
+
+func isUsableValueRange(raw tomlast.Range, value tomlast.Range) bool {
+	if value.Length == 0 {
+		return false
+	}
+	rawStart := rangeStart(raw)
+	rawEnd := rangeEnd(raw)
+	valueStart := rangeStart(value)
+	valueEnd := rangeEnd(value)
+	return valueStart >= rawStart && valueEnd <= rawEnd && valueStart < valueEnd
+}
+
+func lineReplacementOffsets(source []byte, target tomlast.Range) (int, int) {
+	start := max(rangeStart(target), 0)
+	if start > len(source) {
+		start = len(source)
+	}
+
+	end := start
+	for end < len(source) && source[end] != '\n' {
+		end++
+	}
+	if end < len(source) {
+		end++
+	}
+
+	return start, end
 }
 
 func renderKeyValueLine(path []string, value any) (string, error) {
