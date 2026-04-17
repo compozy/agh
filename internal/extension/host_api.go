@@ -112,6 +112,12 @@ type hostAPISessionManager interface {
 type hostAPIObserver interface {
 	Health(ctx context.Context) (observepkg.Health, error)
 	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
+	QueryTaskDashboard(ctx context.Context, query observepkg.TaskDashboardQuery) (observepkg.TaskDashboardView, error)
+	QueryTaskInbox(
+		ctx context.Context,
+		query observepkg.TaskInboxQuery,
+		actor taskpkg.ActorIdentity,
+	) (observepkg.TaskInboxView, error)
 }
 
 // HostAPIAutomationManager is the automation surface exposed to the extension Host API.
@@ -147,6 +153,14 @@ type HostAPIAutomationManager interface {
 type hostAPITaskManager interface {
 	ListTasks(ctx context.Context, query taskpkg.Query, actor taskpkg.ActorContext) ([]taskpkg.Summary, error)
 	GetTask(ctx context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error)
+	Timeline(
+		ctx context.Context,
+		taskID string,
+		query taskpkg.TimelineQuery,
+		actor taskpkg.ActorContext,
+	) ([]taskpkg.TimelineItem, error)
+	Tree(ctx context.Context, taskID string, actor taskpkg.ActorContext) (*taskpkg.TreeView, error)
+	RunDetail(ctx context.Context, runID string, actor taskpkg.ActorContext) (*taskpkg.RunDetailView, error)
 	ListTaskRuns(
 		ctx context.Context,
 		taskID string,
@@ -411,10 +425,15 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		"automation/runs":                handler.handleAutomationRuns,
 		"tasks":                          handler.handleTasks,
 		"tasks/get":                      handler.handleTasksGet,
+		"tasks/timeline":                 handler.handleTasksTimeline,
+		"tasks/tree":                     handler.handleTasksTree,
+		"tasks/dashboard":                handler.handleTasksDashboard,
+		"tasks/inbox":                    handler.handleTasksInbox,
 		"tasks/create":                   handler.handleTasksCreate,
 		"tasks/update":                   handler.handleTasksUpdate,
 		"tasks/cancel":                   handler.handleTasksCancel,
 		"tasks/runs":                     handler.handleTasksRuns,
+		"tasks/runs/get":                 handler.handleTasksRunsGet,
 		"tasks/runs/enqueue":             handler.handleTasksRunsEnqueue,
 		"tasks/runs/claim":               handler.handleTasksRunsClaim,
 		"tasks/runs/start":               handler.handleTasksRunsStart,
@@ -620,6 +639,14 @@ type hostAPITasksParams = extensioncontract.TasksParams
 
 type hostAPITaskTargetParams = extensioncontract.TaskTargetParams
 
+type hostAPITaskTimelineParams = extensioncontract.TaskTimelineParams
+
+type hostAPITaskTreeParams = extensioncontract.TaskTreeParams
+
+type hostAPITaskDashboardParams = extensioncontract.TaskDashboardParams
+
+type hostAPITaskInboxParams = extensioncontract.TaskInboxParams
+
 type hostAPITaskCreateParams = extensioncontract.TaskCreateParams
 
 type hostAPITaskUpdateParams = extensioncontract.TaskUpdateParams
@@ -627,6 +654,8 @@ type hostAPITaskUpdateParams = extensioncontract.TaskUpdateParams
 type hostAPITaskCancelParams = extensioncontract.TaskCancelParams
 
 type hostAPITaskRunsParams = extensioncontract.TaskRunsParams
+
+type hostAPITaskRunGetParams = extensioncontract.TaskRunGetParams
 
 type hostAPITaskRunEnqueueParams = extensioncontract.TaskRunEnqueueParams
 

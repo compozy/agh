@@ -58,10 +58,15 @@ const (
 	HostAPIMethodAutomationRuns              HostAPIMethod = "automation/runs"
 	HostAPIMethodTasks                       HostAPIMethod = "tasks"
 	HostAPIMethodTasksGet                    HostAPIMethod = "tasks/get"
+	HostAPIMethodTasksTimeline               HostAPIMethod = "tasks/timeline"
+	HostAPIMethodTasksTree                   HostAPIMethod = "tasks/tree"
+	HostAPIMethodTasksDashboard              HostAPIMethod = "tasks/dashboard"
+	HostAPIMethodTasksInbox                  HostAPIMethod = "tasks/inbox"
 	HostAPIMethodTasksCreate                 HostAPIMethod = "tasks/create"
 	HostAPIMethodTasksUpdate                 HostAPIMethod = "tasks/update"
 	HostAPIMethodTasksCancel                 HostAPIMethod = "tasks/cancel"
 	HostAPIMethodTasksRuns                   HostAPIMethod = "tasks/runs"
+	HostAPIMethodTasksRunsGet                HostAPIMethod = "tasks/runs/get"
 	HostAPIMethodTasksRunsEnqueue            HostAPIMethod = "tasks/runs/enqueue"
 	HostAPIMethodTasksRunsClaim              HostAPIMethod = "tasks/runs/claim"
 	HostAPIMethodTasksRunsStart              HostAPIMethod = "tasks/runs/start"
@@ -113,10 +118,15 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodAutomationRuns,
 		HostAPIMethodTasks,
 		HostAPIMethodTasksGet,
+		HostAPIMethodTasksTimeline,
+		HostAPIMethodTasksTree,
+		HostAPIMethodTasksDashboard,
+		HostAPIMethodTasksInbox,
 		HostAPIMethodTasksCreate,
 		HostAPIMethodTasksUpdate,
 		HostAPIMethodTasksCancel,
 		HostAPIMethodTasksRuns,
+		HostAPIMethodTasksRunsGet,
 		HostAPIMethodTasksRunsEnqueue,
 		HostAPIMethodTasksRunsClaim,
 		HostAPIMethodTasksRunsStart,

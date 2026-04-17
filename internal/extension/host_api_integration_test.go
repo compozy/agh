@@ -519,6 +519,165 @@ func TestHostAPIIntegrationStartRunAllocatesDedicatedSession(t *testing.T) {
 	}
 }
 
+func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grant(
+		"ext-reader",
+		[]string{
+			"tasks/get",
+			"tasks/runs/get",
+			"tasks/timeline",
+			"tasks/tree",
+			"tasks/dashboard",
+			"tasks/inbox",
+		},
+		[]string{"task.read"},
+	)
+
+	actor := mustExtensionTaskActorContext(t, "seed-writer")
+	root, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: env.workspaceID,
+		Title:       "Integration root",
+	}, actor)
+	if err != nil {
+		t.Fatalf("tasks.CreateTask(root) error = %v", err)
+	}
+
+	child, err := env.tasks.CreateChildTask(testutil.Context(t), root.ID, taskpkg.CreateTask{
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: env.workspaceID,
+		Title:       "Integration child",
+		Owner: &taskpkg.Ownership{
+			Kind: taskpkg.OwnerKindExtension,
+			Ref:  "ext-reader",
+		},
+		NetworkChannel: "builders",
+	}, actor)
+	if err != nil {
+		t.Fatalf("tasks.CreateChildTask(child) error = %v", err)
+	}
+
+	approvalTask, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    env.workspaceID,
+		Title:          "Integration approval",
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+		Owner: &taskpkg.Ownership{
+			Kind: taskpkg.OwnerKindExtension,
+			Ref:  "ext-reader",
+		},
+	}, actor)
+	if err != nil {
+		t.Fatalf("tasks.CreateTask(approval) error = %v", err)
+	}
+
+	queued, err := env.tasks.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
+		TaskID:         child.ID,
+		IdempotencyKey: "integration-read-run",
+		NetworkChannel: "builders",
+	}, actor)
+	if err != nil {
+		t.Fatalf("tasks.EnqueueRun() error = %v", err)
+	}
+	if _, err := env.tasks.ClaimRun(testutil.Context(t), queued.ID, taskpkg.ClaimRun{
+		IdempotencyKey: "integration-read-claim",
+	}, actor); err != nil {
+		t.Fatalf("tasks.ClaimRun() error = %v", err)
+	}
+	started, err := env.tasks.StartRun(testutil.Context(t), queued.ID, taskpkg.StartRun{
+		IdempotencyKey: "integration-read-start",
+	}, actor)
+	if err != nil {
+		t.Fatalf("tasks.StartRun() error = %v", err)
+	}
+
+	getResult, err := env.call(t, "ext-reader", "tasks/get", map[string]any{"id": child.ID})
+	if err != nil {
+		t.Fatalf("Handle(tasks/get) error = %v", err)
+	}
+	var detail apicontract.TaskDetailPayload
+	decodeResult(t, getResult, &detail)
+	if got, want := detail.Task.ID, child.ID; got != want {
+		t.Fatalf("tasks/get.task.id = %q, want %q", got, want)
+	}
+
+	runDetailResult, err := env.call(t, "ext-reader", "tasks/runs/get", map[string]any{"id": started.ID})
+	if err != nil {
+		t.Fatalf("Handle(tasks/runs/get) error = %v", err)
+	}
+	var runDetail apicontract.TaskRunDetailPayload
+	decodeResult(t, runDetailResult, &runDetail)
+	if got, want := runDetail.Run.ID, started.ID; got != want {
+		t.Fatalf("tasks/runs/get.run.id = %q, want %q", got, want)
+	}
+	if runDetail.Session == nil || runDetail.Session.SessionID == "" {
+		t.Fatal("tasks/runs/get.session = nil/empty, want session link")
+	}
+
+	timelineResult, err := env.call(t, "ext-reader", "tasks/timeline", map[string]any{"id": child.ID, "limit": 10})
+	if err != nil {
+		t.Fatalf("Handle(tasks/timeline) error = %v", err)
+	}
+	var timeline []apicontract.TaskTimelineItemPayload
+	decodeResult(t, timelineResult, &timeline)
+	if len(timeline) == 0 {
+		t.Fatal("tasks/timeline len = 0, want events")
+	}
+
+	treeResult, err := env.call(t, "ext-reader", "tasks/tree", map[string]any{"id": root.ID})
+	if err != nil {
+		t.Fatalf("Handle(tasks/tree) error = %v", err)
+	}
+	var tree apicontract.TaskTreePayload
+	decodeResult(t, treeResult, &tree)
+	if got, want := tree.Root.Task.ID, root.ID; got != want {
+		t.Fatalf("tasks/tree.root.task.id = %q, want %q", got, want)
+	}
+
+	dashboardResult, err := env.call(t, "ext-reader", "tasks/dashboard", map[string]any{
+		"scope":     taskpkg.ScopeWorkspace,
+		"workspace": env.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/dashboard) error = %v", err)
+	}
+	var dashboard apicontract.TaskDashboardPayload
+	decodeResult(t, dashboardResult, &dashboard)
+	if dashboard.Totals.ActiveRuns < 1 {
+		t.Fatalf("tasks/dashboard active_runs = %d, want >= 1", dashboard.Totals.ActiveRuns)
+	}
+
+	inboxResult, err := env.call(t, "ext-reader", "tasks/inbox", map[string]any{
+		"scope":     taskpkg.ScopeWorkspace,
+		"workspace": env.workspaceID,
+		"lane":      apicontract.TaskInboxLaneApprovals,
+		"limit":     10,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/inbox) error = %v", err)
+	}
+	var inbox apicontract.TaskInboxPayload
+	decodeResult(t, inboxResult, &inbox)
+	if inbox.Total < 1 || len(inbox.Groups) == 0 {
+		t.Fatalf("tasks/inbox = %#v, want approval item", inbox)
+	}
+	if got, want := inbox.Groups[0].Items[0].Task.ID, approvalTask.ID; got != want {
+		t.Fatalf("tasks/inbox.groups[0].items[0].task.id = %q, want %q", got, want)
+	}
+}
+
+func TestHostAPIIntegrationTaskReadSurfaceErrorsStayHostFacing(t *testing.T) {
+	env := newHostAPITestEnv(t)
+	env.grant("ext-reader", []string{"tasks/get", "tasks/runs/get"}, []string{"task.read"})
+
+	_, err := env.call(t, "ext-reader", "tasks/get", map[string]any{"id": "task-missing"})
+	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+
+	_, err = env.call(t, "ext-reader", "tasks/unknown", nil)
+	assertRPCErrorCode(t, err, HostAPIMethodNotFoundCode)
+}
+
 func TestHostAPIIntegrationBridgesMessagesIngestCreatesRouteAndSession(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})

@@ -10,6 +10,7 @@ import (
 
 	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/network"
+	observepkg "github.com/pedronauck/agh/internal/observe"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -33,6 +34,7 @@ func (h *HostAPIHandler) handleTasks(ctx context.Context, raw json.RawMessage) (
 	if err != nil {
 		return nil, mapTaskRPCError("", err)
 	}
+	tasks = filterTaskListDrafts(tasks, params)
 	return taskSummaryPayloadsFromSummaries(tasks), nil
 }
 
@@ -56,6 +58,102 @@ func (h *HostAPIHandler) handleTasksGet(ctx context.Context, raw json.RawMessage
 		return nil, mapTaskRPCError(taskID, err)
 	}
 	return taskDetailPayloadFromView(view), nil
+}
+
+func (h *HostAPIHandler) handleTasksTimeline(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params hostAPITaskTimelineParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	taskID := strings.TrimSpace(params.ID)
+	if taskID == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+
+	manager, actor, err := h.taskManagerAndActor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query, err := taskTimelineQueryFromParams(params.TaskTimelineQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	items, err := manager.Timeline(ctx, taskID, query, actor)
+	if err != nil {
+		return nil, mapTaskRPCError(taskID, err)
+	}
+	return taskTimelineItemPayloadsFromItems(items), nil
+}
+
+func (h *HostAPIHandler) handleTasksTree(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params hostAPITaskTreeParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	taskID := strings.TrimSpace(params.ID)
+	if taskID == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+
+	manager, actor, err := h.taskManagerAndActor(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	view, err := manager.Tree(ctx, taskID, actor)
+	if err != nil {
+		return nil, mapTaskRPCError(taskID, err)
+	}
+	return taskTreePayloadFromView(view), nil
+}
+
+func (h *HostAPIHandler) handleTasksDashboard(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params hostAPITaskDashboardParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	observer, err := h.taskObserver()
+	if err != nil {
+		return nil, err
+	}
+	query, err := h.taskDashboardQueryFromParams(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	view, err := observer.QueryTaskDashboard(ctx, query)
+	if err != nil {
+		return nil, mapTaskRPCError("", err)
+	}
+	return taskDashboardPayloadFromView(&view), nil
+}
+
+func (h *HostAPIHandler) handleTasksInbox(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params hostAPITaskInboxParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+
+	observer, err := h.taskObserver()
+	if err != nil {
+		return nil, err
+	}
+	actor, err := h.taskActorContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("extension: derive task actor context: %w", err)
+	}
+	query, err := h.taskInboxQueryFromParams(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	view, err := observer.QueryTaskInbox(ctx, query, actor.Actor)
+	if err != nil {
+		return nil, mapTaskRPCError("", err)
+	}
+	return taskInboxPayloadFromView(view), nil
 }
 
 func (h *HostAPIHandler) handleTasksCreate(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -159,6 +257,28 @@ func (h *HostAPIHandler) handleTasksRuns(ctx context.Context, raw json.RawMessag
 		return nil, mapTaskRPCError(taskID, err)
 	}
 	return taskRunPayloadsFromRuns(runs), nil
+}
+
+func (h *HostAPIHandler) handleTasksRunsGet(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params hostAPITaskRunGetParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	runID := strings.TrimSpace(params.ID)
+	if runID == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+
+	manager, actor, err := h.taskManagerAndActor(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	view, err := manager.RunDetail(ctx, runID, actor)
+	if err != nil {
+		return nil, mapTaskRPCError(runID, err)
+	}
+	return taskRunDetailPayloadFromView(view), nil
 }
 
 func (h *HostAPIHandler) handleTasksRunsEnqueue(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -353,6 +473,16 @@ func (h *HostAPIHandler) taskManager() (hostAPITaskManager, error) {
 	return h.tasks, nil
 }
 
+func (h *HostAPIHandler) taskObserver() (hostAPIObserver, error) {
+	if h == nil {
+		return nil, errors.New("extension: host api handler is required")
+	}
+	if h.observer == nil {
+		return nil, errors.New("extension: task observer is not configured")
+	}
+	return h.observer, nil
+}
+
 func (h *HostAPIHandler) taskManagerAndActor(ctx context.Context) (hostAPITaskManager, taskpkg.ActorContext, error) {
 	manager, err := h.taskManager()
 	if err != nil {
@@ -383,12 +513,15 @@ func (h *HostAPIHandler) taskQueryFromParams(
 	params hostAPITasksParams,
 ) (taskpkg.Query, error) {
 	query := taskpkg.Query{
-		Scope:        params.Scope.Normalize(),
-		Status:       params.Status.Normalize(),
-		OwnerKind:    params.OwnerKind.Normalize(),
-		OwnerRef:     strings.TrimSpace(params.OwnerRef),
-		ParentTaskID: strings.TrimSpace(params.ParentTaskID),
-		Limit:        params.Limit,
+		Scope:         params.Scope.Normalize(),
+		Status:        params.Status.Normalize(),
+		Priority:      params.Priority.Normalize(),
+		ApprovalState: params.ApprovalState.Normalize(),
+		OwnerKind:     params.OwnerKind.Normalize(),
+		OwnerRef:      strings.TrimSpace(params.OwnerRef),
+		ParentTaskID:  strings.TrimSpace(params.ParentTaskID),
+		Search:        strings.TrimSpace(params.Query),
+		Limit:         params.Limit,
 	}
 	if query.Scope.Normalize() != "" {
 		if err := query.Scope.Validate("task_query.scope"); err != nil {
@@ -417,6 +550,17 @@ func (h *HostAPIHandler) taskQueryFromParams(
 	return query, nil
 }
 
+func taskTimelineQueryFromParams(params apicontract.TaskTimelineQuery) (taskpkg.TimelineQuery, error) {
+	query := taskpkg.TimelineQuery{
+		AfterSequence: params.AfterSequence,
+		Limit:         params.Limit,
+	}
+	if err := query.Validate("task_timeline_query"); err != nil {
+		return taskpkg.TimelineQuery{}, invalidParamsRPCError(err)
+	}
+	return query, nil
+}
+
 func taskRunQueryFromParams(params apicontract.TaskRunListQuery) (taskpkg.RunQuery, error) {
 	query := taskpkg.RunQuery{
 		Status:    params.Status.Normalize(),
@@ -425,6 +569,74 @@ func taskRunQueryFromParams(params apicontract.TaskRunListQuery) (taskpkg.RunQue
 	}
 	if err := query.Validate("task_run_query"); err != nil {
 		return taskpkg.RunQuery{}, invalidParamsRPCError(err)
+	}
+	return query, nil
+}
+
+func (h *HostAPIHandler) taskDashboardQueryFromParams(
+	ctx context.Context,
+	params apicontract.TaskDashboardQuery,
+) (observepkg.TaskDashboardQuery, error) {
+	query := observepkg.TaskDashboardQuery{
+		Scope:          params.Scope.Normalize(),
+		OwnerKind:      params.OwnerKind.Normalize(),
+		OwnerRef:       strings.TrimSpace(params.OwnerRef),
+		NetworkChannel: strings.TrimSpace(params.NetworkChannel),
+		OriginKind:     params.OriginKind.Normalize(),
+	}
+	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
+		if err := taskpkg.ValidateScopeBinding(
+			query.Scope,
+			workspaceRef,
+			"task_dashboard_query",
+			"workspace",
+		); err != nil {
+			return observepkg.TaskDashboardQuery{}, invalidParamsRPCError(err)
+		}
+		if query.Scope.Normalize() == taskpkg.ScopeWorkspace {
+			workspaceID, err := h.resolveTaskWorkspaceID(ctx, workspaceRef)
+			if err != nil {
+				return observepkg.TaskDashboardQuery{}, err
+			}
+			query.WorkspaceID = workspaceID
+		}
+	}
+	if err := validateTaskChannel("task_dashboard_query.network_channel", query.NetworkChannel); err != nil {
+		return observepkg.TaskDashboardQuery{}, err
+	}
+	if err := query.Validate(); err != nil {
+		return observepkg.TaskDashboardQuery{}, invalidParamsRPCError(err)
+	}
+	return query, nil
+}
+
+func (h *HostAPIHandler) taskInboxQueryFromParams(
+	ctx context.Context,
+	params apicontract.TaskInboxQuery,
+) (observepkg.TaskInboxQuery, error) {
+	query := observepkg.TaskInboxQuery{
+		Scope:     params.Scope.Normalize(),
+		OwnerKind: params.OwnerKind.Normalize(),
+		OwnerRef:  strings.TrimSpace(params.OwnerRef),
+		Lane:      observepkg.TaskInboxLane(params.Lane).Normalize(),
+		Unread:    params.Unread,
+		Search:    strings.TrimSpace(params.Query),
+		Limit:     params.Limit,
+	}
+	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
+		if err := taskpkg.ValidateScopeBinding(query.Scope, workspaceRef, "task_inbox_query", "workspace"); err != nil {
+			return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
+		}
+		if query.Scope.Normalize() == taskpkg.ScopeWorkspace {
+			workspaceID, err := h.resolveTaskWorkspaceID(ctx, workspaceRef)
+			if err != nil {
+				return observepkg.TaskInboxQuery{}, err
+			}
+			query.WorkspaceID = workspaceID
+		}
+	}
+	if err := query.Validate(); err != nil {
+		return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
 	}
 	return query, nil
 }
@@ -453,6 +665,10 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
 		Title:          strings.TrimSpace(req.Title),
 		Description:    strings.TrimSpace(req.Description),
+		Priority:       req.Priority.Normalize(),
+		MaxAttempts:    req.MaxAttempts,
+		Draft:          req.Draft,
+		ApprovalPolicy: req.ApprovalPolicy.Normalize(),
 		Owner:          cloneOwnership(req.Owner),
 		Metadata:       cloneRawMessage(req.Metadata),
 	}
@@ -472,6 +688,9 @@ func taskPatchFromRequest(req apicontract.UpdateTaskRequest) (taskpkg.Patch, err
 	patch := taskpkg.Patch{
 		Title:          trimStringPtr(req.Title),
 		Description:    trimStringPtr(req.Description),
+		Priority:       normalizePriorityPtr(req.Priority),
+		MaxAttempts:    req.MaxAttempts,
+		ApprovalPolicy: normalizeApprovalPolicyPtr(req.ApprovalPolicy),
 		Metadata:       cloneRawMessagePtr(req.Metadata),
 		NetworkChannel: trimStringPtr(req.NetworkChannel),
 		Owner:          cloneOwnership(req.Owner),
@@ -649,20 +868,30 @@ func taskSummaryPayloadsFromSummaries(tasks []taskpkg.Summary) []apicontract.Tas
 
 func taskSummaryPayloadFromSummary(record taskpkg.Summary) apicontract.TaskSummaryPayload {
 	return apicontract.TaskSummaryPayload{
-		ID:             record.ID,
-		Identifier:     record.Identifier,
-		Scope:          record.Scope,
-		WorkspaceID:    record.WorkspaceID,
-		ParentTaskID:   record.ParentTaskID,
-		NetworkChannel: record.NetworkChannel,
-		Title:          record.Title,
-		Status:         record.Status,
-		Owner:          cloneOwnership(record.Owner),
-		CreatedBy:      record.CreatedBy,
-		Origin:         record.Origin,
-		CreatedAt:      record.CreatedAt,
-		UpdatedAt:      record.UpdatedAt,
-		ClosedAt:       optionalTime(record.ClosedAt),
+		ID:              record.ID,
+		Identifier:      record.Identifier,
+		Scope:           record.Scope,
+		WorkspaceID:     record.WorkspaceID,
+		ParentTaskID:    record.ParentTaskID,
+		NetworkChannel:  record.NetworkChannel,
+		Title:           record.Title,
+		Priority:        record.Priority,
+		MaxAttempts:     record.MaxAttempts,
+		Status:          record.Status,
+		ApprovalPolicy:  record.ApprovalPolicy,
+		ApprovalState:   record.ApprovalState,
+		Draft:           record.Draft,
+		Owner:           cloneOwnership(record.Owner),
+		CreatedBy:       record.CreatedBy,
+		Origin:          record.Origin,
+		CreatedAt:       record.CreatedAt,
+		UpdatedAt:       record.UpdatedAt,
+		ClosedAt:        optionalTime(record.ClosedAt),
+		ChildCount:      record.ChildCount,
+		DependencyCount: record.DependencyCount,
+		Dependencies:    taskDependencyReferencePayloadsFromReferences(record.Dependencies),
+		ActiveRun:       taskRunSummaryPayloadFromSummary(record.ActiveRun),
+		LastActivityAt:  optionalTime(record.LastActivityAt),
 	}
 }
 
@@ -680,7 +909,11 @@ func taskPayloadFromTask(record *taskpkg.Task) apicontract.TaskPayload {
 		NetworkChannel: record.NetworkChannel,
 		Title:          record.Title,
 		Description:    record.Description,
+		Priority:       record.Priority,
+		MaxAttempts:    record.MaxAttempts,
 		Status:         record.Status,
+		ApprovalPolicy: record.ApprovalPolicy,
+		ApprovalState:  record.ApprovalState,
 		Owner:          cloneOwnership(record.Owner),
 		CreatedBy:      record.CreatedBy,
 		Origin:         record.Origin,
@@ -736,12 +969,54 @@ func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {
 	}
 }
 
-func optionalTime(value time.Time) *time.Time {
-	if value.IsZero() {
+func taskReferencePayloadFromReference(record taskpkg.Reference) apicontract.TaskReferencePayload {
+	return apicontract.TaskReferencePayload{
+		ID:          record.ID,
+		Identifier:  record.Identifier,
+		Title:       record.Title,
+		Status:      record.Status,
+		Priority:    record.Priority,
+		Owner:       cloneOwnership(record.Owner),
+		Scope:       record.Scope,
+		WorkspaceID: record.WorkspaceID,
+	}
+}
+
+func taskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *apicontract.TaskRunSummaryPayload {
+	if summary == nil {
 		return nil
 	}
-	cloned := value
-	return &cloned
+
+	return &apicontract.TaskRunSummaryPayload{
+		ID:          summary.ID,
+		TaskID:      summary.TaskID,
+		Status:      summary.Status,
+		Attempt:     summary.Attempt,
+		MaxAttempts: summary.MaxAttempts,
+		SessionID:   summary.SessionID,
+		ClaimedBy:   cloneActorIdentity(summary.ClaimedBy),
+		QueuedAt:    summary.QueuedAt,
+		ClaimedAt:   optionalTime(summary.ClaimedAt),
+		StartedAt:   optionalTime(summary.StartedAt),
+		EndedAt:     optionalTime(summary.EndedAt),
+		Error:       summary.Error,
+	}
+}
+
+func taskDependencyReferencePayloadsFromReferences(
+	dependencies []taskpkg.DependencyReference,
+) []apicontract.TaskDependencyReferencePayload {
+	payloads := make([]apicontract.TaskDependencyReferencePayload, 0, len(dependencies))
+	for _, dependency := range dependencies {
+		payloads = append(payloads, apicontract.TaskDependencyReferencePayload{
+			TaskID:          dependency.TaskID,
+			DependsOnTaskID: dependency.DependsOnTaskID,
+			Kind:            dependency.Kind,
+			CreatedAt:       dependency.CreatedAt,
+			DependsOn:       taskReferencePayloadFromReference(dependency.DependsOn),
+		})
+	}
+	return payloads
 }
 
 func taskEventPayloadsFromEvents(events []taskpkg.Event) []apicontract.TaskEventPayload {
@@ -767,11 +1042,346 @@ func taskDetailPayloadFromView(view *taskpkg.View) apicontract.TaskDetailPayload
 	}
 
 	return apicontract.TaskDetailPayload{
-		Task:         taskPayloadFromTask(&view.Task),
-		Children:     taskSummaryPayloadsFromSummaries(view.Children),
-		Dependencies: taskDependencyPayloadsFromDependencies(view.Dependencies),
-		Runs:         taskRunPayloadsFromRuns(view.Runs),
-		Events:       taskEventPayloadsFromEvents(view.Events),
+		Summary:              taskSummaryPayloadFromSummary(view.Summary),
+		Task:                 taskPayloadFromTask(&view.Task),
+		Children:             taskSummaryPayloadsFromSummaries(view.Children),
+		Dependencies:         taskDependencyPayloadsFromDependencies(view.Dependencies),
+		DependencyReferences: taskDependencyReferencePayloadsFromReferences(view.DependencyReferences),
+		Runs:                 taskRunPayloadsFromRuns(view.Runs),
+		Events:               taskEventPayloadsFromEvents(view.Events),
+	}
+}
+
+func taskTimelineItemPayloadsFromItems(items []taskpkg.TimelineItem) []apicontract.TaskTimelineItemPayload {
+	payloads := make([]apicontract.TaskTimelineItemPayload, 0, len(items))
+	for _, item := range items {
+		payloads = append(payloads, taskTimelineItemPayloadFromItem(item))
+	}
+	return payloads
+}
+
+func taskTimelineItemPayloadFromItem(item taskpkg.TimelineItem) apicontract.TaskTimelineItemPayload {
+	return apicontract.TaskTimelineItemPayload{
+		Sequence:  item.Sequence,
+		EventID:   item.EventID,
+		Task:      taskReferencePayloadFromReference(item.Task),
+		Run:       taskRunSummaryPayloadFromSummary(item.Run),
+		EventType: item.EventType,
+		Actor:     item.Actor,
+		Origin:    item.Origin,
+		Payload:   cloneRawMessage(item.Payload),
+		Timestamp: item.Timestamp,
+	}
+}
+
+func taskTreePayloadFromView(view *taskpkg.TreeView) apicontract.TaskTreePayload {
+	if view == nil {
+		return apicontract.TaskTreePayload{}
+	}
+
+	payload := apicontract.TaskTreePayload{
+		Root: taskTreeNodePayloadFromNode(view.Root),
+	}
+	if len(view.Descendants) == 0 {
+		return payload
+	}
+
+	payload.Descendants = make([]apicontract.TaskTreeNodePayload, 0, len(view.Descendants))
+	for _, node := range view.Descendants {
+		payload.Descendants = append(payload.Descendants, taskTreeNodePayloadFromNode(node))
+	}
+	return payload
+}
+
+func taskTreeNodePayloadFromNode(node taskpkg.TreeNode) apicontract.TaskTreeNodePayload {
+	return apicontract.TaskTreeNodePayload{
+		Task:           taskReferencePayloadFromReference(node.Task),
+		ParentTaskID:   node.ParentTaskID,
+		Depth:          node.Depth,
+		ChildCount:     node.ChildCount,
+		ActiveRun:      taskRunSummaryPayloadFromSummary(node.ActiveRun),
+		LastActivityAt: node.LastActivityAt,
+	}
+}
+
+func taskRunDetailPayloadFromView(view *taskpkg.RunDetailView) apicontract.TaskRunDetailPayload {
+	if view == nil {
+		return apicontract.TaskRunDetailPayload{}
+	}
+
+	return apicontract.TaskRunDetailPayload{
+		Run:     taskRunPayloadFromRun(&view.Run),
+		Task:    taskReferencePayloadFromReference(view.Task),
+		Session: taskRunSessionPayloadFromSession(view.Session),
+		Summary: taskRunOperationalSummaryPayloadFromSummary(view.Summary),
+	}
+}
+
+func taskRunSessionPayloadFromSession(session *taskpkg.RunSessionRef) *apicontract.TaskRunSessionPayload {
+	if session == nil {
+		return nil
+	}
+
+	return &apicontract.TaskRunSessionPayload{
+		SessionID:   session.SessionID,
+		WorkspaceID: session.WorkspaceID,
+		AgentName:   session.AgentName,
+		Name:        session.Name,
+		Channel:     session.Channel,
+		State:       session.State,
+		CreatedAt:   session.CreatedAt,
+		UpdatedAt:   session.UpdatedAt,
+	}
+}
+
+func taskRunOperationalSummaryPayloadFromSummary(
+	summary taskpkg.RunOperationalSummary,
+) apicontract.TaskRunOperationalSummaryPayload {
+	return apicontract.TaskRunOperationalSummaryPayload{
+		LastActivityAt: summary.LastActivityAt,
+		LastEventType:  summary.LastEventType,
+		ToolCallCount:  summary.ToolCallCount,
+		TurnCount:      summary.TurnCount,
+		InputTokens:    summary.InputTokens,
+		OutputTokens:   summary.OutputTokens,
+		TotalTokens:    summary.TotalTokens,
+		TotalCost:      summary.TotalCost,
+		CostCurrency:   summary.CostCurrency,
+	}
+}
+
+func taskDashboardPayloadFromView(view *observepkg.TaskDashboardView) apicontract.TaskDashboardPayload {
+	if view == nil {
+		return apicontract.TaskDashboardPayload{}
+	}
+
+	return apicontract.TaskDashboardPayload{
+		Totals:          taskDashboardTotalsPayload(view.Totals),
+		Cards:           taskDashboardCardsPayload(view.Cards),
+		StatusBreakdown: taskDashboardStatusBreakdownPayloads(view.StatusBreakdown),
+		Queue:           taskDashboardQueuePayload(view.Queue),
+		Health:          taskDashboardHealthPayload(view.Health),
+		ActiveRuns:      taskDashboardActiveRunsPayload(view.ActiveRuns),
+		Freshness:       taskDashboardFreshnessPayload(view.Freshness),
+	}
+}
+
+func taskDashboardTotalsPayload(totals observepkg.TaskDashboardTotals) apicontract.TaskDashboardTotalsPayload {
+	return apicontract.TaskDashboardTotalsPayload{
+		TasksTotal:             totals.TasksTotal,
+		RunsTotal:              totals.RunsTotal,
+		DraftTasks:             totals.DraftTasks,
+		PendingTasks:           totals.PendingTasks,
+		ReadyTasks:             totals.ReadyTasks,
+		InProgressTasks:        totals.InProgressTasks,
+		BlockedTasks:           totals.BlockedTasks,
+		CompletedTasks:         totals.CompletedTasks,
+		FailedTasks:            totals.FailedTasks,
+		CanceledTasks:          totals.CanceledTasks,
+		AwaitingApprovalTasks:  totals.AwaitingApprovalTasks,
+		DependencyBlockedTasks: totals.DependencyBlockedTasks,
+		QueuedRuns:             totals.QueuedRuns,
+		ClaimedRuns:            totals.ClaimedRuns,
+		StartingRuns:           totals.StartingRuns,
+		RunningRuns:            totals.RunningRuns,
+		CompletedRuns:          totals.CompletedRuns,
+		FailedRuns:             totals.FailedRuns,
+		CanceledRuns:           totals.CanceledRuns,
+		ActiveRuns:             totals.ActiveRuns,
+	}
+}
+
+func taskDashboardCardsPayload(cards observepkg.TaskDashboardCards) apicontract.TaskDashboardCardsPayload {
+	return apicontract.TaskDashboardCardsPayload{
+		InProgress: apicontract.TaskDashboardInProgressCardPayload{
+			Tasks:        cards.InProgress.Tasks,
+			ActiveRuns:   cards.InProgress.ActiveRuns,
+			RunningRuns:  cards.InProgress.RunningRuns,
+			StartingRuns: cards.InProgress.StartingRuns,
+			ClaimedRuns:  cards.InProgress.ClaimedRuns,
+			QueuedRuns:   cards.InProgress.QueuedRuns,
+			HealthStatus: cards.InProgress.HealthStatus,
+		},
+		Blocked: apicontract.TaskDashboardBlockedCardPayload{
+			Tasks:                cards.Blocked.Tasks,
+			AwaitingApproval:     cards.Blocked.AwaitingApproval,
+			AwaitingDependencies: cards.Blocked.AwaitingDependencies,
+			HealthStatus:         cards.Blocked.HealthStatus,
+		},
+		Failed: apicontract.TaskDashboardFailedCardPayload{
+			Tasks:        cards.Failed.Tasks,
+			FailedRuns:   cards.Failed.FailedRuns,
+			ForcedStops:  cards.Failed.ForcedStops,
+			HealthStatus: cards.Failed.HealthStatus,
+		},
+		Latency: apicontract.TaskDashboardLatencyCardPayload{
+			ClaimLatencyMillis: taskLatencyMetricPayload(cards.Latency.ClaimLatencyMillis),
+			StartLatencyMillis: taskLatencyMetricPayload(cards.Latency.StartLatencyMillis),
+		},
+	}
+}
+
+func taskLatencyMetricPayload(metric observepkg.LatencyMetric) apicontract.TaskLatencyMetricPayload {
+	return apicontract.TaskLatencyMetricPayload{
+		Samples:       metric.Samples,
+		AverageMillis: metric.AverageMillis,
+		MaximumMillis: metric.MaximumMillis,
+	}
+}
+
+func taskDashboardStatusBreakdownPayloads(
+	items []observepkg.TaskDashboardStatusBreakdown,
+) []apicontract.TaskDashboardStatusBreakdownPayload {
+	if len(items) == 0 {
+		return nil
+	}
+
+	payloads := make([]apicontract.TaskDashboardStatusBreakdownPayload, 0, len(items))
+	for _, item := range items {
+		payloads = append(payloads, apicontract.TaskDashboardStatusBreakdownPayload{
+			Status:       item.Status,
+			Count:        item.Count,
+			SharePercent: item.SharePercent,
+		})
+	}
+	return payloads
+}
+
+func taskDashboardQueuePayload(queue observepkg.TaskDashboardQueue) apicontract.TaskDashboardQueuePayload {
+	payload := apicontract.TaskDashboardQueuePayload{
+		Total:                 queue.Total,
+		OldestQueuedAt:        queue.OldestQueuedAt,
+		OldestQueueAgeMilli:   queue.OldestQueueAgeMilli,
+		BacklogWarning:        queue.BacklogWarning,
+		BacklogStatus:         queue.BacklogStatus,
+		BacklogThresholdMilli: queue.BacklogThresholdMilli,
+	}
+	if len(queue.Depth) == 0 {
+		return payload
+	}
+
+	payload.Depth = make([]apicontract.TaskDashboardQueueDepthPayload, 0, len(queue.Depth))
+	for _, item := range queue.Depth {
+		payload.Depth = append(payload.Depth, apicontract.TaskDashboardQueueDepthPayload{
+			NetworkChannel:      item.NetworkChannel,
+			Count:               item.Count,
+			OldestQueuedAt:      item.OldestQueuedAt,
+			OldestQueueAgeMilli: item.OldestQueueAgeMilli,
+		})
+	}
+	return payload
+}
+
+func taskDashboardHealthPayload(health observepkg.TaskDashboardHealth) apicontract.TaskDashboardHealthPayload {
+	return apicontract.TaskDashboardHealthPayload{
+		Status:           health.Status,
+		StuckRuns:        health.StuckRuns,
+		ActiveOrphanRuns: health.ActiveOrphanRuns,
+		QueueBacklog:     health.QueueBacklog,
+	}
+}
+
+func taskDashboardActiveRunsPayload(
+	activeRuns observepkg.TaskDashboardActiveRuns,
+) apicontract.TaskDashboardActiveRunsPayload {
+	payload := apicontract.TaskDashboardActiveRunsPayload{
+		Total:    activeRuns.Total,
+		Running:  activeRuns.Running,
+		Starting: activeRuns.Starting,
+		Claimed:  activeRuns.Claimed,
+		Queued:   activeRuns.Queued,
+	}
+	if len(activeRuns.Items) == 0 {
+		return payload
+	}
+
+	payload.Items = make([]apicontract.TaskDashboardActiveRunPayload, 0, len(activeRuns.Items))
+	for _, item := range activeRuns.Items {
+		payload.Items = append(payload.Items, apicontract.TaskDashboardActiveRunPayload{
+			TaskID:         item.TaskID,
+			TaskIdentifier: item.TaskIdentifier,
+			TaskTitle:      item.TaskTitle,
+			TaskStatus:     item.TaskStatus,
+			TaskPriority:   item.TaskPriority,
+			TaskOwner:      cloneOwnership(item.TaskOwner),
+			Scope:          item.Scope,
+			WorkspaceID:    item.WorkspaceID,
+			RunID:          item.RunID,
+			RunStatus:      item.RunStatus,
+			Attempt:        item.Attempt,
+			MaxAttempts:    item.MaxAttempts,
+			SessionID:      item.SessionID,
+			NetworkChannel: item.NetworkChannel,
+			LastActivityAt: item.LastActivityAt,
+			AgeMilli:       item.AgeMilli,
+			HealthStatus:   item.HealthStatus,
+			Stuck:          item.Stuck,
+			Error:          item.Error,
+		})
+	}
+	return payload
+}
+
+func taskDashboardFreshnessPayload(
+	freshness observepkg.TaskDashboardFreshness,
+) apicontract.TaskDashboardFreshnessPayload {
+	return apicontract.TaskDashboardFreshnessPayload{
+		ObservedAt:       freshness.ObservedAt,
+		LatestActivityAt: freshness.LatestActivityAt,
+		AgeMilli:         freshness.AgeMilli,
+		StaleAfterMilli:  freshness.StaleAfterMilli,
+		HasLiveWork:      freshness.HasLiveWork,
+		Status:           freshness.Status,
+		Stale:            freshness.Stale,
+	}
+}
+
+func taskInboxPayloadFromView(view observepkg.TaskInboxView) apicontract.TaskInboxPayload {
+	payload := apicontract.TaskInboxPayload{
+		Total:         view.Total,
+		UnreadTotal:   view.UnreadTotal,
+		ArchivedTotal: view.ArchivedTotal,
+	}
+	if len(view.Groups) == 0 {
+		return payload
+	}
+
+	payload.Groups = make([]apicontract.TaskInboxLaneGroupPayload, 0, len(view.Groups))
+	for _, group := range view.Groups {
+		groupPayload := apicontract.TaskInboxLaneGroupPayload{
+			Lane:        apicontract.TaskInboxLane(group.Lane),
+			Count:       group.Count,
+			UnreadCount: group.UnreadCount,
+		}
+		if len(group.Items) > 0 {
+			groupPayload.Items = make([]apicontract.TaskInboxItemPayload, 0, len(group.Items))
+			for _, item := range group.Items {
+				groupPayload.Items = append(groupPayload.Items, apicontract.TaskInboxItemPayload{
+					Task:             taskReferencePayloadFromReference(item.Task),
+					Lane:             apicontract.TaskInboxLane(item.Lane),
+					ApprovalPolicy:   item.ApprovalPolicy,
+					ApprovalState:    item.ApprovalState,
+					BlockingReason:   item.BlockingReason,
+					LatestActivityAt: item.LatestActivityAt,
+					Run:              taskRunSummaryPayloadFromSummary(item.Run),
+					Triage:           taskTriageStatePayloadFromState(item.Triage),
+				})
+			}
+		}
+		payload.Groups = append(payload.Groups, groupPayload)
+	}
+	return payload
+}
+
+func taskTriageStatePayloadFromState(state taskpkg.TriageState) apicontract.TaskTriageStatePayload {
+	return apicontract.TaskTriageStatePayload{
+		TaskID:             state.TaskID,
+		Actor:              state.Actor,
+		Read:               state.Read,
+		Archived:           state.Archived,
+		Dismissed:          state.Dismissed,
+		LastSeenActivityAt: optionalTime(state.LastSeenActivityAt),
+		UpdatedAt:          state.UpdatedAt,
 	}
 }
 
@@ -793,20 +1403,42 @@ func filterTaskRuns(runs []taskpkg.Run, query taskpkg.RunQuery) []taskpkg.Run {
 	return filtered
 }
 
+func filterTaskListDrafts(tasks []taskpkg.Summary, query apicontract.TaskListQuery) []taskpkg.Summary {
+	if query.IncludeDrafts || query.Status.Normalize() != "" {
+		return tasks
+	}
+
+	filtered := make([]taskpkg.Summary, 0, len(tasks))
+	for _, task := range tasks {
+		if task.Draft || task.Status.Normalize() == taskpkg.TaskStatusDraft {
+			continue
+		}
+		filtered = append(filtered, task)
+	}
+	if query.Limit > 0 && len(filtered) > query.Limit {
+		return filtered[:query.Limit]
+	}
+	return filtered
+}
+
 func cloneOwnership(source *taskpkg.Ownership) *taskpkg.Ownership {
 	if source == nil {
 		return nil
 	}
-	cloned := *source
-	return &cloned
+	return &taskpkg.Ownership{
+		Kind: source.Kind.Normalize(),
+		Ref:  strings.TrimSpace(source.Ref),
+	}
 }
 
 func cloneActorIdentity(source *taskpkg.ActorIdentity) *taskpkg.ActorIdentity {
 	if source == nil {
 		return nil
 	}
-	cloned := *source
-	return &cloned
+	return &taskpkg.ActorIdentity{
+		Kind: source.Kind.Normalize(),
+		Ref:  strings.TrimSpace(source.Ref),
+	}
 }
 
 func trimStringPtr(source *string) *string {
@@ -815,6 +1447,30 @@ func trimStringPtr(source *string) *string {
 	}
 	value := strings.TrimSpace(*source)
 	return &value
+}
+
+func normalizePriorityPtr(source *taskpkg.Priority) *taskpkg.Priority {
+	if source == nil {
+		return nil
+	}
+	normalized := source.Normalize()
+	return &normalized
+}
+
+func normalizeApprovalPolicyPtr(source *taskpkg.ApprovalPolicy) *taskpkg.ApprovalPolicy {
+	if source == nil {
+		return nil
+	}
+	normalized := source.Normalize()
+	return &normalized
+}
+
+func optionalTime(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	cloned := value
+	return &cloned
 }
 
 func cloneRawMessagePtr(source *json.RawMessage) *json.RawMessage {
