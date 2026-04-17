@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: First-class task semantics and validation
 type: backend
 complexity: high
@@ -30,11 +30,11 @@ Promote the Paper-critical task semantics into the core task domain so later sto
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Add the new task-domain enums, fields, and supporting read-model types
-- [ ] 1.2 Define draft-specific and approval-specific validation invariants
-- [ ] 1.3 Normalize default values for newly introduced task semantics
-- [ ] 1.4 Align task-domain interfaces with the expanded type surface
-- [ ] 1.5 Add focused validation and interface-compatibility tests
+- [x] 1.1 Add the new task-domain enums, fields, and supporting read-model types
+- [x] 1.2 Define draft-specific and approval-specific validation invariants
+- [x] 1.3 Normalize default values for newly introduced task semantics
+- [x] 1.4 Align task-domain interfaces with the expanded type surface
+- [x] 1.5 Add focused validation and interface-compatibility tests
 
 ## Implementation Details
 
@@ -65,13 +65,13 @@ See TechSpec sections "Data Models", "Core Interfaces", and ADR-002. Keep this t
 
 ## Tests
 - Unit tests:
-  - [ ] Valid `priority` values are accepted and invalid values return descriptive validation errors
-  - [ ] Draft tasks validate as non-runnable while runnable statuses reject draft-only combinations
-  - [ ] `max_attempts` rejects zero, negative, and unsupported boundary values
-  - [ ] Approval policy/state combinations reject impossible or ambiguous pairings
+  - [x] Valid `priority` values are accepted and invalid values return descriptive validation errors
+  - [x] Draft tasks validate as non-runnable while runnable statuses reject draft-only combinations
+  - [x] `max_attempts` rejects zero, negative, and unsupported boundary values
+  - [x] Approval policy/state combinations reject impossible or ambiguous pairings
 - Integration tests:
-  - [ ] The task manager interfaces compile and execute against the expanded task types without adapter drift
-  - [ ] In-memory or manager-level creation paths surface the new validation failures before persistence is attempted
+  - [x] The task manager interfaces compile and execute against the expanded task types without adapter drift
+  - [x] In-memory or manager-level creation paths surface the new validation failures before persistence is attempted
 - Test coverage target: >=80%
 - All tests must pass
 

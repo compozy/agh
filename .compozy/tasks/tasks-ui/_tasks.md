@@ -6,7 +6,7 @@
 
 | # | Title | Status | Complexity | Dependencies |
 |---|-------|--------|------------|--------------|
-| 01 | First-class task semantics and validation | pending | high | — |
+| 01 | First-class task semantics and validation | completed | high | — |
 | 02 | Persistent task fields and lifecycle reconciliation | pending | critical | task_01 |
 | 03 | Enriched task reads and draft publication | pending | high | task_02 |
 | 04 | Task live timelines, streams, and run detail views | pending | high | task_02 |
