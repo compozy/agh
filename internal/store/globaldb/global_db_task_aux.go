@@ -14,11 +14,95 @@ import (
 var _ taskpkg.DependencyStore = (*GlobalDB)(nil)
 var _ taskpkg.EventStore = (*GlobalDB)(nil)
 var _ taskpkg.IdempotencyStore = (*GlobalDB)(nil)
+var _ taskpkg.TriageStore = (*GlobalDB)(nil)
 
 type taskSQLExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// GetTaskTriageState returns the durable actor-scoped triage state for one task.
+func (g *GlobalDB) GetTaskTriageState(
+	ctx context.Context,
+	taskID string,
+	actor taskpkg.ActorIdentity,
+) (taskpkg.TriageState, error) {
+	if err := g.checkReady(ctx, "get task triage state"); err != nil {
+		return taskpkg.TriageState{}, err
+	}
+
+	trimmedTaskID, normalizedActor, err := normalizeTaskTriageLookup(taskID, actor)
+	if err != nil {
+		return taskpkg.TriageState{}, err
+	}
+
+	row := g.db.QueryRowContext(
+		ctx,
+		`SELECT
+			task_id, actor_kind, actor_ref, is_read, archived, dismissed, last_seen_activity_at, updated_at
+		 FROM task_triage_state
+		 WHERE task_id = ? AND actor_kind = ? AND actor_ref = ?`,
+		trimmedTaskID,
+		string(normalizedActor.Kind),
+		normalizedActor.Ref,
+	)
+
+	record, err := scanTaskTriageStateRecord(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return taskpkg.TriageState{}, taskpkg.ErrTaskTriageStateNotFound
+		}
+		return taskpkg.TriageState{}, err
+	}
+	return record, nil
+}
+
+// UpsertTaskTriageState inserts or replaces one durable actor-scoped triage state.
+func (g *GlobalDB) UpsertTaskTriageState(ctx context.Context, state taskpkg.TriageState) error {
+	if err := g.checkReady(ctx, "upsert task triage state"); err != nil {
+		return err
+	}
+
+	normalized, err := g.normalizeTaskTriageStateForUpsert(state)
+	if err != nil {
+		return err
+	}
+	if err := g.ensureTaskExists(ctx, normalized.TaskID); err != nil {
+		return err
+	}
+
+	_, err = g.db.ExecContext(
+		ctx,
+		`INSERT INTO task_triage_state (
+			task_id, actor_kind, actor_ref, is_read, archived, dismissed, last_seen_activity_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(task_id, actor_kind, actor_ref) DO UPDATE SET
+			is_read = excluded.is_read,
+			archived = excluded.archived,
+			dismissed = excluded.dismissed,
+			last_seen_activity_at = excluded.last_seen_activity_at,
+			updated_at = excluded.updated_at`,
+		normalized.TaskID,
+		string(normalized.Actor.Kind),
+		normalized.Actor.Ref,
+		normalized.Read,
+		normalized.Archived,
+		normalized.Dismissed,
+		nullableTaskTimestamp(normalized.LastSeenActivityAt),
+		store.FormatTimestamp(normalized.UpdatedAt),
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"store: upsert task triage state for task %q actor %q/%q: %w",
+			normalized.TaskID,
+			normalized.Actor.Kind,
+			normalized.Actor.Ref,
+			err,
+		)
+	}
+
+	return nil
 }
 
 // CreateDependency inserts one durable task-dependency edge under a single SQLite write lock.
@@ -458,6 +542,19 @@ func (g *GlobalDB) normalizeTaskDependencyForCreate(record taskpkg.Dependency) (
 	return normalized, nil
 }
 
+func (g *GlobalDB) normalizeTaskTriageStateForUpsert(
+	record taskpkg.TriageState,
+) (taskpkg.TriageState, error) {
+	normalized := normalizeTaskTriageStateRecord(record)
+	if normalized.UpdatedAt.IsZero() {
+		normalized.UpdatedAt = g.now()
+	}
+	if err := normalized.Validate(); err != nil {
+		return taskpkg.TriageState{}, err
+	}
+	return normalized, nil
+}
+
 func (g *GlobalDB) normalizeTaskEventForCreate(record taskpkg.Event) (taskpkg.Event, error) {
 	normalized := normalizeTaskEventRecord(record)
 	if normalized.Timestamp.IsZero() {
@@ -663,6 +760,26 @@ func getTaskRunIdempotencyRecord(
 	return record, nil
 }
 
+func normalizeTaskTriageLookup(
+	taskID string,
+	actor taskpkg.ActorIdentity,
+) (string, taskpkg.ActorIdentity, error) {
+	trimmedTaskID, err := requireTaskValue(taskID, "task triage task id")
+	if err != nil {
+		return "", taskpkg.ActorIdentity{}, err
+	}
+
+	normalizedActor := taskpkg.ActorIdentity{
+		Kind: actor.Kind.Normalize(),
+		Ref:  strings.TrimSpace(actor.Ref),
+	}
+	if err := normalizedActor.Validate("task_triage_state.actor"); err != nil {
+		return "", taskpkg.ActorIdentity{}, err
+	}
+
+	return trimmedTaskID, normalizedActor, nil
+}
+
 func normalizeTaskDependencyRecord(record taskpkg.Dependency) taskpkg.Dependency {
 	normalized := record
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
@@ -670,6 +787,20 @@ func normalizeTaskDependencyRecord(record taskpkg.Dependency) taskpkg.Dependency
 	normalized.Kind = normalized.Kind.Normalize()
 	if !normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = normalized.CreatedAt.UTC()
+	}
+	return normalized
+}
+
+func normalizeTaskTriageStateRecord(record taskpkg.TriageState) taskpkg.TriageState {
+	normalized := record
+	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
+	normalized.Actor.Kind = normalized.Actor.Kind.Normalize()
+	normalized.Actor.Ref = strings.TrimSpace(normalized.Actor.Ref)
+	if !normalized.LastSeenActivityAt.IsZero() {
+		normalized.LastSeenActivityAt = normalized.LastSeenActivityAt.UTC()
+	}
+	if !normalized.UpdatedAt.IsZero() {
+		normalized.UpdatedAt = normalized.UpdatedAt.UTC()
 	}
 	return normalized
 }
@@ -752,6 +883,43 @@ func scanTaskDependencyRecord(scanner rowScanner) (taskpkg.Dependency, error) {
 	record = normalizeTaskDependencyRecord(record)
 	if err := record.Validate(); err != nil {
 		return taskpkg.Dependency{}, err
+	}
+
+	return record, nil
+}
+
+func scanTaskTriageStateRecord(scanner rowScanner) (taskpkg.TriageState, error) {
+	var (
+		record                taskpkg.TriageState
+		actorKind             string
+		lastSeenActivityAtRaw sql.NullString
+		updatedAtRaw          string
+	)
+	if err := scanner.Scan(
+		&record.TaskID,
+		&actorKind,
+		&record.Actor.Ref,
+		&record.Read,
+		&record.Archived,
+		&record.Dismissed,
+		&lastSeenActivityAtRaw,
+		&updatedAtRaw,
+	); err != nil {
+		return taskpkg.TriageState{}, fmt.Errorf("store: scan task triage state: %w", err)
+	}
+
+	record.Actor.Kind = taskpkg.ActorKind(strings.TrimSpace(actorKind))
+	if err := assignNullableTaskTimestamp(&record.LastSeenActivityAt, lastSeenActivityAtRaw); err != nil {
+		return taskpkg.TriageState{}, fmt.Errorf("store: parse task triage last_seen_activity_at: %w", err)
+	}
+	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
+	if err != nil {
+		return taskpkg.TriageState{}, fmt.Errorf("store: parse task triage updated_at: %w", err)
+	}
+	record.UpdatedAt = updatedAt
+	record = normalizeTaskTriageStateRecord(record)
+	if err := record.Validate(); err != nil {
+		return taskpkg.TriageState{}, err
 	}
 
 	return record, nil

@@ -225,10 +225,20 @@ var globalSchemaStatements = append([]string{
 		network_channel TEXT,
 		title           TEXT NOT NULL,
 		description     TEXT,
+		priority        TEXT NOT NULL DEFAULT 'medium' CHECK (
+			priority IN ('low', 'medium', 'high', 'urgent')
+		),
+		max_attempts    INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts > 0 AND max_attempts <= 10),
 		status          TEXT NOT NULL CHECK (
 			status IN (
-				'pending', 'blocked', 'ready', 'in_progress', 'completed', 'failed', 'canceled'
+				'draft', 'pending', 'blocked', 'ready', 'in_progress', 'completed', 'failed', 'canceled'
 			)
+		),
+		approval_policy TEXT NOT NULL DEFAULT 'none' CHECK (
+			approval_policy IN ('none', 'manual')
+		),
+		approval_state  TEXT NOT NULL DEFAULT 'not_required' CHECK (
+			approval_state IN ('not_required', 'pending', 'approved', 'rejected')
 		),
 		owner_kind      TEXT CHECK (
 			owner_kind IS NULL OR owner_kind IN (
@@ -260,11 +270,17 @@ var globalSchemaStatements = append([]string{
 			(owner_kind IS NULL AND owner_ref IS NULL) OR
 			(owner_kind IS NOT NULL AND owner_ref IS NOT NULL)
 		),
-		CHECK (parent_task_id IS NULL OR parent_task_id <> id)
+		CHECK (parent_task_id IS NULL OR parent_task_id <> id),
+		CHECK (
+			(approval_policy = 'none' AND approval_state = 'not_required') OR
+			(approval_policy = 'manual' AND approval_state IN ('pending', 'approved', 'rejected'))
+		)
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_scope ON tasks(scope);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_workspace ON tasks(workspace_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_approval_state ON tasks(approval_state);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner_kind, owner_ref);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_channel ON tasks(network_channel);`,
@@ -355,6 +371,23 @@ var globalSchemaStatements = append([]string{
 		PRIMARY KEY (idempotency_key, origin_kind, origin_ref)
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_task_run_idempotency_run ON task_run_idempotency(run_id);`,
+	`CREATE TABLE IF NOT EXISTS task_triage_state (
+		task_id               TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+		actor_kind            TEXT NOT NULL CHECK (
+			actor_kind IN (
+				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
+			)
+		),
+		actor_ref             TEXT NOT NULL,
+		is_read               BOOLEAN NOT NULL DEFAULT 0,
+		archived              BOOLEAN NOT NULL DEFAULT 0,
+		dismissed             BOOLEAN NOT NULL DEFAULT 0,
+		last_seen_activity_at TEXT,
+		updated_at            TEXT NOT NULL,
+		PRIMARY KEY (task_id, actor_kind, actor_ref)
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_triage_task ON task_triage_state(task_id, updated_at DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_triage_actor ON task_triage_state(actor_kind, actor_ref, updated_at DESC, task_id);`,
 	`CREATE TABLE IF NOT EXISTS bridge_instances (
 		id                TEXT PRIMARY KEY,
 		scope             TEXT NOT NULL,

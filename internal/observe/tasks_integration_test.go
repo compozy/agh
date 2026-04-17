@@ -182,6 +182,7 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: h.workspaceID,
 		Title:       "Recover orphaned run",
+		MaxAttempts: intPtr(1),
 	}, humanActor)
 	if err != nil {
 		t.Fatalf("CreateTask(recoveryTask) error = %v", err)
@@ -274,4 +275,8 @@ func newObserveTaskManager(t *testing.T, h *harness, executor *observeSessionExe
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
 	return manager
+}
+
+func intPtr(value int) *int {
+	return &value
 }

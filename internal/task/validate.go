@@ -506,6 +506,20 @@ func (r RunIdempotency) Validate() error {
 	return nil
 }
 
+// Validate reports whether the durable task triage state contains the canonical shape.
+func (t TriageState) Validate() error {
+	if strings.TrimSpace(t.TaskID) == "" {
+		return fmt.Errorf("%w: task_triage_state.task_id is required", ErrValidation)
+	}
+	if err := t.Actor.Validate("task_triage_state.actor"); err != nil {
+		return err
+	}
+	if t.UpdatedAt.IsZero() {
+		return fmt.Errorf("%w: task_triage_state.updated_at is required", ErrValidation)
+	}
+	return nil
+}
+
 // Validate reports whether the create-task request is internally consistent.
 func (r CreateTask) Validate(path string) error {
 	if err := ValidateScopeBinding(r.Scope, r.WorkspaceID, path, "workspace_id"); err != nil {

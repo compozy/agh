@@ -63,6 +63,12 @@ func (fakeStore) ListTaskRunsByStatus(context.Context, []taskpkg.RunStatus) ([]t
 	return []taskpkg.Run{{ID: "run-1", TaskID: "task-1", Status: taskpkg.TaskRunStatusQueued, Attempt: 1}}, nil
 }
 
+func (fakeStore) GetTaskTriageState(context.Context, string, taskpkg.ActorIdentity) (taskpkg.TriageState, error) {
+	return taskpkg.TriageState{}, taskpkg.ErrTaskTriageStateNotFound
+}
+
+func (fakeStore) UpsertTaskTriageState(context.Context, taskpkg.TriageState) error { return nil }
+
 func (fakeStore) CountActiveSessionBindings(context.Context, string) (int, error) { return 0, nil }
 
 func (fakeStore) CreateTaskEvent(context.Context, taskpkg.Event) error { return nil }

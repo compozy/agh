@@ -296,6 +296,17 @@ type RunIdempotency struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
+// TriageState is the durable actor-scoped inbox and triage state for one task.
+type TriageState struct {
+	TaskID             string        `json:"task_id"`
+	Actor              ActorIdentity `json:"actor"`
+	Read               bool          `json:"read"`
+	Archived           bool          `json:"archived"`
+	Dismissed          bool          `json:"dismissed"`
+	LastSeenActivityAt time.Time     `json:"last_seen_activity_at"`
+	UpdatedAt          time.Time     `json:"updated_at"`
+}
+
 // Summary is the lightweight read model returned from list-oriented task queries.
 type Summary struct {
 	ID             string         `json:"id"`

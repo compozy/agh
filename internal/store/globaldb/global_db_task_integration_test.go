@@ -24,10 +24,17 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 
 	workspaceID := registerWorkspaceForGlobalTests(t, first, "task-integration-workspace", filepath.Join(t.TempDir(), "workspace"))
 	globalTask := taskRecordForTest("task-integration-global")
+	globalTask.Status = taskpkg.TaskStatusDraft
+	globalTask.Priority = taskpkg.PriorityLow
+	globalTask.MaxAttempts = 2
 	workspaceTask := taskRecordForTest("task-integration-workspace-child")
 	workspaceTask.Scope = taskpkg.ScopeWorkspace
 	workspaceTask.WorkspaceID = workspaceID
 	workspaceTask.ParentTaskID = globalTask.ID
+	workspaceTask.Priority = taskpkg.PriorityUrgent
+	workspaceTask.MaxAttempts = 5
+	workspaceTask.ApprovalPolicy = taskpkg.ApprovalPolicyManual
+	workspaceTask.ApprovalState = taskpkg.ApprovalStateApproved
 	workspaceTask.Owner = ownershipForTest(taskpkg.OwnerKindPool, "backlog")
 	workspaceTask.NetworkChannel = "engineering"
 
@@ -36,6 +43,30 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 	}
 	if err := first.CreateTask(ctx, workspaceTask); err != nil {
 		t.Fatalf("CreateTask(workspace) error = %v", err)
+	}
+
+	aliceTriage := taskpkg.TriageState{
+		TaskID:             workspaceTask.ID,
+		Actor:              taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"},
+		Read:               true,
+		Archived:           false,
+		Dismissed:          false,
+		LastSeenActivityAt: workspaceTask.UpdatedAt.Add(3 * time.Minute),
+		UpdatedAt:          workspaceTask.UpdatedAt.Add(4 * time.Minute),
+	}
+	if err := first.UpsertTaskTriageState(ctx, aliceTriage); err != nil {
+		t.Fatalf("UpsertTaskTriageState(alice) error = %v", err)
+	}
+	bobTriage := taskpkg.TriageState{
+		TaskID:    workspaceTask.ID,
+		Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:bob"},
+		Read:      false,
+		Archived:  true,
+		Dismissed: true,
+		UpdatedAt: workspaceTask.UpdatedAt.Add(5 * time.Minute),
+	}
+	if err := first.UpsertTaskTriageState(ctx, bobTriage); err != nil {
+		t.Fatalf("UpsertTaskTriageState(bob) error = %v", err)
 	}
 
 	if err := first.Close(ctx); err != nil {
@@ -60,6 +91,9 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 		t.Fatalf("len(ListTasks(global)) = %d, want %d", got, want)
 	}
 	assertTaskSummaryMatchesTask(t, globalTasks[0], globalTask)
+	if !globalTasks[0].Draft {
+		t.Fatalf("globalTasks[0].Draft = false, want true")
+	}
 
 	workspaceTasks, err := second.ListTasks(ctx, taskpkg.Query{WorkspaceID: workspaceID})
 	if err != nil {
@@ -75,6 +109,22 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 		t.Fatalf("GetTask(workspace) error = %v", err)
 	}
 	assertTaskEqual(t, reloadedTask, workspaceTask)
+
+	storedAlice, err := second.GetTaskTriageState(ctx, workspaceTask.ID, aliceTriage.Actor)
+	if err != nil {
+		t.Fatalf("GetTaskTriageState(alice) error = %v", err)
+	}
+	if storedAlice != aliceTriage {
+		t.Fatalf("storedAlice = %#v, want %#v", storedAlice, aliceTriage)
+	}
+
+	storedBob, err := second.GetTaskTriageState(ctx, workspaceTask.ID, bobTriage.Actor)
+	if err != nil {
+		t.Fatalf("GetTaskTriageState(bob) error = %v", err)
+	}
+	if storedBob != bobTriage {
+		t.Fatalf("storedBob = %#v, want %#v", storedBob, bobTriage)
+	}
 }
 
 func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {

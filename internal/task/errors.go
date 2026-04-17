@@ -13,6 +13,8 @@ var (
 	ErrTaskDependencyNotFound = errors.New("task: task dependency not found")
 	// ErrTaskEventNotFound reports that no persisted task event matched the lookup.
 	ErrTaskEventNotFound = errors.New("task: task event not found")
+	// ErrTaskTriageStateNotFound reports that no persisted triage state matched the lookup.
+	ErrTaskTriageStateNotFound = errors.New("task: task triage state not found")
 	// ErrValidation reports that a task-domain payload or state failed validation.
 	ErrValidation = errors.New("task: validation failed")
 	// ErrImmutableField reports that a caller attempted to change an immutable task field.

@@ -16,6 +16,7 @@ type inMemoryManagerStore struct {
 	tasks            map[string]Task
 	dependencies     map[string]map[string]Dependency
 	runs             map[string]Run
+	triageStates     map[string]TriageState
 	events           []Event
 	idempotencyByKey map[string]RunIdempotency
 }
@@ -106,6 +107,7 @@ func newInMemoryManagerStore() *inMemoryManagerStore {
 		tasks:            make(map[string]Task),
 		dependencies:     make(map[string]map[string]Dependency),
 		runs:             make(map[string]Run),
+		triageStates:     make(map[string]TriageState),
 		events:           make([]Event, 0),
 		idempotencyByKey: make(map[string]RunIdempotency),
 	}
@@ -370,6 +372,26 @@ func (s *inMemoryManagerStore) ListTaskRunsByStatus(_ context.Context, statuses 
 	return runs, nil
 }
 
+func (s *inMemoryManagerStore) GetTaskTriageState(
+	_ context.Context,
+	taskID string,
+	actor ActorIdentity,
+) (TriageState, error) {
+	record, ok := s.triageStates[triageKey(taskID, actor)]
+	if !ok {
+		return TriageState{}, ErrTaskTriageStateNotFound
+	}
+	return cloneTriageState(record), nil
+}
+
+func (s *inMemoryManagerStore) UpsertTaskTriageState(_ context.Context, state TriageState) error {
+	if _, ok := s.tasks[strings.TrimSpace(state.TaskID)]; !ok {
+		return ErrTaskNotFound
+	}
+	s.triageStates[triageKey(state.TaskID, state.Actor)] = cloneTriageState(state)
+	return nil
+}
+
 func (s *inMemoryManagerStore) CountActiveSessionBindings(_ context.Context, sessionID string) (int, error) {
 	count := 0
 	for _, run := range s.runs {
@@ -617,7 +639,7 @@ func TestManagerCreateTaskAppliesSemanticDefaultsAndDraftStatus(t *testing.T) {
 	t.Parallel()
 
 	store := newInMemoryManagerStore()
-	manager := newTaskManagerForTest(t, store)
+	manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(testSessionExecutor{}))
 	actor := validActorContext()
 
 	draftCreated, err := manager.CreateTask(context.Background(), CreateTask{
@@ -644,6 +666,93 @@ func TestManagerCreateTaskAppliesSemanticDefaultsAndDraftStatus(t *testing.T) {
 	if got, want := draftCreated.ApprovalState, ApprovalStateNotRequired; got != want {
 		t.Fatalf("draftCreated.ApprovalState = %q, want %q", got, want)
 	}
+}
+
+func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
+	t.Parallel()
+
+	t.Run("draft stays non runnable until published", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+
+		draftTask, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Draft task",
+			Draft: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(draft) error = %v", err)
+		}
+
+		if _, err := manager.EnqueueRun(
+			context.Background(),
+			EnqueueRun{TaskID: draftTask.ID},
+			actor,
+		); !errors.Is(err, ErrInvalidStatusTransition) {
+			t.Fatalf("EnqueueRun(draft) error = %v, want %v", err, ErrInvalidStatusTransition)
+		}
+
+		published, err := manager.PublishTask(context.Background(), draftTask.ID, actor)
+		if err != nil {
+			t.Fatalf("PublishTask() error = %v", err)
+		}
+		if got, want := published.Status, TaskStatusReady; got != want {
+			t.Fatalf("published.Status = %q, want %q", got, want)
+		}
+
+		events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: draftTask.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEvents() error = %v", err)
+		}
+		if !containsEventType(events, taskEventPublished) {
+			t.Fatalf("event types = %#v, want %q", sortedEventTypes(events), taskEventPublished)
+		}
+	})
+
+	t.Run("published draft remains blocked for unresolved dependencies", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+
+		blocker, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Blocker",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(blocker) error = %v", err)
+		}
+		target, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Target draft",
+			Draft: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(target) error = %v", err)
+		}
+		if err := manager.AddDependency(context.Background(), AddDependency{
+			TaskID:          target.ID,
+			DependsOnTaskID: blocker.ID,
+			Kind:            DependencyKindBlocks,
+		}, actor); err != nil {
+			t.Fatalf("AddDependency() error = %v", err)
+		}
+		if got, want := store.tasks[target.ID].Status, TaskStatusDraft; got != want {
+			t.Fatalf("target.Status before publish = %q, want %q", got, want)
+		}
+
+		published, err := manager.PublishTask(context.Background(), target.ID, actor)
+		if err != nil {
+			t.Fatalf("PublishTask() error = %v", err)
+		}
+		if got, want := published.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("published.Status = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestManagerCreateTaskEnforcesScopeAuthority(t *testing.T) {
@@ -733,7 +842,7 @@ func TestManagerUpdateTaskAllowsMutableOwnershipAndChannelFields(t *testing.T) {
 	t.Parallel()
 
 	store := newInMemoryManagerStore()
-	manager := newTaskManagerForTest(t, store)
+	manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(testSessionExecutor{}))
 	actor := validActorContext()
 
 	created, err := manager.CreateTask(context.Background(), CreateTask{
@@ -787,6 +896,9 @@ func TestManagerUpdateTaskAllowsMutableOwnershipAndChannelFields(t *testing.T) {
 	}
 	if got, want := updated.ApprovalState, ApprovalStatePending; got != want {
 		t.Fatalf("updated.ApprovalState = %q, want %q", got, want)
+	}
+	if got, want := updated.Status, TaskStatusBlocked; got != want {
+		t.Fatalf("updated.Status = %q, want %q", got, want)
 	}
 	if updated.Owner == nil || updated.Owner.Kind != OwnerKindPool || updated.Owner.Ref != "triage" {
 		t.Fatalf("updated.Owner = %#v, want pool/triage", updated.Owner)
@@ -855,6 +967,124 @@ func TestManagerUpdateTaskPreservesCanonicalBlockedStatus(t *testing.T) {
 	}
 	if got, want := updated.Status, TaskStatusBlocked; got != want {
 		t.Fatalf("updated.Status = %q, want %q", got, want)
+	}
+}
+
+func TestManagerApprovalGateBlocksExecutionUntilApproved(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:          ScopeGlobal,
+		Title:          "Manual approval task",
+		ApprovalPolicy: ApprovalPolicyManual,
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if got, want := taskRecord.Status, TaskStatusBlocked; got != want {
+		t.Fatalf("taskRecord.Status = %q, want %q", got, want)
+	}
+
+	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	if _, err := manager.ClaimRun(
+		context.Background(),
+		run.ID,
+		ClaimRun{},
+		actor,
+	); !errors.Is(err, ErrInvalidStatusTransition) {
+		t.Fatalf("ClaimRun(blocked) error = %v, want %v", err, ErrInvalidStatusTransition)
+	}
+
+	approved := store.tasks[taskRecord.ID]
+	approved.ApprovalState = ApprovalStateApproved
+	approved.UpdatedAt = approved.UpdatedAt.Add(time.Minute)
+	if err := store.UpdateTask(context.Background(), approved); err != nil {
+		t.Fatalf("store.UpdateTask(approved) error = %v", err)
+	}
+
+	claimed, err := manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun(approved) error = %v", err)
+	}
+	if got, want := claimed.Status, TaskRunStatusClaimed; got != want {
+		t.Fatalf("claimed.Status = %q, want %q", got, want)
+	}
+	if got, want := store.tasks[taskRecord.ID].Status, TaskStatusReady; got != want {
+		t.Fatalf("task.Status after claim = %q, want %q", got, want)
+	}
+}
+
+func TestManagerAttemptExhaustionBlocksFurtherRetries(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(testSessionExecutor{}))
+	actor := validActorContext()
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:       ScopeGlobal,
+		Title:       "Retry budget task",
+		MaxAttempts: ptr(2),
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	firstRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(first) error = %v", err)
+	}
+	firstRun, err = manager.ClaimRun(context.Background(), firstRun.ID, ClaimRun{}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun(first) error = %v", err)
+	}
+	firstRun, err = manager.StartRun(context.Background(), firstRun.ID, StartRun{}, actor)
+	if err != nil {
+		t.Fatalf("StartRun(first) error = %v", err)
+	}
+	if _, err := manager.FailRun(context.Background(), firstRun.ID, RunFailure{
+		Error: "boom-1",
+	}, actor); err != nil {
+		t.Fatalf("FailRun(first) error = %v", err)
+	}
+	if got, want := store.tasks[taskRecord.ID].Status, TaskStatusReady; got != want {
+		t.Fatalf("task.Status after first failure = %q, want %q", got, want)
+	}
+
+	secondRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(second) error = %v", err)
+	}
+	secondRun, err = manager.ClaimRun(context.Background(), secondRun.ID, ClaimRun{}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun(second) error = %v", err)
+	}
+	secondRun, err = manager.StartRun(context.Background(), secondRun.ID, StartRun{}, actor)
+	if err != nil {
+		t.Fatalf("StartRun(second) error = %v", err)
+	}
+	if _, err := manager.FailRun(context.Background(), secondRun.ID, RunFailure{
+		Error: "boom-2",
+	}, actor); err != nil {
+		t.Fatalf("FailRun(second) error = %v", err)
+	}
+	if got, want := store.tasks[taskRecord.ID].Status, TaskStatusFailed; got != want {
+		t.Fatalf("task.Status after second failure = %q, want %q", got, want)
+	}
+
+	if _, err := manager.EnqueueRun(
+		context.Background(),
+		EnqueueRun{TaskID: taskRecord.ID},
+		actor,
+	); !errors.Is(err, ErrInvalidStatusTransition) {
+		t.Fatalf("EnqueueRun(exhausted) error = %v, want %v", err, ErrInvalidStatusTransition)
 	}
 }
 
@@ -1252,8 +1482,9 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	}
 
 	failedTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Failure task",
+		Scope:       ScopeGlobal,
+		Title:       "Failure task",
+		MaxAttempts: ptr(1),
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(failedTask) error = %v", err)
@@ -1425,6 +1656,7 @@ func TestManagerAttachRunSessionAndRetryLatestRunOutcome(t *testing.T) {
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope:          ScopeGlobal,
 		Title:          "Attach and retry",
+		MaxAttempts:    ptr(2),
 		NetworkChannel: "ops",
 	}, actor)
 	if err != nil {
@@ -1814,8 +2046,9 @@ func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	}
 
 	failingTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Failing start task",
+		Scope:       ScopeGlobal,
+		Title:       "Failing start task",
+		MaxAttempts: ptr(1),
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(failingTask) error = %v", err)
@@ -2746,6 +2979,12 @@ func cloneTaskRun(record Run) Run {
 	return cloned
 }
 
+func cloneTriageState(record TriageState) TriageState {
+	cloned := record
+	cloned.Actor = record.Actor
+	return cloned
+}
+
 func sortedEventTypes(events []Event) []string {
 	types := make([]string, 0, len(events))
 	for _, event := range events {
@@ -2766,6 +3005,10 @@ func containsEventType(events []Event, want string) bool {
 
 func idempotencyKey(origin Origin, key string) string {
 	return string(origin.Kind.Normalize()) + "|" + strings.TrimSpace(origin.Ref) + "|" + strings.TrimSpace(key)
+}
+
+func triageKey(taskID string, actor ActorIdentity) string {
+	return strings.TrimSpace(taskID) + "|" + string(actor.Kind.Normalize()) + "|" + strings.TrimSpace(actor.Ref)
 }
 
 func fmtTestError(format string, args ...any) error {

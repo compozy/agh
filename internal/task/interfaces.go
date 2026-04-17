@@ -68,6 +68,12 @@ type IdempotencyStore interface {
 	SaveTaskRunIdempotency(ctx context.Context, record RunIdempotency) error
 }
 
+// TriageStore is the persistence surface for durable actor-scoped task triage state.
+type TriageStore interface {
+	GetTaskTriageState(ctx context.Context, taskID string, actor ActorIdentity) (TriageState, error)
+	UpsertTaskTriageState(ctx context.Context, state TriageState) error
+}
+
 // Store composes the task-domain persistence surfaces consumed by the manager.
 type Store interface {
 	RecordStore
@@ -75,6 +81,7 @@ type Store interface {
 	RunStore
 	EventStore
 	IdempotencyStore
+	TriageStore
 }
 
 // SessionExecutor is the injected runtime bridge used to start, attach, and stop task sessions.

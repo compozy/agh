@@ -66,6 +66,9 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	if err := migrateWorkspaceColumns(ctx, db); err != nil {
 		return err
 	}
+	if err := migrateTaskTables(ctx, db); err != nil {
+		return err
+	}
 	hasSessions, err := tableExists(ctx, db, "sessions")
 	if err != nil {
 		return err
@@ -117,6 +120,200 @@ func migrateWorkspaceColumns(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("store: add workspaces.environment_ref column: %w", err)
 	}
 	return nil
+}
+
+func migrateTaskTables(ctx context.Context, db *sql.DB) error {
+	spec, needsRebuild, err := taskTableMigrationSpecForExistingSchema(ctx, db)
+	if err != nil || !needsRebuild {
+		return err
+	}
+	return rebuildTaskTable(ctx, db, spec)
+}
+
+type taskTableMigrationSpec struct {
+	priorityExpr       string
+	maxAttemptsExpr    string
+	approvalPolicyExpr string
+	approvalStateExpr  string
+}
+
+func taskTableMigrationSpecForExistingSchema(
+	ctx context.Context,
+	db *sql.DB,
+) (taskTableMigrationSpec, bool, error) {
+	exists, err := tableExists(ctx, db, "tasks")
+	if err != nil || !exists {
+		return taskTableMigrationSpec{}, false, err
+	}
+
+	columns, err := tableColumns(ctx, db, "tasks")
+	if err != nil {
+		return taskTableMigrationSpec{}, false, err
+	}
+	tableSQL, err := tableDefinitionSQL(ctx, db, "tasks")
+	if err != nil {
+		return taskTableMigrationSpec{}, false, err
+	}
+	if !taskTableNeedsRebuild(columns, tableSQL) {
+		return taskTableMigrationSpec{}, false, nil
+	}
+
+	return taskTableMigrationSpec{
+		priorityExpr:       existingTaskColumnExpr(columns, "priority", `'medium'`),
+		maxAttemptsExpr:    existingTaskColumnExpr(columns, "max_attempts", "3"),
+		approvalPolicyExpr: existingTaskColumnExpr(columns, "approval_policy", `'none'`),
+		approvalStateExpr:  existingTaskColumnExpr(columns, "approval_state", `'not_required'`),
+	}, true, nil
+}
+
+func taskTableNeedsRebuild(columns map[string]struct{}, tableSQL string) bool {
+	if !strings.Contains(tableSQL, "'draft'") {
+		return true
+	}
+	for _, column := range []string{"priority", "max_attempts", "approval_policy", "approval_state"} {
+		if _, ok := columns[column]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
+func existingTaskColumnExpr(columns map[string]struct{}, column string, fallback string) string {
+	if _, ok := columns[column]; ok {
+		return column
+	}
+	return fallback
+}
+
+func rebuildTaskTable(ctx context.Context, db *sql.DB, spec taskTableMigrationSpec) (err error) {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("store: open task schema migration connection: %w", err)
+	}
+	cleanupCtx := context.WithoutCancel(ctx)
+	foreignKeysDisabled := false
+	defer func() {
+		if foreignKeysDisabled {
+			joinCleanupError(&err, restoreForeignKeys(cleanupCtx, conn))
+		}
+		_ = conn.Close()
+	}()
+
+	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		return fmt.Errorf("store: disable foreign keys for task schema migration: %w", err)
+	}
+	foreignKeysDisabled = true
+
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin task schema migration transaction: %w", err)
+	}
+	defer func() {
+		joinCleanupError(&err, rollbackTx(tx, "task schema migration"))
+	}()
+
+	for _, stmt := range taskTableMigrationStatements(spec) {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: migrate tasks table: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit task schema migration: %w", err)
+	}
+	return nil
+}
+
+func taskTableMigrationStatements(spec taskTableMigrationSpec) []string {
+	return []string{
+		taskTableCreateStatement(),
+		taskTableCopyStatement(spec),
+		`DROP TABLE tasks`,
+		`ALTER TABLE tasks_new RENAME TO tasks`,
+	}
+}
+
+func taskTableCreateStatement() string {
+	return `CREATE TABLE tasks_new (
+		id              TEXT PRIMARY KEY,
+		identifier      TEXT,
+		scope           TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+		workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		parent_task_id  TEXT REFERENCES tasks(id),
+		network_channel TEXT,
+		title           TEXT NOT NULL,
+		description     TEXT,
+		priority        TEXT NOT NULL DEFAULT 'medium' CHECK (
+			priority IN ('low', 'medium', 'high', 'urgent')
+		),
+		max_attempts    INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts > 0 AND max_attempts <= 10),
+		status          TEXT NOT NULL CHECK (
+			status IN (
+				'draft', 'pending', 'blocked', 'ready', 'in_progress', 'completed', 'failed', 'canceled'
+			)
+		),
+		approval_policy TEXT NOT NULL DEFAULT 'none' CHECK (
+			approval_policy IN ('none', 'manual')
+		),
+		approval_state  TEXT NOT NULL DEFAULT 'not_required' CHECK (
+			approval_state IN ('not_required', 'pending', 'approved', 'rejected')
+		),
+		owner_kind      TEXT CHECK (
+			owner_kind IS NULL OR owner_kind IN (
+				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'pool'
+			)
+		),
+		owner_ref       TEXT,
+		created_by_kind TEXT NOT NULL CHECK (
+			created_by_kind IN (
+				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
+			)
+		),
+		created_by_ref  TEXT NOT NULL,
+		origin_kind     TEXT NOT NULL CHECK (
+			origin_kind IN (
+				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon'
+			)
+		),
+		origin_ref      TEXT NOT NULL,
+		created_at      TEXT NOT NULL,
+		updated_at      TEXT NOT NULL,
+		closed_at       TEXT,
+		metadata_json   TEXT,
+		CHECK (
+			(scope = 'global' AND workspace_id IS NULL) OR
+			(scope = 'workspace' AND workspace_id IS NOT NULL)
+		),
+		CHECK (
+			(owner_kind IS NULL AND owner_ref IS NULL) OR
+			(owner_kind IS NOT NULL AND owner_ref IS NOT NULL)
+		),
+		CHECK (parent_task_id IS NULL OR parent_task_id <> id),
+		CHECK (
+			(approval_policy = 'none' AND approval_state = 'not_required') OR
+			(approval_policy = 'manual' AND approval_state IN ('pending', 'approved', 'rejected'))
+		)
+	);`
+}
+
+func taskTableCopyStatement(spec taskTableMigrationSpec) string {
+	return fmt.Sprintf(
+		`INSERT INTO tasks_new (
+			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+			priority, max_attempts, status, approval_policy, approval_state,
+			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
+			created_at, updated_at, closed_at, metadata_json
+		) SELECT
+			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+			%s, %s, status, %s, %s,
+			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
+			created_at, updated_at, closed_at, metadata_json
+		FROM tasks`,
+		spec.priorityExpr,
+		spec.maxAttemptsExpr,
+		spec.approvalPolicyExpr,
+		spec.approvalStateExpr,
+	)
 }
 
 func migrateLegacyGlobalSessions(ctx context.Context, db *sql.DB) (err error) {
@@ -795,6 +992,24 @@ func tableExists(ctx context.Context, exec sqlQueryExecutor, table string) (bool
 		return false, fmt.Errorf("store: check table %q existence: %w", table, err)
 	}
 	return true, nil
+}
+
+func tableDefinitionSQL(ctx context.Context, exec sqlQueryExecutor, table string) (string, error) {
+	var sqlText sql.NullString
+	if err := exec.QueryRowContext(
+		ctx,
+		`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`,
+		strings.TrimSpace(table),
+	).Scan(&sqlText); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("store: table %q does not exist", table)
+		}
+		return "", fmt.Errorf("store: query table definition for %q: %w", table, err)
+	}
+	if !sqlText.Valid {
+		return "", fmt.Errorf("store: table definition for %q is empty", table)
+	}
+	return strings.TrimSpace(sqlText.String), nil
 }
 
 func tableColumns(ctx context.Context, exec sqlQueryExecutor, table string) (map[string]struct{}, error) {

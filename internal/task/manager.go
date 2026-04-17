@@ -15,6 +15,7 @@ import (
 const (
 	taskEventCreated           = "task.created"
 	taskEventUpdated           = "task.updated"
+	taskEventPublished         = "task.published"
 	taskEventCanceled          = "task.canceled"
 	taskEventChildCreated      = "task.child_created"
 	taskEventDependencyAdded   = "task.dependency_added"
@@ -273,7 +274,7 @@ func (m *Service) UpdateTask(ctx context.Context, id string, patch Patch, actor 
 		return nil, err
 	}
 
-	canonicalStatus, err := m.canonicalTaskStatus(ctx, current, dependencies, runs)
+	canonicalStatus, err := m.canonicalTaskStatus(ctx, updated, dependencies, runs)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +387,59 @@ func createdTaskStatus(spec CreateTask) Status {
 	if spec.Draft {
 		return TaskStatusDraft
 	}
+	if approvalStateBlocksExecution(
+		normalizeApprovalPolicyOrDefault(spec.ApprovalPolicy),
+		defaultApprovalStateForPolicy(spec.ApprovalPolicy),
+	) {
+		return TaskStatusBlocked
+	}
 	return TaskStatusReady
+}
+
+// PublishTask transitions one durable draft into manager-owned runnable reconciliation.
+func (m *Service) PublishTask(ctx context.Context, id string, actor ActorContext) (*Task, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return nil, err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+
+	record, err := m.store.GetTask(ctx, trimmedID)
+	if err != nil {
+		return nil, err
+	}
+	if record.Status.Normalize() != TaskStatusDraft {
+		return nil, fmt.Errorf(
+			"%w: task %q cannot publish from %q",
+			ErrInvalidStatusTransition,
+			record.ID,
+			record.Status,
+		)
+	}
+
+	record.Status = TaskStatusPending
+	record.UpdatedAt = m.now().UTC()
+	record.ClosedAt = time.Time{}
+	if err := m.store.UpdateTask(ctx, record); err != nil {
+		return nil, err
+	}
+
+	reconciled, err := m.reconcileTaskCascade(ctx, record.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.recordTaskEvent(ctx, reconciled.ID, "", taskEventPublished, actor, publishedTaskPayload{
+		PreviousStatus: TaskStatusDraft,
+		Status:         reconciled.Status,
+		ApprovalState:  reconciled.ApprovalState,
+	}); err != nil {
+		return nil, err
+	}
+
+	return &reconciled, nil
 }
 
 func (m *Service) loadCancellationTree(ctx context.Context, taskID string) ([]Task, Task, error) {
@@ -939,37 +992,19 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 		return nil, err
 	}
 
-	taskRecord, err := m.store.GetTask(ctx, normalizedSpec.TaskID)
+	taskRecord, existingRun, nextAttempt, err := m.prepareEnqueueRun(ctx, normalizedSpec, actor)
 	if err != nil {
 		return nil, err
 	}
-	switch taskRecord.Status.Normalize() {
-	case TaskStatusDraft:
-		return nil, fmt.Errorf("%w: task %q is draft", ErrInvalidStatusTransition, taskRecord.ID)
-	case TaskStatusCanceled:
-		return nil, fmt.Errorf("%w: task %q is canceled", ErrInvalidStatusTransition, taskRecord.ID)
+	if existingRun != nil {
+		return existingRun, nil
 	}
 
-	if existing, err := m.lookupIdempotentRun(
-		ctx,
-		normalizedSpec.IdempotencyKey,
-		actor.Origin,
-		normalizedSpec.TaskID,
-	); err != nil {
-		return nil, err
-	} else if existing != nil {
-		return existing, nil
-	}
-
-	existingRuns, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: normalizedSpec.TaskID})
-	if err != nil {
-		return nil, err
-	}
 	run := Run{
 		ID:             m.newID("run"),
 		TaskID:         normalizedSpec.TaskID,
 		Status:         TaskRunStatusQueued,
-		Attempt:        nextRunAttempt(existingRuns),
+		Attempt:        nextAttempt,
 		Origin:         actor.Origin,
 		IdempotencyKey: normalizedSpec.IdempotencyKey,
 		NetworkChannel: resolvedRunChannel(normalizedSpec.NetworkChannel, taskRecord.NetworkChannel),
@@ -997,6 +1032,63 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 	}
 
 	return &run, nil
+}
+
+func (m *Service) prepareEnqueueRun(
+	ctx context.Context,
+	spec EnqueueRun,
+	actor ActorContext,
+) (Task, *Run, int, error) {
+	taskRecord, err := m.store.GetTask(ctx, spec.TaskID)
+	if err != nil {
+		return Task{}, nil, 0, err
+	}
+	if err := validateTaskForEnqueue(taskRecord); err != nil {
+		return Task{}, nil, 0, err
+	}
+
+	existingRun, err := m.lookupIdempotentRun(ctx, spec.IdempotencyKey, actor.Origin, spec.TaskID)
+	if err != nil {
+		return Task{}, nil, 0, err
+	}
+	if existingRun != nil {
+		return taskRecord, existingRun, 0, nil
+	}
+
+	nextAttempt, err := m.nextEnqueueAttempt(ctx, taskRecord)
+	if err != nil {
+		return Task{}, nil, 0, err
+	}
+	return taskRecord, nil, nextAttempt, nil
+}
+
+func validateTaskForEnqueue(taskRecord Task) error {
+	switch taskRecord.Status.Normalize() {
+	case TaskStatusDraft:
+		return fmt.Errorf("%w: task %q is draft", ErrInvalidStatusTransition, taskRecord.ID)
+	case TaskStatusCanceled:
+		return fmt.Errorf("%w: task %q is canceled", ErrInvalidStatusTransition, taskRecord.ID)
+	default:
+		return nil
+	}
+}
+
+func (m *Service) nextEnqueueAttempt(ctx context.Context, taskRecord Task) (int, error) {
+	existingRuns, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		return 0, err
+	}
+	nextAttempt := nextRunAttempt(existingRuns)
+	maxAttempts := normalizeTaskMaxAttemptsOrDefault(taskRecord.MaxAttempts)
+	if nextAttempt > maxAttempts {
+		return 0, fmt.Errorf(
+			"%w: task %q exhausted max_attempts=%d",
+			ErrInvalidStatusTransition,
+			taskRecord.ID,
+			maxAttempts,
+		)
+	}
+	return nextAttempt, nil
 }
 
 // ClaimRun transitions one queued run into the claimed state.
@@ -1691,7 +1783,13 @@ func (m *Service) canonicalTaskStatus(
 	if err != nil {
 		return "", err
 	}
-	return taskStatusFromSnapshot(record.Status, unresolvedDependencies, runs), nil
+	return taskStatusFromPolicySnapshot(
+		record.Status,
+		unresolvedDependencies,
+		taskApprovalBlocked(record),
+		taskAttemptsExhausted(record, runs),
+		runs,
+	), nil
 }
 
 func hasOpenRun(runs []Run) bool {
@@ -1722,11 +1820,22 @@ func isTerminalRunStatus(status RunStatus) bool {
 }
 
 func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, runs []Run) Status {
+	return taskStatusFromPolicySnapshot(currentStatus, unresolvedDependencies, false, false, runs)
+}
+
+func taskStatusFromPolicySnapshot(
+	currentStatus Status,
+	unresolvedDependencies bool,
+	approvalBlocked bool,
+	attemptsExhausted bool,
+	runs []Run,
+) Status {
 	status := currentStatus.Normalize()
 	if status == TaskStatusCanceled || status == TaskStatusDraft {
 		return status
 	}
 
+	runnableBlocked := unresolvedDependencies || approvalBlocked
 	hasQueuedOrClaimed := false
 	var latestTerminal Run
 	hasLatestTerminal := false
@@ -1746,7 +1855,7 @@ func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, r
 	}
 
 	if hasQueuedOrClaimed {
-		if unresolvedDependencies {
+		if runnableBlocked {
 			return TaskStatusBlocked
 		}
 		return TaskStatusReady
@@ -1757,7 +1866,13 @@ func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, r
 		case TaskRunStatusCompleted:
 			return TaskStatusCompleted
 		case TaskRunStatusFailed:
-			return TaskStatusFailed
+			if attemptsExhausted {
+				return TaskStatusFailed
+			}
+			if runnableBlocked {
+				return TaskStatusBlocked
+			}
+			return TaskStatusReady
 		case TaskRunStatusCanceled:
 			return TaskStatusCanceled
 		}
@@ -1766,10 +1881,26 @@ func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, r
 	if isTerminalTaskStatus(status) {
 		return status
 	}
-	if unresolvedDependencies {
+	if runnableBlocked {
 		return TaskStatusBlocked
 	}
 	return TaskStatusReady
+}
+
+func taskApprovalBlocked(record Task) bool {
+	return approvalStateBlocksExecution(record.ApprovalPolicy, record.ApprovalState)
+}
+
+func approvalStateBlocksExecution(policy ApprovalPolicy, state ApprovalState) bool {
+	normalizedPolicy := normalizeApprovalPolicyOrDefault(policy)
+	if normalizedPolicy != ApprovalPolicyManual {
+		return false
+	}
+	return normalizeApprovalStateOrDefault(normalizedPolicy, state) != ApprovalStateApproved
+}
+
+func taskAttemptsExhausted(record Task, runs []Run) bool {
+	return nextRunAttempt(runs) > normalizeTaskMaxAttemptsOrDefault(record.MaxAttempts)
 }
 
 func runComesAfter(left Run, right Run) bool {
@@ -2319,6 +2450,12 @@ type createdTaskPayload struct {
 type updatedTaskPayload struct {
 	ChangedFields []string `json:"changed_fields"`
 	Status        Status   `json:"status"`
+}
+
+type publishedTaskPayload struct {
+	PreviousStatus Status        `json:"previous_status"`
+	Status         Status        `json:"status"`
+	ApprovalState  ApprovalState `json:"approval_state"`
 }
 
 type childCreatedTaskPayload struct {

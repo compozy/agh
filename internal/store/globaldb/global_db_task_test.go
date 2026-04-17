@@ -23,6 +23,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		t,
 		globalDB.db,
 		"tasks",
+		"task_triage_state",
 		"task_runs",
 		"task_dependencies",
 		"task_events",
@@ -37,7 +38,11 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"network_channel",
 		"title",
 		"description",
+		"priority",
+		"max_attempts",
 		"status",
+		"approval_policy",
+		"approval_state",
 		"owner_kind",
 		"owner_ref",
 		"created_by_kind",
@@ -48,6 +53,16 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"updated_at",
 		"closed_at",
 		"metadata_json",
+	})
+	assertTableColumns(t, globalDB.db, "task_triage_state", []string{
+		"task_id",
+		"actor_kind",
+		"actor_ref",
+		"is_read",
+		"archived",
+		"dismissed",
+		"last_seen_activity_at",
+		"updated_at",
 	})
 	assertTableColumns(t, globalDB.db, "task_runs", []string{
 		"id",
@@ -97,9 +112,15 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_tasks_scope",
 		"idx_tasks_workspace",
 		"idx_tasks_status",
+		"idx_tasks_priority",
+		"idx_tasks_approval_state",
 		"idx_tasks_parent",
 		"idx_tasks_owner",
 		"idx_tasks_channel",
+	)
+	assertIndexesPresent(t, globalDB.db, "task_triage_state",
+		"idx_task_triage_task",
+		"idx_task_triage_actor",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_runs",
 		"idx_task_runs_task",
@@ -144,6 +165,10 @@ func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
 	child.WorkspaceID = workspaceID
 	child.ParentTaskID = parent.ID
 	child.NetworkChannel = "finance"
+	child.Priority = taskpkg.PriorityUrgent
+	child.MaxAttempts = 5
+	child.ApprovalPolicy = taskpkg.ApprovalPolicyManual
+	child.ApprovalState = taskpkg.ApprovalStateApproved
 	child.Owner = ownershipForTest(taskpkg.OwnerKindHuman, "alice")
 	child.Metadata = json.RawMessage(`{"kind":"workspace"}`)
 	if err := globalDB.CreateTask(testutil.Context(t), child); err != nil {
@@ -176,7 +201,11 @@ func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
 
 	child.Title = "Updated child"
 	child.Description = "Updated description"
+	child.Priority = taskpkg.PriorityHigh
+	child.MaxAttempts = 4
 	child.Status = taskpkg.TaskStatusInProgress
+	child.ApprovalPolicy = taskpkg.ApprovalPolicyNone
+	child.ApprovalState = taskpkg.ApprovalStateNotRequired
 	child.Owner = ownershipForTest(taskpkg.OwnerKindAgentSession, "sess-1")
 	child.Metadata = json.RawMessage(`{"kind":"updated"}`)
 	child.UpdatedAt = child.UpdatedAt.Add(2 * time.Minute)
@@ -303,6 +332,9 @@ func TestGlobalDBListTasksFilters(t *testing.T) {
 	readyTask.Scope = taskpkg.ScopeWorkspace
 	readyTask.WorkspaceID = workspaceA
 	readyTask.Status = taskpkg.TaskStatusReady
+	readyTask.Priority = taskpkg.PriorityHigh
+	readyTask.ApprovalPolicy = taskpkg.ApprovalPolicyManual
+	readyTask.ApprovalState = taskpkg.ApprovalStateApproved
 	readyTask.Owner = ownershipForTest(taskpkg.OwnerKindHuman, "alice")
 	readyTask.NetworkChannel = "finance"
 
@@ -313,6 +345,9 @@ func TestGlobalDBListTasksFilters(t *testing.T) {
 	childTask.WorkspaceID = workspaceB
 	childTask.ParentTaskID = globalTask.ID
 	childTask.Status = taskpkg.TaskStatusBlocked
+	childTask.Priority = taskpkg.PriorityUrgent
+	childTask.ApprovalPolicy = taskpkg.ApprovalPolicyManual
+	childTask.ApprovalState = taskpkg.ApprovalStatePending
 	childTask.Owner = ownershipForTest(taskpkg.OwnerKindPool, "backlog")
 	childTask.NetworkChannel = "engineering"
 
@@ -341,6 +376,16 @@ func TestGlobalDBListTasksFilters(t *testing.T) {
 			name:  "status",
 			query: taskpkg.Query{Status: taskpkg.TaskStatusReady},
 			want:  []string{readyTask.ID},
+		},
+		{
+			name:  "priority",
+			query: taskpkg.Query{Priority: taskpkg.PriorityUrgent},
+			want:  []string{childTask.ID},
+		},
+		{
+			name:  "approval state",
+			query: taskpkg.Query{ApprovalState: taskpkg.ApprovalStatePending},
+			want:  []string{childTask.ID},
 		},
 		{
 			name:  "parent",
@@ -613,15 +658,202 @@ func TestTaskNormalizationDefaultsAndHelpers(t *testing.T) {
 	}
 }
 
+func TestGlobalDBTaskTriageStateRoundTripAndActorIsolation(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	taskRecord := taskRecordForTest("task-triage-roundtrip")
+	if err := globalDB.CreateTask(testutil.Context(t), taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	aliceState := taskpkg.TriageState{
+		TaskID:             taskRecord.ID,
+		Actor:              taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"},
+		Read:               true,
+		Archived:           true,
+		Dismissed:          false,
+		LastSeenActivityAt: taskRecord.UpdatedAt.Add(5 * time.Minute),
+		UpdatedAt:          taskRecord.UpdatedAt.Add(6 * time.Minute),
+	}
+	if err := globalDB.UpsertTaskTriageState(testutil.Context(t), aliceState); err != nil {
+		t.Fatalf("UpsertTaskTriageState(alice) error = %v", err)
+	}
+
+	bobState := taskpkg.TriageState{
+		TaskID:    taskRecord.ID,
+		Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:bob"},
+		Read:      false,
+		Archived:  false,
+		Dismissed: true,
+		UpdatedAt: taskRecord.UpdatedAt.Add(7 * time.Minute),
+	}
+	if err := globalDB.UpsertTaskTriageState(testutil.Context(t), bobState); err != nil {
+		t.Fatalf("UpsertTaskTriageState(bob) error = %v", err)
+	}
+
+	storedAlice, err := globalDB.GetTaskTriageState(testutil.Context(t), taskRecord.ID, aliceState.Actor)
+	if err != nil {
+		t.Fatalf("GetTaskTriageState(alice) error = %v", err)
+	}
+	if storedAlice != aliceState {
+		t.Fatalf("storedAlice = %#v, want %#v", storedAlice, aliceState)
+	}
+
+	storedBob, err := globalDB.GetTaskTriageState(testutil.Context(t), taskRecord.ID, bobState.Actor)
+	if err != nil {
+		t.Fatalf("GetTaskTriageState(bob) error = %v", err)
+	}
+	if storedBob != bobState {
+		t.Fatalf("storedBob = %#v, want %#v", storedBob, bobState)
+	}
+
+	aliceState.Archived = false
+	aliceState.Dismissed = true
+	aliceState.UpdatedAt = aliceState.UpdatedAt.Add(time.Minute)
+	if err := globalDB.UpsertTaskTriageState(testutil.Context(t), aliceState); err != nil {
+		t.Fatalf("UpsertTaskTriageState(alice update) error = %v", err)
+	}
+
+	updatedAlice, err := globalDB.GetTaskTriageState(testutil.Context(t), taskRecord.ID, aliceState.Actor)
+	if err != nil {
+		t.Fatalf("GetTaskTriageState(updated alice) error = %v", err)
+	}
+	if updatedAlice != aliceState {
+		t.Fatalf("updatedAlice = %#v, want %#v", updatedAlice, aliceState)
+	}
+
+	if _, err := globalDB.GetTaskTriageState(
+		testutil.Context(t),
+		taskRecord.ID,
+		taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:charlie"},
+	); !errors.Is(err, taskpkg.ErrTaskTriageStateNotFound) {
+		t.Fatalf("GetTaskTriageState(missing) error = %v, want %v", err, taskpkg.ErrTaskTriageStateNotFound)
+	}
+}
+
+func TestOpenGlobalDBMigratesLegacyTaskSchemaAndPreservesRows(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	if _, err := legacyDB.ExecContext(ctx, `CREATE TABLE tasks (
+		id              TEXT PRIMARY KEY,
+		identifier      TEXT,
+		scope           TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+		workspace_id    TEXT,
+		parent_task_id  TEXT,
+		network_channel TEXT,
+		title           TEXT NOT NULL,
+		description     TEXT,
+		status          TEXT NOT NULL CHECK (
+			status IN ('pending', 'blocked', 'ready', 'in_progress', 'completed', 'failed', 'canceled')
+		),
+		owner_kind      TEXT,
+		owner_ref       TEXT,
+		created_by_kind TEXT NOT NULL,
+		created_by_ref  TEXT NOT NULL,
+		origin_kind     TEXT NOT NULL,
+		origin_ref      TEXT NOT NULL,
+		created_at      TEXT NOT NULL,
+		updated_at      TEXT NOT NULL,
+		closed_at       TEXT,
+		metadata_json   TEXT
+	)`); err != nil {
+		t.Fatalf("create legacy tasks table error = %v", err)
+	}
+	if _, err := legacyDB.ExecContext(ctx, `INSERT INTO tasks (
+		id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description, status,
+		owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
+		created_at, updated_at, closed_at, metadata_json
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"legacy-task-1",
+		"identifier-legacy-task-1",
+		string(taskpkg.ScopeGlobal),
+		nil,
+		nil,
+		nil,
+		"Legacy task",
+		"Legacy description",
+		string(taskpkg.TaskStatusPending),
+		nil,
+		nil,
+		string(taskpkg.ActorKindHuman),
+		"user:alice",
+		string(taskpkg.OriginKindCLI),
+		"cli",
+		"2026-04-14T12:00:00.000000000Z",
+		"2026-04-14T12:00:00.000000000Z",
+		nil,
+		`{"legacy":true}`,
+	); err != nil {
+		t.Fatalf("insert legacy task error = %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("legacyDB.Close() error = %v", err)
+	}
+
+	globalDB, err := OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	stored, err := globalDB.GetTask(ctx, "legacy-task-1")
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got, want := stored.Priority, taskpkg.DefaultPriority; got != want {
+		t.Fatalf("stored.Priority = %q, want %q", got, want)
+	}
+	if got, want := stored.MaxAttempts, taskpkg.DefaultTaskMaxAttempts; got != want {
+		t.Fatalf("stored.MaxAttempts = %d, want %d", got, want)
+	}
+	if got, want := stored.ApprovalPolicy, taskpkg.ApprovalPolicyNone; got != want {
+		t.Fatalf("stored.ApprovalPolicy = %q, want %q", got, want)
+	}
+	if got, want := stored.ApprovalState, taskpkg.ApprovalStateNotRequired; got != want {
+		t.Fatalf("stored.ApprovalState = %q, want %q", got, want)
+	}
+
+	stored.Priority = taskpkg.PriorityUrgent
+	stored.MaxAttempts = 5
+	stored.ApprovalPolicy = taskpkg.ApprovalPolicyManual
+	stored.ApprovalState = taskpkg.ApprovalStateApproved
+	stored.UpdatedAt = stored.UpdatedAt.Add(time.Minute)
+	if err := globalDB.UpdateTask(ctx, stored); err != nil {
+		t.Fatalf("UpdateTask() error = %v", err)
+	}
+
+	updated, err := globalDB.GetTask(ctx, stored.ID)
+	if err != nil {
+		t.Fatalf("GetTask(updated) error = %v", err)
+	}
+	assertTaskEqual(t, updated, stored)
+}
+
 func taskRecordForTest(id string) taskpkg.Task {
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	return taskpkg.Task{
-		ID:          id,
-		Identifier:  "identifier-" + id,
-		Scope:       taskpkg.ScopeGlobal,
-		Title:       "Task " + id,
-		Description: "Description for " + id,
-		Status:      taskpkg.TaskStatusPending,
+		ID:             id,
+		Identifier:     "identifier-" + id,
+		Scope:          taskpkg.ScopeGlobal,
+		Title:          "Task " + id,
+		Description:    "Description for " + id,
+		Priority:       taskpkg.DefaultPriority,
+		MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+		Status:         taskpkg.TaskStatusPending,
+		ApprovalPolicy: taskpkg.ApprovalPolicyNone,
+		ApprovalState:  taskpkg.ApprovalStateNotRequired,
 		CreatedBy: taskpkg.ActorIdentity{
 			Kind: taskpkg.ActorKindHuman,
 			Ref:  "user:alice",
@@ -666,7 +898,11 @@ func assertTaskEqual(t *testing.T, got taskpkg.Task, want taskpkg.Task) {
 		got.NetworkChannel != want.NetworkChannel ||
 		got.Title != want.Title ||
 		got.Description != want.Description ||
+		got.Priority != want.Priority ||
+		got.MaxAttempts != want.MaxAttempts ||
 		got.Status != want.Status ||
+		got.ApprovalPolicy != want.ApprovalPolicy ||
+		got.ApprovalState != want.ApprovalState ||
 		got.CreatedBy != want.CreatedBy ||
 		got.Origin != want.Origin ||
 		!got.CreatedAt.Equal(want.CreatedAt) ||
@@ -688,7 +924,12 @@ func assertTaskSummaryMatchesTask(t *testing.T, got taskpkg.Summary, want taskpk
 		got.ParentTaskID != want.ParentTaskID ||
 		got.NetworkChannel != want.NetworkChannel ||
 		got.Title != want.Title ||
+		got.Priority != want.Priority ||
+		got.MaxAttempts != want.MaxAttempts ||
 		got.Status != want.Status ||
+		got.ApprovalPolicy != want.ApprovalPolicy ||
+		got.ApprovalState != want.ApprovalState ||
+		got.Draft != (want.Status == taskpkg.TaskStatusDraft) ||
 		got.CreatedBy != want.CreatedBy ||
 		got.Origin != want.Origin ||
 		!got.CreatedAt.Equal(want.CreatedAt) ||
