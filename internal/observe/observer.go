@@ -295,9 +295,9 @@ func (o *Observer) openHookRunStore(ctx context.Context, sessionID string) (Hook
 		return nil, nil, errors.New("observe: hook run context is required")
 	}
 
-	target := strings.TrimSpace(sessionID)
-	if target == "" {
-		return nil, nil, errors.New("observe: session id is required")
+	target, err := sanitizeHookSessionID(sessionID)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	dbPath := o.hookDBPath(target)
@@ -738,30 +738,41 @@ func (o *Observer) OnEnvironmentLifecycleEvent(_ context.Context, event session.
 }
 
 func summarizeEvent(event acp.AgentEvent) string {
-	candidates := []string{
-		strings.TrimSpace(event.Text),
-		strings.TrimSpace(event.Title),
-		strings.TrimSpace(event.Error),
-		strings.TrimSpace(event.Resource),
-		strings.TrimSpace(event.StopReason),
-		strings.TrimSpace(event.ToolCallID),
-	}
 	if strings.TrimSpace(event.Type) == acp.EventTypePermission {
-		candidates = append([]string{
-			strings.TrimSpace(event.Title),
-			strings.TrimSpace(event.Resource),
-			strings.TrimSpace(event.Decision),
-		}, candidates...)
-	}
-
-	for _, candidate := range candidates {
-		if candidate != "" {
-			return truncateSummary(candidate)
+		if summary := firstNonEmptySummary(
+			event.Title,
+			event.Resource,
+			event.Decision,
+			event.Text,
+			event.Error,
+			event.StopReason,
+			event.ToolCallID,
+		); summary != "" {
+			return truncateSummary(summary)
 		}
+	}
+	if summary := firstNonEmptySummary(
+		event.Text,
+		event.Title,
+		event.Error,
+		event.Resource,
+		event.StopReason,
+		event.ToolCallID,
+	); summary != "" {
+		return truncateSummary(summary)
 	}
 
 	if len(event.Raw) > 0 {
 		return truncateSummary(string(event.Raw))
+	}
+	return ""
+}
+
+func firstNonEmptySummary(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
 	}
 	return ""
 }
@@ -773,6 +784,9 @@ func truncateSummary(summary string) string {
 	if clean == "" {
 		return ""
 	}
+	if len(clean) <= maxRunes {
+		return clean
+	}
 
 	runes := []rune(clean)
 	if len(runes) <= maxRunes {
@@ -780,6 +794,17 @@ func truncateSummary(summary string) string {
 	}
 
 	return string(runes[:maxRunes-3]) + "..."
+}
+
+func sanitizeHookSessionID(sessionID string) (string, error) {
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return "", errors.New("observe: session id is required")
+	}
+	if target == "." || target == ".." || strings.ContainsAny(target, `/\`) {
+		return "", fmt.Errorf("observe: invalid session id %q", sessionID)
+	}
+	return target, nil
 }
 
 func cloneSessionEnvironmentMeta(meta *store.SessionEnvironmentMeta) *store.SessionEnvironmentMeta {

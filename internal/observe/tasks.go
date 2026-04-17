@@ -292,9 +292,7 @@ func taskMetricsFromSnapshot(snapshot taskSnapshot, query TaskMetricsQuery, now 
 	runs := filterRunsByOrigin(snapshot.runs, query.OriginKind)
 	events := filterTaskEvents(snapshot.events, snapshot.tasksByID, snapshot.runsByID, query)
 	audits := filterTaskIngressAudits(snapshot.audits, query)
-	networkEnqueueEvents := filterNetworkEnqueueEvents(events)
-
-	duplicateIngress := max(len(filterAcceptedEnqueueAudits(audits))-len(networkEnqueueEvents), 0)
+	duplicateIngress := max(countAcceptedEnqueueAudits(audits)-countNetworkEnqueueEvents(events), 0)
 
 	return TaskMetrics{
 		TasksTotal:              summarizeTasks(filterTasksByOrigin(snapshot.tasks, query.OriginKind)),
@@ -752,12 +750,13 @@ func isLiveSessionState(state string) bool {
 }
 
 func filterTasksByOrigin(tasks []taskpkg.Summary, origin taskpkg.OriginKind) []taskpkg.Summary {
-	if origin.Normalize() == "" {
+	normalizedOrigin := origin.Normalize()
+	if normalizedOrigin == "" {
 		return tasks
 	}
 	filtered := make([]taskpkg.Summary, 0, len(tasks))
 	for _, item := range tasks {
-		if item.Origin.Kind.Normalize() == origin.Normalize() {
+		if item.Origin.Kind.Normalize() == normalizedOrigin {
 			filtered = append(filtered, item)
 		}
 	}
@@ -765,18 +764,17 @@ func filterTasksByOrigin(tasks []taskpkg.Summary, origin taskpkg.OriginKind) []t
 }
 
 func filterRuns(runs []taskpkg.Run, taskIDs map[string]struct{}, query TaskSummaryQuery) []taskpkg.Run {
+	normalizedOrigin := query.OriginKind.Normalize()
+	channel := strings.TrimSpace(query.NetworkChannel)
 	filtered := make([]taskpkg.Run, 0, len(runs))
 	for _, item := range runs {
 		if _, ok := taskIDs[strings.TrimSpace(item.TaskID)]; !ok {
 			continue
 		}
-		if query.OriginKind.Normalize() != "" && item.Origin.Kind.Normalize() != query.OriginKind.Normalize() {
+		if normalizedOrigin != "" && item.Origin.Kind.Normalize() != normalizedOrigin {
 			continue
 		}
-		if channel := strings.TrimSpace(
-			query.NetworkChannel,
-		); channel != "" &&
-			strings.TrimSpace(item.NetworkChannel) != channel {
+		if channel != "" && strings.TrimSpace(item.NetworkChannel) != channel {
 			continue
 		}
 		filtered = append(filtered, item)
@@ -785,12 +783,13 @@ func filterRuns(runs []taskpkg.Run, taskIDs map[string]struct{}, query TaskSumma
 }
 
 func filterRunsByOrigin(runs []taskpkg.Run, origin taskpkg.OriginKind) []taskpkg.Run {
-	if origin.Normalize() == "" {
+	normalizedOrigin := origin.Normalize()
+	if normalizedOrigin == "" {
 		return runs
 	}
 	filtered := make([]taskpkg.Run, 0, len(runs))
 	for _, item := range runs {
-		if item.Origin.Kind.Normalize() == origin.Normalize() {
+		if item.Origin.Kind.Normalize() == normalizedOrigin {
 			filtered = append(filtered, item)
 		}
 	}
@@ -814,21 +813,33 @@ func filterTaskEvents(
 	runsByID map[string]taskpkg.Run,
 	query TaskMetricsQuery,
 ) []taskpkg.Event {
-	filtered := make([]taskpkg.Event, 0, len(events))
-	for _, item := range events {
+	normalizedOrigin := query.OriginKind.Normalize()
+	channel := strings.TrimSpace(query.NetworkChannel)
+	var filtered []taskpkg.Event
+	for i, item := range events {
+		accepted := true
 		if !query.Since.IsZero() && item.Timestamp.Before(query.Since) {
+			accepted = false
+		}
+		if accepted && normalizedOrigin != "" && item.Origin.Kind.Normalize() != normalizedOrigin {
+			accepted = false
+		}
+		if accepted && channel != "" && eventChannel(item, tasksByID, runsByID) != channel {
+			accepted = false
+		}
+		if accepted {
+			if filtered != nil {
+				filtered = append(filtered, item)
+			}
 			continue
 		}
-		if query.OriginKind.Normalize() != "" && item.Origin.Kind.Normalize() != query.OriginKind.Normalize() {
-			continue
+		if filtered == nil {
+			filtered = make([]taskpkg.Event, 0, len(events)-1)
+			filtered = append(filtered, events[:i]...)
 		}
-		if channel := strings.TrimSpace(
-			query.NetworkChannel,
-		); channel != "" &&
-			eventChannel(item, tasksByID, runsByID) != channel {
-			continue
-		}
-		filtered = append(filtered, item)
+	}
+	if filtered == nil {
+		return events
 	}
 	return filtered
 }
@@ -848,21 +859,29 @@ func eventChannel(
 }
 
 func filterTaskIngressAudits(audits []store.NetworkAuditEntry, query TaskMetricsQuery) []store.NetworkAuditEntry {
-	filtered := make([]store.NetworkAuditEntry, 0, len(audits))
-	for _, item := range audits {
-		if !isTaskIngressAudit(item) {
+	channel := strings.TrimSpace(query.NetworkChannel)
+	var filtered []store.NetworkAuditEntry
+	for i, item := range audits {
+		accepted := isTaskIngressAudit(item)
+		if accepted && !query.Since.IsZero() && item.Timestamp.Before(query.Since) {
+			accepted = false
+		}
+		if accepted && channel != "" && strings.TrimSpace(item.Channel) != channel {
+			accepted = false
+		}
+		if accepted {
+			if filtered != nil {
+				filtered = append(filtered, item)
+			}
 			continue
 		}
-		if !query.Since.IsZero() && item.Timestamp.Before(query.Since) {
-			continue
+		if filtered == nil {
+			filtered = make([]store.NetworkAuditEntry, 0, len(audits)-1)
+			filtered = append(filtered, audits[:i]...)
 		}
-		if channel := strings.TrimSpace(
-			query.NetworkChannel,
-		); channel != "" &&
-			strings.TrimSpace(item.Channel) != channel {
-			continue
-		}
-		filtered = append(filtered, item)
+	}
+	if filtered == nil {
+		return audits
 	}
 	return filtered
 }
@@ -871,18 +890,18 @@ func isTaskIngressAudit(entry store.NetworkAuditEntry) bool {
 	return strings.HasPrefix(strings.TrimSpace(entry.Kind), "task.")
 }
 
-func filterNetworkEnqueueEvents(events []taskpkg.Event) []taskpkg.Event {
-	filtered := make([]taskpkg.Event, 0, len(events))
+func countNetworkEnqueueEvents(events []taskpkg.Event) int {
+	count := 0
 	for _, item := range events {
 		if item.EventType == taskEventRunEnqueued && item.Origin.Kind.Normalize() == taskpkg.OriginKindNetwork {
-			filtered = append(filtered, item)
+			count++
 		}
 	}
-	return filtered
+	return count
 }
 
-func filterAcceptedEnqueueAudits(audits []store.NetworkAuditEntry) []store.NetworkAuditEntry {
-	filtered := make([]store.NetworkAuditEntry, 0, len(audits))
+func countAcceptedEnqueueAudits(audits []store.NetworkAuditEntry) int {
+	count := 0
 	for _, item := range audits {
 		if strings.TrimSpace(item.Kind) != taskIngressAuditEnqueueAction {
 			continue
@@ -890,9 +909,9 @@ func filterAcceptedEnqueueAudits(audits []store.NetworkAuditEntry) []store.Netwo
 		if strings.TrimSpace(item.Direction) != "received" {
 			continue
 		}
-		filtered = append(filtered, item)
+		count++
 	}
-	return filtered
+	return count
 }
 
 func countChannelMismatchAudits(audits []store.NetworkAuditEntry) int {
