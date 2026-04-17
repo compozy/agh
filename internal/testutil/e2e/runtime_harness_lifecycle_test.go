@@ -23,14 +23,16 @@ func TestRuntimeHarnessWaitForReadyUsesPublicSurfaces(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(aghcontract.DaemonStatusResponse{
+		if err := writeJSONResponse(w, aghcontract.DaemonStatusResponse{
 			Daemon: aghcontract.DaemonStatusPayload{
 				Status:   "running",
 				Socket:   "/tmp/agh.sock",
 				HTTPHost: "127.0.0.1",
 				HTTPPort: 2123,
 			},
-		})
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}))
 	defer server.Close()
 

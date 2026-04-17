@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/goccy/go-yaml"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -180,7 +181,10 @@ func SeedWorkspace(t testing.TB, opts WorkspaceSeedOptions) string {
 	}
 
 	for relativePath, contents := range opts.Files {
-		targetPath := filepath.Join(root, relativePath)
+		targetPath, err := seedWorkspaceTargetPath(root, relativePath)
+		if err != nil {
+			t.Fatalf("seed workspace path %q error = %v", relativePath, err)
+		}
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(targetPath), err)
 		}
@@ -194,6 +198,28 @@ func SeedWorkspace(t testing.TB, opts WorkspaceSeedOptions) string {
 		return canonicalRoot
 	}
 	return root
+}
+
+func seedWorkspaceTargetPath(root string, relativePath string) (string, error) {
+	trimmedRoot := strings.TrimSpace(root)
+	if trimmedRoot == "" {
+		return "", fmt.Errorf("workspace root is required")
+	}
+	cleanedRoot := filepath.Clean(trimmedRoot)
+
+	targetPath := filepath.Clean(filepath.Join(cleanedRoot, relativePath))
+	relativeTarget, err := filepath.Rel(cleanedRoot, targetPath)
+	if err != nil {
+		return "", fmt.Errorf("rel workspace target %q: %w", targetPath, err)
+	}
+	if relativeTarget == "." {
+		return "", fmt.Errorf("workspace path %q must reference a file", relativePath)
+	}
+	if relativeTarget == ".." || strings.HasPrefix(relativeTarget, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("workspace path %q escapes root %q", relativePath, cleanedRoot)
+	}
+
+	return targetPath, nil
 }
 
 func cloneEnvironmentProfiles(
@@ -227,58 +253,81 @@ func WriteAgentDef(t testing.TB, homePaths aghconfig.HomePaths, seed AgentSeed) 
 		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(path), err)
 	}
 
+	content, err := renderSeedAgentDef(seed)
+	if err != nil {
+		t.Fatalf("render seed agent def %q error = %v", name, err)
+	}
+
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+	}
+}
+
+type seedAgentDefFrontmatter struct {
+	Name        string                 `yaml:"name"`
+	Provider    string                 `yaml:"provider,omitempty"`
+	Command     string                 `yaml:"command,omitempty"`
+	Model       string                 `yaml:"model,omitempty"`
+	Permissions string                 `yaml:"permissions,omitempty"`
+	Tools       []string               `yaml:"tools,omitempty"`
+	MCPServers  []seedAgentMCPServerFM `yaml:"mcp_servers,omitempty"`
+}
+
+type seedAgentMCPServerFM struct {
+	Name    string            `yaml:"name"`
+	Command string            `yaml:"command"`
+	Args    []string          `yaml:"args,omitempty"`
+	Env     map[string]string `yaml:"env,omitempty"`
+}
+
+func renderSeedAgentDef(seed AgentSeed) (string, error) {
+	name := strings.TrimSpace(seed.Name)
+	if name == "" {
+		return "", fmt.Errorf("agent seed name is required")
+	}
+
+	metadata := seedAgentDefFrontmatter{
+		Name:        name,
+		Provider:    strings.TrimSpace(seed.Provider),
+		Command:     strings.TrimSpace(seed.Command),
+		Model:       strings.TrimSpace(seed.Model),
+		Permissions: strings.TrimSpace(seed.Permissions),
+		Tools:       trimSeedValues(seed.Tools),
+		MCPServers:  make([]seedAgentMCPServerFM, 0, len(seed.MCPServers)),
+	}
+	for _, server := range seed.MCPServers {
+		metadata.MCPServers = append(metadata.MCPServers, seedAgentMCPServerFM{
+			Name:    strings.TrimSpace(server.Name),
+			Command: strings.TrimSpace(server.Command),
+			Args:    append([]string(nil), server.Args...),
+			Env:     maps.Clone(server.Env),
+		})
+	}
+
+	frontmatterBytes, err := yaml.Marshal(metadata)
+	if err != nil {
+		return "", fmt.Errorf("marshal agent frontmatter: %w", err)
+	}
+
 	var builder strings.Builder
 	builder.WriteString("---\n")
-	builder.WriteString("name: " + name + "\n")
-	if provider := strings.TrimSpace(seed.Provider); provider != "" {
-		builder.WriteString("provider: " + provider + "\n")
-	}
-	if command := strings.TrimSpace(seed.Command); command != "" {
-		builder.WriteString("command: " + command + "\n")
-	}
-	if model := strings.TrimSpace(seed.Model); model != "" {
-		builder.WriteString("model: " + model + "\n")
-	}
-	if permissions := strings.TrimSpace(seed.Permissions); permissions != "" {
-		builder.WriteString("permissions: " + permissions + "\n")
-	}
-	if len(seed.Tools) > 0 {
-		builder.WriteString("tools:\n")
-		for _, tool := range seed.Tools {
-			builder.WriteString("  - " + strings.TrimSpace(tool) + "\n")
-		}
-	}
-	if len(seed.MCPServers) > 0 {
-		builder.WriteString("mcp_servers:\n")
-		for _, server := range seed.MCPServers {
-			builder.WriteString("  - name: " + strings.TrimSpace(server.Name) + "\n")
-			builder.WriteString("    command: " + strings.TrimSpace(server.Command) + "\n")
-			if len(server.Args) > 0 {
-				builder.WriteString("    args:\n")
-				for _, arg := range server.Args {
-					builder.WriteString("      - " + arg + "\n")
-				}
-			}
-			if len(server.Env) > 0 {
-				builder.WriteString("    env:\n")
-				envKeys := make([]string, 0, len(server.Env))
-				for key := range server.Env {
-					envKeys = append(envKeys, key)
-				}
-				sortStrings(envKeys)
-				for _, key := range envKeys {
-					builder.WriteString("      " + key + ": " + server.Env[key] + "\n")
-				}
-			}
-		}
-	}
+	builder.Write(frontmatterBytes)
 	builder.WriteString("---\n\n")
 	builder.WriteString(defaultString(seed.Prompt, "You are "+name+"."))
 	builder.WriteString("\n")
+	return builder.String(), nil
+}
 
-	if err := os.WriteFile(path, []byte(builder.String()), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+func trimSeedValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
 	}
+
+	trimmed := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed = append(trimmed, strings.TrimSpace(value))
+	}
+	return trimmed
 }
 
 func shortSocketPath(t testing.TB) string {

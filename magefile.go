@@ -365,7 +365,7 @@ func runE2ELane(lane e2elane.Lane) error {
 		return err
 	}
 
-	if len(plan.GoSuites) > 0 {
+	if shouldEnsureWebBundle(plan) {
 		if err := ensureWebBundle(); err != nil {
 			return err
 		}
@@ -384,6 +384,10 @@ func runE2ELane(lane e2elane.Lane) error {
 	}
 
 	return nil
+}
+
+func shouldEnsureWebBundle(plan e2elane.Plan) bool {
+	return len(plan.GoSuites) > 0 || plan.RequiresDaemonServedBrowser
 }
 
 func runIntegrationSuite(suite e2elane.GoSuite) error {

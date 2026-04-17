@@ -124,9 +124,7 @@ test("operator can create a network channel, inspect peers, observe timeline sta
   const networkPath = new URL(appPage.url()).pathname;
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
-  await expect(appPage).toHaveURL(
-    new RegExp(`${networkPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`)
-  );
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(networkPath);
   await expect(ui.channelsTab).toHaveAttribute("aria-pressed", "true");
   await expect(ui.channelItem(channelName)).toBeVisible();
   await expect(ui.channelDetailPanel).toContainText(browserNetworkOperatorFlowScenario.texts.say);

@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -10,8 +11,12 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 )
 
-func bridgePath(bridgeID string) string {
-	return "/api/bridges/" + url.PathEscape(strings.TrimSpace(bridgeID))
+func bridgePath(bridgeID string) (string, error) {
+	trimmed := strings.TrimSpace(bridgeID)
+	if trimmed == "" {
+		return "", errors.New("bridge id is required")
+	}
+	return "/api/bridges/" + url.PathEscape(trimmed), nil
 }
 
 // ListExtensions fetches the installed extension projection through the daemon operator surface.
@@ -106,11 +111,16 @@ func (h *RuntimeHarness) GetBridge(
 	ctx context.Context,
 	bridgeID string,
 ) (aghcontract.BridgeResponse, error) {
+	path, err := bridgePath(bridgeID)
+	if err != nil {
+		return aghcontract.BridgeResponse{}, err
+	}
+
 	var response aghcontract.BridgeResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
-		bridgePath(bridgeID),
+		path,
 		nil,
 		&response,
 	); err != nil {
@@ -124,11 +134,16 @@ func (h *RuntimeHarness) EnableBridge(
 	ctx context.Context,
 	bridgeID string,
 ) (aghcontract.BridgeResponse, error) {
+	path, err := bridgePath(bridgeID)
+	if err != nil {
+		return aghcontract.BridgeResponse{}, err
+	}
+
 	var response aghcontract.BridgeResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodPost,
-		bridgePath(bridgeID)+"/enable",
+		path+"/enable",
 		nil,
 		&response,
 	); err != nil {
@@ -142,11 +157,16 @@ func (h *RuntimeHarness) RestartBridge(
 	ctx context.Context,
 	bridgeID string,
 ) (aghcontract.BridgeResponse, error) {
+	path, err := bridgePath(bridgeID)
+	if err != nil {
+		return aghcontract.BridgeResponse{}, err
+	}
+
 	var response aghcontract.BridgeResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodPost,
-		bridgePath(bridgeID)+"/restart",
+		path+"/restart",
 		nil,
 		&response,
 	); err != nil {
@@ -160,11 +180,16 @@ func (h *RuntimeHarness) ListBridgeRoutes(
 	ctx context.Context,
 	bridgeID string,
 ) ([]bridgepkg.BridgeRoute, error) {
+	path, err := bridgePath(bridgeID)
+	if err != nil {
+		return nil, err
+	}
+
 	var response aghcontract.BridgeRoutesResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
-		bridgePath(bridgeID)+"/routes",
+		path+"/routes",
 		nil,
 		&response,
 	); err != nil {
@@ -180,11 +205,16 @@ func (h *RuntimeHarness) PutBridgeSecretBinding(
 	bindingName string,
 	request aghcontract.PutBridgeSecretBindingRequest,
 ) (bridgepkg.BridgeSecretBinding, error) {
+	path, err := bridgePath(bridgeID)
+	if err != nil {
+		return bridgepkg.BridgeSecretBinding{}, err
+	}
+
 	var response aghcontract.BridgeSecretBindingResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodPut,
-		bridgePath(bridgeID)+"/secret-bindings/"+url.PathEscape(strings.TrimSpace(bindingName)),
+		path+"/secret-bindings/"+url.PathEscape(strings.TrimSpace(bindingName)),
 		request,
 		&response,
 	); err != nil {
@@ -198,11 +228,16 @@ func (h *RuntimeHarness) ListBridgeSecretBindings(
 	ctx context.Context,
 	bridgeID string,
 ) ([]bridgepkg.BridgeSecretBinding, error) {
+	path, err := bridgePath(bridgeID)
+	if err != nil {
+		return nil, err
+	}
+
 	var response aghcontract.BridgeSecretBindingsResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
-		bridgePath(bridgeID)+"/secret-bindings",
+		path+"/secret-bindings",
 		nil,
 		&response,
 	); err != nil {

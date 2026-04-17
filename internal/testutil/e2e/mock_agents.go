@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -88,7 +89,7 @@ func (h *RuntimeHarness) PromptSessionHTTPWithEvents(
 	response, err := doRequest(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL("/api/sessions/"+sessionID+"/prompt"),
+		h.HTTPURL("/api/sessions/"+url.PathEscape(sessionID)+"/prompt"),
 		http.MethodPost,
 		body,
 	)
@@ -117,7 +118,7 @@ func (h *RuntimeHarness) ApproveSessionPermission(
 	response, err := doRequest(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL("/api/sessions/"+sessionID+"/approve"),
+		h.HTTPURL("/api/sessions/"+url.PathEscape(sessionID)+"/approve"),
 		http.MethodPost,
 		request,
 	)

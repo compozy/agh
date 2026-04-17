@@ -75,9 +75,7 @@ test("operator can onboard, create a session, approve work, stop/resume, and rel
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
-  await expect(appPage).toHaveURL(
-    new RegExp(`${sessionPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`)
-  );
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(sessionPath);
   await expect(ui.chatHeader).toBeVisible();
   await expect(ui.chatView).toContainText(browserLifecyclePrompt);
   await expect(ui.chatView).toContainText("Session continued after approval.");

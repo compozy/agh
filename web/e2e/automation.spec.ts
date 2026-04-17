@@ -110,22 +110,36 @@ test("operator can edit automation, trigger a real run, and inspect the linked s
     })
     .toBe(2);
 
-  const runsPayload = await runtime.requestJSON<{
-    runs: Array<{ id: string; session_id?: string | null }>;
-  }>(`/api/automation/jobs/${encodeURIComponent(seeded.job.id)}/runs?limit=10`);
-  const uiTriggeredRun = runsPayload.runs.find(run => run.id !== seeded.baselineRun.id);
+  let uiTriggeredRun:
+    | {
+        id: string;
+        session_id?: string | null;
+      }
+    | undefined;
+  await expect
+    .poll(async () => {
+      const runsPayload = await runtime.requestJSON<{
+        runs: Array<{ id: string; session_id?: string | null }>;
+      }>(`/api/automation/jobs/${encodeURIComponent(seeded.job.id)}/runs?limit=10`);
+      uiTriggeredRun = runsPayload.runs.find(
+        run => run.id !== seeded.baselineRun.id && run.session_id
+      );
+      return uiTriggeredRun?.session_id ?? "";
+    })
+    .not.toBe("");
 
-  expect(uiTriggeredRun).toBeTruthy();
-  await expect(automationUI.run(uiTriggeredRun?.id ?? "")).toBeVisible();
+  if (!uiTriggeredRun?.session_id) {
+    throw new Error("Expected the UI-triggered automation run to include a linked session.");
+  }
+
+  await expect(automationUI.run(uiTriggeredRun.id)).toBeVisible();
   await browserArtifacts.captureScreenshot("automation-operator-history", appPage);
 
-  await automationUI.runSessionLink(seeded.baselineRun.id).click();
+  await automationUI.runSessionLink(uiTriggeredRun.id).click();
 
-  await expect(appPage).toHaveURL(
-    new RegExp(
-      `/session/${(seeded.baselineRun.session_id ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`
-    )
-  );
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(`/session/${uiTriggeredRun.session_id}`);
   await expect(sessionUI.chatHeader).toBeVisible();
   await expect(sessionUI.chatView).toContainText(browserAutomationOperatorFlowScenario.job.prompt);
   await expect(sessionUI.chatView).toContainText(

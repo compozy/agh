@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -183,6 +184,54 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionUsePublicSurface(t *
 	if err := harness.ApproveSessionPermission(
 		context.Background(),
 		"sess-1",
+		aghcontract.ApproveSessionRequest{},
+	); err != nil {
+		t.Fatalf("ApproveSessionPermission() error = %v", err)
+	}
+}
+
+func TestRuntimeHarnessPromptSessionHTTPEscapesSessionIDs(t *testing.T) {
+	t.Parallel()
+
+	sessionID := "sess/ops worker"
+	expectedPromptPath := "/api/sessions/" + url.PathEscape(sessionID) + "/prompt"
+	expectedApprovePath := "/api/sessions/" + url.PathEscape(sessionID) + "/approve"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == expectedPromptPath:
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = fmt.Fprint(
+				w,
+				"event: agent_message\n"+
+					"data: {\"delta\":\"hello\"}\n\n"+
+					"event: done\n"+
+					"data: [DONE]\n\n",
+			)
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == expectedApprovePath:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	harness := &RuntimeHarness{
+		HTTPBaseURL: server.URL,
+		HTTPClient:  server.Client(),
+	}
+
+	events, err := harness.PromptSessionHTTP(context.Background(), sessionID, "hello http")
+	if err != nil {
+		t.Fatalf("PromptSessionHTTP() error = %v", err)
+	}
+	if got, want := len(events), 2; got != want {
+		t.Fatalf("len(events) = %d, want %d", got, want)
+	}
+
+	if err := harness.ApproveSessionPermission(
+		context.Background(),
+		sessionID,
 		aghcontract.ApproveSessionRequest{},
 	); err != nil {
 		t.Fatalf("ApproveSessionPermission() error = %v", err)

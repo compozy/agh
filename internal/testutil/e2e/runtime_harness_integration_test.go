@@ -22,6 +22,7 @@ type e2eACPAgent struct {
 }
 
 func TestE2EACPHelperProcess(t *testing.T) {
+	// This test body is only executed by the subprocess-backed ACP helper command.
 	if os.Getenv(e2eACPHelperEnvKey) != "1" {
 		return
 	}
@@ -34,6 +35,8 @@ func TestE2EACPHelperProcess(t *testing.T) {
 }
 
 func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
+	t.Parallel()
+
 	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -64,6 +67,8 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 }
 
 func TestStartRuntimeHarnessResolvesSeededWorkspaceThroughPublicSurface(t *testing.T) {
+	t.Parallel()
+
 	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{
 		Workspace: WorkspaceSeedOptions{
 			Files: map[string]string{
@@ -91,6 +96,8 @@ func TestStartRuntimeHarnessResolvesSeededWorkspaceThroughPublicSurface(t *testi
 }
 
 func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
+	t.Parallel()
+
 	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{
 		Env: map[string]string{
 			e2eACPHelperEnvKey: "1",

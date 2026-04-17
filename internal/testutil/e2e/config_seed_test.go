@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -199,5 +200,81 @@ func TestWriteAgentDefPersistsOptionalSections(t *testing.T) {
 	}
 	if got, want := len(agent.MCPServers), 1; got != want {
 		t.Fatalf("len(agent.MCPServers) = %d, want %d", got, want)
+	}
+}
+
+func TestSeedWorkspaceTargetPathRejectsEscapes(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+
+	if _, err := seedWorkspaceTargetPath(root, "../outside.txt"); err == nil ||
+		!strings.Contains(err.Error(), "escapes root") {
+		t.Fatalf("seedWorkspaceTargetPath(escape) error = %v, want escape validation", err)
+	}
+	if _, err := seedWorkspaceTargetPath(root, ""); err == nil ||
+		!strings.Contains(err.Error(), "must reference a file") {
+		t.Fatalf("seedWorkspaceTargetPath(blank) error = %v, want file validation", err)
+	}
+}
+
+func TestWriteAgentDefEscapesYAMLSensitiveValues(t *testing.T) {
+	t.Parallel()
+
+	homePaths := NewHomePaths(t)
+	WriteAgentDef(t, homePaths, AgentSeed{
+		Name:        "builder",
+		Provider:    "fake:provider",
+		Command:     "fake-agent --prompt \"review:all #now\"",
+		Model:       "model:1",
+		Permissions: string(aghconfig.PermissionModeApproveAll),
+		Tools:       []string{"read:all", "write #notes"},
+		MCPServers: []aghconfig.MCPServer{{
+			Name:    "filesystem",
+			Command: "mcp-fs --mode=read:write",
+			Args:    []string{"--root", "/workspace/#demo", "--label=ops:review"},
+			Env: map[string]string{
+				"TOKEN":   "secret:value #1",
+				"PROMPT":  "line one\nline two",
+				"CHANNEL": "ops:review",
+			},
+		}},
+		Prompt: "You are a builder.\nRespect review:all #notes.",
+	})
+
+	agent, err := aghconfig.LoadAgentDef("builder", homePaths)
+	if err != nil {
+		t.Fatalf("LoadAgentDef(builder) error = %v", err)
+	}
+	if got, want := agent.Provider, "fake:provider"; got != want {
+		t.Fatalf("agent.Provider = %q, want %q", got, want)
+	}
+	if got, want := agent.Command, "fake-agent --prompt \"review:all #now\""; got != want {
+		t.Fatalf("agent.Command = %q, want %q", got, want)
+	}
+	if got, want := agent.Model, "model:1"; got != want {
+		t.Fatalf("agent.Model = %q, want %q", got, want)
+	}
+	if got, want := agent.Tools, []string{"read:all", "write #notes"}; len(got) != len(want) ||
+		got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("agent.Tools = %#v, want %#v", got, want)
+	}
+	if got, want := len(agent.MCPServers), 1; got != want {
+		t.Fatalf("len(agent.MCPServers) = %d, want %d", got, want)
+	}
+	if got, want := agent.MCPServers[0].Command, "mcp-fs --mode=read:write"; got != want {
+		t.Fatalf("agent.MCPServers[0].Command = %q, want %q", got, want)
+	}
+	if got, want := agent.MCPServers[0].Args[1], "/workspace/#demo"; got != want {
+		t.Fatalf("agent.MCPServers[0].Args[1] = %q, want %q", got, want)
+	}
+	if got, want := agent.MCPServers[0].Env["TOKEN"], "secret:value #1"; got != want {
+		t.Fatalf("agent.MCPServers[0].Env[TOKEN] = %q, want %q", got, want)
+	}
+	if got, want := agent.MCPServers[0].Env["PROMPT"], "line one\nline two"; got != want {
+		t.Fatalf("agent.MCPServers[0].Env[PROMPT] = %q, want %q", got, want)
+	}
+	if got, want := agent.Prompt, "You are a builder.\nRespect review:all #notes."; got != want {
+		t.Fatalf("agent.Prompt = %q, want %q", got, want)
 	}
 }

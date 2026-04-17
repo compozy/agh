@@ -15,6 +15,8 @@ import (
 )
 
 func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
+	t.Parallel()
+
 	nodePath, err := ResolveNodePath()
 	if err != nil {
 		t.Skipf("ResolveNodePath() error = %v", err)
@@ -158,6 +160,8 @@ func TestDriverSupportsNetworkOriginEnvironmentExpectations(t *testing.T) {
 }
 
 func TestDriverAdvertisesAndSupportsLoadSession(t *testing.T) {
+	t.Parallel()
+
 	nodePath, err := ResolveNodePath()
 	if err != nil {
 		t.Skipf("ResolveNodePath() error = %v", err)

@@ -2,12 +2,16 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+interface MockLinkParams {
+  id?: string;
+}
+
+interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+  params?: MockLinkParams;
+}
+
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({
-    children,
-    params,
-    ...props
-  }: AnchorHTMLAttributes<HTMLAnchorElement> & { params?: { id?: string } }) => (
+  Link: ({ children, params, ...props }: MockLinkProps) => (
     <a href={`/session/${params?.id ?? ""}`} {...props}>
       {children}
     </a>

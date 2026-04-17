@@ -24,7 +24,6 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	t.Parallel()
 
 	server := newHarnessTestServer(t)
-	defer server.Close()
 
 	homePaths := NewHomePaths(t)
 	auditTime := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
@@ -588,9 +587,8 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 
 	ctx := testContext(t)
 
-	if _, err := harness.GetExtension(ctx, "telegram-reference"); err == nil {
-		t.Fatal("GetExtension() error = nil, want transport error")
-	}
+	_, err := harness.GetExtension(ctx, "telegram-reference")
+	assertErrorContains(t, err, "/api/extensions/telegram-reference status 500: boom")
 	if _, err := harness.CreateBridge(ctx, aghcontract.CreateBridgeRequest{
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   "ws-1",
@@ -599,7 +597,9 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 		DisplayName:   "Telegram Runtime",
 		Enabled:       false,
 		Status:        bridgepkg.BridgeStatusDisabled,
-	}); err == nil {
+	}); err != nil {
+		assertErrorContains(t, err, "/api/bridges status 500: boom")
+	} else {
 		t.Fatal("CreateBridge() error = nil, want transport error")
 	}
 	if _, err := harness.PutBridgeSecretBinding(
@@ -610,25 +610,117 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 			VaultRef: "env:AGH_TEST_TELEGRAM_TOKEN",
 			Kind:     "token",
 		},
-	); err == nil {
+	); err != nil {
+		assertErrorContains(t, err, "/api/bridges/brg-1/secret-bindings/bot_token status 500: boom")
+	} else {
 		t.Fatal("PutBridgeSecretBinding() error = nil, want transport error")
 	}
-	if err := harness.CaptureBridgeRoutes(ctx, "brg-1"); err == nil {
-		t.Fatal("CaptureBridgeRoutes() error = nil, want transport error")
+	assertErrorContains(t, harness.CaptureBridgeRoutes(ctx, "brg-1"), "/api/bridges/brg-1/routes status 500: boom")
+	assertErrorContains(
+		t,
+		harness.CaptureBridgeSecretBindings(ctx, "brg-1"),
+		"/api/bridges/brg-1/secret-bindings status 500: boom",
+	)
+	assertErrorContains(t, harness.CaptureBridgeHealth(ctx), "decode bridge health snapshot")
+}
+
+func TestRuntimeHarnessBridgeHelpersRejectBlankBridgeID(t *testing.T) {
+	t.Parallel()
+
+	harness := &RuntimeHarness{}
+	ctx := testContext(t)
+
+	tests := []struct {
+		name string
+		call func() error
+	}{
+		{
+			name: "get bridge",
+			call: func() error {
+				_, err := harness.GetBridge(ctx, "   ")
+				return err
+			},
+		},
+		{
+			name: "enable bridge",
+			call: func() error {
+				_, err := harness.EnableBridge(ctx, "")
+				return err
+			},
+		},
+		{
+			name: "restart bridge",
+			call: func() error {
+				_, err := harness.RestartBridge(ctx, "")
+				return err
+			},
+		},
+		{
+			name: "list routes",
+			call: func() error {
+				_, err := harness.ListBridgeRoutes(ctx, "")
+				return err
+			},
+		},
+		{
+			name: "put secret binding",
+			call: func() error {
+				_, err := harness.PutBridgeSecretBinding(
+					ctx,
+					"",
+					"bot_token",
+					aghcontract.PutBridgeSecretBindingRequest{},
+				)
+				return err
+			},
+		},
+		{
+			name: "list secret bindings",
+			call: func() error {
+				_, err := harness.ListBridgeSecretBindings(ctx, "")
+				return err
+			},
+		},
+		{
+			name: "capture routes",
+			call: func() error {
+				return harness.CaptureBridgeRoutes(ctx, "")
+			},
+		},
+		{
+			name: "capture delivery state",
+			call: func() error {
+				return harness.CaptureBridgeDeliveryState(ctx, "")
+			},
+		},
+		{
+			name: "capture secret bindings",
+			call: func() error {
+				return harness.CaptureBridgeSecretBindings(ctx, "")
+			},
+		},
 	}
-	if err := harness.CaptureBridgeSecretBindings(ctx, "brg-1"); err == nil {
-		t.Fatal("CaptureBridgeSecretBindings() error = nil, want transport error")
-	}
-	if err := harness.CaptureBridgeHealth(ctx); err == nil {
-		t.Fatal("CaptureBridgeHealth() error = nil, want decode failure")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assertErrorContains(t, tt.call(), "bridge id is required")
+		})
 	}
 }
 
-func newHarnessTestServer(t testing.TB) *httptest.Server {
+type harnessTestServer struct {
+	*httptest.Server
+	handlerErrs chan error
+}
+
+func newHarnessTestServer(t testing.TB) *harnessTestServer {
 	t.Helper()
 
 	now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
 	routeTime := now.Add(5 * time.Minute)
+	handlerErrs := make(chan error, 32)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/workspaces/resolve", func(w http.ResponseWriter, _ *http.Request) {
@@ -770,7 +862,15 @@ func newHarnessTestServer(t testing.TB) *httptest.Server {
 	})
 	mux.HandleFunc("/api/network/peers", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Query().Get("channel"), "builders"; got != want {
-			t.Fatalf("network peers query channel = %q, want %q", got, want)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"network peers query channel = %q, want %q",
+				got,
+				want,
+			)
+			return
 		}
 		writeJSON(w, aghcontract.NetworkPeersResponse{
 			Peers: []aghcontract.NetworkPeerPayload{{
@@ -846,7 +946,15 @@ func newHarnessTestServer(t testing.TB) *httptest.Server {
 	})
 	mux.HandleFunc("/api/network/inbox", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Query().Get("session_id"), "sess-1"; got != want {
-			t.Fatalf("network inbox query session_id = %q, want %q", got, want)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"network inbox query session_id = %q, want %q",
+				got,
+				want,
+			)
+			return
 		}
 		writeJSON(w, aghcontract.NetworkInboxResponse{
 			Messages: []aghcontract.NetworkEnvelopePayload{{
@@ -876,7 +984,15 @@ func newHarnessTestServer(t testing.TB) *httptest.Server {
 	})
 	mux.HandleFunc("/api/automation/runs", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Query().Get("status"), "completed"; got != want {
-			t.Fatalf("automation runs query status = %q, want %q", got, want)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"automation runs query status = %q, want %q",
+				got,
+				want,
+			)
+			return
 		}
 		writeJSON(w, aghcontract.RunsResponse{
 			Runs: []aghcontract.RunPayload{{
@@ -889,7 +1005,15 @@ func newHarnessTestServer(t testing.TB) *httptest.Server {
 	})
 	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Query().Get("limit"), "10"; got != want {
-			t.Fatalf("tasks query limit = %q, want %q", got, want)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"tasks query limit = %q, want %q",
+				got,
+				want,
+			)
+			return
 		}
 		writeJSON(w, aghcontract.TasksResponse{
 			Tasks: []aghcontract.TaskSummaryPayload{{
@@ -906,7 +1030,15 @@ func newHarnessTestServer(t testing.TB) *httptest.Server {
 	})
 	mux.HandleFunc("/api/tasks/task-1/runs", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Query().Get("status"), "completed"; got != want {
-			t.Fatalf("task runs query status = %q, want %q", got, want)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"task runs query status = %q, want %q",
+				got,
+				want,
+			)
+			return
 		}
 		writeJSON(w, aghcontract.TaskRunsResponse{
 			Runs: []aghcontract.TaskRunPayload{{
@@ -941,13 +1073,36 @@ func newHarnessTestServer(t testing.TB) *httptest.Server {
 		case http.MethodPost:
 			var request aghcontract.InstallExtensionRequest
 			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				t.Fatalf("json.Decode(install extension) error = %v", err)
+				reportHarnessHandlerError(
+					w,
+					handlerErrs,
+					http.StatusBadRequest,
+					"json.Decode(install extension) error = %v",
+					err,
+				)
+				return
 			}
 			if got, want := request.Path, "/extensions/telegram-reference"; got != want {
-				t.Fatalf("install extension path = %q, want %q", got, want)
+				reportHarnessHandlerError(
+					w,
+					handlerErrs,
+					http.StatusBadRequest,
+					"install extension path = %q, want %q",
+					got,
+					want,
+				)
+				return
 			}
 			if got, want := request.Checksum, "sha256-demo"; got != want {
-				t.Fatalf("install extension checksum = %q, want %q", got, want)
+				reportHarnessHandlerError(
+					w,
+					handlerErrs,
+					http.StatusBadRequest,
+					"install extension checksum = %q, want %q",
+					got,
+					want,
+				)
+				return
 			}
 			w.WriteHeader(http.StatusCreated)
 			writeJSON(w, aghcontract.ExtensionResponse{
@@ -1023,10 +1178,25 @@ func newHarnessTestServer(t testing.TB) *httptest.Server {
 		}
 		var request aghcontract.CreateBridgeRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			t.Fatalf("json.Decode(create bridge) error = %v", err)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"json.Decode(create bridge) error = %v",
+				err,
+			)
+			return
 		}
 		if got, want := request.ExtensionName, "telegram-reference"; got != want {
-			t.Fatalf("create bridge extension = %q, want %q", got, want)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"create bridge extension = %q, want %q",
+				got,
+				want,
+			)
+			return
 		}
 		w.WriteHeader(http.StatusCreated)
 		writeJSON(w, aghcontract.BridgeResponse{
@@ -1143,13 +1313,36 @@ func newHarnessTestServer(t testing.TB) *httptest.Server {
 	mux.HandleFunc("/api/bridges/brg-1/secret-bindings/bot_token", func(w http.ResponseWriter, r *http.Request) {
 		var request aghcontract.PutBridgeSecretBindingRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			t.Fatalf("json.Decode(put bridge secret binding) error = %v", err)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"json.Decode(put bridge secret binding) error = %v",
+				err,
+			)
+			return
 		}
 		if got, want := request.VaultRef, "env:AGH_TEST_TELEGRAM_TOKEN"; got != want {
-			t.Fatalf("secret binding vault_ref = %q, want %q", got, want)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"secret binding vault_ref = %q, want %q",
+				got,
+				want,
+			)
+			return
 		}
 		if got, want := request.Kind, "token"; got != want {
-			t.Fatalf("secret binding kind = %q, want %q", got, want)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"secret binding kind = %q, want %q",
+				got,
+				want,
+			)
+			return
 		}
 		writeJSON(w, aghcontract.BridgeSecretBindingResponse{
 			Binding: bridgepkg.BridgeSecretBinding{
@@ -1176,19 +1369,38 @@ func newHarnessTestServer(t testing.TB) *httptest.Server {
 			},
 		})
 		if err != nil {
-			t.Fatalf("json.Marshal(bridge health) error = %v", err)
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusInternalServerError,
+				"json.Marshal(bridge health) error = %v",
+				err,
+			)
+			return
 		}
 		_, _ = fmt.Fprintf(w, "event: bridge_health\ndata: %s\n\n", payload)
 	})
 
-	return httptest.NewServer(mux)
+	server := &harnessTestServer{
+		Server:      httptest.NewServer(mux),
+		handlerErrs: handlerErrs,
+	}
+	t.Cleanup(func() {
+		server.assertNoHandlerErrors(t)
+	})
+	t.Cleanup(server.Close)
+	return server
 }
 
 func writeJSON(w http.ResponseWriter, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(value); err != nil {
+	if err := writeJSONResponse(w, value); err != nil {
 		panic(err)
 	}
+}
+
+func writeJSONResponse(w http.ResponseWriter, value any) error {
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(value)
 }
 
 func testContext(t testing.TB) context.Context {
@@ -1200,4 +1412,38 @@ func testContext(t testing.TB) context.Context {
 
 func stringPtr(value string) *string {
 	return &value
+}
+
+func (s *harnessTestServer) assertNoHandlerErrors(t testing.TB) {
+	t.Helper()
+
+	close(s.handlerErrs)
+
+	messages := make([]string, 0)
+	for err := range s.handlerErrs {
+		messages = append(messages, err.Error())
+	}
+	if len(messages) > 0 {
+		t.Fatalf("handler validation errors:\n%s", strings.Join(messages, "\n"))
+	}
+}
+
+func reportHarnessHandlerError(
+	w http.ResponseWriter,
+	errCh chan<- error,
+	status int,
+	format string,
+	args ...any,
+) {
+	err := fmt.Errorf(format, args...)
+	errCh <- err
+	http.Error(w, err.Error(), status)
+}
+
+func assertErrorContains(t testing.TB, err error, want string) {
+	t.Helper()
+
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want substring %q", err, want)
+	}
 }
