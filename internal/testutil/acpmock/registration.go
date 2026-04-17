@@ -46,7 +46,7 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 	}
 	fixture, err := LoadFixture(fixturePath)
 	if err != nil {
-		return Registration{}, err
+		return Registration{}, fmt.Errorf("acpmock: load fixture %q: %w", fixturePath, err)
 	}
 
 	fixtureAgentName := strings.TrimSpace(opts.FixtureAgent)
@@ -58,22 +58,30 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 	}
 	agent, err := fixture.Agent(fixtureAgentName)
 	if err != nil {
-		return Registration{}, err
+		return Registration{}, fmt.Errorf("acpmock: lookup fixture agent %q: %w", fixtureAgentName, err)
 	}
 
-	runtimeAgentName := strings.TrimSpace(opts.AgentName)
-	if runtimeAgentName == "" {
-		runtimeAgentName = fixtureAgentName
+	runtimeAgentNameInput := strings.TrimSpace(opts.AgentName)
+	if runtimeAgentNameInput == "" {
+		runtimeAgentNameInput = fixtureAgentName
+	}
+	runtimeAgentName, err := sanitizeAgentPathSegment(runtimeAgentNameInput)
+	if err != nil {
+		return Registration{}, fmt.Errorf(
+			"acpmock: validate runtime agent name %q: %w",
+			runtimeAgentNameInput,
+			err,
+		)
 	}
 
 	driverPath, err := resolveDriverPath(opts.DriverPath)
 	if err != nil {
-		return Registration{}, err
+		return Registration{}, fmt.Errorf("acpmock: resolve driver path: %w", err)
 	}
 
 	diagnosticsPath, err := resolveDiagnosticsPath(homePaths, runtimeAgentName, opts.DiagnosticsPath)
 	if err != nil {
-		return Registration{}, err
+		return Registration{}, fmt.Errorf("acpmock: resolve diagnostics path for %q: %w", runtimeAgentName, err)
 	}
 	command := BuildCommand(driverPath, fixturePath, fixtureAgentName, diagnosticsPath)
 
@@ -152,6 +160,17 @@ func yamlSingleQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
+func sanitizeAgentPathSegment(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", errors.New("acpmock: agent name is required")
+	}
+	if trimmed == "." || trimmed == ".." || strings.ContainsAny(trimmed, `/\`) {
+		return "", fmt.Errorf("acpmock: invalid agent name %q", trimmed)
+	}
+	return trimmed, nil
+}
+
 func resolveDiagnosticsPath(homePaths aghconfig.HomePaths, name string, override string) (string, error) {
 	if trimmed := strings.TrimSpace(override); trimmed != "" {
 		if err := os.MkdirAll(filepath.Dir(trimmed), 0o755); err != nil {
@@ -160,9 +179,19 @@ func resolveDiagnosticsPath(homePaths aghconfig.HomePaths, name string, override
 		return trimmed, nil
 	}
 
-	dir := filepath.Join(homePaths.LogsDir, "acpmock")
+	safeName, err := sanitizeAgentPathSegment(name)
+	if err != nil {
+		return "", fmt.Errorf("acpmock: validate diagnostics agent name: %w", err)
+	}
+	logsDir := strings.TrimSpace(homePaths.LogsDir)
+	if logsDir == "" {
+		return "", errors.New(
+			"acpmock: home paths logs directory is required when diagnostics path override is not set",
+		)
+	}
+	dir := filepath.Join(logsDir, "acpmock")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("acpmock: create diagnostics directory %q: %w", dir, err)
 	}
-	return filepath.Join(dir, strings.TrimSpace(name)+".jsonl"), nil
+	return filepath.Join(dir, safeName+".jsonl"), nil
 }

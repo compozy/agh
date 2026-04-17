@@ -103,12 +103,22 @@ func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
 	registration, err := Register(homePaths, RegisterOptions{
 		FixturePath:     filepath.Join("testdata", "multi_agent_fixture.json"),
 		FixtureAgent:    "alpha",
-		AgentName:       "mock-alpha",
+		AgentName:       " mock-alpha ",
 		DriverPath:      "/tmp/mock driver/acpmock-driver",
 		DiagnosticsPath: diagnosticsPath,
 	})
 	if err != nil {
 		t.Fatalf("Register() error = %v", err)
+	}
+	if got, want := registration.AgentName, "mock-alpha"; got != want {
+		t.Fatalf("registration.AgentName = %q, want %q", got, want)
+	}
+	if got, want := registration.AgentDefPath, filepath.Join(
+		homePaths.AgentsDir,
+		"mock-alpha",
+		"AGENT.md",
+	); got != want {
+		t.Fatalf("registration.AgentDefPath = %q, want %q", got, want)
 	}
 
 	loaded, err := aghconfig.LoadAgentDefFile(registration.AgentDefPath)
@@ -286,6 +296,21 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	if _, err := fixture.Agent("missing"); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("fixture.Agent(missing) error = %v, want not-found error", err)
 	}
+	trimmedFixture, err := ParseFixture(
+		[]byte(
+			`{"version":2,"agents":[{"name":" alpha ","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+		),
+	)
+	if err != nil {
+		t.Fatalf("ParseFixture(trimmed name) error = %v", err)
+	}
+	trimmedAgent, err := trimmedFixture.Agent("alpha")
+	if err != nil {
+		t.Fatalf("trimmedFixture.Agent(alpha) error = %v", err)
+	}
+	if got, want := trimmedAgent.Name, "alpha"; got != want {
+		t.Fatalf("trimmedAgent.Name = %q, want %q", got, want)
+	}
 
 	alpha, err := fixture.Agent("alpha")
 	if err != nil {
@@ -358,6 +383,27 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("resolve diagnostics path rejects unsafe agent names", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := mockHomePaths(t)
+		if _, err := resolveDiagnosticsPath(homePaths, "../alpha", ""); err == nil ||
+			!strings.Contains(err.Error(), "invalid agent name") {
+			t.Fatalf("resolveDiagnosticsPath(unsafe) error = %v, want invalid-agent-name error", err)
+		}
+	})
+
+	t.Run("resolve diagnostics path requires logs directory without override", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := mockHomePaths(t)
+		homePaths.LogsDir = " "
+		if _, err := resolveDiagnosticsPath(homePaths, "alpha", ""); err == nil ||
+			!strings.Contains(err.Error(), "logs directory is required") {
+			t.Fatalf("resolveDiagnosticsPath(blank logs dir) error = %v, want logs-dir validation", err)
+		}
+	})
+
 	t.Run("render agent def uses default prompt", func(t *testing.T) {
 		t.Parallel()
 
@@ -397,8 +443,39 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 			FixtureAgent: "missing",
 			DriverPath:   "/tmp/mock-driver",
 		})
-		if err == nil || !strings.Contains(err.Error(), "fixture agent") {
-			t.Fatalf("Register(missing fixture agent) error = %v, want fixture-agent error", err)
+		if err == nil || !strings.Contains(err.Error(), "lookup fixture agent") {
+			t.Fatalf("Register(missing fixture agent) error = %v, want lookup context", err)
+		}
+	})
+
+	t.Run("register rejects unsafe runtime agent names", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := mockHomePaths(t)
+		_, err := Register(homePaths, RegisterOptions{
+			FixturePath:  filepath.Join("testdata", "multi_agent_fixture.json"),
+			FixtureAgent: "alpha",
+			AgentName:    "../escape",
+			DriverPath:   "/tmp/mock-driver",
+		})
+		if err == nil || !strings.Contains(err.Error(), "validate runtime agent name") {
+			t.Fatalf("Register(unsafe runtime agent name) error = %v, want runtime-agent validation", err)
+		}
+	})
+
+	t.Run("register wraps diagnostics path failures", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := mockHomePaths(t)
+		homePaths.LogsDir = ""
+		_, err := Register(homePaths, RegisterOptions{
+			FixturePath:  filepath.Join("testdata", "multi_agent_fixture.json"),
+			FixtureAgent: "alpha",
+			AgentName:    "alpha",
+			DriverPath:   "/tmp/mock-driver",
+		})
+		if err == nil || !strings.Contains(err.Error(), "resolve diagnostics path") {
+			t.Fatalf("Register(blank logs dir) error = %v, want diagnostics-path context", err)
 		}
 	})
 }

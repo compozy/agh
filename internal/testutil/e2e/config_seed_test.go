@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -276,5 +278,20 @@ func TestWriteAgentDefEscapesYAMLSensitiveValues(t *testing.T) {
 	}
 	if got, want := agent.Prompt, "You are a builder.\nRespect review:all #notes."; got != want {
 		t.Fatalf("agent.Prompt = %q, want %q", got, want)
+	}
+}
+
+func TestShortSocketPathUsesTempDirAndAllowsEarlyRemoval(t *testing.T) {
+	t.Parallel()
+
+	path := shortSocketPath(t)
+	if got, want := filepath.Clean(filepath.Dir(path)), filepath.Clean(os.TempDir()); got != want {
+		t.Fatalf("filepath.Dir(shortSocketPath()) = %q, want %q", got, want)
+	}
+	if err := os.WriteFile(path, []byte("socket"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("os.Remove(%q) error = %v", path, err)
 	}
 }

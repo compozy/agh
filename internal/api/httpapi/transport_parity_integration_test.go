@@ -4,12 +4,12 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -302,9 +302,17 @@ func httpSSEContainsEvent(records []e2etest.SSEEvent, want string) bool {
 	return false
 }
 
+type httpSessionEventContent struct {
+	Type string `json:"type"`
+}
+
 func httpSessionEventsContainType(events []aghcontract.SessionEventPayload, want string) bool {
 	for _, event := range events {
-		if strings.Contains(string(event.Content), `"type":"`+want+`"`) {
+		var payload httpSessionEventContent
+		if err := json.Unmarshal([]byte(event.Content), &payload); err != nil {
+			continue
+		}
+		if payload.Type == want {
 			return true
 		}
 	}

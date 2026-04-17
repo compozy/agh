@@ -520,21 +520,26 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 	if got, want := toolSpec.Name, "lookup"; got != want {
 		t.Fatalf("toolSpec.Name = %q, want %q", got, want)
 	}
-	var toolPayload map[string]any
+	var toolPayload struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Source      string `json:"source"`
+		ReadOnly    bool   `json:"read_only"`
+	}
 	if err := json.Unmarshal(toolEncoded, &toolPayload); err != nil {
 		t.Fatalf("json.Unmarshal(toolEncoded) error = %v", err)
 	}
-	if got, want := toolPayload["name"], "lookup"; got != want {
-		t.Fatalf("toolPayload[name] = %#v, want %#v", got, want)
+	if got, want := toolPayload.Name, "lookup"; got != want {
+		t.Fatalf("toolPayload.Name = %#v, want %#v", got, want)
 	}
-	if got, want := toolPayload["description"], "Search extension data"; got != want {
-		t.Fatalf("toolPayload[description] = %#v, want %#v", got, want)
+	if got, want := toolPayload.Description, "Search extension data"; got != want {
+		t.Fatalf("toolPayload.Description = %#v, want %#v", got, want)
 	}
-	if got, want := toolPayload["source"], "extension"; got != want {
-		t.Fatalf("toolPayload[source] = %#v, want %#v", got, want)
+	if got, want := toolPayload.Source, "extension"; got != want {
+		t.Fatalf("toolPayload.Source = %#v, want %#v", got, want)
 	}
-	if got, want := toolPayload["read_only"], false; got != want {
-		t.Fatalf("toolPayload[read_only] = %#v, want %#v", got, want)
+	if got, want := toolPayload.ReadOnly, false; got != want {
+		t.Fatalf("toolPayload.ReadOnly = %#v, want %#v", got, want)
 	}
 
 	_, _, err = validateAndEncodeTool(context.Background(), toolCodec, toolScope, toolspkg.Tool{
@@ -569,15 +574,18 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 	if got, want := mcpSpec.Name, "git"; got != want {
 		t.Fatalf("mcpSpec.Name = %q, want %q", got, want)
 	}
-	var mcpPayload map[string]any
+	var mcpPayload struct {
+		Name    string
+		Command string
+	}
 	if err := json.Unmarshal(mcpEncoded, &mcpPayload); err != nil {
 		t.Fatalf("json.Unmarshal(mcpEncoded) error = %v", err)
 	}
-	if got, want := mcpPayload["Name"], "git"; got != want {
-		t.Fatalf("mcpPayload[Name] = %#v, want %#v", got, want)
+	if got, want := mcpPayload.Name, "git"; got != want {
+		t.Fatalf("mcpPayload.Name = %#v, want %#v", got, want)
 	}
-	if got, want := mcpPayload["Command"], "npx"; got != want {
-		t.Fatalf("mcpPayload[Command] = %#v, want %#v", got, want)
+	if got, want := mcpPayload.Command, "npx"; got != want {
+		t.Fatalf("mcpPayload.Command = %#v, want %#v", got, want)
 	}
 
 	_, _, err = validateAndEncodeMCPServer(context.Background(), mcpCodec, toolScope, aghconfig.MCPServer{Name: "git"})

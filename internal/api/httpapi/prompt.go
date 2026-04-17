@@ -62,9 +62,8 @@ type tokenUsagePayload struct {
 }
 
 type promptFinishPayload struct {
-	Type         string  `json:"type"`
-	FinishReason string  `json:"finishReason,omitempty"`
-	StopReason   *string `json:"stopReason,omitempty"`
+	Type         string `json:"type"`
+	FinishReason string `json:"finishReason,omitempty"`
 }
 
 type promptStreamState struct {

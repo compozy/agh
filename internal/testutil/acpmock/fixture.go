@@ -163,15 +163,17 @@ func (f Fixture) Validate() error {
 	}
 
 	seen := make(map[string]struct{}, len(f.Agents))
-	for idx, agent := range f.Agents {
-		name := strings.TrimSpace(agent.Name)
+	for idx := range f.Agents {
+		name := strings.TrimSpace(f.Agents[idx].Name)
 		if name == "" {
 			return fmt.Errorf("acpmock: agents[%d].name is required", idx)
 		}
+		f.Agents[idx].Name = name
 		if _, ok := seen[name]; ok {
 			return fmt.Errorf("acpmock: duplicate agent %q", name)
 		}
 		seen[name] = struct{}{}
+		agent := f.Agents[idx]
 		if err := agent.Validate(fmt.Sprintf("agents[%d]", idx)); err != nil {
 			return err
 		}

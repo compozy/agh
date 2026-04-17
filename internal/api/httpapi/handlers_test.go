@@ -713,6 +713,7 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	var foundToolCall bool
 	var foundDone bool
 	var finishPart promptFinishPayload
+	var finishFields map[string]json.RawMessage
 	for _, record := range records {
 		if record.Event == "agent_message" {
 			foundAgentMessage = true
@@ -725,6 +726,9 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 			if len(record.Data) > 0 && string(record.Data) != "[DONE]" {
 				if err := json.Unmarshal(record.Data, &finishPart); err != nil {
 					t.Fatalf("json.Unmarshal(finish part) error = %v; data=%s", err, string(record.Data))
+				}
+				if err := json.Unmarshal(record.Data, &finishFields); err != nil {
+					t.Fatalf("json.Unmarshal(finish fields) error = %v; data=%s", err, string(record.Data))
 				}
 			}
 		}
@@ -766,8 +770,8 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	if got := finishPart.FinishReason; got != "stop" {
 		t.Fatalf("finishPart.FinishReason = %q, want %q", got, "stop")
 	}
-	if finishPart.StopReason != nil {
-		t.Fatalf("finish part unexpectedly includes stopReason: %#v", finishPart)
+	if _, ok := finishFields["stopReason"]; ok {
+		t.Fatalf("finish part unexpectedly includes stopReason: %s", finishFields["stopReason"])
 	}
 }
 

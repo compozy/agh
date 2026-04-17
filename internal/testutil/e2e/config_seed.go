@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -154,7 +155,9 @@ func SeedConfig(t testing.TB, homePaths aghconfig.HomePaths, opts ConfigSeedOpti
 		t.Fatalf("os.Create(%q) error = %v", homePaths.ConfigFile, err)
 	}
 	if err := toml.NewEncoder(file).Encode(overlay); err != nil {
-		_ = file.Close()
+		if closeErr := file.Close(); closeErr != nil {
+			t.Fatalf("toml encode config %q error = %v (close error = %v)", homePaths.ConfigFile, err, closeErr)
+		}
 		t.Fatalf("toml encode config %q error = %v", homePaths.ConfigFile, err)
 	}
 	if err := file.Close(); err != nil {
@@ -338,7 +341,9 @@ func shortSocketPath(t testing.TB) string {
 		fmt.Sprintf("agh-e2e-%d-%d.sock", os.Getpid(), time.Now().UTC().UnixNano()),
 	)
 	t.Cleanup(func() {
-		_ = os.Remove(path)
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Logf("remove socket %q error = %v", path, err)
+		}
 	})
 	return path
 }
