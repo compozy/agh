@@ -26,6 +26,8 @@ type Manager interface {
 	GetTask(ctx context.Context, id string, actor ActorContext) (*View, error)
 	ListTaskRuns(ctx context.Context, taskID string, query RunQuery, actor ActorContext) ([]Run, error)
 	ListTasks(ctx context.Context, query Query, actor ActorContext) ([]Summary, error)
+
+	LiveService
 }
 
 // RecordStore is the persistence surface for durable task records.
@@ -63,6 +65,12 @@ type EventStore interface {
 	ListTaskEvents(ctx context.Context, query EventQuery) ([]Event, error)
 }
 
+// EventSequenceStore is the persistence surface for stable task event sequencing used by live reads.
+type EventSequenceStore interface {
+	GetTaskEventRecord(ctx context.Context, eventID string) (EventRecord, error)
+	ListTaskEventRecords(ctx context.Context, query EventRecordQuery) ([]EventRecord, error)
+}
+
 // IdempotencyStore is the persistence surface for non-human run idempotency tracking.
 type IdempotencyStore interface {
 	GetTaskRunByIdempotencyKey(ctx context.Context, key string, origin Origin) (Run, error)
@@ -81,6 +89,7 @@ type Store interface {
 	DependencyStore
 	RunStore
 	EventStore
+	EventSequenceStore
 	IdempotencyStore
 	TriageStore
 }

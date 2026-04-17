@@ -5,20 +5,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	storepkg "github.com/pedronauck/agh/internal/store"
 )
 
 type inMemoryManagerStore struct {
-	tasks            map[string]Task
-	dependencies     map[string]map[string]Dependency
-	runs             map[string]Run
-	triageStates     map[string]TriageState
-	events           []Event
-	idempotencyByKey map[string]RunIdempotency
+	tasks             map[string]Task
+	dependencies      map[string]map[string]Dependency
+	runs              map[string]Run
+	triageStates      map[string]TriageState
+	events            []Event
+	eventSequenceByID map[string]int64
+	nextEventSequence int64
+	idempotencyByKey  map[string]RunIdempotency
 }
 
 type testSessionExecutor struct{}
@@ -60,6 +65,36 @@ type recordingSessionExecutor struct {
 	attachErr        error
 	requestStopErr   error
 	forceStopErr     error
+}
+
+type testRuntimeViewReader struct {
+	sessions map[string]*RunSessionRef
+	events   map[string][]storepkg.SessionEvent
+	stats    map[string][]storepkg.TokenStats
+}
+
+func (r testRuntimeViewReader) GetSession(_ context.Context, sessionID string) (*RunSessionRef, error) {
+	session, ok := r.sessions[strings.TrimSpace(sessionID)]
+	if !ok || session == nil {
+		return nil, ErrTaskRunNotFound
+	}
+	cloned := *session
+	return &cloned, nil
+}
+
+func (r testRuntimeViewReader) ListSessionEvents(
+	_ context.Context,
+	sessionID string,
+	_ storepkg.EventQuery,
+) ([]storepkg.SessionEvent, error) {
+	return append([]storepkg.SessionEvent(nil), r.events[strings.TrimSpace(sessionID)]...), nil
+}
+
+func (r testRuntimeViewReader) ListSessionTokenStats(
+	_ context.Context,
+	sessionID string,
+) ([]storepkg.TokenStats, error) {
+	return append([]storepkg.TokenStats(nil), r.stats[strings.TrimSpace(sessionID)]...), nil
 }
 
 func (e *recordingSessionExecutor) StartTaskSession(_ context.Context, spec *StartTaskSession) (*SessionRef, error) {
@@ -104,12 +139,13 @@ func (e *recordingSessionExecutor) ForceTaskStop(_ context.Context, sessionID st
 
 func newInMemoryManagerStore() *inMemoryManagerStore {
 	return &inMemoryManagerStore{
-		tasks:            make(map[string]Task),
-		dependencies:     make(map[string]map[string]Dependency),
-		runs:             make(map[string]Run),
-		triageStates:     make(map[string]TriageState),
-		events:           make([]Event, 0),
-		idempotencyByKey: make(map[string]RunIdempotency),
+		tasks:             make(map[string]Task),
+		dependencies:      make(map[string]map[string]Dependency),
+		runs:              make(map[string]Run),
+		triageStates:      make(map[string]TriageState),
+		events:            make([]Event, 0),
+		eventSequenceByID: make(map[string]int64),
+		idempotencyByKey:  make(map[string]RunIdempotency),
 	}
 }
 
@@ -427,6 +463,8 @@ func (s *inMemoryManagerStore) CreateTaskEvent(_ context.Context, event Event) e
 		return ErrTaskNotFound
 	}
 	s.events = append(s.events, event)
+	s.nextEventSequence++
+	s.eventSequenceByID[event.ID] = s.nextEventSequence
 	sort.Slice(s.events, func(i int, j int) bool {
 		if s.events[i].Timestamp.Equal(s.events[j].Timestamp) {
 			return s.events[i].ID > s.events[j].ID
@@ -457,6 +495,52 @@ func (s *inMemoryManagerStore) ListTaskEvents(_ context.Context, query EventQuer
 		return append([]Event(nil), events[:query.Limit]...), nil
 	}
 	return append([]Event(nil), events...), nil
+}
+
+func (s *inMemoryManagerStore) GetTaskEventRecord(_ context.Context, eventID string) (EventRecord, error) {
+	trimmedEventID := strings.TrimSpace(eventID)
+	sequence, ok := s.eventSequenceByID[trimmedEventID]
+	if !ok {
+		return EventRecord{}, ErrTaskEventNotFound
+	}
+	for _, event := range s.events {
+		if event.ID == trimmedEventID {
+			return EventRecord{Sequence: sequence, Event: event}, nil
+		}
+	}
+	return EventRecord{}, ErrTaskEventNotFound
+}
+
+func (s *inMemoryManagerStore) ListTaskEventRecords(
+	_ context.Context,
+	query EventRecordQuery,
+) ([]EventRecord, error) {
+	if err := query.Validate("task_event_record_query"); err != nil {
+		return nil, err
+	}
+
+	records := make([]EventRecord, 0)
+	for _, event := range s.events {
+		if event.TaskID != strings.TrimSpace(query.TaskID) {
+			continue
+		}
+		sequence := s.eventSequenceByID[event.ID]
+		if sequence <= query.AfterSequence {
+			continue
+		}
+		records = append(records, EventRecord{
+			Sequence: sequence,
+			Event:    event,
+		})
+	}
+
+	sort.SliceStable(records, func(i int, j int) bool {
+		return records[i].Sequence < records[j].Sequence
+	})
+	if query.Limit > 0 && len(records) > query.Limit {
+		return append([]EventRecord(nil), records[:query.Limit]...), nil
+	}
+	return append([]EventRecord(nil), records...), nil
 }
 
 func (s *inMemoryManagerStore) GetTaskRunByIdempotencyKey(
@@ -591,6 +675,663 @@ func TestDeriveActorContextsForSupportedSurfaces(t *testing.T) {
 				t.Fatalf("derive() error = %v, want %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestManagerTimelineSupportsStableOrderingAndWindows(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+	base := time.Date(2026, 4, 17, 9, 0, 0, 0, time.UTC)
+
+	taskRecord := Task{
+		ID:             "task-root",
+		Scope:          ScopeGlobal,
+		Title:          "Root task",
+		Priority:       DefaultPriority,
+		MaxAttempts:    DefaultTaskMaxAttempts,
+		Status:         TaskStatusReady,
+		ApprovalPolicy: ApprovalPolicyNone,
+		ApprovalState:  ApprovalStateNotRequired,
+		CreatedBy:      actor.Actor,
+		Origin:         actor.Origin,
+		CreatedAt:      base,
+		UpdatedAt:      base,
+	}
+	if err := store.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if err := store.CreateTaskRun(ctx, Run{
+		ID:        "run-1",
+		TaskID:    taskRecord.ID,
+		Status:    TaskRunStatusRunning,
+		Attempt:   1,
+		SessionID: "sess-1",
+		Origin:    actor.Origin,
+		QueuedAt:  base,
+		StartedAt: base.Add(30 * time.Second),
+	}); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+
+	sameTimestamp := base.Add(time.Minute)
+	for _, event := range []Event{
+		{
+			ID:        "evt-z",
+			TaskID:    taskRecord.ID,
+			EventType: taskEventUpdated,
+			Actor:     actor.Actor,
+			Origin:    actor.Origin,
+			Timestamp: sameTimestamp,
+		},
+		{
+			ID:        "evt-a",
+			TaskID:    taskRecord.ID,
+			RunID:     "run-1",
+			EventType: taskEventRunEnqueued,
+			Actor:     actor.Actor,
+			Origin:    actor.Origin,
+			Timestamp: sameTimestamp,
+		},
+		{
+			ID:        "evt-b",
+			TaskID:    taskRecord.ID,
+			RunID:     "run-1",
+			EventType: taskEventRunStarted,
+			Actor:     actor.Actor,
+			Origin:    actor.Origin,
+			Timestamp: sameTimestamp,
+		},
+	} {
+		if err := store.CreateTaskEvent(ctx, event); err != nil {
+			t.Fatalf("CreateTaskEvent(%q) error = %v", event.ID, err)
+		}
+	}
+
+	window, err := manager.Timeline(ctx, taskRecord.ID, TimelineQuery{Limit: 2}, actor)
+	if err != nil {
+		t.Fatalf("Timeline(window) error = %v", err)
+	}
+	if got, want := len(window), 2; got != want {
+		t.Fatalf("len(window) = %d, want %d", got, want)
+	}
+	if got, want := []string{window[0].EventID, window[1].EventID}, []string{"evt-z", "evt-a"}; !equalStringSlices(
+		got,
+		want,
+	) {
+		t.Fatalf("window event ids = %#v, want %#v", got, want)
+	}
+	if got, want := []int64{window[0].Sequence, window[1].Sequence}, []int64{1, 2}; !equalInt64Slices(got, want) {
+		t.Fatalf("window sequences = %#v, want %#v", got, want)
+	}
+	if window[0].Run != nil {
+		t.Fatalf("window[0].Run = %#v, want nil", window[0].Run)
+	}
+	if window[1].Run == nil || window[1].Run.ID != "run-1" {
+		t.Fatalf("window[1].Run = %#v, want run-1 summary", window[1].Run)
+	}
+
+	tail, err := manager.Timeline(ctx, taskRecord.ID, TimelineQuery{
+		AfterSequence: window[len(window)-1].Sequence,
+		Limit:         2,
+	}, actor)
+	if err != nil {
+		t.Fatalf("Timeline(tail) error = %v", err)
+	}
+	if got, want := len(tail), 1; got != want {
+		t.Fatalf("len(tail) = %d, want %d", got, want)
+	}
+	if got, want := tail[0].EventID, "evt-b"; got != want {
+		t.Fatalf("tail[0].EventID = %q, want %q", got, want)
+	}
+	if got, want := tail[0].Sequence, int64(3); got != want {
+		t.Fatalf("tail[0].Sequence = %d, want %d", got, want)
+	}
+
+	all, err := manager.Timeline(ctx, taskRecord.ID, TimelineQuery{}, actor)
+	if err != nil {
+		t.Fatalf("Timeline(all) error = %v", err)
+	}
+	if got, want := []string{
+		all[0].EventID,
+		all[1].EventID,
+		all[2].EventID,
+	}, []string{
+		"evt-z",
+		"evt-a",
+		"evt-b",
+	}; !equalStringSlices(
+		got,
+		want,
+	) {
+		t.Fatalf("all event ids = %#v, want %#v", got, want)
+	}
+}
+
+func TestManagerRunDetailAggregatesRuntimeContextAndOmitsOptionalFields(t *testing.T) {
+	t.Parallel()
+
+	t.Run("aggregates session and usage data", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		store := newInMemoryManagerStore()
+		base := time.Date(2026, 4, 17, 10, 0, 0, 0, time.UTC)
+		actor := validActorContext()
+
+		runtimeReader := testRuntimeViewReader{
+			sessions: map[string]*RunSessionRef{
+				"sess-runtime": {
+					SessionID:   "sess-runtime",
+					WorkspaceID: "ws-1",
+					AgentName:   "codex",
+					Name:        "Run session",
+					Channel:     "tasks",
+					State:       "running",
+					CreatedAt:   base,
+					UpdatedAt:   base.Add(10 * time.Minute),
+				},
+			},
+			events: map[string][]storepkg.SessionEvent{
+				"sess-runtime": {
+					{
+						ID:        "sess-event-1",
+						SessionID: "sess-runtime",
+						Sequence:  1,
+						TurnID:    "turn-1",
+						Type:      "agent_message",
+						AgentName: "codex",
+						Content:   `{"text":"working"}`,
+						Timestamp: base.Add(time.Minute),
+					},
+					{
+						ID:        "sess-event-2",
+						SessionID: "sess-runtime",
+						Sequence:  2,
+						TurnID:    "turn-1",
+						Type:      sessionEventTypeToolCall,
+						AgentName: "codex",
+						Content:   `{"tool_call_id":"tool-1"}`,
+						Timestamp: base.Add(2 * time.Minute),
+					},
+					{
+						ID:        "sess-event-3",
+						SessionID: "sess-runtime",
+						Sequence:  3,
+						TurnID:    "turn-1",
+						Type:      sessionEventTypeToolResult,
+						AgentName: "codex",
+						Content:   `{"tool_call_id":"tool-1"}`,
+						Timestamp: base.Add(3 * time.Minute),
+					},
+					{
+						ID:        "sess-event-4",
+						SessionID: "sess-runtime",
+						Sequence:  4,
+						TurnID:    "turn-2",
+						Type:      sessionEventTypeToolCall,
+						AgentName: "codex",
+						Content:   `{"toolCallId":"tool-2"}`,
+						Timestamp: base.Add(4 * time.Minute),
+					},
+				},
+			},
+			stats: map[string][]storepkg.TokenStats{
+				"sess-runtime": {
+					{
+						ID:           "stats-1",
+						SessionID:    "sess-runtime",
+						AgentName:    "codex",
+						InputTokens:  ptr(int64(10)),
+						OutputTokens: ptr(int64(5)),
+						TotalTokens:  ptr(int64(15)),
+						TotalCost:    ptr(0.25),
+						CostCurrency: ptr("USD"),
+						TurnCount:    1,
+						UpdatedAt:    base.Add(5 * time.Minute),
+					},
+					{
+						ID:          "stats-2",
+						SessionID:   "sess-runtime",
+						AgentName:   "reviewer",
+						InputTokens: ptr(int64(3)),
+						TotalTokens: ptr(int64(3)),
+						TotalCost:   ptr(0.10),
+						TurnCount:   2,
+						UpdatedAt:   base.Add(6 * time.Minute),
+					},
+				},
+			},
+		}
+		manager := newTaskManagerForTestWithOptions(t, store, WithRuntimeViewReader(runtimeReader))
+
+		taskRecord := Task{
+			ID:             "task-runtime",
+			Scope:          ScopeWorkspace,
+			WorkspaceID:    "ws-1",
+			Title:          "Runtime detail task",
+			Priority:       DefaultPriority,
+			MaxAttempts:    DefaultTaskMaxAttempts,
+			Status:         TaskStatusReady,
+			ApprovalPolicy: ApprovalPolicyNone,
+			ApprovalState:  ApprovalStateNotRequired,
+			CreatedBy:      actor.Actor,
+			Origin:         actor.Origin,
+			CreatedAt:      base,
+			UpdatedAt:      base,
+		}
+		if err := store.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := Run{
+			ID:        "run-runtime",
+			TaskID:    taskRecord.ID,
+			Status:    TaskRunStatusRunning,
+			Attempt:   1,
+			SessionID: "sess-runtime",
+			Origin:    actor.Origin,
+			QueuedAt:  base,
+			StartedAt: base.Add(30 * time.Second),
+		}
+		if err := store.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		detail, err := manager.RunDetail(ctx, run.ID, actor)
+		if err != nil {
+			t.Fatalf("RunDetail() error = %v", err)
+		}
+		if got, want := detail.Task.ID, taskRecord.ID; got != want {
+			t.Fatalf("detail.Task.ID = %q, want %q", got, want)
+		}
+		if got, want := detail.Task.Status, TaskStatusInProgress; got != want {
+			t.Fatalf("detail.Task.Status = %q, want %q", got, want)
+		}
+		if detail.Session == nil {
+			t.Fatal("detail.Session = nil, want enriched session reference")
+		}
+		if got, want := detail.Session.AgentName, "codex"; got != want {
+			t.Fatalf("detail.Session.AgentName = %q, want %q", got, want)
+		}
+		if got, want := detail.Session.WorkspaceID, "ws-1"; got != want {
+			t.Fatalf("detail.Session.WorkspaceID = %q, want %q", got, want)
+		}
+		if detail.Summary.ToolCallCount == nil || *detail.Summary.ToolCallCount != 2 {
+			t.Fatalf("detail.Summary.ToolCallCount = %#v, want 2", detail.Summary.ToolCallCount)
+		}
+		if detail.Summary.InputTokens == nil || *detail.Summary.InputTokens != 13 {
+			t.Fatalf("detail.Summary.InputTokens = %#v, want 13", detail.Summary.InputTokens)
+		}
+		if detail.Summary.OutputTokens == nil || *detail.Summary.OutputTokens != 5 {
+			t.Fatalf("detail.Summary.OutputTokens = %#v, want 5", detail.Summary.OutputTokens)
+		}
+		if detail.Summary.TotalTokens == nil || *detail.Summary.TotalTokens != 18 {
+			t.Fatalf("detail.Summary.TotalTokens = %#v, want 18", detail.Summary.TotalTokens)
+		}
+		if detail.Summary.TurnCount == nil || *detail.Summary.TurnCount != 3 {
+			t.Fatalf("detail.Summary.TurnCount = %#v, want 3", detail.Summary.TurnCount)
+		}
+		if detail.Summary.CostCurrency == nil || *detail.Summary.CostCurrency != "USD" {
+			t.Fatalf("detail.Summary.CostCurrency = %#v, want USD", detail.Summary.CostCurrency)
+		}
+		if detail.Summary.TotalCost == nil || math.Abs(*detail.Summary.TotalCost-0.35) > 1e-9 {
+			t.Fatalf("detail.Summary.TotalCost = %#v, want 0.35", detail.Summary.TotalCost)
+		}
+		if got, want := detail.Summary.LastEventType, sessionEventTypeToolCall; got != want {
+			t.Fatalf("detail.Summary.LastEventType = %q, want %q", got, want)
+		}
+		if got, want := detail.Summary.LastActivityAt, base.Add(6*time.Minute); !got.Equal(want) {
+			t.Fatalf("detail.Summary.LastActivityAt = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("keeps optional fields empty when runtime data is absent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		base := time.Date(2026, 4, 17, 11, 0, 0, 0, time.UTC)
+
+		taskRecord := Task{
+			ID:             "task-no-runtime",
+			Scope:          ScopeGlobal,
+			Title:          "No runtime detail task",
+			Priority:       DefaultPriority,
+			MaxAttempts:    DefaultTaskMaxAttempts,
+			Status:         TaskStatusReady,
+			ApprovalPolicy: ApprovalPolicyNone,
+			ApprovalState:  ApprovalStateNotRequired,
+			CreatedBy:      actor.Actor,
+			Origin:         actor.Origin,
+			CreatedAt:      base,
+			UpdatedAt:      base,
+		}
+		if err := store.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := Run{
+			ID:       "run-no-runtime",
+			TaskID:   taskRecord.ID,
+			Status:   TaskRunStatusQueued,
+			Attempt:  1,
+			Origin:   actor.Origin,
+			QueuedAt: base,
+		}
+		if err := store.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		detail, err := manager.RunDetail(ctx, run.ID, actor)
+		if err != nil {
+			t.Fatalf("RunDetail() error = %v", err)
+		}
+		if detail.Session != nil {
+			t.Fatalf("detail.Session = %#v, want nil", detail.Session)
+		}
+		if !detail.Summary.LastActivityAt.IsZero() {
+			t.Fatalf("detail.Summary.LastActivityAt = %s, want zero", detail.Summary.LastActivityAt)
+		}
+		if detail.Summary.ToolCallCount != nil {
+			t.Fatalf("detail.Summary.ToolCallCount = %#v, want nil", detail.Summary.ToolCallCount)
+		}
+	})
+}
+
+func TestManagerTreeIncludesDescendantsActiveRunsAndLatestActivity(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+	base := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+
+	root := Task{
+		ID:             "task-root",
+		Scope:          ScopeGlobal,
+		Title:          "Root",
+		Priority:       DefaultPriority,
+		MaxAttempts:    DefaultTaskMaxAttempts,
+		Status:         TaskStatusReady,
+		ApprovalPolicy: ApprovalPolicyNone,
+		ApprovalState:  ApprovalStateNotRequired,
+		CreatedBy:      actor.Actor,
+		Origin:         actor.Origin,
+		CreatedAt:      base,
+		UpdatedAt:      base,
+	}
+	childActive := root
+	childActive.ID = "task-child-active"
+	childActive.ParentTaskID = root.ID
+	childActive.Title = "Child active"
+	childActive.CreatedAt = base.Add(time.Minute)
+	childActive.UpdatedAt = base.Add(time.Minute)
+
+	childIdle := root
+	childIdle.ID = "task-child-idle"
+	childIdle.ParentTaskID = root.ID
+	childIdle.Title = "Child idle"
+	childIdle.CreatedAt = base.Add(2 * time.Minute)
+	childIdle.UpdatedAt = base.Add(2 * time.Minute)
+
+	grandchild := root
+	grandchild.ID = "task-grandchild"
+	grandchild.ParentTaskID = childActive.ID
+	grandchild.Title = "Grandchild"
+	grandchild.CreatedAt = base.Add(3 * time.Minute)
+	grandchild.UpdatedAt = base.Add(3 * time.Minute)
+
+	for _, record := range []Task{root, childActive, childIdle, grandchild} {
+		if err := store.CreateTask(ctx, record); err != nil {
+			t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+		}
+	}
+
+	for _, run := range []Run{
+		{
+			ID:        "run-active",
+			TaskID:    childActive.ID,
+			Status:    TaskRunStatusRunning,
+			Attempt:   1,
+			SessionID: "sess-child-active",
+			Origin:    actor.Origin,
+			QueuedAt:  base.Add(4 * time.Minute),
+			StartedAt: base.Add(5 * time.Minute),
+		},
+		{
+			ID:       "run-grandchild-complete",
+			TaskID:   grandchild.ID,
+			Status:   TaskRunStatusCompleted,
+			Attempt:  1,
+			Origin:   actor.Origin,
+			QueuedAt: base.Add(2 * time.Minute),
+			EndedAt:  base.Add(3 * time.Minute),
+		},
+	} {
+		if err := store.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+		}
+	}
+
+	for _, event := range []Event{
+		{
+			ID:        "root-event",
+			TaskID:    root.ID,
+			EventType: taskEventUpdated,
+			Actor:     actor.Actor,
+			Origin:    actor.Origin,
+			Timestamp: base.Add(30 * time.Second),
+		},
+		{
+			ID:        "child-active-event",
+			TaskID:    childActive.ID,
+			RunID:     "run-active",
+			EventType: taskEventRunStarted,
+			Actor:     actor.Actor,
+			Origin:    actor.Origin,
+			Timestamp: base.Add(6 * time.Minute),
+		},
+		{
+			ID:        "child-idle-event",
+			TaskID:    childIdle.ID,
+			EventType: taskEventUpdated,
+			Actor:     actor.Actor,
+			Origin:    actor.Origin,
+			Timestamp: base.Add(4 * time.Minute),
+		},
+		{
+			ID:        "grandchild-event",
+			TaskID:    grandchild.ID,
+			RunID:     "run-grandchild-complete",
+			EventType: taskEventRunCompleted,
+			Actor:     actor.Actor,
+			Origin:    actor.Origin,
+			Timestamp: base.Add(3 * time.Minute),
+		},
+	} {
+		if err := store.CreateTaskEvent(ctx, event); err != nil {
+			t.Fatalf("CreateTaskEvent(%q) error = %v", event.ID, err)
+		}
+	}
+
+	tree, err := manager.Tree(ctx, root.ID, actor)
+	if err != nil {
+		t.Fatalf("Tree() error = %v", err)
+	}
+	if got, want := tree.Root.Task.ID, root.ID; got != want {
+		t.Fatalf("tree.Root.Task.ID = %q, want %q", got, want)
+	}
+	if got, want := tree.Root.ChildCount, 2; got != want {
+		t.Fatalf("tree.Root.ChildCount = %d, want %d", got, want)
+	}
+	if got, want := len(tree.Descendants), 3; got != want {
+		t.Fatalf("len(tree.Descendants) = %d, want %d", got, want)
+	}
+	if got, want := []string{
+		tree.Descendants[0].Task.ID,
+		tree.Descendants[1].Task.ID,
+		tree.Descendants[2].Task.ID,
+	}, []string{childActive.ID, childIdle.ID, grandchild.ID}; !equalStringSlices(got, want) {
+		t.Fatalf("tree.Descendants order = %#v, want %#v", got, want)
+	}
+
+	activeNode := tree.Descendants[0]
+	if got, want := activeNode.ParentTaskID, root.ID; got != want {
+		t.Fatalf("activeNode.ParentTaskID = %q, want %q", got, want)
+	}
+	if got, want := activeNode.Depth, 1; got != want {
+		t.Fatalf("activeNode.Depth = %d, want %d", got, want)
+	}
+	if got, want := activeNode.ChildCount, 1; got != want {
+		t.Fatalf("activeNode.ChildCount = %d, want %d", got, want)
+	}
+	if activeNode.ActiveRun == nil || activeNode.ActiveRun.ID != "run-active" {
+		t.Fatalf("activeNode.ActiveRun = %#v, want run-active", activeNode.ActiveRun)
+	}
+	if got, want := activeNode.LastActivityAt, base.Add(6*time.Minute); !got.Equal(want) {
+		t.Fatalf("activeNode.LastActivityAt = %s, want %s", got, want)
+	}
+
+	grandchildNode := tree.Descendants[2]
+	if got, want := grandchildNode.ParentTaskID, childActive.ID; got != want {
+		t.Fatalf("grandchildNode.ParentTaskID = %q, want %q", got, want)
+	}
+	if got, want := grandchildNode.Depth, 2; got != want {
+		t.Fatalf("grandchildNode.Depth = %d, want %d", got, want)
+	}
+	if grandchildNode.ActiveRun != nil {
+		t.Fatalf("grandchildNode.ActiveRun = %#v, want nil", grandchildNode.ActiveRun)
+	}
+}
+
+func TestManagerStreamReplaysStableBacklogAndLiveDescendantEvents(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+	base := time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC)
+
+	root := Task{
+		ID:             "task-root",
+		Scope:          ScopeGlobal,
+		Title:          "Root",
+		Priority:       DefaultPriority,
+		MaxAttempts:    DefaultTaskMaxAttempts,
+		Status:         TaskStatusReady,
+		ApprovalPolicy: ApprovalPolicyNone,
+		ApprovalState:  ApprovalStateNotRequired,
+		CreatedBy:      actor.Actor,
+		Origin:         actor.Origin,
+		CreatedAt:      base,
+		UpdatedAt:      base,
+	}
+	child := root
+	child.ID = "task-child"
+	child.ParentTaskID = root.ID
+	child.Title = "Child"
+	child.CreatedAt = base.Add(time.Minute)
+	child.UpdatedAt = child.CreatedAt
+	for _, record := range []Task{root, child} {
+		if err := store.CreateTask(ctx, record); err != nil {
+			t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+		}
+	}
+
+	if err := manager.recordTaskEvent(
+		ctx,
+		root.ID,
+		"",
+		taskEventUpdated,
+		actor,
+		map[string]any{"source": "root"},
+	); err != nil {
+		t.Fatalf("recordTaskEvent(root) error = %v", err)
+	}
+	if err := manager.recordTaskEvent(
+		ctx,
+		child.ID,
+		"",
+		taskEventUpdated,
+		actor,
+		map[string]any{"source": "child"},
+	); err != nil {
+		t.Fatalf("recordTaskEvent(child) error = %v", err)
+	}
+
+	streamCtx, cancel := context.WithCancel(ctx)
+	stream, err := manager.Stream(streamCtx, root.ID, StreamQuery{AfterSequence: 1}, actor)
+	if err != nil {
+		t.Fatalf("Stream(first) error = %v", err)
+	}
+
+	backlog := awaitTaskStreamEvent(t, stream)
+	if got, want := backlog.Sequence, int64(2); got != want {
+		t.Fatalf("backlog.Sequence = %d, want %d", got, want)
+	}
+	if got, want := backlog.Timeline.Task.ID, child.ID; got != want {
+		t.Fatalf("backlog.Timeline.Task.ID = %q, want %q", got, want)
+	}
+	if got, want := backlog.Type, taskEventUpdated; got != want {
+		t.Fatalf("backlog.Type = %q, want %q", got, want)
+	}
+
+	if err := manager.recordTaskEvent(
+		ctx,
+		child.ID,
+		"",
+		taskEventRunEnqueued,
+		actor,
+		map[string]any{"attempt": 1},
+	); err != nil {
+		t.Fatalf("recordTaskEvent(live child) error = %v", err)
+	}
+	liveChild := awaitTaskStreamEvent(t, stream)
+	if got, want := liveChild.Sequence, int64(3); got != want {
+		t.Fatalf("liveChild.Sequence = %d, want %d", got, want)
+	}
+	if got, want := liveChild.Timeline.Task.ID, child.ID; got != want {
+		t.Fatalf("liveChild.Timeline.Task.ID = %q, want %q", got, want)
+	}
+	if got, want := liveChild.Type, taskEventRunEnqueued; got != want {
+		t.Fatalf("liveChild.Type = %q, want %q", got, want)
+	}
+
+	cancel()
+
+	reconnectCtx, reconnectCancel := context.WithCancel(ctx)
+	defer reconnectCancel()
+	reconnected, err := manager.Stream(reconnectCtx, root.ID, StreamQuery{AfterSequence: liveChild.Sequence}, actor)
+	if err != nil {
+		t.Fatalf("Stream(reconnected) error = %v", err)
+	}
+	assertNoTaskStreamEvent(t, reconnected, 150*time.Millisecond)
+
+	if err := manager.recordTaskEvent(
+		ctx,
+		root.ID,
+		"",
+		taskEventCanceled,
+		actor,
+		map[string]any{"reason": "done"},
+	); err != nil {
+		t.Fatalf("recordTaskEvent(root live) error = %v", err)
+	}
+	liveRoot := awaitTaskStreamEvent(t, reconnected)
+	if got, want := liveRoot.Sequence, int64(4); got != want {
+		t.Fatalf("liveRoot.Sequence = %d, want %d", got, want)
+	}
+	if got, want := liveRoot.Timeline.Task.ID, root.ID; got != want {
+		t.Fatalf("liveRoot.Timeline.Task.ID = %q, want %q", got, want)
+	}
+	if got, want := liveRoot.Type, taskEventCanceled; got != want {
+		t.Fatalf("liveRoot.Type = %q, want %q", got, want)
 	}
 }
 
@@ -3263,15 +4004,6 @@ func sortedEventTypes(events []Event) []string {
 	return types
 }
 
-func containsEventType(events []Event, want string) bool {
-	for _, event := range events {
-		if event.EventType == want {
-			return true
-		}
-	}
-	return false
-}
-
 func equalStringSlices(left []string, right []string) bool {
 	if len(left) != len(right) {
 		return false
@@ -3282,6 +4014,55 @@ func equalStringSlices(left []string, right []string) bool {
 		}
 	}
 	return true
+}
+
+func equalInt64Slices(left []int64, right []int64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if left[idx] != right[idx] {
+			return false
+		}
+	}
+	return true
+}
+
+func awaitTaskStreamEvent(t *testing.T, stream <-chan StreamEvent) StreamEvent {
+	t.Helper()
+
+	select {
+	case event, ok := <-stream:
+		if !ok {
+			t.Fatal("stream closed before event was available")
+		}
+		return event
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for task stream event")
+		return StreamEvent{}
+	}
+}
+
+func assertNoTaskStreamEvent(t *testing.T, stream <-chan StreamEvent, wait time.Duration) {
+	t.Helper()
+
+	select {
+	case event, ok := <-stream:
+		if !ok {
+			return
+		}
+		t.Fatalf("unexpected task stream event = %#v", event)
+	case <-time.After(wait):
+	}
+}
+
+func containsEventType(events []Event, want string) bool {
+	for _, event := range events {
+		if event.EventType == want {
+			return true
+		}
+	}
+	return false
 }
 
 func idempotencyKey(origin Origin, key string) string {

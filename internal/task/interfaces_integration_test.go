@@ -77,6 +77,23 @@ func (fakeStore) ListTaskEvents(context.Context, taskpkg.EventQuery) ([]taskpkg.
 	return []taskpkg.Event{{ID: "evt-1", TaskID: "task-1", EventType: "task.created"}}, nil
 }
 
+func (fakeStore) GetTaskEventRecord(context.Context, string) (taskpkg.EventRecord, error) {
+	return taskpkg.EventRecord{
+		Sequence: 1,
+		Event:    taskpkg.Event{ID: "evt-1", TaskID: "task-1", EventType: "task.created"},
+	}, nil
+}
+
+func (fakeStore) ListTaskEventRecords(
+	context.Context,
+	taskpkg.EventRecordQuery,
+) ([]taskpkg.EventRecord, error) {
+	return []taskpkg.EventRecord{{
+		Sequence: 1,
+		Event:    taskpkg.Event{ID: "evt-1", TaskID: "task-1", EventType: "task.created"},
+	}}, nil
+}
+
 func (fakeStore) GetTaskRunByIdempotencyKey(context.Context, string, taskpkg.Origin) (taskpkg.Run, error) {
 	return taskpkg.Run{}, nil
 }

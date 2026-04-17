@@ -4006,6 +4006,17 @@ func (r *recordingRegistry) ListTaskEvents(context.Context, taskpkg.EventQuery) 
 	return nil, nil
 }
 
+func (r *recordingRegistry) GetTaskEventRecord(context.Context, string) (taskpkg.EventRecord, error) {
+	return taskpkg.EventRecord{}, taskpkg.ErrTaskEventNotFound
+}
+
+func (r *recordingRegistry) ListTaskEventRecords(
+	context.Context,
+	taskpkg.EventRecordQuery,
+) ([]taskpkg.EventRecord, error) {
+	return nil, nil
+}
+
 func (r *recordingRegistry) GetTaskRunByIdempotencyKey(
 	context.Context,
 	string,

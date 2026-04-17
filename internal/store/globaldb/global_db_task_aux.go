@@ -13,6 +13,7 @@ import (
 
 var _ taskpkg.DependencyStore = (*GlobalDB)(nil)
 var _ taskpkg.EventStore = (*GlobalDB)(nil)
+var _ taskpkg.EventSequenceStore = (*GlobalDB)(nil)
 var _ taskpkg.IdempotencyStore = (*GlobalDB)(nil)
 var _ taskpkg.TriageStore = (*GlobalDB)(nil)
 
@@ -424,6 +425,83 @@ func (g *GlobalDB) ListTaskEvents(ctx context.Context, query taskpkg.EventQuery)
 	}
 
 	return events, nil
+}
+
+// GetTaskEventRecord returns one persisted task event plus its stable row sequence.
+func (g *GlobalDB) GetTaskEventRecord(ctx context.Context, eventID string) (taskpkg.EventRecord, error) {
+	if err := g.checkReady(ctx, "get task event record"); err != nil {
+		return taskpkg.EventRecord{}, err
+	}
+
+	trimmedEventID, err := requireTaskValue(eventID, "task event id")
+	if err != nil {
+		return taskpkg.EventRecord{}, err
+	}
+
+	row := g.db.QueryRowContext(
+		ctx,
+		`SELECT
+			rowid, id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
+		 FROM task_events
+		 WHERE id = ?`,
+		trimmedEventID,
+	)
+
+	record, err := scanTaskEventRecordWithSequence(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return taskpkg.EventRecord{}, taskpkg.ErrTaskEventNotFound
+		}
+		return taskpkg.EventRecord{}, err
+	}
+	return record, nil
+}
+
+// ListTaskEventRecords returns persisted task events ordered by stable sequence for live replay.
+func (g *GlobalDB) ListTaskEventRecords(
+	ctx context.Context,
+	query taskpkg.EventRecordQuery,
+) ([]taskpkg.EventRecord, error) {
+	if err := g.checkReady(ctx, "list task event records"); err != nil {
+		return nil, err
+	}
+	if err := query.Validate("task_event_record_query"); err != nil {
+		return nil, err
+	}
+
+	sqlQuery := `SELECT
+		rowid, id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
+		FROM task_events
+		WHERE task_id = ?`
+	args := []any{strings.TrimSpace(query.TaskID)}
+	if query.AfterSequence > 0 {
+		sqlQuery += " AND rowid > ?"
+		args = append(args, query.AfterSequence)
+	}
+	sqlQuery += " ORDER BY rowid ASC"
+	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
+
+	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: query task event records: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	records := make([]taskpkg.EventRecord, 0)
+	for rows.Next() {
+		record, scanErr := scanTaskEventRecordWithSequence(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate task event records: %w", err)
+	}
+
+	return records, nil
 }
 
 // GetTaskRunByIdempotencyKey returns the original persisted run bound to one origin-scoped idempotency key.
@@ -966,6 +1044,59 @@ func scanTaskEventRecord(scanner rowScanner) (taskpkg.Event, error) {
 	record = normalizeTaskEventRecord(record)
 	if err := record.Validate(); err != nil {
 		return taskpkg.Event{}, err
+	}
+
+	return record, nil
+}
+
+func scanTaskEventRecordWithSequence(scanner rowScanner) (taskpkg.EventRecord, error) {
+	var (
+		record      taskpkg.EventRecord
+		runID       sql.NullString
+		actorKind   string
+		originKind  string
+		payloadJSON sql.NullString
+		timestamp   string
+	)
+	if err := scanner.Scan(
+		&record.Sequence,
+		&record.Event.ID,
+		&record.Event.TaskID,
+		&runID,
+		&record.Event.EventType,
+		&actorKind,
+		&record.Event.Actor.Ref,
+		&originKind,
+		&record.Event.Origin.Ref,
+		&payloadJSON,
+		&timestamp,
+	); err != nil {
+		return taskpkg.EventRecord{}, fmt.Errorf("store: scan task event record: %w", err)
+	}
+
+	record.Event.RunID = taskNullStringValue(runID)
+	record.Event.Actor.Kind = taskpkg.ActorKind(strings.TrimSpace(actorKind))
+	record.Event.Origin.Kind = taskpkg.OriginKind(strings.TrimSpace(originKind))
+	payload, err := decodeTaskJSON(payloadJSON, "task_event.payload_json")
+	if err != nil {
+		return taskpkg.EventRecord{}, err
+	}
+	record.Event.Payload = payload
+
+	parsedTimestamp, err := store.ParseTimestamp(timestamp)
+	if err != nil {
+		return taskpkg.EventRecord{}, err
+	}
+	record.Event.Timestamp = parsedTimestamp
+	record.Event = normalizeTaskEventRecord(record.Event)
+	if err := record.Event.Validate(); err != nil {
+		return taskpkg.EventRecord{}, err
+	}
+	if record.Sequence <= 0 {
+		return taskpkg.EventRecord{}, fmt.Errorf(
+			"%w: task_event_record.sequence must be positive",
+			taskpkg.ErrValidation,
+		)
 	}
 
 	return record, nil

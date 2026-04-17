@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/store"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
@@ -412,6 +413,121 @@ func TestGlobalDBRegisterSessionDefaultsTypeToUser(t *testing.T) {
 	}
 	if got, want := sessions[0].SessionType, defaultSessionType; got != want {
 		t.Fatalf("sessions[0].SessionType = %q, want %q", got, want)
+	}
+}
+
+func TestGlobalDBTaskEventSequenceReads(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	createdAt := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+	actor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user-1"}
+	origin := taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task test"}
+
+	if err := globalDB.CreateTask(ctx, taskpkg.Task{
+		ID:             "task-seq",
+		Scope:          taskpkg.ScopeGlobal,
+		Title:          "Sequence task",
+		Priority:       taskpkg.DefaultPriority,
+		MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+		Status:         taskpkg.TaskStatusReady,
+		ApprovalPolicy: taskpkg.ApprovalPolicyNone,
+		ApprovalState:  taskpkg.ApprovalStateNotRequired,
+		CreatedBy:      actor,
+		Origin:         origin,
+		CreatedAt:      createdAt,
+		UpdatedAt:      createdAt,
+	}); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if err := globalDB.CreateTaskRun(ctx, taskpkg.Run{
+		ID:        "run-seq",
+		TaskID:    "task-seq",
+		Status:    taskpkg.TaskRunStatusRunning,
+		Attempt:   1,
+		Origin:    origin,
+		QueuedAt:  createdAt,
+		StartedAt: createdAt.Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+
+	for _, event := range []taskpkg.Event{
+		{
+			ID:        "evt-1",
+			TaskID:    "task-seq",
+			EventType: "task.created",
+			Actor:     actor,
+			Origin:    origin,
+			Timestamp: createdAt,
+		},
+		{
+			ID:        "evt-2",
+			TaskID:    "task-seq",
+			RunID:     "run-seq",
+			EventType: "task.run_started",
+			Actor:     actor,
+			Origin:    origin,
+			Timestamp: createdAt,
+		},
+		{
+			ID:        "evt-3",
+			TaskID:    "task-seq",
+			EventType: "task.updated",
+			Actor:     actor,
+			Origin:    origin,
+			Timestamp: createdAt,
+		},
+	} {
+		if err := globalDB.CreateTaskEvent(ctx, event); err != nil {
+			t.Fatalf("CreateTaskEvent(%q) error = %v", event.ID, err)
+		}
+	}
+
+	record, err := globalDB.GetTaskEventRecord(ctx, "evt-2")
+	if err != nil {
+		t.Fatalf("GetTaskEventRecord() error = %v", err)
+	}
+	if got, want := record.Sequence, int64(2); got != want {
+		t.Fatalf("record.Sequence = %d, want %d", got, want)
+	}
+	if got, want := record.Event.RunID, "run-seq"; got != want {
+		t.Fatalf("record.Event.RunID = %q, want %q", got, want)
+	}
+
+	records, err := globalDB.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{
+		TaskID:        "task-seq",
+		AfterSequence: 1,
+		Limit:         2,
+	})
+	if err != nil {
+		t.Fatalf("ListTaskEventRecords() error = %v", err)
+	}
+	if got, want := len(records), 2; got != want {
+		t.Fatalf("len(records) = %d, want %d", got, want)
+	}
+	if got, want := []string{
+		records[0].Event.ID,
+		records[1].Event.ID,
+	}, []string{
+		"evt-2",
+		"evt-3",
+	}; !testutil.EqualStringSlices(
+		got,
+		want,
+	) {
+		t.Fatalf("record ids = %#v, want %#v", got, want)
+	}
+	if got, want := []int64{
+		records[0].Sequence,
+		records[1].Sequence,
+	}, []int64{
+		2,
+		3,
+	}; got[0] != want[0] ||
+		got[1] != want[1] {
+		t.Fatalf("record sequences = %#v, want %#v", got, want)
 	}
 }
 

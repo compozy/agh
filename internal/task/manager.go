@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pedronauck/agh/internal/store"
@@ -39,6 +40,7 @@ type Option func(*managerOptions)
 type managerOptions struct {
 	store             Store
 	sessions          SessionExecutor
+	runtimeViews      RuntimeViewReader
 	channelValidator  func(string) error
 	now               func() time.Time
 	newID             func(prefix string) string
@@ -50,10 +52,14 @@ type managerOptions struct {
 type Service struct {
 	store             Store
 	sessions          SessionExecutor
+	runtimeViews      RuntimeViewReader
 	channelValidator  func(string) error
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
+	liveMu            sync.Mutex
+	liveSubscribers   map[uint64]*taskStreamSubscriber
+	nextSubscriberID  uint64
 }
 
 var _ Manager = (*Service)(nil)
@@ -70,6 +76,13 @@ func WithStore(store Store) Option {
 func WithSessionExecutor(sessions SessionExecutor) Option {
 	return func(opts *managerOptions) {
 		opts.sessions = sessions
+	}
+}
+
+// WithRuntimeViewReader injects optional session telemetry enrichment for task live reads.
+func WithRuntimeViewReader(reader RuntimeViewReader) Option {
+	return func(opts *managerOptions) {
+		opts.runtimeViews = reader
 	}
 }
 
@@ -133,10 +146,12 @@ func NewManager(opts ...Option) (*Service, error) {
 	return &Service{
 		store:             options.store,
 		sessions:          options.sessions,
+		runtimeViews:      options.runtimeViews,
 		channelValidator:  options.channelValidator,
 		now:               options.now,
 		newID:             options.newID,
 		cancelGracePeriod: options.cancelGracePeriod,
+		liveSubscribers:   make(map[uint64]*taskStreamSubscriber),
 	}, nil
 }
 
@@ -2451,7 +2466,7 @@ func (m *Service) recordTaskEvent(
 	if err != nil {
 		return err
 	}
-	return m.store.CreateTaskEvent(ctx, Event{
+	event := Event{
 		ID:        m.newID("evt"),
 		TaskID:    strings.TrimSpace(taskID),
 		RunID:     strings.TrimSpace(runID),
@@ -2460,7 +2475,13 @@ func (m *Service) recordTaskEvent(
 		Origin:    actor.Origin,
 		Payload:   rawPayload,
 		Timestamp: m.now().UTC(),
-	})
+	}
+	if err := m.store.CreateTaskEvent(ctx, event); err != nil {
+		return err
+	}
+
+	m.emitTaskLiveEventBestEffort(ctx, event.ID)
+	return nil
 }
 
 func marshalTaskEventPayload(payload any) (json.RawMessage, error) {

@@ -701,6 +701,54 @@ func (q EventQuery) Validate(path string) error {
 	return nil
 }
 
+// Validate reports whether the task timeline query filters are internally consistent.
+func (q TimelineQuery) Validate(path string) error {
+	if q.AfterSequence < 0 {
+		return fmt.Errorf(
+			"%w: %s must be zero or positive: %d",
+			ErrValidation,
+			nestedPath(path, "after_sequence"),
+			q.AfterSequence,
+		)
+	}
+	if q.Limit < 0 {
+		return fmt.Errorf("%w: %s must be zero or positive: %d", ErrValidation, nestedPath(path, "limit"), q.Limit)
+	}
+	return nil
+}
+
+// Validate reports whether the task stream query filters are internally consistent.
+func (q StreamQuery) Validate(path string) error {
+	if q.AfterSequence < 0 {
+		return fmt.Errorf(
+			"%w: %s must be zero or positive: %d",
+			ErrValidation,
+			nestedPath(path, "after_sequence"),
+			q.AfterSequence,
+		)
+	}
+	return nil
+}
+
+// Validate reports whether the sequenced event record query is internally consistent.
+func (q EventRecordQuery) Validate(path string) error {
+	if strings.TrimSpace(q.TaskID) == "" {
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "task_id"))
+	}
+	if q.AfterSequence < 0 {
+		return fmt.Errorf(
+			"%w: %s must be zero or positive: %d",
+			ErrValidation,
+			nestedPath(path, "after_sequence"),
+			q.AfterSequence,
+		)
+	}
+	if q.Limit < 0 {
+		return fmt.Errorf("%w: %s must be zero or positive: %d", ErrValidation, nestedPath(path, "limit"), q.Limit)
+	}
+	return nil
+}
+
 // Validate reports whether the session-start request contains the task and run context required by the bridge.
 func (r *StartTaskSession) Validate() error {
 	if r == nil {
