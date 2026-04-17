@@ -291,6 +291,128 @@ func TestTaskManagerPublishTaskReconcilesDraftLifecycleIntegration(t *testing.T)
 	}
 }
 
+func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	dbPath := filepath.Join(t.TempDir(), "agh.db")
+
+	first, err := globaldb.OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(first) error = %v", err)
+	}
+
+	executor := &integrationSessionExecutor{}
+	firstManager := newTaskManagerIntegration(t, first, taskpkg.WithSessionExecutor(executor))
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task publish")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+
+	blocker, err := firstManager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope:      taskpkg.ScopeGlobal,
+		Title:      "Release blocker",
+		Identifier: "OPS-100",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(blocker) error = %v", err)
+	}
+	target, err := firstManager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope:      taskpkg.ScopeGlobal,
+		Title:      "Draft target",
+		Identifier: "OPS-300",
+		Draft:      true,
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(target) error = %v", err)
+	}
+	if err := firstManager.AddDependency(ctx, taskpkg.AddDependency{
+		TaskID:          target.ID,
+		DependsOnTaskID: blocker.ID,
+		Kind:            taskpkg.DependencyKindBlocks,
+	}, actor); err != nil {
+		t.Fatalf("AddDependency() error = %v", err)
+	}
+	published, err := firstManager.PublishTask(ctx, target.ID, actor)
+	if err != nil {
+		t.Fatalf("PublishTask() error = %v", err)
+	}
+	if got, want := published.Status, taskpkg.TaskStatusBlocked; got != want {
+		t.Fatalf("published.Status = %q, want %q", got, want)
+	}
+
+	blockerRun, err := firstManager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: blocker.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(blocker) error = %v", err)
+	}
+	blockerRun, err = firstManager.ClaimRun(ctx, blockerRun.ID, taskpkg.ClaimRun{}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun(blocker) error = %v", err)
+	}
+	blockerRun, err = firstManager.StartRun(ctx, blockerRun.ID, taskpkg.StartRun{}, actor)
+	if err != nil {
+		t.Fatalf("StartRun(blocker) error = %v", err)
+	}
+	if _, err := firstManager.CompleteRun(ctx, blockerRun.ID, taskpkg.RunResult{
+		Value: json.RawMessage(`{"ok":true}`),
+	}, actor); err != nil {
+		t.Fatalf("CompleteRun(blocker) error = %v", err)
+	}
+
+	if err := first.Close(ctx); err != nil {
+		t.Fatalf("Close(first) error = %v", err)
+	}
+
+	second, err := globaldb.OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(second) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := second.Close(ctx); err != nil {
+			t.Fatalf("Close(second) error = %v", err)
+		}
+	})
+
+	secondManager := newTaskManagerIntegration(t, second)
+
+	view, err := secondManager.GetTask(ctx, target.ID, actor)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got, want := view.Task.Status, taskpkg.TaskStatusReady; got != want {
+		t.Fatalf("view.Task.Status = %q, want %q", got, want)
+	}
+	if got, want := view.Summary.Status, taskpkg.TaskStatusReady; got != want {
+		t.Fatalf("view.Summary.Status = %q, want %q", got, want)
+	}
+	if got, want := view.Summary.DependencyCount, 1; got != want {
+		t.Fatalf("view.Summary.DependencyCount = %d, want %d", got, want)
+	}
+	if len(view.DependencyReferences) != 1 {
+		t.Fatalf("len(view.DependencyReferences) = %d, want 1", len(view.DependencyReferences))
+	}
+	if got, want := view.DependencyReferences[0].DependsOn.Identifier, blocker.Identifier; got != want {
+		t.Fatalf("view.DependencyReferences[0].DependsOn.Identifier = %q, want %q", got, want)
+	}
+
+	summaries, err := secondManager.ListTasks(ctx, taskpkg.Query{
+		Status: taskpkg.TaskStatusReady,
+		Search: "ops-300",
+	}, actor)
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(summaries) != 1 || summaries[0].ID != target.ID {
+		t.Fatalf("ListTasks() = %#v, want only %q", summaries, target.ID)
+	}
+	if got, want := summaries[0].Status, taskpkg.TaskStatusReady; got != want {
+		t.Fatalf("summaries[0].Status = %q, want %q", got, want)
+	}
+	if got, want := summaries[0].Dependencies[0].DependsOn.Title, blocker.Title; got != want {
+		t.Fatalf("summaries[0].Dependencies[0].DependsOn.Title = %q, want %q", got, want)
+	}
+}
+
 func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 	t.Parallel()
 

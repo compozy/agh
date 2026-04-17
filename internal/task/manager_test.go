@@ -775,6 +775,60 @@ func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
 	})
 }
 
+func TestManagerPublishTaskRejectsNonDraftTasks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ready task cannot publish", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Already runnable",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		if _, err := manager.PublishTask(context.Background(), taskRecord.ID, actor); !errors.Is(
+			err,
+			ErrInvalidStatusTransition,
+		) {
+			t.Fatalf("PublishTask(ready) error = %v, want %v", err, ErrInvalidStatusTransition)
+		}
+	})
+
+	t.Run("already published draft cannot publish again", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+
+		draftTask, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Draft once",
+			Draft: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(draft) error = %v", err)
+		}
+
+		if _, err := manager.PublishTask(context.Background(), draftTask.ID, actor); err != nil {
+			t.Fatalf("PublishTask(first) error = %v", err)
+		}
+		if _, err := manager.PublishTask(context.Background(), draftTask.ID, actor); !errors.Is(
+			err,
+			ErrInvalidStatusTransition,
+		) {
+			t.Fatalf("PublishTask(second) error = %v, want %v", err, ErrInvalidStatusTransition)
+		}
+	})
+}
+
 func TestManagerCreateTaskEnforcesScopeAuthority(t *testing.T) {
 	t.Parallel()
 
@@ -1456,6 +1510,96 @@ func TestManagerListTasksSupportsSearchAndOrdersByLatestActivity(t *testing.T) {
 	}
 	if got, want := []string{all[0].ID, all[1].ID}, []string{second.ID, first.ID}; !equalStringSlices(got, want) {
 		t.Fatalf("ListTasks(all) order = %#v, want %#v", got, want)
+	}
+}
+
+func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+
+	parent, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:       ScopeWorkspace,
+		WorkspaceID: "ws-1",
+		Title:       "Alpha parent",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(parent) error = %v", err)
+	}
+	blocker, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:       ScopeWorkspace,
+		WorkspaceID: "ws-1",
+		Title:       "Ops blocker",
+		Identifier:  "OPS-999",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(blocker) error = %v", err)
+	}
+	matching, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
+		Scope:       ScopeWorkspace,
+		WorkspaceID: "ws-1",
+		Title:       "Alpha child rollout",
+		Identifier:  "OPS-300",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateChildTask(matching) error = %v", err)
+	}
+	if err := manager.AddDependency(context.Background(), AddDependency{
+		TaskID:          matching.ID,
+		DependsOnTaskID: blocker.ID,
+		Kind:            DependencyKindBlocks,
+	}, actor); err != nil {
+		t.Fatalf("AddDependency(matching) error = %v", err)
+	}
+
+	if _, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
+		Scope:       ScopeWorkspace,
+		WorkspaceID: "ws-1",
+		Title:       "Alpha child ready",
+		Identifier:  "OPS-301",
+	}, actor); err != nil {
+		t.Fatalf("CreateChildTask(ready sibling) error = %v", err)
+	}
+	if _, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:       ScopeWorkspace,
+		WorkspaceID: "ws-2",
+		Title:       "Alpha child rollout",
+		Identifier:  "OPS-300",
+	}, actor); err != nil {
+		t.Fatalf("CreateTask(other workspace) error = %v", err)
+	}
+
+	summaries, err := manager.ListTasks(context.Background(), Query{
+		WorkspaceID:  "ws-1",
+		Status:       TaskStatusBlocked,
+		ParentTaskID: parent.ID,
+		Search:       "ops-300",
+	}, actor)
+	if err != nil {
+		t.Fatalf("ListTasks(combined filters) error = %v", err)
+	}
+	if len(summaries) != 1 || summaries[0].ID != matching.ID {
+		t.Fatalf("ListTasks(combined filters) = %#v, want only %q", summaries, matching.ID)
+	}
+	if got, want := summaries[0].Status, TaskStatusBlocked; got != want {
+		t.Fatalf("summaries[0].Status = %q, want %q", got, want)
+	}
+	if got, want := summaries[0].DependencyCount, 1; got != want {
+		t.Fatalf("summaries[0].DependencyCount = %d, want %d", got, want)
+	}
+	if got, want := summaries[0].ChildCount, 0; got != want {
+		t.Fatalf("summaries[0].ChildCount = %d, want %d", got, want)
+	}
+	if len(summaries[0].Dependencies) != 1 {
+		t.Fatalf("len(summaries[0].Dependencies) = %d, want 1", len(summaries[0].Dependencies))
+	}
+	if got, want := summaries[0].Dependencies[0].DependsOn.Title, blocker.Title; got != want {
+		t.Fatalf("summaries[0].Dependencies[0].DependsOn.Title = %q, want %q", got, want)
+	}
+	if summaries[0].LastActivityAt.IsZero() {
+		t.Fatal("summaries[0].LastActivityAt is zero, want latest activity timestamp")
 	}
 }
 
