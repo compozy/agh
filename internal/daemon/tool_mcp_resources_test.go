@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -549,6 +550,12 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 	if err == nil {
 		t.Fatal("validateAndEncodeTool(invalid) error = nil, want validation failure")
 	}
+	if !errors.Is(err, resources.ErrValidation) {
+		t.Fatalf("validateAndEncodeTool(invalid) error = %v, want %v", err, resources.ErrValidation)
+	}
+	if !strings.Contains(err.Error(), "tool.name is required") {
+		t.Fatalf("validateAndEncodeTool(invalid) error = %v, want tool.name validation context", err)
+	}
 
 	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
 	if err != nil {
@@ -591,6 +598,12 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 	_, _, err = validateAndEncodeMCPServer(context.Background(), mcpCodec, toolScope, aghconfig.MCPServer{Name: "git"})
 	if err == nil {
 		t.Fatal("validateAndEncodeMCPServer(invalid) error = nil, want validation failure")
+	}
+	if !strings.Contains(err.Error(), "config: validate mcp resource spec") {
+		t.Fatalf("validateAndEncodeMCPServer(invalid) error = %v, want mcp resource spec context", err)
+	}
+	if !strings.Contains(err.Error(), "mcp_server.command is required") {
+		t.Fatalf("validateAndEncodeMCPServer(invalid) error = %v, want missing command validation", err)
 	}
 }
 

@@ -1,11 +1,14 @@
 package acpmock
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/pedronauck/agh/internal/acp"
@@ -357,18 +360,18 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	}
 }
 
+func TestResolveDriverPathHonorsExplicitAndEnvOverrides(t *testing.T) {
+	if got, err := resolveDriverPath("/tmp/custom-driver"); err != nil || got != "/tmp/custom-driver" {
+		t.Fatalf("resolveDriverPath(override) = %q, %v, want override path", got, err)
+	}
+
+	t.Setenv(driverBinaryEnvVar, "/env/acpmock-driver")
+	if got, err := resolveDriverPath(""); err != nil || got != "/env/acpmock-driver" {
+		t.Fatalf("resolveDriverPath(env) = %q, %v, want /env/acpmock-driver", got, err)
+	}
+}
+
 func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
-	t.Run("resolve driver path honors override and env override", func(t *testing.T) {
-		if got, err := resolveDriverPath("/tmp/custom-driver"); err != nil || got != "/tmp/custom-driver" {
-			t.Fatalf("resolveDriverPath(override) = %q, %v, want override path", got, err)
-		}
-
-		t.Setenv(driverBinaryEnvVar, "/env/acpmock-driver")
-		if got, err := resolveDriverPath(""); err != nil || got != "/env/acpmock-driver" {
-			t.Fatalf("resolveDriverPath(env) = %q, %v, want /env/acpmock-driver", got, err)
-		}
-	})
-
 	t.Run("default diagnostics path uses logs directory", func(t *testing.T) {
 		t.Parallel()
 
@@ -478,6 +481,79 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 			t.Fatalf("Register(blank logs dir) error = %v, want diagnostics-path context", err)
 		}
 	})
+}
+
+func TestBuildDriverBinaryHonorsContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	repoRoot, err := repoRootFromCaller()
+	if err != nil {
+		t.Fatalf("repoRootFromCaller() error = %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = buildDriverBinary(ctx, repoRoot, filepath.Join(t.TempDir(), driverBinaryName()))
+	if err == nil {
+		t.Fatal("buildDriverBinary(canceled) error = nil, want context cancellation")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("buildDriverBinary(canceled) error = %v, want context.Canceled", err)
+	}
+}
+
+func TestDefaultDriverPathSharesConcurrentBuildResult(t *testing.T) {
+	driverBinaryMu.Lock()
+	cached := driverBinaryPath
+	driverBinaryPath = ""
+	driverBinaryMu.Unlock()
+	t.Cleanup(func() {
+		if strings.TrimSpace(cached) == "" {
+			return
+		}
+		driverBinaryMu.Lock()
+		driverBinaryPath = cached
+		driverBinaryMu.Unlock()
+	})
+
+	const callers = 4
+	type result struct {
+		path string
+		err  error
+	}
+
+	results := make(chan result, callers)
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Go(func() {
+			path, err := DefaultDriverPath()
+			results <- result{path: path, err: err}
+		})
+	}
+	wg.Wait()
+	close(results)
+
+	var builtPath string
+	for item := range results {
+		if item.err != nil {
+			t.Fatalf("DefaultDriverPath() error = %v", item.err)
+		}
+		if builtPath == "" {
+			builtPath = item.path
+			continue
+		}
+		if item.path != builtPath {
+			t.Fatalf("DefaultDriverPath() path = %q, want shared cached path %q", item.path, builtPath)
+		}
+	}
+
+	if builtPath == "" {
+		t.Fatal("DefaultDriverPath() returned empty path for all callers")
+	}
+	if _, err := os.Stat(builtPath); err != nil {
+		t.Fatalf("os.Stat(%q) error = %v", builtPath, err)
+	}
 }
 
 func TestValidationAndDriverHelpers(t *testing.T) {

@@ -10,9 +10,12 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 const driverBinaryEnvVar = "AGH_TEST_ACPMOCK_DRIVER_BIN"
+
+const defaultDriverBuildTimeout = 45 * time.Second
 
 var (
 	driverBinaryMu   sync.Mutex
@@ -22,10 +25,10 @@ var (
 // DefaultDriverPath resolves or builds the test-only ACP mock driver binary.
 func DefaultDriverPath() (string, error) {
 	driverBinaryMu.Lock()
-	cached := driverBinaryPath
-	driverBinaryMu.Unlock()
-	if strings.TrimSpace(cached) != "" {
-		return cached, nil
+	defer driverBinaryMu.Unlock()
+
+	if strings.TrimSpace(driverBinaryPath) != "" {
+		return driverBinaryPath, nil
 	}
 
 	repoRoot, err := repoRootFromCaller()
@@ -39,8 +42,19 @@ func DefaultDriverPath() (string, error) {
 	}
 	outputPath := filepath.Join(outputDir, driverBinaryName())
 
+	buildCtx, cancel := context.WithTimeout(context.Background(), defaultDriverBuildTimeout)
+	defer cancel()
+	if err := buildDriverBinary(buildCtx, repoRoot, outputPath); err != nil {
+		return "", err
+	}
+
+	driverBinaryPath = outputPath
+	return outputPath, nil
+}
+
+func buildDriverBinary(ctx context.Context, repoRoot string, outputPath string) error {
 	cmd := exec.CommandContext(
-		context.Background(),
+		ctx,
 		"go",
 		"build",
 		"-o",
@@ -51,17 +65,13 @@ func DefaultDriverPath() (string, error) {
 	cmd.Env = os.Environ()
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf(
+		return fmt.Errorf(
 			"acpmock: build driver binary: %w: %s",
 			err,
 			strings.TrimSpace(string(output)),
 		)
 	}
-
-	driverBinaryMu.Lock()
-	driverBinaryPath = outputPath
-	driverBinaryMu.Unlock()
-	return outputPath, nil
+	return nil
 }
 
 func resolveDriverPath(override string) (string, error) {

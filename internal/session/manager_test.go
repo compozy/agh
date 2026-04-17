@@ -931,6 +931,33 @@ func TestPromptWithOptsTracksTurnSourceAndClearsAfterPrompt(t *testing.T) {
 	}
 }
 
+func TestPromptNetworkRejectsMultipleMetadataValues(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	_, err := h.manager.PromptNetwork(
+		testutil.Context(t),
+		session.ID,
+		"network prompt",
+		acp.PromptNetworkMeta{MessageID: "msg-1", Kind: "direct"},
+		acp.PromptNetworkMeta{MessageID: "msg-2", Kind: "direct"},
+	)
+	if err == nil {
+		t.Fatal("PromptNetwork(multiple meta) error = nil, want validation failure")
+	}
+	if !strings.Contains(err.Error(), "at most one metadata value") {
+		t.Fatalf("PromptNetwork(multiple meta) error = %v, want multiple-metadata validation", err)
+	}
+	if got := len(h.driver.promptCalls); got != 0 {
+		t.Fatalf("len(promptCalls) = %d, want 0 when PromptNetwork validation fails", got)
+	}
+}
+
 func TestApprovePermissionRoutesToActiveSession(t *testing.T) {
 	t.Parallel()
 

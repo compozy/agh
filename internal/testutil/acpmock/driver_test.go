@@ -416,6 +416,122 @@ func TestDriverControlAsyncDisconnectDuringPermissionRequestSurfacesPromptFailur
 	}
 }
 
+func TestAsyncDriverControlIsCanceledWhenPromptCompletes(t *testing.T) {
+	t.Parallel()
+
+	driverPath, err := DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("DefaultDriverPath() error = %v", err)
+	}
+
+	fixturePath := filepath.Join(t.TempDir(), "async-cancel-fixture.json")
+	fixture := `{
+		"version": 2,
+		"agents": [
+			{
+				"name": "faulty",
+				"provider": "claude",
+				"turns": [
+					{
+						"name": "first-completes-before-disconnect",
+						"match": {
+							"turn_source": "user",
+							"user_text": "first prompt"
+						},
+						"steps": [
+							{
+								"kind": "driver_control",
+								"driver_control": {
+									"action": "disconnect",
+									"async": true,
+									"delay_ms": 200
+								}
+							},
+							{
+								"kind": "assistant",
+								"text": "first ok"
+							}
+						]
+					},
+					{
+						"name": "second-still-runs",
+						"match": {
+							"turn_source": "user",
+							"user_text": "second prompt"
+						},
+						"steps": [
+							{
+								"kind": "assistant",
+								"text": "second ok"
+							}
+						]
+					}
+				]
+			}
+		]
+	}`
+	if err := os.WriteFile(fixturePath, []byte(fixture), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", fixturePath, err)
+	}
+
+	command := BuildCommand(
+		driverPath,
+		fixturePath,
+		"faulty",
+		filepath.Join(t.TempDir(), "async-cancel-diagnostics.jsonl"),
+	)
+
+	driver := acp.New()
+	proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+		AgentName:   "faulty",
+		Command:     command,
+		Cwd:         t.TempDir(),
+		Permissions: aghconfig.PermissionModeDenyAll,
+	})
+	if err != nil {
+		t.Fatalf("driver.Start() error = %v", err)
+	}
+	defer stopDriverProcess(t, driver, proc)
+
+	firstEventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+		TurnID:  "turn-first",
+		Message: "first prompt",
+		Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+	})
+	if err != nil {
+		t.Fatalf("driver.Prompt(first) error = %v", err)
+	}
+	firstEvents := collectPromptEvents(t, firstEventsCh, nil)
+	if !containsNormalizedEvent(normalizeEvents(firstEvents), map[string]string{
+		"type": acp.EventTypeAgentMessage,
+		"text": "first ok",
+	}) {
+		t.Fatalf("first events = %#v, want completed first prompt output", firstEvents)
+	}
+
+	select {
+	case <-proc.Done():
+		t.Fatal("process exited after completed prompt, want async driver control cancellation")
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	secondEventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+		TurnID:  "turn-second",
+		Message: "second prompt",
+		Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+	})
+	if err != nil {
+		t.Fatalf("driver.Prompt(second) error = %v, want process to remain alive", err)
+	}
+	secondEvents := collectPromptEvents(t, secondEventsCh, nil)
+	if !containsNormalizedEvent(normalizeEvents(secondEvents), map[string]string{
+		"type": acp.EventTypeAgentMessage,
+		"text": "second ok",
+	}) {
+		t.Fatalf("second events = %#v, want second prompt output", secondEvents)
+	}
+}
+
 func collectPromptEvents(
 	t testing.TB,
 	eventsCh <-chan acp.AgentEvent,

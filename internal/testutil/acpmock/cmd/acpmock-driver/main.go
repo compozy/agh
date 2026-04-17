@@ -37,10 +37,13 @@ type mockAgent struct {
 	conn            *acpsdk.AgentSideConnection
 	agent           acpmock.AgentFixture
 	diagnosticsPath string
+	lifecycleCtx    context.Context
+	cancelLifecycle context.CancelFunc
 
 	mu          sync.Mutex
 	sessions    map[string]*sessionState
 	nextSession int
+	asyncWG     sync.WaitGroup
 }
 
 type environmentRunResult struct {
@@ -67,14 +70,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	lifecycleCtx, cancelLifecycle := context.WithCancel(context.Background())
+
 	agent := &mockAgent{
 		agent:           agentFixture,
 		diagnosticsPath: strings.TrimSpace(args.DiagnosticsPath),
+		lifecycleCtx:    lifecycleCtx,
+		cancelLifecycle: cancelLifecycle,
 		sessions:        make(map[string]*sessionState),
 	}
 	conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, os.Stdin)
 	agent.SetAgentConnection(conn)
 	<-conn.Done()
+	cancelLifecycle()
+	agent.waitForAsyncControls()
 }
 
 func parseArgs(argv []string) (cliArgs, error) {
@@ -186,8 +195,11 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 		Steps:       make([]acpmock.DiagnosticsStep, 0, len(turn.Steps)),
 	}
 
+	promptCtx, cancelPrompt := context.WithCancel(ctx)
+	defer cancelPrompt()
+
 	for _, step := range turn.Steps {
-		entry, execErr := a.executeStep(ctx, acpsdk.SessionId(sessionID), step)
+		entry, execErr := a.executeStep(promptCtx, acpsdk.SessionId(sessionID), step)
 		if execErr != nil {
 			record.Steps = append(record.Steps, acpmock.DiagnosticsStep{
 				Kind:  acpmock.StepKind("error"),
@@ -446,24 +458,30 @@ func (a *mockAgent) executeDriverControl(
 	}
 	control := *step.DriverControl
 	if control.Async {
-		asyncCtx := context.WithoutCancel(ctx)
-		go func(asyncCtx context.Context, control acpmock.DriverControlStep) {
-			if err := waitDriverControlDelay(asyncCtx, control.DelayMS); err != nil {
+		lifecycleCtx := a.lifecycleContext()
+		a.asyncWG.Add(1)
+		go func(promptCtx context.Context, lifetimeCtx context.Context, control acpmock.DriverControlStep) {
+			defer a.asyncWG.Done()
+
+			if err := waitDriverControlDelay(promptCtx, lifetimeCtx, control.DelayMS); err != nil {
 				return
 			}
-			if err := a.performDriverControl(asyncCtx, control); err != nil {
+			if err := a.performDriverControl(promptCtx, control); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "acpmock async driver_control %s error: %v\n", control.Action, err)
 			}
-		}(asyncCtx, control)
+		}(ctx, lifecycleCtx, control)
 		return diagnostics, nil
 	}
-	if err := waitDriverControlDelay(ctx, control.DelayMS); err != nil {
+	if err := waitDriverControlDelay(ctx, a.lifecycleContext(), control.DelayMS); err != nil {
 		return acpmock.DiagnosticsStep{}, err
 	}
 	return diagnostics, a.performDriverControl(ctx, control)
 }
 
-func waitDriverControlDelay(ctx context.Context, delayMS int) error {
+func waitDriverControlDelay(promptCtx context.Context, lifetimeCtx context.Context, delayMS int) error {
+	if err := driverControlContextErr(promptCtx, lifetimeCtx); err != nil {
+		return err
+	}
 	if delayMS <= 0 {
 		return nil
 	}
@@ -472,9 +490,11 @@ func waitDriverControlDelay(ctx context.Context, delayMS int) error {
 
 	select {
 	case <-timer.C:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+		return driverControlContextErr(promptCtx, lifetimeCtx)
+	case <-contextDone(promptCtx):
+		return promptCtx.Err()
+	case <-contextDone(lifetimeCtx):
+		return lifetimeCtx.Err()
 	}
 }
 
@@ -884,9 +904,44 @@ func pauseForDelivery(ctx context.Context) error {
 	defer timer.Stop()
 
 	select {
-	case <-ctx.Done():
+	case <-contextDone(ctx):
 		return ctx.Err()
 	case <-timer.C:
 		return nil
 	}
+}
+
+func contextDone(ctx context.Context) <-chan struct{} {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.Done()
+}
+
+func driverControlContextErr(promptCtx context.Context, lifetimeCtx context.Context) error {
+	if promptCtx != nil {
+		if err := promptCtx.Err(); err != nil {
+			return err
+		}
+	}
+	if lifetimeCtx != nil {
+		if err := lifetimeCtx.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *mockAgent) lifecycleContext() context.Context {
+	if a == nil || a.lifecycleCtx == nil {
+		return context.Background()
+	}
+	return a.lifecycleCtx
+}
+
+func (a *mockAgent) waitForAsyncControls() {
+	if a == nil {
+		return
+	}
+	a.asyncWG.Wait()
 }

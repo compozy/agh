@@ -4,6 +4,7 @@ package udsapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -326,7 +327,10 @@ func udsSSEContainsEvent(records []e2etest.SSEEvent, want string) bool {
 
 func udsSessionEventsContainType(events []aghcontract.SessionEventPayload, want string) bool {
 	for _, event := range events {
-		if strings.Contains(string(event.Content), `"type":"`+want+`"`) {
+		var payload struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(event.Content, &payload); err == nil && payload.Type == want {
 			return true
 		}
 	}

@@ -34,6 +34,10 @@ func (m *Manager) PromptNetwork(
 	msg string,
 	meta ...acp.PromptNetworkMeta,
 ) (<-chan acp.AgentEvent, error) {
+	if len(meta) > 1 {
+		return nil, errors.New("session: network prompt accepts at most one metadata value")
+	}
+
 	var promptMeta acp.PromptMeta
 	if len(meta) > 0 {
 		promptMeta.Network = &meta[0]
