@@ -462,6 +462,61 @@ func TestDaytonaToolHostTerminalUsesSSHTransport(t *testing.T) {
 	}
 }
 
+func TestDaytonaToolHostCreateTerminalResolvesCwdWithinRuntimeRoot(t *testing.T) {
+	t.Parallel()
+
+	newHost := func() (*daytonaToolHost, *fakeTransport) {
+		t.Helper()
+
+		transport := &fakeTransport{readArchives: [][]byte{[]byte("terminal output")}}
+		host, err := newDaytonaToolHost(
+			newFakeSandbox("sandbox-terminal-cwd"),
+			transport,
+			sandboxInfo{ID: "sandbox-terminal-cwd", APIURL: defaultAPIURL},
+			"/workspace",
+			config.PermissionModeApproveAll,
+		)
+		if err != nil {
+			t.Fatalf("newDaytonaToolHost() error = %v", err)
+		}
+		return host, transport
+	}
+
+	t.Run("rejects escaped cwd", func(t *testing.T) {
+		t.Parallel()
+
+		host, _ := newHost()
+		escaped := "/outside"
+		if _, err := host.CreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
+			Command: "pwd",
+			Cwd:     &escaped,
+		}); err == nil {
+			t.Fatal("CreateTerminal(escaped cwd) error = nil, want root-confined path validation error")
+		}
+	})
+
+	t.Run("resolves relative cwd against runtime root", func(t *testing.T) {
+		t.Parallel()
+
+		host, transport := newHost()
+		relative := "nested/work"
+		response, err := host.CreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
+			Command: "pwd",
+			Cwd:     &relative,
+		})
+		if err != nil {
+			t.Fatalf("CreateTerminal(relative cwd) error = %v", err)
+		}
+		if got, want := len(transport.dials), 1; got != want {
+			t.Fatalf("transport dials = %d, want %d", got, want)
+		}
+		assertCommandContains(t, transport.dials[0].command, "/workspace/nested/work")
+		if err := host.ReleaseTerminal(response.TerminalId); err != nil {
+			t.Fatalf("ReleaseTerminal() error = %v", err)
+		}
+	})
+}
+
 func TestDaytonaToolHostPermissionDecisionModes(t *testing.T) {
 	t.Parallel()
 

@@ -153,6 +153,15 @@ func (h *daytonaToolHost) CreateTerminal(
 	if err := h.Authorize(environment.PermissionOperationCreateTerminal); err != nil {
 		return acpsdk.CreateTerminalResponse{}, err
 	}
+	cwd := h.root
+	if req.Cwd != nil {
+		cwd = *req.Cwd
+	}
+	resolvedCwd, err := h.ResolvePath(cwd)
+	if err != nil {
+		return acpsdk.CreateTerminalResponse{}, err
+	}
+	req.Cwd = &resolvedCwd
 	command := remoteTerminalCommand(h.root, req)
 	session, err := h.transport.Dial(ctx, h.sandboxInfo, command)
 	if err != nil {
@@ -240,7 +249,7 @@ type remoteTerminal struct {
 }
 
 func (t *remoteTerminal) capture(limit int) {
-	_, readErr := ioCopyLimit(&t.output, t.session, limit, &t.mu)
+	readErr := ioCopyLimit(&t.output, t.session, limit, &t.mu)
 	waitErr := t.session.Wait()
 	stderr := t.session.Stderr()
 	t.mu.Lock()
@@ -260,22 +269,20 @@ func (t *remoteTerminal) capture(limit int) {
 	close(t.done)
 }
 
-func ioCopyLimit(dst *bytes.Buffer, src transportSession, limit int, mu *sync.Mutex) (int64, error) {
+func ioCopyLimit(dst *bytes.Buffer, src transportSession, limit int, mu *sync.Mutex) error {
 	buf := make([]byte, 32*1024)
-	var total int64
 	for {
 		n, err := src.Read(buf)
 		if n > 0 {
 			mu.Lock()
 			appendLimited(dst, buf[:n], limit)
 			mu.Unlock()
-			total += int64(n)
 		}
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return total, nil
+				return nil
 			}
-			return total, err
+			return err
 		}
 	}
 }
@@ -285,14 +292,15 @@ func appendLimited(dst *bytes.Buffer, data []byte, limit int) {
 		dst.Write(data)
 		return
 	}
-	dst.Write(data)
-	if dst.Len() <= limit {
+	if len(data) >= limit {
+		dst.Reset()
+		dst.Write(data[len(data)-limit:])
 		return
 	}
-	trim := dst.Len() - limit
-	remaining := append([]byte(nil), dst.Bytes()[trim:]...)
-	dst.Reset()
-	dst.Write(remaining)
+	if trim := dst.Len() + len(data) - limit; trim > 0 {
+		dst.Next(trim)
+	}
+	dst.Write(data)
 }
 
 func isWithinRemoteRoot(root string, target string) bool {
