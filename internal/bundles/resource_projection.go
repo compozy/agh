@@ -145,6 +145,7 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 	activations []Activation,
 	bundleRecords []resources.Record[BundleResourceSpec],
 ) (reconcileState, error) {
+	bundleLookup := newBundleRecordLookup(bundleRecords)
 	state := reconcileState{
 		activeActivationIDs:   make(map[string]struct{}, len(activations)),
 		desiredJobs:           make([]automationpkg.Job, 0),
@@ -160,7 +161,7 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 	errs := make([]error, 0)
 	for _, activation := range activations {
 		state.activeActivationIDs[strings.TrimSpace(activation.ID)] = struct{}{}
-		resolved, resolveErr := s.resolveActivationFromBundleRecords(activation, bundleRecords)
+		resolved, resolveErr := s.resolveActivationFromBundleLookup(activation, bundleLookup)
 		if resolveErr != nil {
 			errs = append(errs, resolveErr)
 			state.inventoryByActivation[activation.ID] = nil
@@ -192,21 +193,18 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 	return state, nil
 }
 
-func (s *Service) resolveActivationFromBundleRecords(
+func (s *Service) resolveActivationFromBundleLookup(
 	activation Activation,
-	bundleRecords []resources.Record[BundleResourceSpec],
+	bundleLookup bundleRecordLookup,
 ) (resolvedActivation, error) {
 	if err := activation.Validate(); err != nil {
 		return resolvedActivation{}, err
 	}
-	bundleRecord, ok, err := findBundleResourceRecord(
-		bundleRecords,
+	bundleRecord, ok := findBundleResourceRecordIndexed(
+		bundleLookup,
 		activation.ExtensionName,
 		activation.BundleName,
 	)
-	if err != nil {
-		return resolvedActivation{}, err
-	}
 	if !ok {
 		return resolvedActivation{}, fmt.Errorf(
 			"%w: %s/%s",
