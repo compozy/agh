@@ -1,6 +1,7 @@
 package extensiontest
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -755,7 +756,7 @@ func (d *ScriptedPromptDriver) Prompt(
 ) (<-chan acp.AgentEvent, error) {
 	d.mu.Lock()
 	d.prompts = append(d.prompts, req)
-	script := append([]ScriptedPromptEvent(nil), d.script...)
+	script := d.script
 	startedAt := d.now
 	d.mu.Unlock()
 
@@ -1303,16 +1304,7 @@ func (h *Harness) WaitForHandshake(t testing.TB, timeout time.Duration) Handshak
 // WaitForStates waits until the state marker file satisfies the predicate.
 func (h *Harness) WaitForStates(t testing.TB, timeout time.Duration, predicate func([]StateRecord) bool) []StateRecord {
 	t.Helper()
-	var records []StateRecord
-	waitForCondition(t, timeout, "adapter state markers", func() bool {
-		loaded, err := readJSONLinesFile[StateRecord](h.Markers.State)
-		if err != nil {
-			return false
-		}
-		records = loaded
-		return predicate(records)
-	})
-	return records
+	return waitForJSONLinesCondition(t, h.Markers.State, timeout, "adapter state markers", predicate)
 }
 
 // WaitForDeliveries waits until the delivery marker file satisfies the predicate.
@@ -1322,16 +1314,7 @@ func (h *Harness) WaitForDeliveries(
 	predicate func([]DeliveryRecord) bool,
 ) []DeliveryRecord {
 	t.Helper()
-	var records []DeliveryRecord
-	waitForCondition(t, timeout, "adapter delivery markers", func() bool {
-		loaded, err := readJSONLinesFile[DeliveryRecord](h.Markers.Delivery)
-		if err != nil {
-			return false
-		}
-		records = loaded
-		return predicate(records)
-	})
-	return records
+	return waitForJSONLinesCondition(t, h.Markers.Delivery, timeout, "adapter delivery markers", predicate)
 }
 
 // WaitForIngests waits until the ingest marker file satisfies the predicate.
@@ -1341,16 +1324,7 @@ func (h *Harness) WaitForIngests(
 	predicate func([]IngestRecord) bool,
 ) []IngestRecord {
 	t.Helper()
-	var records []IngestRecord
-	waitForCondition(t, timeout, "adapter ingest markers", func() bool {
-		loaded, err := readJSONLinesFile[IngestRecord](h.Markers.Ingest)
-		if err != nil {
-			return false
-		}
-		records = loaded
-		return predicate(records)
-	})
-	return records
+	return waitForJSONLinesCondition(t, h.Markers.Ingest, timeout, "adapter ingest markers", predicate)
 }
 
 // ObserveHealth returns the current observer health surface.
@@ -1580,16 +1554,45 @@ func readJSONLinesFile[T any](path string) ([]T, error) {
 	if err != nil {
 		return nil, err
 	}
-	lines := nonEmptyLines(string(payload))
+	payload = bytes.TrimSpace(payload)
+	if len(payload) == 0 {
+		return nil, nil
+	}
+	lines := bytes.Split(payload, []byte{'\n'})
 	items := make([]T, 0, len(lines))
 	for _, line := range lines {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
 		var item T
-		if err := json.Unmarshal([]byte(line), &item); err != nil {
+		if err := json.Unmarshal(line, &item); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func waitForJSONLinesCondition[T any](
+	t testing.TB,
+	path string,
+	timeout time.Duration,
+	label string,
+	predicate func([]T) bool,
+) []T {
+	t.Helper()
+
+	var records []T
+	waitForCondition(t, timeout, label, func() bool {
+		loaded, err := readJSONLinesFile[T](path)
+		if err != nil {
+			return false
+		}
+		records = loaded
+		return predicate(records)
+	})
+	return records
 }
 
 func appendJSONLine(t testing.TB, path string, value any) {
@@ -1685,19 +1688,6 @@ func waitForCondition(t testing.TB, timeout time.Duration, label string, fn func
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("%s did not satisfy condition before timeout", label)
-}
-
-func nonEmptyLines(input string) []string {
-	lines := strings.Split(input, "\n")
-	filtered := make([]string, 0, len(lines))
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		filtered = append(filtered, trimmed)
-	}
-	return filtered
 }
 
 func normalizeEventType(eventType string) string {
