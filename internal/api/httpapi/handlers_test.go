@@ -20,6 +20,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
+	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -43,6 +44,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/bridges/:id/secret-bindings/:binding_name",
 		"DELETE /api/bundles/activations/:id",
 		"DELETE /api/memory/:filename",
+		"DELETE /api/settings/environments/:name",
+		"DELETE /api/settings/hooks/:name",
+		"DELETE /api/settings/mcp-servers/:name",
+		"DELETE /api/settings/providers/:name",
 		"DELETE /api/sessions/:id",
 		"DELETE /api/tasks/:id/dependencies/:depends_on_id",
 		"DELETE /api/workspaces/:id",
@@ -67,6 +72,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/bundles/catalog",
 		"GET /api/bundles/network/settings",
 		"GET /api/daemon/status",
+		"GET /api/extensions",
+		"GET /api/extensions/:name",
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
 		"GET /api/hooks/runs",
@@ -89,6 +96,21 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/sessions/:id/history",
 		"GET /api/sessions/:id/transcript",
 		"GET /api/sessions/:id/stream",
+		"GET /api/settings/actions/restart/:operation_id",
+		"GET /api/settings/automation",
+		"GET /api/settings/environments",
+		"GET /api/settings/environments/:name",
+		"GET /api/settings/general",
+		"GET /api/settings/hooks",
+		"GET /api/settings/hooks-extensions",
+		"GET /api/settings/mcp-servers",
+		"GET /api/settings/memory",
+		"GET /api/settings/network",
+		"GET /api/settings/observability",
+		"GET /api/settings/observability/log-tail",
+		"GET /api/settings/providers",
+		"GET /api/settings/providers/:name",
+		"GET /api/settings/skills",
 		"GET /api/skills",
 		"GET /api/skills/:name",
 		"GET /api/skills/:name/content",
@@ -101,6 +123,13 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PATCH /api/automation/triggers/:id",
 		"PATCH /api/bridges/:id",
 		"PATCH /api/bundles/activations/:id",
+		"PATCH /api/settings/automation",
+		"PATCH /api/settings/general",
+		"PATCH /api/settings/hooks-extensions",
+		"PATCH /api/settings/memory",
+		"PATCH /api/settings/network",
+		"PATCH /api/settings/observability",
+		"PATCH /api/settings/skills",
 		"PATCH /api/tasks/:id",
 		"PATCH /api/workspaces/:id",
 		"POST /api/automation/jobs",
@@ -116,11 +145,15 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/bridges/:id/test-delivery",
 		"POST /api/bundles/activations",
 		"POST /api/bundles/preview",
+		"POST /api/extensions",
+		"POST /api/extensions/:name/disable",
+		"POST /api/extensions/:name/enable",
 		"POST /api/network/send",
 		"POST /api/sessions",
 		"POST /api/sessions/:id/approve",
 		"POST /api/sessions/:id/prompt",
 		"POST /api/sessions/:id/resume",
+		"POST /api/settings/actions/restart",
 		"POST /api/skills/:name/disable",
 		"POST /api/skills/:name/enable",
 		"POST /api/task-runs/:id/attach-session",
@@ -140,6 +173,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/workspaces/resolve",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
 		"PUT /api/memory/:filename",
+		"PUT /api/settings/environments/:name",
+		"PUT /api/settings/hooks/:name",
+		"PUT /api/settings/mcp-servers/:name",
+		"PUT /api/settings/providers/:name",
 	}
 	sort.Strings(want)
 
@@ -163,6 +200,342 @@ func TestRegisterRoutesSkipsNilHandlers(t *testing.T) {
 
 	if got := len(engine.Routes()); got != 0 {
 		t.Fatalf("len(routes) = %d, want 0", got)
+	}
+}
+
+func TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	if err := os.WriteFile(homePaths.LogFile, []byte("daemon booted\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", homePaths.LogFile, err)
+	}
+
+	handlers := newTestHandlersWithSettingsAndExtensions(
+		t,
+		"0.0.0.0",
+		&stubSettingsService{},
+		&stubSettingsRestartController{},
+		stubExtensionService{
+			ListFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+				return []contract.ExtensionPayload{{Name: "demo", State: "registered"}}, nil
+			},
+			StatusFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
+				return contract.ExtensionPayload{Name: name, State: "registered"}, nil
+			},
+		},
+		homePaths,
+	)
+	done := make(chan struct{})
+	close(done)
+	handlers.setStreamDone(done)
+	engine := newTestRouter(t, handlers)
+
+	tests := []string{
+		"/api/settings/general",
+		"/api/settings/memory",
+		"/api/settings/skills",
+		"/api/settings/automation",
+		"/api/settings/network",
+		"/api/settings/observability",
+		"/api/settings/observability/log-tail",
+		"/api/settings/hooks-extensions",
+		"/api/settings/providers",
+		"/api/settings/providers/demo",
+		"/api/settings/mcp-servers",
+		"/api/settings/environments",
+		"/api/settings/environments/demo",
+		"/api/settings/hooks",
+		"/api/settings/actions/restart/op-123",
+		"/api/extensions",
+		"/api/extensions/demo",
+	}
+
+	for _, path := range tests {
+		t.Run(path, func(t *testing.T) {
+			recorder := performRequest(t, engine, http.MethodGet, path, nil)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf(
+					"GET %s status = %d, want %d; body=%s",
+					path,
+					recorder.Code,
+					http.StatusOK,
+					recorder.Body.String(),
+				)
+			}
+		})
+	}
+}
+
+func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	handlers := newTestHandlersWithSettingsAndExtensions(
+		t,
+		"0.0.0.0",
+		&stubSettingsService{
+			UpdateSectionFn: func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error) {
+				t.Fatal("UpdateSection should not be called when HTTP mutations are blocked")
+				return settingspkg.MutationResult{}, nil
+			},
+			PutCollectionItemFn: func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error) {
+				t.Fatal("PutCollectionItem should not be called when HTTP mutations are blocked")
+				return settingspkg.MutationResult{}, nil
+			},
+			DeleteCollectionItemFn: func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error) {
+				t.Fatal("DeleteCollectionItem should not be called when HTTP mutations are blocked")
+				return settingspkg.MutationResult{}, nil
+			},
+		},
+		&stubSettingsRestartController{
+			RequestRestartFn: func(context.Context) (core.SettingsRestartOperation, error) {
+				t.Fatal("RequestRestart should not be called when HTTP mutations are blocked")
+				return core.SettingsRestartOperation{}, nil
+			},
+		},
+		stubExtensionService{
+			InstallFn: func(context.Context, contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+				t.Fatal("Install should not be called when HTTP mutations are blocked")
+				return contract.ExtensionPayload{}, nil
+			},
+			EnableFn: func(context.Context, string) (contract.ExtensionPayload, error) {
+				t.Fatal("Enable should not be called when HTTP mutations are blocked")
+				return contract.ExtensionPayload{}, nil
+			},
+			DisableFn: func(context.Context, string) (contract.ExtensionPayload, error) {
+				t.Fatal("Disable should not be called when HTTP mutations are blocked")
+				return contract.ExtensionPayload{}, nil
+			},
+		},
+		homePaths,
+	)
+	engine := newTestRouter(t, handlers)
+
+	tests := []struct {
+		method string
+		path   string
+		body   []byte
+	}{
+		{method: http.MethodPatch, path: "/api/settings/general", body: []byte(`{}`)},
+		{method: http.MethodPatch, path: "/api/settings/memory", body: []byte(`{}`)},
+		{method: http.MethodPatch, path: "/api/settings/skills", body: []byte(`{}`)},
+		{method: http.MethodPatch, path: "/api/settings/automation", body: []byte(`{}`)},
+		{method: http.MethodPatch, path: "/api/settings/network", body: []byte(`{}`)},
+		{method: http.MethodPatch, path: "/api/settings/observability", body: []byte(`{}`)},
+		{method: http.MethodPatch, path: "/api/settings/hooks-extensions", body: []byte(`{}`)},
+		{method: http.MethodPut, path: "/api/settings/providers/demo", body: []byte(`{}`)},
+		{method: http.MethodDelete, path: "/api/settings/providers/demo"},
+		{method: http.MethodPut, path: "/api/settings/mcp-servers/server-a", body: []byte(`{}`)},
+		{method: http.MethodDelete, path: "/api/settings/mcp-servers/server-a"},
+		{method: http.MethodPut, path: "/api/settings/environments/demo", body: []byte(`{}`)},
+		{method: http.MethodDelete, path: "/api/settings/environments/demo"},
+		{method: http.MethodPut, path: "/api/settings/hooks/capture", body: []byte(`{}`)},
+		{method: http.MethodDelete, path: "/api/settings/hooks/capture"},
+		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
+		{method: http.MethodPost, path: "/api/extensions", body: []byte(`{}`)},
+		{method: http.MethodPost, path: "/api/extensions/demo/enable", body: []byte(`{}`)},
+		{method: http.MethodPost, path: "/api/extensions/demo/disable", body: []byte(`{}`)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			recorder := performRequest(t, engine, tc.method, tc.path, tc.body)
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf(
+					"%s %s status = %d, want %d; body=%s",
+					tc.method,
+					tc.path,
+					recorder.Code,
+					http.StatusForbidden,
+					recorder.Body.String(),
+				)
+			}
+
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if payload.Error != errLoopbackMutationRequired.Error() {
+				t.Fatalf("error = %q, want %q", payload.Error, errLoopbackMutationRequired.Error())
+			}
+		})
+	}
+}
+
+func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	settingsService := &stubSettingsService{}
+	restartController := &stubSettingsRestartController{}
+	var (
+		installedReq contract.InstallExtensionRequest
+		enabledName  string
+		disabledName string
+	)
+	handlers := newTestHandlersWithSettingsAndExtensions(
+		t,
+		"127.0.0.1",
+		settingsService,
+		restartController,
+		stubExtensionService{
+			InstallFn: func(_ context.Context, req contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+				installedReq = req
+				return contract.ExtensionPayload{Name: "demo", State: "registered"}, nil
+			},
+			EnableFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
+				enabledName = name
+				return contract.ExtensionPayload{Name: name, Enabled: true, State: "active"}, nil
+			},
+			DisableFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
+				disabledName = name
+				return contract.ExtensionPayload{Name: name, Enabled: false, State: "inactive"}, nil
+			},
+		},
+		homePaths,
+	)
+	engine := newTestRouter(t, handlers)
+
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		body       []byte
+		wantStatus int
+		assert     func(t *testing.T)
+	}{
+		{
+			name:       "patch section",
+			method:     http.MethodPatch,
+			path:       "/api/settings/general",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.UpdateSettingsGeneralRequest{
+				Config: contract.SettingsGeneralConfigPayload{
+					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
+					Limits:   contract.SettingsLimitsPayload{MaxSessions: 4, MaxConcurrentAgents: 2},
+					Permissions: contract.SettingsPermissionsPayload{
+						Mode: contract.SettingsPermissionModeApproveReads,
+					},
+					SessionTimeout: "30m",
+					HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
+					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/agh.sock"},
+				},
+			}),
+			assert: func(t *testing.T) {
+				t.Helper()
+				if settingsService.LastUpdateSectionRequest.Section != settingspkg.SectionGeneral {
+					t.Fatalf(
+						"LastUpdateSectionRequest.Section = %q, want %q",
+						settingsService.LastUpdateSectionRequest.Section,
+						settingspkg.SectionGeneral,
+					)
+				}
+			},
+		},
+		{
+			name:       "put scoped collection",
+			method:     http.MethodPut,
+			path:       "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=ws-1&target=sidecar",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.PutSettingsMCPServerRequest{
+				Server: contract.SettingsMCPServerPayload{Name: "server-a", Command: "mcpd"},
+			}),
+			assert: func(t *testing.T) {
+				t.Helper()
+				if settingsService.LastPutCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
+					settingsService.LastPutCollectionRequest.Scope != settingspkg.ScopeWorkspace ||
+					settingsService.LastPutCollectionRequest.WorkspaceID != "ws-1" {
+					t.Fatalf("LastPutCollectionRequest = %#v", settingsService.LastPutCollectionRequest)
+				}
+			},
+		},
+		{
+			name:       "delete scoped collection",
+			method:     http.MethodDelete,
+			path:       "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=ws-1&target=sidecar",
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T) {
+				t.Helper()
+				if settingsService.LastDeleteCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
+					settingsService.LastDeleteCollectionRequest.Scope != settingspkg.ScopeWorkspace ||
+					settingsService.LastDeleteCollectionRequest.WorkspaceID != "ws-1" {
+					t.Fatalf("LastDeleteCollectionRequest = %#v", settingsService.LastDeleteCollectionRequest)
+				}
+			},
+		},
+		{
+			name:       "restart action",
+			method:     http.MethodPost,
+			path:       "/api/settings/actions/restart",
+			body:       []byte(`{}`),
+			wantStatus: http.StatusAccepted,
+			assert: func(t *testing.T) {
+				t.Helper()
+				if restartController.RequestRestartCalls != 1 {
+					t.Fatalf("RequestRestartCalls = %d, want 1", restartController.RequestRestartCalls)
+				}
+			},
+		},
+		{
+			name:       "install extension",
+			method:     http.MethodPost,
+			path:       "/api/extensions",
+			wantStatus: http.StatusCreated,
+			body: mustJSONBody(t, contract.InstallExtensionRequest{
+				Path:     "/extensions/demo",
+				Checksum: "sha256-demo",
+			}),
+			assert: func(t *testing.T) {
+				t.Helper()
+				if installedReq.Path != "/extensions/demo" || installedReq.Checksum != "sha256-demo" {
+					t.Fatalf("installedReq = %#v", installedReq)
+				}
+			},
+		},
+		{
+			name:       "enable extension",
+			method:     http.MethodPost,
+			path:       "/api/extensions/demo/enable",
+			body:       []byte(`{}`),
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T) {
+				t.Helper()
+				if enabledName != "demo" {
+					t.Fatalf("enabledName = %q, want %q", enabledName, "demo")
+				}
+			},
+		},
+		{
+			name:       "disable extension",
+			method:     http.MethodPost,
+			path:       "/api/extensions/demo/disable",
+			body:       []byte(`{}`),
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T) {
+				t.Helper()
+				if disabledName != "demo" {
+					t.Fatalf("disabledName = %q, want %q", disabledName, "demo")
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := performRequest(t, engine, tc.method, tc.path, tc.body)
+			if recorder.Code != tc.wantStatus {
+				t.Fatalf(
+					"%s %s status = %d, want %d; body=%s",
+					tc.method,
+					tc.path,
+					recorder.Code,
+					tc.wantStatus,
+					recorder.Body.String(),
+				)
+			}
+			if tc.assert != nil {
+				tc.assert(t)
+			}
+		})
 	}
 }
 

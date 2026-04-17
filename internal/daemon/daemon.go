@@ -847,6 +847,7 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 				httpapi.WithMemoryStore(deps.MemoryStore),
 				httpapi.WithDreamTrigger(deps.DreamTrigger),
+				httpapi.WithExtensionService(deps.Extensions),
 			)
 		}
 	}

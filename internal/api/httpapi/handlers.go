@@ -31,6 +31,7 @@ type handlerConfig struct {
 	staticFS        fs.FS
 	homePaths       aghconfig.HomePaths
 	config          aghconfig.Config
+	boundHost       string
 	logger          *slog.Logger
 	startedAt       time.Time
 	now             func() time.Time
@@ -38,6 +39,7 @@ type handlerConfig struct {
 	agentLoader     core.AgentLoader
 	httpPort        int
 	resourceAuth    []gin.HandlerFunc
+	extensions      ExtensionService
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
@@ -45,6 +47,8 @@ type Handlers struct {
 	*core.BaseHandlers
 	staticFS     fs.FS
 	resourceAuth []gin.HandlerFunc
+	Extensions   ExtensionService
+	boundHost    string
 }
 
 func newHandlers(cfg *handlerConfig) *Handlers {
@@ -91,6 +95,8 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		}),
 		staticFS:     cfg.staticFS,
 		resourceAuth: append([]gin.HandlerFunc(nil), cfg.resourceAuth...),
+		Extensions:   cfg.extensions,
+		boundHost:    cfg.boundHost,
 	}
 }
 
@@ -111,4 +117,12 @@ func (h *Handlers) resourceAuthMiddleware() []gin.HandlerFunc {
 		return nil
 	}
 	return append([]gin.HandlerFunc(nil), h.resourceAuth...)
+}
+
+func (h *Handlers) privilegedMutationGuard() gin.HandlerFunc {
+	boundHost := ""
+	if h != nil {
+		boundHost = h.boundHost
+	}
+	return loopbackMutationGuard(boundHost)
 }

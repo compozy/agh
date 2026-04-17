@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"reflect"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -209,6 +211,82 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 	}
 }
 
+func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
+
+	clients, err := runtimeHarness.TransportClients()
+	if err != nil {
+		t.Fatalf("TransportClients() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	httpListResp := mustHTTPRequest(
+		t,
+		clients.HTTPClient,
+		http.MethodGet,
+		runtimeHarness.HTTPURL("/api/extensions"),
+		nil,
+		nil,
+	)
+	if httpListResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(httpListResp.Body)
+		_ = httpListResp.Body.Close()
+		t.Fatalf("HTTP list extensions status = %d, want %d; body=%s", httpListResp.StatusCode, http.StatusOK, string(body))
+	}
+	var httpList aghcontract.ExtensionsResponse
+	decodeHTTPJSON(t, httpListResp, &httpList)
+
+	var udsList aghcontract.ExtensionsResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/extensions", nil, &udsList); err != nil {
+		t.Fatalf("UDS list extensions error = %v", err)
+	}
+	sortExtensionsByName(httpList.Extensions)
+	sortExtensionsByName(udsList.Extensions)
+	if !reflect.DeepEqual(httpList.Extensions, udsList.Extensions) {
+		t.Fatalf("HTTP extensions = %#v, want UDS parity %#v", httpList.Extensions, udsList.Extensions)
+	}
+	if len(httpList.Extensions) == 0 {
+		return
+	}
+
+	extensionName := httpList.Extensions[0].Name
+
+	httpStatusResp := mustHTTPRequest(
+		t,
+		clients.HTTPClient,
+		http.MethodGet,
+		runtimeHarness.HTTPURL("/api/extensions/"+url.PathEscape(extensionName)),
+		nil,
+		nil,
+	)
+	if httpStatusResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(httpStatusResp.Body)
+		_ = httpStatusResp.Body.Close()
+		t.Fatalf("HTTP extension status = %d, want %d; body=%s", httpStatusResp.StatusCode, http.StatusOK, string(body))
+	}
+	var httpStatus aghcontract.ExtensionResponse
+	decodeHTTPJSON(t, httpStatusResp, &httpStatus)
+
+	var udsStatus aghcontract.ExtensionResponse
+	if err := runtimeHarness.UDSJSON(
+		ctx,
+		http.MethodGet,
+		"/api/extensions/"+url.PathEscape(extensionName),
+		nil,
+		&udsStatus,
+	); err != nil {
+		t.Fatalf("UDS extension status error = %v", err)
+	}
+	if !reflect.DeepEqual(httpStatus.Extension, udsStatus.Extension) {
+		t.Fatalf("HTTP extension = %#v, want UDS parity %#v", httpStatus.Extension, udsStatus.Extension)
+	}
+}
+
 func seedTransportWebhookTrigger(
 	t testing.TB,
 	ctx context.Context,
@@ -281,6 +359,19 @@ func waitForHTTPAutomationRun(
 		case <-ticker.C:
 		}
 	}
+}
+
+func sortExtensionsByName(values []aghcontract.ExtensionPayload) {
+	slices.SortFunc(values, func(left, right aghcontract.ExtensionPayload) int {
+		switch {
+		case left.Name < right.Name:
+			return -1
+		case left.Name > right.Name:
+			return 1
+		default:
+			return 0
+		}
+	})
 }
 
 func transportMockFixturePath(t testing.TB, name string) string {

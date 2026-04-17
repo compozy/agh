@@ -59,6 +59,7 @@ type Server struct {
 	agentLoader     core.AgentLoader
 	resources       core.ResourceService
 	resourceAuth    []gin.HandlerFunc
+	extensions      ExtensionService
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -255,6 +256,13 @@ func WithResourceOperatorAuth(middleware ...gin.HandlerFunc) Option {
 	}
 }
 
+// WithExtensionService injects daemon-backed extension management handlers.
+func WithExtensionService(service ExtensionService) Option {
+	return func(server *Server) {
+		server.extensions = service
+	}
+}
+
 // WithEngine overrides the Gin engine used by the server, mainly for tests.
 func WithEngine(engine *gin.Engine) Option {
 	return func(server *Server) {
@@ -401,6 +409,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		staticFS:        staticFS,
 		homePaths:       s.homePaths,
 		config:          s.config,
+		boundHost:       s.host,
 		logger:          s.logger,
 		startedAt:       s.startedAt,
 		now:             s.now,
@@ -408,6 +417,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		agentLoader:     s.agentLoader,
 		httpPort:        s.port,
 		resourceAuth:    append([]gin.HandlerFunc(nil), s.resourceAuth...),
+		extensions:      s.extensions,
 	}
 }
 
