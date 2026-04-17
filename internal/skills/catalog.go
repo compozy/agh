@@ -109,12 +109,20 @@ func BuildCatalog(skills []*Skill) string {
 }
 
 func truncateCatalogDescription(description string) string {
-	runes := []rune(description)
-	if len(runes) <= catalogDescriptionLimit {
+	if len(description) <= catalogDescriptionLimit {
 		return description
 	}
 
-	return string(runes[:catalogDescriptionLimit-len(catalogEllipsis)]) + catalogEllipsis
+	truncationLimit := catalogDescriptionLimit - len(catalogEllipsis)
+	runeCount := 0
+	for idx := range description {
+		if runeCount == truncationLimit {
+			return description[:idx] + catalogEllipsis
+		}
+		runeCount++
+	}
+
+	return description
 }
 
 func escapeCatalogText(value string) string {

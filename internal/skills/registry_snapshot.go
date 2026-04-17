@@ -50,23 +50,58 @@ func mergedSkillList(globalSkills, workspaceSkills map[string]*Skill) []*Skill {
 	if len(globalSkills) == 0 && len(workspaceSkills) == 0 {
 		return nil
 	}
+	if len(workspaceSkills) == 0 {
+		return cloneSortedSkillList(globalSkills)
+	}
+	if len(globalSkills) == 0 {
+		return cloneSortedSkillList(workspaceSkills)
+	}
 
-	merged := make(map[string]*Skill, len(globalSkills)+len(workspaceSkills))
-	maps.Copy(merged, globalSkills)
-	maps.Copy(merged, workspaceSkills)
-
-	names := make([]string, 0, len(merged))
-	for name := range merged {
+	names := make([]string, 0, len(globalSkills)+len(workspaceSkills))
+	for name := range globalSkills {
+		names = append(names, name)
+	}
+	for name := range workspaceSkills {
 		names = append(names, name)
 	}
 	slices.Sort(names)
 
 	skills := make([]*Skill, 0, len(names))
+	previous := ""
+	havePrevious := false
 	for _, name := range names {
-		skills = append(skills, cloneSkill(merged[name]))
+		if havePrevious && name == previous {
+			continue
+		}
+		havePrevious = true
+		previous = name
+
+		if skill, ok := workspaceSkills[name]; ok {
+			skills = append(skills, cloneSkill(skill))
+			continue
+		}
+		skills = append(skills, cloneSkill(globalSkills[name]))
 	}
 
 	return skills
+}
+
+func cloneSortedSkillList(skillsByName map[string]*Skill) []*Skill {
+	if len(skillsByName) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(skillsByName))
+	for name := range skillsByName {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	cloned := make([]*Skill, 0, len(names))
+	for _, name := range names {
+		cloned = append(cloned, cloneSkill(skillsByName[name]))
+	}
+	return cloned
 }
 
 func cloneSkill(skill *Skill) *Skill {
