@@ -127,6 +127,34 @@ describe("applyBridgeHealthSnapshot", () => {
       })
     );
   });
+
+  it("invalidates cached bridge routes when the live route count changes", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+
+    queryClient.setQueryData(["bridges", "routes", "brg_support"], []);
+
+    applyBridgeHealthSnapshot(queryClient, {
+      bridge_health: {
+        brg_support: {
+          auth_failures_total: 0,
+          bridge_instance_id: "brg_support",
+          delivery_backlog: 0,
+          delivery_dropped_total: 0,
+          delivery_failures_total: 0,
+          route_count: 1,
+          status: "ready",
+        },
+      },
+      generated_at: "2026-04-15T12:00:00Z",
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["bridges", "routes", "brg_support"],
+    });
+  });
 });
 
 describe("useBridgeHealthStream", () => {

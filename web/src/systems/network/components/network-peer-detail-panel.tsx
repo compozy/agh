@@ -35,8 +35,13 @@ function DetailRow({ icon, label, value }: { icon: ReactNode; label: string; val
 }
 
 function PeerMetric({ detail, label, value }: { detail: string; label: string; value: string }) {
+  const metricSlug = label.toLowerCase().replaceAll(" ", "-");
+
   return (
-    <div className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+    <div
+      className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
+      data-testid={`network-peer-metric-${metricSlug}`}
+    >
       <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
         {label}
       </p>

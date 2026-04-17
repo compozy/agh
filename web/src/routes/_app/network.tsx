@@ -68,6 +68,7 @@ function NetworkPage() {
               {page.pageMetrics.map(metric => (
                 <MetricStrip
                   key={metric.label}
+                  data-testid={`network-metric-${metric.label.toLowerCase().replaceAll(" ", "-")}`}
                   label={metric.label}
                   value={metric.value}
                   detail={metric.detail}

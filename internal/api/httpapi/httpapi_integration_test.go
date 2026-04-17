@@ -30,6 +30,7 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -194,13 +195,13 @@ func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 }
 
 func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
+	runtime := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
 
 	putResp := mustHTTPRequest(
 		t,
-		runtime.client,
+		runtime.HTTPClient,
 		http.MethodPut,
-		mustURL(runtime.host, runtime.port, "/api/resources/bundle.activation/demo"),
+		runtime.HTTPURL("/api/resources/bundle.activation/demo"),
 		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 		nil,
 	)
@@ -212,9 +213,9 @@ func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testi
 
 	deleteResp := mustHTTPRequest(
 		t,
-		runtime.client,
+		runtime.HTTPClient,
 		http.MethodDelete,
-		mustURL(runtime.host, runtime.port, "/api/resources/bundle.activation/demo"),
+		runtime.HTTPURL("/api/resources/bundle.activation/demo"),
 		[]byte(`{"expected_version":1}`),
 		nil,
 	)

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AutomationJob, AutomationRun, AutomationTrigger } from "@/systems/automation";
@@ -55,6 +56,15 @@ vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (opts: { component: () => React.ReactNode }) => ({
     component: opts.component,
   }),
+  Link: ({
+    children,
+    params,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { params?: { id?: string } }) => (
+    <a href={`/session/${params?.id ?? ""}`} {...props}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("sonner", () => ({

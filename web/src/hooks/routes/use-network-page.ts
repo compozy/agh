@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -116,6 +116,29 @@ function useNetworkPage() {
     isLoading: peerDetailQuery.isLoading && !peerDetailQuery.data,
     peer: peerDetailQuery.data,
   };
+  const refetchNetworkStatus = networkStatusQuery.refetch;
+  const refetchNetworkChannels = networkChannelsQuery.refetch;
+  const refetchChannelDetail = channelDetailQuery.refetch;
+  const refetchChannelMessages = channelMessagesQuery.refetch;
+
+  useEffect(() => {
+    if (!isNetworkEnabled || activeTab !== "channels" || !effectiveSelectedChannel) {
+      return;
+    }
+
+    void refetchNetworkStatus();
+    void refetchNetworkChannels();
+    void refetchChannelDetail();
+    void refetchChannelMessages();
+  }, [
+    activeTab,
+    effectiveSelectedChannel,
+    isNetworkEnabled,
+    refetchChannelDetail,
+    refetchChannelMessages,
+    refetchNetworkChannels,
+    refetchNetworkStatus,
+  ]);
 
   const handleOpenCreateDialog = () => {
     setCreateDraft(createNetworkChannelDraft());

@@ -176,6 +176,7 @@ vi.mock("@/systems/network", async () => {
       data: mockNetworkStatus,
       error: null,
       isLoading: false,
+      refetch: vi.fn().mockResolvedValue(undefined),
     }),
     useNetworkChannels: (options?: { enabled?: boolean }) => {
       lastNetworkChannelsOptions = options;
@@ -183,17 +184,20 @@ vi.mock("@/systems/network", async () => {
         data: mockNetworkChannels,
         error: mockNetworkChannelsError,
         isLoading: mockNetworkChannelsLoading,
+        refetch: vi.fn().mockResolvedValue(undefined),
       };
     },
     useNetworkChannel: () => ({
       data: mockChannelDetail,
       error: mockChannelDetailError,
       isLoading: mockChannelDetailLoading,
+      refetch: vi.fn().mockResolvedValue(undefined),
     }),
     useNetworkChannelMessages: () => ({
       data: mockChannelMessages,
       error: mockChannelMessagesError,
       isLoading: mockChannelMessagesLoading,
+      refetch: vi.fn().mockResolvedValue(undefined),
     }),
     useNetworkPeers: (channel?: string, options?: { enabled?: boolean }) => {
       lastNetworkPeersArgs = [channel, options];

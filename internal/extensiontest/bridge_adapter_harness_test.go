@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -205,6 +206,98 @@ func TestHarnessHelperUtilities(t *testing.T) {
 	}
 	if metrics := source.DeliveryMetrics(); metrics != nil {
 		t.Fatalf("harnessBridgeSource.DeliveryMetrics() = %#v, want nil", metrics)
+	}
+}
+
+func TestMarkerHelpersReadStandaloneMarkerSet(t *testing.T) {
+	markers := NewMarkerPaths(t.TempDir())
+	handshake := HandshakeRecord{
+		Request: subprocess.InitializeRequest{
+			Runtime: subprocess.InitializeRuntime{
+				Bridge: &subprocess.InitializeBridgeRuntime{
+					RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+					Provider:       "telegram-reference",
+					Platform:       "telegram",
+				},
+			},
+		},
+		Response: subprocess.InitializeResponse{
+			ImplementedMethods: []string{"bridges/deliver"},
+		},
+	}
+	handshakeBytes, err := json.Marshal(handshake)
+	if err != nil {
+		t.Fatalf("json.Marshal(handshake) error = %v", err)
+	}
+	if err := os.WriteFile(markers.Handshake, handshakeBytes, 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", markers.Handshake, err)
+	}
+
+	appendJSONLine(t, markers.State, StateRecord{
+		BridgeInstanceID: "brg-1",
+		Status:           bridgepkg.BridgeStatusReady,
+		Instance:         testBridgeInstanceWithID("brg-1"),
+	})
+	appendJSONLine(t, markers.Delivery, DeliveryRecord{
+		Request: testDeliveryRequest("delivery-1", 1, bridgepkg.DeliveryEventTypeStart, false),
+		Ack:     testDeliveryAck("delivery-1", 1, "telegram:delivery-1:1", ""),
+	})
+	appendJSONLine(t, markers.Ingest, IngestRecord{
+		Envelope: bridgepkg.InboundMessageEnvelope{
+			BridgeInstanceID: "brg-1",
+			PeerID:           "telegram:chat:777:user:888",
+			Content:          bridgepkg.MessageContent{Text: "Need a summary"},
+		},
+		Result: extensioncontract.BridgesMessagesIngestResult{
+			SessionID:    "sess-1",
+			RouteCreated: true,
+		},
+	})
+	AppendInboundUpdateMarker(t, markers, map[string]any{
+		"update_id": 1,
+		"message": map[string]any{
+			"text": "Need a summary",
+		},
+	})
+
+	gotHandshake := WaitForHandshakeMarker(t, markers, time.Second)
+	if got, want := gotHandshake.Request.Runtime.Bridge.Platform, "telegram"; got != want {
+		t.Fatalf("WaitForHandshakeMarker().Request.Runtime.Bridge.Platform = %q, want %q", got, want)
+	}
+
+	states := WaitForStateMarkers(t, markers, time.Second, func(records []StateRecord) bool {
+		return len(records) == 1
+	})
+	if got, want := states[0].BridgeInstanceID, "brg-1"; got != want {
+		t.Fatalf("WaitForStateMarkers()[0].BridgeInstanceID = %q, want %q", got, want)
+	}
+
+	deliveries := WaitForDeliveryMarkers(t, markers, time.Second, func(records []DeliveryRecord) bool {
+		return len(records) == 1
+	})
+	if got, want := deliveries[0].Request.Event.DeliveryID, "delivery-1"; got != want {
+		t.Fatalf("WaitForDeliveryMarkers()[0].Request.Event.DeliveryID = %q, want %q", got, want)
+	}
+
+	ingests := WaitForIngestMarkers(t, markers, time.Second, func(records []IngestRecord) bool {
+		return len(records) == 1
+	})
+	if got, want := ingests[0].Result.SessionID, "sess-1"; got != want {
+		t.Fatalf("WaitForIngestMarkers()[0].Result.SessionID = %q, want %q", got, want)
+	}
+
+	report := ReportFromMarkers(t, markers)
+	if report.Handshake == nil {
+		t.Fatal("ReportFromMarkers().Handshake = nil, want captured handshake")
+	}
+	if got, want := len(report.States), 1; got != want {
+		t.Fatalf("len(ReportFromMarkers().States) = %d, want %d", got, want)
+	}
+	if got, want := len(report.Deliveries), 1; got != want {
+		t.Fatalf("len(ReportFromMarkers().Deliveries) = %d, want %d", got, want)
+	}
+	if got, want := len(report.Ingests), 1; got != want {
+		t.Fatalf("len(ReportFromMarkers().Ingests) = %d, want %d", got, want)
 	}
 }
 

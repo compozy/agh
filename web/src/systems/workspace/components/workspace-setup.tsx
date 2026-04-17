@@ -72,6 +72,7 @@ function WorkspaceSetupContent({
         className="mt-4 w-full justify-between text-[color:var(--color-accent-ink)]"
         disabled={setup.submissionMode !== null || setup.globalUnavailableReason !== null}
         onClick={setup.handleUseGlobalWorkspace}
+        data-testid="workspace-use-global"
       >
         <span>Use global workspace</span>
         {setup.submissionMode === "global" ? <Loader2 className="animate-spin" /> : <Sparkles />}
@@ -113,6 +114,7 @@ function WorkspaceSetupContent({
           onChange={event => setup.setManualPath(event.currentTarget.value)}
           placeholder="/Users/name/project"
           value={setup.manualPath}
+          data-testid="workspace-manual-path-input"
         />
         {setup.manualError && (
           <p
@@ -126,6 +128,7 @@ function WorkspaceSetupContent({
           className="w-full justify-between text-[color:var(--color-accent-ink)]"
           disabled={setup.submissionMode !== null}
           type="submit"
+          data-testid="workspace-register-manual"
         >
           <span>Register workspace</span>
           {setup.submissionMode === "manual" ? (

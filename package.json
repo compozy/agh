@@ -19,7 +19,11 @@
         "format": "bunx oxfmt",
         "format:check": "bunx oxfmt --check",
         "typecheck": "turbo run typecheck",
-        "test": "bunx vitest run"
+        "test": "bunx vitest run",
+        "test:e2e:runtime": "make test-e2e-runtime",
+        "test:e2e:web": "make test-e2e-web",
+        "test:e2e": "make test-e2e",
+        "test:e2e:nightly": "make test-e2e-nightly"
     },
     "devDependencies": {
         "@commitlint/cli": "^20.5.0",

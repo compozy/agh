@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
 import { StatusDot } from "@/components/design-system";
@@ -93,6 +94,18 @@ export function AutomationRunHistory({
                   <p className="mt-1 font-mono text-[0.78rem] text-[color:var(--color-text-secondary)]">
                     {run.session_id ?? "session pending"}
                   </p>
+                  {run.session_id ? (
+                    <div className="mt-3">
+                      <Link
+                        className="inline-flex h-8 items-center rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] px-3 text-sm font-medium text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-surface-panel)]"
+                        data-testid={`automation-run-session-link-${run.id}`}
+                        params={{ id: run.session_id }}
+                        to="/session/$id"
+                      >
+                        View Session
+                      </Link>
+                    </div>
+                  ) : null}
                   {run.error ? (
                     <p className="mt-2 text-sm leading-6 text-[color:var(--color-danger)]">
                       {run.error}

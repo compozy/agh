@@ -1,0 +1,49 @@
+{
+    "version": 1,
+    "agents": [
+        {
+            "name": "alpha",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are alpha.",
+            "turns": [
+                {
+                    "name": "alpha-hello",
+                    "match": {
+                        "contains": "hello alpha"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["alpha ", "says hi"]
+                        },
+                        {
+                            "kind": "bridge_response",
+                            "text": "bridge-alpha"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "beta",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are beta.",
+            "turns": [
+                {
+                    "name": "beta-hello",
+                    "match": {
+                        "contains": "hello beta"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "beta only"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

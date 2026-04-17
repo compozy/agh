@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/magefile/mage/sh"
+	"github.com/pedronauck/agh/internal/e2elane"
 )
 
 const (
@@ -90,6 +91,26 @@ func TestIntegration() error {
 	}
 	return sh.RunV("go", "run", "gotest.tools/gotestsum@latest",
 		"--format", "pkgname", "--", "-race", "-parallel=4", "-tags", "integration", "./...")
+}
+
+// TestE2ERuntime runs the PR-required daemon/runtime E2E lane without sweeping every integration package.
+func TestE2ERuntime() error {
+	return runE2ELane(e2elane.LaneRuntime)
+}
+
+// TestE2EWeb runs the daemon-served Playwright E2E lane for shipped browser workflows.
+func TestE2EWeb() error {
+	return runE2ELane(e2elane.LaneWeb)
+}
+
+// TestE2E runs the default PR-required runtime and browser E2E lanes.
+func TestE2E() error {
+	return runE2ELane(e2elane.LaneCombined)
+}
+
+// TestE2ENightly runs the combined E2E lane plus credentialed nightly coverage.
+func TestE2ENightly() error {
+	return runE2ELane(e2elane.LaneNightly)
 }
 
 func Build() error {
@@ -336,6 +357,53 @@ func ensureWebBundle() error {
 		return err
 	}
 	return WebBuild()
+}
+
+func runE2ELane(lane e2elane.Lane) error {
+	plan, err := e2elane.PlanForLane(lane)
+	if err != nil {
+		return err
+	}
+
+	if len(plan.GoSuites) > 0 {
+		if err := ensureWebBundle(); err != nil {
+			return err
+		}
+	}
+
+	for _, suite := range plan.GoSuites {
+		if err := runIntegrationSuite(suite); err != nil {
+			return err
+		}
+	}
+
+	for _, suite := range plan.ScriptSuites {
+		if err := runCommandInDir(suite.Dir, "bun", "run", suite.Script); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func runIntegrationSuite(suite e2elane.GoSuite) error {
+	args := []string{
+		"run",
+		"gotest.tools/gotestsum@latest",
+		"--format",
+		"pkgname",
+		"--",
+		"-race",
+		"-parallel=4",
+		"-count=1",
+		"-tags",
+		"integration",
+	}
+	if strings.TrimSpace(suite.Run) != "" {
+		args = append(args, "-run", suite.Run)
+	}
+	args = append(args, suite.Packages...)
+	return sh.RunV("go", args...)
 }
 
 func runCommandInDir(dir string, name string, args ...string) error {

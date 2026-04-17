@@ -13,7 +13,7 @@ export default defineConfig({
     name: "web",
     environment: "jsdom",
     globals: true,
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "e2e/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/dist/**"],
     setupFiles: ["./src/test-setup.ts"],
     passWithNoTests: true,

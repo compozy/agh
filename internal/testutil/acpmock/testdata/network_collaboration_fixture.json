@@ -1,0 +1,247 @@
+{
+    "version": 1,
+    "agents": [
+        {
+            "name": "ops-coordinator",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You coordinate direct network collaboration tests.",
+            "turns": [
+                {
+                    "name": "open-direct-request",
+                    "match": {
+                        "contains": "start direct reply scenario"
+                    },
+                    "steps": [
+                        {
+                            "kind": "environment_exec",
+                            "tool_call_id": "ops-send-say",
+                            "title": "Broadcast builders request",
+                            "tool_kind": "execute",
+                            "command": "/bin/sh",
+                            "args": [
+                                "-lc",
+                                "set -eu; PORT=\"$(awk 'BEGIN{section=\"\"} /^\\[/{section=$0} section==\"[http]\" && $1==\"port\" {print $3; exit}' \"$AGH_HOME/config.toml\")\"; DATA='{\"session_id\":\"'\"$AGH_SESSION_ID\"'\",\"channel\":\"'\"$AGH_SESSION_CHANNEL\"'\",\"kind\":\"say\",\"id\":\"msg_say_01\",\"trace_id\":\"trace_ops_patch_42\",\"body\":{\"text\":\"Who can take the failing migration tests in internal/store/sessiondb?\",\"intent\":\"request-help\",\"artifacts\":[]}}'; curl -sf -H 'Content-Type: application/json' --data \"$DATA\" \"http://127.0.0.1:${PORT}/api/network/send\""
+                            ],
+                            "expect_exit_code": 0,
+                            "expect_output_contains": "msg_say_01"
+                        }
+                    ]
+                },
+                {
+                    "name": "self-say-delivery",
+                    "match": {
+                        "contains": "kind=\"say\"",
+                        "occurrence": 1
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Saw the builders request."
+                        }
+                    ]
+                },
+                {
+                    "name": "accept-direct-request",
+                    "match": {
+                        "contains": "kind=\"direct\"",
+                        "occurrence": 2
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Direct request received."
+                        }
+                    ]
+                },
+                {
+                    "name": "trace-follow-up",
+                    "match": {
+                        "contains": "kind=\"trace\"",
+                        "occurrence": 3
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Trace update recorded."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "patch-worker",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You respond to directed network requests in tests.",
+            "turns": [
+                {
+                    "name": "reply-to-builders-say",
+                    "match": {
+                        "contains": "kind=\"say\"",
+                        "occurrence": 1
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Saw the builders request."
+                        }
+                    ]
+                },
+                {
+                    "name": "send-trace-after-acceptance",
+                    "match": {
+                        "contains": "kind=\"receipt\"",
+                        "occurrence": 2
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Receipt accepted."
+                        }
+                    ]
+                },
+                {
+                    "name": "observe-duplicate-receipt",
+                    "match": {
+                        "contains": "kind=\"receipt\"",
+                        "occurrence": 3
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Duplicate receipt noted."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "release-bot",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You run recipe discovery and follow-up tests.",
+            "turns": [
+                {
+                    "name": "start-recipe-discovery",
+                    "match": {
+                        "contains": "start recipe discovery scenario"
+                    },
+                    "steps": [
+                        {
+                            "kind": "environment_exec",
+                            "tool_call_id": "release-start-discovery",
+                            "title": "Broadcast recipe discovery and target whois",
+                            "tool_kind": "execute",
+                            "command": "/bin/sh",
+                            "args": [
+                                "-lc",
+                                "set -eu; CHANNEL=\"$AGH_SESSION_CHANNEL\"; SELF=\"$AGH_PEER_ID\"; PORT=\"$(awk 'BEGIN{section=\"\"} /^\\[/{section=$0} section==\"[http]\" && $1==\"port\" {print $3; exit}' \"$AGH_HOME/config.toml\")\"; PEERS_JSON=\"$(curl -sf \"http://127.0.0.1:${PORT}/api/network/peers?channel=${CHANNEL}\")\"; TARGET=\"$(node -e 'const payload = JSON.parse(process.argv[1]); const self = process.argv[2]; const peers = payload.peers || []; const hit = peers.find((peer) => peer.peer_id !== self); if (!hit) process.exit(1); process.stdout.write(hit.peer_id);' \"$PEERS_JSON\" \"$SELF\")\"; SAY_DATA='{\"session_id\":\"'\"$AGH_SESSION_ID\"'\",\"channel\":\"'\"$CHANNEL\"'\",\"kind\":\"say\",\"id\":\"msg_recipe_say_01\",\"trace_id\":\"trace_recipe_apply_7\",\"body\":{\"text\":\"Does anyone have a reusable migration test repair recipe?\",\"intent\":\"request-help\",\"artifacts\":[]}}'; WHOIS_DATA='{\"session_id\":\"'\"$AGH_SESSION_ID\"'\",\"channel\":\"'\"$CHANNEL\"'\",\"kind\":\"whois\",\"to\":\"'\"$TARGET\"'\",\"id\":\"msg_whois_01\",\"body\":{\"type\":\"request\",\"query\":\"recipe-curator\"}}'; curl -sf -H 'Content-Type: application/json' --data \"$SAY_DATA\" \"http://127.0.0.1:${PORT}/api/network/send\" >/tmp/release-say.json; curl -sf -H 'Content-Type: application/json' --data \"$WHOIS_DATA\" \"http://127.0.0.1:${PORT}/api/network/send\" >/tmp/release-whois.json; cat /tmp/release-say.json; printf '\\n'; cat /tmp/release-whois.json"
+                            ],
+                            "expect_exit_code": 0,
+                            "expect_output_contains": "msg_whois_01"
+                        }
+                    ]
+                },
+                {
+                    "name": "observe-own-say",
+                    "match": {
+                        "contains": "kind=\"say\"",
+                        "occurrence": 1
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Discovery request posted."
+                        }
+                    ]
+                },
+                {
+                    "name": "observe-whois-response",
+                    "match": {
+                        "contains": "kind=\"whois\"",
+                        "occurrence": 2
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Peer discovery response captured."
+                        }
+                    ]
+                },
+                {
+                    "name": "request-recipe-help",
+                    "match": {
+                        "contains": "kind=\"recipe\"",
+                        "occurrence": 3
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Recipe artifact observed."
+                        }
+                    ]
+                },
+                {
+                    "name": "observe-recipe-trace",
+                    "match": {
+                        "contains": "kind=\"trace\"",
+                        "occurrence": 4
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Recipe trace update received."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "recipe-curator",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You advertise repair recipes and answer targeted follow-up requests.",
+            "turns": [
+                {
+                    "name": "publish-recipe",
+                    "match": {
+                        "contains": "publish the migration repair recipe"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Ready to publish the recipe."
+                        }
+                    ]
+                },
+                {
+                    "name": "observe-own-recipe",
+                    "match": {
+                        "contains": "kind=\"recipe\"",
+                        "occurrence": 1
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Recipe published to the channel."
+                        }
+                    ]
+                },
+                {
+                    "name": "reply-with-trace-guidance",
+                    "match": {
+                        "contains": "kind=\"direct\"",
+                        "occurrence": 2
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Direct recipe request received."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -45,6 +45,14 @@ describe("Design Token System — styles.css", () => {
     expect(css).toMatch(/@import\s+["']@agh\/ui\/tokens\.css["']/);
   });
 
+  it("imports tailwindcss before composing app styles", () => {
+    expect(css).toMatch(/@import\s+["']tailwindcss["']/);
+  });
+
+  it("registers workspace UI sources for Tailwind emission", () => {
+    expect(css).toMatch(/@source\s+["']\.\.\/\.\.\/packages\/ui\/src\/\*\*\/\*\.\{ts,tsx\}["']/);
+  });
+
   it("contains no oklch() values", () => {
     expect(css).not.toMatch(/oklch\(/i);
     expect(tokens).not.toMatch(/oklch\(/i);

@@ -1,0 +1,57 @@
+{
+    "version": 1,
+    "agents": [
+        {
+            "name": "approver",
+            "provider": "claude",
+            "permissions": "deny-all",
+            "prompt": "You are approver.",
+            "turns": [
+                {
+                    "name": "permission-turn",
+                    "match": {
+                        "contains": "request permission"
+                    },
+                    "steps": [
+                        {
+                            "kind": "permission",
+                            "tool_call_id": "perm-1",
+                            "title": "permission request",
+                            "tool_kind": "edit",
+                            "path": "approve.txt",
+                            "status": "pending",
+                            "expect_decision": "allow-always",
+                            "emit_decision": true
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "runner",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are runner.",
+            "turns": [
+                {
+                    "name": "environment-turn",
+                    "match": {
+                        "contains": "run environment"
+                    },
+                    "steps": [
+                        {
+                            "kind": "environment_exec",
+                            "tool_call_id": "cmd-1",
+                            "title": "Run fake network status",
+                            "command": "agh",
+                            "args": ["network", "status"],
+                            "expect_exit_code": 0,
+                            "expect_output_contains": "network-ok",
+                            "emit_output": true
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { bridgeKeys } from "../lib/query-keys";
 import type {
   BridgeDetailResponse,
+  BridgeRoute,
   BridgesListResponse,
   BridgeHealthStreamSnapshot,
 } from "../types";
@@ -24,6 +25,25 @@ const BRIDGE_HEALTH_STREAM_URL = "/api/bridges/health/stream";
 
 function defaultEventSourceFactory(url: string): BridgeHealthEventSource {
   return new EventSource(url);
+}
+
+function invalidateBridgeRoutesWhenCountChanges(
+  queryClient: ReturnType<typeof useQueryClient>,
+  bridgeID: string,
+  nextRouteCount: number | undefined
+) {
+  if (nextRouteCount === undefined) {
+    return;
+  }
+
+  const cachedRoutes = queryClient.getQueryData<BridgeRoute[] | undefined>(
+    bridgeKeys.routes(bridgeID)
+  );
+  if (cachedRoutes !== undefined && cachedRoutes.length === nextRouteCount) {
+    return;
+  }
+
+  void queryClient.invalidateQueries({ queryKey: bridgeKeys.routes(bridgeID) });
 }
 
 export function applyBridgeHealthSnapshot(
@@ -50,6 +70,7 @@ export function applyBridgeHealthSnapshot(
             }
           : current
     );
+    invalidateBridgeRoutesWhenCountChanges(queryClient, bridgeID, health.route_count);
   }
 }
 

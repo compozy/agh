@@ -1,5 +1,18 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { AnchorHTMLAttributes } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    params,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { params?: { id?: string } }) => (
+    <a href={`/session/${params?.id ?? ""}`} {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 import { AutomationDetailPanel } from "./automation-detail-panel";
 
@@ -112,6 +125,7 @@ describe("AutomationDetailPanel", () => {
     expect(screen.getByText("daily-review")).toBeInTheDocument();
     expect(screen.getByText("Review recent changes.")).toBeInTheDocument();
     expect(screen.getByTestId("automation-run-run_001")).toBeInTheDocument();
+    expect(screen.getByText("View Session")).toHaveAttribute("href", "/session/sess_001");
 
     fireEvent.click(screen.getByTestId("toggle-automation-btn"));
     fireEvent.click(screen.getByTestId("edit-automation-btn"));

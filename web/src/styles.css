@@ -1,5 +1,13 @@
+@import "tailwindcss";
 @import "@agh/ui/tokens.css";
 @import "shadcn/tailwind.css";
+
+/*
+ * Tailwind v4 scans relative to this stylesheet and ignores external workspace
+ * packages by default. Register shared UI sources so embedded builds emit the
+ * utility classes used by @agh/ui primitives such as Button.
+ */
+@source "../../packages/ui/src/**/*.{ts,tsx}";
 
 #app {
   min-height: 100%;
