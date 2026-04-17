@@ -31,6 +31,10 @@ Introduce `internal/settings` as the daemon-facing orchestration layer that asse
 - MUST classify every mutation according to the v1 runtime-apply matrix and return `MutationResult`
 </requirements>
 
+## Design References
+
+This task is foundational — the settings service assembles every section envelope and orchestrates every collection mutation, so all 10 settings screens depend on it. See `_techspec.md` → *Design References* for the full 10-artboard table and the task-to-screen mapping.
+
 ## Subtasks
 
 - [ ] 2.1 Create `internal/settings` package structure with service, models, and request/response types

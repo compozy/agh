@@ -31,6 +31,10 @@ Expose the settings contract over the HTTP transport while enforcing the v1 secu
 - SHOULD keep route registration and policy enforcement explicit so route inventory tests can catch drift
 </requirements>
 
+## Design References
+
+This task is foundational — the HTTP transport carries every settings read/write used by the web UI, so all 10 settings screens depend on it. See `_techspec.md` → *Design References* for the full 10-artboard table and the task-to-screen mapping.
+
 ## Subtasks
 
 - [ ] 6.1 Register the full HTTP settings route namespace and restart/status endpoints

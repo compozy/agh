@@ -32,6 +32,10 @@ Create the navigable entrypoint for settings in the web app by turning the exist
 - SHOULD keep this task limited to shell, routing, and navigation, leaving data integration for later tasks
 </requirements>
 
+## Design References
+
+The shared `/_app/settings/*` shell frames every settings screen, so all 10 Paper artboards are in scope for navigation, header, and layout parity. See `_techspec.md` → *Design References* for the full 10-artboard table and the task-to-screen mapping.
+
 ## Subtasks
 
 - [ ] 8.1 Turn the sidebar Settings control into a real navigational entrypoint

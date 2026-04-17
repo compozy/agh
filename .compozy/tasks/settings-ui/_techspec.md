@@ -11,6 +11,42 @@ The primary trade-off is choosing file-backed canonical configuration with expli
 
 For daemon restart in AGH's default detached mode, the implementation uses a dedicated relaunch helper process plus a persisted restart-operation state file rather than in-process `exec` or overlapping old/new daemon lifecycles.
 
+## Design References
+
+All settings screens live in the `AGH` Paper file (page `Page 1`). PNG exports are committed under `docs/design/paper/settings/` and kept in sync with the Paper artboards listed below. Each section page, collection page, and the combined Hooks & Extensions surface has a 1:1 artboard.
+
+| Screen | Local export | Paper artboard (node id) |
+|--------|--------------|--------------------------|
+| General | `docs/design/paper/settings/AGH Settings — General@2x.png` | `AGH Settings — General` (`VP8-0`) |
+| Providers | `docs/design/paper/settings/AGH Settings — Providers@2x.png` | `AGH Settings — Providers` (`YKG-0`) |
+| MCP Servers | `docs/design/paper/settings/AGH Settings — MCP Servers@2x.png` | `AGH Settings — MCP Servers` (`YRR-0`) |
+| Environments | `docs/design/paper/settings/AGH Settings — Environments@2x.png` | `AGH Settings — Environments` (`YZ2-0`) |
+| Memory | `docs/design/paper/settings/AGH Settings — Memory@2x.png` | `AGH Settings — Memory` (`Z6D-0`) |
+| Skills | `docs/design/paper/settings/AGH Settings — Skills@2x.png` | `AGH Settings — Skills` (`ZDO-0`) |
+| Automation | `docs/design/paper/settings/AGH Settings — Automation@2x.png` | `AGH Settings — Automation` (`ZKZ-0`) |
+| Network | `docs/design/paper/settings/AGH Settings — Network@2x.png` | `AGH Settings — Network` (`ZSA-0`) |
+| Observability | `docs/design/paper/settings/AGH Settings — Observability@2x.png` | `AGH Settings — Observability` (`ZZL-0`) |
+| Hooks & Extensions | `docs/design/paper/settings/AGH Settings — Hooks & Extensions@2x.png` | `AGH Settings — Hooks & Extensions` (`106W-0`) |
+
+Task-to-screen mapping:
+
+| Task | Screens covered |
+|------|-----------------|
+| `task_01` — Comment-preserving config editors and write targets | Foundational — underpins all 10 settings screens |
+| `task_02` — Settings service orchestration in `internal/settings` | Foundational — underpins all 10 settings screens |
+| `task_03` — Daemon relaunch helper and restart operation store | Primary: `General` (restart action); applies to every restart-required surface |
+| `task_04` — Settings API contract and OpenAPI surface | Foundational — underpins all 10 settings screens |
+| `task_05` — Shared settings handlers in `api/core` | Foundational — underpins all 10 settings screens |
+| `task_06` — HTTP settings transport and loopback mutation policy | Foundational — underpins all 10 settings screens |
+| `task_07` — UDS settings transport and parity coverage | Foundational — underpins all 10 settings screens |
+| `task_08` — Settings entrypoint and route shell | Shared shell — frames all 10 settings screens |
+| `task_09` — `web/src/systems/settings` domain scaffold | Shared system — feeds all 10 settings screens |
+| `task_10` — General, Memory, and Observability pages | `General`, `Memory`, `Observability` |
+| `task_11` — Skills, Automation, and Network summary pages | `Skills`, `Automation`, `Network` |
+| `task_12` — Providers and Environments collection pages | `Providers`, `Environments` |
+| `task_13` — MCP Servers scoped collection page | `MCP Servers` |
+| `task_14` — Hooks and Extensions page | `Hooks & Extensions` |
+
 ## System Architecture
 
 ### Component Overview

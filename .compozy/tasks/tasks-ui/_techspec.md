@@ -6,6 +6,22 @@ This initiative implements the full `docs/design/paper/tasks` surface as a first
 
 The implementation strategy is to split responsibilities cleanly across three backend layers and one frontend system. The task manager remains responsible for task CRUD, draft publication, dependencies, run lifecycle, and task-native point reads. The observer/read side owns dashboard, inbox, and aggregate projections. A dedicated task live layer exposes timeline, task stream, tree live view, and run detail contracts so the web app does not stitch task detail with session SSE as its primary architecture. The primary trade-off is a larger first-wave backend scope in exchange for a stable frontend architecture, cleaner contracts, and real parity with the Paper screens.
 
+## Design References
+
+All task screens live in the `AGH` Paper file (page `Page 1`). PNG exports are committed under `docs/design/paper/tasks/` and kept in sync with the Paper artboards listed below.
+
+| Screen | Local export | Paper artboard (node id) |
+|--------|--------------|--------------------------|
+| Dashboard | `docs/design/paper/tasks/AGH Tasks — Dashboard@2x.png` | `AGH Tasks — Dashboard` (`TXD-0`) |
+| Inbox | `docs/design/paper/tasks/AGH Tasks — Inbox@2x.png` | `AGH Tasks — Inbox` (`U5Y-0`) |
+| List (Split View) | `docs/design/paper/tasks/AGH Tasks — List (Split View)@2x.png` | `AGH Tasks — List (Split View)` (`SFL-0`) |
+| Kanban View | `docs/design/paper/tasks/AGH Tasks — Kanban View@2x.png` | `AGH Tasks — Kanban View` (`SS7-0`) |
+| Empty State | `docs/design/paper/tasks/AGH Tasks — Empty State@2x.png` | `AGH Tasks — Empty State` (`T1V-0`) |
+| Create Modal | `docs/design/paper/tasks/AGH Tasks — Create Modal@2x.png` | `AGH Tasks — Create Modal` (`T7W-0`) |
+| Detail (Events SSE) | `docs/design/paper/tasks/AGH Tasks — Detail (Events SSE)@2x.png` | `AGH Tasks — Detail (Events SSE)` (`TDL-0`) |
+| Run Detail | `docs/design/paper/tasks/AGH Tasks — Run Detail@2x.png` | `AGH Tasks — Run Detail` (`TK9-0`) |
+| Multi-Agent Live | `docs/design/paper/tasks/AGH Tasks — Multi-Agent Live@2x.png` | `AGH Tasks — Multi-Agent Live` (`TR5-0`) |
+
 ## System Architecture
 
 ### Component Overview

@@ -32,6 +32,10 @@ Translate the settings service and restart operation model into stable API DTOs 
 - SHOULD keep route and payload naming aligned with the TechSpec to avoid drift between daemon and web
 </requirements>
 
+## Design References
+
+This task is foundational — the DTOs and OpenAPI surface feed every settings page, collection page, and the restart/log-tail actions. See `_techspec.md` → *Design References* for the full 10-artboard table and the task-to-screen mapping.
+
 ## Subtasks
 
 - [ ] 4.1 Add settings DTOs and restart payloads in `internal/api/contract`

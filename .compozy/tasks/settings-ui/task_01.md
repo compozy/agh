@@ -30,6 +30,10 @@ Replace the bootstrap-only persistence assumptions in `internal/config` with wri
 - SHOULD keep persistence primitives transport-agnostic so `internal/settings` can orchestrate them later without duplicating file logic
 </requirements>
 
+## Design References
+
+This task is foundational — it does not render any individual Paper screen, but every later settings mutation flows through these persistence primitives. See `_techspec.md` → *Design References* for the full 10-artboard table and the task-to-screen mapping.
+
 ## Subtasks
 
 - [ ] 1.1 Add comment-preserving TOML edit primitives for global and workspace overlay files

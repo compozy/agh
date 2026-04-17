@@ -33,6 +33,10 @@ Wire the settings service into the transport-neutral API core so HTTP and UDS ca
 - SHOULD use existing parser and payload helper patterns so HTTP and UDS stay behaviorally identical
 </requirements>
 
+## Design References
+
+This task is foundational — the shared `api/core` handlers fan out to every settings page and collection page. See `_techspec.md` → *Design References* for the full 10-artboard table and the task-to-screen mapping.
+
 ## Subtasks
 
 - [ ] 5.1 Add settings service interfaces and dependencies to `internal/api/core`

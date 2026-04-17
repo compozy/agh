@@ -31,6 +31,10 @@ Create the reusable frontend domain layer for settings under `web/src/systems/se
 - SHOULD expose a stable public barrel so section routes can import from one domain entrypoint
 </requirements>
 
+## Design References
+
+The `web/src/systems/settings` domain feeds every settings page, collection page, restart banner, and log-tail surface. All 10 Paper artboards are downstream consumers of this scaffold. See `_techspec.md` → *Design References* for the full 10-artboard table and the task-to-screen mapping.
+
 ## Subtasks
 
 - [ ] 9.1 Create the `web/src/systems/settings` directory structure and public exports

@@ -31,6 +31,10 @@ Mirror the settings API surface on UDS so the CLI and trusted local automation h
 - SHOULD follow existing UDS route grouping and handler wrapper patterns
 </requirements>
 
+## Design References
+
+This task is foundational — the UDS transport mirrors the HTTP settings contract for CLI parity and underpins all 10 settings screens. See `_techspec.md` → *Design References* for the full 10-artboard table and the task-to-screen mapping.
+
 ## Subtasks
 
 - [ ] 7.1 Register all settings routes on UDS, including restart and log-tail endpoints

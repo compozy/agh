@@ -31,6 +31,12 @@ Implement the most complex collection page in the settings UI: `mcp-servers`, wi
 - SHOULD reuse shared collection-page patterns only if they do not hide MCP-specific semantics
 </requirements>
 
+## Design References
+
+| Screen | Local export | Paper artboard (node id) |
+|--------|--------------|--------------------------|
+| MCP Servers | `docs/design/paper/settings/AGH Settings — MCP Servers@2x.png` | `AGH Settings — MCP Servers` (`YRR-0`) |
+
 ## Subtasks
 
 - [ ] 13.1 Implement the `mcp-servers` route with scope-aware list and detail state

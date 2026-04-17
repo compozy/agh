@@ -31,6 +31,13 @@ Implement the collection-driven settings pages for `providers` and `environments
 - SHOULD factor shared collection UI primitives that later collection pages can reuse
 </requirements>
 
+## Design References
+
+| Screen | Local export | Paper artboard (node id) |
+|--------|--------------|--------------------------|
+| Providers | `docs/design/paper/settings/AGH Settings — Providers@2x.png` | `AGH Settings — Providers` (`YKG-0`) |
+| Environments | `docs/design/paper/settings/AGH Settings — Environments@2x.png` | `AGH Settings — Environments` (`YZ2-0`) |
+
 ## Subtasks
 
 - [ ] 12.1 Implement the `providers` collection page with list, detail, edit, and delete flows

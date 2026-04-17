@@ -31,6 +31,12 @@ Implement the combined `hooks-extensions` settings page that depends on both con
 - SHOULD keep hook config editing and extension operational actions visually distinct within the page
 </requirements>
 
+## Design References
+
+| Screen | Local export | Paper artboard (node id) |
+|--------|--------------|--------------------------|
+| Hooks & Extensions | `docs/design/paper/settings/AGH Settings — Hooks & Extensions@2x.png` | `AGH Settings — Hooks & Extensions` (`106W-0`) |
+
 ## Subtasks
 
 - [ ] 14.1 Implement the `hooks-extensions` route with combined config and runtime sections

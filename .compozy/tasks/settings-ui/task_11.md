@@ -31,6 +31,14 @@ Implement the settings pages that summarize configuration and runtime state for 
 - SHOULD reuse existing design-system and section-shell components for consistency
 </requirements>
 
+## Design References
+
+| Screen | Local export | Paper artboard (node id) |
+|--------|--------------|--------------------------|
+| Skills | `docs/design/paper/settings/AGH Settings — Skills@2x.png` | `AGH Settings — Skills` (`ZDO-0`) |
+| Automation | `docs/design/paper/settings/AGH Settings — Automation@2x.png` | `AGH Settings — Automation` (`ZKZ-0`) |
+| Network | `docs/design/paper/settings/AGH Settings — Network@2x.png` | `AGH Settings — Network` (`ZSA-0`) |
+
 ## Subtasks
 
 - [ ] 11.1 Implement the `skills` settings route with disabled-skill and marketplace/policy state

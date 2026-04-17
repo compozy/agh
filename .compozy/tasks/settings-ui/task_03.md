@@ -30,6 +30,14 @@ Implement the production-grade restart path chosen in the TechSpec by extracting
 - MUST preserve enough restart context for the UI to reconcile success or failure after reconnect
 </requirements>
 
+## Design References
+
+The restart action surface lives on the `General` settings page; every restart-required mutation across the other settings screens ultimately triggers this flow. See `_techspec.md` → *Design References* for the full 10-artboard table.
+
+| Screen | Local export | Paper artboard (node id) |
+|--------|--------------|--------------------------|
+| General (restart action) | `docs/design/paper/settings/AGH Settings — General@2x.png` | `AGH Settings — General` (`VP8-0`) |
+
 ## Subtasks
 
 - [ ] 3.1 Extract reusable detached launch behavior from the CLI start path

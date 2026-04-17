@@ -31,6 +31,14 @@ Implement the settings pages that are primarily configuration and diagnostics su
 - SHOULD reuse shared settings components and avoid section-specific one-off state containers where a common pattern works
 </requirements>
 
+## Design References
+
+| Screen | Local export | Paper artboard (node id) |
+|--------|--------------|--------------------------|
+| General | `docs/design/paper/settings/AGH Settings — General@2x.png` | `AGH Settings — General` (`VP8-0`) |
+| Memory | `docs/design/paper/settings/AGH Settings — Memory@2x.png` | `AGH Settings — Memory` (`Z6D-0`) |
+| Observability | `docs/design/paper/settings/AGH Settings — Observability@2x.png` | `AGH Settings — Observability` (`ZZL-0`) |
+
 ## Subtasks
 
 - [ ] 10.1 Implement the `general` settings route with config-path and restart action affordances
