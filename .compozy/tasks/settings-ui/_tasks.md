@@ -16,7 +16,7 @@
 | 08 | Settings entrypoint and route shell | completed | medium | task_06, task_07 |
 | 09 | web/src/systems/settings domain scaffold | completed | high | task_08 |
 | 10 | General, Memory, and Observability pages | completed | high | task_09 |
-| 11 | Skills, Automation, and Network summary pages | pending | high | task_09 |
+| 11 | Skills, Automation, and Network summary pages | completed | high | task_09 |
 | 12 | Providers and Environments collection pages | pending | high | task_09 |
 | 13 | MCP Servers scoped collection page | pending | high | task_09 |
 | 14 | Hooks and Extensions page | pending | high | task_09 |

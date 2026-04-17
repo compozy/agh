@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Skills, Automation, and Network summary pages
 type: frontend
 complexity: high
@@ -41,11 +41,11 @@ Implement the settings pages that summarize configuration and runtime state for 
 
 ## Subtasks
 
-- [ ] 11.1 Implement the `skills` settings route with disabled-skill and marketplace/policy state
-- [ ] 11.2 Implement the `automation` settings route with engine config and manager summary
-- [ ] 11.3 Implement the `network` settings route with config and runtime status summary
-- [ ] 11.4 Add deep links from these settings pages to the existing operational routes
-- [ ] 11.5 Add tests for save flow, applied-now/restart state, and operational link behavior
+- [x] 11.1 Implement the `skills` settings route with disabled-skill and marketplace/policy state
+- [x] 11.2 Implement the `automation` settings route with engine config and manager summary
+- [x] 11.3 Implement the `network` settings route with config and runtime status summary
+- [x] 11.4 Add deep links from these settings pages to the existing operational routes
+- [x] 11.5 Add tests for save flow, applied-now/restart state, and operational link behavior
 
 ## Implementation Details
 
