@@ -121,6 +121,13 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	if agentEvent.Type != acp.EventTypePermission || agentEvent.Usage == nil || agentEvent.Usage.InputTokens == nil {
 		t.Fatalf("agent event payload = %#v", agentEvent)
 	}
+	if got := string(agentEvent.Raw); got != `{"ok":true}` {
+		t.Fatalf("agent event raw payload = %s, want valid JSON passthrough", got)
+	}
+	plainRawEvent := core.AgentEventPayloadFromEvent(acp.AgentEvent{Raw: []byte("plain-text")})
+	if got := string(plainRawEvent.Raw); got != `"plain-text"` {
+		t.Fatalf("plain raw payload = %s, want quoted string", got)
+	}
 	if payload := core.PayloadJSON("plain-text"); string(payload) == "plain-text" {
 		t.Fatalf("PayloadJSON() = %s, want quoted JSON", string(payload))
 	}
