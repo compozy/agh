@@ -23,7 +23,7 @@ Runtime defaults applied to all commands unless overridden.
 | `tail_lines` | int | Number of tail lines to display from agent output |
 | `add_dirs` | string[] | Additional directories for ACP runtimes (claude and codex only) |
 | `auto_commit` | bool | Include automatic commit instructions at task/batch completion |
-| `max_retries` | int | Maximum number of retries on agent failure |
+| `max_retries` | int | Maximum number of retries on agent failure or inactivity timeout (`0` disables automatic retries) |
 | `retry_backoff_multiplier` | float | Backoff multiplier between retries |
 
 ### `[start]`
