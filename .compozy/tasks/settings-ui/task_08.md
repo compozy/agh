@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Settings entrypoint and route shell
 type: frontend
 complexity: medium
@@ -38,11 +38,11 @@ The shared `/_app/settings/*` shell frames every settings screen, so all 10 Pape
 
 ## Subtasks
 
-- [ ] 8.1 Turn the sidebar Settings control into a real navigational entrypoint
-- [ ] 8.2 Add the shared `/_app/settings/*` parent route and default child route
-- [ ] 8.3 Build the shell layout and section navigation scaffold for later pages
-- [ ] 8.4 Regenerate the route tree and update route-level imports
-- [ ] 8.5 Add route and navigation tests for the new settings entrypoint
+- [x] 8.1 Turn the sidebar Settings control into a real navigational entrypoint
+- [x] 8.2 Add the shared `/_app/settings/*` parent route and default child route
+- [x] 8.3 Build the shell layout and section navigation scaffold for later pages
+- [x] 8.4 Regenerate the route tree and update route-level imports
+- [x] 8.5 Add route and navigation tests for the new settings entrypoint
 
 ## Implementation Details
 

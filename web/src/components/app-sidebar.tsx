@@ -262,6 +262,32 @@ function NavItem({ to, icon, label }: NavItemProps) {
   );
 }
 
+function SettingsNavItem() {
+  const matchRoute = useMatchRoute();
+  const isActive = !!matchRoute({ to: "/settings", fuzzy: true });
+
+  return (
+    <Link
+      to="/settings"
+      data-testid="nav-settings"
+      className={cn(
+        "relative mt-1.5 flex w-full items-center gap-2 rounded-md px-0 py-1 text-xs transition-colors",
+        "text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]",
+        isActive && "font-medium text-[color:var(--color-text-primary)]"
+      )}
+    >
+      {isActive && (
+        <span
+          className="absolute left-[-12px] top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          data-testid="nav-active-settings"
+        />
+      )}
+      <Settings className="size-3.5" />
+      <span>Settings</span>
+    </Link>
+  );
+}
+
 interface SidebarPanelProps {
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -369,13 +395,7 @@ function SidebarPanel({
               </span>
             )}
           </div>
-          <button
-            className="mt-1.5 flex w-full items-center gap-2 rounded-md px-0 py-1 text-xs text-[color:var(--color-text-secondary)] transition-colors hover:text-[color:var(--color-text-primary)]"
-            type="button"
-          >
-            <Settings className="size-3.5" />
-            <span>Settings</span>
-          </button>
+          <SettingsNavItem />
         </div>
       </div>
     </div>

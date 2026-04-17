@@ -276,6 +276,19 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("nav-skills")).toHaveAttribute("href", "/skills");
     });
 
+    it("renders Settings nav item linking to /settings", () => {
+      render(<AppSidebar {...makeProps()} />);
+      expect(screen.getByTestId("nav-settings")).toHaveAttribute("href", "/settings");
+    });
+
+    it("shows active indicator on active Settings nav", () => {
+      matchedRoute["/settings"] = true;
+      render(<AppSidebar {...makeProps()} />);
+      const indicator = screen.getByTestId("nav-active-settings");
+      expect(indicator.className).toContain("w-[3px]");
+      expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
+    });
+
     it("shows active indicator on active Automation nav", () => {
       matchedRoute["/automation"] = true;
       render(<AppSidebar {...makeProps()} />);
@@ -323,6 +336,7 @@ describe("AppSidebar", () => {
       expect(screen.queryByTestId("nav-active-network")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-knowledge")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-skills")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("nav-active-settings")).not.toBeInTheDocument();
     });
   });
 
