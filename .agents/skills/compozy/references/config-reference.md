@@ -33,6 +33,44 @@ Options specific to `compozy start`.
 | Field | Type | Description |
 | --- | --- | --- |
 | `include_completed` | bool | Include tasks already marked as completed |
+| `task_runtime_rules` | `array<table>` | Type-scoped runtime overrides applied after `[defaults]` for `compozy start` |
+
+#### `[[start.task_runtime_rules]]`
+
+Per-task runtime rules let `compozy start` change the runtime for tasks that match a given task `type`. This v1 config surface is intentionally bulk-oriented: config supports `type` selectors only, while one-off task `id` overrides are available from the CLI and TUI for the current run.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `type` | string | Task type selector such as `frontend`, `backend`, or any custom type from `[tasks].types` |
+| `ide` | string | Runtime override for matching tasks |
+| `model` | string | Model override for matching tasks |
+| `reasoning_effort` | string | Reasoning effort override: `low`, `medium`, `high`, `xhigh` |
+
+Rules are applied in declaration order within config, with later rules for the same `type` replacing earlier ones when workspace and global config are merged. At execution time, the effective precedence is:
+
+1. Base runtime from `[defaults]` and `[start]`
+2. Config `[[start.task_runtime_rules]]` matching the task `type`
+3. CLI or TUI `type` rules for the current run
+4. CLI or TUI `id` rules for the current run
+
+Example:
+
+```toml
+[defaults]
+ide = "codex"
+model = "gpt-5.4"
+reasoning_effort = "medium"
+
+[[start.task_runtime_rules]]
+type = "frontend"
+model = "gpt-5.4"
+reasoning_effort = "high"
+
+[[start.task_runtime_rules]]
+type = "docs"
+ide = "claude"
+model = "opus"
+```
 
 ### `[tasks]`
 
