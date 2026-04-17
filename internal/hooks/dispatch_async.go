@@ -40,7 +40,7 @@ func submitAsyncHook[P any, R any](
 	}
 
 	asyncHook := *hook
-	asyncPayload := payload
+	asyncPayload := cloneAsyncPayload(payload)
 	task := asyncTask{
 		hook: asyncHook.RegisteredHook,
 		run:  buildAsyncHookRunner(parent, h, asyncPayload, &asyncHook, pipe, parentDepth, parentChain),

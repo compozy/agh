@@ -39,6 +39,20 @@ func OrderedResolvedHooks(hooks []*ResolvedHook) []*ResolvedHook {
 	return ordered
 }
 
+func orderedResolvedHooksIfNeeded(hooks []*ResolvedHook) []*ResolvedHook {
+	if len(hooks) < 2 {
+		return hooks
+	}
+
+	for idx := 1; idx < len(hooks); idx++ {
+		if resolvedHookLess(hooks[idx], hooks[idx-1]) {
+			return OrderedResolvedHooks(hooks)
+		}
+	}
+
+	return hooks
+}
+
 func resolvedHookLess(left *ResolvedHook, right *ResolvedHook) bool {
 	if left == nil || right == nil {
 		return left != nil && right == nil
