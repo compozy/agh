@@ -1,6 +1,7 @@
 package task
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1641,16 +1642,6 @@ func (m *Service) canonicalTaskStatus(
 	return taskStatusFromSnapshot(record.Status, unresolvedDependencies, runs), nil
 }
 
-func hasActiveRun(runs []Run) bool {
-	for _, run := range runs {
-		switch run.Status.Normalize() {
-		case TaskRunStatusStarting, TaskRunStatusRunning:
-			return true
-		}
-	}
-	return false
-}
-
 func hasOpenRun(runs []Run) bool {
 	for _, run := range runs {
 		if !isTerminalRunStatus(run.Status) {
@@ -1683,17 +1674,34 @@ func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, r
 	if status == TaskStatusCanceled {
 		return status
 	}
-	if hasActiveRun(runs) {
-		return TaskStatusInProgress
+
+	hasQueuedOrClaimed := false
+	var latestTerminal Run
+	hasLatestTerminal := false
+	for idx := range runs {
+		run := runs[idx]
+		switch run.Status.Normalize() {
+		case TaskRunStatusStarting, TaskRunStatusRunning:
+			return TaskStatusInProgress
+		case TaskRunStatusQueued, TaskRunStatusClaimed:
+			hasQueuedOrClaimed = true
+		case TaskRunStatusCompleted, TaskRunStatusFailed, TaskRunStatusCanceled:
+			if !hasLatestTerminal || runComesAfter(run, latestTerminal) {
+				latestTerminal = run
+				hasLatestTerminal = true
+			}
+		}
 	}
-	if hasQueuedOrClaimedRun(runs) {
+
+	if hasQueuedOrClaimed {
 		if unresolvedDependencies {
 			return TaskStatusBlocked
 		}
 		return TaskStatusReady
 	}
-	if latest := latestTerminalRun(runs); latest != nil {
-		switch latest.Status.Normalize() {
+
+	if hasLatestTerminal {
+		switch latestTerminal.Status.Normalize() {
 		case TaskRunStatusCompleted:
 			return TaskStatusCompleted
 		case TaskRunStatusFailed:
@@ -1710,31 +1718,6 @@ func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, r
 		return TaskStatusBlocked
 	}
 	return TaskStatusReady
-}
-
-func hasQueuedOrClaimedRun(runs []Run) bool {
-	for _, run := range runs {
-		switch run.Status.Normalize() {
-		case TaskRunStatusQueued, TaskRunStatusClaimed:
-			return true
-		}
-	}
-	return false
-}
-
-func latestTerminalRun(runs []Run) *Run {
-	var latest *Run
-	for idx := range runs {
-		run := runs[idx]
-		if !isTerminalRunStatus(run.Status) {
-			continue
-		}
-		if latest == nil || runComesAfter(run, *latest) {
-			candidate := run
-			latest = &candidate
-		}
-	}
-	return latest
 }
 
 func runComesAfter(left Run, right Run) bool {
@@ -2250,8 +2233,8 @@ func normalizeRawJSON(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return nil
 	}
-	trimmed := strings.TrimSpace(string(raw))
-	if trimmed == "" {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
 		return nil
 	}
 	return json.RawMessage(trimmed)
@@ -2267,7 +2250,7 @@ func cloneRawJSON(raw json.RawMessage) json.RawMessage {
 }
 
 func sameRawJSON(left json.RawMessage, right json.RawMessage) bool {
-	return string(normalizeRawJSON(left)) == string(normalizeRawJSON(right))
+	return bytes.Equal(normalizeRawJSON(left), normalizeRawJSON(right))
 }
 
 type createdTaskPayload struct {
