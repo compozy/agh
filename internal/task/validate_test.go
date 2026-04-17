@@ -295,6 +295,15 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("draft task valid", func(t *testing.T) {
+		t.Parallel()
+		taskRecord := validTask()
+		taskRecord.Status = TaskStatusDraft
+		if err := taskRecord.Validate(); err != nil {
+			t.Fatalf("Task.Validate() draft error = %v", err)
+		}
+	})
+
 	t.Run("task invalid owner", func(t *testing.T) {
 		t.Parallel()
 		taskRecord := validTask()
@@ -370,11 +379,13 @@ func TestDomainValidationHelpers(t *testing.T) {
 	t.Run("task query validates filters", func(t *testing.T) {
 		t.Parallel()
 		err := (Query{
-			Scope:       ScopeWorkspace,
-			WorkspaceID: "ws-1",
-			Status:      TaskStatusReady,
-			OwnerKind:   OwnerKindPool,
-			Limit:       10,
+			Scope:         ScopeWorkspace,
+			WorkspaceID:   "ws-1",
+			Status:        TaskStatusReady,
+			Priority:      PriorityHigh,
+			ApprovalState: ApprovalStatePending,
+			OwnerKind:     OwnerKindPool,
+			Limit:         10,
 		}).Validate("query")
 		if err != nil {
 			t.Fatalf("Query.Validate() error = %v", err)
@@ -394,23 +405,114 @@ func TestDomainValidationHelpers(t *testing.T) {
 	})
 }
 
+func TestTaskSemanticValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		run     func() error
+		wantErr error
+	}{
+		{
+			name: "draft task cannot be closed",
+			run: func() error {
+				taskRecord := validTask()
+				taskRecord.Status = TaskStatusDraft
+				taskRecord.ClosedAt = time.Date(2026, 4, 14, 12, 45, 0, 0, time.UTC)
+				return taskRecord.Validate()
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "task invalid priority",
+			run: func() error {
+				taskRecord := validTask()
+				taskRecord.Priority = Priority("p0")
+				return taskRecord.Validate()
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "task invalid max attempts",
+			run: func() error {
+				taskRecord := validTask()
+				taskRecord.MaxAttempts = -1
+				return taskRecord.Validate()
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "task manual approval pending valid",
+			run: func() error {
+				taskRecord := validTask()
+				taskRecord.ApprovalPolicy = ApprovalPolicyManual
+				taskRecord.ApprovalState = ApprovalStatePending
+				return taskRecord.Validate()
+			},
+		},
+		{
+			name: "task no-approval with pending state invalid",
+			run: func() error {
+				taskRecord := validTask()
+				taskRecord.ApprovalState = ApprovalStatePending
+				return taskRecord.Validate()
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "task manual approval with not-required state invalid",
+			run: func() error {
+				taskRecord := validTask()
+				taskRecord.ApprovalPolicy = ApprovalPolicyManual
+				taskRecord.ApprovalState = ApprovalStateNotRequired
+				return taskRecord.Validate()
+			},
+			wantErr: ErrValidation,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.run()
+			if tt.wantErr == nil {
+				if err != nil {
+					t.Fatalf("semantic validation error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("semantic validation error = nil, want non-nil")
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("semantic validation error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func validTask() Task {
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	return Task{
-		ID:           "task-1",
-		Identifier:   "TASK-1",
-		Scope:        ScopeGlobal,
-		Title:        "Bootstrap internal/task",
-		Description:  "Create the task domain",
-		Status:       TaskStatusReady,
-		Owner:        &Ownership{Kind: OwnerKindHuman, Ref: "user-1"},
-		CreatedBy:    ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
-		Origin:       Origin{Kind: OriginKindCLI, Ref: "agh task create"},
-		CreatedAt:    now,
-		UpdatedAt:    now,
-		Metadata:     json.RawMessage(`{"priority":"high"}`),
-		ClosedAt:     time.Time{},
-		ParentTaskID: "",
+		ID:             "task-1",
+		Identifier:     "TASK-1",
+		Scope:          ScopeGlobal,
+		Title:          "Bootstrap internal/task",
+		Description:    "Create the task domain",
+		Priority:       PriorityHigh,
+		MaxAttempts:    DefaultTaskMaxAttempts,
+		Status:         TaskStatusReady,
+		ApprovalPolicy: ApprovalPolicyNone,
+		ApprovalState:  ApprovalStateNotRequired,
+		Owner:          &Ownership{Kind: OwnerKindHuman, Ref: "user-1"},
+		CreatedBy:      ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
+		Origin:         Origin{Kind: OriginKindCLI, Ref: "agh task create"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		Metadata:       json.RawMessage(`{"source":"cli"}`),
+		ClosedAt:       time.Time{},
+		ParentTaskID:   "",
 	}
 }
 
@@ -463,6 +565,10 @@ func validActorContext() ActorContext {
 	}
 }
 
+func ptr[T any](value T) *T {
+	return &value
+}
+
 func jsonBlob(targetSize int) json.RawMessage {
 	if targetSize <= 2 {
 		return json.RawMessage(`""`)
@@ -479,9 +585,34 @@ func TestEnumAndIdentityValidation(t *testing.T) {
 		wantErr error
 	}{
 		{name: "task status valid", run: func() error { return TaskStatusReady.Validate("status") }},
+		{name: "task status draft valid", run: func() error { return TaskStatusDraft.Validate("status") }},
 		{
 			name:    "task status invalid",
 			run:     func() error { return Status("waiting").Validate("status") },
+			wantErr: ErrValidation,
+		},
+		{name: "task priority valid", run: func() error { return PriorityHigh.Validate("task.priority") }},
+		{
+			name:    "task priority invalid",
+			run:     func() error { return Priority("rush").Validate("task.priority") },
+			wantErr: ErrValidation,
+		},
+		{
+			name: "approval policy valid",
+			run:  func() error { return ApprovalPolicyManual.Validate("task.approval_policy") },
+		},
+		{
+			name:    "approval policy invalid",
+			run:     func() error { return ApprovalPolicy("auto").Validate("task.approval_policy") },
+			wantErr: ErrValidation,
+		},
+		{
+			name: "approval state valid",
+			run:  func() error { return ApprovalStatePending.Validate("task.approval_state") },
+		},
+		{
+			name:    "approval state invalid",
+			run:     func() error { return ApprovalState("queued").Validate("task.approval_state") },
 			wantErr: ErrValidation,
 		},
 		{name: "task run status valid", run: func() error { return TaskRunStatusRunning.Validate("run.status") }},
@@ -585,7 +716,10 @@ func TestRequestAndQueryValidation(t *testing.T) {
 
 	title := "Updated title"
 	channel := "network:alpha"
-	metadata := json.RawMessage(`{"priority":"medium"}`)
+	metadata := json.RawMessage(`{"source":"web"}`)
+	priority := PriorityUrgent
+	maxAttempts := 5
+	approvalPolicy := ApprovalPolicyManual
 
 	tests := []struct {
 		name    string
@@ -596,13 +730,27 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			name: "create task valid",
 			run: func() error {
 				return CreateTask{
-					Scope:       ScopeWorkspace,
-					Title:       "Create task",
-					Owner:       &Ownership{Kind: OwnerKindPool, Ref: "triage"},
-					Metadata:    json.RawMessage(`{"kind":"bootstrap"}`),
-					WorkspaceID: "ws-1",
+					Scope:          ScopeWorkspace,
+					Title:          "Create task",
+					Priority:       PriorityHigh,
+					MaxAttempts:    ptr(4),
+					ApprovalPolicy: ApprovalPolicyManual,
+					Owner:          &Ownership{Kind: OwnerKindPool, Ref: "triage"},
+					Metadata:       json.RawMessage(`{"kind":"bootstrap"}`),
+					WorkspaceID:    "ws-1",
 				}.Validate("create")
 			},
+		},
+		{
+			name: "create task invalid max attempts zero",
+			run: func() error {
+				return CreateTask{
+					Scope:       ScopeGlobal,
+					Title:       "Create task",
+					MaxAttempts: ptr(0),
+				}.Validate("create")
+			},
+			wantErr: ErrValidation,
 		},
 		{
 			name: "create task invalid parent self",
@@ -621,10 +769,29 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			run: func() error {
 				return Patch{
 					Title:          &title,
+					Priority:       &priority,
+					MaxAttempts:    &maxAttempts,
+					ApprovalPolicy: &approvalPolicy,
 					NetworkChannel: &channel,
 					Metadata:       &metadata,
 				}.Validate("patch")
 			},
+		},
+		{
+			name: "task patch invalid max attempts",
+			run: func() error {
+				zero := 0
+				return Patch{MaxAttempts: &zero}.Validate("patch")
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "task patch invalid priority",
+			run: func() error {
+				invalidPriority := Priority("rush")
+				return Patch{Priority: &invalidPriority}.Validate("patch")
+			},
+			wantErr: ErrValidation,
 		},
 		{
 			name: "task patch owner conflict",

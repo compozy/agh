@@ -18,7 +18,15 @@ func (fakeStore) UpdateTask(context.Context, taskpkg.Task) error { return nil }
 func (fakeStore) GetTask(context.Context, string) (taskpkg.Task, error) { return taskpkg.Task{}, nil }
 
 func (fakeStore) ListTasks(context.Context, taskpkg.Query) ([]taskpkg.Summary, error) {
-	return []taskpkg.Summary{{ID: "task-1", Title: "bootstrap", Scope: taskpkg.ScopeGlobal}}, nil
+	return []taskpkg.Summary{{
+		ID:             "task-1",
+		Title:          "bootstrap",
+		Scope:          taskpkg.ScopeGlobal,
+		Priority:       taskpkg.PriorityMedium,
+		MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+		ApprovalState:  taskpkg.ApprovalStatePending,
+	}}, nil
 }
 
 func (fakeStore) CountDirectChildren(context.Context, string) (int, error) { return 0, nil }
@@ -95,7 +103,11 @@ type fakeCoordinator struct {
 }
 
 func (c fakeCoordinator) compose(ctx context.Context) error {
-	if _, err := c.store.ListTasks(ctx, taskpkg.Query{Limit: 1}); err != nil {
+	if _, err := c.store.ListTasks(ctx, taskpkg.Query{
+		Limit:         1,
+		Priority:      taskpkg.PriorityMedium,
+		ApprovalState: taskpkg.ApprovalStatePending,
+	}); err != nil {
 		return err
 	}
 	if err := c.sessions.RequestTaskStop(ctx, "sess-1", taskpkg.StopReasonCancellation); err != nil {

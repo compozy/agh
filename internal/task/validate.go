@@ -31,7 +31,8 @@ func (s Status) Normalize() Status {
 // Validate reports whether the task status is one of the supported lifecycle states.
 func (s Status) Validate(path string) error {
 	switch s.Normalize() {
-	case TaskStatusPending,
+	case TaskStatusDraft,
+		TaskStatusPending,
 		TaskStatusBlocked,
 		TaskStatusReady,
 		TaskStatusInProgress,
@@ -43,9 +44,10 @@ func (s Status) Validate(path string) error {
 		return fmt.Errorf("%w: %s is required", ErrValidation, path)
 	default:
 		return fmt.Errorf(
-			"%w: %s must be one of %q, %q, %q, %q, %q, %q, or %q: %q",
+			"%w: %s must be one of %q, %q, %q, %q, %q, %q, %q, or %q: %q",
 			ErrValidation,
 			path,
+			TaskStatusDraft,
 			TaskStatusPending,
 			TaskStatusBlocked,
 			TaskStatusReady,
@@ -53,6 +55,82 @@ func (s Status) Validate(path string) error {
 			TaskStatusCompleted,
 			TaskStatusFailed,
 			TaskStatusCanceled,
+			s,
+		)
+	}
+}
+
+// Normalize returns the normalized representation of the task priority.
+func (p Priority) Normalize() Priority {
+	return Priority(strings.ToLower(strings.TrimSpace(string(p))))
+}
+
+// Validate reports whether the task priority is one of the supported values.
+func (p Priority) Validate(path string) error {
+	switch p.Normalize() {
+	case PriorityLow, PriorityMedium, PriorityHigh, PriorityUrgent:
+		return nil
+	case "":
+		return fmt.Errorf("%w: %s is required", ErrValidation, path)
+	default:
+		return fmt.Errorf(
+			"%w: %s must be one of %q, %q, %q, or %q: %q",
+			ErrValidation,
+			path,
+			PriorityLow,
+			PriorityMedium,
+			PriorityHigh,
+			PriorityUrgent,
+			p,
+		)
+	}
+}
+
+// Normalize returns the normalized representation of the approval policy.
+func (p ApprovalPolicy) Normalize() ApprovalPolicy {
+	return ApprovalPolicy(strings.ToLower(strings.TrimSpace(string(p))))
+}
+
+// Validate reports whether the approval policy is one of the supported values.
+func (p ApprovalPolicy) Validate(path string) error {
+	switch p.Normalize() {
+	case ApprovalPolicyNone, ApprovalPolicyManual:
+		return nil
+	case "":
+		return fmt.Errorf("%w: %s is required", ErrValidation, path)
+	default:
+		return fmt.Errorf(
+			"%w: %s must be %q or %q: %q",
+			ErrValidation,
+			path,
+			ApprovalPolicyNone,
+			ApprovalPolicyManual,
+			p,
+		)
+	}
+}
+
+// Normalize returns the normalized representation of the approval state.
+func (s ApprovalState) Normalize() ApprovalState {
+	return ApprovalState(strings.ToLower(strings.TrimSpace(string(s))))
+}
+
+// Validate reports whether the approval state is one of the supported values.
+func (s ApprovalState) Validate(path string) error {
+	switch s.Normalize() {
+	case ApprovalStateNotRequired, ApprovalStatePending, ApprovalStateApproved, ApprovalStateRejected:
+		return nil
+	case "":
+		return fmt.Errorf("%w: %s is required", ErrValidation, path)
+	default:
+		return fmt.Errorf(
+			"%w: %s must be one of %q, %q, %q, or %q: %q",
+			ErrValidation,
+			path,
+			ApprovalStateNotRequired,
+			ApprovalStatePending,
+			ApprovalStateApproved,
+			ApprovalStateRejected,
 			s,
 		)
 	}
@@ -293,6 +371,26 @@ func (t Task) Validate() error {
 	if err := t.Status.Validate("task.status"); err != nil {
 		return err
 	}
+	if t.Status.Normalize() == TaskStatusDraft && !t.ClosedAt.IsZero() {
+		return fmt.Errorf("%w: task.closed_at must be empty while task.status is %q", ErrValidation, TaskStatusDraft)
+	}
+	if err := normalizePriorityOrDefault(t.Priority).Validate("task.priority"); err != nil {
+		return err
+	}
+	if err := validateTaskMaxAttempts(t.MaxAttempts, "task.max_attempts", true); err != nil {
+		return err
+	}
+	approvalPolicy := normalizeApprovalPolicyOrDefault(t.ApprovalPolicy)
+	if err := approvalPolicy.Validate("task.approval_policy"); err != nil {
+		return err
+	}
+	approvalState := normalizeApprovalStateOrDefault(approvalPolicy, t.ApprovalState)
+	if err := approvalState.Validate("task.approval_state"); err != nil {
+		return err
+	}
+	if err := ValidateApprovalSemantics(approvalPolicy, approvalState, "task"); err != nil {
+		return err
+	}
 	if err := t.CreatedBy.Validate("task.created_by"); err != nil {
 		return err
 	}
@@ -430,6 +528,21 @@ func (r CreateTask) Validate(path string) error {
 			return err
 		}
 	}
+	if r.Priority.Normalize() != "" {
+		if err := r.Priority.Validate(nestedPath(path, "priority")); err != nil {
+			return err
+		}
+	}
+	if r.MaxAttempts != nil {
+		if err := validateTaskMaxAttempts(*r.MaxAttempts, nestedPath(path, "max_attempts"), false); err != nil {
+			return err
+		}
+	}
+	if r.ApprovalPolicy.Normalize() != "" {
+		if err := r.ApprovalPolicy.Validate(nestedPath(path, "approval_policy")); err != nil {
+			return err
+		}
+	}
 	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
 		return err
 	}
@@ -438,12 +551,11 @@ func (r CreateTask) Validate(path string) error {
 
 // Validate reports whether the task patch contains at least one mutable field and valid values.
 func (p Patch) Validate(path string) error {
-	if p.Title == nil && p.Description == nil && p.Metadata == nil && p.NetworkChannel == nil && p.Owner == nil &&
-		!p.ClearOwner {
+	if !taskPatchHasMutableFields(p) {
 		return fmt.Errorf("%w: %s requires at least one mutable field", ErrValidation, path)
 	}
-	if p.Title != nil && strings.TrimSpace(*p.Title) == "" {
-		return fmt.Errorf("%w: %s is required when provided", ErrValidation, nestedPath(path, "title"))
+	if err := validateTaskPatchTextAndSemantics(p, path); err != nil {
+		return err
 	}
 	if p.Owner != nil && p.ClearOwner {
 		return fmt.Errorf("%w: %s.owner and %s.clear_owner cannot both be set", ErrValidation, path, path)
@@ -530,6 +642,16 @@ func (q Query) Validate(path string) error {
 	}
 	if q.Status.Normalize() != "" {
 		if err := q.Status.Validate(nestedPath(path, "status")); err != nil {
+			return err
+		}
+	}
+	if q.Priority.Normalize() != "" {
+		if err := q.Priority.Validate(nestedPath(path, "priority")); err != nil {
+			return err
+		}
+	}
+	if q.ApprovalState.Normalize() != "" {
+		if err := q.ApprovalState.Validate(nestedPath(path, "approval_state")); err != nil {
 			return err
 		}
 	}
@@ -677,6 +799,51 @@ func ValidateDirectChildCount(count int) error {
 	return validateBoundedCount(count, MaxDirectChildren, "direct child count")
 }
 
+// ValidateApprovalSemantics reports whether one approval policy and state pair is internally consistent.
+func ValidateApprovalSemantics(policy ApprovalPolicy, state ApprovalState, path string) error {
+	normalizedPolicy := normalizeApprovalPolicyOrDefault(policy)
+	normalizedState := normalizeApprovalStateOrDefault(normalizedPolicy, state)
+
+	if err := normalizedPolicy.Validate(nestedPath(path, "approval_policy")); err != nil {
+		return err
+	}
+	if err := normalizedState.Validate(nestedPath(path, "approval_state")); err != nil {
+		return err
+	}
+
+	switch normalizedPolicy {
+	case ApprovalPolicyNone:
+		if normalizedState != ApprovalStateNotRequired {
+			return fmt.Errorf(
+				"%w: %s must be %q when %s is %q",
+				ErrValidation,
+				nestedPath(path, "approval_state"),
+				ApprovalStateNotRequired,
+				nestedPath(path, "approval_policy"),
+				ApprovalPolicyNone,
+			)
+		}
+	case ApprovalPolicyManual:
+		switch normalizedState {
+		case ApprovalStatePending, ApprovalStateApproved, ApprovalStateRejected:
+			return nil
+		default:
+			return fmt.Errorf(
+				"%w: %s must be one of %q, %q, or %q when %s is %q",
+				ErrValidation,
+				nestedPath(path, "approval_state"),
+				ApprovalStatePending,
+				ApprovalStateApproved,
+				ApprovalStateRejected,
+				nestedPath(path, "approval_policy"),
+				ApprovalPolicyManual,
+			)
+		}
+	}
+
+	return nil
+}
+
 func validateJSONSize(payload json.RawMessage, maxBytes int, path string) error {
 	if len(payload) == 0 {
 		return nil
@@ -700,6 +867,93 @@ func validateBoundedCount(count int, maxCount int, label string) error {
 		return fmt.Errorf("%w: %s exceeds %d: %d", ErrGraphLimitExceeded, label, maxCount, count)
 	}
 	return nil
+}
+
+func taskPatchHasMutableFields(p Patch) bool {
+	return p.Title != nil ||
+		p.Description != nil ||
+		p.Priority != nil ||
+		p.MaxAttempts != nil ||
+		p.ApprovalPolicy != nil ||
+		p.Metadata != nil ||
+		p.NetworkChannel != nil ||
+		p.Owner != nil ||
+		p.ClearOwner
+}
+
+func validateTaskPatchTextAndSemantics(p Patch, path string) error {
+	if p.Title != nil && strings.TrimSpace(*p.Title) == "" {
+		return fmt.Errorf("%w: %s is required when provided", ErrValidation, nestedPath(path, "title"))
+	}
+	if p.Priority != nil {
+		if err := p.Priority.Validate(nestedPath(path, "priority")); err != nil {
+			return err
+		}
+	}
+	if p.MaxAttempts != nil {
+		if err := validateTaskMaxAttempts(*p.MaxAttempts, nestedPath(path, "max_attempts"), false); err != nil {
+			return err
+		}
+	}
+	if p.ApprovalPolicy != nil {
+		if err := p.ApprovalPolicy.Validate(nestedPath(path, "approval_policy")); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func normalizePriorityOrDefault(priority Priority) Priority {
+	normalized := priority.Normalize()
+	if normalized == "" {
+		return DefaultPriority
+	}
+	return normalized
+}
+
+func normalizeTaskMaxAttemptsOrDefault(maxAttempts int) int {
+	if maxAttempts == 0 {
+		return DefaultTaskMaxAttempts
+	}
+	return maxAttempts
+}
+
+func validateTaskMaxAttempts(maxAttempts int, path string, allowZeroDefault bool) error {
+	if allowZeroDefault && maxAttempts == 0 {
+		return nil
+	}
+	if maxAttempts <= 0 {
+		return fmt.Errorf("%w: %s must be positive: %d", ErrValidation, path, maxAttempts)
+	}
+	if maxAttempts > MaxTaskMaxAttempts {
+		return fmt.Errorf("%w: %s must be <= %d: %d", ErrValidation, path, MaxTaskMaxAttempts, maxAttempts)
+	}
+	return nil
+}
+
+func normalizeApprovalPolicyOrDefault(policy ApprovalPolicy) ApprovalPolicy {
+	normalized := policy.Normalize()
+	if normalized == "" {
+		return DefaultApprovalPolicy
+	}
+	return normalized
+}
+
+func defaultApprovalStateForPolicy(policy ApprovalPolicy) ApprovalState {
+	switch normalizeApprovalPolicyOrDefault(policy) {
+	case ApprovalPolicyManual:
+		return ApprovalStatePending
+	default:
+		return ApprovalStateNotRequired
+	}
+}
+
+func normalizeApprovalStateOrDefault(policy ApprovalPolicy, state ApprovalState) ApprovalState {
+	normalized := state.Normalize()
+	if normalized == "" {
+		return defaultApprovalStateForPolicy(policy)
+	}
+	return normalized
 }
 
 func nestedPath(path string, field string) string {

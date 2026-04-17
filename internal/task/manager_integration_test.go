@@ -114,6 +114,59 @@ func TestTaskManagerCreateTaskPersistsAgentSessionIdentity(t *testing.T) {
 	}
 }
 
+func TestTaskManagerRejectsInvalidTaskSemanticsBeforePersistence(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		spec taskpkg.CreateTask
+	}{
+		{
+			name: "invalid priority",
+			spec: taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Bad priority", Priority: taskpkg.Priority("rush")},
+		},
+		{
+			name: "invalid max attempts",
+			spec: taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Bad attempts", MaxAttempts: intPtr(0)},
+		},
+		{
+			name: "invalid approval policy",
+			spec: taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Bad approval", ApprovalPolicy: taskpkg.ApprovalPolicy("auto")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			db := openTaskManagerGlobalDB(t)
+			manager := newTaskManagerIntegration(t, db)
+
+			actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task create")
+			if err != nil {
+				t.Fatalf("DeriveHumanActorContext() error = %v", err)
+			}
+
+			_, err = manager.CreateTask(ctx, tt.spec, actor)
+			if err == nil {
+				t.Fatal("CreateTask() error = nil, want non-nil")
+			}
+			if !errors.Is(err, taskpkg.ErrValidation) {
+				t.Fatalf("CreateTask() error = %v, want %v", err, taskpkg.ErrValidation)
+			}
+
+			tasks, err := db.ListTasks(ctx, taskpkg.Query{})
+			if err != nil {
+				t.Fatalf("ListTasks() error = %v", err)
+			}
+			if got := len(tasks); got != 0 {
+				t.Fatalf("len(tasks) = %d, want 0", got)
+			}
+		})
+	}
+}
+
 func TestTaskManagerCreateTaskPersistsAutomationLinkedAgentOrigin(t *testing.T) {
 	t.Parallel()
 
@@ -516,6 +569,10 @@ func registerTaskManagerWorkspace(t *testing.T, db *globaldb.GlobalDB, name stri
 		t.Fatalf("InsertWorkspace() error = %v", err)
 	}
 	return workspace.ID
+}
+
+func intPtr(value int) *int {
+	return &value
 }
 
 func sortedEventTypes(events []taskpkg.Event) []string {

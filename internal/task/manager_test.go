@@ -144,6 +144,8 @@ func (s *inMemoryManagerStore) ListTasks(_ context.Context, query Query) ([]Summ
 	normalized.Scope = normalized.Scope.Normalize()
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.Status = normalized.Status.Normalize()
+	normalized.Priority = normalized.Priority.Normalize()
+	normalized.ApprovalState = normalized.ApprovalState.Normalize()
 	normalized.OwnerKind = normalized.OwnerKind.Normalize()
 	normalized.OwnerRef = strings.TrimSpace(normalized.OwnerRef)
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
@@ -158,6 +160,12 @@ func (s *inMemoryManagerStore) ListTasks(_ context.Context, query Query) ([]Summ
 			continue
 		}
 		if normalized.Status.Normalize() != "" && record.Status != normalized.Status {
+			continue
+		}
+		if normalized.Priority.Normalize() != "" && record.Priority != normalized.Priority {
+			continue
+		}
+		if normalized.ApprovalState.Normalize() != "" && record.ApprovalState != normalized.ApprovalState {
 			continue
 		}
 		if normalized.OwnerKind.Normalize() != "" {
@@ -184,7 +192,12 @@ func (s *inMemoryManagerStore) ListTasks(_ context.Context, query Query) ([]Summ
 			ParentTaskID:   record.ParentTaskID,
 			NetworkChannel: record.NetworkChannel,
 			Title:          record.Title,
+			Priority:       record.Priority,
+			MaxAttempts:    record.MaxAttempts,
 			Status:         record.Status,
+			ApprovalPolicy: record.ApprovalPolicy,
+			ApprovalState:  record.ApprovalState,
+			Draft:          record.Status.Normalize() == TaskStatusDraft,
 			Owner:          cloneOwnership(record.Owner),
 			CreatedBy:      record.CreatedBy,
 			Origin:         record.Origin,
@@ -569,6 +582,18 @@ func TestManagerCreateTaskUsesTrustedActorContext(t *testing.T) {
 	if got, want := created.Status, TaskStatusReady; got != want {
 		t.Fatalf("created.Status = %q, want %q", got, want)
 	}
+	if got, want := created.Priority, DefaultPriority; got != want {
+		t.Fatalf("created.Priority = %q, want %q", got, want)
+	}
+	if got, want := created.MaxAttempts, DefaultTaskMaxAttempts; got != want {
+		t.Fatalf("created.MaxAttempts = %d, want %d", got, want)
+	}
+	if got, want := created.ApprovalPolicy, ApprovalPolicyNone; got != want {
+		t.Fatalf("created.ApprovalPolicy = %q, want %q", got, want)
+	}
+	if got, want := created.ApprovalState, ApprovalStateNotRequired; got != want {
+		t.Fatalf("created.ApprovalState = %q, want %q", got, want)
+	}
 
 	events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: created.ID})
 	if err != nil {
@@ -585,6 +610,39 @@ func TestManagerCreateTaskUsesTrustedActorContext(t *testing.T) {
 	}
 	if got, want := events[0].Origin, actor.Origin; got != want {
 		t.Fatalf("events[0].Origin = %#v, want %#v", got, want)
+	}
+}
+
+func TestManagerCreateTaskAppliesSemanticDefaultsAndDraftStatus(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+
+	draftCreated, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Draft task",
+		Draft: true,
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(draft) error = %v", err)
+	}
+
+	if got, want := draftCreated.Status, TaskStatusDraft; got != want {
+		t.Fatalf("draftCreated.Status = %q, want %q", got, want)
+	}
+	if got, want := draftCreated.Priority, DefaultPriority; got != want {
+		t.Fatalf("draftCreated.Priority = %q, want %q", got, want)
+	}
+	if got, want := draftCreated.MaxAttempts, DefaultTaskMaxAttempts; got != want {
+		t.Fatalf("draftCreated.MaxAttempts = %d, want %d", got, want)
+	}
+	if got, want := draftCreated.ApprovalPolicy, ApprovalPolicyNone; got != want {
+		t.Fatalf("draftCreated.ApprovalPolicy = %q, want %q", got, want)
+	}
+	if got, want := draftCreated.ApprovalState, ApprovalStateNotRequired; got != want {
+		t.Fatalf("draftCreated.ApprovalState = %q, want %q", got, want)
 	}
 }
 
@@ -629,6 +687,48 @@ func TestManagerCreateTaskEnforcesScopeAuthority(t *testing.T) {
 	}
 }
 
+func TestManagerCreateTaskRejectsInvalidSemanticInputsBeforePersistence(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		spec CreateTask
+	}{
+		{
+			name: "invalid priority",
+			spec: CreateTask{Scope: ScopeGlobal, Title: "Bad priority", Priority: Priority("rush")},
+		},
+		{
+			name: "invalid max attempts",
+			spec: CreateTask{Scope: ScopeGlobal, Title: "Bad attempts", MaxAttempts: ptr(0)},
+		},
+		{
+			name: "invalid approval policy",
+			spec: CreateTask{Scope: ScopeGlobal, Title: "Bad approval", ApprovalPolicy: ApprovalPolicy("auto")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newInMemoryManagerStore()
+			manager := newTaskManagerForTest(t, store)
+
+			_, err := manager.CreateTask(context.Background(), tt.spec, validActorContext())
+			if err == nil {
+				t.Fatal("CreateTask() error = nil, want non-nil")
+			}
+			if !errors.Is(err, ErrValidation) {
+				t.Fatalf("CreateTask() error = %v, want %v", err, ErrValidation)
+			}
+			if got := len(store.tasks); got != 0 {
+				t.Fatalf("len(store.tasks) = %d, want 0", got)
+			}
+		})
+	}
+}
+
 func TestManagerUpdateTaskAllowsMutableOwnershipAndChannelFields(t *testing.T) {
 	t.Parallel()
 
@@ -649,10 +749,16 @@ func TestManagerUpdateTaskAllowsMutableOwnershipAndChannelFields(t *testing.T) {
 	title := "Claimed task"
 	description := "Assigned to triage"
 	channel := "ops"
-	metadata := json.RawMessage(`{"priority":"high"}`)
+	metadata := json.RawMessage(`{"source":"ui"}`)
+	priority := PriorityUrgent
+	maxAttempts := 5
+	approvalPolicy := ApprovalPolicyManual
 	updated, err := manager.UpdateTask(context.Background(), created.ID, Patch{
 		Title:          &title,
 		Description:    &description,
+		Priority:       &priority,
+		MaxAttempts:    &maxAttempts,
+		ApprovalPolicy: &approvalPolicy,
 		NetworkChannel: &channel,
 		Owner:          &Ownership{Kind: OwnerKindPool, Ref: "triage"},
 		Metadata:       &metadata,
@@ -669,6 +775,18 @@ func TestManagerUpdateTaskAllowsMutableOwnershipAndChannelFields(t *testing.T) {
 	}
 	if got, want := updated.NetworkChannel, channel; got != want {
 		t.Fatalf("updated.NetworkChannel = %q, want %q", got, want)
+	}
+	if got, want := updated.Priority, priority; got != want {
+		t.Fatalf("updated.Priority = %q, want %q", got, want)
+	}
+	if got, want := updated.MaxAttempts, maxAttempts; got != want {
+		t.Fatalf("updated.MaxAttempts = %d, want %d", got, want)
+	}
+	if got, want := updated.ApprovalPolicy, approvalPolicy; got != want {
+		t.Fatalf("updated.ApprovalPolicy = %q, want %q", got, want)
+	}
+	if got, want := updated.ApprovalState, ApprovalStatePending; got != want {
+		t.Fatalf("updated.ApprovalState = %q, want %q", got, want)
 	}
 	if updated.Owner == nil || updated.Owner.Kind != OwnerKindPool || updated.Owner.Ref != "triage" {
 		t.Fatalf("updated.Owner = %#v, want pool/triage", updated.Owner)
@@ -737,6 +855,34 @@ func TestManagerUpdateTaskPreservesCanonicalBlockedStatus(t *testing.T) {
 	}
 	if got, want := updated.Status, TaskStatusBlocked; got != want {
 		t.Fatalf("updated.Status = %q, want %q", got, want)
+	}
+}
+
+func TestManagerEnqueueRunRejectsDraftTask(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+
+	draftTask, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Draft task",
+		Draft: true,
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: draftTask.ID}, actor)
+	if run != nil {
+		t.Fatalf("EnqueueRun() run = %#v, want nil", run)
+	}
+	if !errors.Is(err, ErrInvalidStatusTransition) {
+		t.Fatalf("EnqueueRun() error = %v, want %v", err, ErrInvalidStatusTransition)
+	}
+	if got := len(store.runs); got != 0 {
+		t.Fatalf("len(store.runs) = %d, want 0", got)
 	}
 }
 

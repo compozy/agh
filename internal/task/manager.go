@@ -167,7 +167,11 @@ func (m *Service) CreateTask(ctx context.Context, spec CreateTask, actor ActorCo
 		NetworkChannel: normalizedSpec.NetworkChannel,
 		Title:          normalizedSpec.Title,
 		Description:    normalizedSpec.Description,
-		Status:         TaskStatusReady,
+		Priority:       normalizedSpec.Priority,
+		MaxAttempts:    createTaskMaxAttempts(normalizedSpec),
+		Status:         createdTaskStatus(normalizedSpec),
+		ApprovalPolicy: normalizedSpec.ApprovalPolicy,
+		ApprovalState:  defaultApprovalStateForPolicy(normalizedSpec.ApprovalPolicy),
 		Owner:          cloneOwnership(normalizedSpec.Owner),
 		CreatedBy:      actor.Actor,
 		Origin:         actor.Origin,
@@ -338,6 +342,19 @@ func applyTaskPatch(current Task, patch Patch) (Task, []string) {
 		updated.Description = *patch.Description
 		changedFields = append(changedFields, TaskFieldDescription)
 	}
+	if patch.Priority != nil && updated.Priority != *patch.Priority {
+		updated.Priority = *patch.Priority
+		changedFields = append(changedFields, TaskFieldPriority)
+	}
+	if patch.MaxAttempts != nil && updated.MaxAttempts != *patch.MaxAttempts {
+		updated.MaxAttempts = *patch.MaxAttempts
+		changedFields = append(changedFields, TaskFieldMaxAttempts)
+	}
+	if patch.ApprovalPolicy != nil && updated.ApprovalPolicy != *patch.ApprovalPolicy {
+		updated.ApprovalPolicy = *patch.ApprovalPolicy
+		updated.ApprovalState = defaultApprovalStateForPolicy(*patch.ApprovalPolicy)
+		changedFields = append(changedFields, TaskFieldApprovalPolicy)
+	}
 	if patch.Metadata != nil && !sameRawJSON(updated.Metadata, *patch.Metadata) {
 		updated.Metadata = cloneRawJSON(*patch.Metadata)
 		changedFields = append(changedFields, TaskFieldMetadata)
@@ -356,6 +373,20 @@ func applyTaskPatch(current Task, patch Patch) (Task, []string) {
 	}
 
 	return updated, changedFields
+}
+
+func createTaskMaxAttempts(spec CreateTask) int {
+	if spec.MaxAttempts == nil {
+		return DefaultTaskMaxAttempts
+	}
+	return normalizeTaskMaxAttemptsOrDefault(*spec.MaxAttempts)
+}
+
+func createdTaskStatus(spec CreateTask) Status {
+	if spec.Draft {
+		return TaskStatusDraft
+	}
+	return TaskStatusReady
 }
 
 func (m *Service) loadCancellationTree(ctx context.Context, taskID string) ([]Task, Task, error) {
@@ -912,7 +943,10 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 	if err != nil {
 		return nil, err
 	}
-	if taskRecord.Status.Normalize() == TaskStatusCanceled {
+	switch taskRecord.Status.Normalize() {
+	case TaskStatusDraft:
+		return nil, fmt.Errorf("%w: task %q is draft", ErrInvalidStatusTransition, taskRecord.ID)
+	case TaskStatusCanceled:
 		return nil, fmt.Errorf("%w: task %q is canceled", ErrInvalidStatusTransition, taskRecord.ID)
 	}
 
@@ -1371,6 +1405,12 @@ func normalizeCreateTaskSpec(spec CreateTask) (CreateTask, error) {
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.Title = strings.TrimSpace(normalized.Title)
 	normalized.Description = strings.TrimSpace(normalized.Description)
+	normalized.Priority = normalizePriorityOrDefault(normalized.Priority)
+	if normalized.MaxAttempts != nil {
+		maxAttempts := *normalized.MaxAttempts
+		normalized.MaxAttempts = &maxAttempts
+	}
+	normalized.ApprovalPolicy = normalizeApprovalPolicyOrDefault(normalized.ApprovalPolicy)
 	if normalized.Owner != nil {
 		normalized.Owner = normalizeOwnership(normalized.Owner)
 	}
@@ -1390,6 +1430,18 @@ func normalizeTaskPatch(patch Patch) (Patch, error) {
 	if normalized.Description != nil {
 		description := strings.TrimSpace(*normalized.Description)
 		normalized.Description = &description
+	}
+	if normalized.Priority != nil {
+		priority := normalized.Priority.Normalize()
+		normalized.Priority = &priority
+	}
+	if normalized.MaxAttempts != nil {
+		maxAttempts := *normalized.MaxAttempts
+		normalized.MaxAttempts = &maxAttempts
+	}
+	if normalized.ApprovalPolicy != nil {
+		approvalPolicy := normalized.ApprovalPolicy.Normalize()
+		normalized.ApprovalPolicy = &approvalPolicy
 	}
 	if normalized.Metadata != nil {
 		metadata := normalizeRawJSON(*normalized.Metadata)
@@ -1671,7 +1723,7 @@ func isTerminalRunStatus(status RunStatus) bool {
 
 func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, runs []Run) Status {
 	status := currentStatus.Normalize()
-	if status == TaskStatusCanceled {
+	if status == TaskStatusCanceled || status == TaskStatusDraft {
 		return status
 	}
 
@@ -1845,6 +1897,8 @@ func (m *Service) ensureTaskExecutable(ctx context.Context, record Task) error {
 	switch status.Normalize() {
 	case TaskStatusBlocked:
 		return fmt.Errorf("%w: task %q is blocked", ErrInvalidStatusTransition, record.ID)
+	case TaskStatusDraft:
+		return fmt.Errorf("%w: task %q is draft", ErrInvalidStatusTransition, record.ID)
 	case TaskStatusCanceled:
 		return fmt.Errorf("%w: task %q is canceled", ErrInvalidStatusTransition, record.ID)
 	default:

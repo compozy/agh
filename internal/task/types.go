@@ -19,6 +19,8 @@ const (
 type Status string
 
 const (
+	// TaskStatusDraft reports a saved draft that is not yet runnable.
+	TaskStatusDraft Status = "draft"
 	// TaskStatusPending reports a task that exists but has not yet been reconciled into ready work.
 	TaskStatusPending Status = "pending"
 	// TaskStatusBlocked reports a task with unresolved dependencies.
@@ -33,6 +35,48 @@ const (
 	TaskStatusFailed Status = "failed"
 	// TaskStatusCanceled reports a task that was canceled before successful completion.
 	TaskStatusCanceled Status = "canceled"
+)
+
+// Priority identifies the operator-facing urgency assigned to one task.
+type Priority string
+
+const (
+	// PriorityLow identifies the lowest urgency.
+	PriorityLow Priority = "low"
+	// PriorityMedium identifies the default urgency.
+	PriorityMedium Priority = "medium"
+	// PriorityHigh identifies elevated urgency.
+	PriorityHigh Priority = "high"
+	// PriorityUrgent identifies the highest urgency.
+	PriorityUrgent Priority = "urgent"
+	// DefaultPriority is the canonical priority used when callers omit the field.
+	DefaultPriority Priority = PriorityMedium
+)
+
+// ApprovalPolicy identifies whether a task requires an explicit approval step.
+type ApprovalPolicy string
+
+const (
+	// ApprovalPolicyNone identifies tasks that do not require approval.
+	ApprovalPolicyNone ApprovalPolicy = "none"
+	// ApprovalPolicyManual identifies tasks that require an explicit approve or reject action.
+	ApprovalPolicyManual ApprovalPolicy = "manual"
+	// DefaultApprovalPolicy is the canonical policy used when callers omit approval requirements.
+	DefaultApprovalPolicy ApprovalPolicy = ApprovalPolicyNone
+)
+
+// ApprovalState identifies the current approval outcome for one task.
+type ApprovalState string
+
+const (
+	// ApprovalStateNotRequired identifies tasks whose policy does not require approval.
+	ApprovalStateNotRequired ApprovalState = "not_required"
+	// ApprovalStatePending identifies tasks waiting for approval.
+	ApprovalStatePending ApprovalState = "pending"
+	// ApprovalStateApproved identifies tasks that were approved.
+	ApprovalStateApproved ApprovalState = "approved"
+	// ApprovalStateRejected identifies tasks that were rejected.
+	ApprovalStateRejected ApprovalState = "rejected"
 )
 
 // RunStatus identifies the canonical lifecycle state of a task run.
@@ -191,7 +235,11 @@ type Task struct {
 	NetworkChannel string          `json:"network_channel,omitempty"`
 	Title          string          `json:"title"`
 	Description    string          `json:"description,omitempty"`
+	Priority       Priority        `json:"priority,omitempty"`
+	MaxAttempts    int             `json:"max_attempts,omitempty"`
 	Status         Status          `json:"status"`
+	ApprovalPolicy ApprovalPolicy  `json:"approval_policy,omitempty"`
+	ApprovalState  ApprovalState   `json:"approval_state,omitempty"`
 	Owner          *Ownership      `json:"owner,omitempty"`
 	CreatedBy      ActorIdentity   `json:"created_by"`
 	Origin         Origin          `json:"origin"`
@@ -250,20 +298,25 @@ type RunIdempotency struct {
 
 // Summary is the lightweight read model returned from list-oriented task queries.
 type Summary struct {
-	ID             string        `json:"id"`
-	Identifier     string        `json:"identifier,omitempty"`
-	Scope          Scope         `json:"scope"`
-	WorkspaceID    string        `json:"workspace_id,omitempty"`
-	ParentTaskID   string        `json:"parent_task_id,omitempty"`
-	NetworkChannel string        `json:"network_channel,omitempty"`
-	Title          string        `json:"title"`
-	Status         Status        `json:"status"`
-	Owner          *Ownership    `json:"owner,omitempty"`
-	CreatedBy      ActorIdentity `json:"created_by"`
-	Origin         Origin        `json:"origin"`
-	CreatedAt      time.Time     `json:"created_at"`
-	UpdatedAt      time.Time     `json:"updated_at"`
-	ClosedAt       time.Time     `json:"closed_at"`
+	ID             string         `json:"id"`
+	Identifier     string         `json:"identifier,omitempty"`
+	Scope          Scope          `json:"scope"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	ParentTaskID   string         `json:"parent_task_id,omitempty"`
+	NetworkChannel string         `json:"network_channel,omitempty"`
+	Title          string         `json:"title"`
+	Priority       Priority       `json:"priority,omitempty"`
+	MaxAttempts    int            `json:"max_attempts,omitempty"`
+	Status         Status         `json:"status"`
+	ApprovalPolicy ApprovalPolicy `json:"approval_policy,omitempty"`
+	ApprovalState  ApprovalState  `json:"approval_state,omitempty"`
+	Draft          bool           `json:"draft"`
+	Owner          *Ownership     `json:"owner,omitempty"`
+	CreatedBy      ActorIdentity  `json:"created_by"`
+	Origin         Origin         `json:"origin"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	ClosedAt       time.Time      `json:"closed_at"`
 }
 
 // View is the expanded read model returned from single-task lookups.
@@ -285,6 +338,10 @@ type CreateTask struct {
 	NetworkChannel string          `json:"network_channel,omitempty"`
 	Title          string          `json:"title"`
 	Description    string          `json:"description,omitempty"`
+	Priority       Priority        `json:"priority,omitempty"`
+	MaxAttempts    *int            `json:"max_attempts,omitempty"`
+	Draft          bool            `json:"draft,omitempty"`
+	ApprovalPolicy ApprovalPolicy  `json:"approval_policy,omitempty"`
 	Owner          *Ownership      `json:"owner,omitempty"`
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
@@ -293,6 +350,9 @@ type CreateTask struct {
 type Patch struct {
 	Title          *string          `json:"title,omitempty"`
 	Description    *string          `json:"description,omitempty"`
+	Priority       *Priority        `json:"priority,omitempty"`
+	MaxAttempts    *int             `json:"max_attempts,omitempty"`
+	ApprovalPolicy *ApprovalPolicy  `json:"approval_policy,omitempty"`
 	Metadata       *json.RawMessage `json:"metadata,omitempty"`
 	NetworkChannel *string          `json:"network_channel,omitempty"`
 	Owner          *Ownership       `json:"owner,omitempty"`
@@ -348,14 +408,16 @@ type RunFailure struct {
 
 // Query captures the supported list filters for task reads.
 type Query struct {
-	Scope          Scope     `json:"scope,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Status         Status    `json:"status,omitempty"`
-	OwnerKind      OwnerKind `json:"owner_kind,omitempty"`
-	OwnerRef       string    `json:"owner_ref,omitempty"`
-	ParentTaskID   string    `json:"parent_task_id,omitempty"`
-	NetworkChannel string    `json:"network_channel,omitempty"`
-	Limit          int       `json:"limit,omitempty"`
+	Scope          Scope         `json:"scope,omitempty"`
+	WorkspaceID    string        `json:"workspace_id,omitempty"`
+	Status         Status        `json:"status,omitempty"`
+	Priority       Priority      `json:"priority,omitempty"`
+	ApprovalState  ApprovalState `json:"approval_state,omitempty"`
+	OwnerKind      OwnerKind     `json:"owner_kind,omitempty"`
+	OwnerRef       string        `json:"owner_ref,omitempty"`
+	ParentTaskID   string        `json:"parent_task_id,omitempty"`
+	NetworkChannel string        `json:"network_channel,omitempty"`
+	Limit          int           `json:"limit,omitempty"`
 }
 
 // RunQuery captures the supported list filters for task-run reads.
