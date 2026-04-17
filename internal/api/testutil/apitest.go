@@ -160,12 +160,18 @@ func (s StubSessionManager) ApprovePermission(ctx context.Context, id string, re
 }
 
 type StubObserver struct {
-	QueryEventsFn       func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
-	QueryHookCatalogFn  func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
-	QueryHookRunsFn     func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
-	QueryHookEventsFn   func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
-	QueryBridgeHealthFn func(context.Context) ([]observe.BridgeInstanceHealth, error)
-	HealthFn            func(context.Context) (observe.Health, error)
+	QueryEventsFn        func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
+	QueryHookCatalogFn   func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
+	QueryHookRunsFn      func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
+	QueryHookEventsFn    func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
+	QueryBridgeHealthFn  func(context.Context) ([]observe.BridgeInstanceHealth, error)
+	HealthFn             func(context.Context) (observe.Health, error)
+	QueryTaskDashboardFn func(context.Context, observe.TaskDashboardQuery) (observe.TaskDashboardView, error)
+	QueryTaskInboxFn     func(
+		context.Context,
+		observe.TaskInboxQuery,
+		taskpkg.ActorIdentity,
+	) (observe.TaskInboxView, error)
 }
 
 type StubAutomationManager struct {
@@ -195,7 +201,13 @@ type StubTaskManager struct {
 	CreateTaskFn       func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
 	CreateChildTaskFn  func(context.Context, string, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
 	UpdateTaskFn       func(context.Context, string, taskpkg.Patch, taskpkg.ActorContext) (*taskpkg.Task, error)
+	PublishTaskFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
+	ApproveTaskFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
+	RejectTaskFn       func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
 	CancelTaskFn       func(context.Context, string, taskpkg.CancelTask, taskpkg.ActorContext) (*taskpkg.Task, error)
+	MarkTaskReadFn     func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
+	ArchiveTaskFn      func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
+	DismissTaskFn      func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
 	AddDependencyFn    func(context.Context, taskpkg.AddDependency, taskpkg.ActorContext) error
 	RemoveDependencyFn func(context.Context, string, string, taskpkg.ActorContext) error
 	EnqueueRunFn       func(context.Context, taskpkg.EnqueueRun, taskpkg.ActorContext) (*taskpkg.Run, error)
@@ -208,6 +220,20 @@ type StubTaskManager struct {
 	GetTaskFn          func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error)
 	ListTaskRunsFn     func(context.Context, string, taskpkg.RunQuery, taskpkg.ActorContext) ([]taskpkg.Run, error)
 	ListTasksFn        func(context.Context, taskpkg.Query, taskpkg.ActorContext) ([]taskpkg.Summary, error)
+	TimelineFn         func(
+		context.Context,
+		string,
+		taskpkg.TimelineQuery,
+		taskpkg.ActorContext,
+	) ([]taskpkg.TimelineItem, error)
+	StreamFn func(
+		context.Context,
+		string,
+		taskpkg.StreamQuery,
+		taskpkg.ActorContext,
+	) (<-chan taskpkg.StreamEvent, error)
+	TreeFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.TreeView, error)
+	RunDetailFn func(context.Context, string, taskpkg.ActorContext) (*taskpkg.RunDetailView, error)
 }
 
 var _ core.TaskService = (*StubTaskManager)(nil)
@@ -482,6 +508,39 @@ func (s StubTaskManager) UpdateTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
+func (s StubTaskManager) PublishTask(
+	ctx context.Context,
+	id string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Task, error) {
+	if s.PublishTaskFn != nil {
+		return s.PublishTaskFn(ctx, id, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) ApproveTask(
+	ctx context.Context,
+	id string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Task, error) {
+	if s.ApproveTaskFn != nil {
+		return s.ApproveTaskFn(ctx, id, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) RejectTask(
+	ctx context.Context,
+	id string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Task, error) {
+	if s.RejectTaskFn != nil {
+		return s.RejectTaskFn(ctx, id, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
 func (s StubTaskManager) CancelTask(
 	ctx context.Context,
 	id string,
@@ -492,6 +551,39 @@ func (s StubTaskManager) CancelTask(
 		return s.CancelTaskFn(ctx, id, req, actor)
 	}
 	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) MarkTaskRead(
+	ctx context.Context,
+	id string,
+	actor taskpkg.ActorContext,
+) (taskpkg.TriageState, error) {
+	if s.MarkTaskReadFn != nil {
+		return s.MarkTaskReadFn(ctx, id, actor)
+	}
+	return taskpkg.TriageState{}, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) ArchiveTask(
+	ctx context.Context,
+	id string,
+	actor taskpkg.ActorContext,
+) (taskpkg.TriageState, error) {
+	if s.ArchiveTaskFn != nil {
+		return s.ArchiveTaskFn(ctx, id, actor)
+	}
+	return taskpkg.TriageState{}, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) DismissTask(
+	ctx context.Context,
+	id string,
+	actor taskpkg.ActorContext,
+) (taskpkg.TriageState, error) {
+	if s.DismissTaskFn != nil {
+		return s.DismissTaskFn(ctx, id, actor)
+	}
+	return taskpkg.TriageState{}, taskpkg.ErrTaskNotFound
 }
 
 func (s StubTaskManager) AddDependency(
@@ -634,11 +726,78 @@ func (s StubTaskManager) ListTasks(
 	return nil, nil
 }
 
+func (s StubTaskManager) Timeline(
+	ctx context.Context,
+	taskID string,
+	query taskpkg.TimelineQuery,
+	actor taskpkg.ActorContext,
+) ([]taskpkg.TimelineItem, error) {
+	if s.TimelineFn != nil {
+		return s.TimelineFn(ctx, taskID, query, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) Stream(
+	ctx context.Context,
+	taskID string,
+	query taskpkg.StreamQuery,
+	actor taskpkg.ActorContext,
+) (<-chan taskpkg.StreamEvent, error) {
+	if s.StreamFn != nil {
+		return s.StreamFn(ctx, taskID, query, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) Tree(
+	ctx context.Context,
+	taskID string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.TreeView, error) {
+	if s.TreeFn != nil {
+		return s.TreeFn(ctx, taskID, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) RunDetail(
+	ctx context.Context,
+	runID string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.RunDetailView, error) {
+	if s.RunDetailFn != nil {
+		return s.RunDetailFn(ctx, runID, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
 func (s StubObserver) QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
 	if s.QueryEventsFn != nil {
 		return s.QueryEventsFn(ctx, query)
 	}
 	return nil, nil
+}
+
+func (s StubObserver) QueryTaskDashboard(
+	ctx context.Context,
+	query observe.TaskDashboardQuery,
+) (observe.TaskDashboardView, error) {
+	if s.QueryTaskDashboardFn != nil {
+		return s.QueryTaskDashboardFn(ctx, query)
+	}
+	return observe.TaskDashboardView{}, nil
+}
+
+func (s StubObserver) QueryTaskInbox(
+	ctx context.Context,
+	query observe.TaskInboxQuery,
+	actor taskpkg.ActorIdentity,
+) (observe.TaskInboxView, error) {
+	if s.QueryTaskInboxFn != nil {
+		return s.QueryTaskInboxFn(ctx, query, actor)
+	}
+	return observe.TaskInboxView{}, nil
 }
 
 type StubNetworkService struct {

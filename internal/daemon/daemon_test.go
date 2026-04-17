@@ -3736,6 +3736,21 @@ func (f *fakeObserver) QueryBridgeHealth(context.Context) ([]observe.BridgeInsta
 	return nil, nil
 }
 
+func (f *fakeObserver) QueryTaskDashboard(
+	context.Context,
+	observe.TaskDashboardQuery,
+) (observe.TaskDashboardView, error) {
+	return observe.TaskDashboardView{}, nil
+}
+
+func (f *fakeObserver) QueryTaskInbox(
+	context.Context,
+	observe.TaskInboxQuery,
+	taskpkg.ActorIdentity,
+) (observe.TaskInboxView, error) {
+	return observe.TaskInboxView{}, nil
+}
+
 func (f *fakeObserver) Health(context.Context) (observe.Health, error) {
 	return observe.Health{Status: "ok"}, nil
 }

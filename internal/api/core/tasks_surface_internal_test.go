@@ -1,0 +1,273 @@
+package core
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/observe"
+	taskpkg "github.com/pedronauck/agh/internal/task"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+)
+
+func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	handlers := &BaseHandlers{
+		TransportName: "api-core-test",
+		Workspaces: workspaceServiceStub{get: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+			if ref != "alpha" {
+				t.Fatalf("workspace ref = %q, want %q", ref, "alpha")
+			}
+			return workspacepkg.Workspace{ID: "ws-alpha"}, nil
+		}},
+	}
+
+	t.Run("task list", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(recorder)
+		ginCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/tasks?scope=workspace&workspace=alpha&status=ready&priority=high&include_drafts=true&approval_state=pending&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&network_channel=builders&query=review&limit=7",
+			http.NoBody,
+		)
+
+		query, err := ParseTaskListQuery(ginCtx)
+		if err != nil {
+			t.Fatalf("ParseTaskListQuery() error = %v", err)
+		}
+		if !query.IncludeDrafts || query.Priority != taskpkg.PriorityHigh ||
+			query.ApprovalState != taskpkg.ApprovalStatePending {
+			t.Fatalf("ParseTaskListQuery() = %#v", query)
+		}
+
+		domainQuery, err := handlers.taskListDomainQuery(context.Background(), query)
+		if err != nil {
+			t.Fatalf("taskListDomainQuery() error = %v", err)
+		}
+		if domainQuery.WorkspaceID != "ws-alpha" ||
+			domainQuery.Status != taskpkg.TaskStatusReady ||
+			domainQuery.Priority != taskpkg.PriorityHigh ||
+			domainQuery.ApprovalState != taskpkg.ApprovalStatePending ||
+			domainQuery.OwnerKind != taskpkg.OwnerKindPool ||
+			domainQuery.OwnerRef != "reviewers" ||
+			domainQuery.ParentTaskID != "task-root" ||
+			domainQuery.NetworkChannel != "builders" ||
+			domainQuery.Search != "review" ||
+			domainQuery.Limit != 7 {
+			t.Fatalf("taskListDomainQuery() = %#v", domainQuery)
+		}
+	})
+
+	t.Run("timeline and stream", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(recorder)
+		ginCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/tasks/task-1/timeline?after_sequence=42&limit=5",
+			http.NoBody,
+		)
+
+		timelineQuery, err := ParseTaskTimelineQuery(ginCtx)
+		if err != nil {
+			t.Fatalf("ParseTaskTimelineQuery() error = %v", err)
+		}
+		if timelineQuery.AfterSequence != 42 || timelineQuery.Limit != 5 {
+			t.Fatalf("ParseTaskTimelineQuery() = %#v", timelineQuery)
+		}
+
+		domainTimeline, err := taskTimelineDomainQuery(timelineQuery)
+		if err != nil {
+			t.Fatalf("taskTimelineDomainQuery() error = %v", err)
+		}
+		if domainTimeline.AfterSequence != 42 || domainTimeline.Limit != 5 {
+			t.Fatalf("taskTimelineDomainQuery() = %#v", domainTimeline)
+		}
+
+		streamRecorder := httptest.NewRecorder()
+		streamCtx, _ := gin.CreateTestContext(streamRecorder)
+		streamCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/tasks/task-1/stream?after_sequence=2",
+			http.NoBody,
+		)
+		streamCtx.Request.Header.Set("Last-Event-ID", "9")
+
+		streamQuery, err := ParseTaskStreamQuery(streamCtx)
+		if err != nil {
+			t.Fatalf("ParseTaskStreamQuery() error = %v", err)
+		}
+		if streamQuery.AfterSequence != 2 {
+			t.Fatalf("ParseTaskStreamQuery() = %#v", streamQuery)
+		}
+
+		domainStream, err := handlers.taskStreamDomainQuery(streamCtx, streamQuery)
+		if err != nil {
+			t.Fatalf("taskStreamDomainQuery() error = %v", err)
+		}
+		if domainStream.AfterSequence != 9 {
+			t.Fatalf("taskStreamDomainQuery() = %#v, want after_sequence=9", domainStream)
+		}
+	})
+
+	t.Run("dashboard and inbox", func(t *testing.T) {
+		t.Parallel()
+
+		dashboardRecorder := httptest.NewRecorder()
+		dashboardCtx, _ := gin.CreateTestContext(dashboardRecorder)
+		dashboardCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&network_channel=builders&origin_kind=http",
+			http.NoBody,
+		)
+
+		dashboardQuery, err := ParseTaskDashboardQuery(dashboardCtx)
+		if err != nil {
+			t.Fatalf("ParseTaskDashboardQuery() error = %v", err)
+		}
+		if dashboardQuery.OriginKind != taskpkg.OriginKindHTTP || dashboardQuery.NetworkChannel != "builders" {
+			t.Fatalf("ParseTaskDashboardQuery() = %#v", dashboardQuery)
+		}
+
+		domainDashboard, err := handlers.taskDashboardDomainQuery(context.Background(), dashboardQuery)
+		if err != nil {
+			t.Fatalf("taskDashboardDomainQuery() error = %v", err)
+		}
+		if domainDashboard.Scope != taskpkg.ScopeWorkspace ||
+			domainDashboard.WorkspaceID != "ws-alpha" ||
+			domainDashboard.OwnerKind != taskpkg.OwnerKindHuman ||
+			domainDashboard.OwnerRef != "alice" ||
+			domainDashboard.NetworkChannel != "builders" ||
+			domainDashboard.OriginKind != taskpkg.OriginKindHTTP {
+			t.Fatalf("taskDashboardDomainQuery() = %#v", domainDashboard)
+		}
+
+		inboxRecorder := httptest.NewRecorder()
+		inboxCtx, _ := gin.CreateTestContext(inboxRecorder)
+		inboxCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/observe/tasks/inbox?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&lane=approvals&unread=true&query=approve&limit=4",
+			http.NoBody,
+		)
+
+		inboxQuery, err := ParseTaskInboxQuery(inboxCtx)
+		if err != nil {
+			t.Fatalf("ParseTaskInboxQuery() error = %v", err)
+		}
+		if inboxQuery.Lane != "approvals" || !inboxQuery.Unread || inboxQuery.Query != "approve" {
+			t.Fatalf("ParseTaskInboxQuery() = %#v", inboxQuery)
+		}
+
+		domainInbox, err := handlers.taskInboxDomainQuery(context.Background(), inboxQuery)
+		if err != nil {
+			t.Fatalf("taskInboxDomainQuery() error = %v", err)
+		}
+		if domainInbox.Scope != taskpkg.ScopeWorkspace ||
+			domainInbox.WorkspaceID != "ws-alpha" ||
+			domainInbox.OwnerKind != taskpkg.OwnerKindHuman ||
+			domainInbox.OwnerRef != "alice" ||
+			domainInbox.Lane != observe.TaskInboxLaneApprovals ||
+			!domainInbox.Unread ||
+			domainInbox.Search != "approve" ||
+			domainInbox.Limit != 4 {
+			t.Fatalf("taskInboxDomainQuery() = %#v", domainInbox)
+		}
+	})
+}
+
+func TestExpandedTaskQueryValidationErrors(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	handlers := &BaseHandlers{
+		TransportName: "api-core-test",
+		Workspaces: workspaceServiceStub{get: func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+		}},
+	}
+
+	recorder := httptest.NewRecorder()
+	ginCtx, _ := gin.CreateTestContext(recorder)
+	ginCtx.Request = httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/observe/tasks/inbox?lane=bogus",
+		http.NoBody,
+	)
+
+	query, err := ParseTaskInboxQuery(ginCtx)
+	if err != nil {
+		t.Fatalf("ParseTaskInboxQuery() error = %v", err)
+	}
+	if _, err := handlers.taskInboxDomainQuery(context.Background(), query); err == nil {
+		t.Fatal("taskInboxDomainQuery(invalid lane) error = nil, want non-nil")
+	} else {
+		assertTaskValidationError(t, err, "lane")
+	}
+}
+
+func TestTaskDraftFilteringAndNormalizationHelpers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("filter task list drafts", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := []taskpkg.Summary{
+			{ID: "task-draft", Status: taskpkg.TaskStatusDraft, Draft: true},
+			{ID: "task-ready", Status: taskpkg.TaskStatusReady},
+			{ID: "task-blocked", Status: taskpkg.TaskStatusBlocked},
+		}
+
+		filtered := filterTaskListDrafts(tasks, contract.TaskListQuery{Limit: 1})
+		if len(filtered) != 1 || filtered[0].ID != "task-ready" {
+			t.Fatalf("filterTaskListDrafts(default) = %#v", filtered)
+		}
+
+		withDrafts := filterTaskListDrafts(tasks, contract.TaskListQuery{IncludeDrafts: true})
+		if len(withDrafts) != len(tasks) {
+			t.Fatalf("filterTaskListDrafts(include drafts) len = %d, want %d", len(withDrafts), len(tasks))
+		}
+
+		withExplicitStatus := filterTaskListDrafts(tasks, contract.TaskListQuery{Status: taskpkg.TaskStatusDraft})
+		if len(withExplicitStatus) != len(tasks) {
+			t.Fatalf("filterTaskListDrafts(explicit status) len = %d, want %d", len(withExplicitStatus), len(tasks))
+		}
+	})
+
+	t.Run("normalize pointer helpers", func(t *testing.T) {
+		t.Parallel()
+
+		if got := normalizePriorityPtr(nil); got != nil {
+			t.Fatalf("normalizePriorityPtr(nil) = %#v, want nil", got)
+		}
+		if got := normalizeApprovalPolicyPtr(nil); got != nil {
+			t.Fatalf("normalizeApprovalPolicyPtr(nil) = %#v, want nil", got)
+		}
+
+		priority := taskpkg.Priority(" high ")
+		policy := taskpkg.ApprovalPolicy(" manual ")
+
+		normalizedPriority := normalizePriorityPtr(&priority)
+		if normalizedPriority == nil || *normalizedPriority != taskpkg.PriorityHigh {
+			t.Fatalf("normalizePriorityPtr() = %#v", normalizedPriority)
+		}
+
+		normalizedPolicy := normalizeApprovalPolicyPtr(&policy)
+		if normalizedPolicy == nil || *normalizedPolicy != taskpkg.ApprovalPolicyManual {
+			t.Fatalf("normalizeApprovalPolicyPtr() = %#v", normalizedPolicy)
+		}
+	})
+}

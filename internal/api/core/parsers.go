@@ -1,14 +1,18 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/store"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 // ParseSessionEventQuery parses the shared session event query parameters.
@@ -176,6 +180,287 @@ func ParseObserveCursor(raw string) (ObserveCursor, error) {
 
 	cursor.ID = cursorValue
 	return cursor, nil
+}
+
+// ParseTaskListQuery parses the shared task-list query parameters.
+func ParseTaskListQuery(c *gin.Context) (contract.TaskListQuery, error) {
+	limit, err := ParseOptionalInt(c.Query("limit"))
+	if err != nil {
+		return contract.TaskListQuery{}, NewTaskValidationError(err)
+	}
+	includeDrafts, err := ParseOptionalBool(c.Query("include_drafts"))
+	if err != nil {
+		return contract.TaskListQuery{}, NewTaskValidationError(err)
+	}
+
+	return contract.TaskListQuery{
+		Scope:          taskpkg.Scope(strings.TrimSpace(c.Query("scope"))).Normalize(),
+		Workspace:      strings.TrimSpace(c.Query("workspace")),
+		Status:         taskpkg.Status(strings.TrimSpace(c.Query("status"))).Normalize(),
+		Priority:       taskpkg.Priority(strings.TrimSpace(c.Query("priority"))).Normalize(),
+		IncludeDrafts:  includeDrafts,
+		ApprovalState:  taskpkg.ApprovalState(strings.TrimSpace(c.Query("approval_state"))).Normalize(),
+		OwnerKind:      taskpkg.OwnerKind(strings.TrimSpace(c.Query("owner_kind"))).Normalize(),
+		OwnerRef:       strings.TrimSpace(c.Query("owner_ref")),
+		ParentTaskID:   strings.TrimSpace(c.Query("parent_task_id")),
+		NetworkChannel: strings.TrimSpace(c.Query("network_channel")),
+		Query:          strings.TrimSpace(c.Query("query")),
+		Limit:          limit,
+	}, nil
+}
+
+// ParseTaskRunListQuery parses the shared task-run list query parameters.
+func ParseTaskRunListQuery(c *gin.Context) (contract.TaskRunListQuery, error) {
+	limit, err := ParseOptionalInt(c.Query("limit"))
+	if err != nil {
+		return contract.TaskRunListQuery{}, NewTaskValidationError(err)
+	}
+
+	return contract.TaskRunListQuery{
+		Status:    taskpkg.RunStatus(strings.TrimSpace(c.Query("status"))).Normalize(),
+		SessionID: strings.TrimSpace(c.Query("session_id")),
+		Limit:     limit,
+	}, nil
+}
+
+// ParseTaskTimelineQuery parses the shared task timeline query parameters.
+func ParseTaskTimelineQuery(c *gin.Context) (contract.TaskTimelineQuery, error) {
+	afterSequence, err := ParseOptionalInt64(c.Query("after_sequence"))
+	if err != nil {
+		return contract.TaskTimelineQuery{}, NewTaskValidationError(err)
+	}
+	limit, err := ParseOptionalInt(c.Query("limit"))
+	if err != nil {
+		return contract.TaskTimelineQuery{}, NewTaskValidationError(err)
+	}
+
+	return contract.TaskTimelineQuery{
+		AfterSequence: afterSequence,
+		Limit:         limit,
+	}, nil
+}
+
+// ParseTaskStreamQuery parses the shared task stream query parameters.
+func ParseTaskStreamQuery(c *gin.Context) (contract.TaskStreamQuery, error) {
+	afterSequence, err := ParseOptionalInt64(c.Query("after_sequence"))
+	if err != nil {
+		return contract.TaskStreamQuery{}, NewTaskValidationError(err)
+	}
+
+	return contract.TaskStreamQuery{AfterSequence: afterSequence}, nil
+}
+
+// ParseTaskDashboardQuery parses the shared task dashboard query parameters.
+func ParseTaskDashboardQuery(c *gin.Context) (contract.TaskDashboardQuery, error) {
+	return contract.TaskDashboardQuery{
+		Scope:          taskpkg.Scope(strings.TrimSpace(c.Query("scope"))).Normalize(),
+		Workspace:      strings.TrimSpace(c.Query("workspace")),
+		OwnerKind:      taskpkg.OwnerKind(strings.TrimSpace(c.Query("owner_kind"))).Normalize(),
+		OwnerRef:       strings.TrimSpace(c.Query("owner_ref")),
+		NetworkChannel: strings.TrimSpace(c.Query("network_channel")),
+		OriginKind:     taskpkg.OriginKind(strings.TrimSpace(c.Query("origin_kind"))).Normalize(),
+	}, nil
+}
+
+// ParseTaskInboxQuery parses the shared task inbox query parameters.
+func ParseTaskInboxQuery(c *gin.Context) (contract.TaskInboxQuery, error) {
+	unread, err := ParseOptionalBool(c.Query("unread"))
+	if err != nil {
+		return contract.TaskInboxQuery{}, NewTaskValidationError(err)
+	}
+	limit, err := ParseOptionalInt(c.Query("limit"))
+	if err != nil {
+		return contract.TaskInboxQuery{}, NewTaskValidationError(err)
+	}
+
+	return contract.TaskInboxQuery{
+		Scope:     taskpkg.Scope(strings.TrimSpace(c.Query("scope"))).Normalize(),
+		Workspace: strings.TrimSpace(c.Query("workspace")),
+		OwnerKind: taskpkg.OwnerKind(strings.TrimSpace(c.Query("owner_kind"))).Normalize(),
+		OwnerRef:  strings.TrimSpace(c.Query("owner_ref")),
+		Lane:      contract.TaskInboxLane(strings.TrimSpace(strings.ToLower(c.Query("lane")))),
+		Unread:    unread,
+		Query:     strings.TrimSpace(c.Query("query")),
+		Limit:     limit,
+	}, nil
+}
+
+func (h *BaseHandlers) taskListDomainQuery(
+	ctx context.Context,
+	query contract.TaskListQuery,
+) (taskpkg.Query, error) {
+	domainQuery := taskpkg.Query{
+		Scope:          query.Scope.Normalize(),
+		Status:         query.Status.Normalize(),
+		Priority:       query.Priority.Normalize(),
+		ApprovalState:  query.ApprovalState.Normalize(),
+		OwnerKind:      query.OwnerKind.Normalize(),
+		OwnerRef:       strings.TrimSpace(query.OwnerRef),
+		ParentTaskID:   strings.TrimSpace(query.ParentTaskID),
+		NetworkChannel: strings.TrimSpace(query.NetworkChannel),
+		Search:         strings.TrimSpace(query.Query),
+		Limit:          query.Limit,
+	}
+
+	if workspaceRef := strings.TrimSpace(query.Workspace); workspaceRef != "" {
+		if domainQuery.Scope.Normalize() == taskpkg.ScopeGlobal {
+			return taskpkg.Query{}, taskpkg.ValidateScopeBinding(
+				domainQuery.Scope,
+				workspaceRef,
+				"task_query",
+				"workspace",
+			)
+		}
+		workspaceID, err := h.lookupWorkspaceID(ctx, workspaceRef)
+		if err != nil {
+			return taskpkg.Query{}, err
+		}
+		domainQuery.WorkspaceID = workspaceID
+	}
+
+	if err := validateTaskChannel("task_query.network_channel", domainQuery.NetworkChannel); err != nil {
+		return taskpkg.Query{}, err
+	}
+	if err := domainQuery.Validate("task_query"); err != nil {
+		return taskpkg.Query{}, err
+	}
+	return domainQuery, nil
+}
+
+func (h *BaseHandlers) parseTaskListQuery(ctx context.Context, c *gin.Context) (taskpkg.Query, error) {
+	query, err := ParseTaskListQuery(c)
+	if err != nil {
+		return taskpkg.Query{}, err
+	}
+	return h.taskListDomainQuery(ctx, query)
+}
+
+func taskRunListDomainQuery(query contract.TaskRunListQuery) (taskpkg.RunQuery, error) {
+	domainQuery := taskpkg.RunQuery{
+		Status:    query.Status.Normalize(),
+		SessionID: strings.TrimSpace(query.SessionID),
+		Limit:     query.Limit,
+	}
+	if err := domainQuery.Validate("task_run_query"); err != nil {
+		return taskpkg.RunQuery{}, err
+	}
+	return domainQuery, nil
+}
+
+func parseTaskRunListQuery(c *gin.Context) (taskpkg.RunQuery, error) {
+	query, err := ParseTaskRunListQuery(c)
+	if err != nil {
+		return taskpkg.RunQuery{}, err
+	}
+	return taskRunListDomainQuery(query)
+}
+
+func taskTimelineDomainQuery(query contract.TaskTimelineQuery) (taskpkg.TimelineQuery, error) {
+	domainQuery := taskpkg.TimelineQuery{
+		AfterSequence: query.AfterSequence,
+		Limit:         query.Limit,
+	}
+	if err := domainQuery.Validate("task_timeline_query"); err != nil {
+		return taskpkg.TimelineQuery{}, err
+	}
+	return domainQuery, nil
+}
+
+func (h *BaseHandlers) taskStreamDomainQuery(
+	c *gin.Context,
+	query contract.TaskStreamQuery,
+) (taskpkg.StreamQuery, error) {
+	domainQuery := taskpkg.StreamQuery{AfterSequence: query.AfterSequence}
+
+	afterSequence, err := parseLastEventID(c.GetHeader("Last-Event-ID"), h.transportName())
+	if err != nil {
+		return taskpkg.StreamQuery{}, NewTaskValidationError(err)
+	}
+	if afterSequence > 0 {
+		domainQuery.AfterSequence = afterSequence
+	}
+
+	if err := domainQuery.Validate("task_stream_query"); err != nil {
+		return taskpkg.StreamQuery{}, err
+	}
+	return domainQuery, nil
+}
+
+func (h *BaseHandlers) taskDashboardDomainQuery(
+	ctx context.Context,
+	query contract.TaskDashboardQuery,
+) (observe.TaskDashboardQuery, error) {
+	domainQuery := observe.TaskDashboardQuery{
+		Scope:          query.Scope.Normalize(),
+		OwnerKind:      query.OwnerKind.Normalize(),
+		OwnerRef:       strings.TrimSpace(query.OwnerRef),
+		NetworkChannel: strings.TrimSpace(query.NetworkChannel),
+		OriginKind:     query.OriginKind.Normalize(),
+	}
+
+	if workspaceRef := strings.TrimSpace(query.Workspace); workspaceRef != "" {
+		if err := taskpkg.ValidateScopeBinding(
+			domainQuery.Scope,
+			workspaceRef,
+			"task_dashboard_query",
+			"workspace",
+		); err != nil {
+			return observe.TaskDashboardQuery{}, err
+		}
+		if domainQuery.Scope.Normalize() == taskpkg.ScopeWorkspace {
+			workspaceID, err := h.lookupWorkspaceID(ctx, workspaceRef)
+			if err != nil {
+				return observe.TaskDashboardQuery{}, err
+			}
+			domainQuery.WorkspaceID = workspaceID
+		}
+	}
+
+	if err := validateTaskChannel("task_dashboard_query.network_channel", domainQuery.NetworkChannel); err != nil {
+		return observe.TaskDashboardQuery{}, err
+	}
+	if err := domainQuery.Validate(); err != nil {
+		return observe.TaskDashboardQuery{}, err
+	}
+	return domainQuery, nil
+}
+
+func (h *BaseHandlers) taskInboxDomainQuery(
+	ctx context.Context,
+	query contract.TaskInboxQuery,
+) (observe.TaskInboxQuery, error) {
+	domainQuery := observe.TaskInboxQuery{
+		Scope:     query.Scope.Normalize(),
+		OwnerKind: query.OwnerKind.Normalize(),
+		OwnerRef:  strings.TrimSpace(query.OwnerRef),
+		Lane:      observe.TaskInboxLane(query.Lane).Normalize(),
+		Unread:    query.Unread,
+		Search:    strings.TrimSpace(query.Query),
+		Limit:     query.Limit,
+	}
+
+	if workspaceRef := strings.TrimSpace(query.Workspace); workspaceRef != "" {
+		if err := taskpkg.ValidateScopeBinding(
+			domainQuery.Scope,
+			workspaceRef,
+			"task_inbox_query",
+			"workspace",
+		); err != nil {
+			return observe.TaskInboxQuery{}, err
+		}
+		if domainQuery.Scope.Normalize() == taskpkg.ScopeWorkspace {
+			workspaceID, err := h.lookupWorkspaceID(ctx, workspaceRef)
+			if err != nil {
+				return observe.TaskInboxQuery{}, err
+			}
+			domainQuery.WorkspaceID = workspaceID
+		}
+	}
+
+	if err := domainQuery.Validate(); err != nil {
+		return observe.TaskInboxQuery{}, err
+	}
+	return domainQuery, nil
 }
 
 // ParseOptionalTime parses an optional RFC3339 or RFC3339Nano timestamp.
