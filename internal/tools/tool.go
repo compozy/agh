@@ -3,10 +3,10 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 )
 
 // ToolSource identifies where a tool definition originated.
@@ -23,20 +23,30 @@ const (
 	ToolSourceDynamic
 )
 
-var toolSourceNames = map[ToolSource]string{
-	ToolSourceBuiltin:   "builtin",
-	ToolSourceMCP:       "mcp",
-	ToolSourceExtension: "extension",
-	ToolSourceDynamic:   "dynamic",
+var toolSourceNames = [...]string{
+	"builtin",
+	"mcp",
+	"extension",
+	"dynamic",
+}
+
+var toolSourceBytes = [...][]byte{
+	[]byte("builtin"),
+	[]byte("mcp"),
+	[]byte("extension"),
+	[]byte("dynamic"),
+}
+
+func validToolSource(s ToolSource) bool {
+	return s >= ToolSourceBuiltin && int(s) < len(toolSourceNames)
 }
 
 // String returns the stable text form for the source.
 func (s ToolSource) String() string {
-	name, ok := toolSourceNames[s]
-	if !ok {
+	if !validToolSource(s) {
 		return ""
 	}
-	return name
+	return toolSourceNames[s]
 }
 
 // MarshalText encodes the source as a string.
@@ -44,24 +54,30 @@ func (s ToolSource) MarshalText() ([]byte, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
 	}
-	return []byte(s.String()), nil
+	return append([]byte(nil), toolSourceBytes[s]...), nil
 }
 
 // UnmarshalText decodes the source from a string value.
 func (s *ToolSource) UnmarshalText(text []byte) error {
-	value := strings.TrimSpace(string(text))
-	for source, name := range toolSourceNames {
-		if value == name {
-			*s = source
-			return nil
-		}
+	trimmed := bytes.TrimSpace(text)
+	switch {
+	case bytes.Equal(trimmed, toolSourceBytes[ToolSourceBuiltin]):
+		*s = ToolSourceBuiltin
+	case bytes.Equal(trimmed, toolSourceBytes[ToolSourceMCP]):
+		*s = ToolSourceMCP
+	case bytes.Equal(trimmed, toolSourceBytes[ToolSourceExtension]):
+		*s = ToolSourceExtension
+	case bytes.Equal(trimmed, toolSourceBytes[ToolSourceDynamic]):
+		*s = ToolSourceDynamic
+	default:
+		return fmt.Errorf("tools: invalid tool source %q", string(trimmed))
 	}
-	return fmt.Errorf("tools: invalid tool source %q", value)
+	return nil
 }
 
 // Validate ensures the source is one of the documented values.
 func (s ToolSource) Validate() error {
-	if _, ok := toolSourceNames[s]; !ok {
+	if !validToolSource(s) {
 		return fmt.Errorf("tools: invalid tool source %d", s)
 	}
 	return nil
