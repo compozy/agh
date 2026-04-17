@@ -551,12 +551,17 @@ func (b *boundedBuffer) Write(p []byte) (int, error) {
 		return len(p), nil
 	}
 
-	b.buf = append(b.buf[:len(b.buf):len(b.buf)], p...)
-	combined := b.buf
-	if len(combined) > b.limit {
-		combined = append([]byte(nil), combined[len(combined)-b.limit:]...)
+	if len(p) >= b.limit {
+		b.buf = append(b.buf[:0], p[len(p)-b.limit:]...)
+		return len(p), nil
 	}
-	b.buf = combined
+
+	if overflow := len(b.buf) + len(p) - b.limit; overflow > 0 {
+		copy(b.buf, b.buf[overflow:])
+		b.buf = b.buf[:len(b.buf)-overflow]
+	}
+
+	b.buf = append(b.buf, p...)
 	return len(p), nil
 }
 

@@ -262,6 +262,52 @@ func TestStopHealthMonitorIsRaceFree(t *testing.T) {
 	}
 }
 
+func TestStopHealthMonitorCancelsInFlightProbe(t *testing.T) {
+	t.Parallel()
+
+	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	process := &Process{
+		stdin:           discardWriteCloser{Writer: io.Discard},
+		lifecycleCtx:    lifecycleCtx,
+		cancelLifecycle: cancel,
+		done:            make(chan struct{}),
+		state:           processStateReady,
+		healthThreshold: 1,
+	}
+	process.transport = newTransport(process, defaultMaxMessageBytes)
+
+	process.maybeStartHealthMonitor(InitializeRuntime{
+		HealthCheckIntervalMS: 1,
+		HealthCheckTimeoutMS:  1_000,
+	}, InitializeSupports{HealthCheck: true})
+
+	waitForCondition(t, time.Second, func() bool {
+		process.transport.pendingMu.Lock()
+		defer process.transport.pendingMu.Unlock()
+		return len(process.transport.pending) == 1
+	})
+
+	cancel()
+
+	stopped := make(chan struct{})
+	go func() {
+		process.stopHealthMonitor()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("stopHealthMonitor() blocked waiting for in-flight probe cancellation")
+	}
+
+	process.transport.pendingMu.Lock()
+	defer process.transport.pendingMu.Unlock()
+	if got := len(process.transport.pending); got != 0 {
+		t.Fatalf("len(process.transport.pending) = %d, want 0", got)
+	}
+}
+
 func TestShutdownSendsCooperativeRequest(t *testing.T) {
 	t.Parallel()
 
@@ -661,6 +707,14 @@ func TestNilHelpersAndBufferUtilities(t *testing.T) {
 	}
 	if got := buffer.String(); got != "cdef" {
 		t.Fatalf("boundedBuffer.String() = %q, want cdef", got)
+	}
+
+	buffer = &boundedBuffer{limit: 4}
+	if _, err := buffer.Write([]byte("uvwxyz")); err != nil {
+		t.Fatalf("boundedBuffer.Write(large) error = %v", err)
+	}
+	if got := buffer.String(); got != "wxyz" {
+		t.Fatalf("boundedBuffer.String() after large write = %q, want wxyz", got)
 	}
 
 	if got := attachStderr(errors.New("base"), "stderr-output").Error(); !strings.Contains(got, "stderr-output") {

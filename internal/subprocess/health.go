@@ -114,7 +114,11 @@ func (p *Process) runHealthMonitor(run *healthMonitorRun, interval, timeout time
 }
 
 func (p *Process) runHealthProbe(timeout time.Duration) {
-	probeCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	probeBaseCtx := context.Background()
+	if p != nil && p.lifecycleCtx != nil {
+		probeBaseCtx = p.lifecycleCtx
+	}
+	probeCtx, cancel := context.WithTimeout(probeBaseCtx, timeout)
 	defer cancel()
 
 	var response HealthCheckResponse
