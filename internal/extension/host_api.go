@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -2193,8 +2194,8 @@ func decodeHostAPIParams(raw json.RawMessage, target any) error {
 	if target == nil {
 		return errors.New("extension: host api params target is required")
 	}
-	payload := raw
-	if len(payload) == 0 || strings.TrimSpace(string(payload)) == "" || string(payload) == "null" {
+	payload := bytes.TrimSpace(raw)
+	if len(payload) == 0 || bytes.Equal(payload, []byte("null")) {
 		payload = json.RawMessage(`{}`)
 	}
 	if err := json.Unmarshal(payload, target); err != nil {
