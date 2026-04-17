@@ -17,6 +17,8 @@ type packageJSON struct {
 }
 
 func TestMakefileE2ETargetsDelegateToLaneSpecificMageTargets(t *testing.T) {
+	t.Parallel()
+
 	repoRoot := repoRoot(t)
 
 	tests := []struct {
@@ -31,6 +33,8 @@ func TestMakefileE2ETargetsDelegateToLaneSpecificMageTargets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.target, func(t *testing.T) {
+			t.Parallel()
+
 			output := runCommand(t, repoRoot, "make", "-n", tt.target)
 			if !strings.Contains(output, tt.wantSnippet) {
 				t.Fatalf("make -n %s output = %q, want snippet %q", tt.target, output, tt.wantSnippet)
@@ -43,6 +47,8 @@ func TestMakefileE2ETargetsDelegateToLaneSpecificMageTargets(t *testing.T) {
 }
 
 func TestMakeHelpListsTheE2ELaneTargets(t *testing.T) {
+	t.Parallel()
+
 	repoRoot := repoRoot(t)
 
 	output := runCommand(t, repoRoot, "make", "help")
@@ -54,6 +60,8 @@ func TestMakeHelpListsTheE2ELaneTargets(t *testing.T) {
 }
 
 func TestRootPackageScriptsExposeTheRepoLevelE2ELaneEntryPoints(t *testing.T) {
+	t.Parallel()
+
 	repoRoot := repoRoot(t)
 	pkg := readPackageJSON(t, filepath.Join(repoRoot, "package.json"))
 
@@ -72,6 +80,8 @@ func TestRootPackageScriptsExposeTheRepoLevelE2ELaneEntryPoints(t *testing.T) {
 }
 
 func TestWebPackageScriptsPreserveDaemonServedModeAndNightlySplit(t *testing.T) {
+	t.Parallel()
+
 	repoRoot := repoRoot(t)
 	pkg := readPackageJSON(t, filepath.Join(repoRoot, WebDir, "package.json"))
 

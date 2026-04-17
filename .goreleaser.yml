@@ -1,0 +1,153 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema-pro.json
+# vim: set ts=2 sw=2 tw=0 fo=jcroql
+version: 2
+pro: true
+
+project_name: agh
+
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"
+  license: "BSL-1.1"
+  homepage: "https://github.com/pedronauck/agh"
+  description: "AGH — Agent Operating System"
+  maintainers:
+    - "AGH Team"
+
+env:
+  - GO111MODULE=on
+  - CGO_ENABLED=0
+
+git:
+  tag_sort: -version:refname
+
+builds:
+  - id: agh
+    main: ./cmd/agh
+    binary: agh
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/pedronauck/agh/internal/version.Version={{ .Version }}
+      - -X github.com/pedronauck/agh/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/pedronauck/agh/internal/version.BuildDate={{ .Date }}
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: agh-archive
+    ids:
+      - agh
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- with .Arm }}v{{ . }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+snapshot:
+  version_template: "0.0.0-{{ .Timestamp }}"
+
+source:
+  enabled: true
+
+changelog:
+  use: git
+  sort: asc
+  abbrev: 7
+  groups:
+    - title: "🎉 Features"
+      regexp: "^.*feat[\\(\\w)]*:+.*$"
+      order: 0
+    - title: "🐛 Bug Fixes"
+      regexp: "^.*fix[\\(\\w)]*:+.*$"
+      order: 1
+    - title: "⚡ Performance Improvements"
+      regexp: "^.*perf[\\(\\w)]*:+.*$"
+      order: 2
+    - title: "🔒 Security"
+      regexp: "^.*security[\\(\\w)]*:+.*$"
+      order: 3
+    - title: "📚 Documentation"
+      regexp: "^.*docs[\\(\\w)]*:+.*$"
+      order: 4
+    - title: "♻️ Refactoring"
+      regexp: "^.*refactor[\\(\\w)]*:+.*$"
+      order: 5
+    - title: "📦 Dependencies"
+      regexp: "^.*deps[\\(\\w)]*:+.*$"
+      order: 6
+    - title: "🧪 Testing"
+      regexp: "^.*test[\\(\\w)]*:+.*$"
+      order: 7
+    - title: "Other Changes"
+      order: 999
+  filters:
+    exclude:
+      - "^(build|ci): "
+      - "^ci\\(release\\): "
+      - "^release: "
+      - "^chore\\(release\\): "
+      - "^chore: auto-update generated files$"
+      - "^chore: docs$"
+      - "^chore: schema update$"
+      - "^chore: typo$"
+      - "^chore\\(legal\\): "
+      - "^chore\\(deps\\): "
+      - "^docs: update$"
+      - "^test:"
+      - "^test\\("
+      - "merge conflict"
+      - Merge branch
+      - Merge pull request
+      - Merge remote-tracking branch
+      - go mod tidy
+      - "^wip "
+      - "^wip:"
+
+release:
+  github:
+    owner: pedronauck
+    name: agh
+  target_commitish: "{{ .Commit }}"
+  name_template: "Release {{ .Version }}"
+  mode: replace
+  replace_existing_artifacts: true
+  draft: false
+  prerelease: auto
+
+sboms:
+  - artifacts: archive
+  - id: source
+    artifacts: source

@@ -26,7 +26,7 @@ import (
 const bridgeIngressFixtureAgentName = "mock-bridge-runner"
 
 func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *testing.T) {
-	skipWithoutNode(t)
+	acpmock.RequireDriver(t)
 
 	repoRoot := daemonBridgeRuntimeRepoRoot(t)
 	extensionDir := prepareDaemonTelegramReferenceExtension(t, repoRoot)

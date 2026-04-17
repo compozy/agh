@@ -22,7 +22,6 @@ func TestRuntimeHarnessRegisterMockAgentWritesFixtureBackedDefinition(t *testing
 	if err != nil {
 		t.Fatalf("filepath.Abs(fixture) error = %v", err)
 	}
-	t.Setenv("AGH_TEST_NODE_BIN", "/usr/local/bin/node")
 
 	homePaths := NewHomePaths(t)
 	harness := &RuntimeHarness{
@@ -51,6 +50,9 @@ func TestRuntimeHarnessRegisterMockAgentWritesFixtureBackedDefinition(t *testing
 	}
 	if !strings.Contains(loaded.Command, "--fixture") {
 		t.Fatalf("loaded.Command = %q, want --fixture", loaded.Command)
+	}
+	if strings.Contains(loaded.Command, "driver/dist/index.js") {
+		t.Fatalf("loaded.Command = %q, want no dist/index.js dependency", loaded.Command)
 	}
 }
 
@@ -101,7 +103,6 @@ func TestRuntimeHarnessMockAgentRegistrationLookupAndBatchRegister(t *testing.T)
 	if err != nil {
 		t.Fatalf("filepath.Abs(fixture) error = %v", err)
 	}
-	t.Setenv("AGH_TEST_NODE_BIN", "/usr/local/bin/node")
 
 	harness := &RuntimeHarness{
 		HomePaths: NewHomePaths(t),

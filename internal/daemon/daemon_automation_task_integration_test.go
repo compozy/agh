@@ -23,7 +23,7 @@ import (
 const automationTaskFixtureAgentName = "mock-automation-runner"
 
 func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testing.T) {
-	skipWithoutNode(t)
+	acpmock.RequireDriver(t)
 
 	harness := startAutomationTaskHarness(t, mockFixturePath(t, "automation_task_fixture.json"))
 	registration, ok := harness.MockAgentRegistration(automationTaskFixtureAgentName)
@@ -149,7 +149,7 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 }
 
 func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
-	skipWithoutNode(t)
+	acpmock.RequireDriver(t)
 
 	harness := startAutomationTaskHarness(t, mockFixturePath(t, "automation_task_fixture.json"))
 	registration, ok := harness.MockAgentRegistration(automationTaskFixtureAgentName)

@@ -41,12 +41,27 @@ type Plan struct {
 	IncludesCredentialedNightly bool
 }
 
+func cloneGoSuites(in []GoSuite) []GoSuite {
+	if len(in) == 0 {
+		return nil
+	}
+
+	out := make([]GoSuite, len(in))
+	for i, suite := range in {
+		out[i] = GoSuite{
+			Packages: append([]string(nil), suite.Packages...),
+			Run:      suite.Run,
+		}
+	}
+	return out
+}
+
 func PlanForLane(lane Lane) (Plan, error) {
 	switch lane {
 	case LaneRuntime:
 		return Plan{
 			Lane:     lane,
-			GoSuites: append([]GoSuite(nil), runtimeGoSuites...),
+			GoSuites: cloneGoSuites(runtimeGoSuites),
 		}, nil
 	case LaneWeb:
 		return Plan{
@@ -57,14 +72,14 @@ func PlanForLane(lane Lane) (Plan, error) {
 	case LaneCombined:
 		return Plan{
 			Lane:                        lane,
-			GoSuites:                    append([]GoSuite(nil), runtimeGoSuites...),
+			GoSuites:                    cloneGoSuites(runtimeGoSuites),
 			ScriptSuites:                append([]ScriptSuite(nil), daemonServedWebSuites...),
 			RequiresDaemonServedBrowser: true,
 		}, nil
 	case LaneNightly:
 		return Plan{
 			Lane:     lane,
-			GoSuites: append(append([]GoSuite(nil), runtimeGoSuites...), nightlyGoSuites...),
+			GoSuites: append(cloneGoSuites(runtimeGoSuites), cloneGoSuites(nightlyGoSuites)...),
 			ScriptSuites: append(
 				append([]ScriptSuite(nil), daemonServedWebSuites...),
 				nightlyWebSuites...),

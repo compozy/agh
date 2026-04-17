@@ -30,9 +30,7 @@ func validateNetworkCorrelationSurfaces(
 	audit []store.NetworkAuditEntry,
 	expectation networkCorrelationExpectation,
 ) error {
-	content := transcriptContent(messages)
-
-	for _, check := range []struct {
+	checks := []struct {
 		label  string
 		needle string
 	}{
@@ -41,13 +39,29 @@ func validateNetworkCorrelationSurfaces(
 		{label: "interaction", needle: attributeNeedle("interaction", expectation.InteractionID)},
 		{label: "reply-to", needle: attributeNeedle("reply-to", expectation.ReplyTo)},
 		{label: "trace-id", needle: attributeNeedle("trace-id", expectation.TraceID)},
-	} {
-		if check.needle == "" {
+	}
+
+	matched := false
+	for _, message := range messages {
+		content := strings.TrimSpace(message.Content)
+		if content == "" {
 			continue
 		}
-		if !strings.Contains(content, check.needle) {
-			return fmt.Errorf("transcript missing %s %q", check.label, check.needle)
+
+		allPresent := true
+		for _, check := range checks {
+			if check.needle != "" && !strings.Contains(content, check.needle) {
+				allPresent = false
+				break
+			}
 		}
+		if allPresent {
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		return fmt.Errorf("transcript missing correlated attributes for message %q", expectation.MessageID)
 	}
 
 	for _, direction := range expectation.AuditDirections {
@@ -93,16 +107,6 @@ func validateNetworkAuditEntry(
 	)
 }
 
-func transcriptContent(messages []transcript.Message) string {
-	parts := make([]string, 0, len(messages))
-	for _, message := range messages {
-		if trimmed := strings.TrimSpace(message.Content); trimmed != "" {
-			parts = append(parts, trimmed)
-		}
-	}
-	return strings.Join(parts, "\n")
-}
-
 func attributeNeedle(name string, value string) string {
 	trimmedValue := strings.TrimSpace(value)
 	if trimmedValue == "" {
@@ -134,6 +138,36 @@ func TestValidateNetworkCorrelationSurfacesUsesTargetedAttributes(t *testing.T) 
 		AuditDirections: []string{"sent", "delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces() error = %v", err)
+	}
+}
+
+func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *testing.T) {
+	t.Parallel()
+
+	messages := []transcript.Message{
+		{
+			Role:    "assistant",
+			Content: `<network-message id="msg_direct_01" kind="direct"></network-message>`,
+		},
+		{
+			Role:    "assistant",
+			Content: `<network-message interaction="int_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+		},
+	}
+	audit := []store.NetworkAuditEntry{
+		{MessageID: "msg_direct_01", Direction: "sent", Kind: "direct"},
+		{MessageID: "msg_direct_01", Direction: "delivered", Kind: "direct"},
+	}
+
+	if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
+		MessageID:       "msg_direct_01",
+		Kind:            "direct",
+		InteractionID:   "int_patch_42",
+		ReplyTo:         "msg_say_01",
+		TraceID:         "trace_ops_patch_42",
+		AuditDirections: []string{"sent", "delivered"},
+	}); err == nil {
+		t.Fatal("validateNetworkCorrelationSurfaces() error = nil, want split-message correlation failure")
 	}
 }
 

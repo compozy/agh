@@ -4,9 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/kballard/go-shellquote"
@@ -18,7 +16,6 @@ type RegisterOptions struct {
 	FixturePath     string
 	FixtureAgent    string
 	AgentName       string
-	NodePath        string
 	DriverPath      string
 	DiagnosticsPath string
 }
@@ -28,7 +25,6 @@ type Registration struct {
 	AgentName       string
 	FixtureAgent    string
 	FixturePath     string
-	NodePath        string
 	DriverPath      string
 	DiagnosticsPath string
 	AgentDefPath    string
@@ -70,10 +66,6 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 		runtimeAgentName = fixtureAgentName
 	}
 
-	nodePath, err := resolveNodePath(opts.NodePath)
-	if err != nil {
-		return Registration{}, err
-	}
 	driverPath, err := resolveDriverPath(opts.DriverPath)
 	if err != nil {
 		return Registration{}, err
@@ -83,7 +75,7 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 	if err != nil {
 		return Registration{}, err
 	}
-	command := BuildCommand(nodePath, driverPath, fixturePath, fixtureAgentName, diagnosticsPath)
+	command := BuildCommand(driverPath, fixturePath, fixtureAgentName, diagnosticsPath)
 
 	agentDefPath := filepath.Join(homePaths.AgentsDir, runtimeAgentName, "AGENT.md")
 	if err := os.MkdirAll(filepath.Dir(agentDefPath), 0o755); err != nil {
@@ -108,7 +100,6 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 		AgentName:       runtimeAgentName,
 		FixtureAgent:    fixtureAgentName,
 		FixturePath:     fixturePath,
-		NodePath:        nodePath,
 		DriverPath:      driverPath,
 		DiagnosticsPath: diagnosticsPath,
 		AgentDefPath:    agentDefPath,
@@ -119,34 +110,9 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 	}, nil
 }
 
-// DefaultDriverPath resolves the committed Node driver entrypoint.
-func DefaultDriverPath() (string, error) {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		return "", errors.New("acpmock: runtime.Caller(0) failed")
-	}
-	path := filepath.Join(filepath.Dir(file), "driver", "dist", "index.js")
-	if _, err := os.Stat(path); err != nil {
-		return "", fmt.Errorf("acpmock: stat driver entrypoint %q: %w", path, err)
-	}
-	return path, nil
-}
-
-// ResolveNodePath resolves the node executable used by the test-only driver.
-func ResolveNodePath() (string, error) {
-	return resolveNodePath("")
-}
-
 // BuildCommand renders the test-only ACP driver command string stored in AGENT.md.
-func BuildCommand(
-	nodePath string,
-	driverPath string,
-	fixturePath string,
-	fixtureAgent string,
-	diagnosticsPath string,
-) string {
+func BuildCommand(driverPath string, fixturePath string, fixtureAgent string, diagnosticsPath string) string {
 	argv := []string{
-		strings.TrimSpace(nodePath),
 		strings.TrimSpace(driverPath),
 		"--fixture",
 		strings.TrimSpace(fixturePath),
@@ -169,7 +135,7 @@ func renderAgentDef(name string, agent AgentFixture, command string) string {
 	builder.WriteString("---\n")
 	builder.WriteString("name: " + strings.TrimSpace(name) + "\n")
 	builder.WriteString("provider: " + strings.TrimSpace(agent.Provider) + "\n")
-	builder.WriteString("command: " + strings.TrimSpace(command) + "\n")
+	builder.WriteString("command: " + yamlSingleQuote(strings.TrimSpace(command)) + "\n")
 	if model := strings.TrimSpace(agent.Model); model != "" {
 		builder.WriteString("model: " + model + "\n")
 	}
@@ -182,26 +148,8 @@ func renderAgentDef(name string, agent AgentFixture, command string) string {
 	return builder.String()
 }
 
-func resolveNodePath(override string) (string, error) {
-	if trimmed := strings.TrimSpace(override); trimmed != "" {
-		return trimmed, nil
-	}
-	if trimmed := strings.TrimSpace(os.Getenv("AGH_TEST_NODE_BIN")); trimmed != "" {
-		return trimmed, nil
-	}
-
-	path, err := exec.LookPath("node")
-	if err != nil {
-		return "", fmt.Errorf("acpmock: resolve node executable: %w", err)
-	}
-	return path, nil
-}
-
-func resolveDriverPath(override string) (string, error) {
-	if trimmed := strings.TrimSpace(override); trimmed != "" {
-		return trimmed, nil
-	}
-	return DefaultDriverPath()
+func yamlSingleQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func resolveDiagnosticsPath(homePaths aghconfig.HomePaths, name string, override string) (string, error) {

@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CGO_ENABLED: 0
+  GO_VERSION: "1.25.4"
+  BUN_VERSION: "1.3.4"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      web: ${{ steps.filter.outputs.web }}
+      relevant: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.web == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'Makefile'
+              - 'magefile.go'
+              - '.golangci.yml'
+              - '.github/**'
+              - '.goreleaser.yml'
+              - 'cliff.toml'
+              - '.release-notes/**'
+              - 'RELEASE_NOTES.md'
+              - 'cmd/**'
+              - 'internal/**'
+              - 'openapi/**'
+            web:
+              - 'web/**'
+              - '.bun-version'
+              - '.oxfmtrc.json'
+              - '.oxlintrc.json'
+              - 'bun.lock'
+              - 'package.json'
+              - 'packages/**'
+              - 'scripts/**'
+              - 'sdk/**'
+              - 'tsconfig.json'
+              - 'tsconfig.base.json'
+              - 'turbo.json'
+              - 'vitest.config.ts'
+
+  verify:
+    name: Verify (fmt, lint, unit, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "true"
+
+      - name: Set up Bun (web deps)
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+          install-playwright: "false"
+
+      - name: Run verification pipeline
+        run: make verify
+        env:
+          CGO_ENABLED: 0
+
+      - name: Upload verify artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-artifacts
+          path: |
+            coverage.out
+            test-results.xml
+            web/dist
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-combined:
+    name: E2E (combined lane)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: verify
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "true"
+
+      - name: Set up Bun (web deps + Playwright)
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+          install-playwright: "true"
+
+      - name: Run combined E2E lane
+        run: make test-e2e
+        env:
+          CGO_ENABLED: 0
+          CI: "true"
+
+      - name: Upload E2E artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-combined-artifacts
+          path: |
+            web/playwright-report
+            web/test-results
+            web/blob-report
+            /tmp/agh-e2e-*
+          if-no-files-found: ignore
+          retention-days: 7

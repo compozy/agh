@@ -95,8 +95,7 @@ func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
 		FixturePath:     filepath.Join("testdata", "multi_agent_fixture.json"),
 		FixtureAgent:    "alpha",
 		AgentName:       "mock-alpha",
-		NodePath:        "/usr/local/bin/node",
-		DriverPath:      "/tmp/mock driver/dist/index.js",
+		DriverPath:      "/tmp/mock driver/acpmock-driver",
 		DiagnosticsPath: diagnosticsPath,
 	})
 	if err != nil {
@@ -272,22 +271,14 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 }
 
 func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
-	t.Run("resolve node override and env override", func(t *testing.T) {
-		if got, err := resolveNodePath("/custom/node"); err != nil || got != "/custom/node" {
-			t.Fatalf("resolveNodePath(override) = %q, %v, want /custom/node", got, err)
-		}
-
-		t.Setenv("AGH_TEST_NODE_BIN", "/env/node")
-		if got, err := resolveNodePath(""); err != nil || got != "/env/node" {
-			t.Fatalf("resolveNodePath(env) = %q, %v, want /env/node", got, err)
-		}
-	})
-
-	t.Run("resolve driver path honors override", func(t *testing.T) {
-		t.Parallel()
-
-		if got, err := resolveDriverPath("/tmp/custom-driver.js"); err != nil || got != "/tmp/custom-driver.js" {
+	t.Run("resolve driver path honors override and env override", func(t *testing.T) {
+		if got, err := resolveDriverPath("/tmp/custom-driver"); err != nil || got != "/tmp/custom-driver" {
 			t.Fatalf("resolveDriverPath(override) = %q, %v, want override path", got, err)
+		}
+
+		t.Setenv(driverBinaryEnvVar, "/env/acpmock-driver")
+		if got, err := resolveDriverPath(""); err != nil || got != "/env/acpmock-driver" {
+			t.Fatalf("resolveDriverPath(env) = %q, %v, want /env/acpmock-driver", got, err)
 		}
 	})
 
@@ -342,8 +333,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		_, err := Register(homePaths, RegisterOptions{
 			FixturePath:  filepath.Join("testdata", "multi_agent_fixture.json"),
 			FixtureAgent: "missing",
-			NodePath:     "/usr/local/bin/node",
-			DriverPath:   "/tmp/mock-driver.js",
+			DriverPath:   "/tmp/mock-driver",
 		})
 		if err == nil || !strings.Contains(err.Error(), "fixture agent") {
 			t.Fatalf("Register(missing fixture agent) error = %v, want fixture-agent error", err)
@@ -388,7 +378,7 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 			t.Fatalf("resolveDriverPath(default) = %q, %v, want %q", got, err, driverPath)
 		}
 
-		command := BuildCommand("/usr/local/bin/node", "/tmp/driver.js", "/tmp/fixture.json", "alpha", "")
+		command := BuildCommand("/tmp/driver", "/tmp/fixture.json", "alpha", "")
 		if strings.Contains(command, "--diagnostics") {
 			t.Fatalf("BuildCommand() = %q, want no diagnostics flag", command)
 		}

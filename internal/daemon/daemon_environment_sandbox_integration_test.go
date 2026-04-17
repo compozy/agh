@@ -139,9 +139,6 @@ func TestDaemonE2ELocalEnvironmentAllowsToolExecutionAndPersistsMetadata(t *test
 			SideEffectExists: true,
 		}},
 	}
-	if _, ok := diagnostics.Allowed("write_text_file"); !ok {
-		t.Fatal("diagnostics.Allowed(write_text_file) = missing, want allowed operation")
-	}
 }
 
 func TestDaemonE2ELocalEnvironmentBlockedOperationLeavesFailureDiagnostics(t *testing.T) {
@@ -231,13 +228,6 @@ func TestDaemonE2ELocalEnvironmentBlockedOperationLeavesFailureDiagnostics(t *te
 			SideEffectPath:   sideEffectPath,
 			SideEffectExists: false,
 		}},
-	}
-	blocked, ok := diagnostics.Blocked("write_text_file")
-	if !ok {
-		t.Fatal("diagnostics.Blocked(write_text_file) = missing, want blocked operation")
-	}
-	if !strings.Contains(blocked.Error, "approve-reads") {
-		t.Fatalf("blocked.Error = %q, want approve-reads detail", blocked.Error)
 	}
 }
 

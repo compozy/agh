@@ -712,7 +712,7 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	var foundAgentMessage bool
 	var foundToolCall bool
 	var foundDone bool
-	var finishPart map[string]any
+	var finishPart promptFinishPayload
 	for _, record := range records {
 		if record.Event == "agent_message" {
 			foundAgentMessage = true
@@ -763,10 +763,10 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 		!contains(types, "finish") {
 		t.Fatalf("part types = %#v", types)
 	}
-	if got := finishPart["finishReason"]; got != "stop" {
-		t.Fatalf("finishReason = %#v, want %q", got, "stop")
+	if got := finishPart.FinishReason; got != "stop" {
+		t.Fatalf("finishPart.FinishReason = %q, want %q", got, "stop")
 	}
-	if _, ok := finishPart["stopReason"]; ok {
+	if finishPart.StopReason != nil {
 		t.Fatalf("finish part unexpectedly includes stopReason: %#v", finishPart)
 	}
 }

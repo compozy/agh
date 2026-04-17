@@ -3,13 +3,18 @@ package daemon
 import (
 	"context"
 	"encoding/json"
-	"strings"
+	"errors"
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/testutil"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+)
+
+var (
+	errTriggerFailure  = errors.New("trigger failure")
+	errProviderFailure = errors.New("provider failure")
 )
 
 func TestResourceCatalogProjectorBuildAndApply(t *testing.T) {
@@ -75,151 +80,169 @@ func TestResourceCatalogProjectorBuildAndApply(t *testing.T) {
 func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 	t.Parallel()
 
-	if got := newToolProjector(nil); got != nil {
-		t.Fatalf("newToolProjector(nil) = %#v, want nil", got)
-	}
-	if got := newMCPServerProjector(nil); got != nil {
-		t.Fatalf("newMCPServerProjector(nil) = %#v, want nil", got)
-	}
+	t.Run("ShouldHandleNilCatalogAndProjectorHelpers", func(t *testing.T) {
+		t.Parallel()
 
-	var nilCatalog *resourceCatalog[toolspkg.Tool]
-	nilCatalog.Replace(9, []resources.Record[toolspkg.Tool]{{ID: "ignored"}})
-	if got := nilCatalog.Snapshot(); got != nil {
-		t.Fatalf("nilCatalog.Snapshot() = %#v, want nil", got)
-	}
-	if got := nilCatalog.Revision(); got != 0 {
-		t.Fatalf("nilCatalog.Revision() = %d, want 0", got)
-	}
+		if got := newToolProjector(nil); got != nil {
+			t.Fatalf("newToolProjector(nil) = %#v, want nil", got)
+		}
+		if got := newMCPServerProjector(nil); got != nil {
+			t.Fatalf("newMCPServerProjector(nil) = %#v, want nil", got)
+		}
 
-	var nilPlan *resourceCatalogProjectionPlan[toolspkg.Tool]
-	if got := nilPlan.Kind(); got != "" {
-		t.Fatalf("nilPlan.Kind() = %q, want empty", got)
-	}
-	if got := nilPlan.Revision(); got != 0 {
-		t.Fatalf("nilPlan.Revision() = %d, want 0", got)
-	}
-	if got := nilPlan.OperationCount(); got != 0 {
-		t.Fatalf("nilPlan.OperationCount() = %d, want 0", got)
-	}
+		var nilCatalog *resourceCatalog[toolspkg.Tool]
+		nilCatalog.Replace(9, []resources.Record[toolspkg.Tool]{{ID: "ignored"}})
+		if got := nilCatalog.Snapshot(); got != nil {
+			t.Fatalf("nilCatalog.Snapshot() = %#v, want nil", got)
+		}
+		if got := nilCatalog.Revision(); got != 0 {
+			t.Fatalf("nilCatalog.Revision() = %d, want 0", got)
+		}
 
-	var nilProjector *resourceCatalogProjector[toolspkg.Tool]
-	if got := nilProjector.Kind(); got != "" {
-		t.Fatalf("nilProjector.Kind() = %q, want empty", got)
-	}
-	if got := nilProjector.DependsOn(); got != nil {
-		t.Fatalf("nilProjector.DependsOn() = %#v, want nil", got)
-	}
-	if _, err := nilProjector.Build(context.Background(), nil); err == nil {
-		t.Fatal("nilProjector.Build() error = nil, want non-nil")
-	}
-	if err := nilProjector.Apply(context.Background(), &resourceCatalogProjectionPlan[toolspkg.Tool]{}); err == nil {
-		t.Fatal("nilProjector.Apply() error = nil, want non-nil")
-	}
+		var nilPlan *resourceCatalogProjectionPlan[toolspkg.Tool]
+		if got := nilPlan.Kind(); got != "" {
+			t.Fatalf("nilPlan.Kind() = %q, want empty", got)
+		}
+		if got := nilPlan.Revision(); got != 0 {
+			t.Fatalf("nilPlan.Revision() = %d, want 0", got)
+		}
+		if got := nilPlan.OperationCount(); got != 0 {
+			t.Fatalf("nilPlan.OperationCount() = %d, want 0", got)
+		}
 
-	toolCodec, err := toolspkg.NewResourceCodec()
-	if err != nil {
-		t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
-	}
-	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
-	if err != nil {
-		t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
-	}
-
-	syncer := &toolMCPSourceSyncer{
-		toolCodec: toolCodec,
-		mcpCodec:  mcpCodec,
-	}
-
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
-	workspaceScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
-
-	toolSpec := toolspkg.Tool{
-		Name:        "lookup",
-		Description: "Search extension data",
-		InputSchema: json.RawMessage(`{"type":"object"}`),
-		Source:      toolspkg.ToolSourceExtension,
-	}
-	toolEncoded, err := toolCodec.Encode(toolSpec)
-	if err != nil {
-		t.Fatalf("toolCodec.Encode() error = %v", err)
-	}
-	toolRecord := resources.Record[toolspkg.Tool]{
-		Scope: globalScope,
-		Spec:  toolSpec,
-	}
-	if !syncer.sameTool(toolRecord, globalScope, toolEncoded) {
-		t.Fatal("sameTool() = false, want true for matching scope and spec")
-	}
-	if syncer.sameTool(toolRecord, workspaceScope, toolEncoded) {
-		t.Fatal("sameTool() = true, want false for mismatched scope")
-	}
-	if syncer.sameTool(toolRecord, globalScope, []byte(`{"bad":true}`)) {
-		t.Fatal("sameTool() = true, want false for mismatched encoding")
-	}
-
-	mcpSpec := aghconfig.MCPServer{
-		Name:    "git",
-		Command: "npx",
-		Args:    []string{"@modelcontextprotocol/server-git"},
-	}
-	mcpEncoded, err := mcpCodec.Encode(mcpSpec)
-	if err != nil {
-		t.Fatalf("mcpCodec.Encode() error = %v", err)
-	}
-	mcpRecord := resources.Record[aghconfig.MCPServer]{
-		Scope: globalScope,
-		Spec:  mcpSpec,
-	}
-	if !syncer.sameMCPServer(mcpRecord, globalScope, mcpEncoded) {
-		t.Fatal("sameMCPServer() = false, want true for matching scope and spec")
-	}
-	if syncer.sameMCPServer(mcpRecord, workspaceScope, mcpEncoded) {
-		t.Fatal("sameMCPServer() = true, want false for mismatched scope")
-	}
-	if syncer.sameMCPServer(mcpRecord, globalScope, []byte(`{"bad":true}`)) {
-		t.Fatal("sameMCPServer() = true, want false for mismatched encoding")
-	}
-
-	var nilPublisher toolMCPPublisherFunc
-	if err := nilPublisher.Sync(context.Background()); err != nil {
-		t.Fatalf("nilPublisher.Sync() error = %v", err)
-	}
-	called := false
-	publisher := toolMCPPublisherFunc(func(context.Context) error {
-		called = true
-		return nil
+		var nilProjector *resourceCatalogProjector[toolspkg.Tool]
+		if got := nilProjector.Kind(); got != "" {
+			t.Fatalf("nilProjector.Kind() = %q, want empty", got)
+		}
+		if got := nilProjector.DependsOn(); got != nil {
+			t.Fatalf("nilProjector.DependsOn() = %#v, want nil", got)
+		}
+		if _, err := nilProjector.Build(context.Background(), nil); err == nil {
+			t.Fatal("nilProjector.Build() error = nil, want non-nil")
+		}
+		if err := nilProjector.Apply(
+			context.Background(),
+			&resourceCatalogProjectionPlan[toolspkg.Tool]{},
+		); err == nil {
+			t.Fatal("nilProjector.Apply() error = nil, want non-nil")
+		}
+		if got := newToolMCPSourceSyncer(nil, nil, nil, nil, resources.MutationActor{}, nil, nil); got != nil {
+			t.Fatalf("newToolMCPSourceSyncer(nil deps) = %#v, want nil", got)
+		}
 	})
-	if err := publisher.Sync(context.Background()); err != nil {
-		t.Fatalf("publisher.Sync() error = %v", err)
-	}
-	if !called {
-		t.Fatal("publisher.Sync() did not invoke wrapped function")
-	}
 
-	if got := newToolMCPSourceSyncer(nil, nil, nil, nil, resources.MutationActor{}, nil, nil); got != nil {
-		t.Fatalf("newToolMCPSourceSyncer(nil deps) = %#v, want nil", got)
-	}
+	t.Run("ShouldCompareEncodedToolAndMCPResources", func(t *testing.T) {
+		t.Parallel()
 
-	toolStore, toolCodec, mcpStore, mcpCodec := toolMCPSyncStores(t)
-	syncerWithNilLogger := newToolMCPSourceSyncer(
-		toolStore,
-		toolCodec,
-		mcpStore,
-		mcpCodec,
-		toolMCPSyncActor(),
-		nil,
-		nil,
-	)
-	if syncerWithNilLogger == nil {
-		t.Fatal("newToolMCPSourceSyncer(nil logger) = nil, want syncer")
-	}
-	concreteSyncer, ok := syncerWithNilLogger.(*toolMCPSourceSyncer)
-	if !ok {
-		t.Fatalf("syncerWithNilLogger type = %T, want *toolMCPSourceSyncer", syncerWithNilLogger)
-	}
-	if err := concreteSyncer.Sync(context.Background()); err != nil {
-		t.Fatalf("syncerWithNilLogger.Sync() error = %v", err)
-	}
+		toolCodec, err := toolspkg.NewResourceCodec()
+		if err != nil {
+			t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
+		}
+		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		if err != nil {
+			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+		}
+
+		syncer := &toolMCPSourceSyncer{
+			toolCodec: toolCodec,
+			mcpCodec:  mcpCodec,
+		}
+
+		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		workspaceScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
+
+		toolSpec := toolspkg.Tool{
+			Name:        "lookup",
+			Description: "Search extension data",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+			Source:      toolspkg.ToolSourceExtension,
+		}
+		toolEncoded, err := toolCodec.Encode(toolSpec)
+		if err != nil {
+			t.Fatalf("toolCodec.Encode() error = %v", err)
+		}
+		toolRecord := resources.Record[toolspkg.Tool]{
+			Scope: globalScope,
+			Spec:  toolSpec,
+		}
+		if !syncer.sameTool(toolRecord, globalScope, toolEncoded) {
+			t.Fatal("sameTool() = false, want true for matching scope and spec")
+		}
+		if syncer.sameTool(toolRecord, workspaceScope, toolEncoded) {
+			t.Fatal("sameTool() = true, want false for mismatched scope")
+		}
+		if syncer.sameTool(toolRecord, globalScope, []byte(`{"bad":true}`)) {
+			t.Fatal("sameTool() = true, want false for mismatched encoding")
+		}
+
+		mcpSpec := aghconfig.MCPServer{
+			Name:    "git",
+			Command: "npx",
+			Args:    []string{"@modelcontextprotocol/server-git"},
+		}
+		mcpEncoded, err := mcpCodec.Encode(mcpSpec)
+		if err != nil {
+			t.Fatalf("mcpCodec.Encode() error = %v", err)
+		}
+		mcpRecord := resources.Record[aghconfig.MCPServer]{
+			Scope: globalScope,
+			Spec:  mcpSpec,
+		}
+		if !syncer.sameMCPServer(mcpRecord, globalScope, mcpEncoded) {
+			t.Fatal("sameMCPServer() = false, want true for matching scope and spec")
+		}
+		if syncer.sameMCPServer(mcpRecord, workspaceScope, mcpEncoded) {
+			t.Fatal("sameMCPServer() = true, want false for mismatched scope")
+		}
+		if syncer.sameMCPServer(mcpRecord, globalScope, []byte(`{"bad":true}`)) {
+			t.Fatal("sameMCPServer() = true, want false for mismatched encoding")
+		}
+	})
+
+	t.Run("ShouldTreatPublisherHelpersAsNoopOrPassthrough", func(t *testing.T) {
+		t.Parallel()
+
+		var nilPublisher toolMCPPublisherFunc
+		if err := nilPublisher.Sync(context.Background()); err != nil {
+			t.Fatalf("nilPublisher.Sync() error = %v", err)
+		}
+		called := false
+		publisher := toolMCPPublisherFunc(func(context.Context) error {
+			called = true
+			return nil
+		})
+		if err := publisher.Sync(context.Background()); err != nil {
+			t.Fatalf("publisher.Sync() error = %v", err)
+		}
+		if !called {
+			t.Fatal("publisher.Sync() did not invoke wrapped function")
+		}
+	})
+
+	t.Run("ShouldBuildSyncerEvenWhenLoggerIsNil", func(t *testing.T) {
+		t.Parallel()
+
+		toolStore, toolCodec, mcpStore, mcpCodec := toolMCPSyncStores(t)
+		syncerWithNilLogger := newToolMCPSourceSyncer(
+			toolStore,
+			toolCodec,
+			mcpStore,
+			mcpCodec,
+			toolMCPSyncActor(),
+			nil,
+			nil,
+		)
+		if syncerWithNilLogger == nil {
+			t.Fatal("newToolMCPSourceSyncer(nil logger) = nil, want syncer")
+		}
+		concreteSyncer, ok := syncerWithNilLogger.(*toolMCPSourceSyncer)
+		if !ok {
+			t.Fatalf("syncerWithNilLogger type = %T, want *toolMCPSourceSyncer", syncerWithNilLogger)
+		}
+		if err := concreteSyncer.Sync(context.Background()); err != nil {
+			t.Fatalf("syncerWithNilLogger.Sync() error = %v", err)
+		}
+	})
 }
 
 func TestToolMCPSourceSyncerHandlesNilReceiverAndTriggerFailures(t *testing.T) {
@@ -239,7 +262,7 @@ func TestToolMCPSourceSyncerHandlesNilReceiverAndTriggerFailures(t *testing.T) {
 		toolMCPSyncActor(),
 		discardLogger(),
 		func(context.Context, resources.ResourceKind, resources.ReconcileReason) error {
-			return assertErr("trigger failure")
+			return errTriggerFailure
 		},
 		func(context.Context) (toolMCPDesiredResources, error) {
 			return toolMCPDesiredResources{
@@ -261,8 +284,8 @@ func TestToolMCPSourceSyncerHandlesNilReceiverAndTriggerFailures(t *testing.T) {
 	if err == nil {
 		t.Fatal("syncer.Sync() error = nil, want trigger failure")
 	}
-	if got, want := err.Error(), "trigger failure"; got != want {
-		t.Fatalf("syncer.Sync() error = %q, want %q", got, want)
+	if !errors.Is(err, errTriggerFailure) {
+		t.Fatalf("syncer.Sync() error = %v, want %v", err, errTriggerFailure)
 	}
 }
 
@@ -279,7 +302,7 @@ func TestToolMCPSourceSyncerSyncPropagatesProviderFailure(t *testing.T) {
 		discardLogger(),
 		nil,
 		func(context.Context) (toolMCPDesiredResources, error) {
-			return toolMCPDesiredResources{}, assertErr("provider failure")
+			return toolMCPDesiredResources{}, errProviderFailure
 		},
 	)
 
@@ -287,8 +310,8 @@ func TestToolMCPSourceSyncerSyncPropagatesProviderFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("syncer.Sync() error = nil, want provider failure")
 	}
-	if got, want := err.Error(), "provider failure"; got != want {
-		t.Fatalf("syncer.Sync() error = %q, want %q", got, want)
+	if !errors.Is(err, errProviderFailure) {
+		t.Fatalf("syncer.Sync() error = %v, want %v", err, errProviderFailure)
 	}
 }
 
@@ -450,8 +473,8 @@ func TestNewToolMCPPublisherReturnsCodecResolutionErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("newToolMCPPublisher(empty codecs) error = nil, want tool codec failure")
 	}
-	if got, want := err.Error(), "daemon: resolve tool codec"; !strings.HasPrefix(got, want) {
-		t.Fatalf("newToolMCPPublisher(empty codecs) error = %q, want prefix %q", got, want)
+	if !errors.Is(err, resources.ErrCodecNotFound) {
+		t.Fatalf("newToolMCPPublisher(empty codecs) error = %v, want %v", err, resources.ErrCodecNotFound)
 	}
 
 	toolCodec, err := toolspkg.NewResourceCodec()
@@ -471,8 +494,8 @@ func TestNewToolMCPPublisherReturnsCodecResolutionErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("newToolMCPPublisher(tool-only codecs) error = nil, want mcp codec failure")
 	}
-	if got, want := err.Error(), "daemon: resolve mcp server codec"; !strings.HasPrefix(got, want) {
-		t.Fatalf("newToolMCPPublisher(tool-only codecs) error = %q, want prefix %q", got, want)
+	if !errors.Is(err, resources.ErrCodecNotFound) {
+		t.Fatalf("newToolMCPPublisher(tool-only codecs) error = %v, want %v", err, resources.ErrCodecNotFound)
 	}
 }
 
@@ -561,16 +584,6 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 	if err == nil {
 		t.Fatal("validateAndEncodeMCPServer(invalid) error = nil, want validation failure")
 	}
-}
-
-func assertErr(message string) error {
-	return errorString(message)
-}
-
-type errorString string
-
-func (e errorString) Error() string {
-	return string(e)
 }
 
 func toolMCPSyncStores(

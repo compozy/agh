@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// DiagnosticsRecord captures one prompt execution emitted by the Node mock driver.
+// DiagnosticsRecord captures one prompt execution emitted by the ACP mock driver.
 type DiagnosticsRecord struct {
 	AgentName   string            `json:"agent_name"`
 	SessionID   string            `json:"session_id"`

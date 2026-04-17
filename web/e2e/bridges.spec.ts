@@ -23,9 +23,6 @@ const bridgeIngressFixture = path.resolve(
 
 const bridgeRuntimeEnv = {
   AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
-  ...(process.env.AGH_TEST_NODE_BIN?.trim()
-    ? { AGH_TEST_NODE_BIN: process.env.AGH_TEST_NODE_BIN }
-    : {}),
   ...(process.env.PATH?.trim() ? { PATH: process.env.PATH } : {}),
   ...(process.platform === "win32" && process.env.PATHEXT?.trim()
     ? { PATHEXT: process.env.PATHEXT }

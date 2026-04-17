@@ -213,6 +213,8 @@ const BROWSER_SEED_POLL_MS = 150;
 const BRIDGE_EXTENSION_NAME = "telegram-reference";
 const BRIDGE_PLATFORM = "telegram";
 
+let acpMockDriverBinaryPromise: Promise<string> | undefined;
+
 export const browserNetworkOperatorFlowScenario = {
   messageIds: {
     say: "browser_msg_say_01",
@@ -289,8 +291,7 @@ export async function seedBrowserRuntimeHome(
     return;
   }
 
-  const driverPath = path.join(paths.repoRoot, "internal/testutil/acpmock/driver/dist/index.js");
-  const nodeCommand = process.env.AGH_TEST_NODE_BIN?.trim() || "node";
+  const driverPath = await ensureACPmockDriverBinary(paths.repoRoot);
   const agentsDir = path.join(paths.homeDir, "agents");
   const diagnosticsDir = path.join(paths.homeDir, "logs", "acpmock");
 
@@ -298,12 +299,7 @@ export async function seedBrowserRuntimeHome(
   await mkdir(diagnosticsDir, { recursive: true });
 
   for (const spec of mockAgents) {
-    const registration = await loadMockAgentRegistration(
-      driverPath,
-      diagnosticsDir,
-      nodeCommand,
-      spec
-    );
+    const registration = await loadMockAgentRegistration(driverPath, diagnosticsDir, spec);
     const agentDir = path.join(agentsDir, registration.agentName);
     const agentDefPath = path.join(agentDir, "AGENT.md");
     await mkdir(agentDir, { recursive: true });
@@ -812,7 +808,6 @@ async function resolveSeedWorkspace(
 async function loadMockAgentRegistration(
   driverPath: string,
   diagnosticsDir: string,
-  nodeCommand: string,
   spec: BrowserMockAgentSeed
 ): Promise<{
   agentName: string;
@@ -835,7 +830,6 @@ async function loadMockAgentRegistration(
   const agentName = spec.agentName?.trim() || fixtureAgentName;
   const diagnosticsPath = path.join(diagnosticsDir, `${agentName}.jsonl`);
   const command = shellQuote([
-    nodeCommand,
     driverPath,
     "--fixture",
     fixturePath,
@@ -846,6 +840,41 @@ async function loadMockAgentRegistration(
   ]);
 
   return { agentName, command, agent };
+}
+
+async function ensureACPmockDriverBinary(repoRoot: string): Promise<string> {
+  const override = process.env.AGH_TEST_ACPMOCK_DRIVER_BIN?.trim();
+  if (override) {
+    return path.isAbsolute(override) ? override : path.resolve(repoRoot, override);
+  }
+
+  if (acpMockDriverBinaryPromise === undefined) {
+    acpMockDriverBinaryPromise = buildACPmockDriverBinary(repoRoot).catch(error => {
+      acpMockDriverBinaryPromise = undefined;
+      throw error;
+    });
+  }
+  return await acpMockDriverBinaryPromise;
+}
+
+async function buildACPmockDriverBinary(repoRoot: string): Promise<string> {
+  const buildDir = await mkdtemp(path.join(os.tmpdir(), "agh-acpmock-driver-"));
+  const outputPath = path.join(
+    buildDir,
+    process.platform === "win32" ? "acpmock-driver.exe" : "acpmock-driver"
+  );
+
+  await execFileAsync(
+    "go",
+    ["build", "-o", outputPath, "./internal/testutil/acpmock/cmd/acpmock-driver"],
+    {
+      cwd: repoRoot,
+      env: process.env,
+      maxBuffer: 20 * 1024 * 1024,
+    }
+  );
+
+  return outputPath;
 }
 
 function renderMockAgentDef(name: string, agent: MockFixtureAgent, command: string): string {

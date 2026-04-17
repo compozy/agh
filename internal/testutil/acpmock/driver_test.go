@@ -17,11 +17,6 @@ import (
 func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 	t.Parallel()
 
-	nodePath, err := ResolveNodePath()
-	if err != nil {
-		t.Skipf("ResolveNodePath() error = %v", err)
-	}
-
 	driverPath, err := DefaultDriverPath()
 	if err != nil {
 		t.Fatalf("DefaultDriverPath() error = %v", err)
@@ -32,7 +27,6 @@ func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 	}
 
 	command := BuildCommand(
-		nodePath,
 		driverPath,
 		fixturePath,
 		"golden",
@@ -86,11 +80,6 @@ func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 }
 
 func TestDriverSupportsNetworkOriginEnvironmentExpectations(t *testing.T) {
-	nodePath, err := ResolveNodePath()
-	if err != nil {
-		t.Skipf("ResolveNodePath() error = %v", err)
-	}
-
 	root := t.TempDir()
 	fakeAGH := filepath.Join(root, "agh")
 	if err := os.WriteFile(fakeAGH, []byte("#!/bin/sh\nprintf network-ok\n"), 0o755); err != nil {
@@ -108,7 +97,6 @@ func TestDriverSupportsNetworkOriginEnvironmentExpectations(t *testing.T) {
 	}
 
 	command := BuildCommand(
-		nodePath,
 		driverPath,
 		fixturePath,
 		"runner",
@@ -162,11 +150,6 @@ func TestDriverSupportsNetworkOriginEnvironmentExpectations(t *testing.T) {
 func TestDriverAdvertisesAndSupportsLoadSession(t *testing.T) {
 	t.Parallel()
 
-	nodePath, err := ResolveNodePath()
-	if err != nil {
-		t.Skipf("ResolveNodePath() error = %v", err)
-	}
-
 	driverPath, err := DefaultDriverPath()
 	if err != nil {
 		t.Fatalf("DefaultDriverPath() error = %v", err)
@@ -177,7 +160,6 @@ func TestDriverAdvertisesAndSupportsLoadSession(t *testing.T) {
 	}
 
 	command := BuildCommand(
-		nodePath,
 		driverPath,
 		fixturePath,
 		"browser-lifecycle-agent",

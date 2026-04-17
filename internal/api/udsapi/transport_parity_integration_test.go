@@ -28,7 +28,8 @@ const (
 var errStopAfterUDSApprovalGap = errors.New("stop after documenting UDS approval gap")
 
 func TestUDSTransportApprovalRouteDocumentsNotImplementedGap(t *testing.T) {
-	skipWithoutNode(t)
+	acpmock.RequireDriver(t)
+	t.Parallel()
 
 	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
@@ -94,7 +95,8 @@ func TestUDSTransportApprovalRouteDocumentsNotImplementedGap(t *testing.T) {
 }
 
 func TestUDSTransportProjectionParityMatchesHTTPAndCLI(t *testing.T) {
-	skipWithoutNode(t)
+	acpmock.RequireDriver(t)
+	t.Parallel()
 
 	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
@@ -127,6 +129,9 @@ func TestUDSTransportProjectionParityMatchesHTTPAndCLI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeliverGlobalWebhook() error = %v", err)
 	}
+	if got, want := len(delivery.Runs), 1; got != want {
+		t.Fatalf("len(delivery.Runs) = %d, want %d; delivery=%#v", got, want, delivery)
+	}
 
 	runID := delivery.Runs[0].ID
 	httpRun := waitForHTTPAutomationRun(t, ctx, runtimeHarness, runID)
@@ -149,17 +154,9 @@ func waitForUDSAutomationRun(
 ) aghcontract.RunPayload {
 	t.Helper()
 
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		run, err := harness.GetAutomationRun(ctx, runID)
-		if err == nil && run.ID == runID {
-			return run
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("waitForUDSAutomationRun(%q) error = %v", runID, err)
-		}
-		time.Sleep(25 * time.Millisecond)
-	}
+	return waitForTransportAutomationRun(t, ctx, runID, "waitForUDSAutomationRun", func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
+		return harness.GetAutomationRun(fetchCtx, runID)
+	})
 }
 
 func waitForCLIAutomationRun(
@@ -170,18 +167,11 @@ func waitForCLIAutomationRun(
 ) aghcontract.RunPayload {
 	t.Helper()
 
-	deadline := time.Now().Add(5 * time.Second)
-	for {
+	return waitForTransportAutomationRun(t, ctx, runID, "waitForCLIAutomationRun", func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
 		var run aghcontract.RunPayload
-		err := client.RunJSON(ctx, &run, "automation", "runs", "get", runID, "-o", "json")
-		if err == nil && run.ID == runID {
-			return run
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("waitForCLIAutomationRun(%q) error = %v", runID, err)
-		}
-		time.Sleep(25 * time.Millisecond)
-	}
+		err := client.RunJSON(fetchCtx, &run, "automation", "runs", "get", runID, "-o", "json")
+		return run, err
+	})
 }
 
 func seedTransportWebhookTrigger(
@@ -227,17 +217,50 @@ func waitForHTTPAutomationRun(
 ) aghcontract.RunPayload {
 	t.Helper()
 
-	deadline := time.Now().Add(5 * time.Second)
-	for {
+	return waitForTransportAutomationRun(t, ctx, runID, "waitForHTTPAutomationRun", func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
 		var response aghcontract.RunResponse
-		err := harness.HTTPJSON(ctx, http.MethodGet, "/api/automation/runs/"+url.PathEscape(runID), nil, &response)
-		if err == nil && response.Run.ID == runID {
-			return response.Run
+		err := harness.HTTPJSON(fetchCtx, http.MethodGet, "/api/automation/runs/"+url.PathEscape(runID), nil, &response)
+		return response.Run, err
+	})
+}
+
+func waitForTransportAutomationRun(
+	t testing.TB,
+	ctx context.Context,
+	runID string,
+	label string,
+	fetch func(context.Context) (aghcontract.RunPayload, error),
+) aghcontract.RunPayload {
+	t.Helper()
+
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+
+	var (
+		lastErr error
+		lastRun aghcontract.RunPayload
+	)
+	for {
+		run, err := fetch(waitCtx)
+		if err == nil && run.ID == runID {
+			return run
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("waitForHTTPAutomationRun(%q) error = %v", runID, err)
+		lastErr = err
+		lastRun = run
+		select {
+		case <-waitCtx.Done():
+			t.Fatalf(
+				"%s(%q) timed out: %v; last error=%v last run=%#v",
+				label,
+				runID,
+				waitCtx.Err(),
+				lastErr,
+				lastRun,
+			)
+		case <-ticker.C:
 		}
-		time.Sleep(25 * time.Millisecond)
 	}
 }
 
@@ -249,12 +272,4 @@ func transportMockFixturePath(t testing.TB, name string) string {
 		t.Fatal("runtime.Caller(0) failed")
 	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "testutil", "acpmock", "testdata", name)
-}
-
-func skipWithoutNode(t testing.TB) {
-	t.Helper()
-
-	if _, err := acpmock.ResolveNodePath(); err != nil {
-		t.Skipf("ResolveNodePath() error = %v", err)
-	}
 }

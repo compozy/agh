@@ -5,6 +5,7 @@ package daemon
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
-	skipWithoutNode(t)
+	acpmock.RequireDriver(t)
 
 	fixturePath := mockFixturePath(t, "network_collaboration_fixture.json")
 	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
@@ -279,7 +280,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 }
 
 func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
-	skipWithoutNode(t)
+	acpmock.RequireDriver(t)
 
 	fixturePath := mockFixturePath(t, "network_collaboration_fixture.json")
 	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
@@ -485,7 +486,7 @@ func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
 	curatorTranscript := mustSessionTranscript(t, ctx, harness, curatorSession.ID)
 	audit := mustNetworkAuditSnapshot(t, harness)
 
-	releaseContent := transcriptContent(releaseTranscript.Messages)
+	releaseContent := joinTranscriptContent(releaseTranscript.Messages)
 	for _, needle := range []string{
 		attributeNeedle("kind", "whois"),
 		attributeNeedle("reply-to", "msg_whois_01"),
@@ -729,7 +730,7 @@ func mustHTTPNetworkPeersMaybe(
 	var response aghcontract.NetworkPeersResponse
 	path := "/api/network/peers"
 	if trimmed := strings.TrimSpace(channel); trimmed != "" {
-		path += "?channel=" + trimmed
+		path += "?channel=" + url.QueryEscape(trimmed)
 	}
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return nil, err
@@ -760,7 +761,8 @@ func mustHTTPNetworkChannel(
 	t.Helper()
 
 	var response aghcontract.NetworkChannelResponse
-	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/network/channels/"+channel, nil, &response); err != nil {
+	escapedChannel := url.PathEscape(channel)
+	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/network/channels/"+escapedChannel, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(/api/network/channels/%s) error = %v", channel, err)
 	}
 	return response.Channel
@@ -775,10 +777,11 @@ func mustHTTPNetworkChannelMessages(
 	t.Helper()
 
 	var response aghcontract.NetworkChannelMessagesResponse
+	escapedChannel := url.PathEscape(channel)
 	if err := harness.HTTPJSON(
 		ctx,
 		http.MethodGet,
-		"/api/network/channels/"+channel+"/messages",
+		"/api/network/channels/"+escapedChannel+"/messages",
 		nil,
 		&response,
 	); err != nil {
@@ -794,10 +797,11 @@ func channelHasMessageID(
 	messageID string,
 ) bool {
 	var response aghcontract.NetworkChannelMessagesResponse
+	escapedChannel := url.PathEscape(channel)
 	if err := harness.HTTPJSON(
 		ctx,
 		http.MethodGet,
-		"/api/network/channels/"+channel+"/messages",
+		"/api/network/channels/"+escapedChannel+"/messages",
 		nil,
 		&response,
 	); err != nil {
@@ -837,7 +841,7 @@ func sessionTranscriptHasNeedle(
 	if err != nil {
 		return false
 	}
-	return strings.Contains(transcriptContent(response.Messages), needle)
+	return strings.Contains(joinTranscriptContent(response.Messages), needle)
 }
 
 func mustNetworkAuditSnapshot(
@@ -861,14 +865,21 @@ func waitForRuntimeCondition(
 ) {
 	t.Helper()
 
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
 		if fn() {
 			return
 		}
-		time.Sleep(20 * time.Millisecond)
+		select {
+		case <-timer.C:
+			t.Fatalf("timed out waiting for %s", label)
+		case <-ticker.C:
+		}
 	}
-	t.Fatalf("timed out waiting for %s", label)
 }
 
 func registerNetworkScenarioArtifacts(

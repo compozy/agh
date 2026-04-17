@@ -62,6 +62,7 @@ describe("browser runtime seed helpers", () => {
     expect(agentDef).toContain("--fixture");
     expect(agentDef).toContain("browser_session_lifecycle_fixture.json");
     expect(agentDef).toContain("--agent browser-lifecycle-agent");
+    expect(agentDef).not.toContain("driver/dist/index.js");
   });
 
   it("creates seeded workspace and session state through public runtime surfaces", async () => {

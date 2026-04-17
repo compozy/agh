@@ -137,3 +137,25 @@ func TestPlanForLaneRejectsUnknownLane(t *testing.T) {
 		t.Fatal("PlanForLane() error = nil, want non-nil")
 	}
 }
+
+func TestPlanForLaneReturnsIndependentGoSuitePackageSlices(t *testing.T) {
+	t.Parallel()
+
+	plan, err := PlanForLane(LaneRuntime)
+	if err != nil {
+		t.Fatalf("PlanForLane(%q) error = %v", LaneRuntime, err)
+	}
+	if len(plan.GoSuites) == 0 || len(plan.GoSuites[0].Packages) == 0 {
+		t.Fatalf("plan.GoSuites = %#v, want at least one package entry", plan.GoSuites)
+	}
+
+	plan.GoSuites[0].Packages[0] = "./mutated"
+
+	freshPlan, err := PlanForLane(LaneRuntime)
+	if err != nil {
+		t.Fatalf("PlanForLane(%q) fresh error = %v", LaneRuntime, err)
+	}
+	if got, want := freshPlan.GoSuites[0].Packages[0], "./internal/daemon"; got != want {
+		t.Fatalf("freshPlan.GoSuites[0].Packages[0] = %q, want %q", got, want)
+	}
+}
