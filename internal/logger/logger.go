@@ -77,7 +77,12 @@ func New(opts ...Option) (*slog.Logger, func() error, error) {
 		writers = append(writers, os.Stderr)
 	}
 
-	handler := slog.NewJSONHandler(io.MultiWriter(writers...), &slog.HandlerOptions{
+	output := writers[0]
+	if len(writers) > 1 {
+		output = io.MultiWriter(writers...)
+	}
+
+	handler := slog.NewJSONHandler(output, &slog.HandlerOptions{
 		Level: level,
 	})
 
