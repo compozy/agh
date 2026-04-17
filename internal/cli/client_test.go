@@ -1586,6 +1586,30 @@ func TestDecodeSSEPropagatesHandlerError(t *testing.T) {
 	}
 }
 
+func TestDecodeSSEPreservesMultiLineData(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Join([]string{
+		"id: 1",
+		"event: message",
+		`data: {"first":true}`,
+		`data: {"second":true}`,
+		"",
+	}, "\n")
+
+	var seen SSEEvent
+	err := decodeSSE(context.Background(), strings.NewReader(body), func(event SSEEvent) error {
+		seen = event
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("decodeSSE() error = %v", err)
+	}
+	if got, want := string(seen.Data), "{\"first\":true}\n{\"second\":true}"; got != want {
+		t.Fatalf("decodeSSE() data = %q, want %q", got, want)
+	}
+}
+
 func newHTTPResponse(status int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: status,

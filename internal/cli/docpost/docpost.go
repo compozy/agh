@@ -8,6 +8,7 @@ package docpost
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -43,8 +44,8 @@ func Process(ctx context.Context, srcDir, dstDir string) error {
 	if err := ensureContext(ctx, "start doc post-processing"); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dstDir, 0o755); err != nil {
-		return fmt.Errorf("docpost: create output dir: %w", err)
+	if err := prepareOutputDir(dstDir); err != nil {
+		return err
 	}
 	if err := cleanOutput(ctx, dstDir); err != nil {
 		return err
@@ -77,6 +78,70 @@ func Process(ctx context.Context, srcDir, dstDir string) error {
 	}
 
 	return writeSubdirMetas(ctx, dstDir)
+}
+
+func prepareOutputDir(dstDir string) error {
+	info, err := os.Stat(dstDir)
+	switch {
+	case err == nil:
+	case errors.Is(err, os.ErrNotExist):
+		if err := os.MkdirAll(dstDir, 0o755); err != nil {
+			return fmt.Errorf("docpost: create output dir: %w", err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("docpost: stat output dir %s: %w", dstDir, err)
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("docpost: output path %s must be a directory", dstDir)
+	}
+
+	managed, err := isManagedOutputDir(dstDir)
+	if err != nil {
+		return err
+	}
+	if !managed {
+		return fmt.Errorf(
+			"docpost: refusing to clean non-empty unmanaged output dir %q",
+			dstDir,
+		)
+	}
+
+	return nil
+}
+
+func isManagedOutputDir(dstDir string) (bool, error) {
+	entries, err := os.ReadDir(dstDir)
+	if err != nil {
+		return false, fmt.Errorf("docpost: read output dir %s: %w", dstDir, err)
+	}
+	if len(entries) == 0 {
+		return true, nil
+	}
+
+	hasEditorialIndex := false
+	hasEditorialMeta := false
+	hasGeneratedRoot := false
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		switch entry.Name() {
+		case "index.mdx":
+			hasEditorialIndex = true
+		case "meta.json":
+			hasEditorialMeta = true
+		case "agh.mdx":
+			hasGeneratedRoot = true
+		default:
+			return false, nil
+		}
+	}
+
+	return hasGeneratedRoot || (hasEditorialIndex && hasEditorialMeta), nil
 }
 
 type input struct {
