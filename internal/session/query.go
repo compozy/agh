@@ -194,9 +194,9 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
 }
 
 func (m *Manager) readMeta(id string) (store.SessionMeta, error) {
-	target := strings.TrimSpace(id)
-	if target == "" {
-		return store.SessionMeta{}, errors.New("session: session id is required")
+	target, err := normalizeStoredSessionID(id)
+	if err != nil {
+		return store.SessionMeta{}, err
 	}
 
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
@@ -215,6 +215,23 @@ func (m *Manager) readMeta(id string) (store.SessionMeta, error) {
 		return store.SessionMeta{}, err
 	}
 	return repaired, nil
+}
+
+func normalizeStoredSessionID(id string) (string, error) {
+	target := strings.TrimSpace(id)
+	if target == "" {
+		return "", errors.New("session: session id is required")
+	}
+	if filepath.IsAbs(target) || target == "." || target == ".." {
+		return "", fmt.Errorf("%w: %s", ErrSessionNotFound, target)
+	}
+	if strings.Contains(target, "/") || strings.Contains(target, `\`) {
+		return "", fmt.Errorf("%w: %s", ErrSessionNotFound, target)
+	}
+	if filepath.Clean(target) != target {
+		return "", fmt.Errorf("%w: %s", ErrSessionNotFound, target)
+	}
+	return target, nil
 }
 
 func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMeta) *Info {

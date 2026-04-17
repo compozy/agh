@@ -565,6 +565,56 @@ func TestSessionEnvironmentSyncBeforeExcludePatternsPassToProvider(t *testing.T)
 	}
 }
 
+func TestSessionEnvironmentSyncBeforeWithoutHooksSkipsFileCount(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "workspace.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatalf("WriteFile(workspace) error = %v", err)
+	}
+
+	manager := &Manager{
+		now: func() time.Time {
+			return time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+		},
+	}
+	session := &Session{
+		ID:          "sess-no-hooks",
+		AgentName:   "coder",
+		WorkspaceID: "ws-alpha",
+		Workspace:   root,
+		Type:        SessionTypeUser,
+		State:       StateActive,
+	}
+	state := environment.SessionState{
+		EnvironmentID:  "env-alpha",
+		Backend:        environment.BackendLocal,
+		Profile:        "local",
+		RuntimeRootDir: root,
+	}
+	meta := &store.SessionEnvironmentMeta{
+		EnvironmentID:  "env-alpha",
+		Backend:        string(environment.BackendLocal),
+		Profile:        "local",
+		RuntimeRootDir: root,
+	}
+
+	payload, err := manager.dispatchEnvironmentSyncBefore(
+		context.Background(),
+		session,
+		state,
+		meta,
+		environment.SyncDirectionToRuntime,
+		environment.SyncReasonStart,
+	)
+	if err != nil {
+		t.Fatalf("dispatchEnvironmentSyncBefore() error = %v", err)
+	}
+	if payload.FileCount != 0 {
+		t.Fatalf("dispatchEnvironmentSyncBefore() file_count = %d, want 0 without environment hooks", payload.FileCount)
+	}
+}
+
 func TestSessionEnvironmentStopDenyPreventsDestroyButStopsSession(t *testing.T) {
 	t.Parallel()
 

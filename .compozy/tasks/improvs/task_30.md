@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Improvements pass — internal/task"
 type: backend
 complexity: medium
@@ -28,6 +28,21 @@ Run the five-skill improvements pass on `internal/task/`. Apply discovered fixes
 - ANY non-trivial finding NOT fixed must be recorded in the Findings table AND in "Per-Skill Notes" with reasoning
 </critical>
 
+<skills_info>
+Each $<skill> below maps to its SKILL.md. Read the SKILL.md before invoking the skill via the Skill tool, and follow its procedure exactly — never substitute manual review.
+
+- $refactoring-analysis           → .agents/skills/refactoring-analysis/SKILL.md
+- $extreme-software-optimization  → .agents/skills/extreme-software-optimization/SKILL.md
+- $ubs                            → .agents/skills/ubs/SKILL.md
+- $deadlock-finder-and-fixer      → .agents/skills/deadlock-finder-and-fixer/SKILL.md
+- $security-review                → .agents/skills/security-review/SKILL.md
+- $golang-pro                     → .agents/skills/golang-pro/SKILL.md
+- $no-workarounds                 → .agents/skills/no-workarounds/SKILL.md
+- $testing-anti-patterns          → .agents/skills/testing-anti-patterns/SKILL.md
+- $systematic-debugging           → .agents/skills/systematic-debugging/SKILL.md
+- $cy-final-verify                → .agents/skills/cy-final-verify/SKILL.md
+</skills_info>
+
 <requirements>
 - MUST produce all five mandatory inventory sections in `.compozy/tasks/improvs/reports/task.md` BEFORE the Findings table:
     1. Refactoring: cyclomatic top-10, files > 300 LOC, duplication scan
@@ -51,21 +66,21 @@ Run the five-skill improvements pass on `internal/task/`. Apply discovered fixes
 
 ## Subtasks
 
-- [ ] 30.1 Read `_techspec.md` end-to-end (especially Anti-Evasion Hard Rules, Mandatory Per-Skill Artifacts, Failure Modes); confirm scope
-- [ ] 30.2 Map `internal/task/`: list every Go file, public surface, goroutine entry points, and external callers (rg from repo root)
-- [ ] 30.3 Build the five mandatory inventories (cyclomatic top-10, hot-path candidates, goroutine/channel/mutex/select tables, attacker-input surfaces) and write them to the report BEFORE running fixes
-- [ ] 30.4 Write benchmarks (`*_bench_test.go`) for every hot-path candidate; run `go test -bench=. -benchmem -count=5 ./internal/task/...`; capture baseline numbers
-- [ ] 30.5 Run $refactoring-analysis against the file-size + duplication + cyclomatic inventory; record findings
-- [ ] 30.6 Run $extreme-software-optimization against the benchmarked candidates; record findings (only fixes with measurable improvement count as "fixed")
-- [ ] 30.7 Invoke $ubs via the Skill tool; capture output excerpt OR mark not-run with literal refusal message
-- [ ] 30.8 Run $deadlock-finder-and-fixer against the goroutine/channel/mutex/select inventories; record findings
-- [ ] 30.9 Run $security-review after writing the threat model and the attacker-input surface inventory; per-surface verdict required
-- [ ] 30.10 Triage all findings into fixed / deferred / wontfix with reasons
-- [ ] 30.11 Apply fixes (Go code + tests + benchmark deltas) inside `internal/task/`
-- [ ] 30.12 Run `make verify`; fix root causes until clean; capture final excerpt
-- [ ] 30.13 Re-run benchmarks; populate before/after numbers in the optimization table
-- [ ] 30.14 Verify the report against `_techspec.md` "Failure Modes" — every `run` skill has its artifact section; every "no findings" carries an inventory
-- [ ] 30.15 Run $cy-final-verify before flipping status
+- [x] 30.1 Read `_techspec.md` end-to-end (especially Anti-Evasion Hard Rules, Mandatory Per-Skill Artifacts, Failure Modes); confirm scope
+- [x] 30.2 Map `internal/task/`: list every Go file, public surface, goroutine entry points, and external callers (rg from repo root)
+- [x] 30.3 Build the five mandatory inventories (cyclomatic top-10, hot-path candidates, goroutine/channel/mutex/select tables, attacker-input surfaces) and write them to the report BEFORE running fixes
+- [x] 30.4 Write benchmarks (`*_bench_test.go`) for every hot-path candidate; run `go test -bench=. -benchmem -count=5 ./internal/task/...`; capture baseline numbers
+- [x] 30.5 Run $refactoring-analysis against the file-size + duplication + cyclomatic inventory; record findings
+- [x] 30.6 Run $extreme-software-optimization against the benchmarked candidates; record findings (only fixes with measurable improvement count as "fixed")
+- [x] 30.7 Invoke $ubs via the Skill tool; capture output excerpt OR mark not-run with literal refusal message
+- [x] 30.8 Run $deadlock-finder-and-fixer against the goroutine/channel/mutex/select inventories; record findings
+- [x] 30.9 Run $security-review after writing the threat model and the attacker-input surface inventory; per-surface verdict required
+- [x] 30.10 Triage all findings into fixed / deferred / wontfix with reasons
+- [x] 30.11 Apply fixes (Go code + tests + benchmark deltas) inside `internal/task/`
+- [x] 30.12 Run `make verify`; fix root causes until clean; capture final excerpt
+- [x] 30.13 Re-run benchmarks; populate before/after numbers in the optimization table
+- [x] 30.14 Verify the report against `_techspec.md` "Failure Modes" — every `run` skill has its artifact section; every "no findings" carries an inventory
+- [x] 30.15 Run $cy-final-verify before flipping status
 
 ## Implementation Details
 

@@ -305,7 +305,9 @@ func (m *Manager) dispatchEnvironmentSyncBefore(
 		RuntimeRootDir: strings.TrimSpace(state.RuntimeRootDir),
 		Direction:      string(direction),
 		Reason:         string(reason),
-		FileCount:      m.environmentSyncFileCount(session, direction),
+	}
+	if m.hooks.hasEnvironmentHooks() {
+		payload.FileCount = m.environmentSyncFileCount(session, direction)
 	}
 	applyEnvironmentMetaFallbacks(&payload.EnvironmentID, &payload.Backend, &payload.Profile, &payload.InstanceID, meta)
 	return m.hooks.environment().DispatchEnvironmentSyncBefore(ctx, payload)

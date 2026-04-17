@@ -197,19 +197,19 @@ Excerpt from the clean pass:
 
 ```text
 0 issues.
-✓  internal/store/globaldb (cached)
 ✓  internal/task (cached)
-✓  internal/config (cached)
+✓  internal/store/globaldb (cached)
+✓  internal/extension (cached)
 ✓  internal/memory (cached)
 ✓  internal/session (cached)
-✓  internal/cli/docpost (1.03s)
-✓  internal/skills/bundled (1.113s)
-✓  internal/hooks (1.593s)
-✓  internal/acp (4.453s)
-✓  internal/daemon (7.301s)
-✓  internal/extension (8.175s)
-✓  internal/cli (8.205s)
+✓  internal/config (cached)
+✓  internal/daemon (cached)
+✓  internal/skills (cached)
+✓  internal/workspace (cached)
+✓  internal/network (cached)
+✓  internal/hooks (cached)
+✓  internal/cli (cached)
 
-DONE 4434 tests in 9.854s
+DONE 4434 tests in 0.878s
 OK: all package boundaries respected
 ```

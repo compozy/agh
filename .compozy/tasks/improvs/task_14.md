@@ -28,6 +28,21 @@ Run the five-skill improvements pass on `internal/filesnap/`. Apply discovered f
 - ANY non-trivial finding NOT fixed must be recorded in the Findings table AND in "Per-Skill Notes" with reasoning
 </critical>
 
+<skills_info>
+Each $<skill> below maps to its SKILL.md. Read the SKILL.md before invoking the skill via the Skill tool, and follow its procedure exactly — never substitute manual review.
+
+- $refactoring-analysis           → .agents/skills/refactoring-analysis/SKILL.md
+- $extreme-software-optimization  → .agents/skills/extreme-software-optimization/SKILL.md
+- $ubs                            → .agents/skills/ubs/SKILL.md
+- $deadlock-finder-and-fixer      → .agents/skills/deadlock-finder-and-fixer/SKILL.md
+- $security-review                → .agents/skills/security-review/SKILL.md
+- $golang-pro                     → .agents/skills/golang-pro/SKILL.md
+- $no-workarounds                 → .agents/skills/no-workarounds/SKILL.md
+- $testing-anti-patterns          → .agents/skills/testing-anti-patterns/SKILL.md
+- $systematic-debugging           → .agents/skills/systematic-debugging/SKILL.md
+- $cy-final-verify                → .agents/skills/cy-final-verify/SKILL.md
+</skills_info>
+
 <requirements>
 - MUST produce all five mandatory inventory sections in `.compozy/tasks/improvs/reports/filesnap.md` BEFORE the Findings table:
     1. Refactoring: cyclomatic top-10, files > 300 LOC, duplication scan
