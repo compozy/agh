@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1011,6 +1012,42 @@ func TestHelperUtilities(t *testing.T) {
 	}
 	if chooseString(nil, acpsdk.Ptr("usd")) == nil {
 		t.Fatal("chooseString(nil, fallback) = nil, want fallback")
+	}
+}
+
+func TestTrimUTF8LeadingBytesPreservesTrailingPartialRune(t *testing.T) {
+	t.Parallel()
+
+	input := append([]byte("hello"), 0xE2)
+	got := trimUTF8LeadingBytes(append([]byte(nil), input...))
+	if !bytes.Equal(got, input) {
+		t.Fatalf("trimUTF8LeadingBytes() = %v, want %v", got, input)
+	}
+}
+
+func TestManagedTerminalAppendOutputOverflowPreservesTrailingPartialRune(t *testing.T) {
+	t.Parallel()
+
+	term := &managedTerminal{
+		output: bytes.Repeat([]byte("a"), defaultTerminalOutputLimit),
+	}
+
+	term.appendOutput([]byte{0xE2})
+
+	if !term.truncated {
+		t.Fatal("appendOutput() did not mark output as truncated")
+	}
+	if len(term.output) != defaultTerminalOutputLimit {
+		t.Fatalf("len(term.output) = %d, want %d", len(term.output), defaultTerminalOutputLimit)
+	}
+	if cap(term.output) > defaultTerminalOutputLimit {
+		t.Fatalf("cap(term.output) = %d, want <= %d", cap(term.output), defaultTerminalOutputLimit)
+	}
+	if term.output[len(term.output)-1] != 0xE2 {
+		t.Fatalf("last output byte = 0x%x, want 0xE2", term.output[len(term.output)-1])
+	}
+	if term.output[0] != 'a' {
+		t.Fatalf("first output byte = 0x%x, want 'a'", term.output[0])
 	}
 }
 

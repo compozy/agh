@@ -671,9 +671,9 @@ func (w *terminalOutputWriter) Write(p []byte) (int, error) {
 func (t *managedTerminal) appendOutput(p []byte) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.output = append(t.output, p...)
-	if len(t.output) > defaultTerminalOutputLimit {
-		t.output = trimUTF8LeadingBytes(t.output[len(t.output)-defaultTerminalOutputLimit:])
+	var truncated bool
+	t.output, truncated = appendTerminalOutputWindow(t.output, p, defaultTerminalOutputLimit)
+	if truncated {
 		t.truncated = true
 	}
 }
@@ -932,16 +932,55 @@ func extractContentText(block acpsdk.ContentBlock) string {
 	}
 }
 
-func trimUTF8LeadingBytes(data []byte) []byte {
-	trimmed := append([]byte(nil), data...)
-	for len(trimmed) > 0 && !utf8.Valid(trimmed) {
-		_, size := utf8.DecodeRune(trimmed)
-		if size <= 0 {
-			size = 1
-		}
-		trimmed = trimmed[size:]
+func appendTerminalOutputWindow(dst []byte, src []byte, limit int) ([]byte, bool) {
+	if limit <= 0 {
+		return nil, len(dst) > 0 || len(src) > 0
 	}
-	return trimmed
+	if len(src) == 0 {
+		if len(dst) <= limit {
+			return dst, false
+		}
+		return trimUTF8LeadingBytes(dst[len(dst)-limit:]), true
+	}
+	if len(dst)+len(src) <= limit {
+		return append(dst, src...), false
+	}
+
+	var out []byte
+	if cap(dst) == limit {
+		out = dst[:0]
+	} else {
+		out = make([]byte, 0, limit)
+	}
+
+	if len(src) >= limit {
+		out = append(out, src[len(src)-limit:]...)
+		return trimUTF8LeadingBytes(out), true
+	}
+
+	keepFromDst := limit - len(src)
+	if len(dst) > keepFromDst {
+		dst = dst[len(dst)-keepFromDst:]
+	}
+	out = append(out, dst...)
+	out = append(out, src...)
+	return trimUTF8LeadingBytes(out), true
+}
+
+func trimUTF8LeadingBytes(data []byte) []byte {
+	trim := 0
+	for trim < len(data) && !isValidUTF8LeadingByte(data[trim]) {
+		trim++
+	}
+	if trim == 0 {
+		return data
+	}
+	copy(data, data[trim:])
+	return data[:len(data)-trim]
+}
+
+func isValidUTF8LeadingByte(b byte) bool {
+	return b < utf8.RuneSelf || (b >= 0xC2 && b <= 0xF4)
 }
 
 func fallbackPermissionEventRaw(requestID string, decision permissionDecision) json.RawMessage {
