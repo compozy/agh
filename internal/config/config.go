@@ -226,6 +226,26 @@ type loadOptions struct {
 	skipValidate  bool
 }
 
+type envLookup func(string) (string, bool)
+
+func processEnvLookup(key string) (string, bool) {
+	return os.LookupEnv(key)
+}
+
+func layeredEnvLookup(primary envLookup, fallback envLookup) envLookup {
+	return func(key string) (string, bool) {
+		if primary != nil {
+			if value, ok := primary(key); ok {
+				return value, true
+			}
+		}
+		if fallback != nil {
+			return fallback(key)
+		}
+		return "", false
+	}
+}
+
 // LoadOption customizes configuration loading.
 type LoadOption func(*loadOptions)
 
@@ -264,18 +284,21 @@ func Load(opts ...LoadOption) (Config, error) {
 		return Config{}, err
 	}
 
+	lookup := processEnvLookup
 	if !options.skipDotEnv {
-		if err := loadDotEnv(workspaceRoot); err != nil {
+		dotenvLookup, err := loadDotEnvLookup(workspaceRoot)
+		if err != nil {
 			return Config{}, err
 		}
+		lookup = layeredEnvLookup(processEnvLookup, dotenvLookup)
 	}
 
-	homePaths, err := ResolveHomePaths()
+	homePaths, err := resolveHomePaths(lookup)
 	if err != nil {
 		return Config{}, err
 	}
 
-	return loadWithHome(homePaths, workspaceRoot, options.skipValidate)
+	return loadWithHome(homePaths, workspaceRoot, options.skipValidate, lookup)
 }
 
 // LoadForHome reads the default config, the optional global config, and the optional workspace
@@ -293,16 +316,19 @@ func LoadForHome(homePaths HomePaths, opts ...LoadOption) (Config, error) {
 		return Config{}, err
 	}
 
+	lookup := processEnvLookup
 	if !options.skipDotEnv {
-		if err := loadDotEnv(workspaceRoot); err != nil {
+		dotenvLookup, err := loadDotEnvLookup(workspaceRoot)
+		if err != nil {
 			return Config{}, err
 		}
+		lookup = layeredEnvLookup(processEnvLookup, dotenvLookup)
 	}
 
-	return loadWithHome(homePaths, workspaceRoot, options.skipValidate)
+	return loadWithHome(homePaths, workspaceRoot, options.skipValidate, lookup)
 }
 
-func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool) (Config, error) {
+func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool, lookup envLookup) (Config, error) {
 	cfg := DefaultWithHome(homePaths)
 	if err := ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global config: %w", err)
@@ -323,7 +349,7 @@ func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool) 
 	}
 
 	if !skipValidate {
-		if err := cfg.Validate(); err != nil {
+		if err := cfg.validateWithEnv(lookup); err != nil {
 			return Config{}, fmt.Errorf("validate config: %w", err)
 		}
 	}
@@ -414,13 +440,17 @@ func DefaultWithHome(homePaths HomePaths) Config {
 
 // Validate ensures the loaded configuration is internally consistent.
 func (c *Config) Validate() error {
+	return c.validateWithEnv(processEnvLookup)
+}
+
+func (c *Config) validateWithEnv(lookup envLookup) error {
 	if c == nil {
 		return errors.New("config is required")
 	}
 	if err := c.validateCore(); err != nil {
 		return err
 	}
-	if err := c.validateFeatures(); err != nil {
+	if err := c.validateFeatures(lookup); err != nil {
 		return err
 	}
 	if err := c.validateProviders(); err != nil {
@@ -459,7 +489,7 @@ func (c *Config) validateCore() error {
 	return nil
 }
 
-func (c *Config) validateFeatures() error {
+func (c *Config) validateFeatures(lookup envLookup) error {
 	if err := c.Observability.Validate(); err != nil {
 		return err
 	}
@@ -475,7 +505,7 @@ func (c *Config) validateFeatures() error {
 	if err := c.Extensions.Validate(); err != nil {
 		return err
 	}
-	if err := c.Automation.Validate(); err != nil {
+	if err := c.Automation.validateWithEnv(lookup); err != nil {
 		return fmt.Errorf("validate automation config: %w", err)
 	}
 	if err := c.Hooks.Validate(); err != nil {
@@ -1052,22 +1082,30 @@ func workspaceConfigFile(root string) string {
 	return filepath.Join(root, DirName, ConfigName)
 }
 
-func loadDotEnv(workspaceRoot string) error {
+func loadDotEnvLookup(workspaceRoot string) (envLookup, error) {
 	if strings.TrimSpace(workspaceRoot) == "" {
-		return nil
+		return nil, nil
 	}
 
 	path := filepath.Join(workspaceRoot, ".env")
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil
+			return nil, nil
 		}
-		return fmt.Errorf("stat .env file %q: %w", path, err)
+		return nil, fmt.Errorf("stat .env file %q: %w", path, err)
 	}
 
-	if err := godotenv.Load(path); err != nil {
-		return fmt.Errorf("load .env file %q: %w", path, err)
+	values, err := godotenv.Read(path)
+	if err != nil {
+		return nil, fmt.Errorf("load .env file %q: %w", path, err)
 	}
 
-	return nil
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	return func(key string) (string, bool) {
+		value, ok := values[key]
+		return value, ok
+	}, nil
 }

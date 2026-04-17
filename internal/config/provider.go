@@ -166,7 +166,7 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		Tools:       tools,
 		Permissions: resolvedPermissions,
 		APIKeyEnv:   provider.APIKeyEnv,
-		MCPServers:  MergeMCPServers(MergeMCPServers(mcpServers, provider.MCPServers), agent.MCPServers),
+		MCPServers:  mergeMCPServerLayers(mcpServers, provider.MCPServers, agent.MCPServers),
 		Prompt:      agent.Prompt,
 	}
 
@@ -200,29 +200,13 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 
 // MergeMCPServers merges provider-level and agent-level MCP servers by name.
 func MergeMCPServers(base []MCPServer, overlay []MCPServer) []MCPServer {
-	merged := cloneMCPServers(base)
-	index := indexMCPServersByName(merged)
-
-	for _, server := range overlay {
-		name := normalizeMCPServerName(server.Name)
-		if idx, ok := index[name]; ok && name != "" {
-			merged[idx] = mergeMCPServer(merged[idx], server)
-			continue
-		}
-
-		merged = append(merged, cloneMCPServer(server))
-		if name != "" {
-			index[name] = len(merged) - 1
-		}
-	}
-
-	return merged
+	return mergeMCPServerLayers(base, overlay)
 }
 
 // OverrideMCPServers overlays MCP servers by name, replacing the full server object
 // on collision instead of field-merging it.
 func OverrideMCPServers(base []MCPServer, overlay []MCPServer) []MCPServer {
-	merged := cloneMCPServers(base)
+	merged := cloneMCPServersWithCapacity(base, len(base)+len(overlay))
 	index := indexMCPServersByName(merged)
 
 	for _, server := range overlay {
@@ -235,6 +219,33 @@ func OverrideMCPServers(base []MCPServer, overlay []MCPServer) []MCPServer {
 		merged = append(merged, cloneMCPServer(server))
 		if name != "" {
 			index[name] = len(merged) - 1
+		}
+	}
+
+	return merged
+}
+
+func mergeMCPServerLayers(base []MCPServer, overlays ...[]MCPServer) []MCPServer {
+	totalCapacity := len(base)
+	for _, overlay := range overlays {
+		totalCapacity += len(overlay)
+	}
+
+	merged := cloneMCPServersWithCapacity(base, totalCapacity)
+	index := indexMCPServersByName(merged)
+
+	for _, overlay := range overlays {
+		for _, server := range overlay {
+			name := normalizeMCPServerName(server.Name)
+			if idx, ok := index[name]; ok && name != "" {
+				merged[idx] = mergeMCPServer(merged[idx], server)
+				continue
+			}
+
+			merged = append(merged, cloneMCPServer(server))
+			if name != "" {
+				index[name] = len(merged) - 1
+			}
 		}
 	}
 
@@ -324,13 +335,21 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 }
 
 func cloneMCPServers(src []MCPServer) []MCPServer {
+	return cloneMCPServersWithCapacity(src, len(src))
+}
+
+func cloneMCPServersWithCapacity(src []MCPServer, capacity int) []MCPServer {
 	if len(src) == 0 {
 		return nil
 	}
 
-	cloned := make([]MCPServer, 0, len(src))
-	for _, server := range src {
-		cloned = append(cloned, cloneMCPServer(server))
+	if capacity < len(src) {
+		capacity = len(src)
+	}
+
+	cloned := make([]MCPServer, len(src), capacity)
+	for i, server := range src {
+		cloned[i] = cloneMCPServer(server)
 	}
 
 	return cloned
