@@ -31139,7 +31139,7 @@
                 },
                 "summary": "Stream task-native live events for one task",
                 "tags": ["tasks"],
-                "x-agh-transports": ["http"]
+                "x-agh-transports": ["http", "uds"]
             }
         },
         "/api/tasks/{id}/timeline": {

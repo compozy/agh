@@ -1849,7 +1849,7 @@ var operationRegistry = []OperationSpec{
 		OperationID: "streamTask",
 		Summary:     "Stream task-native live events for one task",
 		Tags:        []string{"tasks"},
-		Transports:  []Transport{TransportHTTP},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("id", "Task id"),
 			afterSequenceQueryParam("Replay events after the supplied task stream sequence"),
