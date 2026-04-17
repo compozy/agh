@@ -16,23 +16,37 @@ type testMeta struct {
 func TestSplitValidDocument(t *testing.T) {
 	t.Parallel()
 
-	parts, err := Split([]byte(strings.Join([]string{
-		"---",
-		"name: agent",
-		"description: test",
-		"---",
-		"Body line 1",
-		"Body line 2",
-	}, "\r\n")))
-	if err != nil {
-		t.Fatalf("Split() error = %v", err)
+	tests := []struct {
+		name      string
+		lineBreak string
+	}{
+		{name: "lf", lineBreak: "\n"},
+		{name: "crlf", lineBreak: "\r\n"},
 	}
 
-	if got, want := string(parts.Metadata), "name: agent\ndescription: test\n"; got != want {
-		t.Fatalf("Split() metadata = %q, want %q", got, want)
-	}
-	if got, want := parts.Body, "Body line 1\nBody line 2"; got != want {
-		t.Fatalf("Split() body = %q, want %q", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			parts, err := Split([]byte(strings.Join([]string{
+				"---",
+				"name: agent",
+				"description: test",
+				"---",
+				"Body line 1",
+				"Body line 2",
+			}, tt.lineBreak)))
+			if err != nil {
+				t.Fatalf("Split() error = %v", err)
+			}
+
+			if got, want := string(parts.Metadata), "name: agent\ndescription: test\n"; got != want {
+				t.Fatalf("Split() metadata = %q, want %q", got, want)
+			}
+			if got, want := parts.Body, "Body line 1\nBody line 2"; got != want {
+				t.Fatalf("Split() body = %q, want %q", got, want)
+			}
+		})
 	}
 }
 
