@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Improvements pass — internal/filesnap"
 type: backend
 complexity: low
@@ -51,21 +51,21 @@ Run the five-skill improvements pass on `internal/filesnap/`. Apply discovered f
 
 ## Subtasks
 
-- [ ] 14.1 Read `_techspec.md` end-to-end (especially Anti-Evasion Hard Rules, Mandatory Per-Skill Artifacts, Failure Modes); confirm scope
-- [ ] 14.2 Map `internal/filesnap/`: list every Go file, public surface, goroutine entry points, and external callers (rg from repo root)
-- [ ] 14.3 Build the five mandatory inventories (cyclomatic top-10, hot-path candidates, goroutine/channel/mutex/select tables, attacker-input surfaces) and write them to the report BEFORE running fixes
-- [ ] 14.4 Write benchmarks (`*_bench_test.go`) for every hot-path candidate; run `go test -bench=. -benchmem -count=5 ./internal/filesnap/...`; capture baseline numbers
-- [ ] 14.5 Run $refactoring-analysis against the file-size + duplication + cyclomatic inventory; record findings
-- [ ] 14.6 Run $extreme-software-optimization against the benchmarked candidates; record findings (only fixes with measurable improvement count as "fixed")
-- [ ] 14.7 Invoke $ubs via the Skill tool; capture output excerpt OR mark not-run with literal refusal message
-- [ ] 14.8 Run $deadlock-finder-and-fixer against the goroutine/channel/mutex/select inventories; record findings
-- [ ] 14.9 Run $security-review after writing the threat model and the attacker-input surface inventory; per-surface verdict required
-- [ ] 14.10 Triage all findings into fixed / deferred / wontfix with reasons
-- [ ] 14.11 Apply fixes (Go code + tests + benchmark deltas) inside `internal/filesnap/`
-- [ ] 14.12 Run `make verify`; fix root causes until clean; capture final excerpt
-- [ ] 14.13 Re-run benchmarks; populate before/after numbers in the optimization table
-- [ ] 14.14 Verify the report against `_techspec.md` "Failure Modes" — every `run` skill has its artifact section; every "no findings" carries an inventory
-- [ ] 14.15 Run $cy-final-verify before flipping status
+- [x] 14.1 Read `_techspec.md` end-to-end (especially Anti-Evasion Hard Rules, Mandatory Per-Skill Artifacts, Failure Modes); confirm scope
+- [x] 14.2 Map `internal/filesnap/`: list every Go file, public surface, goroutine entry points, and external callers (rg from repo root)
+- [x] 14.3 Build the five mandatory inventories (cyclomatic top-10, hot-path candidates, goroutine/channel/mutex/select tables, attacker-input surfaces) and write them to the report BEFORE running fixes
+- [x] 14.4 Write benchmarks (`*_bench_test.go`) for every hot-path candidate; run `go test -bench=. -benchmem -count=5 ./internal/filesnap/...`; capture baseline numbers
+- [x] 14.5 Run $refactoring-analysis against the file-size + duplication + cyclomatic inventory; record findings
+- [x] 14.6 Run $extreme-software-optimization against the benchmarked candidates; record findings (only fixes with measurable improvement count as "fixed")
+- [x] 14.7 Invoke $ubs via the Skill tool; capture output excerpt OR mark not-run with literal refusal message
+- [x] 14.8 Run $deadlock-finder-and-fixer against the goroutine/channel/mutex/select inventories; record findings
+- [x] 14.9 Run $security-review after writing the threat model and the attacker-input surface inventory; per-surface verdict required
+- [x] 14.10 Triage all findings into fixed / deferred / wontfix with reasons
+- [x] 14.11 Apply fixes (Go code + tests + benchmark deltas) inside `internal/filesnap/`
+- [x] 14.12 Run `make verify`; fix root causes until clean; capture final excerpt
+- [x] 14.13 Re-run benchmarks; populate before/after numbers in the optimization table
+- [x] 14.14 Verify the report against `_techspec.md` "Failure Modes" — every `run` skill has its artifact section; every "no findings" carries an inventory
+- [x] 14.15 Run $cy-final-verify before flipping status
 
 ## Implementation Details
 

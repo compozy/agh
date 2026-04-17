@@ -19,7 +19,7 @@ One task per package under `internal/*`. Each task runs the five-skill pipeline 
 | 11  | Improvements pass — internal/environment             | pending | medium     | —            |
 | 12  | Improvements pass — internal/extension               | pending | medium     | —            |
 | 13  | Improvements pass — internal/extensiontest           | pending | low        | —            |
-| 14  | Improvements pass — internal/filesnap                | pending | low        | —            |
+| 14  | Improvements pass — internal/filesnap                | completed | low        | —            |
 | 15  | Improvements pass — internal/fileutil                | pending | low        | —            |
 | 16  | Improvements pass — internal/frontmatter             | pending | low        | —            |
 | 17  | Improvements pass — internal/hooks                   | pending | medium     | —            |
