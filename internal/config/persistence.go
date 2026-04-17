@@ -1128,10 +1128,7 @@ func isUsableValueRange(raw tomlast.Range, value tomlast.Range) bool {
 }
 
 func lineReplacementOffsets(source []byte, target tomlast.Range) (int, int) {
-	start := max(rangeStart(target), 0)
-	if start > len(source) {
-		start = len(source)
-	}
+	start := min(max(rangeStart(target), 0), len(source))
 
 	end := start
 	for end < len(source) && source[end] != '\n' {
