@@ -1,26 +1,15 @@
 import { Outlet, createFileRoute, Link, useMatchRoute } from "@tanstack/react-router";
 
 import { cn } from "@/lib/utils";
+import {
+  SETTINGS_ROOT_PATH,
+  SETTINGS_SECTIONS,
+  settingsSectionPath,
+  type SettingsSectionDescriptor,
+} from "@/systems/settings";
 
-export const SETTINGS_ROOT_PATH = "/settings" as const;
-
-export interface SettingsSection {
-  slug: string;
-  label: string;
-}
-
-export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
-  { slug: "general", label: "General" },
-  { slug: "providers", label: "Providers" },
-  { slug: "mcp-servers", label: "MCP Servers" },
-  { slug: "environments", label: "Environments" },
-  { slug: "memory", label: "Memory" },
-  { slug: "skills", label: "Skills" },
-  { slug: "automation", label: "Automation" },
-  { slug: "network", label: "Network" },
-  { slug: "observability", label: "Observability" },
-  { slug: "hooks-extensions", label: "Hooks & Extensions" },
-] as const;
+export { SETTINGS_ROOT_PATH, SETTINGS_SECTIONS };
+export type SettingsSection = SettingsSectionDescriptor;
 
 export const Route = createFileRoute("/_app/settings")({
   component: SettingsShell,
@@ -61,9 +50,9 @@ function SettingsSectionNav() {
   );
 }
 
-function SettingsSectionLink({ section }: { section: SettingsSection }) {
+function SettingsSectionLink({ section }: { section: SettingsSectionDescriptor }) {
   const matchRoute = useMatchRoute();
-  const sectionPath = `${SETTINGS_ROOT_PATH}/${section.slug}`;
+  const sectionPath = settingsSectionPath(section.slug);
   const isActive = !!matchRoute({ to: sectionPath, fuzzy: true });
 
   return (

@@ -18,6 +18,8 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - `internal/daemon` now wires `internal/settings.Service` plus a restart-controller adapter during boot, and both HTTP/UDS servers accept injected settings dependencies through shared constructor options.
 - HTTP now registers the full `/api/settings/*` namespace plus `/api/extensions`; privileged HTTP mutations are guarded at route middleware based on the configured bind host, while read-only settings routes and restart-status polling remain available on non-loopback binds.
 - UDS now mirrors the full `/api/settings/*` namespace without the HTTP loopback mutation guard, and `internal/api/udsapi` carries unit plus integration parity coverage for settings and extension surfaces, including non-loopback HTTP vs privileged UDS workspace-scoped `mcp-servers` mutations.
+- `web/src/systems/settings` is the canonical frontend domain for every section, collection, restart action, and log-tail URL; section pages must consume it via the public barrel and route-level orchestration should live in `web/src/hooks/routes/use-settings-page.ts` instead of per-route fetch logic.
+- Restart polling state is centralized in `settings-restart-store` (Zustand) and exposed through `useSettingsRestart()`; polling stops as soon as status reaches `ready` or `failed`, and `useSettingsPage().restart` projects the combined banner state for any settings route.
 
 ## Open Risks
 
@@ -26,3 +28,4 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - `task_04` and `task_05` should expose the persisted restart operation through contract/core using the daemon-owned status model rather than inventing a transport-specific restart state machine.
 - `task_06` and `task_07` should reuse the shared `api/core` settings handlers and keep HTTP loopback enforcement or UDS-specific policy in transport wiring only.
 - `task_09`+ can import `SETTINGS_SECTIONS` from `web/src/routes/_app/settings.tsx` (or relocate it into `systems/settings/lib`); per-section pages just need `web/src/routes/_app/settings/<slug>.tsx` files and the shell automatically frames them.
+- task_10..task_14 should build section pages on top of `@/systems/settings` hooks (reads + mutation hooks) and reuse `useSettingsPage` in the shell — route files must stay presentational with no direct `/api/settings/*` calls.

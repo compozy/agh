@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: web/src/systems/settings domain scaffold
 type: frontend
 complexity: high
@@ -37,11 +37,11 @@ The `web/src/systems/settings` domain feeds every settings page, collection page
 
 ## Subtasks
 
-- [ ] 9.1 Create the `web/src/systems/settings` directory structure and public exports
-- [ ] 9.2 Add settings API adapters and typed request/response shaping on top of generated types
-- [ ] 9.3 Add query keys, query options, and mutation hooks for sections, collections, and restart actions
-- [ ] 9.4 Add shared settings route/page hook state, including section navigation and restart polling
-- [ ] 9.5 Add tests for adapters, hooks, and restart/status state management
+- [x] 9.1 Create the `web/src/systems/settings` directory structure and public exports
+- [x] 9.2 Add settings API adapters and typed request/response shaping on top of generated types
+- [x] 9.3 Add query keys, query options, and mutation hooks for sections, collections, and restart actions
+- [x] 9.4 Add shared settings route/page hook state, including section navigation and restart polling
+- [x] 9.5 Add tests for adapters, hooks, and restart/status state management
 
 ## Implementation Details
 
@@ -78,17 +78,17 @@ See TechSpec sections "System Architecture", "API Endpoints", "Response behavior
 ## Tests
 
 - Unit tests:
-  - [ ] Settings adapters decode section and collection payloads from generated API types correctly
-  - [ ] Collection adapters preserve precedence metadata, restart metadata, and workspace context without manual shape fixing in routes
-  - [ ] Query keys/options remain stable for section and collection resources
-  - [ ] Restart action mutations trigger status polling and expose progress state to consumers
-  - [ ] Shared settings page hook derives active section and restart banner state correctly
-  - [ ] Mutation helper utilities invalidate only the affected section or collection query families
+  - [x] Settings adapters decode section and collection payloads from generated API types correctly
+  - [x] Collection adapters preserve precedence metadata, restart metadata, and workspace context without manual shape fixing in routes
+  - [x] Query keys/options remain stable for section and collection resources
+  - [x] Restart action mutations trigger status polling and expose progress state to consumers
+  - [x] Shared settings page hook derives active section and restart banner state correctly
+  - [x] Mutation helper utilities invalidate only the affected section or collection query families
 - Integration tests:
-  - [ ] Route-level hook integration resolves section changes without duplicating fetch logic in route files
-  - [ ] Generated types and settings system exports typecheck together without `any` fallbacks
-  - [ ] Restart polling state can be consumed consistently across multiple settings pages without duplicated route-local state
-  - [ ] Scoped collection hooks keep global and workspace caches isolated while sharing the same adapter layer
+  - [x] Route-level hook integration resolves section changes without duplicating fetch logic in route files
+  - [x] Generated types and settings system exports typecheck together without `any` fallbacks
+  - [x] Restart polling state can be consumed consistently across multiple settings pages without duplicated route-local state
+  - [x] Scoped collection hooks keep global and workspace caches isolated while sharing the same adapter layer
 - Test coverage target: >=80%
 - All tests must pass
 
