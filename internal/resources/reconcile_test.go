@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -51,6 +52,34 @@ func (s *recordingReconcileHealthSink) latest() ReconcileHealth {
 		return ReconcileHealth{}
 	}
 	return s.updates[len(s.updates)-1]
+}
+
+type reentrantTriggerSink struct {
+	driver   ReconcileDriver
+	resultCh chan error
+	started  atomic.Bool
+}
+
+func (s *reentrantTriggerSink) ObserveReconcileEvent(_ context.Context, event ReconcileEvent) {
+	if event.Type != ReconcileEventRequested || event.Kind != testResourceKind {
+		return
+	}
+
+	if !s.started.CompareAndSwap(false, true) {
+		return
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.driver.Trigger(context.Background(), testResourceKind, ReconcileReasonWrite)
+	}()
+
+	select {
+	case err := <-done:
+		s.resultCh <- err
+	case <-time.After(100 * time.Millisecond):
+		s.resultCh <- errors.New("reentrant trigger timed out")
+	}
 }
 
 func newTestProjectorRegistration(
@@ -500,4 +529,50 @@ func TestReconcileDriverValidationAndLifecycleErrors(t *testing.T) {
 			t.Fatalf("ReconcileReason.Validate() error = %v, want ErrValidation", err)
 		}
 	})
+}
+
+func TestReconcileDriverEventSinkCanReenterTrigger(t *testing.T) {
+	t.Parallel()
+
+	kernel, _ := openTestKernel(t)
+	ctx := testutil.Context(t)
+	sink := &reentrantTriggerSink{resultCh: make(chan error, 1)}
+
+	driver, err := NewReconcileDriver(
+		kernel,
+		testDaemonActor(),
+		[]ProjectorRegistration{
+			newTestProjectorRegistration(testResourceKind, nil,
+				func(context.Context, projectionInput) (ProjectionPlan, error) {
+					return testPlan{kind: testResourceKind, revision: 1, operations: 1}, nil
+				},
+				func(context.Context, ProjectionPlan) error { return nil },
+			),
+		},
+		WithReconcileEventSink(sink),
+	)
+	if err != nil {
+		t.Fatalf("NewReconcileDriver() error = %v", err)
+	}
+	sink.driver = driver
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if closeErr := driver.Close(closeCtx); closeErr != nil {
+			t.Fatalf("Close() error = %v", closeErr)
+		}
+	})
+
+	if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		t.Fatalf("Trigger() error = %v", err)
+	}
+
+	select {
+	case err := <-sink.resultCh:
+		if err != nil {
+			t.Fatalf("reentrant trigger result = %v, want nil", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for reentrant trigger result")
+	}
 }
