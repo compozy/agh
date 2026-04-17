@@ -12,6 +12,8 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 )
 
+const transportParityEventAgentMessage = "agent_message"
+
 // TransportClients exposes the public transport clients derived from one shared
 // runtime harness. Tests use this to keep HTTP, UDS, and CLI reads pointed at
 // the same daemon instance.
@@ -133,7 +135,7 @@ func PermissionPayloads(records []SSEEvent) []PermissionStreamPayload {
 // expected assistant text delta.
 func RecordsContainTextDelta(records []SSEEvent, want string) bool {
 	for _, record := range records {
-		if record.Event != "agent_message" || len(record.Data) == 0 {
+		if record.Event != transportParityEventAgentMessage || len(record.Data) == 0 {
 			continue
 		}
 

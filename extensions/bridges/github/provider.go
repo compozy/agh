@@ -36,6 +36,12 @@ const (
 	githubModePAT = "pat"
 	githubModeApp = "app"
 
+	githubThreadTypePR    = "pr"
+	githubThreadTypeIssue = "issue"
+
+	githubRemoteCommentKindIssue  = "issue"
+	githubRemoteCommentKindReview = "review"
+
 	rpcCodeNotInitialized = -32003
 )
 
@@ -1333,7 +1339,7 @@ func executeGitHubDelete(
 
 func deleteGitHubComment(ctx context.Context, api githubAPI, ref githubRemoteCommentRef, installationID int64) error {
 	switch ref.Kind {
-	case "review":
+	case githubRemoteCommentKindReview:
 		return api.DeleteReviewComment(ctx, ref.CommentID, installationID)
 	default:
 		return api.DeleteIssueComment(ctx, ref.CommentID, installationID)
@@ -1384,13 +1390,23 @@ func createGitHubComment(
 		if err != nil {
 			return "", err
 		}
-		return encodeGitHubRemoteCommentRef(githubRemoteCommentRef{Kind: "review", CommentID: comment.ID}), nil
+		return encodeGitHubRemoteCommentRef(
+			githubRemoteCommentRef{
+				Kind:      githubRemoteCommentKindReview,
+				CommentID: comment.ID,
+			},
+		), nil
 	}
 	comment, err := api.CreateIssueComment(ctx, target.Number, body, installationID)
 	if err != nil {
 		return "", err
 	}
-	return encodeGitHubRemoteCommentRef(githubRemoteCommentRef{Kind: "issue", CommentID: comment.ID}), nil
+	return encodeGitHubRemoteCommentRef(
+		githubRemoteCommentRef{
+			Kind:      githubRemoteCommentKindIssue,
+			CommentID: comment.ID,
+		},
+	), nil
 }
 
 func executeGitHubUpdate(
@@ -1430,18 +1446,28 @@ func updateGitHubComment(
 	installationID int64,
 ) (string, error) {
 	switch ref.Kind {
-	case "review":
+	case githubRemoteCommentKindReview:
 		comment, err := api.UpdateReviewComment(ctx, ref.CommentID, body, installationID)
 		if err != nil {
 			return "", err
 		}
-		return encodeGitHubRemoteCommentRef(githubRemoteCommentRef{Kind: "review", CommentID: comment.ID}), nil
+		return encodeGitHubRemoteCommentRef(
+			githubRemoteCommentRef{
+				Kind:      githubRemoteCommentKindReview,
+				CommentID: comment.ID,
+			},
+		), nil
 	default:
 		comment, err := api.UpdateIssueComment(ctx, ref.CommentID, body, installationID)
 		if err != nil {
 			return "", err
 		}
-		return encodeGitHubRemoteCommentRef(githubRemoteCommentRef{Kind: "issue", CommentID: comment.ID}), nil
+		return encodeGitHubRemoteCommentRef(
+			githubRemoteCommentRef{
+				Kind:      githubRemoteCommentKindIssue,
+				CommentID: comment.ID,
+			},
+		), nil
 	}
 }
 
@@ -1476,9 +1502,9 @@ func mapGitHubIssueComment(
 	managed subprocess.InitializeBridgeManagedInstance,
 	receivedAt time.Time,
 ) (githubMappedInbound, error) {
-	threadType := "pr"
+	threadType := githubThreadTypePR
 	if payload.Issue.PullRequest == nil {
-		threadType = "issue"
+		threadType = githubThreadTypeIssue
 	}
 	threadID := encodeGitHubThreadID(githubThreadRef{
 		Owner:  payload.Repository.Owner.Login,
@@ -1529,7 +1555,7 @@ func mapGitHubReviewComment(
 		Owner:           payload.Repository.Owner.Login,
 		Repo:            payload.Repository.Name,
 		Number:          payload.PullRequest.Number,
-		Type:            "pr",
+		Type:            githubThreadTypePR,
 		ReviewCommentID: rootCommentID,
 	})
 	envelope := bridgepkg.InboundMessageEnvelope{
@@ -1713,9 +1739,9 @@ func encodeGitHubThreadID(ref githubThreadRef) string {
 	repo := strings.TrimSpace(ref.Repo)
 	threadType := strings.TrimSpace(ref.Type)
 	if threadType == "" {
-		threadType = "pr"
+		threadType = githubThreadTypePR
 	}
-	if threadType == "issue" {
+	if threadType == githubThreadTypeIssue {
 		return fmt.Sprintf("github:%s/%s:issue:%d", owner, repo, ref.Number)
 	}
 	if ref.ReviewCommentID > 0 {
@@ -1739,7 +1765,7 @@ func decodeGitHubThreadID(value string) (githubThreadRef, error) {
 			Owner:           matches[1],
 			Repo:            matches[2],
 			Number:          number,
-			Type:            "pr",
+			Type:            githubThreadTypePR,
 			ReviewCommentID: reviewCommentID,
 		}, nil
 	}
@@ -1752,7 +1778,7 @@ func decodeGitHubThreadID(value string) (githubThreadRef, error) {
 			Owner:  matches[1],
 			Repo:   matches[2],
 			Number: number,
-			Type:   "issue",
+			Type:   githubThreadTypeIssue,
 		}, nil
 	}
 	if matches := githubPRThreadPattern.FindStringSubmatch(trimmed); len(matches) == 4 {
@@ -1764,7 +1790,7 @@ func decodeGitHubThreadID(value string) (githubThreadRef, error) {
 			Owner:  matches[1],
 			Repo:   matches[2],
 			Number: number,
-			Type:   "pr",
+			Type:   githubThreadTypePR,
 		}, nil
 	}
 	return githubThreadRef{}, fmt.Errorf("github: invalid thread id %q", trimmed)
@@ -1773,7 +1799,7 @@ func decodeGitHubThreadID(value string) (githubThreadRef, error) {
 func encodeGitHubRemoteCommentRef(ref githubRemoteCommentRef) string {
 	kind := strings.TrimSpace(ref.Kind)
 	if kind == "" {
-		kind = "issue"
+		kind = githubRemoteCommentKindIssue
 	}
 	return fmt.Sprintf("%s:%d", kind, ref.CommentID)
 }
@@ -1793,7 +1819,7 @@ func parseGitHubRemoteCommentRef(value string) (githubRemoteCommentRef, error) {
 	}
 	kind := strings.ToLower(strings.TrimSpace(parts[0]))
 	switch kind {
-	case "issue", "review":
+	case githubRemoteCommentKindIssue, githubRemoteCommentKindReview:
 		return githubRemoteCommentRef{Kind: kind, CommentID: commentID}, nil
 	default:
 		return githubRemoteCommentRef{}, fmt.Errorf("github: invalid remote message kind %q", kind)

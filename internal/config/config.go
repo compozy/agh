@@ -26,6 +26,8 @@ const (
 	ConfigName = "config.toml"
 	// marketplaceSchemeHTTP is the accepted plaintext marketplace URL scheme.
 	marketplaceSchemeHTTP = "http"
+	// skillsMarketplaceRegistryClawhub is the currently supported skills marketplace registry.
+	skillsMarketplaceRegistryClawhub = "clawhub"
 )
 
 // DaemonConfig controls the daemon-local socket settings.
@@ -955,10 +957,10 @@ func (c MarketplaceConfig) Validate() error {
 	}
 
 	switch strings.ToLower(registry) {
-	case "clawhub":
+	case skillsMarketplaceRegistryClawhub:
 		return nil
 	default:
-		return fmt.Errorf("skills.marketplace.registry must be %q: %q", "clawhub", c.Registry)
+		return fmt.Errorf("skills.marketplace.registry must be %q: %q", skillsMarketplaceRegistryClawhub, c.Registry)
 	}
 }
 

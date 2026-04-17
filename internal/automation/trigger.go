@@ -42,6 +42,8 @@ var (
 const (
 	webhookSignaturePrefix = "sha256="
 	triggerEventWebhook    = "webhook"
+	sessionEventCreated    = "session.created"
+	sessionEventStopped    = "session.stopped"
 )
 
 // DefaultWebhookFreshnessWindow is the default accepted clock skew for webhook requests.
@@ -370,7 +372,7 @@ func (e *TriggerEngine) Fire(ctx context.Context, envelope ActivationEnvelope) (
 
 // FireSessionCreated normalizes a session-created lifecycle event and routes it through the shared matching path.
 func (e *TriggerEngine) FireSessionCreated(ctx context.Context, sess *session.Session) (TriggerResult, error) {
-	envelope, err := sessionEnvelope("session.created", sess)
+	envelope, err := sessionEnvelope(sessionEventCreated, sess)
 	if err != nil {
 		return TriggerResult{}, err
 	}
@@ -379,7 +381,7 @@ func (e *TriggerEngine) FireSessionCreated(ctx context.Context, sess *session.Se
 
 // FireSessionStopped normalizes a session-stopped lifecycle event and routes it through the shared matching path.
 func (e *TriggerEngine) FireSessionStopped(ctx context.Context, sess *session.Session) (TriggerResult, error) {
-	envelope, err := sessionEnvelope("session.stopped", sess)
+	envelope, err := sessionEnvelope(sessionEventStopped, sess)
 	if err != nil {
 		return TriggerResult{}, err
 	}
@@ -961,7 +963,7 @@ func sessionEnvelope(kind string, sess *session.Session) (ActivationEnvelope, er
 	if !info.UpdatedAt.IsZero() {
 		data["updated_at"] = info.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	}
-	if kind == "session.stopped" {
+	if kind == sessionEventStopped {
 		if stopReason := strings.TrimSpace(string(info.StopReason)); stopReason != "" {
 			data["stop_reason"] = stopReason
 		}

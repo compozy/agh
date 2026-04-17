@@ -53,6 +53,8 @@ const (
 	maxMemoryDescriptionLength          = 160
 	tagCommentPrefix                    = "<!-- agh-tags:"
 	hostAPIUnknownExtensionName         = "unknown"
+	hostAPIEnvironmentStateSynced       = "synced"
+	hostAPIEnvironmentStatePending      = "pending"
 )
 
 type hostAPIContextKey string
@@ -978,9 +980,9 @@ func hostAPIEnvironmentSyncState(meta *store.SessionEnvironmentMeta) string {
 		return extensionStateError
 	}
 	if meta.LastSyncAt != nil {
-		return "synced"
+		return hostAPIEnvironmentStateSynced
 	}
-	return "pending"
+	return hostAPIEnvironmentStatePending
 }
 
 func (h *HostAPIHandler) handleMemoryStore(ctx context.Context, raw json.RawMessage) (any, error) {
