@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppSkillsRouteImport } from './routes/_app/skills'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppNetworkRouteImport } from './routes/_app/network'
@@ -19,6 +20,7 @@ import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
 import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
 import { Route as AppAutomationRouteImport } from './routes/_app/automation'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
@@ -30,6 +32,7 @@ import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/g
 import { Route as AppSettingsEnvironmentsRouteImport } from './routes/_app/settings/environments'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
+import { Route as AppTasksIdRunsRunIdRouteImport } from './routes/_app/tasks.$id.runs.$runId'
 
 const DesignSystemRoute = DesignSystemRouteImport.update({
   id: '/design-system',
@@ -43,6 +46,11 @@ const AppRoute = AppRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTasksRoute = AppTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSkillsRoute = AppSkillsRouteImport.update({
@@ -79,6 +87,11 @@ const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppTasksIdRoute = AppTasksIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppTasksRoute,
 } as any)
 const AppSettingsSkillsRoute = AppSettingsSkillsRouteImport.update({
   id: '/skills',
@@ -137,6 +150,11 @@ const AppSessionIdRoute = AppSessionIdRouteImport.update({
   path: '/session/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTasksIdRunsRunIdRoute = AppTasksIdRunsRunIdRouteImport.update({
+  id: '/runs/$runId',
+  path: '/runs/$runId',
+  getParentRoute: () => AppTasksIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -147,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/network': typeof AppNetworkRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/skills': typeof AppSkillsRoute
+  '/tasks': typeof AppTasksRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/environments': typeof AppSettingsEnvironmentsRoute
@@ -158,7 +177,9 @@ export interface FileRoutesByFullPath {
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
+  '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/settings/': typeof AppSettingsIndexRoute
+  '/tasks/$id/runs/$runId': typeof AppTasksIdRunsRunIdRoute
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
@@ -167,6 +188,7 @@ export interface FileRoutesByTo {
   '/knowledge': typeof AppKnowledgeRoute
   '/network': typeof AppNetworkRoute
   '/skills': typeof AppSkillsRoute
+  '/tasks': typeof AppTasksRouteWithChildren
   '/': typeof AppIndexRoute
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
@@ -179,7 +201,9 @@ export interface FileRoutesByTo {
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
+  '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/settings': typeof AppSettingsIndexRoute
+  '/tasks/$id/runs/$runId': typeof AppTasksIdRunsRunIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -191,6 +215,7 @@ export interface FileRoutesById {
   '/_app/network': typeof AppNetworkRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/skills': typeof AppSkillsRoute
+  '/_app/tasks': typeof AppTasksRouteWithChildren
   '/_app/': typeof AppIndexRoute
   '/_app/session/$id': typeof AppSessionIdRoute
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
@@ -203,7 +228,9 @@ export interface FileRoutesById {
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
   '/_app/settings/providers': typeof AppSettingsProvidersRoute
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
+  '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/_app/settings/': typeof AppSettingsIndexRoute
+  '/_app/tasks/$id/runs/$runId': typeof AppTasksIdRunsRunIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -216,6 +243,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/settings'
     | '/skills'
+    | '/tasks'
     | '/session/$id'
     | '/settings/automation'
     | '/settings/environments'
@@ -227,7 +255,9 @@ export interface FileRouteTypes {
     | '/settings/observability'
     | '/settings/providers'
     | '/settings/skills'
+    | '/tasks/$id'
     | '/settings/'
+    | '/tasks/$id/runs/$runId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/design-system'
@@ -236,6 +266,7 @@ export interface FileRouteTypes {
     | '/knowledge'
     | '/network'
     | '/skills'
+    | '/tasks'
     | '/'
     | '/session/$id'
     | '/settings/automation'
@@ -248,7 +279,9 @@ export interface FileRouteTypes {
     | '/settings/observability'
     | '/settings/providers'
     | '/settings/skills'
+    | '/tasks/$id'
     | '/settings'
+    | '/tasks/$id/runs/$runId'
   id:
     | '__root__'
     | '/_app'
@@ -259,6 +292,7 @@ export interface FileRouteTypes {
     | '/_app/network'
     | '/_app/settings'
     | '/_app/skills'
+    | '/_app/tasks'
     | '/_app/'
     | '/_app/session/$id'
     | '/_app/settings/automation'
@@ -271,7 +305,9 @@ export interface FileRouteTypes {
     | '/_app/settings/observability'
     | '/_app/settings/providers'
     | '/_app/settings/skills'
+    | '/_app/tasks/$id'
     | '/_app/settings/'
+    | '/_app/tasks/$id/runs/$runId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -300,6 +336,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tasks': {
+      id: '/_app/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof AppTasksRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/skills': {
@@ -350,6 +393,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/'
       preLoaderRoute: typeof AppSettingsIndexRouteImport
       parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/tasks/$id': {
+      id: '/_app/tasks/$id'
+      path: '/$id'
+      fullPath: '/tasks/$id'
+      preLoaderRoute: typeof AppTasksIdRouteImport
+      parentRoute: typeof AppTasksRoute
     }
     '/_app/settings/skills': {
       id: '/_app/settings/skills'
@@ -428,6 +478,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSessionIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/tasks/$id/runs/$runId': {
+      id: '/_app/tasks/$id/runs/$runId'
+      path: '/runs/$runId'
+      fullPath: '/tasks/$id/runs/$runId'
+      preLoaderRoute: typeof AppTasksIdRunsRunIdRouteImport
+      parentRoute: typeof AppTasksIdRoute
+    }
   }
 }
 
@@ -463,6 +520,30 @@ const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
   AppSettingsRouteChildren,
 )
 
+interface AppTasksIdRouteChildren {
+  AppTasksIdRunsRunIdRoute: typeof AppTasksIdRunsRunIdRoute
+}
+
+const AppTasksIdRouteChildren: AppTasksIdRouteChildren = {
+  AppTasksIdRunsRunIdRoute: AppTasksIdRunsRunIdRoute,
+}
+
+const AppTasksIdRouteWithChildren = AppTasksIdRoute._addFileChildren(
+  AppTasksIdRouteChildren,
+)
+
+interface AppTasksRouteChildren {
+  AppTasksIdRoute: typeof AppTasksIdRouteWithChildren
+}
+
+const AppTasksRouteChildren: AppTasksRouteChildren = {
+  AppTasksIdRoute: AppTasksIdRouteWithChildren,
+}
+
+const AppTasksRouteWithChildren = AppTasksRoute._addFileChildren(
+  AppTasksRouteChildren,
+)
+
 interface AppRouteChildren {
   AppAutomationRoute: typeof AppAutomationRoute
   AppBridgesRoute: typeof AppBridgesRoute
@@ -470,6 +551,7 @@ interface AppRouteChildren {
   AppNetworkRoute: typeof AppNetworkRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppSkillsRoute: typeof AppSkillsRoute
+  AppTasksRoute: typeof AppTasksRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
   AppSessionIdRoute: typeof AppSessionIdRoute
 }
@@ -481,6 +563,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppNetworkRoute: AppNetworkRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppSkillsRoute: AppSkillsRoute,
+  AppTasksRoute: AppTasksRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
   AppSessionIdRoute: AppSessionIdRoute,
 }

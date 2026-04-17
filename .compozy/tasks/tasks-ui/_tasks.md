@@ -8,16 +8,16 @@
 |---|-------|--------|------------|--------------|
 | 01 | First-class task semantics and validation | completed | high | — |
 | 02 | Persistent task fields and lifecycle reconciliation | completed | critical | task_01 |
-| 03 | Enriched task reads and draft publication | pending | high | task_02 |
-| 04 | Task live timelines, streams, and run detail views | pending | high | task_02 |
-| 05 | Observer-backed dashboard read models | pending | medium | task_02 |
+| 03 | Enriched task reads and draft publication | completed | high | task_02 |
+| 04 | Task live timelines, streams, and run detail views | completed | high | task_02 |
+| 05 | Observer-backed dashboard read models | completed | medium | task_02 |
 | 06 | Inbox triage and approval read models | pending | high | task_02 |
-| 07 | Task API contracts and OpenAPI codegen | pending | critical | task_03, task_04, task_05, task_06 |
+| 07 | Task API contracts and OpenAPI codegen | completed | critical | task_03, task_04, task_05, task_06 |
 | 08 | Shared task handlers in api/core | pending | high | task_07 |
 | 09 | HTTP task transport and route wiring | pending | medium | task_08 |
 | 10 | UDS task transport and parity coverage | pending | medium | task_08 |
 | 11 | Host API parity for task read and aggregate surfaces | pending | medium | task_07 |
-| 12 | Tasks entrypoint and route shell | pending | medium | task_09, task_10 |
+| 12 | Tasks entrypoint and route shell | completed | medium | task_09, task_10 |
 | 13 | web/src/systems/tasks scaffold | pending | high | task_12 |
 | 14 | List, kanban, empty-state, and create modal | pending | high | task_13 |
 | 15 | Detail timeline and run detail routes | pending | high | task_13 |

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Tasks entrypoint and route shell
 type: frontend
 complexity: medium
@@ -32,10 +32,10 @@ Create the first-class Tasks area in the main app shell by wiring sidebar naviga
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Turn the Tasks area into a real sidebar navigation target
-- [ ] 12.2 Add the base tasks route and deep-link route files for detail and run detail
-- [ ] 12.3 Add the shared page shell/frame that later task screens can render inside
-- [ ] 12.4 Regenerate the route tree and add route-level tests for the new tasks entrypoint
+- [x] 12.1 Turn the Tasks area into a real sidebar navigation target
+- [x] 12.2 Add the base tasks route and deep-link route files for detail and run detail
+- [x] 12.3 Add the shared page shell/frame that later task screens can render inside
+- [x] 12.4 Regenerate the route tree and add route-level tests for the new tasks entrypoint
 
 ## Implementation Details
 
