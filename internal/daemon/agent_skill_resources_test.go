@@ -95,6 +95,108 @@ func TestResourceAgentCatalogFallsBackToResolvedWorkspaceSnapshot(t *testing.T) 
 	}
 }
 
+func TestResourceAgentCatalogResolveAgentFallsBackWhenCatalogMissesWorkspaceAgent(t *testing.T) {
+	t.Parallel()
+
+	catalog := newResourceCatalog(cloneAgentDef)
+	catalog.Replace(1, []resources.Record[aghconfig.AgentDef]{{
+		ID:      "global:other",
+		Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "bench"},
+		Version: 1,
+		Spec: aghconfig.AgentDef{
+			Name:   "other",
+			Prompt: "global other",
+		},
+	}})
+
+	resolved := &workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{ID: "ws-fallback"},
+		Agents: []aghconfig.AgentDef{{
+			Name:   "fallback",
+			Prompt: "resolved workspace agent",
+		}},
+	}
+
+	got, err := agentCatalogDependency(catalog).ResolveAgent("fallback", resolved)
+	if err != nil {
+		t.Fatalf("ResolveAgent(fallback) error = %v", err)
+	}
+	if got.Prompt != "resolved workspace agent" {
+		t.Fatalf("ResolveAgent(fallback).Prompt = %q, want resolved workspace agent", got.Prompt)
+	}
+}
+
+func TestResourceAgentCatalogResolveAgentUsesCatalogMatches(t *testing.T) {
+	t.Parallel()
+
+	catalog := newResourceCatalog(cloneAgentDef)
+	catalog.Replace(3, []resources.Record[aghconfig.AgentDef]{
+		{
+			ID:      "global:coder:a",
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "alpha"},
+			Version: 1,
+			Spec: aghconfig.AgentDef{
+				Name:   "coder",
+				Prompt: "older global coder",
+			},
+		},
+		{
+			ID:      "global:coder:z",
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "omega"},
+			Version: 1,
+			Spec: aghconfig.AgentDef{
+				Name:   "coder",
+				Prompt: "latest global coder",
+			},
+		},
+		{
+			ID:      "global:other",
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "bench"},
+			Version: 1,
+			Spec: aghconfig.AgentDef{
+				Name:   "other",
+				Prompt: "other global agent",
+			},
+		},
+	})
+
+	dependency := agentCatalogDependency(catalog)
+	got, err := dependency.ResolveAgent("coder", nil)
+	if err != nil {
+		t.Fatalf("ResolveAgent(coder) error = %v", err)
+	}
+	if got.Prompt != "latest global coder" {
+		t.Fatalf("ResolveAgent(coder).Prompt = %q, want latest global coder", got.Prompt)
+	}
+
+	if _, err := dependency.ResolveAgent("missing", nil); !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+		t.Fatalf("ResolveAgent(missing) error = %v, want ErrAgentNotAvailable", err)
+	}
+}
+
+func TestResourceAgentCatalogResolveAgentValidation(t *testing.T) {
+	t.Parallel()
+
+	if _, err := (&resourceAgentCatalog{}).ResolveAgent(
+		"   ",
+		&workspacepkg.ResolvedWorkspace{},
+	); err == nil || err.Error() != "session: agent name is required" {
+		t.Fatalf("ResolveAgent(blank) error = %v, want agent name is required", err)
+	}
+
+	if _, err := resolveAgentFromWorkspaceSnapshot(
+		"coder",
+		nil,
+	); err == nil ||
+		err.Error() != "session: resolved workspace is required" {
+		t.Fatalf("resolveAgentFromWorkspaceSnapshot(nil) error = %v, want resolved workspace is required", err)
+	}
+}
+
 func TestAgentSkillSmallHelpers(t *testing.T) {
 	t.Parallel()
 
