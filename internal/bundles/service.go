@@ -291,11 +291,11 @@ func (s *Service) ListActivations(ctx context.Context) ([]ActivationPreview, err
 
 	activations, err := s.store.ListBundleActivations(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("bundles: list bundle activations: %w", err)
 	}
 	bundleRecords, err := s.store.ListBundleResources(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("bundles: list bundle resources for activations: %w", err)
 	}
 	bundleLookup := newBundleRecordLookup(bundleRecords)
 
@@ -303,11 +303,11 @@ func (s *Service) ListActivations(ctx context.Context) ([]ActivationPreview, err
 	for _, activation := range activations {
 		resolved, resolveErr := s.resolveActivationFromBundleLookup(activation, bundleLookup)
 		if resolveErr != nil {
-			return nil, resolveErr
+			return nil, fmt.Errorf("bundles: resolve activation %q for listing: %w", activation.ID, resolveErr)
 		}
 		inventory, inventoryErr := s.store.ListBundleActivationInventory(ctx, activation.ID)
 		if inventoryErr != nil {
-			return nil, inventoryErr
+			return nil, fmt.Errorf("bundles: list activation inventory for %q: %w", activation.ID, inventoryErr)
 		}
 		if len(inventory) > 0 {
 			resolved.inventory = inventory

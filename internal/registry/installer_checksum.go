@@ -112,7 +112,7 @@ func writeInstallChecksumEntry(hasher hash.Hash, root string, relPath string) er
 		if err != nil {
 			return fmt.Errorf("registry: read checksum symlink %q: %w", absPath, err)
 		}
-		normalizedTarget := filepath.ToSlash(filepath.Clean(target))
+		normalizedTarget := filepath.ToSlash(target)
 		return writeInstallChecksumString(
 			hasher,
 			fmt.Sprintf("symlink:%s\nmode:%#o\ntarget:%s\n", normalizedPath, info.Mode().Perm(), normalizedTarget),

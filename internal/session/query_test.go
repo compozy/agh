@@ -180,6 +180,14 @@ func TestManagerStatusRejectsTraversalSessionID(t *testing.T) {
 	}
 }
 
+func TestNormalizeStoredSessionIDRejectsWindowsDriveRelativePath(t *testing.T) {
+	t.Parallel()
+
+	if _, err := normalizeStoredSessionID("C:escape"); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("normalizeStoredSessionID(windows drive-relative) error = %v, want ErrSessionNotFound", err)
+	}
+}
+
 func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 	t.Parallel()
 

@@ -33,6 +33,9 @@ type memoryStore struct {
 	createBundleActivationHook func(Activation) error
 	updateBundleActivationHook func(Activation) error
 	deleteBundleActivationHook func(string) error
+	listBundleActivationsHook  func() ([]Activation, error)
+	listBundleInventoryHook    func(string) ([]InventoryItem, error)
+	listBundleResourcesHook    func() ([]resources.Record[BundleResourceSpec], error)
 }
 
 func newMemoryStore() *memoryStore {
@@ -100,6 +103,9 @@ func (s *memoryStore) GetBundleActivation(_ context.Context, id string) (Activat
 }
 
 func (s *memoryStore) ListBundleActivations(_ context.Context) ([]Activation, error) {
+	if s.listBundleActivationsHook != nil {
+		return s.listBundleActivationsHook()
+	}
 	items := make([]Activation, 0, len(s.activations))
 	for _, activation := range s.activations {
 		items = append(items, activation)
@@ -108,12 +114,18 @@ func (s *memoryStore) ListBundleActivations(_ context.Context) ([]Activation, er
 }
 
 func (s *memoryStore) ListBundleActivationInventory(_ context.Context, activationID string) ([]InventoryItem, error) {
+	if s.listBundleInventoryHook != nil {
+		return s.listBundleInventoryHook(activationID)
+	}
 	return append([]InventoryItem(nil), s.inventory[activationID]...), nil
 }
 
 func (s *memoryStore) ListBundleResources(
 	_ context.Context,
 ) ([]resources.Record[BundleResourceSpec], error) {
+	if s.listBundleResourcesHook != nil {
+		return s.listBundleResourcesHook()
+	}
 	return append([]resources.Record[BundleResourceSpec](nil), s.bundles...), nil
 }
 
@@ -407,6 +419,61 @@ func TestServiceReadMethodsValidateInputs(t *testing.T) {
 	if _, err := service.ListActivations(nilCtx); err == nil {
 		t.Fatal("ListActivations(nil) error = nil, want failure")
 	}
+}
+
+func TestServiceListActivationsWrapsErrorsWithContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldWrapBundleResourceListError", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		store.listBundleResourcesHook = func() ([]resources.Record[BundleResourceSpec], error) {
+			return nil, errors.New("resource store offline")
+		}
+		service := newMarketingService(store, WithLogger(discardBundleTestLogger()))
+
+		_, err := service.ListActivations(testutil.Context(t))
+		if err == nil {
+			t.Fatal("ListActivations() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "list bundle resources for activations") {
+			t.Fatalf("ListActivations() error = %v, want wrapped bundle resource context", err)
+		}
+	})
+
+	t.Run("ShouldWrapActivationInventoryError", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		service := newMarketingService(store, WithLogger(discardBundleTestLogger()))
+
+		preview, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
+		})
+		if err != nil {
+			t.Fatalf("Activate() error = %v", err)
+		}
+
+		inventoryErr := errors.New("inventory unavailable")
+		store.listBundleInventoryHook = func(activationID string) ([]InventoryItem, error) {
+			if activationID != preview.Activation.ID {
+				t.Fatalf("ListBundleActivationInventory() id = %q, want %q", activationID, preview.Activation.ID)
+			}
+			return nil, inventoryErr
+		}
+
+		_, err = service.ListActivations(testutil.Context(t))
+		if !errors.Is(err, inventoryErr) {
+			t.Fatalf("ListActivations() error = %v, want %v", err, inventoryErr)
+		}
+		if !strings.Contains(err.Error(), `list activation inventory for "`+preview.Activation.ID+`"`) {
+			t.Fatalf("ListActivations() error = %v, want wrapped inventory context", err)
+		}
+	})
 }
 
 func TestServiceRejectsMultipleDefaultChannelClaims(t *testing.T) {

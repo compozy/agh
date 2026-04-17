@@ -3605,7 +3605,15 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 	_, err = (&HostAPIHandler{}).taskManager()
 	assertErrorContains(t, err, "task manager is not configured")
 
+	_, _, err = (&HostAPIHandler{}).taskManagerAndActor(testutil.Context(t))
+	assertErrorContains(t, err, "resolve task manager")
+	assertErrorContains(t, err, "task manager is not configured")
+
 	env := newHostAPITestEnv(t)
+	_, _, err = env.handler.taskManagerAndActor(testutil.Context(t))
+	assertErrorContains(t, err, "derive task actor context")
+	assertErrorContains(t, err, "extension name is not available")
+
 	raw, err := marshalParams(map[string]any{
 		"scope": taskpkg.ScopeGlobal,
 		"title": "No context task",

@@ -74,37 +74,44 @@ func writeSSERaw(writer FlushWriter, id string, raw []byte, names ...string) err
 	}
 
 	if id != "" {
-		if _, err := io.WriteString(writer, "id: "); err != nil {
+		if err := writeSSEString(writer, "write sse id prefix", "id: "); err != nil {
 			return err
 		}
-		if _, err := io.WriteString(writer, id); err != nil {
+		if err := writeSSEString(writer, "write sse id", id); err != nil {
 			return err
 		}
-		if _, err := io.WriteString(writer, "\n"); err != nil {
+		if err := writeSSEString(writer, "write sse id terminator", "\n"); err != nil {
 			return err
 		}
 	}
 	if len(names) > 0 && strings.TrimSpace(names[0]) != "" {
-		if _, err := io.WriteString(writer, "event: "); err != nil {
+		if err := writeSSEString(writer, "write sse event prefix", "event: "); err != nil {
 			return err
 		}
-		if _, err := io.WriteString(writer, names[0]); err != nil {
+		if err := writeSSEString(writer, "write sse event", names[0]); err != nil {
 			return err
 		}
-		if _, err := io.WriteString(writer, "\n"); err != nil {
+		if err := writeSSEString(writer, "write sse event terminator", "\n"); err != nil {
 			return err
 		}
 	}
-	if _, err := io.WriteString(writer, "data: "); err != nil {
+	if err := writeSSEString(writer, "write sse data prefix", "data: "); err != nil {
 		return err
 	}
 	if _, err := writer.Write(raw); err != nil {
-		return err
+		return fmt.Errorf("write sse data payload: %w", err)
 	}
-	if _, err := io.WriteString(writer, "\n\n"); err != nil {
+	if err := writeSSEString(writer, "write sse message terminator", "\n\n"); err != nil {
 		return err
 	}
 	writer.Flush()
+	return nil
+}
+
+func writeSSEString(writer FlushWriter, operation string, value string) error {
+	if _, err := io.WriteString(writer, value); err != nil {
+		return fmt.Errorf("%s: %w", operation, err)
+	}
 	return nil
 }
 

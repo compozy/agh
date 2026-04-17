@@ -356,11 +356,11 @@ func (h *HostAPIHandler) taskManager() (hostAPITaskManager, error) {
 func (h *HostAPIHandler) taskManagerAndActor(ctx context.Context) (hostAPITaskManager, taskpkg.ActorContext, error) {
 	manager, err := h.taskManager()
 	if err != nil {
-		return nil, taskpkg.ActorContext{}, err
+		return nil, taskpkg.ActorContext{}, fmt.Errorf("extension: resolve task manager: %w", err)
 	}
 	actor, err := h.taskActorContext(ctx)
 	if err != nil {
-		return nil, taskpkg.ActorContext{}, err
+		return nil, taskpkg.ActorContext{}, fmt.Errorf("extension: derive task actor context: %w", err)
 	}
 	return manager, actor, nil
 }

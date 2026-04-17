@@ -12,21 +12,21 @@ type constructorCase struct {
 
 var constructorCases = []constructorCase{
 	{
-		name:      "trims leading and trailing whitespace",
+		name:      "ShouldTrimLeadingAndTrailingWhitespace",
 		id:        "  workspace-01\t",
 		value:     "\n /tmp/demo \t",
 		wantID:    "workspace-01",
 		wantValue: "/tmp/demo",
 	},
 	{
-		name:      "preserves interior whitespace",
+		name:      "ShouldPreserveInteriorWhitespace",
 		id:        "workspace 01",
 		value:     "/tmp/demo folder",
 		wantID:    "workspace 01",
 		wantValue: "/tmp/demo folder",
 	},
 	{
-		name:      "collapses whitespace only values to empty strings",
+		name:      "ShouldCollapseWhitespaceOnlyValuesToEmptyStrings",
 		id:        " \n\t ",
 		value:     "\t ",
 		wantID:    "",
@@ -71,14 +71,14 @@ func runConstructorSuite[T comparable](
 func TestConstructors(t *testing.T) {
 	t.Parallel()
 
-	runConstructorSuite(t, "NewPath", NewPath, func(id string, value string) PathRef {
+	runConstructorSuite(t, "ShouldConstructPathRefWithNewPath", NewPath, func(id string, value string) PathRef {
 		return PathRef{
 			WorkspaceID:   id,
 			WorkspacePath: value,
 		}
 	})
 
-	runConstructorSuite(t, "NewRoot", NewRoot, func(id string, value string) RootRef {
+	runConstructorSuite(t, "ShouldConstructRootRefWithNewRoot", NewRoot, func(id string, value string) RootRef {
 		return RootRef{
 			WorkspaceID: id,
 			Workspace:   value,

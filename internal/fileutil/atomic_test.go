@@ -84,28 +84,34 @@ func TestAtomicWriteFileRejectsBlankPath(t *testing.T) {
 func TestAtomicWriteFilePreservesLiteralWhitespaceInPath(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "target.txt ")
-	trimmedPath := strings.TrimSpace(path)
-	if path == trimmedPath {
-		t.Fatal("test fixture path did not retain trailing whitespace")
+	if runtime.GOOS == "windows" {
+		t.Skip("trailing-space filenames are normalized by Win32 APIs")
 	}
 
-	content := []byte("content with trailing-space filename")
-	if err := AtomicWriteFile(path, content, 0o644); err != nil {
-		t.Fatalf("AtomicWriteFile() error = %v", err)
-	}
+	t.Run("ShouldPreserveLiteralWhitespaceInPath", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "target.txt ")
+		trimmedPath := strings.TrimSpace(path)
+		if path == trimmedPath {
+			t.Fatal("test fixture path did not retain trailing whitespace")
+		}
 
-	got, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile(literal path) error = %v", err)
-	}
-	if !bytes.Equal(got, content) {
-		t.Fatalf("ReadFile(literal path) = %q, want %q", string(got), string(content))
-	}
+		content := []byte("content with trailing-space filename")
+		if err := AtomicWriteFile(path, content, 0o644); err != nil {
+			t.Fatalf("AtomicWriteFile() error = %v", err)
+		}
 
-	if _, err := os.Stat(trimmedPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("Stat(trimmed path) error = %v, want %v", err, os.ErrNotExist)
-	}
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(literal path) error = %v", err)
+		}
+		if !bytes.Equal(got, content) {
+			t.Fatalf("ReadFile(literal path) = %q, want %q", string(got), string(content))
+		}
+
+		if _, err := os.Stat(trimmedPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Stat(trimmed path) error = %v, want %v", err, os.ErrNotExist)
+		}
+	})
 }
 
 func TestAtomicWriteFileFailsWhenParentDirectoryIsMissing(t *testing.T) {

@@ -50,8 +50,13 @@ func TestContextCreatedDuringCleanupRemainsUsable(t *testing.T) {
 		})
 	})
 
-	if err := <-errCh; err != nil {
-		t.Fatal(err)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cleanup callback did not report result")
 	}
 }
 

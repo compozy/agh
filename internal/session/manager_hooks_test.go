@@ -438,6 +438,26 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("ShouldIgnoreStopErrorWhenProcessExitsDuringStop", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		h.driver.stopHook = func(proc *fakeProcess) error {
+			proc.exit()
+			return errors.New("process already exited")
+		}
+
+		if err := h.manager.StopWithCause(testutil.Context(t), session.ID, CauseUserRequested, ""); err != nil {
+			t.Fatalf("StopWithCause() error = %v, want nil after process exit during stop", err)
+		}
+
+		meta := readMeta(t, session.MetaPath())
+		if got, want := meta.State, string(StateStopped); got != want {
+			t.Fatalf("meta state after StopWithCause() = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("ShouldWaitForPostStopDispatchWhenWatcherFinalizesFirst", func(t *testing.T) {
 		t.Parallel()
 

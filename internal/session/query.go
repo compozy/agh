@@ -225,6 +225,9 @@ func normalizeStoredSessionID(id string) (string, error) {
 	if filepath.IsAbs(target) || target == "." || target == ".." {
 		return "", fmt.Errorf("%w: %s", ErrSessionNotFound, target)
 	}
+	if hasWindowsDriveRelativePrefix(target) {
+		return "", fmt.Errorf("%w: %s", ErrSessionNotFound, target)
+	}
 	if strings.Contains(target, "/") || strings.Contains(target, `\`) {
 		return "", fmt.Errorf("%w: %s", ErrSessionNotFound, target)
 	}
@@ -232,6 +235,20 @@ func normalizeStoredSessionID(id string) (string, error) {
 		return "", fmt.Errorf("%w: %s", ErrSessionNotFound, target)
 	}
 	return target, nil
+}
+
+func hasWindowsDriveRelativePrefix(value string) bool {
+	if len(value) < 2 || value[1] != ':' {
+		return false
+	}
+	drive := value[0]
+	if (drive < 'a' || drive > 'z') && (drive < 'A' || drive > 'Z') {
+		return false
+	}
+	if len(value) == 2 {
+		return true
+	}
+	return value[2] != '/' && value[2] != '\\'
 }
 
 func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMeta) *Info {

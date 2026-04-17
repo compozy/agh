@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +44,25 @@ func (f *failingFlusher) Write(p []byte) (int, error) {
 }
 
 func (*failingFlusher) Flush() {}
+
+type failNthWriteFlusher struct {
+	writes int
+	failAt int
+	err    error
+}
+
+func (f *failNthWriteFlusher) Write(p []byte) (int, error) {
+	f.writes++
+	if f.writes == f.failAt {
+		if f.err != nil {
+			return 0, f.err
+		}
+		return 0, io.ErrClosedPipe
+	}
+	return len(p), nil
+}
+
+func (*failNthWriteFlusher) Flush() {}
 
 func TestObserveAndSSEHelpers(t *testing.T) {
 	t.Parallel()
@@ -99,6 +119,37 @@ func TestObserveAndSSEHelpers(t *testing.T) {
 	}
 	if err := core.WriteSSERaw(nil, "", "null"); err == nil {
 		t.Fatal("WriteSSERaw(nil) error = nil, want non-nil")
+	}
+}
+
+func TestWriteSSERawWrapsStepFailuresWithContext(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		failAt int
+		want   string
+	}{
+		{name: "ShouldWrapIDPrefixFailure", failAt: 1, want: "write sse id prefix"},
+		{name: "ShouldWrapEventPrefixFailure", failAt: 4, want: "write sse event prefix"},
+		{name: "ShouldWrapDataPrefixFailure", failAt: 7, want: "write sse data prefix"},
+		{name: "ShouldWrapPayloadFailure", failAt: 8, want: "write sse data payload"},
+		{name: "ShouldWrapTerminatorFailure", failAt: 9, want: "write sse message terminator"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			writer := &failNthWriteFlusher{failAt: tt.failAt, err: io.ErrClosedPipe}
+			err := core.WriteSSERaw(writer, "msg-1", `"raw"`, "done")
+			if !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatalf("WriteSSERaw() error = %v, want %v", err, io.ErrClosedPipe)
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("WriteSSERaw() error = %v, want context %q", err, tt.want)
+			}
+		})
 	}
 }
 

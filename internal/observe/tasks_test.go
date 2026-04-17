@@ -369,6 +369,21 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 	if !containsQueueDepth(metrics.TaskQueueDepth, "ops", 1) {
 		t.Fatalf("metrics.TaskQueueDepth = %#v, want ops queue depth 1", metrics.TaskQueueDepth)
 	}
+
+	cliMetrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
+		Since:          h.now,
+		NetworkChannel: "ops",
+		OriginKind:     taskpkg.OriginKindCLI,
+	})
+	if err != nil {
+		t.Fatalf("QueryTaskMetrics(cli filter) error = %v", err)
+	}
+	if got := cliMetrics.DuplicateIngressTotal; got != 0 {
+		t.Fatalf("cliMetrics.DuplicateIngressTotal = %d, want 0", got)
+	}
+	if got := cliMetrics.ChannelMismatchTotal; got != 0 {
+		t.Fatalf("cliMetrics.ChannelMismatchTotal = %d, want 0", got)
+	}
 }
 
 func TestTaskObserveQueryValidationAndConfigOption(t *testing.T) {

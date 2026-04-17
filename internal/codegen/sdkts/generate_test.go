@@ -108,8 +108,8 @@ func TestJSONFieldName(t *testing.T) {
 				Name: "SpacedName",
 				Tag:  reflect.StructTag(`json:" spaced_name , omitempty ,string"`),
 			},
-			wantName:      "spaced_name",
-			wantOmitEmpty: true,
+			wantName:      " spaced_name ",
+			wantOmitEmpty: false,
 		},
 	}
 

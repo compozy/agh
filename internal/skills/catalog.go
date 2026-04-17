@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -109,7 +110,7 @@ func BuildCatalog(skills []*Skill) string {
 }
 
 func truncateCatalogDescription(description string) string {
-	if len(description) <= catalogDescriptionLimit {
+	if utf8.RuneCountInString(description) <= catalogDescriptionLimit {
 		return description
 	}
 

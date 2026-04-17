@@ -110,15 +110,20 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 
 	doneBeforeStop := isProcessDone(proc)
 	stopErr := m.driver.Stop(ctx, proc)
-	if stopErr == nil && !isProcessDone(proc) {
+	doneAfterStop := isProcessDone(proc)
+	if stopErr == nil && !doneAfterStop {
 		select {
 		case <-proc.Done():
+			doneAfterStop = true
 		case <-ctx.Done():
 			return fmt.Errorf("session: wait for process stop completion for %q: %w", id, ctx.Err())
 		}
 	}
-	if stopErr != nil && !doneBeforeStop {
-		return fmt.Errorf("session: stop session process for %q: %w", id, stopErr)
+	if stopErr != nil {
+		if !doneBeforeStop && !doneAfterStop {
+			return fmt.Errorf("session: stop session process for %q: %w", id, stopErr)
+		}
+		stopErr = nil
 	}
 
 	return errors.Join(stopErr, m.finalizeStopped(ctx, session, nil))

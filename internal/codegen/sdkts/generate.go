@@ -250,7 +250,6 @@ func jsonFieldName(field reflect.StructField) (string, bool) {
 		return field.Name, false
 	}
 	name, opts, _ := strings.Cut(tag, ",")
-	name = strings.TrimSpace(name)
 	if name == "" {
 		name = field.Name
 	}
@@ -263,7 +262,7 @@ func jsonFieldName(field reflect.StructField) (string, bool) {
 		} else {
 			opts = ""
 		}
-		if strings.TrimSpace(part) == "omitempty" {
+		if part == "omitempty" {
 			omitempty = true
 			break
 		}

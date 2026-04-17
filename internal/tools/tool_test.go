@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -166,6 +167,8 @@ func TestToolSourceInvalid(t *testing.T) {
 	}
 	if _, err := ToolSource(42).MarshalText(); err == nil {
 		t.Fatal("ToolSource(42).MarshalText() error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), "marshal tool source") {
+		t.Fatalf("ToolSource(42).MarshalText() error = %v, want marshal context", err)
 	}
 
 	var decoded ToolSource

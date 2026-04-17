@@ -860,9 +860,13 @@ func eventChannel(
 
 func filterTaskIngressAudits(audits []store.NetworkAuditEntry, query TaskMetricsQuery) []store.NetworkAuditEntry {
 	channel := strings.TrimSpace(query.NetworkChannel)
+	normalizedOrigin := query.OriginKind.Normalize()
 	var filtered []store.NetworkAuditEntry
 	for i, item := range audits {
 		accepted := isTaskIngressAudit(item)
+		if accepted && normalizedOrigin != "" && normalizedOrigin != taskpkg.OriginKindNetwork {
+			accepted = false
+		}
 		if accepted && !query.Since.IsZero() && item.Timestamp.Before(query.Since) {
 			accepted = false
 		}

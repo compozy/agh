@@ -52,7 +52,7 @@ func (s ToolSource) String() string {
 // MarshalText encodes the source as a string.
 func (s ToolSource) MarshalText() ([]byte, error) {
 	if err := s.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tools: marshal tool source: %w", err)
 	}
 	return append([]byte(nil), toolSourceBytes[s]...), nil
 }

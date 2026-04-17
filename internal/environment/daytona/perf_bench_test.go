@@ -78,6 +78,10 @@ func BenchmarkExtractTarWorkspaceTree(b *testing.B) {
 		if extracted.Files != expectedFiles {
 			b.Fatalf("extractTar() files = %d, want %d", extracted.Files, expectedFiles)
 		}
+		b.StopTimer()
+		if err := os.RemoveAll(dest); err != nil {
+			b.Fatalf("RemoveAll(%q) error = %v", dest, err)
+		}
 	}
 }
 

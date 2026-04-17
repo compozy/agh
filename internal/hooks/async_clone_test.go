@@ -127,18 +127,30 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 
 		trigger := AutomationTriggerPreFirePayload{
 			Payload: map[string]any{
-				"outer": map[string]any{"inner": "before"},
-				"list":  []any{"before"},
+				"outer":    map[string]any{"inner": "before"},
+				"list":     []any{"before"},
+				"typedMap": map[string][]string{"items": {"before"}},
+				"typedList": []map[string]any{
+					{"label": "before"},
+				},
 			},
 		}
 		triggerClone := cloneAsyncPayload(trigger)
 		trigger.Payload["outer"].(map[string]any)["inner"] = "after"
 		trigger.Payload["list"].([]any)[0] = "after"
+		trigger.Payload["typedMap"].(map[string][]string)["items"][0] = "after"
+		trigger.Payload["typedList"].([]map[string]any)[0]["label"] = "after"
 		if triggerClone.Payload["outer"].(map[string]any)["inner"] != "before" {
 			t.Fatalf("cloned nested payload = %#v, want preserved value", triggerClone.Payload["outer"])
 		}
 		if triggerClone.Payload["list"].([]any)[0] != "before" {
 			t.Fatalf("cloned list payload = %#v, want preserved value", triggerClone.Payload["list"])
+		}
+		if triggerClone.Payload["typedMap"].(map[string][]string)["items"][0] != "before" {
+			t.Fatalf("cloned typed map payload = %#v, want preserved value", triggerClone.Payload["typedMap"])
+		}
+		if triggerClone.Payload["typedList"].([]map[string]any)[0]["label"] != "before" {
+			t.Fatalf("cloned typed list payload = %#v, want preserved value", triggerClone.Payload["typedList"])
 		}
 	})
 

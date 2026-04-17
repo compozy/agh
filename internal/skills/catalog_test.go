@@ -126,6 +126,26 @@ func TestBuildCatalogTruncatesUnicodeDescriptionsAtRuneBoundary(t *testing.T) {
 	}
 }
 
+func TestBuildCatalogDoesNotTruncateUnicodeDescriptionsBelowRuneLimit(t *testing.T) {
+	t.Parallel()
+
+	description := strings.Repeat("界", catalogDescriptionLimit-2)
+	got := BuildCatalog([]*Skill{
+		{
+			Meta: SkillMeta{
+				Name:        "unicode-within-limit",
+				Description: description,
+			},
+			Enabled: true,
+		},
+	})
+
+	wantLine := `  <skill name="unicode-within-limit">` + description + `</skill>`
+	if !strings.Contains(got, wantLine) {
+		t.Fatalf("BuildCatalog() missing untruncated unicode line %q in %q", wantLine, got)
+	}
+}
+
 func TestBuildCatalogExcludesDisabledSkills(t *testing.T) {
 	t.Parallel()
 

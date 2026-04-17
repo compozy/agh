@@ -93,20 +93,22 @@ func TestRenderTriggerPromptFailsWhenEnvelopeFieldIsMissing(t *testing.T) {
 func TestRenderTriggerPromptReturnsTrimmedStaticPrompt(t *testing.T) {
 	t.Parallel()
 
-	rendered, err := renderTriggerPrompt("  Static prompt body  ", &ActivationEnvelope{
-		Kind:   "session.stopped",
-		Scope:  AutomationScopeGlobal,
-		Source: ActivationSourceObserver,
-		Data: map[string]any{
-			"session_id": "sess-1",
-		},
+	t.Run("ShouldReturnTrimmedStaticPrompt", func(t *testing.T) {
+		rendered, err := renderTriggerPrompt("  Static prompt body  ", &ActivationEnvelope{
+			Kind:   "session.stopped",
+			Scope:  AutomationScopeGlobal,
+			Source: ActivationSourceObserver,
+			Data: map[string]any{
+				"session_id": "sess-1",
+			},
+		})
+		if err != nil {
+			t.Fatalf("renderTriggerPrompt() error = %v", err)
+		}
+		if got, want := rendered, "Static prompt body"; got != want {
+			t.Fatalf("renderTriggerPrompt() = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("renderTriggerPrompt() error = %v", err)
-	}
-	if got, want := rendered, "Static prompt body"; got != want {
-		t.Fatalf("renderTriggerPrompt() = %q, want %q", got, want)
-	}
 }
 
 func TestParseWebhookEndpointResolvesStableWebhookID(t *testing.T) {

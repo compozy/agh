@@ -554,26 +554,60 @@ func TestComputeInstallChecksumChangesWhenRegularFileChanges(t *testing.T) {
 func TestComputeInstallChecksumStableAcrossCreationOrder(t *testing.T) {
 	t.Parallel()
 
+	t.Run("ShouldRemainStableAcrossCreationOrder", func(t *testing.T) {
+		firstRoot := t.TempDir()
+		secondRoot := t.TempDir()
+
+		populate := func(root string, names []string) {
+			t.Helper()
+			for _, name := range names {
+				writeTestFile(t, filepath.Join(root, name), "payload-"+name)
+			}
+		}
+
+		populate(firstRoot, []string{
+			filepath.Join("zeta", "three.txt"),
+			filepath.Join("alpha", "one.txt"),
+			filepath.Join("beta", "two.txt"),
+		})
+		populate(secondRoot, []string{
+			filepath.Join("beta", "two.txt"),
+			filepath.Join("zeta", "three.txt"),
+			filepath.Join("alpha", "one.txt"),
+		})
+
+		first, err := computeInstallChecksum(firstRoot)
+		if err != nil {
+			t.Fatalf("computeInstallChecksum(firstRoot) error = %v", err)
+		}
+		second, err := computeInstallChecksum(secondRoot)
+		if err != nil {
+			t.Fatalf("computeInstallChecksum(secondRoot) error = %v", err)
+		}
+		if first != second {
+			t.Fatalf(
+				"computeInstallChecksum() = %q and %q for identical trees with different creation order, want stable checksum",
+				first,
+				second,
+			)
+		}
+	})
+}
+
+func TestComputeInstallChecksumDistinguishesRawSymlinkTargets(t *testing.T) {
+	t.Parallel()
+
 	firstRoot := t.TempDir()
 	secondRoot := t.TempDir()
 
-	populate := func(root string, names []string) {
-		t.Helper()
-		for _, name := range names {
-			writeTestFile(t, filepath.Join(root, name), "payload-"+name)
-		}
+	writeTestFile(t, filepath.Join(firstRoot, "payload.txt"), "payload")
+	writeTestFile(t, filepath.Join(secondRoot, "payload.txt"), "payload")
+	if err := os.Symlink("payload.txt", filepath.Join(firstRoot, "current")); err != nil {
+		t.Fatalf("Symlink(first) error = %v", err)
 	}
-
-	populate(firstRoot, []string{
-		filepath.Join("zeta", "three.txt"),
-		filepath.Join("alpha", "one.txt"),
-		filepath.Join("beta", "two.txt"),
-	})
-	populate(secondRoot, []string{
-		filepath.Join("beta", "two.txt"),
-		filepath.Join("zeta", "three.txt"),
-		filepath.Join("alpha", "one.txt"),
-	})
+	if err := os.Symlink("./payload.txt", filepath.Join(secondRoot, "current")); err != nil {
+		t.Fatalf("Symlink(second) error = %v", err)
+	}
 
 	first, err := computeInstallChecksum(firstRoot)
 	if err != nil {
@@ -583,12 +617,8 @@ func TestComputeInstallChecksumStableAcrossCreationOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("computeInstallChecksum(secondRoot) error = %v", err)
 	}
-	if first != second {
-		t.Fatalf(
-			"computeInstallChecksum() = %q and %q for identical trees with different creation order, want stable checksum",
-			first,
-			second,
-		)
+	if first == second {
+		t.Fatalf("computeInstallChecksum() = %q for distinct raw symlink targets, want different checksums", first)
 	}
 }
 
