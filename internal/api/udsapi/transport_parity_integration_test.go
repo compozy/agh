@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -207,6 +208,264 @@ func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.
 	}
 }
 
+func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	workspaceID := runtimeHarness.WorkspaceID
+
+	testCases := []struct {
+		name   string
+		path   string
+		decode func() any
+	}{
+		{
+			name:   "general section",
+			path:   "/api/settings/general",
+			decode: func() any { return &aghcontract.SettingsGeneralResponse{} },
+		},
+		{
+			name:   "providers collection",
+			path:   "/api/settings/providers",
+			decode: func() any { return &aghcontract.SettingsProvidersResponse{} },
+		},
+		{
+			name: "workspace mcp servers collection",
+			path: "/api/settings/mcp-servers?scope=workspace&workspace_id=" + url.QueryEscape(workspaceID),
+			decode: func() any {
+				return &aghcontract.SettingsMCPServersResponse{}
+			},
+		},
+		{
+			name:   "hooks and extensions section",
+			path:   "/api/settings/hooks-extensions",
+			decode: func() any { return &aghcontract.SettingsHooksExtensionsResponse{} },
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			httpValue := tc.decode()
+			if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, tc.path, nil, httpValue); err != nil {
+				t.Fatalf("HTTPJSON(%s) error = %v", tc.path, err)
+			}
+
+			udsValue := tc.decode()
+			if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, tc.path, nil, udsValue); err != nil {
+				t.Fatalf("UDSJSON(%s) error = %v", tc.path, err)
+			}
+
+			if !reflect.DeepEqual(httpValue, udsValue) {
+				t.Fatalf("%s HTTP payload = %#v, want UDS parity %#v", tc.path, httpValue, udsValue)
+			}
+		})
+	}
+}
+
+func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
+
+	clients, err := runtimeHarness.TransportClients()
+	if err != nil {
+		t.Fatalf("TransportClients() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	httpListResp := mustUnixRequest(
+		t,
+		clients.HTTPClient,
+		http.MethodGet,
+		transportSettingsHTTPURL(runtimeHarness, "/api/extensions"),
+		nil,
+		nil,
+	)
+	if httpListResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(httpListResp.Body)
+		_ = httpListResp.Body.Close()
+		t.Fatalf("HTTP extension list status = %d, want %d; body=%s", httpListResp.StatusCode, http.StatusOK, string(body))
+	}
+	var httpList aghcontract.ExtensionsResponse
+	decodeHTTPJSON(t, httpListResp, &httpList)
+
+	var udsList aghcontract.ExtensionsResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/extensions", nil, &udsList); err != nil {
+		t.Fatalf("UDSJSON(/api/extensions) error = %v", err)
+	}
+	if !reflect.DeepEqual(httpList.Extensions, udsList.Extensions) {
+		t.Fatalf("HTTP extensions = %#v, want UDS parity %#v", httpList.Extensions, udsList.Extensions)
+	}
+	if len(httpList.Extensions) == 0 {
+		return
+	}
+
+	name := httpList.Extensions[0].Name
+	httpStatusResp := mustUnixRequest(
+		t,
+		clients.HTTPClient,
+		http.MethodGet,
+		transportSettingsHTTPURL(runtimeHarness, "/api/extensions/"+url.PathEscape(name)),
+		nil,
+		nil,
+	)
+	if httpStatusResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(httpStatusResp.Body)
+		_ = httpStatusResp.Body.Close()
+		t.Fatalf("HTTP extension status = %d, want %d; body=%s", httpStatusResp.StatusCode, http.StatusOK, string(body))
+	}
+	var httpStatus aghcontract.ExtensionResponse
+	decodeHTTPJSON(t, httpStatusResp, &httpStatus)
+
+	var udsStatus aghcontract.ExtensionResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/extensions/"+url.PathEscape(name), nil, &udsStatus); err != nil {
+		t.Fatalf("UDSJSON(/api/extensions/%s) error = %v", name, err)
+	}
+	if !reflect.DeepEqual(httpStatus.Extension, udsStatus.Extension) {
+		t.Fatalf("HTTP extension = %#v, want UDS parity %#v", httpStatus.Extension, udsStatus.Extension)
+	}
+}
+
+func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{
+			Host: "0.0.0.0",
+		},
+	})
+
+	clients, err := runtimeHarness.TransportClients()
+	if err != nil {
+		t.Fatalf("TransportClients() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	workspaceID := runtimeHarness.WorkspaceID
+	putPath := "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=" +
+		url.QueryEscape(workspaceID) + "&target=sidecar"
+	putBody, err := json.Marshal(aghcontract.PutSettingsMCPServerRequest{
+		Server: aghcontract.SettingsMCPServerPayload{
+			Name:    "server-a",
+			Command: "mcpd",
+			Args:    []string{"serve"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(put settings body) error = %v", err)
+	}
+
+	httpPutResp := mustUnixRequest(
+		t,
+		clients.HTTPClient,
+		http.MethodPut,
+		transportSettingsHTTPURL(runtimeHarness, putPath),
+		putBody,
+		nil,
+	)
+	if httpPutResp.StatusCode != http.StatusForbidden {
+		body, _ := io.ReadAll(httpPutResp.Body)
+		_ = httpPutResp.Body.Close()
+		t.Fatalf("HTTP PUT settings status = %d, want %d; body=%s", httpPutResp.StatusCode, http.StatusForbidden, string(body))
+	}
+	var forbidden aghcontract.ErrorPayload
+	decodeHTTPJSON(t, httpPutResp, &forbidden)
+
+	var udsMutation aghcontract.MutationResult
+	if err := runtimeHarness.UDSJSON(
+		ctx,
+		http.MethodPut,
+		putPath,
+		aghcontract.PutSettingsMCPServerRequest{
+			Server: aghcontract.SettingsMCPServerPayload{
+				Name:    "server-a",
+				Command: "mcpd",
+				Args:    []string{"serve"},
+			},
+		},
+		&udsMutation,
+	); err != nil {
+		t.Fatalf("UDSJSON(PUT %s) error = %v", putPath, err)
+	}
+	if udsMutation.Scope != aghcontract.SettingsScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
+		t.Fatalf("UDS mutation = %#v, want workspace-scoped result", udsMutation)
+	}
+
+	listPath := "/api/settings/mcp-servers?scope=workspace&workspace_id=" + url.QueryEscape(workspaceID)
+	httpListResp := mustUnixRequest(
+		t,
+		clients.HTTPClient,
+		http.MethodGet,
+		transportSettingsHTTPURL(runtimeHarness, listPath),
+		nil,
+		nil,
+	)
+	if httpListResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(httpListResp.Body)
+		_ = httpListResp.Body.Close()
+		t.Fatalf("HTTP GET settings list status = %d, want %d; body=%s", httpListResp.StatusCode, http.StatusOK, string(body))
+	}
+	var httpList aghcontract.SettingsMCPServersResponse
+	decodeHTTPJSON(t, httpListResp, &httpList)
+
+	var udsList aghcontract.SettingsMCPServersResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, listPath, nil, &udsList); err != nil {
+		t.Fatalf("UDSJSON(GET %s) error = %v", listPath, err)
+	}
+	if !reflect.DeepEqual(httpList, udsList) {
+		t.Fatalf("HTTP mcp list = %#v, want UDS parity %#v", httpList, udsList)
+	}
+
+	deletePath := "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=" +
+		url.QueryEscape(workspaceID) + "&target=sidecar"
+	var deleteResult aghcontract.MutationResult
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodDelete, deletePath, nil, &deleteResult); err != nil {
+		t.Fatalf("UDSJSON(DELETE %s) error = %v", deletePath, err)
+	}
+	if deleteResult.Scope != aghcontract.SettingsScopeWorkspace || deleteResult.WorkspaceID != workspaceID {
+		t.Fatalf("deleteResult = %#v, want workspace-scoped delete result", deleteResult)
+	}
+
+	httpListResp = mustUnixRequest(
+		t,
+		clients.HTTPClient,
+		http.MethodGet,
+		transportSettingsHTTPURL(runtimeHarness, listPath),
+		nil,
+		nil,
+	)
+	if httpListResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(httpListResp.Body)
+		_ = httpListResp.Body.Close()
+		t.Fatalf("HTTP GET settings list after delete status = %d, want %d; body=%s", httpListResp.StatusCode, http.StatusOK, string(body))
+	}
+	var httpListAfterDelete aghcontract.SettingsMCPServersResponse
+	decodeHTTPJSON(t, httpListResp, &httpListAfterDelete)
+
+	var udsListAfterDelete aghcontract.SettingsMCPServersResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, listPath, nil, &udsListAfterDelete); err != nil {
+		t.Fatalf("UDSJSON(GET %s after delete) error = %v", listPath, err)
+	}
+	if !reflect.DeepEqual(httpListAfterDelete, udsListAfterDelete) {
+		t.Fatalf(
+			"HTTP mcp list after delete = %#v, want UDS parity %#v",
+			httpListAfterDelete,
+			udsListAfterDelete,
+		)
+	}
+}
+
 func waitForUDSAutomationRun(
 	t testing.TB,
 	ctx context.Context,
@@ -218,6 +477,10 @@ func waitForUDSAutomationRun(
 	return waitForTransportAutomationRun(t, ctx, runID, "waitForUDSAutomationRun", func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
 		return harness.GetAutomationRun(fetchCtx, runID)
 	})
+}
+
+func transportSettingsHTTPURL(harness *e2etest.RuntimeHarness, path string) string {
+	return fmt.Sprintf("http://127.0.0.1:%d%s", harness.Config.HTTP.Port, path)
 }
 
 func waitForCLIAutomationRun(

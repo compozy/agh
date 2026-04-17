@@ -18,6 +18,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
+	settingspkg "github.com/pedronauck/agh/internal/settings"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -32,6 +33,128 @@ type stubResourceService = testutil.StubResourceService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type stubSkillsRegistry = testutil.StubSkillsRegistry
 type sseRecord = testutil.SSERecord
+
+type stubSettingsService struct {
+	GetSectionFn                func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
+	UpdateSectionFn             func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
+	ListCollectionFn            func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
+	PutCollectionItemFn         func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
+	DeleteCollectionItemFn      func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
+	LastGetSectionRequest       settingspkg.SectionRequest
+	LastUpdateSectionRequest    settingspkg.SectionUpdateRequest
+	LastListCollectionRequest   settingspkg.CollectionRequest
+	LastPutCollectionRequest    settingspkg.CollectionItemPutRequest
+	LastDeleteCollectionRequest settingspkg.CollectionItemDeleteRequest
+}
+
+func (s *stubSettingsService) GetSection(
+	ctx context.Context,
+	req settingspkg.SectionRequest,
+) (settingspkg.SectionEnvelope, error) {
+	s.LastGetSectionRequest = req
+	if s.GetSectionFn == nil {
+		return settingsTestSectionEnvelope(req.Section, req.Scope, req.WorkspaceID), nil
+	}
+	return s.GetSectionFn(ctx, req)
+}
+
+func (s *stubSettingsService) UpdateSection(
+	ctx context.Context,
+	req settingspkg.SectionUpdateRequest,
+) (settingspkg.MutationResult, error) {
+	s.LastUpdateSectionRequest = req
+	if s.UpdateSectionFn == nil {
+		return settingspkg.MutationResult{
+			Section:         req.Section,
+			Scope:           req.Scope,
+			WorkspaceID:     req.WorkspaceID,
+			Behavior:        settingspkg.MutationBehaviorRestartRequired,
+			RestartRequired: true,
+		}, nil
+	}
+	return s.UpdateSectionFn(ctx, req)
+}
+
+func (s *stubSettingsService) ListCollection(
+	ctx context.Context,
+	req settingspkg.CollectionRequest,
+) (settingspkg.CollectionEnvelope, error) {
+	s.LastListCollectionRequest = req
+	if s.ListCollectionFn == nil {
+		return settingsTestCollectionEnvelope(req.Collection, req.Scope, req.WorkspaceID), nil
+	}
+	return s.ListCollectionFn(ctx, req)
+}
+
+func (s *stubSettingsService) PutCollectionItem(
+	ctx context.Context,
+	req settingspkg.CollectionItemPutRequest,
+) (settingspkg.MutationResult, error) {
+	s.LastPutCollectionRequest = req
+	if s.PutCollectionItemFn == nil {
+		return settingspkg.MutationResult{
+			Section:         settingspkg.SectionName(req.Collection),
+			Scope:           req.Scope,
+			WorkspaceID:     req.WorkspaceID,
+			Behavior:        settingspkg.MutationBehaviorRestartRequired,
+			RestartRequired: true,
+		}, nil
+	}
+	return s.PutCollectionItemFn(ctx, req)
+}
+
+func (s *stubSettingsService) DeleteCollectionItem(
+	ctx context.Context,
+	req settingspkg.CollectionItemDeleteRequest,
+) (settingspkg.MutationResult, error) {
+	s.LastDeleteCollectionRequest = req
+	if s.DeleteCollectionItemFn == nil {
+		return settingspkg.MutationResult{
+			Section:         settingspkg.SectionName(req.Collection),
+			Scope:           req.Scope,
+			WorkspaceID:     req.WorkspaceID,
+			Behavior:        settingspkg.MutationBehaviorRestartRequired,
+			RestartRequired: true,
+		}, nil
+	}
+	return s.DeleteCollectionItemFn(ctx, req)
+}
+
+type stubSettingsRestartController struct {
+	RequestRestartFn      func(context.Context) (core.SettingsRestartOperation, error)
+	GetRestartOperationFn func(context.Context, string) (core.SettingsRestartOperation, error)
+	RequestRestartCalls   int
+	GetRestartOperationID string
+}
+
+func (s *stubSettingsRestartController) RequestRestart(ctx context.Context) (core.SettingsRestartOperation, error) {
+	s.RequestRestartCalls++
+	if s.RequestRestartFn == nil {
+		return core.SettingsRestartOperation{
+			OperationID:        "op-123",
+			Status:             "pending",
+			ActiveSessionCount: 1,
+		}, nil
+	}
+	return s.RequestRestartFn(ctx)
+}
+
+func (s *stubSettingsRestartController) GetRestartOperation(
+	ctx context.Context,
+	operationID string,
+) (core.SettingsRestartOperation, error) {
+	s.GetRestartOperationID = operationID
+	if s.GetRestartOperationFn == nil {
+		return core.SettingsRestartOperation{
+			OperationID:        operationID,
+			Status:             "ready",
+			ActiveSessionCount: 1,
+			StartedAt:          time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			UpdatedAt:          time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
+		}, nil
+	}
+	return s.GetRestartOperationFn(ctx, operationID)
+}
 
 func newTestHandlers(
 	t *testing.T,
@@ -84,6 +207,33 @@ func newTestHandlersWithExtensions(
 		extensions,
 		homePaths,
 	)
+}
+
+func newTestHandlersWithSettingsAndExtensions(
+	t *testing.T,
+	settings core.SettingsService,
+	restart core.SettingsRestartController,
+	extensions ExtensionService,
+	homePaths aghconfig.HomePaths,
+) *Handlers {
+	t.Helper()
+
+	return newHandlers(&handlerConfig{
+		sessions:        stubSessionManager{},
+		tasks:           stubTaskManager{},
+		observer:        stubObserver{},
+		workspaces:      stubWorkspaceService{},
+		settings:        settings,
+		settingsRestart: restart,
+		extensions:      extensions,
+		homePaths:       homePaths,
+		config:          aghconfig.DefaultWithHome(homePaths),
+		logger:          discardLogger(),
+		startedAt:       time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		now:             func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
+		pollInterval:    5 * time.Millisecond,
+		agentLoader:     aghconfig.LoadAgentDef,
+	})
 }
 
 func newTestHandlersWithRuntime(
@@ -256,4 +406,68 @@ func newUnixClient(t *testing.T, socketPath string) *http.Client {
 
 func discardLogger() *slog.Logger {
 	return testutil.DiscardLogger()
+}
+
+func settingsTestSectionEnvelope(
+	section settingspkg.SectionName,
+	scope settingspkg.ScopeKind,
+	workspaceID string,
+) settingspkg.SectionEnvelope {
+	envelope := settingspkg.SectionEnvelope{
+		Section:         section,
+		Scope:           scope,
+		WorkspaceID:     workspaceID,
+		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+	}
+	switch section {
+	case settingspkg.SectionGeneral:
+		envelope.General = &settingspkg.GeneralSection{}
+	case settingspkg.SectionMemory:
+		envelope.Memory = &settingspkg.MemorySection{}
+	case settingspkg.SectionSkills:
+		envelope.Skills = &settingspkg.SkillsSection{}
+	case settingspkg.SectionAutomation:
+		envelope.Automation = &settingspkg.AutomationSection{}
+	case settingspkg.SectionNetwork:
+		envelope.Network = &settingspkg.NetworkSection{}
+	case settingspkg.SectionObservability:
+		envelope.Observability = &settingspkg.ObservabilitySection{}
+	case settingspkg.SectionHooksExtensions:
+		envelope.HooksExtensions = &settingspkg.HooksExtensionsSection{}
+	}
+	return envelope
+}
+
+func settingsTestCollectionEnvelope(
+	collection settingspkg.CollectionName,
+	scope settingspkg.ScopeKind,
+	workspaceID string,
+) settingspkg.CollectionEnvelope {
+	envelope := settingspkg.CollectionEnvelope{
+		Collection:      collection,
+		Scope:           scope,
+		WorkspaceID:     workspaceID,
+		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+	}
+	switch collection {
+	case settingspkg.CollectionProviders:
+		envelope.Providers = []settingspkg.ProviderItem{{
+			Name:     "demo",
+			Settings: settingspkg.ProviderSettings{Command: "codex"},
+		}}
+	case settingspkg.CollectionMCPServers:
+		envelope.MCPServers = []settingspkg.MCPServerItem{{
+			Name:    "server-a",
+			Command: "mcpd",
+			Scope:   scope,
+		}}
+	case settingspkg.CollectionEnvironments:
+		envelope.Environments = []settingspkg.EnvironmentItem{{
+			Name:    "demo",
+			Profile: aghconfig.EnvironmentProfile{Backend: "local"},
+		}}
+	case settingspkg.CollectionHooks:
+		envelope.Hooks = []settingspkg.HookItem{}
+	}
+	return envelope
 }
