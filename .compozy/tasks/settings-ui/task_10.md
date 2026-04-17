@@ -82,13 +82,17 @@ See TechSpec sections "Data Models", "Runtime apply matrix", "API Endpoints", an
 ## Tests
 
 - Unit tests:
-  - [ ] `general` page renders config/runtime fields and surfaces restart-required state on save
-  - [ ] `memory` page triggers consolidate action and displays action result state correctly
+  - [ ] `general` page renders config-path, defaults, permissions, and restart affordances from the section envelope
+  - [ ] `general` page surfaces restart-required save results, warnings, and restart polling CTA state correctly
+  - [ ] `memory` page renders config and health fields before any mutation occurs
+  - [ ] `memory` page triggers consolidate action and displays action progress and result state correctly
   - [ ] `observability` page renders DB metrics and log-tail capability metadata from the section envelope
-  - [ ] Shared warning and restart banner components render correctly for these sections
+  - [ ] Shared warning and restart banner components render correctly for these sections and do not confuse action-trigger flows with config saves
 - Integration tests:
   - [ ] Navigating among `general`, `memory`, and `observability` under the settings shell preserves section state correctly
   - [ ] Save flows invalidate and refetch the correct section queries after mutation
+  - [ ] `general` restart action starts polling, survives a route refresh, and resolves to a terminal restart status banner
+  - [ ] `memory` consolidate and `observability` runtime metadata reuse the shared settings shell and mutation plumbing without per-route fetch forks
 - Test coverage target: >=80%
 - All tests must pass
 

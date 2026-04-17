@@ -87,14 +87,17 @@ See TechSpec sections "Testing Approach", "Web route coverage", "Known Risks", a
 
 ## Tests
 
-- Artifact verification:
+- Unit tests:
   - [ ] `settings-ui-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, and risk assessment
-  - [ ] Manual test cases exist for every settings route plus restart, restart-status, workspace-scope, and collection/operator edge cases
-  - [ ] Regression suite documents identify smoke, targeted, and full coverage plus execution order for P0/P1 flows
-  - [ ] All generated artifacts land under `.compozy/tasks/settings-ui/qa/` and can be consumed directly by `/qa-execution`
-- Traceability verification:
-  - [ ] Test cases map back to the relevant settings routes or task files
-  - [ ] Any bug report created during planning references the originating test case or design discrepancy clearly
+  - [ ] Manual test cases exist for every settings route and include setup, explicit steps, expected results, and cleanup notes where needed
+  - [ ] Regression suite documents identify smoke, targeted, and full coverage lanes plus the execution order for P0/P1 flows
+  - [ ] Route-to-task traceability maps cases back to the relevant settings routes or task files clearly
+  - [ ] All generated artifacts land under `.compozy/tasks/settings-ui/qa/` with stable names and no missing referenced files
+- Integration tests:
+  - [ ] Restart, restart-status, workspace-scope, collection CRUD, and operator-action flows are represented coherently across plan, cases, and regression docs
+  - [ ] Manual cases and regression suites align on priorities, environment prerequisites, and expected test data setup
+  - [ ] Generated artifacts can be consumed directly by `/qa-execution` without manual reformatting or missing dependencies
+  - [ ] Any bug report or open-risk note created during planning references the originating test case or design discrepancy clearly
 
 ## Success Criteria
 

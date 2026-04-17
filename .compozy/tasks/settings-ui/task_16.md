@@ -93,15 +93,19 @@ See TechSpec sections "Testing Approach", "Web route coverage", "Verification ga
 ## Tests
 
 - Unit tests:
-  - [ ] New settings browser selector helpers resolve stable shell, section, collection, and restart surfaces
-  - [ ] Runtime seed helpers can create deterministic settings prerequisites without hidden global-state assumptions
+  - [ ] New settings browser selector helpers resolve stable shell, navigation, collection, and restart-status surfaces without brittle text-only selectors
+  - [ ] Runtime seed helpers can create deterministic global and workspace-scoped settings prerequisites without hidden global-state assumptions
+  - [ ] Shared wait/assert helpers distinguish applied-now banners, restart-required banners, and action-trigger progress states correctly
+  - [ ] Cleanup helpers remove created fixtures and restart-operation residue between specs
 - Integration tests:
   - [ ] Settings Playwright coverage exercises shell navigation plus a representative save flow with restart-required messaging and status polling
   - [ ] Settings Playwright coverage exercises at least one collection CRUD flow (`providers` or `environments`) through the daemon-served UI
   - [ ] Settings Playwright coverage exercises the workspace-scoped `mcp-servers` flow, including visible scope/target semantics
   - [ ] Settings Playwright coverage exercises the `hooks-extensions` page and distinguishes immediate operational actions from restart-aware config edits
+  - [ ] Settings Playwright coverage verifies restart-status polling survives a page refresh until the operation reaches a terminal state
   - [ ] `make test-e2e-web` passes with the settings scenarios included in the browser lane
   - [ ] `make verify` passes after the final QA fix set
+  - [ ] `.compozy/tasks/settings-ui/qa/verification-report.md` captures executed flows, defects found, fixes applied, and rerun evidence
 
 ## Success Criteria
 

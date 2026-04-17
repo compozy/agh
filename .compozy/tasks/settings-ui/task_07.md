@@ -81,10 +81,13 @@ See TechSpec sections "API Endpoints", "Transport and security policy", and ADR-
   - [ ] All required UDS settings routes are registered with the expected verbs and wrappers
   - [ ] UDS restart actions and status polling return the same payload shapes as HTTP
   - [ ] UDS collection mutation handlers surface the same validation and conflict behavior as HTTP
+  - [ ] UDS route plumbing preserves `scope`, `workspace_id`, and `target` query semantics for MCP server operations
+  - [ ] UDS settings routes reuse shared `api/core` handlers instead of introducing transport-specific DTO forks
 - Integration tests:
   - [ ] Transport parity tests verify the full settings route inventory across HTTP and UDS
   - [ ] UDS settings mutations execute without the HTTP loopback restriction
   - [ ] UDS extension route coverage stays aligned with the settings surface requirements
+  - [ ] Workspace-scoped `mcp-servers` reads and writes succeed over UDS with the same response shapes exposed on HTTP
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -79,12 +79,16 @@ See TechSpec sections "System Architecture", "API Endpoints", "Response behavior
 
 - Unit tests:
   - [ ] Settings adapters decode section and collection payloads from generated API types correctly
+  - [ ] Collection adapters preserve precedence metadata, restart metadata, and workspace context without manual shape fixing in routes
   - [ ] Query keys/options remain stable for section and collection resources
   - [ ] Restart action mutations trigger status polling and expose progress state to consumers
   - [ ] Shared settings page hook derives active section and restart banner state correctly
+  - [ ] Mutation helper utilities invalidate only the affected section or collection query families
 - Integration tests:
   - [ ] Route-level hook integration resolves section changes without duplicating fetch logic in route files
   - [ ] Generated types and settings system exports typecheck together without `any` fallbacks
+  - [ ] Restart polling state can be consumed consistently across multiple settings pages without duplicated route-local state
+  - [ ] Scoped collection hooks keep global and workspace caches isolated while sharing the same adapter layer
 - Test coverage target: >=80%
 - All tests must pass
 

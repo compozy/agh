@@ -85,9 +85,12 @@ See TechSpec sections "Data Models", "API Endpoints", "Transport and security po
   - [ ] Extension operational actions show immediate progress/result state without masquerading as config saves
   - [ ] Policy edits surface restart-required messaging distinctly from operational actions
   - [ ] Mutation or transport availability state is rendered correctly when the backend reports restrictions
+  - [ ] Shared controls disable or explain unavailable extension actions based on transport parity or policy metadata
 - Integration tests:
   - [ ] Combined page can load, mutate policy, and trigger extension actions without route-level fetch duplication
   - [ ] Query invalidation and refetch behavior updates both config-backed and runtime-backed portions of the page correctly
+  - [ ] Immediate extension actions update the runtime summary without incorrectly showing a restart-required banner
+  - [ ] Policy saves preserve the extension runtime list and hook declarations after refetch
 - Test coverage target: >=80%
 - All tests must pass
 

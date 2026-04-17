@@ -78,14 +78,18 @@ See TechSpec sections "Data Models", "Collection mutation semantics", "Technical
 
 - Unit tests:
   - [ ] Editing one TOML field preserves unrelated comments and untouched sections
+  - [ ] Editing existing boolean fields preserves sibling keys and does not corrupt TOML formatting
   - [ ] Unsupported TOML mutation returns a descriptive error instead of reserializing the full file
+  - [ ] Unsupported TOML mutation leaves the original file bytes unchanged on disk
   - [ ] MCP writer preserves unknown top-level keys and untouched server definitions
   - [ ] Write-target resolution chooses the correct config or sidecar destination for global and workspace scope
+  - [ ] Workspace write-target resolution fails with explicit context when the workspace root is missing
   - [ ] Merged-config validation blocks invalid writes before commit
 - Integration tests:
   - [ ] Global settings write updates `config.toml` on disk while preserving unrelated TOML structure
   - [ ] Workspace-scoped write updates `<workspace>/.agh/config.toml` without altering global config
   - [ ] MCP sidecar write updates `mcp.json` on disk and preserves unaffected entries
+  - [ ] Workspace-scoped merged config load reflects the overlay change while the global-only load remains unchanged
 - Test coverage target: >=80%
 - All tests must pass
 

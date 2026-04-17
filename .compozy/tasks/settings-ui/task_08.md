@@ -80,10 +80,14 @@ See TechSpec sections "System Architecture", "Development Sequencing", and ADR-0
 - Unit tests:
   - [ ] Sidebar renders a Settings link that navigates into the settings subtree
   - [ ] Settings shell renders the expected base layout and default section state
+  - [ ] Settings shell highlights the active section in navigation and preserves section metadata for child routes
   - [ ] Route tree generation includes the new settings subtree
+  - [ ] Direct section-route rendering mounts inside the shared settings shell instead of duplicating layout state
 - Integration tests:
   - [ ] Navigating from the sidebar reaches the settings shell without dead links
   - [ ] Refreshing the default settings route resolves the expected index child
+  - [ ] Deep-linking directly to a non-index settings section renders the shell, section navigation, and matching child content
+  - [ ] Browser history between settings subsections stays inside the `_app` shell without dropping shared layout state
 - Test coverage target: >=80%
 - All tests must pass
 

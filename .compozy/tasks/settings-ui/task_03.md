@@ -82,12 +82,16 @@ See TechSpec sections "API Endpoints", "Integration Points", "Development Sequen
 
 - Unit tests:
   - [ ] Restart operation records serialize and reload with the expected state transitions
+  - [ ] Restart operation state transitions reject illegal regressions or double-terminal updates
   - [ ] Helper startup failure is persisted as a terminal failed operation
   - [ ] Release waiting logic does not mark replacement start until lock and daemon info are released
   - [ ] Replacement daemon readiness requires fresh discovery state before marking `ready`
+  - [ ] Restart status reads preserve `old_pid`, `active_session_count`, timestamps, and only set `new_pid` after replacement boot succeeds
 - Integration tests:
   - [ ] Restart operation file is written before the current daemon begins shutdown
-  - [ ] Successful relaunch produces a new PID and a `ready` persisted operation state
+  - [ ] Persisted restart operation captures the pre-restart PID and active session count used by the helper flow
+  - [ ] Successful relaunch produces a new PID, releases the old daemon lock, and records a `ready` persisted operation state
+  - [ ] Helper startup failure remains queryable through restart-status polling after the original daemon exits
   - [ ] Replacement boot failure remains visible through the persisted restart record after reconnect
 - Test coverage target: >=80%
 - All tests must pass

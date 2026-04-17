@@ -84,9 +84,12 @@ See TechSpec sections "Data Models", "Scope rules", "Collection mutation semanti
   - [ ] Target selector renders and submits `auto`, `config`, and `sidecar` correctly
   - [ ] `effective_source`, `shadowed_sources`, and `available_targets` render correctly from backend metadata
   - [ ] Delete flow explains when a lower-precedence definition becomes effective again
+  - [ ] New-server flows default `target=auto` to the intended sidecar destination while existing-server edits preserve highest-precedence semantics
 - Integration tests:
   - [ ] Workspace-scoped MCP edits use the active workspace context correctly
   - [ ] Saving or deleting a server invalidates and refreshes the correct scoped query set
+  - [ ] Switching between global and workspace scopes preserves separate cache entries and editor state boundaries
+  - [ ] Auto-target edits update the effective source shown after refetch when a lower-precedence definition remains underneath
 - Test coverage target: >=80%
 - All tests must pass
 

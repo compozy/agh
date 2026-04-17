@@ -82,9 +82,11 @@ See TechSpec sections "API Endpoints", "Transport and security policy", and ADR-
   - [ ] Required `/api/extensions` routes are available on HTTP for the settings screen
   - [ ] Non-loopback HTTP binds return `403` for settings mutations and restart actions
   - [ ] Read-only settings routes remain available on HTTP regardless of bind host
+  - [ ] Restart-status polling remains readable over HTTP even when mutating endpoints are loopback-restricted
 - Integration tests:
-  - [ ] Loopback-bound HTTP server allows settings mutation requests to reach shared handlers
-  - [ ] Non-loopback HTTP server blocks settings and extension mutations while preserving read routes
+  - [ ] Loopback-bound HTTP server allows section PATCH, collection PUT/DELETE, and restart-trigger requests to reach shared handlers
+  - [ ] Non-loopback HTTP server blocks settings and extension mutations while preserving section reads and restart-status polling
+  - [ ] HTTP mutation denials preserve the shared error envelope and do not leak transport-specific details
   - [ ] HTTP transport parity tests catch route drift relative to UDS
 - Test coverage target: >=80%
 - All tests must pass

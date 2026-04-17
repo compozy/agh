@@ -80,13 +80,18 @@ See TechSpec sections "Core Interfaces", "API Endpoints", "Response behavior", a
 ## Tests
 
 - Unit tests:
-  - [ ] Contract serialization covers `MutationResult`, restart action response, and restart status payloads
+  - [ ] Contract serialization preserves `MutationResult` field names, omit-empty behavior, and enum values consumed by the web client
+  - [ ] `MutationResult` schemas include `write_target`, restart metadata, warnings, and workspace fields with the expected optionality
+  - [ ] Restart action response schemas expose `operation_id`, `status`, `status_url`, and `active_session_count`
+  - [ ] Restart status schemas expose `old_pid`, `new_pid`, `failure_reason`, and timestamp fields for polling
   - [ ] OpenAPI spec includes all required `/api/settings/*` routes and expected verbs
-  - [ ] OpenAPI schemas include `write_target`, source-precedence metadata, and restart polling fields
   - [ ] Extension routes required by the settings UI are present in the HTTP-visible spec
+  - [ ] OpenAPI params and enums cover `scope`, `workspace_id`, and `target=auto|config|sidecar` semantics
 - Integration tests:
   - [ ] Regenerated web types compile against the updated OpenAPI output
+  - [ ] Regenerated web types expose the same names and optional fields consumed by the settings system without `any` fallbacks
   - [ ] Spec validation or snapshot coverage catches route drift between contract changes and generated artifacts
+  - [ ] Re-running generation without source changes is stable and does not produce unexpected diffs in generated files
 - Test coverage target: >=80%
 - All tests must pass
 

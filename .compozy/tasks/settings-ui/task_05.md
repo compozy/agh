@@ -86,9 +86,12 @@ See TechSpec sections "Core Interfaces", "API Endpoints", "Response behavior", a
   - [ ] Restart action handler returns `202` with operation id, status URL, and active session count
   - [ ] Restart status polling returns the persisted operation record shape from the contract
   - [ ] `MutationResult` responses preserve semantic `write_target` and restart metadata
+  - [ ] Collection PUT and DELETE handlers preserve `scope`, `workspace_id`, and `target` semantics when delegating into the settings service
+  - [ ] Action-trigger sections map to the correct downstream action handlers instead of being treated as restart-required config saves
 - Integration tests:
   - [ ] Shared handlers behave identically across HTTP/UDS shims in core-level tests
   - [ ] Log-tail or observability action plumbing exposes the expected response contract to transports
+  - [ ] Restart-trigger and restart-status handlers round-trip the same operation identifiers and polling payloads through transport-facing adapters
 - Test coverage target: >=80%
 - All tests must pass
 

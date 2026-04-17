@@ -82,13 +82,16 @@ See TechSpec sections "Core Interfaces", "Data Models", "Runtime apply matrix", 
 - Unit tests:
   - [ ] `GetSection` returns the correct config and runtime envelope for each supported section
   - [ ] Invalid scope combinations return a descriptive validation error
+  - [ ] Workspace-scoped MCP reads require a `workspace_id` and reject unsupported section scope combinations
   - [ ] `mcp-servers` collection responses include `effective_source`, `shadowed_sources`, and `available_targets`
   - [ ] `target=auto` chooses the highest-precedence existing source and defaults new MCP servers to sidecar writes
   - [ ] Runtime-apply classification returns `applied_now`, `restart_required`, or `action_trigger` per the matrix
+  - [ ] Mixed-runtime-behavior section updates are rejected instead of returning ambiguous mutation metadata
 - Integration tests:
   - [ ] Provider overlay delete reveals builtin fallback metadata correctly
   - [ ] Workspace-scoped MCP mutation resolves the workspace root and persists to the intended target
   - [ ] Settings mutation results expose semantic `write_target` instead of filesystem paths
+  - [ ] Collection mutations persist metadata that matches the effective precedence surfaced on subsequent reads
 - Test coverage target: >=80%
 - All tests must pass
 

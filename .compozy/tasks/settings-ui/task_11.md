@@ -84,12 +84,16 @@ See TechSpec sections "Data Models", "Runtime apply matrix", and "Key Decisions"
 
 - Unit tests:
   - [ ] `skills` page surfaces disabled-skill changes and distinguishes `applied_now` from `restart_required`
+  - [ ] `skills` page renders marketplace or policy fields separately from immediate disabled-skill changes
   - [ ] `automation` page renders manager summary and restart-required save results correctly
   - [ ] `network` page renders runtime status summary and restart-required behavior correctly
   - [ ] Deep-link controls point to the expected operational routes
+  - [ ] Shared section banners and warnings render correctly across all three summary pages without leaking page-specific assumptions
 - Integration tests:
   - [ ] Navigating from each summary page to its operational route works inside the app shell
+  - [ ] `skills` disabled-skill saves update visible applied-now state without requiring a full page reload
   - [ ] Saves on these pages invalidate and refetch the matching section queries without mutating unrelated sections
+  - [ ] Returning from operational deep links back into settings preserves the expected active subsection
 - Test coverage target: >=80%
 - All tests must pass
 
