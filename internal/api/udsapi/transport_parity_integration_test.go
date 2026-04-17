@@ -80,9 +80,18 @@ func TestUDSTransportApprovalRouteDocumentsNotImplementedGap(t *testing.T) {
 				nil,
 			)
 			body, readErr := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
+			closeErr := resp.Body.Close()
+			if readErr != nil && closeErr != nil {
+				return errors.Join(
+					fmt.Errorf("read UDS approval response: %w", readErr),
+					fmt.Errorf("close UDS approval response body: %w", closeErr),
+				)
+			}
 			if readErr != nil {
 				return fmt.Errorf("read UDS approval response: %w", readErr)
+			}
+			if closeErr != nil {
+				return fmt.Errorf("close UDS approval response body: %w", closeErr)
 			}
 			if err := e2etest.ValidateUDSApprovalNotImplemented(resp.StatusCode, body); err != nil {
 				return err
