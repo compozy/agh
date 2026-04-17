@@ -233,24 +233,18 @@ func (g *GlobalDB) ReplaceBridgeInstances(ctx context.Context, instances []bridg
 		return err
 	}
 
-	prepared := make([]bridges.BridgeInstance, 0, len(instances))
+	prepared := make([]bridgeInstanceRecord, 0, len(instances))
 	seen := make(map[string]struct{}, len(instances))
 	for _, instance := range instances {
-		normalized,
-			_,
-			_,
-			_,
-			_,
-			_,
-			normalizeErr := normalizeBridgeInstanceRecord(instance)
+		record, normalizeErr := prepareBridgeInstanceRecord(instance)
 		if normalizeErr != nil {
 			return normalizeErr
 		}
-		if _, exists := seen[normalized.ID]; exists {
-			return fmt.Errorf("store: duplicate bridge instance %q in replacement set", normalized.ID)
+		if _, exists := seen[record.instance.ID]; exists {
+			return fmt.Errorf("store: duplicate bridge instance %q in replacement set", record.instance.ID)
 		}
-		seen[normalized.ID] = struct{}{}
-		prepared = append(prepared, normalized)
+		seen[record.instance.ID] = struct{}{}
+		prepared = append(prepared, record)
 	}
 
 	tx, err := g.db.BeginTx(ctx, nil)
@@ -263,8 +257,8 @@ func (g *GlobalDB) ReplaceBridgeInstances(ctx context.Context, instances []bridg
 		}
 	}()
 
-	for _, instance := range prepared {
-		if err := upsertBridgeInstance(ctx, tx, instance, g.now); err != nil {
+	for _, record := range prepared {
+		if err := upsertPreparedBridgeInstance(ctx, tx, record, g.now); err != nil {
 			return err
 		}
 	}
@@ -302,14 +296,16 @@ func (g *GlobalDB) ReplaceBridgeInstances(ctx context.Context, instances []bridg
 	return nil
 }
 
-func upsertBridgeInstance(
-	ctx context.Context,
-	execer interface {
-		ExecContext(context.Context, string, ...any) (sql.Result, error)
-	},
-	instance bridges.BridgeInstance,
-	now func() time.Time,
-) error {
+type bridgeInstanceRecord struct {
+	instance           bridges.BridgeInstance
+	routingPolicyJSON  string
+	providerConfig     any
+	deliveryDefaults   any
+	degradationReason  any
+	degradationMessage any
+}
+
+func prepareBridgeInstanceRecord(instance bridges.BridgeInstance) (bridgeInstanceRecord, error) {
 	normalized,
 		routingPolicyJSON,
 		providerConfig,
@@ -318,12 +314,32 @@ func upsertBridgeInstance(
 		degradationMessage,
 		err := normalizeBridgeInstanceRecord(instance)
 	if err != nil {
-		return err
+		return bridgeInstanceRecord{}, err
 	}
+
+	return bridgeInstanceRecord{
+		instance:           normalized,
+		routingPolicyJSON:  routingPolicyJSON,
+		providerConfig:     providerConfig,
+		deliveryDefaults:   deliveryDefaults,
+		degradationReason:  degradationReason,
+		degradationMessage: degradationMessage,
+	}, nil
+}
+
+func upsertPreparedBridgeInstance(
+	ctx context.Context,
+	execer interface {
+		ExecContext(context.Context, string, ...any) (sql.Result, error)
+	},
+	record bridgeInstanceRecord,
+	now func() time.Time,
+) error {
 	clock := now
 	if clock == nil {
 		clock = time.Now
 	}
+	normalized := record.instance
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = clock().UTC()
 	}
@@ -365,11 +381,11 @@ func upsertBridgeInstance(
 		normalized.Enabled,
 		string(normalized.Status),
 		string(normalized.DMPolicy),
-		routingPolicyJSON,
-		providerConfig,
-		deliveryDefaults,
-		degradationReason,
-		degradationMessage,
+		record.routingPolicyJSON,
+		record.providerConfig,
+		record.deliveryDefaults,
+		record.degradationReason,
+		record.degradationMessage,
 		store.FormatTimestamp(normalized.CreatedAt),
 		store.FormatTimestamp(normalized.UpdatedAt),
 	); err != nil {

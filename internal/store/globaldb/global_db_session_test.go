@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,6 +113,45 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 	}
 	if info.ACPSessionID != nil {
 		t.Fatalf("info.ACPSessionID = %#v, want nil", info.ACPSessionID)
+	}
+}
+
+func TestScanSessionInfoRejectsInvalidEnvironmentLastSyncAt(t *testing.T) {
+	t.Parallel()
+
+	db := openScanSessionInfoDB(t)
+	row := db.QueryRowContext(context.Background(), `
+		SELECT
+			'sess-invalid-last-sync',
+			'Demo',
+			'coder',
+			'ws-1',
+			'builders',
+			'user',
+			'active',
+			NULL,
+			NULL,
+			NULL,
+			'env-invalid',
+			'local',
+			'local',
+			'instance-invalid',
+			'prepared',
+			'{"local":true}',
+			'not-a-timestamp',
+			'',
+			?,
+			?`,
+		formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
+		formatTimestamp(time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)),
+	)
+
+	_, err := scanSessionInfo(row)
+	if err == nil {
+		t.Fatal("scanSessionInfo() error = nil, want invalid environment_last_sync_at failure")
+	}
+	if got, want := err.Error(), `store: parse timestamp "not-a-timestamp"`; !strings.Contains(got, want) {
+		t.Fatalf("scanSessionInfo() error = %v, want substring %q", err, want)
 	}
 }
 
