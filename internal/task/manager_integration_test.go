@@ -466,6 +466,104 @@ func TestTaskManagerChildAndDependencyFlowsPersistAudit(t *testing.T) {
 	if got, want := view.Task.Status, taskpkg.TaskStatusBlocked; got != want {
 		t.Fatalf("view.Task.Status = %q, want %q", got, want)
 	}
+	if got, want := view.Summary.DependencyCount, 1; got != want {
+		t.Fatalf("view.Summary.DependencyCount = %d, want %d", got, want)
+	}
+	if got, want := view.Summary.ChildCount, 0; got != want {
+		t.Fatalf("view.Summary.ChildCount = %d, want %d", got, want)
+	}
+	if len(view.DependencyReferences) != 1 {
+		t.Fatalf("len(view.DependencyReferences) = %d, want 1", len(view.DependencyReferences))
+	}
+	if got, want := view.DependencyReferences[0].DependsOn.Title, blocker.Title; got != want {
+		t.Fatalf("view.DependencyReferences[0].DependsOn.Title = %q, want %q", got, want)
+	}
+	if view.Summary.LastActivityAt.IsZero() {
+		t.Fatal("view.Summary.LastActivityAt is zero, want latest activity timestamp")
+	}
+}
+
+func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openTaskManagerGlobalDB(t)
+	manager := newTaskManagerIntegration(t, db)
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task list")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+
+	first, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope:      taskpkg.ScopeGlobal,
+		Title:      "Alpha planning",
+		Identifier: "OPS-100",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(first) error = %v", err)
+	}
+	second, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope:      taskpkg.ScopeGlobal,
+		Title:      "Beta rollout",
+		Identifier: "OPS-200",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(second) error = %v", err)
+	}
+	if err := manager.AddDependency(ctx, taskpkg.AddDependency{
+		TaskID:          second.ID,
+		DependsOnTaskID: first.ID,
+		Kind:            taskpkg.DependencyKindBlocks,
+	}, actor); err != nil {
+		t.Fatalf("AddDependency() error = %v", err)
+	}
+	if err := db.CreateTaskRun(ctx, taskpkg.Run{
+		ID:        "run-beta",
+		TaskID:    second.ID,
+		Status:    taskpkg.TaskRunStatusRunning,
+		Attempt:   1,
+		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+		QueuedAt:  time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+		StartedAt: time.Date(2026, 4, 17, 12, 5, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+
+	byTitle, err := manager.ListTasks(ctx, taskpkg.Query{Search: "alpha"}, actor)
+	if err != nil {
+		t.Fatalf("ListTasks(search title) error = %v", err)
+	}
+	if len(byTitle) != 1 || byTitle[0].ID != first.ID {
+		t.Fatalf("ListTasks(search title) = %#v, want only %q", byTitle, first.ID)
+	}
+
+	byIdentifier, err := manager.ListTasks(ctx, taskpkg.Query{Search: "ops-200"}, actor)
+	if err != nil {
+		t.Fatalf("ListTasks(search identifier) error = %v", err)
+	}
+	if len(byIdentifier) != 1 || byIdentifier[0].ID != second.ID {
+		t.Fatalf("ListTasks(search identifier) = %#v, want only %q", byIdentifier, second.ID)
+	}
+	if got, want := byIdentifier[0].DependencyCount, 1; got != want {
+		t.Fatalf("byIdentifier[0].DependencyCount = %d, want %d", got, want)
+	}
+	if byIdentifier[0].ActiveRun == nil || byIdentifier[0].ActiveRun.ID != "run-beta" {
+		t.Fatalf("byIdentifier[0].ActiveRun = %#v, want run-beta", byIdentifier[0].ActiveRun)
+	}
+	if len(byIdentifier[0].Dependencies) != 1 {
+		t.Fatalf("len(byIdentifier[0].Dependencies) = %d, want 1", len(byIdentifier[0].Dependencies))
+	}
+	if got, want := byIdentifier[0].Dependencies[0].DependsOn.Identifier, first.Identifier; got != want {
+		t.Fatalf("byIdentifier[0].Dependencies[0].DependsOn.Identifier = %q, want %q", got, want)
+	}
+
+	all, err := manager.ListTasks(ctx, taskpkg.Query{}, actor)
+	if err != nil {
+		t.Fatalf("ListTasks(all) error = %v", err)
+	}
+	if got, want := []string{all[0].ID, all[1].ID}, []string{second.ID, first.ID}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("ListTasks(all) order = %#v, want %#v", got, want)
+	}
 }
 
 func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T) {

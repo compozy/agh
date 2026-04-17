@@ -64,12 +64,15 @@ See TechSpec section "API Endpoints" and ADR-003/ADR-004. HTTP should be a thin 
 
 ## Tests
 - Unit tests:
-  - [ ] HTTP route registration includes the new task, task-run, and observe-task endpoints
-  - [ ] Stream routes are registered with the expected path family and handler binding
+  - [ ] HTTP route registration includes the new task, task-run, approval, triage, and observe-task endpoints
+  - [ ] Stream routes are registered with the expected path family, HTTP method, and handler binding
+  - [ ] Route groups keep actor or workspace middleware aligned with the shared task handlers for point reads and aggregate reads
+  - [ ] Route registration rejects duplicate or conflicting task path definitions that would cause drift from the documented surface
 - Integration tests:
-  - [ ] HTTP integration tests cover enriched list/detail reads, publish, dashboard, inbox, and run-detail routes
-  - [ ] HTTP integration tests cover task-live routes such as timeline, tree, and stream path availability
-  - [ ] HTTP parity tests fail if the registered route surface drifts from the shared handler contract
+  - [ ] HTTP integration tests cover enriched list/detail reads, publish, dashboard, inbox, and run-detail routes against real handler wiring
+  - [ ] HTTP integration tests cover approval and triage mutations with the expected success and domain-error status codes
+  - [ ] HTTP integration tests cover task-live routes such as timeline, tree, and stream availability including SSE content type
+  - [ ] HTTP parity tests fail if the registered route surface drifts from the shared handler contract or documented endpoint family
 - Test coverage target: >=80%
 - All tests must pass
 

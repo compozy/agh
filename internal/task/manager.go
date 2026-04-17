@@ -843,7 +843,7 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 		return nil, err
 	}
 
-	children, err := m.store.ListTasks(ctx, Query{ParentTaskID: trimmedID})
+	children, err := m.listTaskSummaries(ctx, Query{ParentTaskID: trimmedID})
 	if err != nil {
 		return nil, err
 	}
@@ -860,17 +860,25 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 		return nil, err
 	}
 
-	view := &View{
-		Task:         record,
-		Children:     children,
-		Dependencies: dependencies,
-		Runs:         runs,
-		Events:       events,
-	}
-	view.Task.Status, err = m.canonicalTaskStatus(ctx, record, dependencies, runs)
+	summary, err := m.enrichTaskSummaryFromState(ctx, record, len(children), dependencies, runs, events)
 	if err != nil {
 		return nil, err
 	}
+	dependencyReferences, err := m.buildDependencyReferences(ctx, dependencies)
+	if err != nil {
+		return nil, err
+	}
+
+	view := &View{
+		Summary:              summary,
+		Task:                 record,
+		Children:             children,
+		Dependencies:         dependencies,
+		DependencyReferences: dependencyReferences,
+		Runs:                 runs,
+		Events:               events,
+	}
+	view.Task.Status = summary.Status
 	return view, nil
 }
 
@@ -906,7 +914,92 @@ func (m *Service) ListTasks(ctx context.Context, query Query, actor ActorContext
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
-	return m.store.ListTasks(ctx, query)
+	return m.listTaskSummaries(ctx, query)
+}
+
+func (m *Service) listTaskSummaries(ctx context.Context, query Query) ([]Summary, error) {
+	summaries, err := m.store.ListTasks(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	enriched := make([]Summary, 0, len(summaries))
+	for _, summary := range summaries {
+		item, err := m.enrichTaskSummary(ctx, summary)
+		if err != nil {
+			return nil, err
+		}
+		enriched = append(enriched, item)
+	}
+	return enriched, nil
+}
+
+func (m *Service) enrichTaskSummary(ctx context.Context, summary Summary) (Summary, error) {
+	childCount, err := m.store.CountDirectChildren(ctx, summary.ID)
+	if err != nil {
+		return Summary{}, err
+	}
+	dependencies, err := m.store.ListDependencies(ctx, summary.ID)
+	if err != nil {
+		return Summary{}, err
+	}
+	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: summary.ID})
+	if err != nil {
+		return Summary{}, err
+	}
+	events, err := m.store.ListTaskEvents(ctx, EventQuery{TaskID: summary.ID, Limit: 1})
+	if err != nil {
+		return Summary{}, err
+	}
+	return m.enrichTaskSummaryFromState(ctx, taskRecordFromSummary(summary), childCount, dependencies, runs, events)
+}
+
+func (m *Service) enrichTaskSummaryFromState(
+	ctx context.Context,
+	record Task,
+	childCount int,
+	dependencies []Dependency,
+	runs []Run,
+	events []Event,
+) (Summary, error) {
+	status, err := m.canonicalTaskStatus(ctx, record, dependencies, runs)
+	if err != nil {
+		return Summary{}, err
+	}
+
+	summary := summaryFromTaskRecord(record)
+	summary.Status = status
+	summary.Draft = status == TaskStatusDraft
+	summary.ChildCount = childCount
+	summary.DependencyCount = len(dependencies)
+	summary.ActiveRun = activeRunSummary(runs, record.MaxAttempts)
+	summary.LastActivityAt = latestTaskActivityAt(record, runs, events)
+	summary.Dependencies, err = m.buildDependencyReferences(ctx, dependencies)
+	if err != nil {
+		return Summary{}, err
+	}
+	return summary, nil
+}
+
+func (m *Service) buildDependencyReferences(
+	ctx context.Context,
+	dependencies []Dependency,
+) ([]DependencyReference, error) {
+	refs := make([]DependencyReference, 0, len(dependencies))
+	for _, dependency := range dependencies {
+		dependsOn, err := m.taskReference(ctx, dependency.DependsOnTaskID)
+		if err != nil {
+			return nil, err
+		}
+		refs = append(refs, DependencyReference{
+			TaskID:          dependency.TaskID,
+			DependsOnTaskID: dependency.DependsOnTaskID,
+			Kind:            dependency.Kind,
+			CreatedAt:       dependency.CreatedAt,
+			DependsOn:       dependsOn,
+		})
+	}
+	return refs, nil
 }
 
 // AddDependency adds one dependency edge through the manager, reconciles the
@@ -2381,6 +2474,177 @@ func marshalTaskEventPayload(payload any) (json.RawMessage, error) {
 	return json.RawMessage(raw), nil
 }
 
+func summaryFromTaskRecord(record Task) Summary {
+	return Summary{
+		ID:             record.ID,
+		Identifier:     record.Identifier,
+		Scope:          record.Scope,
+		WorkspaceID:    record.WorkspaceID,
+		ParentTaskID:   record.ParentTaskID,
+		NetworkChannel: record.NetworkChannel,
+		Title:          record.Title,
+		Priority:       record.Priority,
+		MaxAttempts:    record.MaxAttempts,
+		Status:         record.Status,
+		ApprovalPolicy: record.ApprovalPolicy,
+		ApprovalState:  record.ApprovalState,
+		Draft:          record.Status.Normalize() == TaskStatusDraft,
+		Owner:          cloneOwnership(record.Owner),
+		CreatedBy:      record.CreatedBy,
+		Origin:         record.Origin,
+		CreatedAt:      record.CreatedAt,
+		UpdatedAt:      record.UpdatedAt,
+		ClosedAt:       record.ClosedAt,
+		LastActivityAt: record.UpdatedAt,
+	}
+}
+
+func taskRecordFromSummary(summary Summary) Task {
+	return Task{
+		ID:             summary.ID,
+		Identifier:     summary.Identifier,
+		Scope:          summary.Scope,
+		WorkspaceID:    summary.WorkspaceID,
+		ParentTaskID:   summary.ParentTaskID,
+		NetworkChannel: summary.NetworkChannel,
+		Title:          summary.Title,
+		Priority:       summary.Priority,
+		MaxAttempts:    summary.MaxAttempts,
+		Status:         summary.Status,
+		ApprovalPolicy: summary.ApprovalPolicy,
+		ApprovalState:  summary.ApprovalState,
+		Owner:          cloneOwnership(summary.Owner),
+		CreatedBy:      summary.CreatedBy,
+		Origin:         summary.Origin,
+		CreatedAt:      summary.CreatedAt,
+		UpdatedAt:      summary.UpdatedAt,
+		ClosedAt:       summary.ClosedAt,
+	}
+}
+
+func (m *Service) taskReference(ctx context.Context, taskID string) (Reference, error) {
+	record, err := m.store.GetTask(ctx, taskID)
+	if err != nil {
+		return Reference{}, err
+	}
+	dependencies, err := m.store.ListDependencies(ctx, record.ID)
+	if err != nil {
+		return Reference{}, err
+	}
+	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
+	if err != nil {
+		return Reference{}, err
+	}
+	status, err := m.canonicalTaskStatus(ctx, record, dependencies, runs)
+	if err != nil {
+		return Reference{}, err
+	}
+	return taskReferenceFromTask(record, status), nil
+}
+
+func taskReferenceFromTask(record Task, status Status) Reference {
+	return Reference{
+		ID:          record.ID,
+		Identifier:  record.Identifier,
+		Title:       record.Title,
+		Status:      status,
+		Priority:    record.Priority,
+		Owner:       cloneOwnership(record.Owner),
+		Scope:       record.Scope,
+		WorkspaceID: record.WorkspaceID,
+	}
+}
+
+func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
+	var current *Run
+	for idx := range runs {
+		run := runs[idx]
+		if isTerminalRunStatus(run.Status) {
+			continue
+		}
+		if current == nil || prefersActiveRun(run, *current) {
+			candidate := run
+			current = &candidate
+		}
+	}
+	if current == nil {
+		return nil
+	}
+	return &RunSummary{
+		ID:          current.ID,
+		TaskID:      current.TaskID,
+		Status:      current.Status,
+		Attempt:     current.Attempt,
+		MaxAttempts: maxAttempts,
+		SessionID:   current.SessionID,
+		ClaimedBy:   cloneActorIdentity(current.ClaimedBy),
+		QueuedAt:    current.QueuedAt,
+		ClaimedAt:   current.ClaimedAt,
+		StartedAt:   current.StartedAt,
+		EndedAt:     current.EndedAt,
+		Error:       current.Error,
+	}
+}
+
+func prefersActiveRun(candidate Run, current Run) bool {
+	candidateRank := activeRunRank(candidate.Status)
+	currentRank := activeRunRank(current.Status)
+	if candidateRank != currentRank {
+		return candidateRank > currentRank
+	}
+
+	candidateAt := latestRunActivityAt(candidate)
+	currentAt := latestRunActivityAt(current)
+	if !candidateAt.Equal(currentAt) {
+		return candidateAt.After(currentAt)
+	}
+	return candidate.ID > current.ID
+}
+
+func activeRunRank(status RunStatus) int {
+	switch status.Normalize() {
+	case TaskRunStatusRunning:
+		return 4
+	case TaskRunStatusStarting:
+		return 3
+	case TaskRunStatusClaimed:
+		return 2
+	case TaskRunStatusQueued:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func latestTaskActivityAt(record Task, runs []Run, events []Event) time.Time {
+	latest := record.UpdatedAt
+	if latest.IsZero() || (!record.CreatedAt.IsZero() && record.CreatedAt.After(latest)) {
+		latest = record.CreatedAt
+	}
+	for _, run := range runs {
+		runAt := latestRunActivityAt(run)
+		if runAt.After(latest) {
+			latest = runAt
+		}
+	}
+	for _, event := range events {
+		if event.Timestamp.After(latest) {
+			latest = event.Timestamp
+		}
+	}
+	return latest
+}
+
+func latestRunActivityAt(run Run) time.Time {
+	latest := run.QueuedAt
+	for _, candidate := range []time.Time{run.ClaimedAt, run.StartedAt, run.EndedAt} {
+		if candidate.After(latest) {
+			latest = candidate
+		}
+	}
+	return latest
+}
+
 func normalizeOwnership(owner *Ownership) *Ownership {
 	if owner == nil {
 		return nil
@@ -2399,6 +2663,14 @@ func cloneOwnership(owner *Ownership) *Ownership {
 		return nil
 	}
 	cloned := *owner
+	return &cloned
+}
+
+func cloneActorIdentity(actor *ActorIdentity) *ActorIdentity {
+	if actor == nil {
+		return nil
+	}
+	cloned := *actor
 	return &cloned
 }
 

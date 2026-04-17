@@ -70,14 +70,16 @@ See TechSpec sections "Core Interfaces", "API Endpoints", and ADR-003. The backe
 
 ## Tests
 - Unit tests:
-  - [ ] Timeline rows are ordered deterministically across task and run-linked events
-  - [ ] Run-detail reads include linked task, session, and timing summary fields when available
-  - [ ] Task-tree views include descendants with active-run and latest-activity state
-  - [ ] Stream sequencing stays stable across reconnect-friendly event emission boundaries
+  - [ ] Timeline rows are ordered deterministically across task events and run-linked events using stable tie-breakers when timestamps collide
+  - [ ] Timeline cursor or limit behavior returns stable windows so reconnect or pagination logic does not duplicate or skip rows
+  - [ ] Run-detail reads include linked task, linked session, timing, tool-call, and token-usage summary fields when available, while omitting optional fields safely
+  - [ ] Task-tree views include descendants with parent linkage, active-run chips, and latest-activity state across multi-level hierarchies
+  - [ ] Stream events emit stable sequence metadata and event typing across reconnect-friendly emission boundaries
 - Integration tests:
-  - [ ] Persisted task events and runs produce the expected timeline and run-detail payloads
-  - [ ] Task-tree reads work across parent/child task hierarchies without N+1 client fetch requirements
-  - [ ] Stream consumers observe task updates for active execution and descendant state changes
+  - [ ] Persisted task events and runs produce the expected timeline payload, including run-linked rows and ordering across mixed event types
+  - [ ] Persisted runs produce run-detail payloads with linked task/session context and operational summaries aligned with real stored data
+  - [ ] Task-tree reads work across parent/child task hierarchies without N+1 client fetch requirements or missing descendant activity
+  - [ ] Stream consumers observe task updates for active execution, descendant state changes, and reconnect-style resubscription without sequence drift
 - Test coverage target: >=80%
 - All tests must pass
 

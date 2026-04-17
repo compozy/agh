@@ -428,6 +428,64 @@ func TestGlobalDBListTasksFilters(t *testing.T) {
 	}
 }
 
+func TestGlobalDBListTasksSearchAndActivityOrdering(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+
+	alpha := taskRecordForTest("task-search-alpha")
+	alpha.Title = "Alpha planning"
+	alpha.Identifier = "OPS-100"
+	alpha.UpdatedAt = alpha.UpdatedAt.Add(time.Minute)
+
+	beta := taskRecordForTest("task-search-beta")
+	beta.Title = "Beta rollout"
+	beta.Identifier = "OPS-200"
+	beta.CreatedAt = beta.CreatedAt.Add(2 * time.Minute)
+	beta.UpdatedAt = beta.UpdatedAt.Add(2 * time.Minute)
+
+	for _, record := range []taskpkg.Task{alpha, beta} {
+		if err := globalDB.CreateTask(testutil.Context(t), record); err != nil {
+			t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+		}
+	}
+	if err := globalDB.CreateTaskRun(testutil.Context(t), taskpkg.Run{
+		ID:        "run-search-beta",
+		TaskID:    beta.ID,
+		Status:    taskpkg.TaskRunStatusRunning,
+		Attempt:   1,
+		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+		QueuedAt:  time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+		StartedAt: time.Date(2026, 4, 17, 12, 5, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+
+	byTitle, err := globalDB.ListTasks(testutil.Context(t), taskpkg.Query{Search: "alpha"})
+	if err != nil {
+		t.Fatalf("ListTasks(search title) error = %v", err)
+	}
+	if got, want := orderedTaskSummaryIDs(byTitle), []string{alpha.ID}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("ListTasks(search title) ids = %#v, want %#v", got, want)
+	}
+
+	byIdentifier, err := globalDB.ListTasks(testutil.Context(t), taskpkg.Query{Search: "ops-200"})
+	if err != nil {
+		t.Fatalf("ListTasks(search identifier) error = %v", err)
+	}
+	if got, want := orderedTaskSummaryIDs(byIdentifier), []string{beta.ID}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("ListTasks(search identifier) ids = %#v, want %#v", got, want)
+	}
+
+	all, err := globalDB.ListTasks(testutil.Context(t), taskpkg.Query{})
+	if err != nil {
+		t.Fatalf("ListTasks(all) error = %v", err)
+	}
+	if got, want := orderedTaskSummaryIDs(all), []string{beta.ID, alpha.ID}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("ListTasks(all) order = %#v, want %#v", got, want)
+	}
+}
+
 func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	t.Parallel()
 
@@ -994,6 +1052,14 @@ func taskSummaryIDs(summaries []taskpkg.Summary) []string {
 		ids = append(ids, summary.ID)
 	}
 	sort.Strings(ids)
+	return ids
+}
+
+func orderedTaskSummaryIDs(summaries []taskpkg.Summary) []string {
+	ids := make([]string, 0, len(summaries))
+	for _, summary := range summaries {
+		ids = append(ids, summary.ID)
+	}
 	return ids
 }
 

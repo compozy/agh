@@ -67,14 +67,16 @@ See TechSpec sections "Core Interfaces", "Data Models", and the analysis docs fo
 
 ## Tests
 - Unit tests:
-  - [ ] Enriched list items include child/dependency counts, last activity, and active-run summary when present
-  - [ ] Dependency reads surface blocker references with enough information for UI labels
-  - [ ] Search by title and identifier returns the expected task set and ordering
-  - [ ] Publishing a draft task transitions it into `ready` or `blocked` based on its dependencies
+  - [ ] Enriched list items include `priority`, `max_attempts`, child/dependency counts, last activity, and active-run chips for mixed task states
+  - [ ] Enriched detail reads surface blocker references with identifier, title, status, and owner context so the UI can label dependencies without extra fetches
+  - [ ] Search by title and identifier matches case-insensitively and preserves stable activity-based ordering for equally relevant results
+  - [ ] Combined list filters such as `workspace`, `status`, `parent_task_id`, and text query produce the expected task set without dropping enriched fields
+  - [ ] Publishing a draft task transitions it into `ready` or `blocked` based on dependency state and rejects publication for already-published tasks
 - Integration tests:
-  - [ ] Real-store list queries return enriched summaries without requiring per-task follow-up reads
-  - [ ] `GetTask` returns child, dependency, run, and event data aligned with the enriched detail contract
-  - [ ] Publishing a persisted draft task survives reload and returns the reconciled task state
+  - [ ] Real-store list queries return enriched summaries, active-run metadata, and latest-activity values without requiring per-task follow-up reads
+  - [ ] `GetTask` returns children, dependency references, run summaries, and recent event context aligned with the enriched detail contract
+  - [ ] Store-backed search respects text query together with persisted workspace/status filters and returns the expected ordering after reload
+  - [ ] Publishing a persisted draft task survives reload and subsequent list/detail reads return the reconciled task state consistently
 - Test coverage target: >=80%
 - All tests must pass
 

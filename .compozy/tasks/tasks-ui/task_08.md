@@ -71,13 +71,16 @@ See TechSpec sections "System Architecture", "API Endpoints", and ADR-003/ADR-00
 
 ## Tests
 - Unit tests:
-  - [ ] New task query parameters parse into the expected contract/query structures
-  - [ ] Handler conversions return the expected enriched task, inbox, dashboard, and live-view payloads
-  - [ ] Publish, approval, and triage actions map domain errors to the expected HTTP/UDS status semantics
-  - [ ] Task-native stream handlers emit the expected SSE framing and validation behavior
+  - [ ] New task query parameters parse into the expected contract and domain-query structures for list, timeline, tree, dashboard, and inbox reads
+  - [ ] Handler conversions return the expected enriched task, inbox, dashboard, timeline, tree, and run-detail payloads with optional fields preserved correctly
+  - [ ] Publish, approval, rejection, and triage actions map domain errors to the expected HTTP or UDS status semantics
+  - [ ] Actor and workspace context extraction is forwarded consistently to task, observer, and live-read services
+  - [ ] Task-native stream handlers emit the expected SSE framing, headers, and validation behavior for missing or invalid identifiers
 - Integration tests:
-  - [ ] Shared handler tests cover point reads, aggregate reads, and mutations against stubbed services
-  - [ ] Stream handlers integrate with the shared SSE helper path without transport-specific divergence
+  - [ ] Shared handler tests cover list, detail, run-detail, dashboard, inbox, and live reads against stubbed services
+  - [ ] Mutation handlers cover publish, approve, reject, archive, dismiss, and mark-read flows against stubbed services
+  - [ ] Stream handlers integrate with the shared SSE helper path without transport-specific divergence or missing flush behavior
+  - [ ] Shared handler contract tests fail if service interfaces or response shapes drift from the transport-facing task surface
 - Test coverage target: >=80%
 - All tests must pass
 

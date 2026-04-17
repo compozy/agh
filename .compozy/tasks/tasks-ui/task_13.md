@@ -76,13 +76,17 @@ See TechSpec sections "Core Interfaces", "System Architecture", and "Testing App
 
 ## Tests
 - Unit tests:
-  - [ ] Tasks adapter methods call the expected generated endpoints and normalize error handling
-  - [ ] Query keys and query options remain stable for list, detail, live, dashboard, and inbox reads
-  - [ ] Route hooks derive URL state, selected IDs, and basic panel state correctly
-  - [ ] Mutation hooks invalidate the expected task queries after create, publish, approval, and triage actions
+  - [ ] Tasks adapter methods call the expected generated endpoints and normalize transport or contract errors consistently
+  - [ ] Query keys and query options remain stable for list, detail, timeline, tree, run-detail, dashboard, and inbox reads
+  - [ ] Query options propagate filters, identifiers, and live-read parameters into the generated client without manual shape conversion
+  - [ ] Route hooks derive URL state, selected IDs, active mode, and panel state correctly from search params and route params
+  - [ ] Mutation hooks invalidate the expected task queries after create, publish, approval, archive, dismiss, and mark-read actions
+  - [ ] Shared formatters or type helpers normalize status, lane, and badge data without leaking raw transport enums into components
 - Integration tests:
   - [ ] Route hooks and shared task hooks compose correctly with mocked data across base, detail, and run-detail routes
-  - [ ] Generated OpenAPI types align with the tasks adapter signatures without manual type escapes
+  - [ ] Query invalidation refreshes dependent task surfaces coherently after create, publish, and inbox-action mutations
+  - [ ] Generated OpenAPI types align with the tasks adapter signatures without manual type escapes or `any` fallbacks
+  - [ ] The tasks system public barrel exports remain sufficient for route consumers without deep-import drift
 - Test coverage target: >=80%
 - All tests must pass
 

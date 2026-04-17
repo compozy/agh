@@ -9,6 +9,7 @@ type Manager interface {
 	CreateTask(ctx context.Context, spec CreateTask, actor ActorContext) (*Task, error)
 	CreateChildTask(ctx context.Context, parentTaskID string, spec CreateTask, actor ActorContext) (*Task, error)
 	UpdateTask(ctx context.Context, id string, patch Patch, actor ActorContext) (*Task, error)
+	PublishTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
 	CancelTask(ctx context.Context, id string, req CancelTask, actor ActorContext) (*Task, error)
 
 	AddDependency(ctx context.Context, spec AddDependency, actor ActorContext) error

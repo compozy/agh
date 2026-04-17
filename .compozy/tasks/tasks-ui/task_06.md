@@ -67,14 +67,16 @@ See TechSpec sections "Data Models", "API Endpoints", "Known Risks", and ADR-004
 
 ## Tests
 - Unit tests:
-  - [ ] Inbox items are assigned to the correct lanes for approval, blocked, failed, archived, and assigned work states
-  - [ ] Mark-read, archive, and dismiss mutations update actor-scoped triage state without leaking to other actors
-  - [ ] Approval and rejection flows update approval state and runnable status consistently
-  - [ ] Failed-run and blocked-task lane shaping includes the expected reason metadata
+  - [ ] Inbox items are assigned to the correct lanes for approvals, my work, blocked, failed runs, and archived states for mixed task inputs
+  - [ ] Mark-read, archive, and dismiss mutations update actor-scoped triage state, unread counts, and lane membership without leaking to other actors
+  - [ ] Approval and rejection flows update approval state, runnable status, and lane transitions consistently for approval-backed tasks
+  - [ ] Failed-run and blocked-task lane shaping includes the expected reason metadata, latest activity, and linked run references
+  - [ ] Inbox filters such as lane, unread-only, and text query return the expected item set and grouped counts
 - Integration tests:
-  - [ ] Persisted actor triage state survives reload and remains scoped to the originating actor context
-  - [ ] Approval-backed tasks move between inbox lanes correctly after approve/reject actions
-  - [ ] Inbox queries surface the expected unread/archive counts against real stored task state
+  - [ ] Persisted actor triage state survives reload and remains scoped to the originating actor context across read, archive, and dismiss mutations
+  - [ ] Approval-backed tasks move between inbox lanes correctly after approve or reject actions against real stored task state
+  - [ ] Archive, dismiss, and mark-read mutations update unread or archived counts on subsequent inbox queries without phantom duplicates
+  - [ ] Inbox queries surface the expected grouped lanes, unread counts, and actor-scoped visibility against real stored task state
 - Test coverage target: >=80%
 - All tests must pass
 

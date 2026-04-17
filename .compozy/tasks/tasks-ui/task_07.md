@@ -73,12 +73,16 @@ See TechSpec sections "API Endpoints", "Response and status conventions", and AD
 
 ## Tests
 - Unit tests:
-  - [ ] Contract payloads serialize the expected enriched task, dashboard, inbox, and live-view fields
-  - [ ] Stream endpoint documentation declares the expected media type and route shape
-  - [ ] Generated type references remain stable for the new task operations
+  - [ ] Contract payloads serialize the expected enriched task list, task detail, dashboard, inbox, timeline, tree, and run-detail fields including optional references
+  - [ ] Publish, approval, and triage request or response contracts declare the expected required and optional fields without metadata fallbacks
+  - [ ] Stream endpoint documentation declares the expected `text/event-stream` media type, path params, and event payload shape
+  - [ ] Error contracts and status-code documentation remain consistent for `404`, `409`, `422`, and transport-safe failure cases across the new routes
+  - [ ] Generated type references and operation identifiers remain stable for the new task operations
 - Integration tests:
-  - [ ] `make codegen` or `make codegen-check` succeeds with the updated spec
-  - [ ] Spec tests confirm the new task and observe endpoints are present and well-formed
+  - [ ] `make codegen` or `make codegen-check` succeeds with the updated spec and produces no unexpected diff outside generated artifacts
+  - [ ] Spec tests confirm the new task, task-run, and observe-task endpoints are present, tagged correctly, and well-formed
+  - [ ] Generated client or type artifacts compile against the updated contracts without manual patching or type escapes
+  - [ ] Operation IDs, route paths, and method combinations remain unique so codegen consumers do not drift
 - Test coverage target: >=80%
 - All tests must pass
 

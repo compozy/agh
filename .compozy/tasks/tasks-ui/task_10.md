@@ -62,12 +62,14 @@ See TechSpec section "API Endpoints" and ADR-003/ADR-004. UDS exists so local CL
 
 ## Tests
 - Unit tests:
-  - [ ] UDS route registration includes the new task, task-run, and observe-task endpoints
-  - [ ] Handler registration expectations stay aligned with the shared task surface
+  - [ ] UDS route registration includes the new task, task-run, approval, triage, and observe-task endpoints
+  - [ ] Handler registration expectations stay aligned with the shared task surface for reads, mutations, and aggregate views
+  - [ ] UDS route metadata keeps method or operation naming stable enough for parity assertions against HTTP
 - Integration tests:
-  - [ ] UDS integration tests cover enriched list/detail reads, publish, dashboard, inbox, and run-detail routes
-  - [ ] UDS integration tests cover task-live routes such as timeline, tree, and stream path availability
-  - [ ] Transport parity tests confirm UDS and HTTP expose the same expanded task route family
+  - [ ] UDS integration tests cover enriched list/detail reads, publish, dashboard, inbox, and run-detail routes against real handler wiring
+  - [ ] UDS integration tests cover approval and triage mutations with the same payload and status semantics expected by HTTP
+  - [ ] UDS integration tests cover task-live routes such as timeline, tree, and stream-path availability for the expanded task surface
+  - [ ] Transport parity tests confirm UDS and HTTP expose the same expanded task route family without missing or extra endpoints
 - Test coverage target: >=80%
 - All tests must pass
 

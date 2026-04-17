@@ -77,12 +77,15 @@ See TechSpec sections "Testing Approach", "Known Risks", and "Development Sequen
 
 ## Tests
 - Unit tests:
-  - [ ] `tasks-ui-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, and risk assessment
-  - [ ] Manual test cases exist for every Tasks screen plus the required Settings regression-critical browser flows
-  - [ ] Regression-suite documents identify smoke, targeted, and full coverage plus execution order for P0/P1 flows
+  - [ ] `tasks-ui-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, risk assessment, and explicit artifact ownership
+  - [ ] Manual test cases exist for dashboard, inbox, list, kanban, empty state, create modal, detail timeline, run detail, and multi-agent live
+  - [ ] Required Settings regression-critical browser flows are represented explicitly rather than being implied by a generic regression note
+  - [ ] Each manual test case includes preconditions, steps, expected results, and priority or severity metadata suitable for execution
+  - [ ] Regression-suite documents identify smoke, targeted, and full coverage plus execution order and blocker expectations for P0/P1 flows
 - Integration tests:
   - [ ] All generated artifacts land under `.compozy/tasks/tasks-ui/qa/` and can be consumed directly by `/qa-execution`
-  - [ ] Test cases trace back to the relevant Tasks routes or regression-critical Settings flows clearly
+  - [ ] Test cases trace back to the relevant Tasks routes, Paper screens, or regression-critical Settings flows clearly
+  - [ ] Regression-suite and test-plan documents reference the same case IDs, priorities, and artifact paths without naming drift
   - [ ] Any bug report created during planning references the originating test case or design discrepancy clearly
 - Test coverage target: >=80%
 - All tests must pass

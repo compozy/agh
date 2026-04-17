@@ -86,11 +86,14 @@ See TechSpec sections "Testing Approach", "Verification gates", "Development Seq
 
 ## Tests
 - Unit tests:
-  - [ ] New Tasks and Settings browser selector helpers resolve stable shell, panel, and form surfaces
-  - [ ] Runtime seed helpers can create deterministic prerequisites for Tasks and, when present, Settings browser scenarios
+  - [ ] New Tasks and Settings browser selector helpers resolve stable shell, panel, table, and form surfaces without brittle text-only targeting
+  - [ ] Runtime seed helpers can create deterministic prerequisites for draft tasks, runnable tasks, and run-detail scenarios
+  - [ ] Runtime seed helpers also create deterministic Settings prerequisites when the Settings surface exists on the execution branch
+  - [ ] Shared fixture or evidence helpers write screenshots and report artifacts into the expected QA output paths
 - Integration tests:
   - [ ] Tasks Playwright coverage exercises sidebar entry, draft creation, publication, detail inspection, and run-detail navigation
-  - [ ] Tasks Playwright coverage exercises dashboard/inbox or multi-agent live navigation using the daemon-served harness
+  - [ ] Tasks Playwright coverage exercises dashboard and inbox navigation, or explicitly validated live-view fallback behavior, using the daemon-served harness
+  - [ ] Tasks browser coverage captures screenshots or evidence for the critical flows under `.compozy/tasks/tasks-ui/qa/`
   - [ ] Settings Playwright coverage exercises the required critical flows when the Settings surface exists on the execution branch
   - [ ] `make test-e2e-web` passes with the new Tasks and Settings scenarios included in the browser lane
   - [ ] `make verify` passes after the final QA fix set

@@ -309,34 +309,78 @@ type TriageState struct {
 
 // Summary is the lightweight read model returned from list-oriented task queries.
 type Summary struct {
-	ID             string         `json:"id"`
-	Identifier     string         `json:"identifier,omitempty"`
-	Scope          Scope          `json:"scope"`
-	WorkspaceID    string         `json:"workspace_id,omitempty"`
-	ParentTaskID   string         `json:"parent_task_id,omitempty"`
-	NetworkChannel string         `json:"network_channel,omitempty"`
-	Title          string         `json:"title"`
-	Priority       Priority       `json:"priority,omitempty"`
-	MaxAttempts    int            `json:"max_attempts,omitempty"`
-	Status         Status         `json:"status"`
-	ApprovalPolicy ApprovalPolicy `json:"approval_policy,omitempty"`
-	ApprovalState  ApprovalState  `json:"approval_state,omitempty"`
-	Draft          bool           `json:"draft"`
-	Owner          *Ownership     `json:"owner,omitempty"`
-	CreatedBy      ActorIdentity  `json:"created_by"`
-	Origin         Origin         `json:"origin"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	ClosedAt       time.Time      `json:"closed_at"`
+	ID              string                `json:"id"`
+	Identifier      string                `json:"identifier,omitempty"`
+	Scope           Scope                 `json:"scope"`
+	WorkspaceID     string                `json:"workspace_id,omitempty"`
+	ParentTaskID    string                `json:"parent_task_id,omitempty"`
+	NetworkChannel  string                `json:"network_channel,omitempty"`
+	Title           string                `json:"title"`
+	Priority        Priority              `json:"priority,omitempty"`
+	MaxAttempts     int                   `json:"max_attempts,omitempty"`
+	Status          Status                `json:"status"`
+	ApprovalPolicy  ApprovalPolicy        `json:"approval_policy,omitempty"`
+	ApprovalState   ApprovalState         `json:"approval_state,omitempty"`
+	Draft           bool                  `json:"draft"`
+	Owner           *Ownership            `json:"owner,omitempty"`
+	CreatedBy       ActorIdentity         `json:"created_by"`
+	Origin          Origin                `json:"origin"`
+	CreatedAt       time.Time             `json:"created_at"`
+	UpdatedAt       time.Time             `json:"updated_at"`
+	ClosedAt        time.Time             `json:"closed_at"`
+	ChildCount      int                   `json:"child_count,omitempty"`
+	DependencyCount int                   `json:"dependency_count,omitempty"`
+	Dependencies    []DependencyReference `json:"dependencies,omitempty"`
+	ActiveRun       *RunSummary           `json:"active_run,omitempty"`
+	LastActivityAt  time.Time             `json:"last_activity_at"`
+}
+
+// Reference is the human-meaningful task identity used in enriched read models.
+type Reference struct {
+	ID          string     `json:"id"`
+	Identifier  string     `json:"identifier,omitempty"`
+	Title       string     `json:"title"`
+	Status      Status     `json:"status"`
+	Priority    Priority   `json:"priority,omitempty"`
+	Owner       *Ownership `json:"owner,omitempty"`
+	Scope       Scope      `json:"scope"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+}
+
+// DependencyReference enriches one dependency edge with the referenced blocker identity.
+type DependencyReference struct {
+	TaskID          string         `json:"task_id"`
+	DependsOnTaskID string         `json:"depends_on_task_id"`
+	Kind            DependencyKind `json:"kind"`
+	CreatedAt       time.Time      `json:"created_at"`
+	DependsOn       Reference      `json:"depends_on"`
+}
+
+// RunSummary captures the operator-facing run chip data used by enriched task cards.
+type RunSummary struct {
+	ID          string         `json:"id"`
+	TaskID      string         `json:"task_id"`
+	Status      RunStatus      `json:"status"`
+	Attempt     int            `json:"attempt"`
+	MaxAttempts int            `json:"max_attempts"`
+	SessionID   string         `json:"session_id,omitempty"`
+	ClaimedBy   *ActorIdentity `json:"claimed_by,omitempty"`
+	QueuedAt    time.Time      `json:"queued_at"`
+	ClaimedAt   time.Time      `json:"claimed_at"`
+	StartedAt   time.Time      `json:"started_at"`
+	EndedAt     time.Time      `json:"ended_at"`
+	Error       string         `json:"error,omitempty"`
 }
 
 // View is the expanded read model returned from single-task lookups.
 type View struct {
-	Task         Task         `json:"task"`
-	Children     []Summary    `json:"children,omitempty"`
-	Dependencies []Dependency `json:"dependencies,omitempty"`
-	Runs         []Run        `json:"runs,omitempty"`
-	Events       []Event      `json:"events,omitempty"`
+	Summary              Summary               `json:"summary"`
+	Task                 Task                  `json:"task"`
+	Children             []Summary             `json:"children,omitempty"`
+	Dependencies         []Dependency          `json:"dependencies,omitempty"`
+	DependencyReferences []DependencyReference `json:"dependency_references,omitempty"`
+	Runs                 []Run                 `json:"runs,omitempty"`
+	Events               []Event               `json:"events,omitempty"`
 }
 
 // CreateTask captures the mutable inputs accepted when creating a new task.
@@ -428,6 +472,7 @@ type Query struct {
 	OwnerRef       string        `json:"owner_ref,omitempty"`
 	ParentTaskID   string        `json:"parent_task_id,omitempty"`
 	NetworkChannel string        `json:"network_channel,omitempty"`
+	Search         string        `json:"search,omitempty"`
 	Limit          int           `json:"limit,omitempty"`
 }
 

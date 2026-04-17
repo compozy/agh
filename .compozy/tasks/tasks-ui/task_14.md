@@ -71,15 +71,17 @@ See TechSpec sections "System Architecture", "Testing Approach", and the analysi
 
 ## Tests
 - Unit tests:
-  - [ ] List and kanban mode switching updates the expected page state without layout regressions
-  - [ ] Split-view cards render enriched task data such as counts, activity, and active-run indicators
-  - [ ] Kanban grouping maps task statuses into the expected columns and actions
-  - [ ] Create modal supports draft and publish-aware flows with validation for first-class task fields
-  - [ ] Empty-state templates and CTAs render correctly when no tasks exist
+  - [ ] List and kanban mode switching updates the expected page state without layout regressions or selection loss
+  - [ ] Split-view cards render enriched task data such as counts, activity, active-run indicators, and first-class draft or approval semantics
+  - [ ] Search, filtering, and sorting controls update the visible list set without breaking split-view selection behavior
+  - [ ] Kanban grouping maps task statuses into the expected columns, preserves card actions, and handles empty-column states
+  - [ ] Create modal supports draft and publish-aware flows with validation for title, priority, max-attempts, and approval-related fields
+  - [ ] Empty-state templates and CTAs render correctly and route into create flows when no tasks exist
 - Integration tests:
-  - [ ] The base tasks route handles loading, error, empty, and populated states correctly
-  - [ ] Creating a task invalidates and refreshes the relevant list/kanban queries
-  - [ ] Draft creation and publication flows update page state and selection coherently
+  - [ ] The base tasks route handles loading, error, empty, and populated states correctly across both list and kanban modes
+  - [ ] Creating a task invalidates and refreshes the relevant list or kanban queries while preserving route-shell stability
+  - [ ] Draft creation and publication flows update page state, selection, and visible task grouping coherently
+  - [ ] Switching between list and kanban preserves compatible filters, search state, and create-modal behavior across route refreshes
 - Test coverage target: >=80%
 - All tests must pass
 

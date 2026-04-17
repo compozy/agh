@@ -70,14 +70,16 @@ See TechSpec sections "Core Interfaces", "API Endpoints", and the analysis docs 
 
 ## Tests
 - Unit tests:
-  - [ ] Task-detail route hook resolves task ID, selection state, and timeline query behavior correctly
-  - [ ] Timeline components render task events, linked run state, and fallback states correctly
-  - [ ] Run-detail route hook resolves run ID, linked task context, and drill-down actions correctly
-  - [ ] Run-detail UI renders loading, error, and populated states without relying on raw session data
+  - [ ] Task-detail route hook resolves task ID, selection state, active tab, and timeline query behavior correctly
+  - [ ] Timeline components render task events, linked run state, cursor or pagination changes, and fallback states correctly
+  - [ ] Run-detail route hook resolves run ID, linked task context, and drill-down actions correctly from deep links
+  - [ ] Run-detail UI renders timing, metrics, tool or token summaries, and loading or error states without relying on raw session data
+  - [ ] Navigation affordances back to task detail or list preserve search params and selection context coherently
 - Integration tests:
-  - [ ] Direct navigation to a task detail route loads the expected task-native content
+  - [ ] Direct navigation to a task-detail route loads the expected task-native content and timeline scaffolding
+  - [ ] Timeline refresh, pagination, or live-update fallback behavior does not duplicate rows or lose linked run context
   - [ ] Direct navigation to a run-detail route loads the expected run summary and linked-session affordances
-  - [ ] Navigation between list/detail/run routes preserves selection and deep-link state coherently
+  - [ ] Navigation between list, detail, and run-detail routes preserves selection and deep-link state coherently
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -67,12 +67,16 @@ See TechSpec sections "System Architecture", "Impact Analysis", and ADR-001. Fol
 
 ## Tests
 - Unit tests:
-  - [ ] Sidebar renders a Tasks navigation target with the expected active-state behavior
-  - [ ] The new tasks route family is present in the generated route tree
-  - [ ] Base route components render the shared page shell without screen-specific fetch assumptions
+  - [ ] Sidebar renders a Tasks navigation target with the expected active-state behavior for base, detail, and run-detail routes
+  - [ ] The new tasks route family is present in the generated route tree with stable path and param definitions
+  - [ ] Base route components render the shared page shell without screen-specific fetch assumptions or data-shape leakage
+  - [ ] Route-shell defaults for initial mode, selected task, and search-param handling remain stable when the feature first mounts
+  - [ ] Loading and empty-shell placeholders render correctly before screen-specific queries resolve
 - Integration tests:
-  - [ ] Navigating from the sidebar reaches the tasks area successfully
-  - [ ] Direct navigation to task detail and run-detail route patterns resolves the expected route components
+  - [ ] Navigating from the sidebar reaches the tasks area successfully and keeps the app shell active-state logic correct
+  - [ ] Direct navigation to task-detail and run-detail route patterns resolves the expected route components inside the shared tasks shell
+  - [ ] Generated route-tree or router build checks succeed after adding the full tasks route family
+  - [ ] Moving between base, detail, and run-detail routes preserves shared shell state instead of remounting into route-specific forks
 - Test coverage target: >=80%
 - All tests must pass
 

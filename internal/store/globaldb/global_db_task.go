@@ -17,6 +17,35 @@ import (
 var _ taskpkg.RecordStore = (*GlobalDB)(nil)
 var _ taskpkg.RunStore = (*GlobalDB)(nil)
 
+const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
+	SELECT MAX(activity_at)
+	FROM (
+		SELECT tasks.updated_at AS activity_at
+		UNION ALL
+		SELECT tasks.created_at AS activity_at
+		UNION ALL
+		SELECT tr.queued_at AS activity_at
+		FROM task_runs tr
+		WHERE tr.task_id = tasks.id
+		UNION ALL
+		SELECT tr.claimed_at AS activity_at
+		FROM task_runs tr
+		WHERE tr.task_id = tasks.id AND tr.claimed_at IS NOT NULL
+		UNION ALL
+		SELECT tr.started_at AS activity_at
+		FROM task_runs tr
+		WHERE tr.task_id = tasks.id AND tr.started_at IS NOT NULL
+		UNION ALL
+		SELECT tr.ended_at AS activity_at
+		FROM task_runs tr
+		WHERE tr.task_id = tasks.id AND tr.ended_at IS NOT NULL
+		UNION ALL
+		SELECT te.timestamp AS activity_at
+		FROM task_events te
+		WHERE te.task_id = tasks.id
+	)
+), tasks.updated_at) DESC, updated_at DESC, created_at DESC, id DESC`
+
 // CreateTask inserts one durable task record.
 func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 	if err := g.checkReady(ctx, "create task"); err != nil {
@@ -191,8 +220,9 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 		store.StringClause("parent_task_id", normalized.ParentTaskID),
 		store.StringClause("network_channel", normalized.NetworkChannel),
 	)
+	where, args = appendTaskSearchClause(where, args, normalized.Search)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY updated_at DESC, created_at DESC, id DESC"
+	sqlQuery += taskListOrderByActivitySQL
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
@@ -217,6 +247,18 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 	}
 
 	return summaries, nil
+}
+
+func appendTaskSearchClause(where []string, args []any, search string) ([]string, []any) {
+	trimmedSearch := strings.TrimSpace(search)
+	if trimmedSearch == "" {
+		return where, args
+	}
+
+	likePattern := "%" + strings.ToLower(trimmedSearch) + "%"
+	where = append(where, "(LOWER(title) LIKE ? OR LOWER(COALESCE(identifier, '')) LIKE ?)")
+	args = append(args, likePattern, likePattern)
+	return where, args
 }
 
 // CountDirectChildren reports how many persisted tasks reference the supplied parent id.
@@ -989,6 +1031,7 @@ func normalizeTaskQuery(query taskpkg.Query) taskpkg.Query {
 	normalized.OwnerRef = strings.TrimSpace(normalized.OwnerRef)
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.Search = strings.TrimSpace(normalized.Search)
 	return normalized
 }
 
@@ -1021,6 +1064,7 @@ func taskSummaryFromRecord(record taskpkg.Task) taskpkg.Summary {
 		CreatedAt:      record.CreatedAt,
 		UpdatedAt:      record.UpdatedAt,
 		ClosedAt:       record.ClosedAt,
+		LastActivityAt: record.UpdatedAt,
 	}
 }
 

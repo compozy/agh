@@ -65,14 +65,16 @@ See TechSpec sections "Core Interfaces", "Known Risks", and the multi-agent-live
 
 ## Tests
 - Unit tests:
-  - [ ] Multi-agent live components render parent and descendant task state from the tree live read
-  - [ ] Live-state components handle no-active-run, loading, and disconnected states gracefully
-  - [ ] Linked-session affordances resolve the correct descendant run/session context
-  - [ ] Route-level live mode selection remains stable as tree data changes
+  - [ ] Multi-agent live components render parent and descendant task state from the tree live read with stable grouping and hierarchy cues
+  - [ ] Live-state components handle no-active-run, loading, disconnected, and no-descendant states gracefully
+  - [ ] Descendant status chips, active-run badges, and latest-activity summaries remain stable as tree data changes
+  - [ ] Linked-session affordances resolve the correct descendant run and session context for drill-down actions
+  - [ ] Route-level live mode selection remains stable as tree data changes or refreshes occur
 - Integration tests:
   - [ ] The detail route can switch into the multi-agent live view without refetch storms or recursive detail joins
-  - [ ] Task-tree live updates refresh the visible descendant state coherently
+  - [ ] Task-tree live updates refresh the visible descendant state coherently as parent and child execution changes arrive
   - [ ] Navigation from the live tree into run detail or session drill-down preserves route state correctly
+  - [ ] The live view falls back cleanly when the stream disconnects or the tree read returns no active descendants
 - Test coverage target: >=80%
 - All tests must pass
 

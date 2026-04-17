@@ -152,6 +152,7 @@ func (s *inMemoryManagerStore) ListTasks(_ context.Context, query Query) ([]Summ
 	normalized.OwnerRef = strings.TrimSpace(normalized.OwnerRef)
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.Search = strings.ToLower(strings.TrimSpace(normalized.Search))
 
 	summaries := make([]Summary, 0)
 	for _, record := range s.tasks {
@@ -186,6 +187,13 @@ func (s *inMemoryManagerStore) ListTasks(_ context.Context, query Query) ([]Summ
 		if normalized.NetworkChannel != "" && record.NetworkChannel != normalized.NetworkChannel {
 			continue
 		}
+		if normalized.Search != "" {
+			title := strings.ToLower(strings.TrimSpace(record.Title))
+			identifier := strings.ToLower(strings.TrimSpace(record.Identifier))
+			if !strings.Contains(title, normalized.Search) && !strings.Contains(identifier, normalized.Search) {
+				continue
+			}
+		}
 		summaries = append(summaries, Summary{
 			ID:             record.ID,
 			Identifier:     record.Identifier,
@@ -206,11 +214,23 @@ func (s *inMemoryManagerStore) ListTasks(_ context.Context, query Query) ([]Summ
 			CreatedAt:      record.CreatedAt,
 			UpdatedAt:      record.UpdatedAt,
 			ClosedAt:       record.ClosedAt,
+			LastActivityAt: record.UpdatedAt,
 		})
 	}
 
 	sort.Slice(summaries, func(i int, j int) bool {
-		return summaries[i].ID < summaries[j].ID
+		left := inMemoryTaskLatestActivity(summaries[i], s.runs, s.events)
+		right := inMemoryTaskLatestActivity(summaries[j], s.runs, s.events)
+		if !left.Equal(right) {
+			return left.After(right)
+		}
+		if !summaries[i].UpdatedAt.Equal(summaries[j].UpdatedAt) {
+			return summaries[i].UpdatedAt.After(summaries[j].UpdatedAt)
+		}
+		if !summaries[i].CreatedAt.Equal(summaries[j].CreatedAt) {
+			return summaries[i].CreatedAt.After(summaries[j].CreatedAt)
+		}
+		return summaries[i].ID > summaries[j].ID
 	})
 	if normalized.Limit > 0 && len(summaries) > normalized.Limit {
 		return append([]Summary(nil), summaries[:normalized.Limit]...), nil
@@ -1313,6 +1333,24 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 	if len(view.Events) < 2 {
 		t.Fatalf("len(view.Events) = %d, want at least 2", len(view.Events))
 	}
+	if got, want := view.Summary.DependencyCount, 1; got != want {
+		t.Fatalf("view.Summary.DependencyCount = %d, want %d", got, want)
+	}
+	if got, want := view.Summary.ChildCount, 0; got != want {
+		t.Fatalf("view.Summary.ChildCount = %d, want %d", got, want)
+	}
+	if view.Summary.ActiveRun == nil || view.Summary.ActiveRun.ID != "run-active" {
+		t.Fatalf("view.Summary.ActiveRun = %#v, want run-active", view.Summary.ActiveRun)
+	}
+	if view.Summary.LastActivityAt.IsZero() {
+		t.Fatal("view.Summary.LastActivityAt is zero, want latest activity timestamp")
+	}
+	if len(view.DependencyReferences) != 1 {
+		t.Fatalf("len(view.DependencyReferences) = %d, want 1", len(view.DependencyReferences))
+	}
+	if got, want := view.DependencyReferences[0].DependsOn.Title, dependency.Title; got != want {
+		t.Fatalf("view.DependencyReferences[0].DependsOn.Title = %q, want %q", got, want)
+	}
 
 	summaries, err := manager.ListTasks(context.Background(), Query{ParentTaskID: parent.ID}, actor)
 	if err != nil {
@@ -1320,6 +1358,18 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 	}
 	if len(summaries) != 1 || summaries[0].ID != child.ID {
 		t.Fatalf("ListTasks(parent filter) = %#v, want only child %q", summaries, child.ID)
+	}
+	if got, want := summaries[0].DependencyCount, 1; got != want {
+		t.Fatalf("summaries[0].DependencyCount = %d, want %d", got, want)
+	}
+	if len(summaries[0].Dependencies) != 1 {
+		t.Fatalf("len(summaries[0].Dependencies) = %d, want 1", len(summaries[0].Dependencies))
+	}
+	if got, want := summaries[0].Dependencies[0].DependsOn.Identifier, dependency.Identifier; got != want {
+		t.Fatalf("summaries[0].Dependencies[0].DependsOn.Identifier = %q, want %q", got, want)
+	}
+	if summaries[0].ActiveRun == nil || summaries[0].ActiveRun.Status != TaskRunStatusRunning {
+		t.Fatalf("summaries[0].ActiveRun = %#v, want running summary", summaries[0].ActiveRun)
 	}
 	runs, err := manager.ListTaskRuns(context.Background(), child.ID, RunQuery{}, actor)
 	if err != nil {
@@ -1347,6 +1397,65 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 		ErrPermissionDenied,
 	) {
 		t.Fatalf("ListTaskRuns(no read) error = %v, want %v", err, ErrPermissionDenied)
+	}
+}
+
+func TestManagerListTasksSupportsSearchAndOrdersByLatestActivity(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+
+	first, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:      ScopeGlobal,
+		Title:      "Alpha planning",
+		Identifier: "OPS-100",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(first) error = %v", err)
+	}
+	second, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:      ScopeGlobal,
+		Title:      "Beta rollout",
+		Identifier: "OPS-200",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(second) error = %v", err)
+	}
+
+	store.runs["run-second"] = Run{
+		ID:        "run-second",
+		TaskID:    second.ID,
+		Status:    TaskRunStatusRunning,
+		Attempt:   1,
+		Origin:    Origin{Kind: OriginKindAutomation, Ref: "rule:nightly"},
+		QueuedAt:  time.Date(2026, 4, 14, 16, 0, 0, 0, time.UTC),
+		StartedAt: time.Date(2026, 4, 14, 16, 5, 0, 0, time.UTC),
+	}
+
+	byTitle, err := manager.ListTasks(context.Background(), Query{Search: "alpha"}, actor)
+	if err != nil {
+		t.Fatalf("ListTasks(search title) error = %v", err)
+	}
+	if len(byTitle) != 1 || byTitle[0].ID != first.ID {
+		t.Fatalf("ListTasks(search title) = %#v, want only %q", byTitle, first.ID)
+	}
+
+	byIdentifier, err := manager.ListTasks(context.Background(), Query{Search: "ops-200"}, actor)
+	if err != nil {
+		t.Fatalf("ListTasks(search identifier) error = %v", err)
+	}
+	if len(byIdentifier) != 1 || byIdentifier[0].ID != second.ID {
+		t.Fatalf("ListTasks(search identifier) = %#v, want only %q", byIdentifier, second.ID)
+	}
+
+	all, err := manager.ListTasks(context.Background(), Query{}, actor)
+	if err != nil {
+		t.Fatalf("ListTasks(all) error = %v", err)
+	}
+	if got, want := []string{all[0].ID, all[1].ID}, []string{second.ID, first.ID}; !equalStringSlices(got, want) {
+		t.Fatalf("ListTasks(all) order = %#v, want %#v", got, want)
 	}
 }
 
@@ -2979,6 +3088,22 @@ func cloneTaskRun(record Run) Run {
 	return cloned
 }
 
+func inMemoryTaskLatestActivity(summary Summary, runs map[string]Run, events []Event) time.Time {
+	taskRuns := make([]Run, 0)
+	for _, run := range runs {
+		if run.TaskID == summary.ID {
+			taskRuns = append(taskRuns, run)
+		}
+	}
+	taskEvents := make([]Event, 0)
+	for _, event := range events {
+		if event.TaskID == summary.ID {
+			taskEvents = append(taskEvents, event)
+		}
+	}
+	return latestTaskActivityAt(taskRecordFromSummary(summary), taskRuns, taskEvents)
+}
+
 func cloneTriageState(record TriageState) TriageState {
 	cloned := record
 	cloned.Actor = record.Actor
@@ -3001,6 +3126,18 @@ func containsEventType(events []Event, want string) bool {
 		}
 	}
 	return false
+}
+
+func equalStringSlices(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if left[idx] != right[idx] {
+			return false
+		}
+	}
+	return true
 }
 
 func idempotencyKey(origin Origin, key string) string {

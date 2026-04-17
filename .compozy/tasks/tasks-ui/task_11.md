@@ -65,12 +65,15 @@ See TechSpec "Impact Analysis" and ADR-003/ADR-004. The Host API should remain a
 
 ## Tests
 - Unit tests:
-  - [ ] Host API dispatch registers the new task read and aggregate methods
-  - [ ] Request decoding and error mapping behave consistently with existing `tasks/*` methods
-  - [ ] New Host API task reads return the expected richer payloads
+  - [ ] Host API dispatch registers the new task detail, run-detail, dashboard, inbox, and live-read methods
+  - [ ] Request decoding and error mapping behave consistently with existing `tasks/*` methods for identifiers, filters, and missing resources
+  - [ ] New Host API task reads return the expected richer payloads without requiring extension-side JSON reshaping
+  - [ ] Aggregate method payloads remain aligned with observer-backed reads rather than list-derived fallbacks
 - Integration tests:
-  - [ ] Host API execution can fetch the richer task detail/run detail payloads against real task state
-  - [ ] Host API aggregate methods return dashboard or inbox data aligned with the observer-backed task reads
+  - [ ] Host API execution can fetch the richer task-detail and run-detail payloads against real task state and persisted runs
+  - [ ] Host API aggregate methods return dashboard and inbox data aligned with the observer-backed task reads
+  - [ ] Unknown method or missing-task calls return the expected host-facing error responses instead of transport-specific failures
+  - [ ] Host API task surfaces remain aligned with the contract layer after code generation or interface updates
 - Test coverage target: >=80%
 - All tests must pass
 
