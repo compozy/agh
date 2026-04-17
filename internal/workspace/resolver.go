@@ -55,6 +55,8 @@ type cachedEntry struct {
 	lastAccess time.Time
 }
 
+const rollbackDeleteTimeout = 2 * time.Second
+
 // NewResolver constructs a workspace resolver backed by the supplied store.
 func NewResolver(store Store, opts ...Option) (*Resolver, error) {
 	if store == nil {
@@ -194,7 +196,7 @@ func (r *Resolver) ResolveOrRegister(ctx context.Context, path string) (Resolved
 
 	resolved, err := r.Resolve(ctx, ws.ID)
 	if err != nil {
-		deleteErr := r.store.DeleteWorkspace(context.WithoutCancel(ctx), ws.ID)
+		deleteErr := r.rollbackDeleteWorkspace(ctx, ws.ID)
 		if deleteErr != nil && !errors.Is(deleteErr, ErrWorkspaceNotFound) {
 			return ResolvedWorkspace{}, errors.Join(
 				err,
@@ -211,6 +213,13 @@ func (r *Resolver) ResolveOrRegister(ctx context.Context, path string) (Resolved
 	)
 
 	return resolved, nil
+}
+
+func (r *Resolver) rollbackDeleteWorkspace(ctx context.Context, workspaceID string) error {
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackDeleteTimeout)
+	defer cancel()
+
+	return r.store.DeleteWorkspace(rollbackCtx, workspaceID)
 }
 
 // Invalidate deletes one workspace snapshot from the in-memory cache.

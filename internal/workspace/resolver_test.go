@@ -758,19 +758,6 @@ func TestRegisterRollsBackWhenResolveFails(t *testing.T) {
 	}
 }
 
-func TestRegisterRollsBackWhenResolveContextCanceled(t *testing.T) {
-	t.Parallel()
-
-	assertResolveCancellationRollback(
-		t,
-		"ws_cancel_register",
-		func(ctx context.Context, resolver *Resolver, root string) error {
-			_, err := resolver.Register(ctx, RegisterOptions{RootDir: root, Name: "repo"})
-			return err
-		},
-	)
-}
-
 func TestResolveOrRegisterReturnsConcurrentWinnerWhenPathTaken(t *testing.T) {
 	t.Parallel()
 
@@ -798,17 +785,38 @@ func TestResolveOrRegisterReturnsConcurrentWinnerWhenPathTaken(t *testing.T) {
 	}
 }
 
-func TestResolveOrRegisterRollsBackWhenResolveContextCanceled(t *testing.T) {
+func TestCancellationRollbackUsesBoundedDetachedDeleteContext(t *testing.T) {
 	t.Parallel()
 
-	assertResolveCancellationRollback(
-		t,
-		"ws_cancel_autoreg",
-		func(ctx context.Context, resolver *Resolver, root string) error {
-			_, err := resolver.ResolveOrRegister(ctx, root)
-			return err
+	tests := []struct {
+		name        string
+		workspaceID string
+		run         func(context.Context, *Resolver, string) error
+	}{
+		{
+			name:        "Should roll back Register with a bounded detached delete context",
+			workspaceID: "ws_cancel_register",
+			run: func(ctx context.Context, resolver *Resolver, root string) error {
+				_, err := resolver.Register(ctx, RegisterOptions{RootDir: root, Name: "repo"})
+				return err
+			},
 		},
-	)
+		{
+			name:        "Should roll back ResolveOrRegister with a bounded detached delete context",
+			workspaceID: "ws_cancel_autoreg",
+			run: func(ctx context.Context, resolver *Resolver, root string) error {
+				_, err := resolver.ResolveOrRegister(ctx, root)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assertResolveCancellationRollback(t, tt.workspaceID, tt.run)
+		})
+	}
 }
 
 func TestListReturnsClonedWorkspaces(t *testing.T) {
@@ -1187,6 +1195,9 @@ type concurrentPathStore struct {
 type cancelOnInsertStore struct {
 	*mockWorkspaceStore
 	cancel context.CancelFunc
+
+	deleteCtxErr      error
+	deleteHasDeadline bool
 }
 
 func (s *concurrentPathStore) InsertWorkspace(context.Context, Workspace) error {
@@ -1238,9 +1249,8 @@ func (s *cancelOnInsertStore) InsertWorkspace(ctx context.Context, ws Workspace)
 }
 
 func (s *cancelOnInsertStore) DeleteWorkspace(ctx context.Context, id string) error {
-	if err := checkContext(ctx); err != nil {
-		return err
-	}
+	s.deleteCtxErr = ctx.Err()
+	_, s.deleteHasDeadline = ctx.Deadline()
 	return s.mockWorkspaceStore.DeleteWorkspace(ctx, id)
 }
 
@@ -1416,6 +1426,12 @@ func assertResolveCancellationRollback(
 	}
 	if got := len(store.deleteCalls); got != 1 {
 		t.Fatalf("DeleteWorkspace() calls = %d, want 1", got)
+	}
+	if store.deleteCtxErr != nil {
+		t.Fatalf("DeleteWorkspace() context error = %v, want nil", store.deleteCtxErr)
+	}
+	if !store.deleteHasDeadline {
+		t.Fatal("DeleteWorkspace() context deadline missing, want bounded rollback timeout")
 	}
 	if _, err := store.GetWorkspace(context.Background(), workspaceID); !errors.Is(err, ErrWorkspaceNotFound) {
 		t.Fatalf("GetWorkspace(rolled back after cancellation) error = %v, want %v", err, ErrWorkspaceNotFound)
