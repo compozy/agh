@@ -10,7 +10,12 @@ type Manager interface {
 	CreateChildTask(ctx context.Context, parentTaskID string, spec CreateTask, actor ActorContext) (*Task, error)
 	UpdateTask(ctx context.Context, id string, patch Patch, actor ActorContext) (*Task, error)
 	PublishTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
+	ApproveTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
+	RejectTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
 	CancelTask(ctx context.Context, id string, req CancelTask, actor ActorContext) (*Task, error)
+	MarkTaskRead(ctx context.Context, id string, actor ActorContext) (TriageState, error)
+	ArchiveTask(ctx context.Context, id string, actor ActorContext) (TriageState, error)
+	DismissTask(ctx context.Context, id string, actor ActorContext) (TriageState, error)
 
 	AddDependency(ctx context.Context, spec AddDependency, actor ActorContext) error
 	RemoveDependency(ctx context.Context, taskID string, dependsOnID string, actor ActorContext) error

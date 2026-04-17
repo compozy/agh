@@ -790,6 +790,88 @@ func TestGlobalDBTaskTriageStateRoundTripAndActorIsolation(t *testing.T) {
 	}
 }
 
+func TestGlobalDBListTaskTriageStatesFiltersByActorAndOrdersByUpdate(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	firstTask := taskRecordForTest("task-triage-list-first")
+	secondTask := taskRecordForTest("task-triage-list-second")
+	secondTask.UpdatedAt = secondTask.UpdatedAt.Add(2 * time.Minute)
+	if err := globalDB.CreateTask(testutil.Context(t), firstTask); err != nil {
+		t.Fatalf("CreateTask(firstTask) error = %v", err)
+	}
+	if err := globalDB.CreateTask(testutil.Context(t), secondTask); err != nil {
+		t.Fatalf("CreateTask(secondTask) error = %v", err)
+	}
+
+	alice := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"}
+	aliceFirst := taskpkg.TriageState{
+		TaskID:             firstTask.ID,
+		Actor:              alice,
+		Read:               true,
+		LastSeenActivityAt: firstTask.UpdatedAt,
+		UpdatedAt:          firstTask.UpdatedAt.Add(5 * time.Minute),
+	}
+	aliceSecond := taskpkg.TriageState{
+		TaskID:             secondTask.ID,
+		Actor:              alice,
+		Archived:           true,
+		LastSeenActivityAt: secondTask.UpdatedAt,
+		UpdatedAt:          secondTask.UpdatedAt.Add(8 * time.Minute),
+	}
+	bob := taskpkg.TriageState{
+		TaskID:    secondTask.ID,
+		Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:bob"},
+		Dismissed: true,
+		UpdatedAt: secondTask.UpdatedAt.Add(9 * time.Minute),
+	}
+	for _, state := range []taskpkg.TriageState{aliceFirst, aliceSecond, bob} {
+		if err := globalDB.UpsertTaskTriageState(testutil.Context(t), state); err != nil {
+			t.Fatalf("UpsertTaskTriageState(%q/%q) error = %v", state.Actor.Kind, state.Actor.Ref, err)
+		}
+	}
+
+	aliceStates, err := globalDB.ListTaskTriageStates(testutil.Context(t), alice)
+	if err != nil {
+		t.Fatalf("ListTaskTriageStates(alice) error = %v", err)
+	}
+	if got, want := len(aliceStates), 2; got != want {
+		t.Fatalf("len(ListTaskTriageStates(alice)) = %d, want %d", got, want)
+	}
+	if got, want := []string{
+		aliceStates[0].TaskID,
+		aliceStates[1].TaskID,
+	}, []string{
+		secondTask.ID,
+		firstTask.ID,
+	}; !equalStringSlices(
+		got,
+		want,
+	) {
+		t.Fatalf("alice task ids = %#v, want %#v", got, want)
+	}
+	if aliceStates[0] != aliceSecond {
+		t.Fatalf("aliceStates[0] = %#v, want %#v", aliceStates[0], aliceSecond)
+	}
+	if aliceStates[1] != aliceFirst {
+		t.Fatalf("aliceStates[1] = %#v, want %#v", aliceStates[1], aliceFirst)
+	}
+
+	bobStates, err := globalDB.ListTaskTriageStates(
+		testutil.Context(t),
+		taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:bob"},
+	)
+	if err != nil {
+		t.Fatalf("ListTaskTriageStates(bob) error = %v", err)
+	}
+	if got, want := len(bobStates), 1; got != want {
+		t.Fatalf("len(ListTaskTriageStates(bob)) = %d, want %d", got, want)
+	}
+	if bobStates[0] != bob {
+		t.Fatalf("bobStates[0] = %#v, want %#v", bobStates[0], bob)
+	}
+}
+
 func TestOpenGlobalDBMigratesLegacyTaskSchemaAndPreservesRows(t *testing.T) {
 	t.Parallel()
 
@@ -1061,6 +1143,18 @@ func orderedTaskSummaryIDs(summaries []taskpkg.Summary) []string {
 		ids = append(ids, summary.ID)
 	}
 	return ids
+}
+
+func equalStringSlices(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if left[idx] != right[idx] {
+			return false
+		}
+	}
+	return true
 }
 
 func sqlNullStringForTest(value string) sql.NullString {

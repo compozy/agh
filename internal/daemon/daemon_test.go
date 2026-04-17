@@ -3994,6 +3994,13 @@ func (r *recordingRegistry) UpsertTaskTriageState(context.Context, taskpkg.Triag
 	return nil
 }
 
+func (r *recordingRegistry) ListTaskTriageStates(
+	context.Context,
+	taskpkg.ActorIdentity,
+) ([]taskpkg.TriageState, error) {
+	return nil, nil
+}
+
 func (r *recordingRegistry) CountActiveSessionBindings(context.Context, string) (int, error) {
 	return 0, nil
 }

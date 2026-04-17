@@ -477,6 +477,80 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 	}
 }
 
+func TestTaskManagerTriageMutationsRemainActorScopedAfterReload(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	dbPath := filepath.Join(t.TempDir(), "agh.db")
+
+	first, err := globaldb.OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(first) error = %v", err)
+	}
+
+	firstManager := newTaskManagerIntegration(t, first)
+	alice, err := taskpkg.DeriveHumanActorContext("alice", taskpkg.OriginKindCLI, "agh task inbox")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext(alice) error = %v", err)
+	}
+	bob, err := taskpkg.DeriveHumanActorContext("bob", taskpkg.OriginKindCLI, "agh task inbox")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext(bob) error = %v", err)
+	}
+
+	taskRecord, err := firstManager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Persist triage state",
+	}, alice)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	if _, err := firstManager.MarkTaskRead(ctx, taskRecord.ID, alice); err != nil {
+		t.Fatalf("MarkTaskRead(alice) error = %v", err)
+	}
+	archivedState, err := firstManager.ArchiveTask(ctx, taskRecord.ID, alice)
+	if err != nil {
+		t.Fatalf("ArchiveTask(alice) error = %v", err)
+	}
+	dismissedState, err := firstManager.DismissTask(ctx, taskRecord.ID, bob)
+	if err != nil {
+		t.Fatalf("DismissTask(bob) error = %v", err)
+	}
+	if !archivedState.Archived || !dismissedState.Dismissed {
+		t.Fatalf("triage states = %#v / %#v, want archived and dismissed states", archivedState, dismissedState)
+	}
+
+	if err := first.Close(ctx); err != nil {
+		t.Fatalf("Close(first) error = %v", err)
+	}
+
+	second, err := globaldb.OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(second) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := second.Close(ctx); err != nil {
+			t.Fatalf("Close(second) error = %v", err)
+		}
+	})
+
+	storedAlice, err := second.GetTaskTriageState(ctx, taskRecord.ID, alice.Actor)
+	if err != nil {
+		t.Fatalf("GetTaskTriageState(alice) error = %v", err)
+	}
+	if storedAlice != archivedState {
+		t.Fatalf("storedAlice = %#v, want %#v", storedAlice, archivedState)
+	}
+	storedBob, err := second.GetTaskTriageState(ctx, taskRecord.ID, bob.Actor)
+	if err != nil {
+		t.Fatalf("GetTaskTriageState(bob) error = %v", err)
+	}
+	if storedBob != dismissedState {
+		t.Fatalf("storedBob = %#v, want %#v", storedBob, dismissedState)
+	}
+}
+
 func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 	t.Parallel()
 
@@ -514,14 +588,12 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 		t.Fatalf("ClaimRun(blocked) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
 	}
 
-	stored, err := db.GetTask(ctx, taskRecord.ID)
+	approved, err := manager.ApproveTask(ctx, taskRecord.ID, actor)
 	if err != nil {
-		t.Fatalf("GetTask() error = %v", err)
+		t.Fatalf("ApproveTask() error = %v", err)
 	}
-	stored.ApprovalState = taskpkg.ApprovalStateApproved
-	stored.UpdatedAt = stored.UpdatedAt.Add(time.Minute)
-	if err := db.UpdateTask(ctx, stored); err != nil {
-		t.Fatalf("UpdateTask(approved) error = %v", err)
+	if got, want := approved.ApprovalState, taskpkg.ApprovalStateApproved; got != want {
+		t.Fatalf("approved.ApprovalState = %q, want %q", got, want)
 	}
 
 	run, err = manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
@@ -554,6 +626,14 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 		taskpkg.ErrInvalidStatusTransition,
 	) {
 		t.Fatalf("EnqueueRun(exhausted) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+	}
+
+	events, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if !containsEventType(events, "task.approved") {
+		t.Fatalf("event types = %#v, want task.approved", sortedEventTypes(events))
 	}
 }
 

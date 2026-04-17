@@ -17,6 +17,8 @@ const (
 	taskEventCreated           = "task.created"
 	taskEventUpdated           = "task.updated"
 	taskEventPublished         = "task.published"
+	taskEventApproved          = "task.approved"
+	taskEventRejected          = "task.rejected"
 	taskEventCanceled          = "task.canceled"
 	taskEventChildCreated      = "task.child_created"
 	taskEventDependencyAdded   = "task.dependency_added"
@@ -455,6 +457,174 @@ func (m *Service) PublishTask(ctx context.Context, id string, actor ActorContext
 	}
 
 	return &reconciled, nil
+}
+
+// ApproveTask records one approval decision for a manual-approval task that is
+// currently awaiting a decision and reconciles the resulting task status.
+func (m *Service) ApproveTask(ctx context.Context, id string, actor ActorContext) (*Task, error) {
+	return m.transitionTaskApproval(ctx, id, ApprovalStateApproved, taskEventApproved, actor)
+}
+
+// RejectTask records one rejection decision for a manual-approval task that is
+// currently awaiting a decision and reconciles the resulting task status.
+func (m *Service) RejectTask(ctx context.Context, id string, actor ActorContext) (*Task, error) {
+	return m.transitionTaskApproval(ctx, id, ApprovalStateRejected, taskEventRejected, actor)
+}
+
+func (m *Service) transitionTaskApproval(
+	ctx context.Context,
+	id string,
+	target ApprovalState,
+	eventType string,
+	actor ActorContext,
+) (*Task, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return nil, err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+
+	record, err := m.store.GetTask(ctx, trimmedID)
+	if err != nil {
+		return nil, err
+	}
+
+	previousApprovalState := normalizeApprovalStateOrDefault(record.ApprovalPolicy, record.ApprovalState)
+	if !taskApprovalDecisionAllowed(record, target) {
+		return nil, fmt.Errorf(
+			"%w: task %q cannot transition approval from %q to %q",
+			ErrInvalidStatusTransition,
+			record.ID,
+			previousApprovalState,
+			target.Normalize(),
+		)
+	}
+
+	record.ApprovalState = target.Normalize()
+	record.UpdatedAt = m.now().UTC()
+	record.ClosedAt = time.Time{}
+	if err := m.store.UpdateTask(ctx, record); err != nil {
+		return nil, err
+	}
+
+	reconciled, err := m.reconcileTaskCascade(ctx, record.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.recordTaskEvent(ctx, reconciled.ID, "", eventType, actor, approvalDecisionTaskPayload{
+		PreviousApprovalState: previousApprovalState,
+		ApprovalState:         reconciled.ApprovalState,
+		Status:                reconciled.Status,
+	}); err != nil {
+		return nil, err
+	}
+
+	return &reconciled, nil
+}
+
+func taskApprovalDecisionAllowed(record Task, target ApprovalState) bool {
+	normalizedPolicy := normalizeApprovalPolicyOrDefault(record.ApprovalPolicy)
+	if normalizedPolicy != ApprovalPolicyManual {
+		return false
+	}
+	switch target.Normalize() {
+	case ApprovalStateApproved, ApprovalStateRejected:
+	default:
+		return false
+	}
+	return normalizeApprovalStateOrDefault(normalizedPolicy, record.ApprovalState) == ApprovalStatePending
+}
+
+// MarkTaskRead persists the current actor-scoped triage state as read for the
+// task's latest known activity snapshot.
+func (m *Service) MarkTaskRead(ctx context.Context, id string, actor ActorContext) (TriageState, error) {
+	return m.mutateTaskTriage(ctx, id, actor, func(state *TriageState, latestActivity time.Time) {
+		state.Read = true
+		state.Dismissed = false
+		state.LastSeenActivityAt = latestActivity
+	})
+}
+
+// ArchiveTask persists the current actor-scoped triage state as archived for
+// the task's latest known activity snapshot.
+func (m *Service) ArchiveTask(ctx context.Context, id string, actor ActorContext) (TriageState, error) {
+	return m.mutateTaskTriage(ctx, id, actor, func(state *TriageState, latestActivity time.Time) {
+		state.Read = true
+		state.Archived = true
+		state.Dismissed = false
+		state.LastSeenActivityAt = latestActivity
+	})
+}
+
+// DismissTask persists the current actor-scoped triage state as dismissed for
+// the task's latest known activity snapshot.
+func (m *Service) DismissTask(ctx context.Context, id string, actor ActorContext) (TriageState, error) {
+	return m.mutateTaskTriage(ctx, id, actor, func(state *TriageState, latestActivity time.Time) {
+		state.Read = true
+		state.Dismissed = true
+		state.LastSeenActivityAt = latestActivity
+	})
+}
+
+func (m *Service) mutateTaskTriage(
+	ctx context.Context,
+	id string,
+	actor ActorContext,
+	mutate func(state *TriageState, latestActivity time.Time),
+) (TriageState, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return TriageState{}, err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return TriageState{}, fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+
+	record, err := m.store.GetTask(ctx, trimmedID)
+	if err != nil {
+		return TriageState{}, err
+	}
+	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: trimmedID})
+	if err != nil {
+		return TriageState{}, err
+	}
+	events, err := m.store.ListTaskEvents(ctx, EventQuery{TaskID: trimmedID, Limit: 1})
+	if err != nil {
+		return TriageState{}, err
+	}
+
+	state, err := m.loadTaskTriageState(ctx, trimmedID, actor.Actor)
+	if err != nil {
+		return TriageState{}, err
+	}
+	mutate(&state, latestTaskActivityAt(record, runs, events))
+	state.TaskID = trimmedID
+	state.Actor = actor.Actor
+	state.UpdatedAt = m.now().UTC()
+	if err := m.store.UpsertTaskTriageState(ctx, state); err != nil {
+		return TriageState{}, err
+	}
+
+	return state, nil
+}
+
+func (m *Service) loadTaskTriageState(
+	ctx context.Context,
+	taskID string,
+	actor ActorIdentity,
+) (TriageState, error) {
+	state, err := m.store.GetTaskTriageState(ctx, taskID, actor)
+	if err == nil {
+		return state, nil
+	}
+	if errors.Is(err, ErrTaskTriageStateNotFound) {
+		return TriageState{TaskID: taskID, Actor: actor}, nil
+	}
+	return TriageState{}, err
 }
 
 func (m *Service) loadCancellationTree(ctx context.Context, taskID string) ([]Task, Task, error) {
@@ -2749,6 +2919,12 @@ type publishedTaskPayload struct {
 	PreviousStatus Status        `json:"previous_status"`
 	Status         Status        `json:"status"`
 	ApprovalState  ApprovalState `json:"approval_state"`
+}
+
+type approvalDecisionTaskPayload struct {
+	PreviousApprovalState ApprovalState `json:"previous_approval_state"`
+	ApprovalState         ApprovalState `json:"approval_state"`
+	Status                Status        `json:"status"`
 }
 
 type childCreatedTaskPayload struct {

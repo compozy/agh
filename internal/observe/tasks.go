@@ -32,6 +32,7 @@ type TaskSummaryQuery struct {
 	OwnerRef       string             `json:"owner_ref,omitempty"`
 	NetworkChannel string             `json:"network_channel,omitempty"`
 	OriginKind     taskpkg.OriginKind `json:"origin_kind,omitempty"`
+	Search         string             `json:"search,omitempty"`
 }
 
 // Validate ensures the summary query uses supported filters.
@@ -87,7 +88,14 @@ func (q TaskDashboardQuery) Validate() error {
 }
 
 func (q TaskDashboardQuery) summaryQuery() TaskSummaryQuery {
-	return TaskSummaryQuery(q)
+	return TaskSummaryQuery{
+		Scope:          q.Scope,
+		WorkspaceID:    q.WorkspaceID,
+		OwnerKind:      q.OwnerKind,
+		OwnerRef:       q.OwnerRef,
+		NetworkChannel: q.NetworkChannel,
+		OriginKind:     q.OriginKind,
+	}
 }
 
 func (q TaskDashboardQuery) metricsQuery(since time.Time) TaskMetricsQuery {
@@ -356,6 +364,121 @@ type TaskDashboardFreshness struct {
 	Stale            bool      `json:"stale"`
 }
 
+// TaskInboxLane identifies one observer-backed inbox grouping.
+type TaskInboxLane string
+
+const (
+	// TaskInboxLaneMyWork identifies directly assigned or actively owned work.
+	TaskInboxLaneMyWork TaskInboxLane = "my_work"
+	// TaskInboxLaneApprovals identifies approval-gated work awaiting a decision.
+	TaskInboxLaneApprovals TaskInboxLane = "approvals"
+	// TaskInboxLaneFailedRuns identifies tasks whose latest execution failed.
+	TaskInboxLaneFailedRuns TaskInboxLane = "failed_runs"
+	// TaskInboxLaneBlocked identifies blocked tasks that are not awaiting approval.
+	TaskInboxLaneBlocked TaskInboxLane = "blocked"
+	// TaskInboxLaneArchived identifies tasks archived by the current actor.
+	TaskInboxLaneArchived TaskInboxLane = "archived"
+)
+
+const (
+	taskInboxBlockingReasonAwaitingApproval = "awaiting_approval"
+	taskInboxBlockingReasonApprovalRejected = "approval_rejected"
+	taskInboxBlockingReasonAwaitingDeps     = "awaiting_dependencies"
+	taskInboxBlockingReasonLatestRunFailed  = "latest_run_failed"
+)
+
+// Normalize returns the normalized inbox lane value.
+func (l TaskInboxLane) Normalize() TaskInboxLane {
+	return TaskInboxLane(strings.TrimSpace(strings.ToLower(string(l))))
+}
+
+// Validate ensures the inbox lane is one of the supported values.
+func (l TaskInboxLane) Validate(path string) error {
+	switch l.Normalize() {
+	case "":
+		return nil
+	case TaskInboxLaneMyWork,
+		TaskInboxLaneApprovals,
+		TaskInboxLaneFailedRuns,
+		TaskInboxLaneBlocked,
+		TaskInboxLaneArchived:
+		return nil
+	default:
+		return fmt.Errorf("%w: %s has unsupported lane %q", taskpkg.ErrValidation, path, l)
+	}
+}
+
+// TaskInboxQuery filters the observer-backed task inbox read model.
+type TaskInboxQuery struct {
+	Scope       taskpkg.Scope     `json:"scope,omitempty"`
+	WorkspaceID string            `json:"workspace_id,omitempty"`
+	OwnerKind   taskpkg.OwnerKind `json:"owner_kind,omitempty"`
+	OwnerRef    string            `json:"owner_ref,omitempty"`
+	Lane        TaskInboxLane     `json:"lane,omitempty"`
+	Unread      bool              `json:"unread,omitempty"`
+	Search      string            `json:"search,omitempty"`
+	Limit       int               `json:"limit,omitempty"`
+}
+
+// Validate ensures the inbox query uses supported filters.
+func (q TaskInboxQuery) Validate() error {
+	if q.Scope.Normalize() != "" {
+		if err := taskpkg.ValidateScopeBinding(q.Scope, q.WorkspaceID, "task_inbox_query", "workspace_id"); err != nil {
+			return err
+		}
+	}
+	if q.OwnerKind.Normalize() != "" {
+		if err := q.OwnerKind.Validate("task_inbox_query.owner_kind"); err != nil {
+			return err
+		}
+	}
+	if err := q.Lane.Validate("task_inbox_query.lane"); err != nil {
+		return err
+	}
+	if q.Limit < 0 {
+		return fmt.Errorf("%w: task_inbox_query.limit must be zero or positive: %d", taskpkg.ErrValidation, q.Limit)
+	}
+	return nil
+}
+
+func (q TaskInboxQuery) summaryQuery() TaskSummaryQuery {
+	return TaskSummaryQuery{
+		Scope:       q.Scope,
+		WorkspaceID: q.WorkspaceID,
+		OwnerKind:   q.OwnerKind,
+		OwnerRef:    q.OwnerRef,
+		Search:      q.Search,
+	}
+}
+
+// TaskInboxItem is one triage-oriented task inbox item with action-ready metadata.
+type TaskInboxItem struct {
+	Task             taskpkg.Reference      `json:"task"`
+	Lane             TaskInboxLane          `json:"lane"`
+	ApprovalPolicy   taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
+	ApprovalState    taskpkg.ApprovalState  `json:"approval_state,omitempty"`
+	BlockingReason   string                 `json:"blocking_reason,omitempty"`
+	LatestActivityAt time.Time              `json:"latest_activity_at"`
+	Run              *taskpkg.RunSummary    `json:"run,omitempty"`
+	Triage           taskpkg.TriageState    `json:"triage"`
+}
+
+// TaskInboxLaneGroup groups inbox items by lane while preserving full counts.
+type TaskInboxLaneGroup struct {
+	Lane        TaskInboxLane   `json:"lane"`
+	Count       int             `json:"count"`
+	UnreadCount int             `json:"unread_count"`
+	Items       []TaskInboxItem `json:"items,omitempty"`
+}
+
+// TaskInboxView exposes the observer-backed aggregate payload for the Paper inbox.
+type TaskInboxView struct {
+	Total         int                  `json:"total"`
+	UnreadTotal   int                  `json:"unread_total"`
+	ArchivedTotal int                  `json:"archived_total"`
+	Groups        []TaskInboxLaneGroup `json:"groups,omitempty"`
+}
+
 type taskSnapshot struct {
 	tasks     []taskpkg.Summary
 	runs      []taskpkg.Run
@@ -416,6 +539,36 @@ func (o *Observer) QueryTaskDashboard(ctx context.Context, query TaskDashboardQu
 	}
 
 	return o.taskDashboardFromSnapshot(snapshot, summary, metrics, health), nil
+}
+
+// QueryTaskInbox returns the observer-backed aggregate task inbox view for one actor.
+func (o *Observer) QueryTaskInbox(
+	ctx context.Context,
+	query TaskInboxQuery,
+	actor taskpkg.ActorIdentity,
+) (TaskInboxView, error) {
+	if ctx == nil {
+		return TaskInboxView{}, errors.New("observe: task inbox context is required")
+	}
+	if err := query.Validate(); err != nil {
+		return TaskInboxView{}, err
+	}
+
+	normalizedActor, err := normalizeTaskInboxActor(actor)
+	if err != nil {
+		return TaskInboxView{}, err
+	}
+
+	snapshot, err := o.loadTaskSnapshot(ctx, query.summaryQuery())
+	if err != nil {
+		return TaskInboxView{}, err
+	}
+	triageStates, err := o.registry.ListTaskTriageStates(ctx, normalizedActor)
+	if err != nil {
+		return TaskInboxView{}, fmt.Errorf("observe: list task triage states: %w", err)
+	}
+
+	return taskInboxFromSnapshot(snapshot, triageStates, query, normalizedActor), nil
 }
 
 func (o *Observer) collectTaskHealth(ctx context.Context) (TaskHealth, error) {
@@ -750,6 +903,417 @@ func taskDashboardFreshnessFromSnapshot(
 	return freshness
 }
 
+func taskInboxFromSnapshot(
+	snapshot taskSnapshot,
+	triageStates []taskpkg.TriageState,
+	query TaskInboxQuery,
+	actor taskpkg.ActorIdentity,
+) TaskInboxView {
+	triageByTaskID := taskInboxTriageByTaskID(triageStates)
+	runsByTaskID := taskRunsByTaskID(snapshot.runs)
+	eventsByTaskID := taskEventsByTaskID(snapshot.events)
+	lanes := taskInboxLanes(query.Lane.Normalize())
+	itemsByLane := make(map[TaskInboxLane][]TaskInboxItem, len(lanes))
+	countsByLane := make(map[TaskInboxLane]int, len(lanes))
+	unreadByLane := make(map[TaskInboxLane]int, len(lanes))
+
+	view := TaskInboxView{}
+	selectedLane := query.Lane.Normalize()
+	for _, summary := range snapshot.tasks {
+		taskID := strings.TrimSpace(summary.ID)
+		if taskID == "" {
+			continue
+		}
+
+		taskRuns := runsByTaskID[taskID]
+		taskEvents := eventsByTaskID[taskID]
+		latestActivityAt := taskInboxLatestActivityAt(summary, taskRuns, taskEvents)
+		triage, hasTriage := triageByTaskID[taskID]
+		effectiveTriage := taskInboxEffectiveTriage(taskID, actor, latestActivityAt, triage, hasTriage)
+		if taskInboxSuppressedByDismissal(effectiveTriage) {
+			continue
+		}
+
+		latestRun := latestTaskInboxRun(taskRuns)
+		lane, include := taskInboxLaneForTask(summary, latestRun, taskRuns, effectiveTriage, actor)
+		if !include {
+			continue
+		}
+		if selectedLane != "" && lane != selectedLane {
+			continue
+		}
+
+		item := TaskInboxItem{
+			Task:             taskInboxReference(summary),
+			Lane:             lane,
+			ApprovalPolicy:   summary.ApprovalPolicy,
+			ApprovalState:    summary.ApprovalState,
+			BlockingReason:   taskInboxBlockingReason(summary, latestRun),
+			LatestActivityAt: latestActivityAt,
+			Run:              taskInboxRunSummary(latestRun, summary.MaxAttempts),
+			Triage:           effectiveTriage,
+		}
+		if query.Unread && !taskInboxItemUnread(item) {
+			continue
+		}
+
+		countsByLane[lane]++
+		if taskInboxItemUnread(item) {
+			unreadByLane[lane]++
+			view.UnreadTotal++
+		}
+		if lane == TaskInboxLaneArchived {
+			view.ArchivedTotal++
+		}
+		view.Total++
+		itemsByLane[lane] = append(itemsByLane[lane], item)
+	}
+
+	view.Groups = taskInboxGroups(lanes, itemsByLane, countsByLane, unreadByLane, query.Limit)
+	return view
+}
+
+func taskInboxTriageByTaskID(states []taskpkg.TriageState) map[string]taskpkg.TriageState {
+	items := make(map[string]taskpkg.TriageState, len(states))
+	for _, state := range states {
+		taskID := strings.TrimSpace(state.TaskID)
+		if taskID == "" {
+			continue
+		}
+		items[taskID] = state
+	}
+	return items
+}
+
+func normalizeTaskInboxActor(actor taskpkg.ActorIdentity) (taskpkg.ActorIdentity, error) {
+	normalized := taskpkg.ActorIdentity{
+		Kind: actor.Kind.Normalize(),
+		Ref:  strings.TrimSpace(actor.Ref),
+	}
+	if err := normalized.Validate("task_inbox.actor"); err != nil {
+		return taskpkg.ActorIdentity{}, err
+	}
+	return normalized, nil
+}
+
+func taskInboxLanes(filter TaskInboxLane) []TaskInboxLane {
+	if filter.Normalize() != "" {
+		return []TaskInboxLane{filter.Normalize()}
+	}
+	return []TaskInboxLane{
+		TaskInboxLaneMyWork,
+		TaskInboxLaneApprovals,
+		TaskInboxLaneFailedRuns,
+		TaskInboxLaneBlocked,
+		TaskInboxLaneArchived,
+	}
+}
+
+func taskRunsByTaskID(runs []taskpkg.Run) map[string][]taskpkg.Run {
+	items := make(map[string][]taskpkg.Run)
+	for _, run := range runs {
+		taskID := strings.TrimSpace(run.TaskID)
+		if taskID == "" {
+			continue
+		}
+		items[taskID] = append(items[taskID], run)
+	}
+	return items
+}
+
+func taskEventsByTaskID(events []taskpkg.Event) map[string][]taskpkg.Event {
+	items := make(map[string][]taskpkg.Event)
+	for _, event := range events {
+		taskID := strings.TrimSpace(event.TaskID)
+		if taskID == "" {
+			continue
+		}
+		items[taskID] = append(items[taskID], event)
+	}
+	return items
+}
+
+func taskInboxLatestActivityAt(
+	summary taskpkg.Summary,
+	runs []taskpkg.Run,
+	events []taskpkg.Event,
+) time.Time {
+	latest := summary.UpdatedAt
+	for _, candidate := range []time.Time{summary.CreatedAt, summary.ClosedAt, summary.LastActivityAt} {
+		if candidate.After(latest) {
+			latest = candidate
+		}
+	}
+	for _, run := range runs {
+		if runAt := dashboardRunActivityAt(run); runAt.After(latest) {
+			latest = runAt
+		}
+	}
+	for _, event := range events {
+		if event.Timestamp.After(latest) {
+			latest = event.Timestamp
+		}
+	}
+	return latest
+}
+
+func latestTaskInboxRun(runs []taskpkg.Run) *taskpkg.Run {
+	var latest *taskpkg.Run
+	for idx := range runs {
+		run := runs[idx]
+		if latest == nil || taskInboxRunComesAfter(run, *latest) {
+			candidate := run
+			latest = &candidate
+		}
+	}
+	return latest
+}
+
+func taskInboxRunComesAfter(left, right taskpkg.Run) bool {
+	switch {
+	case left.Attempt != right.Attempt:
+		return left.Attempt > right.Attempt
+	case !left.QueuedAt.Equal(right.QueuedAt):
+		return left.QueuedAt.After(right.QueuedAt)
+	default:
+		return left.ID > right.ID
+	}
+}
+
+func taskInboxEffectiveTriage(
+	taskID string,
+	actor taskpkg.ActorIdentity,
+	latestActivityAt time.Time,
+	record taskpkg.TriageState,
+	ok bool,
+) taskpkg.TriageState {
+	if !ok {
+		return taskpkg.TriageState{TaskID: taskID, Actor: actor}
+	}
+
+	effective := record
+	effective.TaskID = taskID
+	effective.Actor = actor
+	if effective.Archived {
+		effective.Read = true
+		effective.Dismissed = false
+		return effective
+	}
+	if !latestActivityAt.IsZero() &&
+		(effective.LastSeenActivityAt.IsZero() || latestActivityAt.After(effective.LastSeenActivityAt)) {
+		effective.Read = false
+		effective.Dismissed = false
+	}
+	return effective
+}
+
+func taskInboxSuppressedByDismissal(triage taskpkg.TriageState) bool {
+	return triage.Dismissed && !triage.Archived
+}
+
+func taskInboxLaneForTask(
+	summary taskpkg.Summary,
+	latestRun *taskpkg.Run,
+	runs []taskpkg.Run,
+	triage taskpkg.TriageState,
+	actor taskpkg.ActorIdentity,
+) (TaskInboxLane, bool) {
+	if triage.Archived {
+		return TaskInboxLaneArchived, true
+	}
+	if summary.Status.Normalize() == taskpkg.TaskStatusBlocked &&
+		summary.ApprovalPolicy.Normalize() == taskpkg.ApprovalPolicyManual &&
+		summary.ApprovalState.Normalize() == taskpkg.ApprovalStatePending {
+		return TaskInboxLaneApprovals, true
+	}
+	if latestRun != nil && latestRun.Status.Normalize() == taskpkg.TaskRunStatusFailed {
+		return TaskInboxLaneFailedRuns, true
+	}
+	if summary.Status.Normalize() == taskpkg.TaskStatusBlocked {
+		return TaskInboxLaneBlocked, true
+	}
+	if taskInboxIsMyWork(summary, runs, actor) && taskInboxEligibleForMyWork(summary.Status) {
+		return TaskInboxLaneMyWork, true
+	}
+	return "", false
+}
+
+func taskInboxBlockingReason(summary taskpkg.Summary, latestRun *taskpkg.Run) string {
+	if summary.ApprovalPolicy.Normalize() == taskpkg.ApprovalPolicyManual {
+		switch summary.ApprovalState.Normalize() {
+		case taskpkg.ApprovalStatePending:
+			return taskInboxBlockingReasonAwaitingApproval
+		case taskpkg.ApprovalStateRejected:
+			return taskInboxBlockingReasonApprovalRejected
+		}
+	}
+	if latestRun != nil && latestRun.Status.Normalize() == taskpkg.TaskRunStatusFailed {
+		return taskInboxBlockingReasonLatestRunFailed
+	}
+	if summary.Status.Normalize() == taskpkg.TaskStatusBlocked {
+		return taskInboxBlockingReasonAwaitingDeps
+	}
+	return ""
+}
+
+func taskInboxIsMyWork(
+	summary taskpkg.Summary,
+	runs []taskpkg.Run,
+	actor taskpkg.ActorIdentity,
+) bool {
+	if ownerKind, ok := taskInboxOwnerKindForActor(actor.Kind); ok && summary.Owner != nil &&
+		summary.Owner.Kind.Normalize() == ownerKind &&
+		strings.TrimSpace(summary.Owner.Ref) == strings.TrimSpace(actor.Ref) {
+		return true
+	}
+
+	for _, run := range runs {
+		if !isDashboardActiveRunStatus(run.Status) || run.ClaimedBy == nil {
+			continue
+		}
+		if run.ClaimedBy.Kind.Normalize() == actor.Kind.Normalize() &&
+			strings.TrimSpace(run.ClaimedBy.Ref) == strings.TrimSpace(actor.Ref) {
+			return true
+		}
+	}
+	return false
+}
+
+func taskInboxOwnerKindForActor(kind taskpkg.ActorKind) (taskpkg.OwnerKind, bool) {
+	switch kind.Normalize() {
+	case taskpkg.ActorKindHuman:
+		return taskpkg.OwnerKindHuman, true
+	case taskpkg.ActorKindAgentSession:
+		return taskpkg.OwnerKindAgentSession, true
+	case taskpkg.ActorKindAutomation:
+		return taskpkg.OwnerKindAutomation, true
+	case taskpkg.ActorKindExtension:
+		return taskpkg.OwnerKindExtension, true
+	case taskpkg.ActorKindNetworkPeer:
+		return taskpkg.OwnerKindNetworkPeer, true
+	default:
+		return "", false
+	}
+}
+
+func taskInboxEligibleForMyWork(status taskpkg.Status) bool {
+	switch status.Normalize() {
+	case taskpkg.TaskStatusDraft,
+		taskpkg.TaskStatusCompleted,
+		taskpkg.TaskStatusFailed,
+		taskpkg.TaskStatusCanceled:
+		return false
+	default:
+		return true
+	}
+}
+
+func taskInboxReference(summary taskpkg.Summary) taskpkg.Reference {
+	return taskpkg.Reference{
+		ID:          summary.ID,
+		Identifier:  summary.Identifier,
+		Title:       summary.Title,
+		Status:      summary.Status,
+		Priority:    summary.Priority,
+		Owner:       cloneOwnership(summary.Owner),
+		Scope:       summary.Scope,
+		WorkspaceID: summary.WorkspaceID,
+	}
+}
+
+func taskInboxRunSummary(run *taskpkg.Run, maxAttempts int) *taskpkg.RunSummary {
+	if run == nil {
+		return nil
+	}
+	return &taskpkg.RunSummary{
+		ID:          run.ID,
+		TaskID:      run.TaskID,
+		Status:      run.Status,
+		Attempt:     run.Attempt,
+		MaxAttempts: maxAttempts,
+		SessionID:   run.SessionID,
+		ClaimedBy:   cloneActorIdentity(run.ClaimedBy),
+		QueuedAt:    run.QueuedAt,
+		ClaimedAt:   run.ClaimedAt,
+		StartedAt:   run.StartedAt,
+		EndedAt:     run.EndedAt,
+		Error:       strings.TrimSpace(run.Error),
+	}
+}
+
+func taskInboxItemUnread(item TaskInboxItem) bool {
+	return !item.Triage.Read
+}
+
+func taskInboxGroups(
+	lanes []TaskInboxLane,
+	itemsByLane map[TaskInboxLane][]TaskInboxItem,
+	countsByLane map[TaskInboxLane]int,
+	unreadByLane map[TaskInboxLane]int,
+	limit int,
+) []TaskInboxLaneGroup {
+	groups := make([]TaskInboxLaneGroup, 0, len(lanes))
+	for _, lane := range lanes {
+		items := itemsByLane[lane]
+		sortTaskInboxItems(items)
+		if limit > 0 && len(items) > limit {
+			items = append([]TaskInboxItem(nil), items[:limit]...)
+		} else if len(items) > 0 {
+			items = append([]TaskInboxItem(nil), items...)
+		}
+		groups = append(groups, TaskInboxLaneGroup{
+			Lane:        lane,
+			Count:       countsByLane[lane],
+			UnreadCount: unreadByLane[lane],
+			Items:       items,
+		})
+	}
+	return groups
+}
+
+func sortTaskInboxItems(items []TaskInboxItem) {
+	slices.SortFunc(items, compareTaskInboxItems)
+}
+
+func compareTaskInboxItems(left, right TaskInboxItem) int {
+	if leftUnread, rightUnread := taskInboxItemUnread(left), taskInboxItemUnread(right); leftUnread != rightUnread {
+		if leftUnread {
+			return -1
+		}
+		return 1
+	}
+	if !left.LatestActivityAt.Equal(right.LatestActivityAt) {
+		if left.LatestActivityAt.After(right.LatestActivityAt) {
+			return -1
+		}
+		return 1
+	}
+	leftPriority := taskInboxPriorityRank(left.Task.Priority)
+	rightPriority := taskInboxPriorityRank(right.Task.Priority)
+	if leftPriority != rightPriority {
+		if leftPriority > rightPriority {
+			return -1
+		}
+		return 1
+	}
+	return strings.Compare(left.Task.ID, right.Task.ID)
+}
+
+func taskInboxPriorityRank(priority taskpkg.Priority) int {
+	switch priority.Normalize() {
+	case taskpkg.PriorityUrgent:
+		return 4
+	case taskpkg.PriorityHigh:
+		return 3
+	case taskpkg.PriorityMedium:
+		return 2
+	case taskpkg.PriorityLow:
+		return 1
+	default:
+		return 0
+	}
+}
+
 func countTaskStatus(rows []TaskStatusTotal, status taskpkg.Status) int {
 	count := 0
 	for _, item := range rows {
@@ -996,6 +1560,14 @@ func cloneOwnership(owner *taskpkg.Ownership) *taskpkg.Ownership {
 	return &cloned
 }
 
+func cloneActorIdentity(actor *taskpkg.ActorIdentity) *taskpkg.ActorIdentity {
+	if actor == nil {
+		return nil
+	}
+	cloned := *actor
+	return &cloned
+}
+
 func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery) (taskSnapshot, error) {
 	if ctx == nil {
 		return taskSnapshot{}, errors.New("observe: task summary context is required")
@@ -1010,6 +1582,7 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		OwnerKind:      query.OwnerKind.Normalize(),
 		OwnerRef:       strings.TrimSpace(query.OwnerRef),
 		NetworkChannel: strings.TrimSpace(query.NetworkChannel),
+		Search:         strings.TrimSpace(query.Search),
 	})
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list tasks for summary: %w", err)

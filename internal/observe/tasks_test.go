@@ -870,6 +870,268 @@ func TestTaskObserveQueryValidationAndConfigOption(t *testing.T) {
 			err,
 		)
 	}
+	if err := (TaskInboxQuery{Lane: TaskInboxLane("bogus")}).Validate(); !errors.Is(err, taskpkg.ErrValidation) ||
+		!strings.Contains(err.Error(), "lane") {
+		t.Fatalf("TaskInboxQuery.Validate(invalid lane) error = %v, want ErrValidation mentioning lane", err)
+	}
+}
+
+func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	now := h.observer.now()
+	alice := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "alice"}
+
+	createObserveTask(t, h, taskpkg.Task{
+		ID:          "task-my-work-read",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "My work read",
+		Priority:    taskpkg.PriorityHigh,
+		Status:      taskpkg.TaskStatusReady,
+		Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
+		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "alice"),
+		Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		CreatedAt:   now.Add(-25 * time.Minute),
+		UpdatedAt:   now.Add(-20 * time.Minute),
+	})
+	createObserveTriage(t, h, taskpkg.TriageState{
+		TaskID:             "task-my-work-read",
+		Actor:              alice,
+		Read:               true,
+		LastSeenActivityAt: now.Add(-20 * time.Minute),
+		UpdatedAt:          now.Add(-19 * time.Minute),
+	})
+
+	createObserveTask(t, h, taskpkg.Task{
+		ID:          "task-my-work-resurfaced",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Resurfaced task",
+		Priority:    taskpkg.PriorityUrgent,
+		Status:      taskpkg.TaskStatusReady,
+		Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
+		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "alice"),
+		Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		CreatedAt:   now.Add(-35 * time.Minute),
+		UpdatedAt:   now.Add(-5 * time.Minute),
+	})
+	createObserveTriage(t, h, taskpkg.TriageState{
+		TaskID:             "task-my-work-resurfaced",
+		Actor:              alice,
+		Read:               true,
+		Dismissed:          true,
+		LastSeenActivityAt: now.Add(-30 * time.Minute),
+		UpdatedAt:          now.Add(-29 * time.Minute),
+	})
+
+	createObserveTask(t, h, taskpkg.Task{
+		ID:             "task-approval",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    h.workspaceID,
+		Title:          "Needs approval",
+		Status:         taskpkg.TaskStatusBlocked,
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+		ApprovalState:  taskpkg.ApprovalStatePending,
+		CreatedBy:      taskActor(taskpkg.ActorKindHuman, "alice"),
+		Origin:         taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		CreatedAt:      now.Add(-18 * time.Minute),
+		UpdatedAt:      now.Add(-4 * time.Minute),
+	})
+
+	createObserveTask(t, h, taskpkg.Task{
+		ID:             "task-failed",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    h.workspaceID,
+		Title:          "Failed deploy",
+		Status:         taskpkg.TaskStatusFailed,
+		NetworkChannel: "ops",
+		CreatedBy:      taskActor(taskpkg.ActorKindAutomation, "rule-1"),
+		Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
+		CreatedAt:      now.Add(-22 * time.Minute),
+		UpdatedAt:      now.Add(-10 * time.Minute),
+		ClosedAt:       now.Add(-3 * time.Minute),
+	})
+	createObserveRun(t, h, taskpkg.Run{
+		ID:             "run-failed-latest",
+		TaskID:         "task-failed",
+		Status:         taskpkg.TaskRunStatusFailed,
+		Attempt:        2,
+		Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
+		NetworkChannel: "ops",
+		QueuedAt:       now.Add(-9 * time.Minute),
+		ClaimedAt:      now.Add(-8 * time.Minute),
+		StartedAt:      now.Add(-7 * time.Minute),
+		EndedAt:        now.Add(-3 * time.Minute),
+		Error:          "boom",
+	})
+
+	createObserveTask(t, h, taskpkg.Task{
+		ID:          "task-blocked",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Dependency blocked",
+		Status:      taskpkg.TaskStatusBlocked,
+		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "alice"),
+		Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		CreatedAt:   now.Add(-17 * time.Minute),
+		UpdatedAt:   now.Add(-7 * time.Minute),
+	})
+
+	createObserveTask(t, h, taskpkg.Task{
+		ID:          "task-archived",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Archived review",
+		Status:      taskpkg.TaskStatusReady,
+		Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
+		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "alice"),
+		Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		CreatedAt:   now.Add(-16 * time.Minute),
+		UpdatedAt:   now.Add(-8 * time.Minute),
+	})
+	createObserveTriage(t, h, taskpkg.TriageState{
+		TaskID:             "task-archived",
+		Actor:              alice,
+		Read:               true,
+		Archived:           true,
+		LastSeenActivityAt: now.Add(-8 * time.Minute),
+		UpdatedAt:          now.Add(-7 * time.Minute),
+	})
+
+	createObserveTask(t, h, taskpkg.Task{
+		ID:          "task-dismissed-hidden",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Dismissed hidden",
+		Status:      taskpkg.TaskStatusReady,
+		Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
+		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "alice"),
+		Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		CreatedAt:   now.Add(-30 * time.Minute),
+		UpdatedAt:   now.Add(-25 * time.Minute),
+	})
+	createObserveTriage(t, h, taskpkg.TriageState{
+		TaskID:             "task-dismissed-hidden",
+		Actor:              alice,
+		Read:               true,
+		Dismissed:          true,
+		LastSeenActivityAt: now.Add(-5 * time.Minute),
+		UpdatedAt:          now.Add(-5 * time.Minute),
+	})
+
+	inbox, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{}, alice)
+	if err != nil {
+		t.Fatalf("QueryTaskInbox() error = %v", err)
+	}
+
+	if got, want := inbox.Total, 6; got != want {
+		t.Fatalf("inbox.Total = %d, want %d", got, want)
+	}
+	if got, want := inbox.UnreadTotal, 4; got != want {
+		t.Fatalf("inbox.UnreadTotal = %d, want %d", got, want)
+	}
+	if got, want := inbox.ArchivedTotal, 1; got != want {
+		t.Fatalf("inbox.ArchivedTotal = %d, want %d", got, want)
+	}
+
+	myWork := requireInboxGroup(t, inbox.Groups, TaskInboxLaneMyWork)
+	if got, want := myWork.Count, 2; got != want {
+		t.Fatalf("myWork.Count = %d, want %d", got, want)
+	}
+	if got, want := myWork.UnreadCount, 1; got != want {
+		t.Fatalf("myWork.UnreadCount = %d, want %d", got, want)
+	}
+	if got, want := inboxItemTaskIDs(
+		myWork.Items,
+	), []string{
+		"task-my-work-resurfaced",
+		"task-my-work-read",
+	}; !equalStringSlices(
+		got,
+		want,
+	) {
+		t.Fatalf("myWork item ids = %#v, want %#v", got, want)
+	}
+	if myWork.Items[0].Triage.Dismissed {
+		t.Fatalf("myWork.Items[0].Triage.Dismissed = true, want false after newer activity")
+	}
+
+	approvals := requireInboxGroup(t, inbox.Groups, TaskInboxLaneApprovals)
+	if got, want := approvals.Count, 1; got != want {
+		t.Fatalf("approvals.Count = %d, want %d", got, want)
+	}
+	if got, want := approvals.Items[0].BlockingReason, taskInboxBlockingReasonAwaitingApproval; got != want {
+		t.Fatalf("approvals.Items[0].BlockingReason = %q, want %q", got, want)
+	}
+
+	failed := requireInboxGroup(t, inbox.Groups, TaskInboxLaneFailedRuns)
+	if got, want := failed.Count, 1; got != want {
+		t.Fatalf("failed.Count = %d, want %d", got, want)
+	}
+	if failed.Items[0].Run == nil || failed.Items[0].Run.ID != "run-failed-latest" {
+		t.Fatalf("failed.Items[0].Run = %#v, want run-failed-latest", failed.Items[0].Run)
+	}
+	if got, want := failed.Items[0].BlockingReason, taskInboxBlockingReasonLatestRunFailed; got != want {
+		t.Fatalf("failed.Items[0].BlockingReason = %q, want %q", got, want)
+	}
+
+	blocked := requireInboxGroup(t, inbox.Groups, TaskInboxLaneBlocked)
+	if got, want := blocked.Count, 1; got != want {
+		t.Fatalf("blocked.Count = %d, want %d", got, want)
+	}
+	if got, want := blocked.Items[0].BlockingReason, taskInboxBlockingReasonAwaitingDeps; got != want {
+		t.Fatalf("blocked.Items[0].BlockingReason = %q, want %q", got, want)
+	}
+
+	archived := requireInboxGroup(t, inbox.Groups, TaskInboxLaneArchived)
+	if got, want := archived.Count, 1; got != want {
+		t.Fatalf("archived.Count = %d, want %d", got, want)
+	}
+	if archived.UnreadCount != 0 {
+		t.Fatalf("archived.UnreadCount = %d, want 0", archived.UnreadCount)
+	}
+
+	approvalsOnly, err := h.observer.QueryTaskInbox(
+		testutil.Context(t),
+		TaskInboxQuery{Lane: TaskInboxLaneApprovals},
+		alice,
+	)
+	if err != nil {
+		t.Fatalf("QueryTaskInbox(approvals) error = %v", err)
+	}
+	if got, want := len(approvalsOnly.Groups), 1; got != want {
+		t.Fatalf("len(approvalsOnly.Groups) = %d, want %d", got, want)
+	}
+	if approvalsOnly.Groups[0].Lane != TaskInboxLaneApprovals || approvalsOnly.Total != 1 {
+		t.Fatalf("approvalsOnly = %#v, want approvals-only lane with total 1", approvalsOnly)
+	}
+
+	unreadOnly, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{Unread: true}, alice)
+	if err != nil {
+		t.Fatalf("QueryTaskInbox(unread) error = %v", err)
+	}
+	if got, want := unreadOnly.Total, 4; got != want {
+		t.Fatalf("unreadOnly.Total = %d, want %d", got, want)
+	}
+	if requireInboxGroup(t, unreadOnly.Groups, TaskInboxLaneArchived).Count != 0 {
+		t.Fatalf(
+			"unread archived count = %d, want 0",
+			requireInboxGroup(t, unreadOnly.Groups, TaskInboxLaneArchived).Count,
+		)
+	}
+
+	searchOnly, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{Search: "resurfaced"}, alice)
+	if err != nil {
+		t.Fatalf("QueryTaskInbox(search) error = %v", err)
+	}
+	if got, want := searchOnly.Total, 1; got != want {
+		t.Fatalf("searchOnly.Total = %d, want %d", got, want)
+	}
+	if got, want := requireInboxGroup(t, searchOnly.Groups, TaskInboxLaneMyWork).Items[0].Task.ID, "task-my-work-resurfaced"; got != want {
+		t.Fatalf("searchOnly item id = %q, want %q", got, want)
+	}
 }
 
 func TestObserverHealthWrapsTaskHealthErrors(t *testing.T) {
@@ -908,6 +1170,13 @@ func createObserveEvent(t *testing.T, h *harness, event taskpkg.Event) {
 	t.Helper()
 	if err := h.registry.CreateTaskEvent(testutil.Context(t), event); err != nil {
 		t.Fatalf("CreateTaskEvent(%q) error = %v", event.ID, err)
+	}
+}
+
+func createObserveTriage(t *testing.T, h *harness, state taskpkg.TriageState) {
+	t.Helper()
+	if err := h.registry.UpsertTaskTriageState(testutil.Context(t), state); err != nil {
+		t.Fatalf("UpsertTaskTriageState(%q/%q) error = %v", state.Actor.Kind, state.Actor.Ref, err)
 	}
 }
 
@@ -1030,4 +1299,35 @@ func activeRunIDs(rows []TaskDashboardActiveRun) []string {
 		ids = append(ids, item.RunID)
 	}
 	return ids
+}
+
+func requireInboxGroup(t *testing.T, groups []TaskInboxLaneGroup, lane TaskInboxLane) TaskInboxLaneGroup {
+	t.Helper()
+	for _, group := range groups {
+		if group.Lane == lane {
+			return group
+		}
+	}
+	t.Fatalf("missing inbox group %q in %#v", lane, groups)
+	return TaskInboxLaneGroup{}
+}
+
+func inboxItemTaskIDs(items []TaskInboxItem) []string {
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.Task.ID)
+	}
+	return ids
+}
+
+func equalStringSlices(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if left[idx] != right[idx] {
+			return false
+		}
+	}
+	return true
 }

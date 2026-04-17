@@ -1817,11 +1817,15 @@ func TestManagerApprovalGateBlocksExecutionUntilApproved(t *testing.T) {
 		t.Fatalf("ClaimRun(blocked) error = %v, want %v", err, ErrInvalidStatusTransition)
 	}
 
-	approved := store.tasks[taskRecord.ID]
-	approved.ApprovalState = ApprovalStateApproved
-	approved.UpdatedAt = approved.UpdatedAt.Add(time.Minute)
-	if err := store.UpdateTask(context.Background(), approved); err != nil {
-		t.Fatalf("store.UpdateTask(approved) error = %v", err)
+	approved, err := manager.ApproveTask(context.Background(), taskRecord.ID, actor)
+	if err != nil {
+		t.Fatalf("ApproveTask() error = %v", err)
+	}
+	if got, want := approved.ApprovalState, ApprovalStateApproved; got != want {
+		t.Fatalf("approved.ApprovalState = %q, want %q", got, want)
+	}
+	if got, want := approved.Status, TaskStatusReady; got != want {
+		t.Fatalf("approved.Status = %q, want %q", got, want)
 	}
 
 	claimed, err := manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
@@ -1833,6 +1837,140 @@ func TestManagerApprovalGateBlocksExecutionUntilApproved(t *testing.T) {
 	}
 	if got, want := store.tasks[taskRecord.ID].Status, TaskStatusReady; got != want {
 		t.Fatalf("task.Status after claim = %q, want %q", got, want)
+	}
+
+	events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if !containsEventType(events, taskEventApproved) {
+		t.Fatalf("event types = %v, want %q", sortedEventTypes(events), taskEventApproved)
+	}
+}
+
+func TestManagerRejectTaskKeepsManualApprovalBlocked(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:          ScopeGlobal,
+		Title:          "Manual rejection task",
+		ApprovalPolicy: ApprovalPolicyManual,
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+
+	rejected, err := manager.RejectTask(context.Background(), taskRecord.ID, actor)
+	if err != nil {
+		t.Fatalf("RejectTask() error = %v", err)
+	}
+	if got, want := rejected.ApprovalState, ApprovalStateRejected; got != want {
+		t.Fatalf("rejected.ApprovalState = %q, want %q", got, want)
+	}
+	if got, want := rejected.Status, TaskStatusBlocked; got != want {
+		t.Fatalf("rejected.Status = %q, want %q", got, want)
+	}
+	if _, err := manager.ClaimRun(
+		context.Background(),
+		run.ID,
+		ClaimRun{},
+		actor,
+	); !errors.Is(
+		err,
+		ErrInvalidStatusTransition,
+	) {
+		t.Fatalf("ClaimRun(rejected) error = %v, want %v", err, ErrInvalidStatusTransition)
+	}
+
+	events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if !containsEventType(events, taskEventRejected) {
+		t.Fatalf("event types = %v, want %q", sortedEventTypes(events), taskEventRejected)
+	}
+}
+
+func TestManagerTaskTriageMutationsPersistActorScopedStateWithoutTaskEvents(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	alice := validActorContext()
+	bob := validActorContext()
+	bob.Actor.Ref = "user-bob"
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Inbox triage target",
+	}, alice)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	eventsBefore, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents(before) error = %v", err)
+	}
+	if got, want := len(eventsBefore), 1; got != want {
+		t.Fatalf("len(eventsBefore) = %d, want %d", got, want)
+	}
+
+	readState, err := manager.MarkTaskRead(context.Background(), taskRecord.ID, alice)
+	if err != nil {
+		t.Fatalf("MarkTaskRead() error = %v", err)
+	}
+	if !readState.Read || readState.Archived || readState.Dismissed {
+		t.Fatalf("readState = %#v, want read-only triage state", readState)
+	}
+	if !readState.LastSeenActivityAt.Equal(taskRecord.UpdatedAt) {
+		t.Fatalf("readState.LastSeenActivityAt = %v, want %v", readState.LastSeenActivityAt, taskRecord.UpdatedAt)
+	}
+
+	dismissedState, err := manager.DismissTask(context.Background(), taskRecord.ID, bob)
+	if err != nil {
+		t.Fatalf("DismissTask() error = %v", err)
+	}
+	if !dismissedState.Read || !dismissedState.Dismissed || dismissedState.Archived {
+		t.Fatalf("dismissedState = %#v, want dismissed unread-clearing triage state", dismissedState)
+	}
+
+	archivedState, err := manager.ArchiveTask(context.Background(), taskRecord.ID, alice)
+	if err != nil {
+		t.Fatalf("ArchiveTask() error = %v", err)
+	}
+	if !archivedState.Read || !archivedState.Archived || archivedState.Dismissed {
+		t.Fatalf("archivedState = %#v, want archived triage state", archivedState)
+	}
+
+	storedAlice, err := store.GetTaskTriageState(context.Background(), taskRecord.ID, alice.Actor)
+	if err != nil {
+		t.Fatalf("GetTaskTriageState(alice) error = %v", err)
+	}
+	if storedAlice != archivedState {
+		t.Fatalf("storedAlice = %#v, want %#v", storedAlice, archivedState)
+	}
+	storedBob, err := store.GetTaskTriageState(context.Background(), taskRecord.ID, bob.Actor)
+	if err != nil {
+		t.Fatalf("GetTaskTriageState(bob) error = %v", err)
+	}
+	if storedBob != dismissedState {
+		t.Fatalf("storedBob = %#v, want %#v", storedBob, dismissedState)
+	}
+
+	eventsAfter, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents(after) error = %v", err)
+	}
+	if got, want := len(eventsAfter), len(eventsBefore); got != want {
+		t.Fatalf("len(eventsAfter) = %d, want %d; event types=%v", got, want, sortedEventTypes(eventsAfter))
 	}
 }
 

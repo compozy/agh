@@ -40,6 +40,7 @@ type Registry interface {
 	ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpkg.Summary, error)
 	ListTaskRuns(ctx context.Context, query taskpkg.RunQuery) ([]taskpkg.Run, error)
 	ListTaskEvents(ctx context.Context, query taskpkg.EventQuery) ([]taskpkg.Event, error)
+	ListTaskTriageStates(ctx context.Context, actor taskpkg.ActorIdentity) ([]taskpkg.TriageState, error)
 	Path() string
 	Close(ctx context.Context) error
 }

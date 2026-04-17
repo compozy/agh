@@ -553,6 +553,199 @@ func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
 	}
 }
 
+func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	clock := &observeTaskClock{current: h.now.Add(30 * time.Minute)}
+	executor := &observeSessionExecutor{nextSessionID: "sess-observe-inbox"}
+	manager := newObserveTaskManager(t, h, executor, clock)
+	h.observer.now = clock.Now
+
+	alice, err := taskpkg.DeriveHumanActorContext("alice", taskpkg.OriginKindCLI, "agh task inbox")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext(alice) error = %v", err)
+	}
+	daemonActor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+
+	myWork, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "My work",
+		Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
+	}, alice)
+	if err != nil {
+		t.Fatalf("CreateTask(myWork) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	approveTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    h.workspaceID,
+		Title:          "Approve me",
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+		Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
+	}, alice)
+	if err != nil {
+		t.Fatalf("CreateTask(approveTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	rejectTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    h.workspaceID,
+		Title:          "Reject me",
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+		Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
+	}, alice)
+	if err != nil {
+		t.Fatalf("CreateTask(rejectTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	archiveTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Archive me",
+		Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
+	}, alice)
+	if err != nil {
+		t.Fatalf("CreateTask(archiveTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	failTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Fail me",
+		Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
+		MaxAttempts: intPtr(1),
+	}, alice)
+	if err != nil {
+		t.Fatalf("CreateTask(failTask) error = %v", err)
+	}
+
+	clock.Advance(time.Minute)
+	failRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: failTask.ID}, alice)
+	if err != nil {
+		t.Fatalf("EnqueueRun(failTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.ClaimRun(
+		testutil.Context(t),
+		failRun.ID,
+		taskpkg.ClaimRun{IdempotencyKey: "claim-inbox-fail-1"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("ClaimRun(failTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.StartRun(
+		testutil.Context(t),
+		failRun.ID,
+		taskpkg.StartRun{IdempotencyKey: "start-inbox-fail-1"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("StartRun(failTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.FailRun(
+		testutil.Context(t),
+		failRun.ID,
+		taskpkg.RunFailure{Error: "boom"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("FailRun(failTask) error = %v", err)
+	}
+
+	initial, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{}, alice.Actor)
+	if err != nil {
+		t.Fatalf("QueryTaskInbox(initial) error = %v", err)
+	}
+	if got, want := initial.Total, 5; got != want {
+		t.Fatalf("initial.Total = %d, want %d", got, want)
+	}
+	if got, want := requireInboxGroup(t, initial.Groups, TaskInboxLaneApprovals).Count, 2; got != want {
+		t.Fatalf("initial approvals count = %d, want %d", got, want)
+	}
+	if got, want := requireInboxGroup(t, initial.Groups, TaskInboxLaneMyWork).Count, 2; got != want {
+		t.Fatalf("initial my_work count = %d, want %d", got, want)
+	}
+	if got, want := requireInboxGroup(t, initial.Groups, TaskInboxLaneFailedRuns).Count, 1; got != want {
+		t.Fatalf("initial failed count = %d, want %d", got, want)
+	}
+
+	if _, err := manager.MarkTaskRead(testutil.Context(t), myWork.ID, alice); err != nil {
+		t.Fatalf("MarkTaskRead(myWork) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.ArchiveTask(testutil.Context(t), archiveTask.ID, alice); err != nil {
+		t.Fatalf("ArchiveTask(archiveTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.DismissTask(testutil.Context(t), failTask.ID, alice); err != nil {
+		t.Fatalf("DismissTask(failTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.ApproveTask(testutil.Context(t), approveTask.ID, alice); err != nil {
+		t.Fatalf("ApproveTask(approveTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.RejectTask(testutil.Context(t), rejectTask.ID, alice); err != nil {
+		t.Fatalf("RejectTask(rejectTask) error = %v", err)
+	}
+
+	updated, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{}, alice.Actor)
+	if err != nil {
+		t.Fatalf("QueryTaskInbox(updated) error = %v", err)
+	}
+	if got, want := updated.Total, 4; got != want {
+		t.Fatalf("updated.Total = %d, want %d", got, want)
+	}
+	if got, want := updated.UnreadTotal, 2; got != want {
+		t.Fatalf("updated.UnreadTotal = %d, want %d", got, want)
+	}
+	if got, want := updated.ArchivedTotal, 1; got != want {
+		t.Fatalf("updated.ArchivedTotal = %d, want %d", got, want)
+	}
+	if got, want := requireInboxGroup(t, updated.Groups, TaskInboxLaneApprovals).Count, 0; got != want {
+		t.Fatalf("updated approvals count = %d, want %d", got, want)
+	}
+	if got, want := requireInboxGroup(t, updated.Groups, TaskInboxLaneFailedRuns).Count, 0; got != want {
+		t.Fatalf("updated failed count = %d, want %d", got, want)
+	}
+	if got, want := requireInboxGroup(t, updated.Groups, TaskInboxLaneArchived).Count, 1; got != want {
+		t.Fatalf("updated archived count = %d, want %d", got, want)
+	}
+	blocked := requireInboxGroup(t, updated.Groups, TaskInboxLaneBlocked)
+	if got, want := blocked.Count, 1; got != want {
+		t.Fatalf("updated blocked count = %d, want %d", got, want)
+	}
+	if got, want := blocked.Items[0].BlockingReason, taskInboxBlockingReasonApprovalRejected; got != want {
+		t.Fatalf("blocked reason = %q, want %q", got, want)
+	}
+	myWorkGroup := requireInboxGroup(t, updated.Groups, TaskInboxLaneMyWork)
+	if got, want := myWorkGroup.Count, 2; got != want {
+		t.Fatalf("updated my_work count = %d, want %d", got, want)
+	}
+	if got, want := inboxItemTaskIDs(myWorkGroup.Items), []string{approveTask.ID, myWork.ID}; !equalStringSlices(got, want) {
+		t.Fatalf("updated my_work ids = %#v, want %#v", got, want)
+	}
+
+	unreadOnly, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{Unread: true}, alice.Actor)
+	if err != nil {
+		t.Fatalf("QueryTaskInbox(unread) error = %v", err)
+	}
+	if got, want := unreadOnly.Total, 2; got != want {
+		t.Fatalf("unreadOnly.Total = %d, want %d", got, want)
+	}
+	if got, want := requireInboxGroup(t, unreadOnly.Groups, TaskInboxLaneMyWork).Count, 1; got != want {
+		t.Fatalf("unread my_work count = %d, want %d", got, want)
+	}
+	if got, want := requireInboxGroup(t, unreadOnly.Groups, TaskInboxLaneBlocked).Count, 1; got != want {
+		t.Fatalf("unread blocked count = %d, want %d", got, want)
+	}
+}
+
 func newObserveTaskManager(t *testing.T, h *harness, executor *observeSessionExecutor, clock *observeTaskClock) *taskpkg.Service {
 	t.Helper()
 

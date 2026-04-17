@@ -106,6 +106,62 @@ func (g *GlobalDB) UpsertTaskTriageState(ctx context.Context, state taskpkg.Tria
 	return nil
 }
 
+// ListTaskTriageStates returns all durable triage states persisted for one actor.
+func (g *GlobalDB) ListTaskTriageStates(
+	ctx context.Context,
+	actor taskpkg.ActorIdentity,
+) ([]taskpkg.TriageState, error) {
+	if err := g.checkReady(ctx, "list task triage states"); err != nil {
+		return nil, err
+	}
+
+	normalizedActor, err := normalizeTaskTriageActor(actor)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := g.db.QueryContext(
+		ctx,
+		`SELECT
+			task_id, actor_kind, actor_ref, is_read, archived, dismissed, last_seen_activity_at, updated_at
+		 FROM task_triage_state
+		 WHERE actor_kind = ? AND actor_ref = ?
+		 ORDER BY updated_at DESC, task_id ASC`,
+		string(normalizedActor.Kind),
+		normalizedActor.Ref,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"store: query task triage states for actor %q/%q: %w",
+			normalizedActor.Kind,
+			normalizedActor.Ref,
+			err,
+		)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	states := make([]taskpkg.TriageState, 0)
+	for rows.Next() {
+		record, scanErr := scanTaskTriageStateRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		states = append(states, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf(
+			"store: iterate task triage states for actor %q/%q: %w",
+			normalizedActor.Kind,
+			normalizedActor.Ref,
+			err,
+		)
+	}
+
+	return states, nil
+}
+
 // CreateDependency inserts one durable task-dependency edge under a single SQLite write lock.
 func (g *GlobalDB) CreateDependency(ctx context.Context, dependency taskpkg.Dependency) error {
 	if err := g.checkReady(ctx, "create task dependency"); err != nil {
@@ -847,15 +903,23 @@ func normalizeTaskTriageLookup(
 		return "", taskpkg.ActorIdentity{}, err
 	}
 
+	normalizedActor, err := normalizeTaskTriageActor(actor)
+	if err != nil {
+		return "", taskpkg.ActorIdentity{}, err
+	}
+
+	return trimmedTaskID, normalizedActor, nil
+}
+
+func normalizeTaskTriageActor(actor taskpkg.ActorIdentity) (taskpkg.ActorIdentity, error) {
 	normalizedActor := taskpkg.ActorIdentity{
 		Kind: actor.Kind.Normalize(),
 		Ref:  strings.TrimSpace(actor.Ref),
 	}
 	if err := normalizedActor.Validate("task_triage_state.actor"); err != nil {
-		return "", taskpkg.ActorIdentity{}, err
+		return taskpkg.ActorIdentity{}, err
 	}
-
-	return trimmedTaskID, normalizedActor, nil
+	return normalizedActor, nil
 }
 
 func normalizeTaskDependencyRecord(record taskpkg.Dependency) taskpkg.Dependency {
