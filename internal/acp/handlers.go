@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	exec "os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -547,12 +548,11 @@ func (m *terminalManager) create(
 		return acpsdk.CreateTerminalResponse{}, fmt.Errorf("acp: start terminal command %q: %w", argv[0], err)
 	}
 	if m.ctx != nil {
-		go func() {
-			<-m.ctx.Done()
+		watchTerminalShutdown(m.ctx, term.done, func() {
 			if err := killManagedProcess(cmd); err != nil {
 				m.logTerminalKillError(term.id, "manager shutdown", err)
 			}
-		}()
+		})
 	}
 
 	m.mu.Lock()
@@ -944,15 +944,48 @@ func trimUTF8LeadingBytes(data []byte) []byte {
 	return trimmed
 }
 
+func fallbackPermissionEventRaw(requestID string, decision permissionDecision) json.RawMessage {
+	var builder strings.Builder
+	builder.WriteString(`{"request_id":`)
+	builder.WriteString(strconv.Quote(requestID))
+	if decision != "" && decision != decisionPending {
+		builder.WriteString(`,"decision":`)
+		builder.WriteString(strconv.Quote(string(decision)))
+	}
+	builder.WriteByte('}')
+	return json.RawMessage(builder.String())
+}
+
 func mustMarshalJSON(value any) json.RawMessage {
 	if value == nil {
 		return nil
 	}
 	encoded, err := json.Marshal(value)
 	if err != nil {
-		panic(fmt.Errorf("acp: marshal json: %w", err))
+		return nil
 	}
 	return encoded
+}
+
+func watchTerminalShutdown(ctx context.Context, terminalDone <-chan struct{}, onShutdown func()) <-chan struct{} {
+	watcherDone := make(chan struct{})
+	if ctx == nil {
+		close(watcherDone)
+		return watcherDone
+	}
+
+	go func() {
+		defer close(watcherDone)
+		select {
+		case <-ctx.Done():
+			if onShutdown != nil {
+				onShutdown()
+			}
+		case <-terminalDone:
+		}
+	}()
+
+	return watcherDone
 }
 
 func timeNowUTC() time.Time {

@@ -248,6 +248,69 @@ func TestTokenUsageParsing(t *testing.T) {
 	}
 }
 
+func TestDriverRejectsUninitializedProcessState(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+
+	t.Run("prompt requires connection", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{SessionID: "session-1"}
+		events, err := driver.Prompt(context.Background(), proc, PromptRequest{
+			TurnID:  "turn-1",
+			Message: "hello",
+		})
+		if err == nil {
+			t.Fatalf("Prompt() error = nil, want %v", errProcessConnectionUninitialized)
+		}
+		if !errors.Is(err, errProcessConnectionUninitialized) {
+			t.Fatalf("Prompt() error = %v, want %v", err, errProcessConnectionUninitialized)
+		}
+		if events != nil {
+			t.Fatalf("Prompt() events = %v, want nil", events)
+		}
+	})
+
+	t.Run("cancel requires connection and does not panic", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{SessionID: "session-1"}
+		var (
+			err    error
+			panicV any
+		)
+		func() {
+			defer func() {
+				panicV = recover()
+			}()
+			err = driver.Cancel(context.Background(), proc)
+		}()
+
+		if panicV != nil {
+			t.Fatalf("Cancel() panicked: %v", panicV)
+		}
+		if !errors.Is(err, errProcessConnectionUninitialized) {
+			t.Fatalf("Cancel() error = %v, want %v", err, errProcessConnectionUninitialized)
+		}
+	})
+
+	t.Run("stop requires lifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+
+		err := driver.Stop(ctx, &AgentProcess{})
+		if err == nil {
+			t.Fatalf("Stop() error = nil, want %v", errProcessLifecycleUninitialized)
+		}
+		if !errors.Is(err, errProcessLifecycleUninitialized) {
+			t.Fatalf("Stop() error = %v, want %v", err, errProcessLifecycleUninitialized)
+		}
+	})
+}
+
 func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 	t.Parallel()
 

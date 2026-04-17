@@ -32,6 +32,10 @@ var (
 	ErrAgentDoesNotSupportSession = errors.New("acp: agent does not support session/load")
 	// ErrLoadSessionFailed reports that ACP session/load failed during resume.
 	ErrLoadSessionFailed = errors.New("acp: load session failed")
+	// errProcessConnectionUninitialized reports that the driver received a process without an ACP connection.
+	errProcessConnectionUninitialized = errors.New("acp: process connection is not initialized")
+	// errProcessLifecycleUninitialized reports that the driver received a process without a managed lifecycle.
+	errProcessLifecycleUninitialized = errors.New("acp: process lifecycle is not initialized")
 )
 
 const requestErrorResourceNotFoundCode = -32002
@@ -452,6 +456,9 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 	if proc == nil {
 		return nil, errors.New("acp: agent process is required")
 	}
+	if proc.conn == nil {
+		return nil, errProcessConnectionUninitialized
+	}
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
@@ -472,6 +479,9 @@ func (d *Driver) Cancel(ctx context.Context, proc *AgentProcess) error {
 	}
 	if proc == nil {
 		return errors.New("acp: agent process is required")
+	}
+	if proc.conn == nil {
+		return errProcessConnectionUninitialized
 	}
 	if strings.TrimSpace(proc.SessionID) == "" {
 		return errors.New("acp: session id is required")
@@ -503,11 +513,17 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 	if proc == nil {
 		return errors.New("acp: agent process is required")
 	}
+	if proc.done == nil {
+		return errProcessLifecycleUninitialized
+	}
 
 	select {
 	case <-proc.Done():
 		return proc.Wait()
 	default:
+	}
+	if proc.handle == nil && proc.managed == nil && proc.cmd == nil {
+		return errProcessLifecycleUninitialized
 	}
 
 	proc.markStopRequested()

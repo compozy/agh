@@ -346,10 +346,7 @@ func buildPermissionEventRaw(
 
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return mustMarshalJSON(map[string]any{
-			"request_id": requestID,
-			"decision":   string(decision),
-		})
+		return fallbackPermissionEventRaw(requestID, decision)
 	}
 	return data
 }

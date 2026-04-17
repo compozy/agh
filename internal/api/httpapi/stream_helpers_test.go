@@ -406,11 +406,12 @@ func TestExtractPromptMessageCoversContentFallbacks(t *testing.T) {
 			Parts: []uiMessageTextPart{
 				{Type: "tool-call", Text: "ignored"},
 				{Type: "text", Text: "part one"},
+				{Type: " text ", Text: "part one point five"},
 				{Type: "", Text: "part two"},
 			},
 		}},
 	})
-	if err != nil || message != "part one\npart two" {
+	if err != nil || message != "part one\npart one point five\npart two" {
 		t.Fatalf("extractPromptMessage(parts) = %q, %v", message, err)
 	}
 
