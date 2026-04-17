@@ -32,10 +32,12 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 	}
 
 	writeFile(t, homePaths.ConfigFile, `
+# bootstrap comment
 [http]
 port = 3030
 
 [providers.claude]
+# keep api key comment
 api_key_env = "ANTHROPIC_KEY"
 `)
 
@@ -84,10 +86,14 @@ api_key_env = "ANTHROPIC_KEY"
 	}
 	text := string(contents)
 	for _, want := range []string{
+		`# bootstrap comment`,
+		`# keep api key comment`,
 		`agent = "general"`,
 		`provider = "claude"`,
 		`mode = "approve-all"`,
 		`default_model = "claude-sonnet-4-20250514"`,
+		`port = 3030`,
+		`api_key_env = "ANTHROPIC_KEY"`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("config contents missing %q\n%s", want, text)

@@ -36,14 +36,24 @@ func ParseMCPServersJSON(content []byte, source string) ([]MCPServer, error) {
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(content))
-	decoder.DisallowUnknownFields()
-
-	var document mcpJSONDocument
-	if err := decoder.Decode(&document); err != nil {
+	var root map[string]json.RawMessage
+	if err := decoder.Decode(&root); err != nil {
 		return nil, fmt.Errorf("config: decode MCP JSON %q: %w", sourceName, err)
 	}
 	if err := ensureJSONEOF(decoder, sourceName); err != nil {
 		return nil, err
+	}
+
+	var document mcpJSONDocument
+	if raw := root["mcpServers"]; len(raw) > 0 {
+		if err := json.Unmarshal(raw, &document.MCPServersCamel); err != nil {
+			return nil, fmt.Errorf("config: decode MCP JSON %q mcpServers: %w", sourceName, err)
+		}
+	}
+	if raw := root["mcp_servers"]; len(raw) > 0 {
+		if err := json.Unmarshal(raw, &document.MCPServersSnake); err != nil {
+			return nil, fmt.Errorf("config: decode MCP JSON %q mcp_servers: %w", sourceName, err)
+		}
 	}
 
 	servers := sortedMCPJSONServers(document.MCPServersCamel)

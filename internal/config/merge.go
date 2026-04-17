@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	burnttoml "github.com/BurntSushi/toml"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 )
@@ -204,23 +204,27 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 }
 
 func loadConfigOverlayFile(path string) (configOverlay, error) {
-	var overlay configOverlay
-
 	contents, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return overlay, nil
+			return configOverlay{}, nil
 		}
-		return overlay, fmt.Errorf("read config file %q: %w", path, err)
+		return configOverlay{}, fmt.Errorf("read config file %q: %w", path, err)
 	}
 
-	meta, err := toml.Decode(string(contents), &overlay)
+	return loadConfigOverlayBytes(contents, path)
+}
+
+func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, error) {
+	var overlay configOverlay
+
+	meta, err := burnttoml.Decode(string(contents), &overlay)
 	if err != nil {
-		return overlay, fmt.Errorf("decode config file %q: %w", path, err)
+		return overlay, fmt.Errorf("decode config file %q: %w", source, err)
 	}
 
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
-		return overlay, fmt.Errorf("unknown config keys in %q: %s", path, joinTOMLKeys(undecoded))
+		return overlay, fmt.Errorf("unknown config keys in %q: %s", source, joinTOMLKeys(undecoded))
 	}
 
 	return overlay, nil
@@ -641,7 +645,7 @@ func applyMCPServerOverlays(base []MCPServer, overlays []mcpServerOverlay) []MCP
 	return merged
 }
 
-func joinTOMLKeys(keys []toml.Key) string {
+func joinTOMLKeys(keys []burnttoml.Key) string {
 	if len(keys) == 0 {
 		return ""
 	}

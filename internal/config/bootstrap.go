@@ -1,14 +1,11 @@
 package config
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/BurntSushi/toml"
 )
 
 const legacyDreamAgentName = "claude"
@@ -48,43 +45,34 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 		return Config{}, err
 	}
 
-	overlay, err := loadConfigOverlayFile(homePaths.ConfigFile)
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
 	if err != nil {
-		return Config{}, fmt.Errorf("load global config overlay: %w", err)
+		return Config{}, err
 	}
 
-	overlay.Defaults.Agent = stringPtr(DefaultAgentName)
-	overlay.Defaults.Provider = stringPtr(selectedProvider)
-	overlay.Permissions.Mode = permissionModePtr(PermissionModeApproveAll)
+	dreamAgent := ""
 	if strings.TrimSpace(current.Memory.Dream.Agent) == "" ||
 		strings.TrimSpace(current.Memory.Dream.Agent) == legacyDreamAgentName {
-		overlay.Memory.Dream.Agent = stringPtr(DefaultAgentName)
-	}
-	if overlay.Providers == nil {
-		overlay.Providers = make(map[string]providerOverlay)
-	}
-	providerOverlay := overlay.Providers[selectedProvider]
-	providerOverlay.DefaultModel = stringPtr(selectedModel)
-	overlay.Providers[selectedProvider] = providerOverlay
-
-	finalCfg := DefaultWithHome(homePaths)
-	if err := overlay.Apply(&finalCfg); err != nil {
-		return Config{}, fmt.Errorf("apply bootstrap config overlay: %w", err)
-	}
-	if err := applyConfigMCPSidecarFile(globalMCPJSONFile(homePaths), &finalCfg); err != nil {
-		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
-	}
-	if err := normalizeConfigPaths(&finalCfg); err != nil {
-		return Config{}, err
-	}
-	if err := finalCfg.Validate(); err != nil {
-		return Config{}, fmt.Errorf("validate bootstrap config: %w", err)
+		dreamAgent = DefaultAgentName
 	}
 
-	if err := writeConfigOverlayFile(homePaths.ConfigFile, &overlay); err != nil {
-		return Config{}, err
-	}
-	return finalCfg, nil
+	return EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+		if err := editor.SetValue([]string{"defaults", "agent"}, DefaultAgentName); err != nil {
+			return err
+		}
+		if err := editor.SetValue([]string{"defaults", "provider"}, selectedProvider); err != nil {
+			return err
+		}
+		if err := editor.SetValue([]string{"permissions", "mode"}, string(PermissionModeApproveAll)); err != nil {
+			return err
+		}
+		if dreamAgent != "" {
+			if err := editor.SetValue([]string{"memory", "dream", "agent"}, dreamAgent); err != nil {
+				return err
+			}
+		}
+		return editor.SetValue([]string{"providers", selectedProvider, "default_model"}, selectedModel)
+	})
 }
 
 // EnsureBootstrapAgent creates the managed default agent definition if it does not already exist.
@@ -120,27 +108,4 @@ func bootstrapAgentContents() string {
 		"Operate autonomously, complete tasks end-to-end, and follow the active workspace instructions.",
 		"Provider and model are resolved from the user's AGH configuration unless this agent is overridden.",
 	}, "\n")
-}
-
-func writeConfigOverlayFile(path string, overlay *configOverlay) error {
-	var buffer bytes.Buffer
-	if err := toml.NewEncoder(&buffer).Encode(overlay); err != nil {
-		return fmt.Errorf("encode config file %q: %w", path, err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("create config directory %q: %w", filepath.Dir(path), err)
-	}
-	if err := os.WriteFile(path, buffer.Bytes(), 0o600); err != nil {
-		return fmt.Errorf("write config file %q: %w", path, err)
-	}
-	return nil
-}
-
-func stringPtr(value string) *string {
-	return &value
-}
-
-func permissionModePtr(value PermissionMode) *PermissionMode {
-	return &value
 }
