@@ -3,7 +3,6 @@ package bridgesdk
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -215,8 +214,7 @@ func (b *InboundBatcher) Close() {
 
 // InboundBatchKey derives the stable routing-identity key used for batching.
 func InboundBatchKey(envelope bridgepkg.InboundMessageEnvelope) string {
-	return fmt.Sprintf(
-		"%s|%s|%s|%s|%s|%s|%s|%s",
+	parts := [...]string{
 		strings.TrimSpace(envelope.BridgeInstanceID),
 		strings.TrimSpace(string(envelope.Scope)),
 		strings.TrimSpace(envelope.WorkspaceID),
@@ -225,7 +223,22 @@ func InboundBatchKey(envelope bridgepkg.InboundMessageEnvelope) string {
 		strings.TrimSpace(envelope.GroupID),
 		strings.TrimSpace(envelope.Sender.ID),
 		strings.TrimSpace(string(envelope.EventFamily)),
-	)
+	}
+
+	totalLen := len(parts) - 1
+	for _, part := range parts {
+		totalLen += len(part)
+	}
+
+	var builder strings.Builder
+	builder.Grow(totalLen)
+	for idx, part := range parts {
+		if idx > 0 {
+			builder.WriteByte('|')
+		}
+		builder.WriteString(part)
+	}
+	return builder.String()
 }
 
 func (b *InboundBatcher) flushKey(key string) {

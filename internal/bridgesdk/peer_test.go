@@ -142,3 +142,37 @@ func TestPeerServeReturnsDecodeErrorForMalformedFrame(t *testing.T) {
 		t.Fatal("Serve(malformed frame) error = nil, want non-nil")
 	}
 }
+
+func TestPeerCallReturnsErrorForUnmarshalableParams(t *testing.T) {
+	t.Parallel()
+
+	peer := NewPeer(strings.NewReader(""), io.Discard)
+
+	type badParams struct {
+		Callback func()
+	}
+
+	var (
+		err      error
+		panicked any
+	)
+
+	func() {
+		defer func() {
+			panicked = recover()
+		}()
+		err = peer.Call(t.Context(), "bad", badParams{
+			Callback: func() {},
+		}, nil)
+	}()
+
+	if panicked != nil {
+		t.Fatalf("Call() panicked: %v", panicked)
+	}
+	if err == nil {
+		t.Fatal("Call() error = nil, want non-nil")
+	}
+	if len(peer.pending) != 0 {
+		t.Fatalf("len(peer.pending) = %d, want 0", len(peer.pending))
+	}
+}

@@ -112,6 +112,11 @@ func (p *Peer) Call(ctx context.Context, method string, params any, result any) 
 		return errors.New("bridgesdk: call method is required")
 	}
 
+	paramsRaw, err := marshalParams(params)
+	if err != nil {
+		return fmt.Errorf("bridgesdk: encode %q params: %w", strings.TrimSpace(method), err)
+	}
+
 	requestID := strconv.FormatInt(p.nextID.Add(1), 10)
 	responseCh := make(chan rpcResult, 1)
 
@@ -123,7 +128,7 @@ func (p *Peer) Call(ctx context.Context, method string, params any, result any) 
 		JSONRPC: bridgeSDKJSONRPCVersion,
 		ID:      json.RawMessage(strconv.AppendQuote(nil, requestID)),
 		Method:  strings.TrimSpace(method),
-		Params:  mustRawJSON(params),
+		Params:  paramsRaw,
 	}); err != nil {
 		p.pendingMu.Lock()
 		delete(p.pending, requestID)
@@ -369,13 +374,13 @@ func rpcIDKey(raw json.RawMessage) string {
 	return trimmed
 }
 
-func mustRawJSON(value any) json.RawMessage {
+func marshalParams(value any) (json.RawMessage, error) {
 	if value == nil {
-		return json.RawMessage("null")
+		return json.RawMessage("null"), nil
 	}
 	payload, err := json.Marshal(value)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return payload
+	return payload, nil
 }

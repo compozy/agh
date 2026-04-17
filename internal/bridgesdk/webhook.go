@@ -42,11 +42,12 @@ type WebhookGuardConfig struct {
 
 // FixedWindowRateLimiter applies a simple fixed-window request limit per key.
 type FixedWindowRateLimiter struct {
-	mu     sync.Mutex
-	limit  int
-	window time.Duration
-	now    func() time.Time
-	counts map[string]fixedWindowCounter
+	mu        sync.Mutex
+	limit     int
+	window    time.Duration
+	now       func() time.Time
+	lastSweep time.Time
+	counts    map[string]fixedWindowCounter
 }
 
 type fixedWindowCounter struct {
@@ -89,6 +90,10 @@ func (l *FixedWindowRateLimiter) Allow(key string) bool {
 	defer l.mu.Unlock()
 
 	now := l.now()
+	if l.lastSweep.IsZero() || now.Sub(l.lastSweep) >= l.window {
+		l.evictExpiredLocked(now)
+		l.lastSweep = now
+	}
 	entry := l.counts[trimmedKey]
 	if entry.windowStart.IsZero() || now.Sub(entry.windowStart) >= l.window {
 		entry = fixedWindowCounter{
@@ -105,6 +110,16 @@ func (l *FixedWindowRateLimiter) Allow(key string) bool {
 	entry.count++
 	l.counts[trimmedKey] = entry
 	return true
+}
+
+func (l *FixedWindowRateLimiter) evictExpiredLocked(now time.Time) {
+	cutoff := now.Add(-l.window)
+	for key, entry := range l.counts {
+		if entry.windowStart.After(cutoff) || entry.windowStart.Equal(cutoff) {
+			continue
+		}
+		delete(l.counts, key)
+	}
 }
 
 // NewInFlightLimiter constructs a new in-flight semaphore.
