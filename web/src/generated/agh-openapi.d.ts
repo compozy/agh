@@ -731,6 +731,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/observe/tasks/dashboard": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the observer-backed task dashboard */
+    get: operations["getTaskDashboard"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/observe/tasks/inbox": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the observer-backed task inbox */
+    get: operations["getTaskInbox"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/resources": {
     parameters: {
       query?: never;
@@ -1309,6 +1343,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/task-runs/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one task run detail */
+    get: operations["getTaskRun"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/task-runs/{id}/attach-session": {
     parameters: {
       query?: never;
@@ -1418,7 +1469,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List tasks */
+    /** List enriched tasks */
     get: operations["listTasks"];
     put?: never;
     /** Create a task */
@@ -1445,6 +1496,23 @@ export interface paths {
     head?: never;
     /** Update one task */
     patch: operations["updateTask"];
+    trace?: never;
+  };
+  "/api/tasks/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve one approval-gated task */
+    post: operations["approveTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/tasks/{id}/cancel": {
@@ -1515,6 +1583,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tasks/{id}/publish": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Publish one draft task */
+    post: operations["publishTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/reject": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reject one approval-gated task */
+    post: operations["rejectTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{id}/runs": {
     parameters: {
       query?: never;
@@ -1527,6 +1629,108 @@ export interface paths {
     put?: never;
     /** Enqueue one task run */
     post: operations["enqueueTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream task-native live events for one task */
+    get: operations["streamTask"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/timeline": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one task timeline */
+    get: operations["getTaskTimeline"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/tree": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one task tree live view */
+    get: operations["getTaskTree"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/triage/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archive one task inbox item */
+    post: operations["archiveTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/triage/dismiss": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Dismiss one task inbox item */
+    post: operations["dismissTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/triage/read": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark one task inbox item as read */
+    post: operations["markTaskRead"];
     delete?: never;
     options?: never;
     head?: never;
@@ -7322,6 +7526,483 @@ export interface operations {
       };
     };
   };
+  getTaskDashboard: {
+    parameters: {
+      query?: {
+        /** @description Filter by task scope */
+        scope?: "global" | "workspace";
+        /** @description Filter by workspace path, name, or ID */
+        workspace?: string;
+        /** @description Filter by owner kind */
+        owner_kind?:
+          | "human"
+          | "agent_session"
+          | "automation"
+          | "extension"
+          | "network_peer"
+          | "pool";
+        /** @description Filter by owner reference */
+        owner_ref?: string;
+        /** @description Filter by network channel */
+        network_channel?: string;
+        /** @description Filter by task origin kind */
+        origin_kind?:
+          | "cli"
+          | "web"
+          | "uds"
+          | "http"
+          | "automation"
+          | "extension"
+          | "network"
+          | "agent_session"
+          | "daemon";
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dashboard: {
+              active_runs: {
+                claimed: number;
+                items?: {
+                  /** Format: int64 */
+                  age_ms: number;
+                  attempt: number;
+                  error?: string;
+                  health_status: string;
+                  /** Format: date-time */
+                  last_activity_at: string;
+                  max_attempts: number;
+                  network_channel?: string;
+                  run_id: string;
+                  /** @enum {string} */
+                  run_status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  session_id?: string;
+                  stuck: boolean;
+                  task_id: string;
+                  task_identifier?: string;
+                  task_owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  /** @enum {string} */
+                  task_priority?: "low" | "medium" | "high" | "urgent";
+                  /** @enum {string} */
+                  task_status:
+                    | "draft"
+                    | "pending"
+                    | "blocked"
+                    | "ready"
+                    | "in_progress"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_title: string;
+                  workspace_id?: string;
+                }[];
+                queued: number;
+                running: number;
+                starting: number;
+                total: number;
+              };
+              cards: {
+                blocked: {
+                  awaiting_approval: number;
+                  awaiting_dependencies: number;
+                  health_status: string;
+                  tasks: number;
+                };
+                failed: {
+                  failed_runs: number;
+                  forced_stops: number;
+                  health_status: string;
+                  tasks: number;
+                };
+                in_progress: {
+                  active_runs: number;
+                  claimed_runs: number;
+                  health_status: string;
+                  queued_runs: number;
+                  running_runs: number;
+                  starting_runs: number;
+                  tasks: number;
+                };
+                latency: {
+                  claim_latency_ms: {
+                    /** Format: int64 */
+                    average_ms: number;
+                    /** Format: int64 */
+                    maximum_ms: number;
+                    samples: number;
+                  };
+                  start_latency_ms: {
+                    /** Format: int64 */
+                    average_ms: number;
+                    /** Format: int64 */
+                    maximum_ms: number;
+                    samples: number;
+                  };
+                };
+              };
+              freshness: {
+                /** Format: int64 */
+                age_ms: number;
+                has_live_work: boolean;
+                /** Format: date-time */
+                latest_activity_at: string;
+                /** Format: date-time */
+                observed_at: string;
+                stale: boolean;
+                /** Format: int64 */
+                stale_after_ms: number;
+                status: string;
+              };
+              health: {
+                active_orphan_runs: number;
+                queue_backlog: boolean;
+                status: string;
+                stuck_runs: number;
+              };
+              queue: {
+                backlog_status: string;
+                /** Format: int64 */
+                backlog_threshold_ms: number;
+                backlog_warning: boolean;
+                depth?: {
+                  count: number;
+                  network_channel?: string;
+                  /** Format: int64 */
+                  oldest_queue_age_ms: number;
+                  /** Format: date-time */
+                  oldest_queued_at: string;
+                }[];
+                /** Format: int64 */
+                oldest_queue_age_ms: number;
+                /** Format: date-time */
+                oldest_queued_at: string;
+                total: number;
+              };
+              status_breakdown?: {
+                count: number;
+                share_percent: number;
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+              }[];
+              totals: {
+                active_runs: number;
+                awaiting_approval_tasks: number;
+                blocked_tasks: number;
+                canceled_runs: number;
+                canceled_tasks: number;
+                claimed_runs: number;
+                completed_runs: number;
+                completed_tasks: number;
+                dependency_blocked_tasks: number;
+                draft_tasks: number;
+                failed_runs: number;
+                failed_tasks: number;
+                in_progress_tasks: number;
+                pending_tasks: number;
+                queued_runs: number;
+                ready_tasks: number;
+                running_runs: number;
+                runs_total: number;
+                starting_runs: number;
+                tasks_total: number;
+              };
+            };
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task dashboard query */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Observe service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getTaskInbox: {
+    parameters: {
+      query?: {
+        /** @description Filter by task scope */
+        scope?: "global" | "workspace";
+        /** @description Filter by workspace path, name, or ID */
+        workspace?: string;
+        /** @description Filter by owner kind */
+        owner_kind?:
+          | "human"
+          | "agent_session"
+          | "automation"
+          | "extension"
+          | "network_peer"
+          | "pool";
+        /** @description Filter by owner reference */
+        owner_ref?: string;
+        /** @description Filter by inbox lane */
+        lane?: "my_work" | "approvals" | "failed_runs" | "blocked" | "archived";
+        /** @description Return only unread inbox items */
+        unread?: boolean;
+        /** @description Filter by task title or identifier */
+        query?: string;
+        /** @description Maximum number of inbox items to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            inbox: {
+              archived_total: number;
+              groups?: {
+                count: number;
+                items?: {
+                  /** @enum {string} */
+                  approval_policy?: "none" | "manual";
+                  /** @enum {string} */
+                  approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                  blocking_reason?: string;
+                  /** @enum {string} */
+                  lane: "my_work" | "approvals" | "failed_runs" | "blocked" | "archived";
+                  /** Format: date-time */
+                  latest_activity_at: string;
+                  run?: {
+                    attempt: number;
+                    /** Format: date-time */
+                    claimed_at?: string | null;
+                    claimed_by?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "daemon";
+                      ref: string;
+                    } | null;
+                    /** Format: date-time */
+                    ended_at?: string | null;
+                    error?: string;
+                    id: string;
+                    max_attempts: number;
+                    /** Format: date-time */
+                    queued_at: string;
+                    session_id?: string;
+                    /** Format: date-time */
+                    started_at?: string | null;
+                    /** @enum {string} */
+                    status:
+                      | "queued"
+                      | "claimed"
+                      | "starting"
+                      | "running"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    task_id: string;
+                  } | null;
+                  task: {
+                    id: string;
+                    identifier?: string;
+                    owner?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "pool";
+                      ref: string;
+                    } | null;
+                    /** @enum {string} */
+                    priority?: "low" | "medium" | "high" | "urgent";
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    /** @enum {string} */
+                    status:
+                      | "draft"
+                      | "pending"
+                      | "blocked"
+                      | "ready"
+                      | "in_progress"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    title: string;
+                    workspace_id?: string;
+                  };
+                  triage: {
+                    actor: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "daemon";
+                      ref: string;
+                    };
+                    archived: boolean;
+                    dismissed: boolean;
+                    /** Format: date-time */
+                    last_seen_activity_at?: string | null;
+                    read: boolean;
+                    task_id: string;
+                    /** Format: date-time */
+                    updated_at: string;
+                  };
+                }[];
+                /** @enum {string} */
+                lane: "my_work" | "approvals" | "failed_runs" | "blocked" | "archived";
+                unread_count: number;
+              }[];
+              total: number;
+              unread_total: number;
+            };
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task inbox query */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Observe service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   listResources: {
     parameters: {
       query?: {
@@ -12394,6 +13075,195 @@ export interface operations {
       };
     };
   };
+  getTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              run: {
+                attempt: number;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                id: string;
+                idempotency_key?: string;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                /** Format: date-time */
+                queued_at: string;
+                result?: unknown;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              };
+              session?: {
+                agent_name?: string;
+                channel?: string;
+                /** Format: date-time */
+                created_at: string;
+                name?: string;
+                session_id: string;
+                state?: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              } | null;
+              summary: {
+                cost_currency?: string | null;
+                /** Format: int64 */
+                input_tokens?: number | null;
+                /** Format: date-time */
+                last_activity_at: string;
+                last_event_type?: string;
+                /** Format: int64 */
+                output_tokens?: number | null;
+                /** Format: int64 */
+                tool_call_count?: number | null;
+                /** Format: double */
+                total_cost?: number | null;
+                /** Format: int64 */
+                total_tokens?: number | null;
+                /** Format: int64 */
+                turn_count?: number | null;
+              };
+              task: {
+                id: string;
+                identifier?: string;
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                title: string;
+                workspace_id?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task-run id */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   attachTaskRunSession: {
     parameters: {
       query?: never;
@@ -12475,17 +13345,6 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid attach-session request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
       /** @description Task run or session not found */
       404: {
         headers: {
@@ -12499,6 +13358,17 @@ export interface operations {
       };
       /** @description Attach-session conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid attach-session request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -12620,17 +13490,6 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task-run cancel request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
       /** @description Task run not found */
       404: {
         headers: {
@@ -12644,6 +13503,17 @@ export interface operations {
       };
       /** @description Task-run cancel conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task-run cancel request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -12764,17 +13634,6 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task-run claim request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
       /** @description Task run not found */
       404: {
         headers: {
@@ -12788,6 +13647,17 @@ export interface operations {
       };
       /** @description Task-run claim conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task-run claim request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -12908,17 +13778,6 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task-run completion request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
       /** @description Task run not found */
       404: {
         headers: {
@@ -12932,6 +13791,17 @@ export interface operations {
       };
       /** @description Task-run completion conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task-run completion request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -13053,17 +13923,6 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task-run failure request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
       /** @description Task run not found */
       404: {
         headers: {
@@ -13077,6 +13936,17 @@ export interface operations {
       };
       /** @description Task-run failure conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task-run failure request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -13197,17 +14067,6 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task-run start request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
       /** @description Task run not found */
       404: {
         headers: {
@@ -13221,6 +14080,17 @@ export interface operations {
       };
       /** @description Task-run start conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task-run start request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -13269,6 +14139,7 @@ export interface operations {
         workspace?: string;
         /** @description Filter by task status */
         status?:
+          | "draft"
           | "pending"
           | "blocked"
           | "ready"
@@ -13276,6 +14147,12 @@ export interface operations {
           | "completed"
           | "failed"
           | "canceled";
+        /** @description Filter by task priority */
+        priority?: "low" | "medium" | "high" | "urgent";
+        /** @description Include draft tasks in list results */
+        include_drafts?: boolean;
+        /** @description Filter by task approval state */
+        approval_state?: "not_required" | "pending" | "approved" | "rejected";
         /** @description Filter by owner kind */
         owner_kind?:
           | "human"
@@ -13290,6 +14167,8 @@ export interface operations {
         parent_task_id?: string;
         /** @description Filter by network channel */
         network_channel?: string;
+        /** @description Filter by task title or identifier */
+        query?: string;
         /** @description Maximum number of records to return */
         limit?: number;
       };
@@ -13307,6 +14186,47 @@ export interface operations {
         content: {
           "application/json": {
             tasks: {
+              active_run?: {
+                attempt: number;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                id: string;
+                max_attempts: number;
+                /** Format: date-time */
+                queued_at: string;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              } | null;
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              child_count?: number;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -13322,8 +14242,52 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              dependencies?: {
+                /** Format: date-time */
+                created_at: string;
+                depends_on: {
+                  id: string;
+                  identifier?: string;
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  /** @enum {string} */
+                  priority?: "low" | "medium" | "high" | "urgent";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  /** @enum {string} */
+                  status:
+                    | "draft"
+                    | "pending"
+                    | "blocked"
+                    | "ready"
+                    | "in_progress"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  title: string;
+                  workspace_id?: string;
+                };
+                depends_on_task_id: string;
+                /** @enum {string} */
+                kind: "blocks";
+                task_id: string;
+              }[];
+              dependency_count?: number;
+              draft?: boolean;
               id: string;
               identifier?: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              max_attempts?: number;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -13352,9 +14316,12 @@ export interface operations {
               } | null;
               parent_task_id?: string;
               /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
               status:
+                | "draft"
                 | "pending"
                 | "blocked"
                 | "ready"
@@ -13370,8 +14337,8 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task filter */
-      400: {
+      /** @description Workspace not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -13381,8 +14348,8 @@ export interface operations {
           };
         };
       };
-      /** @description Workspace not found */
-      404: {
+      /** @description Invalid task filter */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -13433,9 +14400,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          /** @enum {string} */
+          approval_policy?: "none" | "manual";
           description?: string;
+          draft?: boolean;
           id?: string;
           identifier?: string;
+          max_attempts?: number | null;
           metadata?: unknown;
           network_channel?: string;
           owner?: {
@@ -13443,6 +14414,8 @@ export interface operations {
             kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
             ref: string;
           } | null;
+          /** @enum {string} */
+          priority?: "low" | "medium" | "high" | "urgent";
           /** @enum {string} */
           scope: "global" | "workspace";
           title: string;
@@ -13459,6 +14432,10 @@ export interface operations {
         content: {
           "application/json": {
             task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -13477,6 +14454,7 @@ export interface operations {
               description?: string;
               id: string;
               identifier?: string;
+              max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -13506,9 +14484,12 @@ export interface operations {
               } | null;
               parent_task_id?: string;
               /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
               status:
+                | "draft"
                 | "pending"
                 | "blocked"
                 | "ready"
@@ -13524,17 +14505,6 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
       /** @description Workspace not found */
       404: {
         headers: {
@@ -13546,8 +14516,30 @@ export interface operations {
           };
         };
       };
+      /** @description Task conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Payload too large */
       413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -13608,6 +14600,47 @@ export interface operations {
           "application/json": {
             task: {
               children?: {
+                active_run?: {
+                  attempt: number;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  id: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  queued_at: string;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -13623,8 +14656,52 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                dependencies?: {
+                  /** Format: date-time */
+                  created_at: string;
+                  depends_on: {
+                    id: string;
+                    identifier?: string;
+                    owner?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "pool";
+                      ref: string;
+                    } | null;
+                    /** @enum {string} */
+                    priority?: "low" | "medium" | "high" | "urgent";
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    /** @enum {string} */
+                    status:
+                      | "draft"
+                      | "pending"
+                      | "blocked"
+                      | "ready"
+                      | "in_progress"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    title: string;
+                    workspace_id?: string;
+                  };
+                  depends_on_task_id: string;
+                  /** @enum {string} */
+                  kind: "blocks";
+                  task_id: string;
+                }[];
+                dependency_count?: number;
+                draft?: boolean;
                 id: string;
                 identifier?: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                max_attempts?: number;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -13653,9 +14730,12 @@ export interface operations {
                 } | null;
                 parent_task_id?: string;
                 /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
                 status:
+                  | "draft"
                   | "pending"
                   | "blocked"
                   | "ready"
@@ -13671,6 +14751,45 @@ export interface operations {
               dependencies?: {
                 /** Format: date-time */
                 created_at: string;
+                depends_on_task_id: string;
+                /** @enum {string} */
+                kind: "blocks";
+                task_id: string;
+              }[];
+              dependency_references?: {
+                /** Format: date-time */
+                created_at: string;
+                depends_on: {
+                  id: string;
+                  identifier?: string;
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  /** @enum {string} */
+                  priority?: "low" | "medium" | "high" | "urgent";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  /** @enum {string} */
+                  status:
+                    | "draft"
+                    | "pending"
+                    | "blocked"
+                    | "ready"
+                    | "in_progress"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  title: string;
+                  workspace_id?: string;
+                };
                 depends_on_task_id: string;
                 /** @enum {string} */
                 kind: "blocks";
@@ -13762,7 +14881,160 @@ export interface operations {
                   | "canceled";
                 task_id: string;
               }[];
+              summary: {
+                active_run?: {
+                  attempt: number;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  id: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  queued_at: string;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                child_count?: number;
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                dependencies?: {
+                  /** Format: date-time */
+                  created_at: string;
+                  depends_on: {
+                    id: string;
+                    identifier?: string;
+                    owner?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "pool";
+                      ref: string;
+                    } | null;
+                    /** @enum {string} */
+                    priority?: "low" | "medium" | "high" | "urgent";
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    /** @enum {string} */
+                    status:
+                      | "draft"
+                      | "pending"
+                      | "blocked"
+                      | "ready"
+                      | "in_progress"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    title: string;
+                    workspace_id?: string;
+                  };
+                  depends_on_task_id: string;
+                  /** @enum {string} */
+                  kind: "blocks";
+                  task_id: string;
+                }[];
+                dependency_count?: number;
+                draft?: boolean;
+                id: string;
+                identifier?: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                max_attempts?: number;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
               task: {
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -13781,6 +15053,7 @@ export interface operations {
                 description?: string;
                 id: string;
                 identifier?: string;
+                max_attempts?: number;
                 metadata?: unknown;
                 network_channel?: string;
                 origin: {
@@ -13810,9 +15083,12 @@ export interface operations {
                 } | null;
                 parent_task_id?: string;
                 /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
                 status:
+                  | "draft"
                   | "pending"
                   | "blocked"
                   | "ready"
@@ -13829,8 +15105,8 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task id */
-      400: {
+      /** @description Task not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -13840,8 +15116,8 @@ export interface operations {
           };
         };
       };
-      /** @description Task not found */
-      404: {
+      /** @description Invalid task id */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -13895,8 +15171,11 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          /** @enum {string} */
+          approval_policy?: "none" | "manual";
           clear_owner?: boolean;
           description?: string | null;
+          max_attempts?: number | null;
           metadata?: unknown;
           network_channel?: string | null;
           owner?: {
@@ -13904,6 +15183,8 @@ export interface operations {
             kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
             ref: string;
           } | null;
+          /** @enum {string} */
+          priority?: "low" | "medium" | "high" | "urgent";
           title?: string | null;
         };
       };
@@ -13917,6 +15198,10 @@ export interface operations {
         content: {
           "application/json": {
             task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -13935,6 +15220,7 @@ export interface operations {
               description?: string;
               id: string;
               identifier?: string;
+              max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -13964,9 +15250,12 @@ export interface operations {
               } | null;
               parent_task_id?: string;
               /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
               status:
+                | "draft"
                 | "pending"
                 | "blocked"
                 | "ready"
@@ -13979,17 +15268,6 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
             };
-          };
-        };
-      };
-      /** @description Invalid task update */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
           };
         };
       };
@@ -14006,6 +15284,173 @@ export interface operations {
       };
       /** @description Task update conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task update */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  approveTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              description?: string;
+              id: string;
+              identifier?: string;
+              max_attempts?: number;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "canceled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task approval conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task approval request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -14073,6 +15518,10 @@ export interface operations {
         content: {
           "application/json": {
             task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -14091,6 +15540,7 @@ export interface operations {
               description?: string;
               id: string;
               identifier?: string;
+              max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -14120,9 +15570,12 @@ export interface operations {
               } | null;
               parent_task_id?: string;
               /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
               status:
+                | "draft"
                 | "pending"
                 | "blocked"
                 | "ready"
@@ -14135,17 +15588,6 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
             };
-          };
-        };
-      };
-      /** @description Invalid task cancel request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
           };
         };
       };
@@ -14162,6 +15604,17 @@ export interface operations {
       };
       /** @description Task cancel conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task cancel request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -14215,9 +15668,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          /** @enum {string} */
+          approval_policy?: "none" | "manual";
           description?: string;
+          draft?: boolean;
           id?: string;
           identifier?: string;
+          max_attempts?: number | null;
           metadata?: unknown;
           network_channel?: string;
           owner?: {
@@ -14225,6 +15682,8 @@ export interface operations {
             kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
             ref: string;
           } | null;
+          /** @enum {string} */
+          priority?: "low" | "medium" | "high" | "urgent";
           /** @enum {string} */
           scope: "global" | "workspace";
           title: string;
@@ -14241,6 +15700,10 @@ export interface operations {
         content: {
           "application/json": {
             task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -14259,6 +15722,7 @@ export interface operations {
               description?: string;
               id: string;
               identifier?: string;
+              max_attempts?: number;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -14288,9 +15752,12 @@ export interface operations {
               } | null;
               parent_task_id?: string;
               /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
               status:
+                | "draft"
                 | "pending"
                 | "blocked"
                 | "ready"
@@ -14306,17 +15773,6 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid child task request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
       /** @description Task or workspace not found */
       404: {
         headers: {
@@ -14328,8 +15784,30 @@ export interface operations {
           };
         };
       };
+      /** @description Child task conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Payload too large */
       413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid child task request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -14399,6 +15877,47 @@ export interface operations {
           "application/json": {
             task: {
               children?: {
+                active_run?: {
+                  attempt: number;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  id: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  queued_at: string;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -14414,8 +15933,52 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                dependencies?: {
+                  /** Format: date-time */
+                  created_at: string;
+                  depends_on: {
+                    id: string;
+                    identifier?: string;
+                    owner?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "pool";
+                      ref: string;
+                    } | null;
+                    /** @enum {string} */
+                    priority?: "low" | "medium" | "high" | "urgent";
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    /** @enum {string} */
+                    status:
+                      | "draft"
+                      | "pending"
+                      | "blocked"
+                      | "ready"
+                      | "in_progress"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    title: string;
+                    workspace_id?: string;
+                  };
+                  depends_on_task_id: string;
+                  /** @enum {string} */
+                  kind: "blocks";
+                  task_id: string;
+                }[];
+                dependency_count?: number;
+                draft?: boolean;
                 id: string;
                 identifier?: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                max_attempts?: number;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -14444,9 +16007,12 @@ export interface operations {
                 } | null;
                 parent_task_id?: string;
                 /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
                 status:
+                  | "draft"
                   | "pending"
                   | "blocked"
                   | "ready"
@@ -14462,6 +16028,45 @@ export interface operations {
               dependencies?: {
                 /** Format: date-time */
                 created_at: string;
+                depends_on_task_id: string;
+                /** @enum {string} */
+                kind: "blocks";
+                task_id: string;
+              }[];
+              dependency_references?: {
+                /** Format: date-time */
+                created_at: string;
+                depends_on: {
+                  id: string;
+                  identifier?: string;
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  /** @enum {string} */
+                  priority?: "low" | "medium" | "high" | "urgent";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  /** @enum {string} */
+                  status:
+                    | "draft"
+                    | "pending"
+                    | "blocked"
+                    | "ready"
+                    | "in_progress"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  title: string;
+                  workspace_id?: string;
+                };
                 depends_on_task_id: string;
                 /** @enum {string} */
                 kind: "blocks";
@@ -14553,7 +16158,160 @@ export interface operations {
                   | "canceled";
                 task_id: string;
               }[];
+              summary: {
+                active_run?: {
+                  attempt: number;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  id: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  queued_at: string;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                child_count?: number;
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                dependencies?: {
+                  /** Format: date-time */
+                  created_at: string;
+                  depends_on: {
+                    id: string;
+                    identifier?: string;
+                    owner?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "pool";
+                      ref: string;
+                    } | null;
+                    /** @enum {string} */
+                    priority?: "low" | "medium" | "high" | "urgent";
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    /** @enum {string} */
+                    status:
+                      | "draft"
+                      | "pending"
+                      | "blocked"
+                      | "ready"
+                      | "in_progress"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    title: string;
+                    workspace_id?: string;
+                  };
+                  depends_on_task_id: string;
+                  /** @enum {string} */
+                  kind: "blocks";
+                  task_id: string;
+                }[];
+                dependency_count?: number;
+                draft?: boolean;
+                id: string;
+                identifier?: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                max_attempts?: number;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
               task: {
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -14572,6 +16330,7 @@ export interface operations {
                 description?: string;
                 id: string;
                 identifier?: string;
+                max_attempts?: number;
                 metadata?: unknown;
                 network_channel?: string;
                 origin: {
@@ -14601,9 +16360,12 @@ export interface operations {
                 } | null;
                 parent_task_id?: string;
                 /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
                 status:
+                  | "draft"
                   | "pending"
                   | "blocked"
                   | "ready"
@@ -14620,17 +16382,6 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid dependency request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
       /** @description Task not found */
       404: {
         headers: {
@@ -14644,6 +16395,17 @@ export interface operations {
       };
       /** @description Dependency conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid dependency request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -14706,6 +16468,47 @@ export interface operations {
           "application/json": {
             task: {
               children?: {
+                active_run?: {
+                  attempt: number;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  id: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  queued_at: string;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -14721,8 +16524,52 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                dependencies?: {
+                  /** Format: date-time */
+                  created_at: string;
+                  depends_on: {
+                    id: string;
+                    identifier?: string;
+                    owner?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "pool";
+                      ref: string;
+                    } | null;
+                    /** @enum {string} */
+                    priority?: "low" | "medium" | "high" | "urgent";
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    /** @enum {string} */
+                    status:
+                      | "draft"
+                      | "pending"
+                      | "blocked"
+                      | "ready"
+                      | "in_progress"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    title: string;
+                    workspace_id?: string;
+                  };
+                  depends_on_task_id: string;
+                  /** @enum {string} */
+                  kind: "blocks";
+                  task_id: string;
+                }[];
+                dependency_count?: number;
+                draft?: boolean;
                 id: string;
                 identifier?: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                max_attempts?: number;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -14751,9 +16598,12 @@ export interface operations {
                 } | null;
                 parent_task_id?: string;
                 /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
                 status:
+                  | "draft"
                   | "pending"
                   | "blocked"
                   | "ready"
@@ -14769,6 +16619,45 @@ export interface operations {
               dependencies?: {
                 /** Format: date-time */
                 created_at: string;
+                depends_on_task_id: string;
+                /** @enum {string} */
+                kind: "blocks";
+                task_id: string;
+              }[];
+              dependency_references?: {
+                /** Format: date-time */
+                created_at: string;
+                depends_on: {
+                  id: string;
+                  identifier?: string;
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  /** @enum {string} */
+                  priority?: "low" | "medium" | "high" | "urgent";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  /** @enum {string} */
+                  status:
+                    | "draft"
+                    | "pending"
+                    | "blocked"
+                    | "ready"
+                    | "in_progress"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  title: string;
+                  workspace_id?: string;
+                };
                 depends_on_task_id: string;
                 /** @enum {string} */
                 kind: "blocks";
@@ -14860,7 +16749,160 @@ export interface operations {
                   | "canceled";
                 task_id: string;
               }[];
+              summary: {
+                active_run?: {
+                  attempt: number;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  id: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  queued_at: string;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                child_count?: number;
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                dependencies?: {
+                  /** Format: date-time */
+                  created_at: string;
+                  depends_on: {
+                    id: string;
+                    identifier?: string;
+                    owner?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "pool";
+                      ref: string;
+                    } | null;
+                    /** @enum {string} */
+                    priority?: "low" | "medium" | "high" | "urgent";
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    /** @enum {string} */
+                    status:
+                      | "draft"
+                      | "pending"
+                      | "blocked"
+                      | "ready"
+                      | "in_progress"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    title: string;
+                    workspace_id?: string;
+                  };
+                  depends_on_task_id: string;
+                  /** @enum {string} */
+                  kind: "blocks";
+                  task_id: string;
+                }[];
+                dependency_count?: number;
+                draft?: boolean;
+                id: string;
+                identifier?: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                max_attempts?: number;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
               task: {
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -14879,6 +16921,7 @@ export interface operations {
                 description?: string;
                 id: string;
                 identifier?: string;
+                max_attempts?: number;
                 metadata?: unknown;
                 network_channel?: string;
                 origin: {
@@ -14908,9 +16951,12 @@ export interface operations {
                 } | null;
                 parent_task_id?: string;
                 /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
                 status:
+                  | "draft"
                   | "pending"
                   | "blocked"
                   | "ready"
@@ -14927,8 +16973,8 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid dependency request */
-      400: {
+      /** @description Task or dependency not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -14938,8 +16984,320 @@ export interface operations {
           };
         };
       };
-      /** @description Task or dependency not found */
+      /** @description Invalid dependency request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  publishTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              description?: string;
+              id: string;
+              identifier?: string;
+              max_attempts?: number;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "canceled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Task not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task publish conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task publish request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  rejectTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              description?: string;
+              id: string;
+              identifier?: string;
+              max_attempts?: number;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "canceled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task rejection conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task rejection request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -15067,8 +17425,8 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task-run filter */
-      400: {
+      /** @description Task not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -15078,8 +17436,8 @@ export interface operations {
           };
         };
       };
-      /** @description Task not found */
-      404: {
+      /** @description Invalid task-run filter */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -15201,14 +17559,195 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task-run enqueue request */
-      400: {
+      /** @description Task not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": {
             error: string;
+          };
+        };
+      };
+      /** @description Task-run enqueue conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task-run enqueue request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  streamTask: {
+    parameters: {
+      query?: {
+        /** @description Replay events after the supplied task stream sequence */
+        after_sequence?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Task event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            /** Format: int64 */
+            sequence: number;
+            timeline: {
+              actor: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              event_id: string;
+              event_type: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              payload?: unknown;
+              run?: {
+                attempt: number;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                id: string;
+                max_attempts: number;
+                /** Format: date-time */
+                queued_at: string;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              } | null;
+              /** Format: int64 */
+              sequence: number;
+              task: {
+                id: string;
+                identifier?: string;
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                title: string;
+                workspace_id?: string;
+              };
+              /** Format: date-time */
+              timestamp: string;
+            };
+            type: string;
           };
         };
       };
@@ -15223,8 +17762,697 @@ export interface operations {
           };
         };
       };
-      /** @description Task-run enqueue conflict */
-      409: {
+      /** @description Invalid task stream query */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getTaskTimeline: {
+    parameters: {
+      query?: {
+        /** @description Return only events after the supplied sequence */
+        after_sequence?: number;
+        /** @description Maximum number of timeline items to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            timeline: {
+              actor: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              event_id: string;
+              event_type: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              payload?: unknown;
+              run?: {
+                attempt: number;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                id: string;
+                max_attempts: number;
+                /** Format: date-time */
+                queued_at: string;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              } | null;
+              /** Format: int64 */
+              sequence: number;
+              task: {
+                id: string;
+                identifier?: string;
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                title: string;
+                workspace_id?: string;
+              };
+              /** Format: date-time */
+              timestamp: string;
+            }[];
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid timeline query */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getTaskTree: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            tree: {
+              descendants?: {
+                active_run?: {
+                  attempt: number;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  id: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  queued_at: string;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                child_count?: number;
+                depth: number;
+                /** Format: date-time */
+                last_activity_at: string;
+                parent_task_id?: string;
+                task: {
+                  id: string;
+                  identifier?: string;
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  /** @enum {string} */
+                  priority?: "low" | "medium" | "high" | "urgent";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  /** @enum {string} */
+                  status:
+                    | "draft"
+                    | "pending"
+                    | "blocked"
+                    | "ready"
+                    | "in_progress"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  title: string;
+                  workspace_id?: string;
+                };
+              }[];
+              root: {
+                active_run?: {
+                  attempt: number;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  id: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  queued_at: string;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                child_count?: number;
+                depth: number;
+                /** Format: date-time */
+                last_activity_at: string;
+                parent_task_id?: string;
+                task: {
+                  id: string;
+                  identifier?: string;
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  /** @enum {string} */
+                  priority?: "low" | "medium" | "high" | "urgent";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  /** @enum {string} */
+                  status:
+                    | "draft"
+                    | "pending"
+                    | "blocked"
+                    | "ready"
+                    | "in_progress"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  title: string;
+                  workspace_id?: string;
+                };
+              };
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task id */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  archiveTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            triage: {
+              actor: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              archived: boolean;
+              dismissed: boolean;
+              /** Format: date-time */
+              last_seen_activity_at?: string | null;
+              read: boolean;
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task triage request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  dismissTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            triage: {
+              actor: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              archived: boolean;
+              dismissed: boolean;
+              /** Format: date-time */
+              last_seen_activity_at?: string | null;
+              read: boolean;
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task triage request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  markTaskRead: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            triage: {
+              actor: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              archived: boolean;
+              dismissed: boolean;
+              /** Format: date-time */
+              last_seen_activity_at?: string | null;
+              read: boolean;
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task triage request */
+      422: {
         headers: {
           [name: string]: unknown;
         };

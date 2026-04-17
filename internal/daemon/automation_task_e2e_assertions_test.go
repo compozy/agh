@@ -81,7 +81,7 @@ func findTaskRunPayload(
 }
 
 func findTaskRunInDetail(
-	detail aghcontract.TaskDetailPayload,
+	detail *aghcontract.TaskDetailPayload,
 	runID string,
 ) (aghcontract.TaskRunPayload, bool) {
 	return findTaskRunPayload(detail.Runs, runID)
@@ -145,7 +145,7 @@ func TestFindTaskRunHelpers(t *testing.T) {
 		t.Fatalf("run.SessionID = %q, want %q", got, want)
 	}
 
-	detailRun, ok := findTaskRunInDetail(aghcontract.TaskDetailPayload{Runs: runs}, "task-run-1")
+	detailRun, ok := findTaskRunInDetail(&aghcontract.TaskDetailPayload{Runs: runs}, "task-run-1")
 	if !ok {
 		t.Fatal("findTaskRunInDetail() = missing, want present")
 	}

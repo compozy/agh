@@ -326,7 +326,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	if got, want := taskDetail.Task.Status, taskpkg.TaskStatusCompleted; got != want {
 		t.Fatalf("taskDetail.Task.Status after complete = %q, want %q", got, want)
 	}
-	detailRun, ok := findTaskRunInDetail(taskDetail, run.TaskRunID)
+	detailRun, ok := findTaskRunInDetail(&taskDetail, run.TaskRunID)
 	if !ok {
 		t.Fatalf("task detail runs missing %q in %#v", run.TaskRunID, taskDetail.Runs)
 	}

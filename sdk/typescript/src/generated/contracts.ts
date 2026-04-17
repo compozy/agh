@@ -1958,6 +1958,12 @@ export interface SkillsListParams {
   workspace?: string;
 }
 
+export type Priority = string;
+
+export type ApprovalPolicy = string;
+
+export type ApprovalState = string;
+
 export type ActorKind = string;
 
 export interface ActorIdentity {
@@ -1979,7 +1985,11 @@ export interface Task {
   network_channel?: string;
   title: string;
   description?: string;
+  priority?: Priority;
+  max_attempts?: number;
   status: Status;
+  approval_policy?: ApprovalPolicy;
+  approval_state?: ApprovalState;
   owner?: Ownership;
   created_by: ActorIdentity;
   origin: Origin;
@@ -2003,8 +2013,48 @@ export interface TaskCreateParams {
   network_channel?: string;
   title: string;
   description?: string;
+  priority?: Priority;
+  max_attempts?: number;
+  draft?: boolean;
+  approval_policy?: ApprovalPolicy;
   owner?: Ownership;
   metadata?: JSONValue;
+}
+
+export type DependencyKind = string;
+
+export interface TaskReferencePayload {
+  id: string;
+  identifier?: string;
+  title: string;
+  status: Status;
+  priority?: Priority;
+  owner?: Ownership;
+  scope: Scope;
+  workspace_id?: string;
+}
+
+export interface TaskDependencyReferencePayload {
+  task_id: string;
+  depends_on_task_id: string;
+  kind: DependencyKind;
+  created_at: ISODateTime;
+  depends_on: TaskReferencePayload;
+}
+
+export interface TaskRunSummaryPayload {
+  id: string;
+  task_id: string;
+  status: RunStatus;
+  attempt: number;
+  max_attempts: number;
+  session_id?: string;
+  claimed_by?: ActorIdentity;
+  queued_at: ISODateTime;
+  claimed_at?: ISODateTime;
+  started_at?: ISODateTime;
+  ended_at?: ISODateTime;
+  error?: string;
 }
 
 export interface TaskSummary {
@@ -2015,16 +2065,24 @@ export interface TaskSummary {
   parent_task_id?: string;
   network_channel?: string;
   title: string;
+  priority?: Priority;
+  max_attempts?: number;
   status: Status;
+  approval_policy?: ApprovalPolicy;
+  approval_state?: ApprovalState;
+  draft?: boolean;
   owner?: Ownership;
   created_by: ActorIdentity;
   origin: Origin;
   created_at: ISODateTime;
   updated_at: ISODateTime;
   closed_at?: ISODateTime;
+  child_count?: number;
+  dependency_count?: number;
+  dependencies?: TaskDependencyReferencePayload[];
+  active_run?: TaskRunSummaryPayload;
+  last_activity_at?: ISODateTime;
 }
-
-export type DependencyKind = string;
 
 export interface TaskDependencyPayload {
   task_id: string;
@@ -2063,9 +2121,11 @@ export interface TaskEventPayload {
 }
 
 export interface TaskDetail {
+  summary: TaskSummary;
   task: Task;
   children?: TaskSummary[];
   dependencies?: TaskDependencyPayload[];
+  dependency_references?: TaskDependencyReferencePayload[];
   runs?: TaskRun[];
   events?: TaskEventPayload[];
 }
@@ -2123,6 +2183,9 @@ export interface TaskUpdateParams {
   id: string;
   title?: string;
   description?: string;
+  priority?: Priority;
+  max_attempts?: number;
+  approval_policy?: ApprovalPolicy;
   metadata?: JSONValue;
   network_channel?: string;
   owner?: Ownership;
@@ -2133,10 +2196,14 @@ export interface TasksParams {
   scope?: Scope;
   workspace?: string;
   status?: Status;
+  priority?: Priority;
+  include_drafts?: boolean;
+  approval_state?: ApprovalState;
   owner_kind?: OwnerKind;
   owner_ref?: string;
   parent_task_id?: string;
   network_channel?: string;
+  query?: string;
   limit?: number;
 }
 
