@@ -428,14 +428,19 @@ func TestServiceListActivationsWrapsErrorsWithContext(t *testing.T) {
 		t.Parallel()
 
 		store := newMemoryStore()
+		store.activations["activation-1"] = Activation{ID: "activation-1"}
+		resourceErr := errors.New("resource store offline")
 		store.listBundleResourcesHook = func() ([]resources.Record[BundleResourceSpec], error) {
-			return nil, errors.New("resource store offline")
+			return nil, resourceErr
 		}
 		service := newMarketingService(store, WithLogger(discardBundleTestLogger()))
 
 		_, err := service.ListActivations(testutil.Context(t))
 		if err == nil {
 			t.Fatal("ListActivations() error = nil, want non-nil")
+		}
+		if !errors.Is(err, resourceErr) {
+			t.Fatalf("ListActivations() error = %v, want wrapped %v", err, resourceErr)
 		}
 		if !strings.Contains(err.Error(), "list bundle resources for activations") {
 			t.Fatalf("ListActivations() error = %v, want wrapped bundle resource context", err)
@@ -474,6 +479,51 @@ func TestServiceListActivationsWrapsErrorsWithContext(t *testing.T) {
 			t.Fatalf("ListActivations() error = %v, want wrapped inventory context", err)
 		}
 	})
+}
+
+func TestServiceListActivationsReturnsEmptyWithoutLoadingBundleResources(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryStore()
+	store.listBundleResourcesHook = func() ([]resources.Record[BundleResourceSpec], error) {
+		return nil, errors.New("bundle resources should not be loaded for empty activations")
+	}
+	service := newMarketingService(store, WithLogger(discardBundleTestLogger()))
+
+	got, err := service.ListActivations(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ListActivations() error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("len(ListActivations()) = %d, want 0", len(got))
+	}
+	if got == nil {
+		t.Fatal("ListActivations() = nil, want empty slice")
+	}
+}
+
+func TestFindBundleResourceRecordIndexedNormalizesLookupKeys(t *testing.T) {
+	t.Parallel()
+
+	record := resources.Record[BundleResourceSpec]{
+		ID: BundleResourceID("Marketing-Team", "Launch"),
+		Spec: BundleResourceSpec{
+			ExtensionName: " Marketing-Team ",
+			Bundle: extensionpkg.BundleSpec{
+				Name: " Launch ",
+			},
+		},
+	}
+	lookup := newBundleRecordLookup([]resources.Record[BundleResourceSpec]{record})
+	lookup.records = nil
+
+	got, ok := findBundleResourceRecordIndexed(lookup, "marketing-team", "launch")
+	if !ok {
+		t.Fatal("findBundleResourceRecordIndexed() ok = false, want true")
+	}
+	if got.ID != record.ID {
+		t.Fatalf("findBundleResourceRecordIndexed().ID = %q, want %q", got.ID, record.ID)
+	}
 }
 
 func TestServiceRejectsMultipleDefaultChannelClaims(t *testing.T) {

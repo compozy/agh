@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -36,6 +37,9 @@ var toolSourceBytes = [...][]byte{
 	[]byte("extension"),
 	[]byte("dynamic"),
 }
+
+// ErrInvalidToolSource marks invalid ToolSource values and text forms.
+var ErrInvalidToolSource = errors.New("tools: invalid tool source")
 
 func validToolSource(s ToolSource) bool {
 	return s >= ToolSourceBuiltin && int(s) < len(toolSourceNames)
@@ -70,7 +74,7 @@ func (s *ToolSource) UnmarshalText(text []byte) error {
 	case bytes.Equal(trimmed, toolSourceBytes[ToolSourceDynamic]):
 		*s = ToolSourceDynamic
 	default:
-		return fmt.Errorf("tools: invalid tool source %q", string(trimmed))
+		return fmt.Errorf("%w: %q", ErrInvalidToolSource, string(trimmed))
 	}
 	return nil
 }
@@ -78,7 +82,7 @@ func (s *ToolSource) UnmarshalText(text []byte) error {
 // Validate ensures the source is one of the documented values.
 func (s ToolSource) Validate() error {
 	if !validToolSource(s) {
-		return fmt.Errorf("tools: invalid tool source %d", s)
+		return fmt.Errorf("%w: %d", ErrInvalidToolSource, s)
 	}
 	return nil
 }

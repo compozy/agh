@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"strings"
+	"errors"
 	"testing"
 )
 
@@ -164,15 +164,19 @@ func TestToolSourceInvalid(t *testing.T) {
 	}
 	if err := ToolSource(42).Validate(); err == nil {
 		t.Fatal("ToolSource(42).Validate() error = nil, want non-nil")
+	} else if !errors.Is(err, ErrInvalidToolSource) {
+		t.Fatalf("ToolSource(42).Validate() error = %v, want ErrInvalidToolSource", err)
 	}
 	if _, err := ToolSource(42).MarshalText(); err == nil {
 		t.Fatal("ToolSource(42).MarshalText() error = nil, want non-nil")
-	} else if !strings.Contains(err.Error(), "marshal tool source") {
-		t.Fatalf("ToolSource(42).MarshalText() error = %v, want marshal context", err)
+	} else if !errors.Is(err, ErrInvalidToolSource) {
+		t.Fatalf("ToolSource(42).MarshalText() error = %v, want ErrInvalidToolSource", err)
 	}
 
 	var decoded ToolSource
 	if err := json.Unmarshal([]byte(`"remote"`), &decoded); err == nil {
 		t.Fatal("json.Unmarshal(invalid ToolSource) error = nil, want non-nil")
+	} else if !errors.Is(err, ErrInvalidToolSource) {
+		t.Fatalf("json.Unmarshal(invalid ToolSource) error = %v, want ErrInvalidToolSource", err)
 	}
 }

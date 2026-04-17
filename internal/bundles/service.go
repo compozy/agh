@@ -293,6 +293,9 @@ func (s *Service) ListActivations(ctx context.Context) ([]ActivationPreview, err
 	if err != nil {
 		return nil, fmt.Errorf("bundles: list bundle activations: %w", err)
 	}
+	if len(activations) == 0 {
+		return []ActivationPreview{}, nil
+	}
 	bundleRecords, err := s.store.ListBundleResources(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("bundles: list bundle resources for activations: %w", err)
@@ -752,8 +755,8 @@ func findBundleResourceRecordIndexed(
 
 func newBundleRecordKey(extensionName string, bundleName string) bundleRecordKey {
 	return bundleRecordKey{
-		extensionName: strings.TrimSpace(extensionName),
-		bundleName:    strings.TrimSpace(bundleName),
+		extensionName: strings.ToLower(strings.TrimSpace(extensionName)),
+		bundleName:    strings.ToLower(strings.TrimSpace(bundleName)),
 	}
 }
 

@@ -17,7 +17,7 @@ func BenchmarkIOCopyLimitSlidingWindow(b *testing.B) {
 	var mu sync.Mutex
 
 	b.ReportAllocs()
-	b.SetBytes(int64(len(sourceData)))
+	b.SetBytes(int64(limit))
 
 	for b.Loop() {
 		var dst bytes.Buffer
