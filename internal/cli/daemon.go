@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"
@@ -14,6 +13,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
+	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -25,24 +25,6 @@ type daemonProcess interface {
 	Wait() error
 }
 
-type execDaemonProcess struct {
-	cmd       *exec.Cmd
-	logPath   string
-	logOffset int64
-}
-
-func (p *execDaemonProcess) PID() int {
-	return p.cmd.Process.Pid
-}
-
-func (p *execDaemonProcess) Wait() error {
-	err := p.cmd.Wait()
-	if err == nil {
-		return nil
-	}
-	return attachCommandLog(err, p.logPath, p.logOffset)
-}
-
 func newDaemonCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "daemon",
@@ -50,6 +32,7 @@ func newDaemonCommand(deps commandDeps) *cobra.Command {
 	}
 
 	cmd.AddCommand(newDaemonStartCommand(deps))
+	cmd.AddCommand(newDaemonRelaunchCommand(deps))
 	cmd.AddCommand(newDaemonStopCommand(deps))
 	cmd.AddCommand(newDaemonStatusCommand(deps))
 	return cmd
@@ -84,6 +67,27 @@ func newDaemonStartCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&internalChild, internalChildFlagName, false, "Internal detached child mode")
 	mustMarkFlagHidden(cmd, internalChildFlagName)
 	return cmd
+}
+
+func newDaemonRelaunchCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:    "relaunch",
+		Short:  "Internal daemon relaunch helper",
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			homePaths, err := deps.resolveHome()
+			if err != nil {
+				return err
+			}
+
+			return deps.runRelaunchHelper(cmd.Context(), aghdaemon.RelaunchHelperConfig{
+				HomePaths:   homePaths,
+				OperationID: strings.TrimSpace(os.Getenv(aghdaemon.RestartOperationEnvKey)),
+				Executable:  deps.executable,
+				Environment: os.Environ(),
+			})
+		},
+	}
 }
 
 func newDaemonStatusCommand(deps commandDeps) *cobra.Command {
@@ -483,79 +487,20 @@ func spawnDetachedDaemonProcess(
 		return nil, err
 	}
 
-	logFile, err := os.OpenFile(homePaths.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("cli: open daemon log %q: %w", homePaths.LogFile, err)
-	}
-
 	binary, err := executable()
 	if err != nil {
-		_ = logFile.Close()
 		return nil, fmt.Errorf("cli: resolve executable: %w", err)
 	}
 
-	logInfo, err := logFile.Stat()
+	child, err := procutil.SpawnDetachedLoggedProcess(ctx, procutil.DetachedLaunchRequest{
+		Binary:      binary,
+		Args:        []string{"daemon", "start", "--foreground", "--" + internalChildFlagName},
+		Environment: os.Environ(),
+		LogPath:     homePaths.LogFile,
+	})
 	if err != nil {
-		_ = logFile.Close()
-		return nil, fmt.Errorf("cli: stat daemon log %q: %w", homePaths.LogFile, err)
-	}
-	child := exec.CommandContext(ctx, binary, "daemon", "start", "--foreground", "--"+internalChildFlagName)
-	child.Env = os.Environ()
-	child.Stdin = nil
-	child.Stdout = logFile
-	child.Stderr = logFile
-	child.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	if err := child.Start(); err != nil {
-		_ = logFile.Close()
 		return nil, fmt.Errorf("cli: spawn detached daemon: %w", err)
 	}
-	if err := logFile.Close(); err != nil {
-		return nil, fmt.Errorf("cli: close daemon log handle: %w", err)
-	}
 
-	return &execDaemonProcess{cmd: child, logPath: homePaths.LogFile, logOffset: logInfo.Size()}, nil
-}
-
-func attachCommandLog(err error, logPath string, logOffset int64) error {
-	if err == nil {
-		return nil
-	}
-	text, readErr := readCommandLog(logPath, logOffset)
-	if readErr != nil {
-		return err
-	}
-	text = recentCommandError(text)
-	if text == "" {
-		return err
-	}
-	return fmt.Errorf("%w: stderr=%s", err, text)
-}
-
-func readCommandLog(path string, offset int64) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("cli: read daemon log %q: %w", path, err)
-	}
-	if offset < 0 || offset > int64(len(data)) {
-		offset = 0
-	}
-	return strings.TrimSpace(string(data[offset:])), nil
-}
-
-func recentCommandError(logText string) string {
-	text := strings.TrimSpace(logText)
-	if text == "" {
-		return ""
-	}
-
-	lines := strings.Split(text, "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimSpace(lines[i])
-		if strings.HasPrefix(line, "error:") {
-			return line
-		}
-	}
-
-	return text
+	return child, nil
 }

@@ -175,6 +175,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err := d.bootFinalize(ctx, state); err != nil {
 		return err
 	}
+	if err := d.markRestartReadyIfRequested(state.info); err != nil {
+		return err
+	}
 
 	d.publishBootState(state)
 	return nil

@@ -289,6 +289,8 @@ type Daemon struct {
 	listProcesses        func(context.Context) ([]processInfo, error)
 	signalProcess        func(int, syscall.Signal) error
 	processAlive         func(int) bool
+	executable           func() (string, error)
+	startDetached        detachedStartFunc
 	signalCh             <-chan os.Signal
 	verifyBoundaries     bool
 	boundaryRoot         string
@@ -880,6 +882,12 @@ func (d *Daemon) applySystemDefaults() {
 	}
 	if d.processAlive == nil {
 		d.processAlive = procutil.Alive
+	}
+	if d.executable == nil {
+		d.executable = os.Executable
+	}
+	if d.startDetached == nil {
+		d.startDetached = defaultDetachedStart
 	}
 	if d.getenv == nil {
 		d.getenv = os.Getenv

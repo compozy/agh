@@ -17,6 +17,8 @@ const (
 	MemoryDirName = "memory"
 	// SessionsDirName is the directory used for persisted session state.
 	SessionsDirName = "sessions"
+	// RestartsDirName is the directory used for persisted daemon restart operations.
+	RestartsDirName = "restarts"
 	// LogsDirName is the directory used for structured logs.
 	LogsDirName = "logs"
 	// DatabaseName is the global database filename.
@@ -42,6 +44,7 @@ type HomePaths struct {
 	SkillsDir        string
 	MemoryDir        string
 	SessionsDir      string
+	RestartsDir      string
 	LogsDir          string
 	LogFile          string
 	NetworkAuditFile string
@@ -99,6 +102,7 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		SkillsDir:        filepath.Join(root, SkillsDirName),
 		MemoryDir:        filepath.Join(root, MemoryDirName),
 		SessionsDir:      filepath.Join(root, SessionsDirName),
+		RestartsDir:      filepath.Join(root, RestartsDirName),
 		LogsDir:          filepath.Join(root, LogsDirName),
 		LogFile:          filepath.Join(root, LogsDirName, LogFileName),
 		NetworkAuditFile: filepath.Join(root, LogsDirName, NetworkAuditFileName),
@@ -117,6 +121,7 @@ func EnsureHomeLayout(paths HomePaths) error {
 		paths.SkillsDir,
 		paths.MemoryDir,
 		paths.SessionsDir,
+		paths.RestartsDir,
 		paths.LogsDir,
 	} {
 		if strings.TrimSpace(dir) == "" {
