@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -68,6 +69,33 @@ func (q TaskMetricsQuery) Validate() error {
 		}
 	}
 	return nil
+}
+
+// TaskDashboardQuery filters the observer-backed task dashboard read model.
+type TaskDashboardQuery struct {
+	Scope          taskpkg.Scope      `json:"scope,omitempty"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	OwnerKind      taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
+	OwnerRef       string             `json:"owner_ref,omitempty"`
+	NetworkChannel string             `json:"network_channel,omitempty"`
+	OriginKind     taskpkg.OriginKind `json:"origin_kind,omitempty"`
+}
+
+// Validate ensures the dashboard query uses supported filters.
+func (q TaskDashboardQuery) Validate() error {
+	return q.summaryQuery().Validate()
+}
+
+func (q TaskDashboardQuery) summaryQuery() TaskSummaryQuery {
+	return TaskSummaryQuery(q)
+}
+
+func (q TaskDashboardQuery) metricsQuery(since time.Time) TaskMetricsQuery {
+	return TaskMetricsQuery{
+		Since:          since,
+		NetworkChannel: q.NetworkChannel,
+		OriginKind:     q.OriginKind,
+	}
 }
 
 // TaskStatusTotal reports one current task-count bucket.
@@ -182,6 +210,152 @@ type TaskHealth struct {
 	RecoverySinceStart         TaskRecoveryTotals `json:"recovery_since_start"`
 }
 
+// TaskDashboardView exposes the observer-owned aggregate payload for the Paper task dashboard.
+type TaskDashboardView struct {
+	Totals          TaskDashboardTotals            `json:"totals"`
+	Cards           TaskDashboardCards             `json:"cards"`
+	StatusBreakdown []TaskDashboardStatusBreakdown `json:"status_breakdown,omitempty"`
+	Queue           TaskDashboardQueue             `json:"queue"`
+	Health          TaskDashboardHealth            `json:"health"`
+	ActiveRuns      TaskDashboardActiveRuns        `json:"active_runs"`
+	Freshness       TaskDashboardFreshness         `json:"freshness"`
+}
+
+// TaskDashboardTotals collapses the current task and run totals into chart-friendly counters.
+type TaskDashboardTotals struct {
+	TasksTotal             int `json:"tasks_total"`
+	RunsTotal              int `json:"runs_total"`
+	DraftTasks             int `json:"draft_tasks"`
+	PendingTasks           int `json:"pending_tasks"`
+	ReadyTasks             int `json:"ready_tasks"`
+	InProgressTasks        int `json:"in_progress_tasks"`
+	BlockedTasks           int `json:"blocked_tasks"`
+	CompletedTasks         int `json:"completed_tasks"`
+	FailedTasks            int `json:"failed_tasks"`
+	CanceledTasks          int `json:"canceled_tasks"`
+	AwaitingApprovalTasks  int `json:"awaiting_approval_tasks"`
+	DependencyBlockedTasks int `json:"dependency_blocked_tasks"`
+	QueuedRuns             int `json:"queued_runs"`
+	ClaimedRuns            int `json:"claimed_runs"`
+	StartingRuns           int `json:"starting_runs"`
+	RunningRuns            int `json:"running_runs"`
+	CompletedRuns          int `json:"completed_runs"`
+	FailedRuns             int `json:"failed_runs"`
+	CanceledRuns           int `json:"canceled_runs"`
+	ActiveRuns             int `json:"active_runs"`
+}
+
+// TaskDashboardCards exposes dashboard-ready card values without leaking raw summary buckets.
+type TaskDashboardCards struct {
+	InProgress TaskDashboardInProgressCard `json:"in_progress"`
+	Blocked    TaskDashboardBlockedCard    `json:"blocked"`
+	Failed     TaskDashboardFailedCard     `json:"failed"`
+	Latency    TaskDashboardLatencyCard    `json:"latency"`
+}
+
+// TaskDashboardInProgressCard summarizes active work and live run pressure.
+type TaskDashboardInProgressCard struct {
+	Tasks        int    `json:"tasks"`
+	ActiveRuns   int    `json:"active_runs"`
+	RunningRuns  int    `json:"running_runs"`
+	StartingRuns int    `json:"starting_runs"`
+	ClaimedRuns  int    `json:"claimed_runs"`
+	QueuedRuns   int    `json:"queued_runs"`
+	HealthStatus string `json:"health_status"`
+}
+
+// TaskDashboardBlockedCard summarizes blocked work and approval/dependency pressure.
+type TaskDashboardBlockedCard struct {
+	Tasks                int    `json:"tasks"`
+	AwaitingApproval     int    `json:"awaiting_approval"`
+	AwaitingDependencies int    `json:"awaiting_dependencies"`
+	HealthStatus         string `json:"health_status"`
+}
+
+// TaskDashboardFailedCard summarizes failed work and disruptive run outcomes.
+type TaskDashboardFailedCard struct {
+	Tasks        int    `json:"tasks"`
+	FailedRuns   int    `json:"failed_runs"`
+	ForcedStops  int    `json:"forced_stops"`
+	HealthStatus string `json:"health_status"`
+}
+
+// TaskDashboardLatencyCard exposes current run-queue latency summaries for operator cards.
+type TaskDashboardLatencyCard struct {
+	ClaimLatencyMillis LatencyMetric `json:"claim_latency_ms"`
+	StartLatencyMillis LatencyMetric `json:"start_latency_ms"`
+}
+
+// TaskDashboardStatusBreakdown reports one aggregated task status bucket for chart rendering.
+type TaskDashboardStatusBreakdown struct {
+	Status       taskpkg.Status `json:"status"`
+	Count        int            `json:"count"`
+	SharePercent int            `json:"share_percent"`
+}
+
+// TaskDashboardQueue reports backlog state for queued task work.
+type TaskDashboardQueue struct {
+	Total                 int              `json:"total"`
+	Depth                 []TaskQueueDepth `json:"depth,omitempty"`
+	OldestQueuedAt        time.Time        `json:"oldest_queued_at"`
+	OldestQueueAgeMilli   int64            `json:"oldest_queue_age_ms"`
+	BacklogWarning        bool             `json:"backlog_warning"`
+	BacklogStatus         string           `json:"backlog_status"`
+	BacklogThresholdMilli int64            `json:"backlog_threshold_ms"`
+}
+
+// TaskDashboardHealth reports warning-oriented dashboard health indicators.
+type TaskDashboardHealth struct {
+	Status           string `json:"status"`
+	StuckRuns        int    `json:"stuck_runs"`
+	ActiveOrphanRuns int    `json:"active_orphan_runs"`
+	QueueBacklog     bool   `json:"queue_backlog"`
+}
+
+// TaskDashboardActiveRuns summarizes the currently active run set and exposes recent cards.
+type TaskDashboardActiveRuns struct {
+	Total    int                      `json:"total"`
+	Running  int                      `json:"running"`
+	Starting int                      `json:"starting"`
+	Claimed  int                      `json:"claimed"`
+	Queued   int                      `json:"queued"`
+	Items    []TaskDashboardActiveRun `json:"items,omitempty"`
+}
+
+// TaskDashboardActiveRun exposes one recent active-run card payload.
+type TaskDashboardActiveRun struct {
+	TaskID         string             `json:"task_id"`
+	TaskIdentifier string             `json:"task_identifier,omitempty"`
+	TaskTitle      string             `json:"task_title"`
+	TaskStatus     taskpkg.Status     `json:"task_status"`
+	TaskPriority   taskpkg.Priority   `json:"task_priority,omitempty"`
+	TaskOwner      *taskpkg.Ownership `json:"task_owner,omitempty"`
+	Scope          taskpkg.Scope      `json:"scope"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	RunID          string             `json:"run_id"`
+	RunStatus      taskpkg.RunStatus  `json:"run_status"`
+	Attempt        int                `json:"attempt"`
+	MaxAttempts    int                `json:"max_attempts"`
+	SessionID      string             `json:"session_id,omitempty"`
+	NetworkChannel string             `json:"network_channel,omitempty"`
+	LastActivityAt time.Time          `json:"last_activity_at"`
+	AgeMilli       int64              `json:"age_ms"`
+	HealthStatus   string             `json:"health_status"`
+	Stuck          bool               `json:"stuck"`
+	Error          string             `json:"error,omitempty"`
+}
+
+// TaskDashboardFreshness exposes the recency and stale-warning state of the dashboard snapshot.
+type TaskDashboardFreshness struct {
+	ObservedAt       time.Time `json:"observed_at"`
+	LatestActivityAt time.Time `json:"latest_activity_at"`
+	AgeMilli         int64     `json:"age_ms"`
+	StaleAfterMilli  int64     `json:"stale_after_ms"`
+	HasLiveWork      bool      `json:"has_live_work"`
+	Status           string    `json:"status"`
+	Stale            bool      `json:"stale"`
+}
+
 type taskSnapshot struct {
 	tasks     []taskpkg.Summary
 	runs      []taskpkg.Run
@@ -220,6 +394,30 @@ func (o *Observer) QueryTaskMetrics(ctx context.Context, query TaskMetricsQuery)
 	return taskMetricsFromSnapshot(snapshot, query, o.now), nil
 }
 
+// QueryTaskDashboard returns the observer-backed aggregate task dashboard view.
+func (o *Observer) QueryTaskDashboard(ctx context.Context, query TaskDashboardQuery) (TaskDashboardView, error) {
+	if ctx == nil {
+		return TaskDashboardView{}, errors.New("observe: task dashboard context is required")
+	}
+	if err := query.Validate(); err != nil {
+		return TaskDashboardView{}, err
+	}
+
+	snapshot, err := o.loadTaskSnapshot(ctx, query.summaryQuery())
+	if err != nil {
+		return TaskDashboardView{}, err
+	}
+
+	summary := taskSummaryFromSnapshot(snapshot, o.now)
+	metrics := taskMetricsFromSnapshot(snapshot, query.metricsQuery(o.startedAt), o.now)
+	health, err := o.taskHealthFromSnapshot(ctx, snapshot, summary, metrics)
+	if err != nil {
+		return TaskDashboardView{}, err
+	}
+
+	return o.taskDashboardFromSnapshot(snapshot, summary, metrics, health), nil
+}
+
 func (o *Observer) collectTaskHealth(ctx context.Context) (TaskHealth, error) {
 	if ctx == nil {
 		return TaskHealth{}, errors.New("observe: task health context is required")
@@ -231,7 +429,15 @@ func (o *Observer) collectTaskHealth(ctx context.Context) (TaskHealth, error) {
 	}
 	summary := taskSummaryFromSnapshot(snapshot, o.now)
 	metrics := taskMetricsFromSnapshot(snapshot, TaskMetricsQuery{Since: o.startedAt}, o.now)
+	return o.taskHealthFromSnapshot(ctx, snapshot, summary, metrics)
+}
 
+func (o *Observer) taskHealthFromSnapshot(
+	ctx context.Context,
+	snapshot taskSnapshot,
+	summary Summary,
+	metrics TaskMetrics,
+) (TaskHealth, error) {
 	stuckRuns := findStuckRuns(snapshot.runs, o.now(), o.taskHealthConfig)
 	sortStuckRuns(stuckRuns)
 	activeOrphans, err := o.countActiveOrphanRuns(ctx, snapshot.runs)
@@ -306,6 +512,488 @@ func taskMetricsFromSnapshot(snapshot taskSnapshot, query TaskMetricsQuery, now 
 		ChannelMismatchTotal:    countChannelMismatchAudits(audits),
 		RecoveryTotals:          summarizeRecovery(events),
 	}
+}
+
+func (o *Observer) taskDashboardFromSnapshot(
+	snapshot taskSnapshot,
+	summary Summary,
+	metrics TaskMetrics,
+	health TaskHealth,
+) TaskDashboardView {
+	totals := taskDashboardTotalsFromSnapshot(snapshot, summary, metrics)
+	queue := taskDashboardQueueFromRows(summary.QueueDepth, o.taskDashboardConfig, o.now)
+	healthSummary := taskDashboardHealthFromHealth(health, queue.BacklogWarning)
+
+	return TaskDashboardView{
+		Totals:          totals,
+		Cards:           taskDashboardCardsFromTotals(totals, metrics, healthSummary, health.ForcedStopsSinceStart),
+		StatusBreakdown: taskDashboardStatusBreakdownFromTotals(totals),
+		Queue:           queue,
+		Health:          healthSummary,
+		ActiveRuns: taskDashboardActiveRunsFromSnapshot(
+			snapshot,
+			o.now,
+			o.taskDashboardConfig,
+			o.taskHealthConfig,
+		),
+		Freshness: taskDashboardFreshnessFromSnapshot(snapshot, o.now, o.taskDashboardConfig),
+	}
+}
+
+func taskDashboardTotalsFromSnapshot(
+	snapshot taskSnapshot,
+	summary Summary,
+	metrics TaskMetrics,
+) TaskDashboardTotals {
+	awaitingApproval := countAwaitingApprovalTasks(snapshot.tasks)
+
+	totals := TaskDashboardTotals{
+		TasksTotal:            summary.TotalTasks,
+		RunsTotal:             summary.TotalRuns,
+		DraftTasks:            countTaskStatus(summary.TaskTotals, taskpkg.TaskStatusDraft),
+		PendingTasks:          countTaskStatus(summary.TaskTotals, taskpkg.TaskStatusPending),
+		ReadyTasks:            countTaskStatus(summary.TaskTotals, taskpkg.TaskStatusReady),
+		InProgressTasks:       countTaskStatus(summary.TaskTotals, taskpkg.TaskStatusInProgress),
+		BlockedTasks:          countTaskStatus(summary.TaskTotals, taskpkg.TaskStatusBlocked),
+		CompletedTasks:        countTaskStatus(summary.TaskTotals, taskpkg.TaskStatusCompleted),
+		FailedTasks:           countTaskStatus(summary.TaskTotals, taskpkg.TaskStatusFailed),
+		CanceledTasks:         countTaskStatus(summary.TaskTotals, taskpkg.TaskStatusCanceled),
+		AwaitingApprovalTasks: awaitingApproval,
+		QueuedRuns:            countRunStatus(metrics.TaskRunsTotal, taskpkg.TaskRunStatusQueued),
+		ClaimedRuns:           countRunStatus(metrics.TaskRunsTotal, taskpkg.TaskRunStatusClaimed),
+		StartingRuns:          countRunStatus(metrics.TaskRunsTotal, taskpkg.TaskRunStatusStarting),
+		RunningRuns:           countRunStatus(metrics.TaskRunsTotal, taskpkg.TaskRunStatusRunning),
+		CompletedRuns:         countRunStatus(metrics.TaskRunsTotal, taskpkg.TaskRunStatusCompleted),
+		FailedRuns:            countRunStatus(metrics.TaskRunsTotal, taskpkg.TaskRunStatusFailed),
+		CanceledRuns:          countRunStatus(metrics.TaskRunsTotal, taskpkg.TaskRunStatusCanceled),
+	}
+	totals.DependencyBlockedTasks = max(totals.BlockedTasks-totals.AwaitingApprovalTasks, 0)
+	totals.ActiveRuns = totals.QueuedRuns + totals.ClaimedRuns + totals.StartingRuns + totals.RunningRuns
+	return totals
+}
+
+func taskDashboardCardsFromTotals(
+	totals TaskDashboardTotals,
+	metrics TaskMetrics,
+	health TaskDashboardHealth,
+	forcedStops int,
+) TaskDashboardCards {
+	return TaskDashboardCards{
+		InProgress: TaskDashboardInProgressCard{
+			Tasks:        totals.InProgressTasks,
+			ActiveRuns:   totals.ActiveRuns,
+			RunningRuns:  totals.RunningRuns,
+			StartingRuns: totals.StartingRuns,
+			ClaimedRuns:  totals.ClaimedRuns,
+			QueuedRuns:   totals.QueuedRuns,
+			HealthStatus: health.Status,
+		},
+		Blocked: TaskDashboardBlockedCard{
+			Tasks:                totals.BlockedTasks,
+			AwaitingApproval:     totals.AwaitingApprovalTasks,
+			AwaitingDependencies: totals.DependencyBlockedTasks,
+			HealthStatus:         dashboardStatusForCount(totals.BlockedTasks),
+		},
+		Failed: TaskDashboardFailedCard{
+			Tasks:        totals.FailedTasks,
+			FailedRuns:   totals.FailedRuns,
+			ForcedStops:  forcedStops,
+			HealthStatus: dashboardStatusForAny(totals.FailedTasks > 0 || totals.FailedRuns > 0 || forcedStops > 0),
+		},
+		Latency: TaskDashboardLatencyCard{
+			ClaimLatencyMillis: metrics.TaskClaimLatencyMillis,
+			StartLatencyMillis: metrics.TaskStartLatencyMillis,
+		},
+	}
+}
+
+func taskDashboardStatusBreakdownFromTotals(totals TaskDashboardTotals) []TaskDashboardStatusBreakdown {
+	type statusCount struct {
+		status taskpkg.Status
+		count  int
+	}
+
+	rows := []statusCount{
+		{status: taskpkg.TaskStatusCompleted, count: totals.CompletedTasks},
+		{status: taskpkg.TaskStatusPending, count: totals.PendingTasks},
+		{status: taskpkg.TaskStatusInProgress, count: totals.InProgressTasks},
+		{status: taskpkg.TaskStatusReady, count: totals.ReadyTasks},
+		{status: taskpkg.TaskStatusBlocked, count: totals.BlockedTasks},
+		{status: taskpkg.TaskStatusFailed, count: totals.FailedTasks},
+		{status: taskpkg.TaskStatusCanceled, count: totals.CanceledTasks},
+		{status: taskpkg.TaskStatusDraft, count: totals.DraftTasks},
+	}
+
+	breakdown := make([]TaskDashboardStatusBreakdown, 0, len(rows))
+	for _, row := range rows {
+		if row.count <= 0 || totals.TasksTotal <= 0 {
+			continue
+		}
+		breakdown = append(breakdown, TaskDashboardStatusBreakdown{
+			Status:       row.status,
+			Count:        row.count,
+			SharePercent: int(math.Round(float64(row.count) * 100 / float64(totals.TasksTotal))),
+		})
+	}
+	return breakdown
+}
+
+func taskDashboardQueueFromRows(
+	rows []TaskQueueDepth,
+	cfg taskDashboardConfig,
+	now func() time.Time,
+) TaskDashboardQueue {
+	queue := TaskDashboardQueue{
+		Depth: rows,
+	}
+	threshold := max(cfg.backlogWarnAfter, 0)
+	queue.BacklogThresholdMilli = threshold.Milliseconds()
+
+	for _, item := range rows {
+		queue.Total += item.Count
+		if item.OldestQueuedAt.IsZero() {
+			continue
+		}
+		if queue.OldestQueuedAt.IsZero() || item.OldestQueuedAt.Before(queue.OldestQueuedAt) {
+			queue.OldestQueuedAt = item.OldestQueuedAt
+			queue.OldestQueueAgeMilli = item.OldestQueueAgeMilli
+		}
+	}
+
+	if queue.Total > 0 && threshold > 0 && time.Duration(queue.OldestQueueAgeMilli)*time.Millisecond >= threshold {
+		queue.BacklogWarning = true
+		queue.BacklogStatus = "warn"
+	} else {
+		queue.BacklogStatus = "ok"
+	}
+	if now != nil && !queue.OldestQueuedAt.IsZero() {
+		queue.OldestQueueAgeMilli = safeSince(now(), queue.OldestQueuedAt).Milliseconds()
+		if queue.Total > 0 && threshold > 0 && time.Duration(queue.OldestQueueAgeMilli)*time.Millisecond >= threshold {
+			queue.BacklogWarning = true
+			queue.BacklogStatus = "warn"
+		}
+	}
+
+	return queue
+}
+
+func taskDashboardHealthFromHealth(health TaskHealth, queueBacklog bool) TaskDashboardHealth {
+	status := health.Status
+	if queueBacklog {
+		status = "warn"
+	}
+	if strings.TrimSpace(status) == "" {
+		status = "ok"
+	}
+
+	return TaskDashboardHealth{
+		Status:           status,
+		StuckRuns:        len(health.StuckRuns),
+		ActiveOrphanRuns: health.ActiveOrphanRuns,
+		QueueBacklog:     queueBacklog,
+	}
+}
+
+func taskDashboardActiveRunsFromSnapshot(
+	snapshot taskSnapshot,
+	now func() time.Time,
+	cfg taskDashboardConfig,
+	healthCfg TaskHealthConfig,
+) TaskDashboardActiveRuns {
+	currentTime := dashboardNow(now)
+	items := dashboardActiveRuns(snapshot.runs)
+	stuckByID := dashboardStuckRunSet(snapshot.runs, currentTime, healthCfg)
+
+	activeRuns := taskDashboardActiveRunCounts(items)
+	activeRuns.Items = taskDashboardActiveRunItems(
+		items,
+		snapshot.tasksByID,
+		currentTime,
+		cfg.activeRunLimit,
+		stuckByID,
+	)
+	return activeRuns
+}
+
+func taskDashboardFreshnessFromSnapshot(
+	snapshot taskSnapshot,
+	now func() time.Time,
+	cfg taskDashboardConfig,
+) TaskDashboardFreshness {
+	observedAt := time.Now().UTC()
+	if now != nil {
+		observedAt = now().UTC()
+	}
+
+	latestActivity := latestTaskSnapshotActivityAt(snapshot)
+	staleAfter := max(cfg.staleAfter, 0)
+	hasLiveWork := snapshotHasLiveWork(snapshot)
+	age := safeSince(observedAt, latestActivity)
+
+	freshness := TaskDashboardFreshness{
+		ObservedAt:       observedAt,
+		LatestActivityAt: latestActivity,
+		AgeMilli:         age.Milliseconds(),
+		StaleAfterMilli:  staleAfter.Milliseconds(),
+		HasLiveWork:      hasLiveWork,
+		Status:           "current",
+	}
+
+	switch {
+	case latestActivity.IsZero():
+		freshness.Status = "empty"
+	case hasLiveWork && staleAfter > 0 && age > staleAfter:
+		freshness.Status = "stale"
+		freshness.Stale = true
+	}
+
+	return freshness
+}
+
+func countTaskStatus(rows []TaskStatusTotal, status taskpkg.Status) int {
+	count := 0
+	for _, item := range rows {
+		if item.Status.Normalize() == status.Normalize() {
+			count += item.Count
+		}
+	}
+	return count
+}
+
+func countRunStatus(rows []TaskRunTotal, status taskpkg.RunStatus) int {
+	count := 0
+	for _, item := range rows {
+		if item.Status.Normalize() == status.Normalize() {
+			count += item.Count
+		}
+	}
+	return count
+}
+
+func countAwaitingApprovalTasks(tasks []taskpkg.Summary) int {
+	count := 0
+	for _, item := range tasks {
+		if item.Status.Normalize() == taskpkg.TaskStatusBlocked &&
+			item.ApprovalState.Normalize() == taskpkg.ApprovalStatePending {
+			count++
+		}
+	}
+	return count
+}
+
+func dashboardStatusForCount(count int) string {
+	return dashboardStatusForAny(count > 0)
+}
+
+func dashboardStatusForAny(warn bool) string {
+	if warn {
+		return "warn"
+	}
+	return "ok"
+}
+
+func dashboardActiveRunRank(status taskpkg.RunStatus) int {
+	switch status.Normalize() {
+	case taskpkg.TaskRunStatusRunning:
+		return 4
+	case taskpkg.TaskRunStatusStarting:
+		return 3
+	case taskpkg.TaskRunStatusClaimed:
+		return 2
+	case taskpkg.TaskRunStatusQueued:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func dashboardRunActivityAt(run taskpkg.Run) time.Time {
+	latest := run.QueuedAt
+	for _, candidate := range []time.Time{run.ClaimedAt, run.StartedAt, run.EndedAt} {
+		if candidate.After(latest) {
+			latest = candidate
+		}
+	}
+	return latest
+}
+
+func dashboardRunAge(run taskpkg.Run, now time.Time) time.Duration {
+	switch run.Status.Normalize() {
+	case taskpkg.TaskRunStatusRunning:
+		if !run.StartedAt.IsZero() {
+			return safeSince(now, run.StartedAt)
+		}
+	case taskpkg.TaskRunStatusStarting, taskpkg.TaskRunStatusClaimed:
+		if !run.ClaimedAt.IsZero() {
+			return safeSince(now, run.ClaimedAt)
+		}
+	}
+	return safeSince(now, run.QueuedAt)
+}
+
+func latestTaskSnapshotActivityAt(snapshot taskSnapshot) time.Time {
+	var latest time.Time
+	for _, item := range snapshot.tasks {
+		for _, candidate := range []time.Time{item.CreatedAt, item.UpdatedAt, item.ClosedAt} {
+			if candidate.After(latest) {
+				latest = candidate
+			}
+		}
+	}
+	for _, item := range snapshot.runs {
+		if activityAt := dashboardRunActivityAt(item); activityAt.After(latest) {
+			latest = activityAt
+		}
+	}
+	for _, item := range snapshot.events {
+		if item.Timestamp.After(latest) {
+			latest = item.Timestamp
+		}
+	}
+	return latest
+}
+
+func snapshotHasLiveWork(snapshot taskSnapshot) bool {
+	for _, item := range snapshot.runs {
+		if isDashboardActiveRunStatus(item.Status) {
+			return true
+		}
+	}
+	return false
+}
+
+func dashboardNow(now func() time.Time) time.Time {
+	if now == nil {
+		return time.Now().UTC()
+	}
+	return now().UTC()
+}
+
+func dashboardActiveRuns(runs []taskpkg.Run) []taskpkg.Run {
+	items := make([]taskpkg.Run, 0, len(runs))
+	for _, item := range runs {
+		if isDashboardActiveRunStatus(item.Status) {
+			items = append(items, item)
+		}
+	}
+	slices.SortFunc(items, compareDashboardActiveRuns)
+	return items
+}
+
+func compareDashboardActiveRuns(left, right taskpkg.Run) int {
+	leftRank := dashboardActiveRunRank(left.Status)
+	rightRank := dashboardActiveRunRank(right.Status)
+	if leftRank != rightRank {
+		if leftRank > rightRank {
+			return -1
+		}
+		return 1
+	}
+
+	leftAt := dashboardRunActivityAt(left)
+	rightAt := dashboardRunActivityAt(right)
+	if !leftAt.Equal(rightAt) {
+		if leftAt.After(rightAt) {
+			return -1
+		}
+		return 1
+	}
+	return strings.Compare(right.ID, left.ID)
+}
+
+func dashboardStuckRunSet(
+	runs []taskpkg.Run,
+	currentTime time.Time,
+	healthCfg TaskHealthConfig,
+) map[string]struct{} {
+	stuckByID := make(map[string]struct{})
+	for _, item := range findStuckRuns(runs, currentTime, healthCfg) {
+		stuckByID[item.RunID] = struct{}{}
+	}
+	return stuckByID
+}
+
+func taskDashboardActiveRunCounts(items []taskpkg.Run) TaskDashboardActiveRuns {
+	activeRuns := TaskDashboardActiveRuns{Total: len(items)}
+	for _, item := range items {
+		switch item.Status.Normalize() {
+		case taskpkg.TaskRunStatusRunning:
+			activeRuns.Running++
+		case taskpkg.TaskRunStatusStarting:
+			activeRuns.Starting++
+		case taskpkg.TaskRunStatusClaimed:
+			activeRuns.Claimed++
+		case taskpkg.TaskRunStatusQueued:
+			activeRuns.Queued++
+		}
+	}
+	return activeRuns
+}
+
+func taskDashboardActiveRunItems(
+	items []taskpkg.Run,
+	tasksByID map[string]taskpkg.Summary,
+	currentTime time.Time,
+	limit int,
+	stuckByID map[string]struct{},
+) []TaskDashboardActiveRun {
+	if limit <= 0 {
+		limit = 4
+	}
+	if limit > len(items) {
+		limit = len(items)
+	}
+
+	activeRunItems := make([]TaskDashboardActiveRun, 0, limit)
+	for _, run := range items[:limit] {
+		taskItem, ok := tasksByID[strings.TrimSpace(run.TaskID)]
+		if !ok {
+			continue
+		}
+		_, stuck := stuckByID[run.ID]
+		activeRunItems = append(activeRunItems, TaskDashboardActiveRun{
+			TaskID:         taskItem.ID,
+			TaskIdentifier: taskItem.Identifier,
+			TaskTitle:      taskItem.Title,
+			TaskStatus:     taskItem.Status.Normalize(),
+			TaskPriority:   taskItem.Priority,
+			TaskOwner:      cloneOwnership(taskItem.Owner),
+			Scope:          taskItem.Scope.Normalize(),
+			WorkspaceID:    taskItem.WorkspaceID,
+			RunID:          run.ID,
+			RunStatus:      run.Status.Normalize(),
+			Attempt:        run.Attempt,
+			MaxAttempts:    taskItem.MaxAttempts,
+			SessionID:      strings.TrimSpace(run.SessionID),
+			NetworkChannel: strings.TrimSpace(run.NetworkChannel),
+			LastActivityAt: dashboardRunActivityAt(run),
+			AgeMilli:       dashboardRunAge(run, currentTime).Milliseconds(),
+			HealthStatus:   dashboardStatusForAny(stuck),
+			Stuck:          stuck,
+			Error:          strings.TrimSpace(run.Error),
+		})
+	}
+	return activeRunItems
+}
+
+func isDashboardActiveRunStatus(status taskpkg.RunStatus) bool {
+	switch status.Normalize() {
+	case taskpkg.TaskRunStatusQueued,
+		taskpkg.TaskRunStatusClaimed,
+		taskpkg.TaskRunStatusStarting,
+		taskpkg.TaskRunStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+func cloneOwnership(owner *taskpkg.Ownership) *taskpkg.Ownership {
+	if owner == nil {
+		return nil
+	}
+	cloned := *owner
+	return &cloned
 }
 
 func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery) (taskSnapshot, error) {

@@ -87,6 +87,12 @@ type TaskHealthConfig struct {
 	RunningStuckAfter  time.Duration
 }
 
+type taskDashboardConfig struct {
+	activeRunLimit   int
+	backlogWarnAfter time.Duration
+	staleAfter       time.Duration
+}
+
 // Observer implements session.Notifier and exposes query/health helpers for global observability.
 type Observer struct {
 	mu sync.RWMutex
@@ -106,6 +112,7 @@ type Observer struct {
 	hookCatalogSource     HookCatalogSource
 	openHookStore         HookStoreOpener
 	taskHealthConfig      TaskHealthConfig
+	taskDashboardConfig   taskDashboardConfig
 }
 
 var _ session.Notifier = (*Observer)(nil)
@@ -220,6 +227,11 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 			ClaimedStuckAfter:  5 * time.Minute,
 			StartingStuckAfter: 5 * time.Minute,
 			RunningStuckAfter:  30 * time.Minute,
+		},
+		taskDashboardConfig: taskDashboardConfig{
+			activeRunLimit:   4,
+			backlogWarnAfter: 10 * time.Minute,
+			staleAfter:       2 * time.Minute,
 		},
 	}
 

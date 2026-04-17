@@ -257,6 +257,302 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 	}
 }
 
+func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	clock := &observeTaskClock{current: h.now.Add(30 * time.Minute)}
+	executor := &observeSessionExecutor{nextSessionID: "sess-observe-dashboard"}
+	manager := newObserveTaskManager(t, h, executor, clock)
+	h.observer.now = clock.Now
+	h.observer.taskDashboardConfig.backlogWarnAfter = 20 * time.Minute
+
+	humanActor, err := taskpkg.DeriveHumanActorContext("user-ops", taskpkg.OriginKindCLI, "agh task")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	daemonActor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+
+	queuedTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    h.workspaceID,
+		Title:          "Queued task",
+		NetworkChannel: "ops",
+	}, humanActor)
+	if err != nil {
+		t.Fatalf("CreateTask(queuedTask) error = %v", err)
+	}
+	if _, err = manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    h.workspaceID,
+		Title:          "Approval gate",
+		NetworkChannel: "ops",
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+	}, humanActor); err != nil {
+		t.Fatalf("CreateTask(blockedTask) error = %v", err)
+	}
+	runningTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    h.workspaceID,
+		Title:          "Running task",
+		NetworkChannel: "eng",
+	}, humanActor)
+	if err != nil {
+		t.Fatalf("CreateTask(runningTask) error = %v", err)
+	}
+	failedTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    h.workspaceID,
+		Title:          "Failed task",
+		NetworkChannel: "ops",
+		MaxAttempts:    intPtr(1),
+	}, humanActor)
+	if err != nil {
+		t.Fatalf("CreateTask(failedTask) error = %v", err)
+	}
+	completedTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    h.workspaceID,
+		Title:          "Completed task",
+		NetworkChannel: "eng",
+	}, humanActor)
+	if err != nil {
+		t.Fatalf("CreateTask(completedTask) error = %v", err)
+	}
+
+	clock.Advance(time.Minute)
+	queuedRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: queuedTask.ID}, humanActor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(queuedTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	runningRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: runningTask.ID}, humanActor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(runningTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.ClaimRun(
+		testutil.Context(t),
+		runningRun.ID,
+		taskpkg.ClaimRun{IdempotencyKey: "claim-running-1"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("ClaimRun(runningTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.StartRun(
+		testutil.Context(t),
+		runningRun.ID,
+		taskpkg.StartRun{IdempotencyKey: "start-running-1"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("StartRun(runningTask) error = %v", err)
+	}
+
+	clock.Advance(time.Minute)
+	failedRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: failedTask.ID}, humanActor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(failedTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.ClaimRun(
+		testutil.Context(t),
+		failedRun.ID,
+		taskpkg.ClaimRun{IdempotencyKey: "claim-failed-1"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("ClaimRun(failedTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.StartRun(
+		testutil.Context(t),
+		failedRun.ID,
+		taskpkg.StartRun{IdempotencyKey: "start-failed-1"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("StartRun(failedTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.FailRun(testutil.Context(t), failedRun.ID, taskpkg.RunFailure{Error: "boom"}, daemonActor); err != nil {
+		t.Fatalf("FailRun(failedTask) error = %v", err)
+	}
+
+	clock.Advance(time.Minute)
+	completedRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: completedTask.ID}, humanActor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(completedTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.ClaimRun(
+		testutil.Context(t),
+		completedRun.ID,
+		taskpkg.ClaimRun{IdempotencyKey: "claim-completed-1"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("ClaimRun(completedTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.StartRun(
+		testutil.Context(t),
+		completedRun.ID,
+		taskpkg.StartRun{IdempotencyKey: "start-completed-1"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("StartRun(completedTask) error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.CompleteRun(testutil.Context(t), completedRun.ID, taskpkg.RunResult{}, daemonActor); err != nil {
+		t.Fatalf("CompleteRun(completedTask) error = %v", err)
+	}
+
+	dashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+	if err != nil {
+		t.Fatalf("QueryTaskDashboard() error = %v", err)
+	}
+
+	if got, want := dashboard.Totals.TasksTotal, 5; got != want {
+		t.Fatalf("dashboard.Totals.TasksTotal = %d, want %d", got, want)
+	}
+	if got, want := dashboard.Totals.BlockedTasks, 1; got != want {
+		t.Fatalf("dashboard.Totals.BlockedTasks = %d, want %d", got, want)
+	}
+	if got, want := dashboard.Totals.AwaitingApprovalTasks, 1; got != want {
+		t.Fatalf("dashboard.Totals.AwaitingApprovalTasks = %d, want %d", got, want)
+	}
+	if got, want := dashboard.Totals.ReadyTasks, 1; got != want {
+		t.Fatalf("dashboard.Totals.ReadyTasks = %d, want %d", got, want)
+	}
+	if got, want := dashboard.Totals.InProgressTasks, 1; got != want {
+		t.Fatalf("dashboard.Totals.InProgressTasks = %d, want %d", got, want)
+	}
+	if got, want := dashboard.Totals.FailedTasks, 1; got != want {
+		t.Fatalf("dashboard.Totals.FailedTasks = %d, want %d", got, want)
+	}
+	if got, want := dashboard.Totals.CompletedTasks, 1; got != want {
+		t.Fatalf("dashboard.Totals.CompletedTasks = %d, want %d", got, want)
+	}
+	if got, want := dashboard.Queue.Total, 1; got != want {
+		t.Fatalf("dashboard.Queue.Total = %d, want %d", got, want)
+	}
+	if got, want := dashboard.ActiveRuns.Total, 2; got != want {
+		t.Fatalf("dashboard.ActiveRuns.Total = %d, want %d", got, want)
+	}
+	if got := activeRunIDs(dashboard.ActiveRuns.Items); len(got) < 2 || got[0] != runningRun.ID || got[1] != queuedRun.ID {
+		t.Fatalf("dashboard.ActiveRuns.Items ids = %#v, want running then queued", got)
+	}
+}
+
+func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	clock := &observeTaskClock{current: h.now.Add(30 * time.Minute)}
+	executor := &observeSessionExecutor{nextSessionID: "sess-observe-refresh"}
+	manager := newObserveTaskManager(t, h, executor, clock)
+	h.observer.now = clock.Now
+	h.observer.taskDashboardConfig.backlogWarnAfter = 5 * time.Minute
+
+	humanActor, err := taskpkg.DeriveHumanActorContext("user-ops", taskpkg.OriginKindCLI, "agh task")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	daemonActor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+
+	taskRecord, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    h.workspaceID,
+		Title:          "Transitioning task",
+		NetworkChannel: "ops",
+	}, humanActor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	clock.Advance(time.Minute)
+	run, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: taskRecord.ID}, humanActor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	clock.Advance(6 * time.Minute)
+
+	queuedDashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+	if err != nil {
+		t.Fatalf("QueryTaskDashboard(queued) error = %v", err)
+	}
+	if got, want := queuedDashboard.Queue.Total, 1; got != want {
+		t.Fatalf("queuedDashboard.Queue.Total = %d, want %d", got, want)
+	}
+	if !queuedDashboard.Queue.BacklogWarning {
+		t.Fatal("queuedDashboard.Queue.BacklogWarning = false, want true")
+	}
+	if got, want := queuedDashboard.Freshness.Status, "stale"; got != want {
+		t.Fatalf("queuedDashboard.Freshness.Status = %q, want %q", got, want)
+	}
+
+	if _, err := manager.ClaimRun(
+		testutil.Context(t),
+		run.ID,
+		taskpkg.ClaimRun{IdempotencyKey: "claim-transition-1"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+	clock.Advance(time.Minute)
+	if _, err := manager.StartRun(
+		testutil.Context(t),
+		run.ID,
+		taskpkg.StartRun{IdempotencyKey: "start-transition-1"},
+		daemonActor,
+	); err != nil {
+		t.Fatalf("StartRun() error = %v", err)
+	}
+
+	runningDashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+	if err != nil {
+		t.Fatalf("QueryTaskDashboard(running) error = %v", err)
+	}
+	if got, want := runningDashboard.Queue.Total, 0; got != want {
+		t.Fatalf("runningDashboard.Queue.Total = %d, want %d", got, want)
+	}
+	if got, want := runningDashboard.Totals.RunningRuns, 1; got != want {
+		t.Fatalf("runningDashboard.Totals.RunningRuns = %d, want %d", got, want)
+	}
+	if got, want := runningDashboard.Totals.InProgressTasks, 1; got != want {
+		t.Fatalf("runningDashboard.Totals.InProgressTasks = %d, want %d", got, want)
+	}
+	if got, want := runningDashboard.Freshness.Status, "current"; got != want {
+		t.Fatalf("runningDashboard.Freshness.Status = %q, want %q", got, want)
+	}
+
+	clock.Advance(time.Minute)
+	if _, err := manager.CompleteRun(testutil.Context(t), run.ID, taskpkg.RunResult{}, daemonActor); err != nil {
+		t.Fatalf("CompleteRun() error = %v", err)
+	}
+
+	completedDashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+	if err != nil {
+		t.Fatalf("QueryTaskDashboard(completed) error = %v", err)
+	}
+	if got, want := completedDashboard.ActiveRuns.Total, 0; got != want {
+		t.Fatalf("completedDashboard.ActiveRuns.Total = %d, want %d", got, want)
+	}
+	if got, want := completedDashboard.Totals.CompletedTasks, 1; got != want {
+		t.Fatalf("completedDashboard.Totals.CompletedTasks = %d, want %d", got, want)
+	}
+	if got, want := completedDashboard.Totals.CompletedRuns, 1; got != want {
+		t.Fatalf("completedDashboard.Totals.CompletedRuns = %d, want %d", got, want)
+	}
+	if completedDashboard.Queue.BacklogWarning {
+		t.Fatal("completedDashboard.Queue.BacklogWarning = true, want false")
+	}
+}
+
 func newObserveTaskManager(t *testing.T, h *harness, executor *observeSessionExecutor, clock *observeTaskClock) *taskpkg.Service {
 	t.Helper()
 
