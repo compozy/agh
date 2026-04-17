@@ -12,15 +12,14 @@ import (
 // AtomicWriteFile writes content to path via temp-file-and-rename.
 // It always syncs the temp file before rename for durability.
 func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
-	cleanPath := strings.TrimSpace(path)
-	if cleanPath == "" {
+	if strings.TrimSpace(path) == "" {
 		return errors.New("fileutil: path is required")
 	}
 
-	dir := filepath.Dir(cleanPath)
-	tempFile, err := os.CreateTemp(dir, filepath.Base(cleanPath)+".tmp-*")
+	dir := filepath.Dir(path)
+	tempFile, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")
 	if err != nil {
-		return fmt.Errorf("fileutil: create temp file for %q: %w", cleanPath, err)
+		return fmt.Errorf("fileutil: create temp file for %q: %w", path, err)
 	}
 
 	tempPath := tempFile.Name()
@@ -35,11 +34,11 @@ func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
 	if err := writeTempFile(tempFile, tempPath, content, perm); err != nil {
 		return err
 	}
-	if err := os.Rename(tempPath, cleanPath); err != nil {
-		return fmt.Errorf("fileutil: replace %q: %w", cleanPath, err)
+	if err := os.Rename(tempPath, path); err != nil {
+		return fmt.Errorf("fileutil: replace %q: %w", path, err)
 	}
 	if err := syncDir(dir); err != nil {
-		return fmt.Errorf("fileutil: sync parent directory for %q: %w", cleanPath, err)
+		return fmt.Errorf("fileutil: sync parent directory for %q: %w", path, err)
 	}
 
 	cleanup = false
