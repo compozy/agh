@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,15 +27,7 @@ func Context(t testing.TB) context.Context {
 
 // EqualStringSlices reports whether two string slices have equal contents.
 func EqualStringSlices(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(left, right)
 }
 
 // FreeTCPPort returns an available localhost TCP port chosen from a
