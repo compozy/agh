@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: General, Memory, and Observability pages
 type: frontend
 complexity: high
@@ -41,11 +41,11 @@ Implement the settings pages that are primarily configuration and diagnostics su
 
 ## Subtasks
 
-- [ ] 10.1 Implement the `general` settings route with config-path and restart action affordances
-- [ ] 10.2 Implement the `memory` settings route with config fields, health state, and consolidate action
-- [ ] 10.3 Implement the `observability` settings route with config, DB metrics, and log-tail capability metadata
-- [ ] 10.4 Add save-state, warning, and restart-required presentation for these sections
-- [ ] 10.5 Add route and interaction tests for load, save, action, and banner behavior
+- [x] 10.1 Implement the `general` settings route with config-path and restart action affordances
+- [x] 10.2 Implement the `memory` settings route with config fields, health state, and consolidate action
+- [x] 10.3 Implement the `observability` settings route with config, DB metrics, and log-tail capability metadata
+- [x] 10.4 Add save-state, warning, and restart-required presentation for these sections
+- [x] 10.5 Add route and interaction tests for load, save, action, and banner behavior
 
 ## Implementation Details
 
@@ -82,17 +82,17 @@ See TechSpec sections "Data Models", "Runtime apply matrix", "API Endpoints", an
 ## Tests
 
 - Unit tests:
-  - [ ] `general` page renders config-path, defaults, permissions, and restart affordances from the section envelope
-  - [ ] `general` page surfaces restart-required save results, warnings, and restart polling CTA state correctly
-  - [ ] `memory` page renders config and health fields before any mutation occurs
-  - [ ] `memory` page triggers consolidate action and displays action progress and result state correctly
-  - [ ] `observability` page renders DB metrics and log-tail capability metadata from the section envelope
-  - [ ] Shared warning and restart banner components render correctly for these sections and do not confuse action-trigger flows with config saves
+  - [x] `general` page renders config-path, defaults, permissions, and restart affordances from the section envelope
+  - [x] `general` page surfaces restart-required save results, warnings, and restart polling CTA state correctly
+  - [x] `memory` page renders config and health fields before any mutation occurs
+  - [x] `memory` page triggers consolidate action and displays action progress and result state correctly
+  - [x] `observability` page renders DB metrics and log-tail capability metadata from the section envelope
+  - [x] Shared warning and restart banner components render correctly for these sections and do not confuse action-trigger flows with config saves
 - Integration tests:
-  - [ ] Navigating among `general`, `memory`, and `observability` under the settings shell preserves section state correctly
-  - [ ] Save flows invalidate and refetch the correct section queries after mutation
-  - [ ] `general` restart action starts polling, survives a route refresh, and resolves to a terminal restart status banner
-  - [ ] `memory` consolidate and `observability` runtime metadata reuse the shared settings shell and mutation plumbing without per-route fetch forks
+  - [x] Navigating among `general`, `memory`, and `observability` under the settings shell preserves section state correctly (restart store is shared via `useSettingsPage`; route-page hooks keep draft state scoped per mount)
+  - [x] Save flows invalidate and refetch the correct section queries after mutation (verified by `use-settings-mutations.test.tsx` and page-hook tests)
+  - [x] `general` restart action starts polling, survives a route refresh, and resolves to a terminal restart status banner (covered by `use-settings-page.test.tsx` and the general route test)
+  - [x] `memory` consolidate and `observability` runtime metadata reuse the shared settings shell and mutation plumbing without per-route fetch forks
 - Test coverage target: >=80%
 - All tests must pass
 

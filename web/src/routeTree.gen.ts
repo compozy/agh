@@ -19,6 +19,9 @@ import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
 import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
 import { Route as AppAutomationRouteImport } from './routes/_app/automation'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
+import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
+import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 
 const DesignSystemRoute = DesignSystemRouteImport.update({
@@ -70,6 +73,22 @@ const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsObservabilityRoute =
+  AppSettingsObservabilityRouteImport.update({
+    id: '/observability',
+    path: '/observability',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsMemoryRoute = AppSettingsMemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSessionIdRoute = AppSessionIdRouteImport.update({
   id: '/session/$id',
   path: '/session/$id',
@@ -86,6 +105,9 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRouteWithChildren
   '/skills': typeof AppSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
+  '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/memory': typeof AppSettingsMemoryRoute
+  '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/': typeof AppSettingsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -97,6 +119,9 @@ export interface FileRoutesByTo {
   '/skills': typeof AppSkillsRoute
   '/': typeof AppIndexRoute
   '/session/$id': typeof AppSessionIdRoute
+  '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/memory': typeof AppSettingsMemoryRoute
+  '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings': typeof AppSettingsIndexRoute
 }
 export interface FileRoutesById {
@@ -111,6 +136,9 @@ export interface FileRoutesById {
   '/_app/skills': typeof AppSkillsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/session/$id': typeof AppSessionIdRoute
+  '/_app/settings/general': typeof AppSettingsGeneralRoute
+  '/_app/settings/memory': typeof AppSettingsMemoryRoute
+  '/_app/settings/observability': typeof AppSettingsObservabilityRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
 }
 export interface FileRouteTypes {
@@ -125,6 +153,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/skills'
     | '/session/$id'
+    | '/settings/general'
+    | '/settings/memory'
+    | '/settings/observability'
     | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -136,6 +167,9 @@ export interface FileRouteTypes {
     | '/skills'
     | '/'
     | '/session/$id'
+    | '/settings/general'
+    | '/settings/memory'
+    | '/settings/observability'
     | '/settings'
   id:
     | '__root__'
@@ -149,6 +183,9 @@ export interface FileRouteTypes {
     | '/_app/skills'
     | '/_app/'
     | '/_app/session/$id'
+    | '/_app/settings/general'
+    | '/_app/settings/memory'
+    | '/_app/settings/observability'
     | '/_app/settings/'
   fileRoutesById: FileRoutesById
 }
@@ -229,6 +266,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsIndexRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/observability': {
+      id: '/_app/settings/observability'
+      path: '/observability'
+      fullPath: '/settings/observability'
+      preLoaderRoute: typeof AppSettingsObservabilityRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/memory': {
+      id: '/_app/settings/memory'
+      path: '/memory'
+      fullPath: '/settings/memory'
+      preLoaderRoute: typeof AppSettingsMemoryRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/general': {
+      id: '/_app/settings/general'
+      path: '/general'
+      fullPath: '/settings/general'
+      preLoaderRoute: typeof AppSettingsGeneralRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/session/$id': {
       id: '/_app/session/$id'
       path: '/session/$id'
@@ -240,10 +298,16 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppSettingsRouteChildren {
+  AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
+  AppSettingsMemoryRoute: typeof AppSettingsMemoryRoute
+  AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
 }
 
 const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsGeneralRoute: AppSettingsGeneralRoute,
+  AppSettingsMemoryRoute: AppSettingsMemoryRoute,
+  AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,
 }
 

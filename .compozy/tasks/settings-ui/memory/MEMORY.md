@@ -20,6 +20,9 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - UDS now mirrors the full `/api/settings/*` namespace without the HTTP loopback mutation guard, and `internal/api/udsapi` carries unit plus integration parity coverage for settings and extension surfaces, including non-loopback HTTP vs privileged UDS workspace-scoped `mcp-servers` mutations.
 - `web/src/systems/settings` is the canonical frontend domain for every section, collection, restart action, and log-tail URL; section pages must consume it via the public barrel and route-level orchestration should live in `web/src/hooks/routes/use-settings-page.ts` instead of per-route fetch logic.
 - Restart polling state is centralized in `settings-restart-store` (Zustand) and exposed through `useSettingsRestart()`; polling stops as soon as status reaches `ready` or `failed`, and `useSettingsPage().restart` projects the combined banner state for any settings route.
+- Shared section UI primitives live under `web/src/systems/settings/components/` (`SettingsPageShell`, `SettingsSectionCard`, `SettingsFieldRow`, `SettingsStatusLine`, `SettingsSaveBar`, `SettingsRestartBanner`) and must be reused by every settings page instead of building per-section shells.
+- Route-level orchestration for settings pages belongs in `web/src/hooks/routes/use-settings-<slug>-page.ts` (pattern established by task_10 for general/memory/observability) so the route file stays presentational and passes `compozy-react/max-component-complexity`.
+- Memory "Trigger now" consolidate reuses `useConsolidateMemory` from `@/systems/knowledge` — do not introduce a new settings-owned consolidate adapter.
 
 ## Open Risks
 
@@ -29,3 +32,4 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - `task_06` and `task_07` should reuse the shared `api/core` settings handlers and keep HTTP loopback enforcement or UDS-specific policy in transport wiring only.
 - `task_09`+ can import `SETTINGS_SECTIONS` from `web/src/routes/_app/settings.tsx` (or relocate it into `systems/settings/lib`); per-section pages just need `web/src/routes/_app/settings/<slug>.tsx` files and the shell automatically frames them.
 - task_10..task_14 should build section pages on top of `@/systems/settings` hooks (reads + mutation hooks) and reuse `useSettingsPage` in the shell — route files must stay presentational with no direct `/api/settings/*` calls.
+- task_11+ section pages must reuse `@/systems/settings/components` primitives and follow the `use-settings-<slug>-page.ts` orchestration hook pattern introduced in task_10; do not re-implement page shells, save bars, or restart banners per section.
