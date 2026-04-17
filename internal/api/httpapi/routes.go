@@ -87,6 +87,10 @@ func registerObserveRoutes(api gin.IRouter, handlers *Handlers) {
 	observeGroup.GET("/events", handlers.ObserveEvents)
 	observeGroup.GET("/events/stream", handlers.StreamObserveEvents)
 	observeGroup.GET("/health", handlers.Health)
+
+	taskObserveGroup := observeGroup.Group("/tasks")
+	taskObserveGroup.GET("/dashboard", handlers.TaskDashboard)
+	taskObserveGroup.GET("/inbox", handlers.TaskInbox)
 }
 
 func registerHookRoutes(api gin.IRouter, handlers *Handlers) {
@@ -145,14 +149,24 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 	tasks.GET("", handlers.ListTasks)
 	tasks.GET("/:id", handlers.GetTask)
 	tasks.PATCH("/:id", handlers.UpdateTask)
+	tasks.POST("/:id/publish", handlers.PublishTask)
 	tasks.POST("/:id/cancel", handlers.CancelTask)
 	tasks.POST("/:id/children", handlers.CreateChildTask)
 	tasks.POST("/:id/dependencies", handlers.AddTaskDependency)
 	tasks.DELETE("/:id/dependencies/:depends_on_id", handlers.RemoveTaskDependency)
+	tasks.GET("/:id/timeline", handlers.TaskTimeline)
+	tasks.GET("/:id/stream", handlers.StreamTask)
+	tasks.GET("/:id/tree", handlers.TaskTree)
+	tasks.POST("/:id/approve", handlers.ApproveTask)
+	tasks.POST("/:id/reject", handlers.RejectTask)
+	tasks.POST("/:id/triage/read", handlers.MarkTaskRead)
+	tasks.POST("/:id/triage/archive", handlers.ArchiveTask)
+	tasks.POST("/:id/triage/dismiss", handlers.DismissTask)
 	tasks.POST("/:id/runs", handlers.EnqueueTaskRun)
 	tasks.GET("/:id/runs", handlers.ListTaskRuns)
 
 	taskRuns := api.Group("/task-runs")
+	taskRuns.GET("/:id", handlers.GetTaskRun)
 	taskRuns.POST("/:id/claim", handlers.ClaimTaskRun)
 	taskRuns.POST("/:id/start", handlers.StartTaskRun)
 	taskRuns.POST("/:id/attach-session", handlers.AttachTaskRunSession)
