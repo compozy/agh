@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: ACP mock driver and multi-agent fixtures
 type: test
 complexity: high
@@ -30,11 +30,11 @@ Expand the deterministic ACP mock layer so it can drive realistic agentic runtim
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Expand the mock ACP fixture schema to cover multi-agent and cross-domain scenario primitives.
-- [ ] 2.2 Implement temporary agent-definition registration that maps each fixture-driven mock agent onto the real daemon startup path.
-- [ ] 2.3 Add deterministic support for tool/permission events, network turns, and environment expectations.
-- [ ] 2.4 Add fixture diagnostics and golden coverage for expected streaming and event sequences.
-- [ ] 2.5 Add focused tests proving the mock layer remains narrow and launch-compatible.
+- [x] 2.1 Expand the mock ACP fixture schema to cover multi-agent and cross-domain scenario primitives.
+- [x] 2.2 Implement temporary agent-definition registration that maps each fixture-driven mock agent onto the real daemon startup path.
+- [x] 2.3 Add deterministic support for tool/permission events, network turns, and environment expectations.
+- [x] 2.4 Add fixture diagnostics and golden coverage for expected streaming and event sequences.
+- [x] 2.5 Add focused tests proving the mock layer remains narrow and launch-compatible.
 
 ## Implementation Details
 
@@ -68,13 +68,13 @@ See TechSpec sections "Component Overview", "Core Interfaces", "Data Models", an
 
 ## Tests
 - Unit tests:
-  - [ ] Multi-agent fixture parsing maps named agents and scenario primitives into stable internal specs
-  - [ ] Temporary agent-definition rendering preserves provider and command fields required by live config validation
-  - [ ] Deterministic streaming output remains stable when permission and tool events are included in the fixture
+  - [x] Multi-agent fixture parsing maps named agents and scenario primitives into stable internal specs
+  - [x] Temporary agent-definition rendering preserves provider and command fields required by live config validation
+  - [x] Deterministic streaming output remains stable when permission and tool events are included in the fixture
 - Integration tests:
-  - [ ] A real daemon session launches a fixture-backed mock ACP agent through the normal agent-definition path
-  - [ ] Two fixture-backed mock agents can participate in one runtime scenario without cross-contaminating state
-  - [ ] Tool-permission and environment-expectation fixture events surface through the live ACP/session path
+  - [x] A real daemon session launches a fixture-backed mock ACP agent through the normal agent-definition path
+  - [x] Two fixture-backed mock agents can participate in one runtime scenario without cross-contaminating state
+  - [x] Tool-permission and environment-expectation fixture events surface through the live ACP/session path
 - Test coverage target: >=80%
 - All tests must pass
 

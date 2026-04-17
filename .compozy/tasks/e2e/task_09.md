@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Browser onboarding and session lifecycle flow
 type: test
 complexity: high
@@ -30,11 +30,11 @@ Add the browser E2E scenario that proves an operator can move from workspace onb
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Add seeded browser/runtime fixtures for workspace onboarding and session creation.
-- [ ] 9.2 Implement the end-to-end session lifecycle scenario in Playwright.
-- [ ] 9.3 Cover approval UI behavior within the same operator journey.
-- [ ] 9.4 Add reload and hydration assertions for transcript continuity and session state.
-- [ ] 9.5 Add focused selector-stability or shell-surface adjustments only where the real route needs them.
+- [x] 9.1 Add seeded browser/runtime fixtures for workspace onboarding and session creation.
+- [x] 9.2 Implement the end-to-end session lifecycle scenario in Playwright.
+- [x] 9.3 Cover approval UI behavior within the same operator journey.
+- [x] 9.4 Add reload and hydration assertions for transcript continuity and session state.
+- [x] 9.5 Add focused selector-stability or shell-surface adjustments only where the real route needs them.
 
 ## Implementation Details
 
@@ -69,13 +69,13 @@ See TechSpec sections "PR-Required Browser E2E", "Browser Data Flow", and "Techn
 
 ## Tests
 - Unit tests:
-  - [ ] Session browser fixture seeding creates the required workspace and session state without hidden route assumptions
-  - [ ] Selector helpers locate onboarding, session, and approval surfaces consistently across the shipped shell
-  - [ ] Browser artifact capture records the session route state for streaming and hydration failures
+  - [x] Session browser fixture seeding creates the required workspace and session state without hidden route assumptions
+  - [x] Selector helpers locate onboarding, session, and approval surfaces consistently across the shipped shell
+  - [x] Browser artifact capture records the session route state for streaming and hydration failures
 - Integration tests:
-  - [ ] Operator can complete onboarding or workspace selection, create a session, send a prompt, and observe streaming output
-  - [ ] Operator can resolve a permission prompt through the approval UI and see the session continue
-  - [ ] Operator can stop and resume the session, reload the page, and still see transcript and session-state continuity
+  - [x] Operator can complete onboarding or workspace selection, create a session, send a prompt, and observe streaming output
+  - [x] Operator can resolve a permission prompt through the approval UI and see the session continue
+  - [x] Operator can stop and resume the session, reload the page, and still see transcript and session-state continuity
 - Test coverage target: >=80%
 - All tests must pass
 

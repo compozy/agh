@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Browser network operator flow
 type: test
 complexity: high
@@ -31,11 +31,11 @@ Add the browser E2E scenario that proves an operator can create and inspect a ne
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Seed the browser/runtime harness with network-enabled daemon state suitable for an operator-visible collaboration flow.
-- [ ] 10.2 Implement the browser scenario for channel creation and channel inspection.
-- [ ] 10.3 Add peer-visibility and message/timeline assertions for the resulting network collaboration state.
-- [ ] 10.4 Add reload or cross-navigation assertions that prove the UI can recover and re-read the same network state.
-- [ ] 10.5 Add selector-stability adjustments only where the shipped route surface requires them.
+- [x] 10.1 Seed the browser/runtime harness with network-enabled daemon state suitable for an operator-visible collaboration flow.
+- [x] 10.2 Implement the browser scenario for channel creation and channel inspection.
+- [x] 10.3 Add peer-visibility and message/timeline assertions for the resulting network collaboration state.
+- [x] 10.4 Add reload or cross-navigation assertions that prove the UI can recover and re-read the same network state.
+- [x] 10.5 Add selector-stability adjustments only where the shipped route surface requires them.
 
 ## Implementation Details
 
@@ -70,13 +70,13 @@ See TechSpec sections "PR-Required Browser E2E", "Runtime Data Flow", and "Techn
 
 ## Tests
 - Unit tests:
-  - [ ] Network browser fixture seeding builds deterministic channel and peer state for the operator scenario
-  - [ ] Selector helpers locate the create-channel dialog, channel list, peer list, and detail panels consistently
-  - [ ] Browser artifact capture records enough route context to explain a failed network operator flow
+  - [x] Network browser fixture seeding builds deterministic channel and peer state for the operator scenario
+  - [x] Selector helpers locate the create-channel dialog, channel list, peer list, and detail panels consistently
+  - [x] Browser artifact capture records enough route context to explain a failed network operator flow
 - Integration tests:
-  - [ ] Operator can open the Network page, create a channel through the UI, and see the new channel materialize
-  - [ ] Operator can inspect peers and observe channel messages or timeline entries sourced from the real runtime
-  - [ ] Operator can reload or navigate away and back without losing the visible network state for the same scenario
+  - [x] Operator can open the Network page, create a channel through the UI, and see the new channel materialize
+  - [x] Operator can inspect peers and observe channel messages or timeline entries sourced from the real runtime
+  - [x] Operator can reload or navigate away and back without losing the visible network state for the same scenario
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Playwright harness for daemon-served browser E2E
 type: test
 complexity: high
@@ -30,11 +30,11 @@ Create the browser E2E harness that runs Playwright against the daemon-served AG
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add Playwright configuration and shared browser fixtures under `web/e2e/`.
-- [ ] 8.2 Wire browser execution to the daemon-served asset path rather than Vite preview.
-- [ ] 8.3 Add shared browser artifact capture for traces, screenshots, console logs, and network logs.
-- [ ] 8.4 Add `web` workspace scripts needed to install and run Playwright locally and in automation.
-- [ ] 8.5 Add focused harness tests or smoke checks proving the browser fixture boots and reaches the daemon-served shell.
+- [x] 8.1 Add Playwright configuration and shared browser fixtures under `web/e2e/`.
+- [x] 8.2 Wire browser execution to the daemon-served asset path rather than Vite preview.
+- [x] 8.3 Add shared browser artifact capture for traces, screenshots, console logs, and network logs.
+- [x] 8.4 Add `web` workspace scripts needed to install and run Playwright locally and in automation.
+- [x] 8.5 Add focused harness tests or smoke checks proving the browser fixture boots and reaches the daemon-served shell.
 
 ## Implementation Details
 
@@ -68,13 +68,13 @@ See TechSpec sections "Browser Data Flow", "PR-Required Browser E2E", and "Techn
 
 ## Tests
 - Unit tests:
-  - [ ] Browser fixture helpers compute daemon-hosted URLs and artifact paths consistently
-  - [ ] Browser artifact helpers persist traces, screenshots, console logs, and network logs in stable locations
-  - [ ] Script/config helpers enforce daemon-served execution mode rather than Vite preview assumptions
+  - [x] Browser fixture helpers compute daemon-hosted URLs and artifact paths consistently
+  - [x] Browser artifact helpers persist traces, screenshots, console logs, and network logs in stable locations
+  - [x] Script/config helpers enforce daemon-served execution mode rather than Vite preview assumptions
 - Integration tests:
-  - [ ] Playwright harness boots against a daemon-served UI and reaches the authenticated application shell or onboarding shell
-  - [ ] Browser fixture captures a trace and screenshot bundle after a successful smoke path
-  - [ ] Browser fixture captures console and network diagnostics after a forced failure path
+  - [x] Playwright harness boots against a daemon-served UI and reaches the authenticated application shell or onboarding shell
+  - [x] Browser fixture captures a trace and screenshot bundle after a successful smoke path
+  - [x] Browser fixture captures console and network diagnostics after a forced failure path
 - Test coverage target: >=80%
 - All tests must pass
 

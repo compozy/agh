@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Composition-root runtime network collaboration scenarios
 type: test
 complexity: high
@@ -31,11 +31,11 @@ Add the first real composition-root runtime E2E scenarios for AGH network collab
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Add network-enabled runtime fixture setup to the shared daemon harness.
-- [ ] 3.2 Implement the direct reply lifecycle scenario in `internal/daemon`.
-- [ ] 3.3 Implement the whois and recipe exchange scenario in `internal/daemon`.
-- [ ] 3.4 Add domain-specific artifact capture and assertions for network messages, audit state, API projections, and CLI visibility.
-- [ ] 3.5 Add focused regression coverage for correlation and duplicate-prone message paths.
+- [x] 3.1 Add network-enabled runtime fixture setup to the shared daemon harness.
+- [x] 3.2 Implement the direct reply lifecycle scenario in `internal/daemon`.
+- [x] 3.3 Implement the whois and recipe exchange scenario in `internal/daemon`.
+- [x] 3.4 Add domain-specific artifact capture and assertions for network messages, audit state, API projections, and CLI visibility.
+- [x] 3.5 Add focused regression coverage for correlation and duplicate-prone message paths.
 
 ## Implementation Details
 
@@ -70,13 +70,13 @@ See TechSpec sections "Runtime Data Flow", "PR-Required Runtime E2E", and "Techn
 
 ## Tests
 - Unit tests:
-  - [ ] Network artifact helper writes stable channel-message and audit snapshots for a scenario run
-  - [ ] Scenario assertion helpers verify correlation fields without relying on transcript-only goldens
-  - [ ] Network-enabled harness seeding turns on the embedded runtime only when requested
+  - [x] Network artifact helper writes stable channel-message and audit snapshots for a scenario run
+  - [x] Scenario assertion helpers verify correlation fields without relying on transcript-only goldens
+  - [x] Network-enabled harness seeding turns on the embedded runtime only when requested
 - Integration tests:
-  - [ ] Direct reply lifecycle produces channel messages and audit state with matching correlation metadata
-  - [ ] Whois and recipe exchange surfaces peer discovery and persisted channel history through public APIs
-  - [ ] CLI-visible network state matches the same runtime scenario observed by the daemon assertions
+  - [x] Direct reply lifecycle produces channel messages and audit state with matching correlation metadata
+  - [x] Whois and recipe exchange surfaces peer discovery and persisted channel history through public APIs
+  - [x] CLI-visible network state matches the same runtime scenario observed by the daemon assertions
 - Test coverage target: >=80%
 - All tests must pass
 

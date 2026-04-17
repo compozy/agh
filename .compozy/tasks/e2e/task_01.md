@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Shared E2E runtime harness and artifact plumbing
 type: test
 complexity: high
@@ -29,11 +29,11 @@ Create the shared runtime test harness that all daemon and browser E2E lanes wil
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Define the shared runtime harness API and artifact manifest contract for E2E suites.
-- [ ] 1.2 Add isolated daemon boot, seeded config, workspace creation, and public-client helpers under `internal/testutil/e2e/`.
-- [ ] 1.3 Add artifact capture helpers for required domain snapshots and failure diagnostics.
-- [ ] 1.4 Migrate one existing integration fixture path to prove the shared harness replaces duplicated setup cleanly.
-- [ ] 1.5 Add focused tests that lock the harness lifecycle and artifact-manifest behavior.
+- [x] 1.1 Define the shared runtime harness API and artifact manifest contract for E2E suites.
+- [x] 1.2 Add isolated daemon boot, seeded config, workspace creation, and public-client helpers under `internal/testutil/e2e/`.
+- [x] 1.3 Add artifact capture helpers for required domain snapshots and failure diagnostics.
+- [x] 1.4 Migrate one existing integration fixture path to prove the shared harness replaces duplicated setup cleanly.
+- [x] 1.5 Add focused tests that lock the harness lifecycle and artifact-manifest behavior.
 
 ## Implementation Details
 
@@ -68,13 +68,13 @@ See TechSpec sections "Core Interfaces", "Data Models", "Development Sequencing"
 
 ## Tests
 - Unit tests:
-  - [ ] Runtime harness creates isolated home, database, and artifact directories for each test run
-  - [ ] Artifact manifest includes only the captured domain surfaces and writes stable paths for failures
-  - [ ] Seeded config generation preserves provider and agent validation invariants from the live config rules
+  - [x] Runtime harness creates isolated home, database, and artifact directories for each test run
+  - [x] Artifact manifest includes only the captured domain surfaces and writes stable paths for failures
+  - [x] Seeded config generation preserves provider and agent validation invariants from the live config rules
 - Integration tests:
-  - [ ] Shared harness boots a real daemon and returns working HTTP and UDS clients against the started runtime
-  - [ ] Shared harness can create a seeded workspace and read back a public daemon surface without package-local boot duplication
-  - [ ] Artifact capture persists transcript and event snapshots after a forced failing scenario
+  - [x] Shared harness boots a real daemon and returns working HTTP and UDS clients against the started runtime
+  - [x] Shared harness can create a seeded workspace and read back a public daemon surface without package-local boot duplication
+  - [x] Artifact capture persists transcript and event snapshots after a forced failing scenario
 - Test coverage target: >=80%
 - All tests must pass
 

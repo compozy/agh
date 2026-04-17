@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: HTTP and UDS transport parity scenarios
 type: test
 complexity: medium
@@ -34,11 +34,11 @@ Add the focused transport-level scenarios that prove the daemon truth establishe
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Refactor HTTP and UDS integration suites to consume the shared runtime harness.
-- [ ] 7.2 Add HTTP coverage for approval-sensitive and webhook-ingress flows.
-- [ ] 7.3 Add UDS coverage for CLI-visible operator parity on in-scope runtime scenarios.
-- [ ] 7.4 Add transport-level assertions that explain parity gaps without re-testing protocol truth already covered in the daemon lane.
-- [ ] 7.5 Add focused regression checks for the current UDS approval asymmetry and documented projection behavior.
+- [x] 7.1 Refactor HTTP and UDS integration suites to consume the shared runtime harness.
+- [x] 7.2 Add HTTP coverage for approval-sensitive and webhook-ingress flows.
+- [x] 7.3 Add UDS coverage for CLI-visible operator parity on in-scope runtime scenarios.
+- [x] 7.4 Add transport-level assertions that explain parity gaps without re-testing protocol truth already covered in the daemon lane.
+- [x] 7.5 Add focused regression checks for the current UDS approval asymmetry and documented projection behavior.
 
 ## Implementation Details
 
@@ -73,13 +73,13 @@ See TechSpec sections "Public Surfaces Exercised", "Technical Dependencies", and
 
 ## Tests
 - Unit tests:
-  - [ ] Transport fixture helpers build HTTP and UDS clients from the shared runtime harness consistently
-  - [ ] Approval/parity assertion helpers report the documented UDS `501 Not Implemented` behavior clearly
-  - [ ] Webhook and projection helpers avoid duplicating daemon-truth assertions already covered elsewhere
+  - [x] Transport fixture helpers build HTTP and UDS clients from the shared runtime harness consistently
+  - [x] Approval/parity assertion helpers report the documented UDS `501 Not Implemented` behavior clearly
+  - [x] Webhook and projection helpers avoid duplicating daemon-truth assertions already covered elsewhere
 - Integration tests:
-  - [ ] HTTP approval flow succeeds against a real daemon session when a permission request is pending
-  - [ ] UDS session approval route surfaces the current documented `501 Not Implemented` behavior without hiding the gap
-  - [ ] HTTP and UDS projection reads for an in-scope runtime scenario reflect the same persisted backend truth where parity is expected
+  - [x] HTTP approval flow succeeds against a real daemon session when a permission request is pending
+  - [x] UDS session approval route surfaces the current documented `501 Not Implemented` behavior without hiding the gap
+  - [x] HTTP and UDS projection reads for an in-scope runtime scenario reflect the same persisted backend truth where parity is expected
 - Test coverage target: >=80%
 - All tests must pass
 

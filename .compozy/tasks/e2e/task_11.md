@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Browser automation operator flow
 type: test
 complexity: high
@@ -31,11 +31,11 @@ Add the browser E2E scenario that proves an operator can manage automation jobs 
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Seed the browser/runtime harness with automation jobs, triggers, and visible run history prerequisites.
-- [ ] 11.2 Implement the browser scenario for job or trigger create/edit flows.
-- [ ] 11.3 Implement real execution stimulation for the selected automation flow and observe run history in the UI.
-- [ ] 11.4 Add assertions for linked session or transcript surfaces when the operator flow exposes them.
-- [ ] 11.5 Add minimal selector or detail-panel stabilization only where the shipped route needs it.
+- [x] 11.1 Seed the browser/runtime harness with automation jobs, triggers, and visible run history prerequisites.
+- [x] 11.2 Implement the browser scenario for job or trigger create/edit flows.
+- [x] 11.3 Implement real execution stimulation for the selected automation flow and observe run history in the UI.
+- [x] 11.4 Add assertions for linked session or transcript surfaces when the operator flow exposes them.
+- [x] 11.5 Add minimal selector or detail-panel stabilization only where the shipped route needs it.
 
 ## Implementation Details
 
@@ -70,13 +70,13 @@ See TechSpec sections "PR-Required Browser E2E", "Daemon-Only E2E In Current Pro
 
 ## Tests
 - Unit tests:
-  - [ ] Automation browser fixture seeding provides deterministic jobs, triggers, and run-history state
-  - [ ] Selector helpers locate create/edit surfaces, detail panels, and run-history panels consistently
-  - [ ] Browser artifact capture preserves enough route and run context to explain failed automation flows
+  - [x] Automation browser fixture seeding provides deterministic jobs, triggers, and run-history state
+  - [x] Selector helpers locate create/edit surfaces, detail panels, and run-history panels consistently
+  - [x] Browser artifact capture preserves enough route and run context to explain failed automation flows
 - Integration tests:
-  - [ ] Operator can create or edit an automation job or trigger and see the updated state reflected in the UI
-  - [ ] Operator can cause a real automation execution and observe the resulting run history in the Automation page
-  - [ ] Operator can inspect linked session or transcript surfaces when the executed automation flow exposes them
+  - [x] Operator can create or edit an automation job or trigger and see the updated state reflected in the UI
+  - [x] Operator can cause a real automation execution and observe the resulting run history in the Automation page
+  - [x] Operator can inspect linked session or transcript surfaces when the executed automation flow exposes them
 - Test coverage target: >=80%
 - All tests must pass
 

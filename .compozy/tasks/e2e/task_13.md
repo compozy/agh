@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: E2E commands, Mage targets, and tiered lane wiring
 type: infra
 complexity: high
@@ -34,11 +34,11 @@ Wire the completed runtime and browser scenarios into explicit project entrypoin
 </requirements>
 
 ## Subtasks
-- [ ] 13.1 Add Makefile targets for runtime, web, combined, and nightly E2E lanes.
-- [ ] 13.2 Add matching Mage targets that preserve the same lane semantics.
-- [ ] 13.3 Add root and `web` script wrappers needed for local invocation and tooling integration.
-- [ ] 13.4 Ensure lane definitions exclude credentialed nightly coverage from default PR-required targets.
-- [ ] 13.5 Add focused command-level regression checks that prove each target runs the intended slice.
+- [x] 13.1 Add Makefile targets for runtime, web, combined, and nightly E2E lanes.
+- [x] 13.2 Add matching Mage targets that preserve the same lane semantics.
+- [x] 13.3 Add root and `web` script wrappers needed for local invocation and tooling integration.
+- [x] 13.4 Ensure lane definitions exclude credentialed nightly coverage from default PR-required targets.
+- [x] 13.5 Add focused command-level regression checks that prove each target runs the intended slice.
 
 ## Implementation Details
 
@@ -72,13 +72,13 @@ See TechSpec sections "Development Sequencing", "Technical Dependencies", and "K
 
 ## Tests
 - Unit tests:
-  - [ ] Command-selection helpers map runtime, web, combined, and nightly lanes to the intended package/script set
-  - [ ] Lane definitions exclude credentialed nightly coverage from default PR-required entrypoints
-  - [ ] Browser-lane command wiring preserves daemon-served execution mode assumptions
+  - [x] Command-selection helpers map runtime, web, combined, and nightly lanes to the intended package/script set
+  - [x] Lane definitions exclude credentialed nightly coverage from default PR-required entrypoints
+  - [x] Browser-lane command wiring preserves daemon-served execution mode assumptions
 - Integration tests:
-  - [ ] `make test-e2e-runtime` runs the intended runtime scenario slice without sweeping unrelated integration packages
-  - [ ] `make test-e2e-web` runs the Playwright/browser lane without invoking nightly-only coverage
-  - [ ] Combined and nightly entrypoints invoke the expected underlying Mage and script wiring
+  - [x] `make test-e2e-runtime` runs the intended runtime scenario slice without sweeping unrelated integration packages
+  - [x] `make test-e2e-web` runs the Playwright/browser lane without invoking nightly-only coverage
+  - [x] Combined and nightly entrypoints invoke the expected underlying Mage and script wiring
 - Test coverage target: >=80%
 - All tests must pass
 

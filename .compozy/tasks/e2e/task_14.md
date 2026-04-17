@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Combined-flow and credentialed nightly E2E follow-up
 type: test
 complexity: critical
@@ -30,11 +30,11 @@ Add the later-tier E2E scenarios that combine multiple runtime domains and intro
 </requirements>
 
 ## Subtasks
-- [ ] 14.1 Add combined multi-domain runtime scenarios on top of the completed base harnesses and runtime slices.
-- [ ] 14.2 Add browser-observed combined flows where the shipped UI is part of the operator path.
-- [ ] 14.3 Add credentialed Daytona or external-provider scenarios to the nightly or opt-in lane only.
-- [ ] 14.4 Expand artifact capture and failure diagnostics for multi-domain and external-provider scenarios.
-- [ ] 14.5 Add focused nightly-lane regression checks that prove these scenarios stay out of default PR-required execution.
+- [x] 14.1 Add combined multi-domain runtime scenarios on top of the completed base harnesses and runtime slices.
+- [x] 14.2 Add browser-observed combined flows where the shipped UI is part of the operator path.
+- [x] 14.3 Add credentialed Daytona or external-provider scenarios to the nightly or opt-in lane only.
+- [x] 14.4 Expand artifact capture and failure diagnostics for multi-domain and external-provider scenarios.
+- [x] 14.5 Add focused nightly-lane regression checks that prove these scenarios stay out of default PR-required execution.
 
 ## Implementation Details
 
@@ -69,13 +69,13 @@ See TechSpec sections "Nightly Or Credentialed E2E", "Combined-Flow Follow-Up", 
 
 ## Tests
 - Unit tests:
-  - [ ] Nightly-lane fixture switches and artifact helpers isolate credentialed configuration from default PR-required execution
-  - [ ] Combined-flow artifact capture preserves enough cross-domain context to diagnose failures without rerunning immediately
-  - [ ] Lane-selection helpers prevent nightly scenarios from leaking into default runtime or browser commands
+  - [x] Nightly-lane fixture switches and artifact helpers isolate credentialed configuration from default PR-required execution
+  - [x] Combined-flow artifact capture preserves enough cross-domain context to diagnose failures without rerunning immediately
+  - [x] Lane-selection helpers prevent nightly scenarios from leaking into default runtime or browser commands
 - Integration tests:
-  - [ ] Automation-to-network or task-delegation combined runtime flow completes with the expected cross-domain visible state
-  - [ ] Bridge-to-environment combined flow produces the expected bridge-visible and environment-visible outcomes
-  - [ ] Credentialed Daytona or external-provider scenario runs only behind the nightly or opt-in lane and leaves usable diagnostics
+  - [x] Automation-to-network or task-delegation combined runtime flow completes with the expected cross-domain visible state
+  - [x] Bridge-to-environment combined flow produces the expected bridge-visible and environment-visible outcomes
+  - [x] Credentialed Daytona or external-provider scenario runs only behind the nightly or opt-in lane and leaves usable diagnostics
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Runtime environment and sandbox scenarios
 type: test
 complexity: high
@@ -32,11 +32,11 @@ Add the runtime E2E scenarios that prove environment-owned tool execution and sa
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Add environment-aware runtime fixture setup for local provider scenarios.
-- [ ] 6.2 Implement the allowed tool execution runtime scenario under the real environment boundary.
-- [ ] 6.3 Implement the blocked-operation runtime scenario and capture the resulting restriction surfaces.
-- [ ] 6.4 Add environment metadata and tool-host side-effect artifacts to the shared failure manifest.
-- [ ] 6.5 Add focused regression coverage for local-provider cleanup and session-environment state persistence.
+- [x] 6.1 Add environment-aware runtime fixture setup for local provider scenarios.
+- [x] 6.2 Implement the allowed tool execution runtime scenario under the real environment boundary.
+- [x] 6.3 Implement the blocked-operation runtime scenario and capture the resulting restriction surfaces.
+- [x] 6.4 Add environment metadata and tool-host side-effect artifacts to the shared failure manifest.
+- [x] 6.5 Add focused regression coverage for local-provider cleanup and session-environment state persistence.
 
 ## Implementation Details
 
@@ -71,13 +71,13 @@ See TechSpec sections "PR-Required Runtime E2E", "Daemon-Only E2E In Current Pro
 
 ## Tests
 - Unit tests:
-  - [ ] Environment artifact helpers persist session environment metadata and tool-host diagnostics consistently
-  - [ ] Local-provider runtime fixture seeding enables environment-backed sessions without leaking state across tests
-  - [ ] Assertion helpers distinguish allowed execution from blocked sandbox outcomes without transcript-only checks
+  - [x] Environment artifact helpers persist session environment metadata and tool-host diagnostics consistently
+  - [x] Local-provider runtime fixture seeding enables environment-backed sessions without leaking state across tests
+  - [x] Assertion helpers distinguish allowed execution from blocked sandbox outcomes without transcript-only checks
 - Integration tests:
-  - [ ] Local-provider session can execute an allowed tool action and persist environment metadata through the real daemon flow
-  - [ ] Blocked sandbox operation produces the expected runtime failure signal and diagnostic artifacts
-  - [ ] Environment metadata remains readable from public surfaces after session stop or failure
+  - [x] Local-provider session can execute an allowed tool action and persist environment metadata through the real daemon flow
+  - [x] Blocked sandbox operation produces the expected runtime failure signal and diagnostic artifacts
+  - [x] Environment metadata remains readable from public surfaces after session stop or failure
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Runtime bridge ingress and extension subprocess scenarios
 type: test
 complexity: high
@@ -32,11 +32,11 @@ Add the runtime E2E scenarios that prove bridge ingress, agent processing, bridg
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Extend runtime fixtures with bridge-enabled and extension-enabled daemon setup.
-- [ ] 5.2 Implement bridge ingress and downstream delivery progression coverage in `internal/daemon`.
-- [ ] 5.3 Reuse and extend `internal/extensiontest/` for a real extension subprocess Host API flow.
-- [ ] 5.4 Add bridge and provider-side effect artifacts to the shared failure manifest.
-- [ ] 5.5 Add focused regression coverage for session reuse and delivery side effects.
+- [x] 5.1 Extend runtime fixtures with bridge-enabled and extension-enabled daemon setup.
+- [x] 5.2 Implement bridge ingress and downstream delivery progression coverage in `internal/daemon`.
+- [x] 5.3 Reuse and extend `internal/extensiontest/` for a real extension subprocess Host API flow.
+- [x] 5.4 Add bridge and provider-side effect artifacts to the shared failure manifest.
+- [x] 5.5 Add focused regression coverage for session reuse and delivery side effects.
 
 ## Implementation Details
 
@@ -71,13 +71,13 @@ See TechSpec sections "PR-Required Runtime E2E", "Integration Points", and "Comb
 
 ## Tests
 - Unit tests:
-  - [ ] Bridge artifact helpers persist route, health, and provider-call snapshots in stable locations
-  - [ ] Runtime fixture seeding can register bridge-enabled and extension-enabled daemon state without hidden assumptions
-  - [ ] Assertion helpers differentiate session reuse from new-session bridge handling
+  - [x] Bridge artifact helpers persist route, health, and provider-call snapshots in stable locations
+  - [x] Runtime fixture seeding can register bridge-enabled and extension-enabled daemon state without hidden assumptions
+  - [x] Assertion helpers differentiate session reuse from new-session bridge handling
 - Integration tests:
-  - [ ] Bridge ingress triggers real route reuse or creation and records downstream delivery progression
-  - [ ] Extension subprocess flow reaches the real Host API boundary and produces a visible bridge or automation/task side effect
-  - [ ] Provider-side effect logs or markers align with the daemon-observed bridge state for the same scenario
+  - [x] Bridge ingress triggers real route reuse or creation and records downstream delivery progression
+  - [x] Extension subprocess flow reaches the real Host API boundary and produces a visible bridge or automation/task side effect
+  - [x] Provider-side effect logs or markers align with the daemon-observed bridge state for the same scenario
 - Test coverage target: >=80%
 - All tests must pass
 

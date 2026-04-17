@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Browser bridges operator flow
 type: test
 complexity: high
@@ -31,11 +31,11 @@ Add the browser E2E scenario that proves an operator can manage bridges through 
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Seed the browser/runtime harness with bridge-enabled runtime state and provider prerequisites.
-- [ ] 12.2 Implement the browser scenario for bridge create/edit and required configuration or secret-binding actions.
-- [ ] 12.3 Add real health-stream and test-delivery assertions through the shipped UI.
-- [ ] 12.4 Verify visible downstream bridge state changes after the operator action completes.
-- [ ] 12.5 Add minimal route-surface stabilization only where the existing Bridges UI needs it.
+- [x] 12.1 Seed the browser/runtime harness with bridge-enabled runtime state and provider prerequisites.
+- [x] 12.2 Implement the browser scenario for bridge create/edit and required configuration or secret-binding actions.
+- [x] 12.3 Add real health-stream and test-delivery assertions through the shipped UI.
+- [x] 12.4 Verify visible downstream bridge state changes after the operator action completes.
+- [x] 12.5 Add minimal route-surface stabilization only where the existing Bridges UI needs it.
 
 ## Implementation Details
 
@@ -70,13 +70,13 @@ See TechSpec sections "PR-Required Browser E2E", "Integration Points", and "Comb
 
 ## Tests
 - Unit tests:
-  - [ ] Bridge browser fixture seeding provides deterministic provider, bridge, and health-state prerequisites
-  - [ ] Selector helpers locate bridge create/edit surfaces, health stream indicators, and test-delivery actions consistently
-  - [ ] Browser artifact capture records enough bridge-route state to explain failed health or delivery flows
+  - [x] Bridge browser fixture seeding provides deterministic provider, bridge, and health-state prerequisites
+  - [x] Selector helpers locate bridge create/edit surfaces, health stream indicators, and test-delivery actions consistently
+  - [x] Browser artifact capture records enough bridge-route state to explain failed health or delivery flows
 - Integration tests:
-  - [ ] Operator can create or edit a bridge, satisfy required configuration or secret-binding steps, and see the bridge appear in the UI
-  - [ ] Operator can observe real health-stream updates through the Bridges route in a Playwright run
-  - [ ] Operator can run test delivery or equivalent bridge action and observe visible downstream state change
+  - [x] Operator can create or edit a bridge, satisfy required configuration or secret-binding steps, and see the bridge appear in the UI
+  - [x] Operator can observe real health-stream updates through the Bridges route in a Playwright run
+  - [x] Operator can run test delivery or equivalent bridge action and observe visible downstream state change
 - Test coverage target: >=80%
 - All tests must pass
 

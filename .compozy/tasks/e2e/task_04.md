@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Composition-root runtime automation and task delegation scenarios
 type: test
 complexity: critical
@@ -32,11 +32,11 @@ Add the runtime E2E scenarios that prove automations can create real system sess
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Add runtime fixture seeding for automation jobs, triggers, and task-backed automation definitions.
-- [ ] 4.2 Implement the automation prompt-trigger scenario in `internal/daemon`.
-- [ ] 4.3 Implement the task-backed automation delegation scenario in `internal/daemon`.
-- [ ] 4.4 Add artifact capture and assertions for automation runs, task records, task runs, linked sessions, and downstream transcripts.
-- [ ] 4.5 Add focused regression coverage around delegated run status and session linkage behavior.
+- [x] 4.1 Add runtime fixture seeding for automation jobs, triggers, and task-backed automation definitions.
+- [x] 4.2 Implement the automation prompt-trigger scenario in `internal/daemon`.
+- [x] 4.3 Implement the task-backed automation delegation scenario in `internal/daemon`.
+- [x] 4.4 Add artifact capture and assertions for automation runs, task records, task runs, linked sessions, and downstream transcripts.
+- [x] 4.5 Add focused regression coverage around delegated run status and session linkage behavior.
 
 ## Implementation Details
 
@@ -71,13 +71,13 @@ See TechSpec sections "PR-Required Runtime E2E", "Daemon-Only E2E In Current Pro
 
 ## Tests
 - Unit tests:
-  - [ ] Automation and task artifact helpers serialize runs, task records, and session linkage consistently
-  - [ ] Runtime fixture seeding can register automation jobs and task-backed automation definitions without hidden defaults
-  - [ ] Assertion helpers distinguish completed session-creating runs from delegated task-backed runs
+  - [x] Automation and task artifact helpers serialize runs, task records, and session linkage consistently
+  - [x] Runtime fixture seeding can register automation jobs and task-backed automation definitions without hidden defaults
+  - [x] Assertion helpers distinguish completed session-creating runs from delegated task-backed runs
 - Integration tests:
-  - [ ] Automation prompt trigger creates a completed system session with persisted transcript and run record
-  - [ ] Task-backed automation run creates a real task run with `task_id`, `task_run_id`, and expected lifecycle progression
-  - [ ] Linked session or attached-session references remain readable from public task and automation surfaces
+  - [x] Automation prompt trigger creates a completed system session with persisted transcript and run record
+  - [x] Task-backed automation run creates a real task run with `task_id`, `task_run_id`, and expected lifecycle progression
+  - [x] Linked session or attached-session references remain readable from public task and automation surfaces
 - Test coverage target: >=80%
 - All tests must pass
 
