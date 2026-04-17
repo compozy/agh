@@ -3,6 +3,8 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"maps"
 	"path/filepath"
 	"strings"
@@ -13,8 +15,11 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	observepkg "github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
+	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/workref"
@@ -577,6 +582,730 @@ func timePointerFromMap(values map[string]*time.Time, id string) *time.Time {
 	}
 	next := value.UTC()
 	return &next
+}
+
+// SettingsSectionResponseFromEnvelope converts one settings section envelope into the shared response payload.
+func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (any, error) {
+	switch envelope.Section {
+	case settingspkg.SectionGeneral:
+		return settingsGeneralSectionResponse(envelope)
+	case settingspkg.SectionMemory:
+		return settingsMemorySectionResponse(envelope)
+	case settingspkg.SectionSkills:
+		return settingsSkillsSectionResponse(envelope)
+	case settingspkg.SectionAutomation:
+		return settingsAutomationSectionResponse(envelope)
+	case settingspkg.SectionNetwork:
+		return settingsNetworkSectionResponse(envelope)
+	case settingspkg.SectionObservability:
+		return settingsObservabilitySectionResponse(envelope)
+	case settingspkg.SectionHooksExtensions:
+		return settingsHooksExtensionsSectionResponse(envelope)
+	default:
+		return nil, fmt.Errorf("unknown settings section %q", envelope.Section)
+	}
+}
+
+func settingsGeneralSectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
+	if envelope.General == nil {
+		return nil, errors.New("settings general section is required")
+	}
+	return contract.SettingsGeneralResponse{
+		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
+		ConfigPaths:                        settingsConfigPathsPayload(envelope.General.ConfigPaths),
+		Config:                             settingsGeneralConfigPayload(envelope.General.Settings),
+		Runtime:                            settingsDaemonRuntimePayload(envelope.General.Runtime),
+		Actions: contract.SettingsGeneralActionsPayload{
+			Restart: settingsActionMetadataPayload(envelope.General.Actions.Restart),
+		},
+	}, nil
+}
+
+func settingsMemorySectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
+	if envelope.Memory == nil {
+		return nil, errors.New("settings memory section is required")
+	}
+	return contract.SettingsMemoryResponse{
+		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
+		Config:                             settingsMemoryConfigPayload(envelope.Memory.Config),
+		Health:                             settingsMemoryHealthPayload(envelope.Memory.Health),
+		Actions: contract.SettingsMemoryActionsPayload{
+			Consolidate: settingsActionMetadataPayload(envelope.Memory.Actions.Consolidate),
+		},
+	}, nil
+}
+
+func settingsSkillsSectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
+	if envelope.Skills == nil {
+		return nil, errors.New("settings skills section is required")
+	}
+	return contract.SettingsSkillsResponse{
+		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
+		Config:                             settingsSkillsConfigPayload(envelope.Skills.Config),
+		DiscoveredCount:                    envelope.Skills.DiscoveredCount,
+		DisabledCount:                      envelope.Skills.DisabledCount,
+		RuntimeAvailable:                   envelope.Skills.RuntimeAvailable,
+		Links:                              settingsOperationalLinkPayloads(envelope.Skills.Links),
+	}, nil
+}
+
+func settingsAutomationSectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
+	if envelope.Automation == nil {
+		return nil, errors.New("settings automation section is required")
+	}
+	return contract.SettingsAutomationResponse{
+		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
+		Config:                             settingsAutomationConfigPayload(envelope.Automation.Config),
+		Runtime:                            settingsAutomationRuntimePayload(envelope.Automation.Runtime),
+		Links:                              settingsOperationalLinkPayloads(envelope.Automation.Links),
+	}, nil
+}
+
+func settingsNetworkSectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
+	if envelope.Network == nil {
+		return nil, errors.New("settings network section is required")
+	}
+	return contract.SettingsNetworkResponse{
+		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
+		Config:                             settingsNetworkConfigPayload(envelope.Network.Config),
+		Runtime:                            settingsNetworkRuntimePayload(envelope.Network.Runtime),
+		Links:                              settingsOperationalLinkPayloads(envelope.Network.Links),
+	}, nil
+}
+
+func settingsObservabilitySectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
+	if envelope.Observability == nil {
+		return nil, errors.New("settings observability section is required")
+	}
+	return contract.SettingsObservabilityResponse{
+		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
+		Config:                             settingsObservabilityConfigPayload(envelope.Observability.Config),
+		Runtime:                            settingsObservabilityRuntimePayload(envelope.Observability.Runtime),
+		LogTail:                            settingsLogTailCapabilityPayload(envelope.Observability.LogTailSupport),
+	}, nil
+}
+
+func settingsHooksExtensionsSectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
+	if envelope.HooksExtensions == nil {
+		return nil, errors.New("settings hooks-extensions section is required")
+	}
+	return contract.SettingsHooksExtensionsResponse{
+		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
+		Hooks:                              settingsHookItemPayloads(envelope.HooksExtensions.Hooks),
+		Config:                             settingsExtensionsConfigPayload(envelope.HooksExtensions.Extensions),
+		Installed:                          settingsInstalledExtensionPayloads(envelope.HooksExtensions.Installed),
+		TransportParity: settingsTransportParityPayload(
+			envelope.HooksExtensions.TransportParity,
+		),
+	}, nil
+}
+
+// SettingsCollectionResponseFromEnvelope converts one settings collection envelope into the shared response payload.
+func SettingsCollectionResponseFromEnvelope(envelope settingspkg.CollectionEnvelope) (any, error) {
+	switch envelope.Collection {
+	case settingspkg.CollectionProviders:
+		return contract.SettingsProvidersResponse{
+			SettingsCollectionResponseMetaPayload: settingsCollectionMetaPayload(envelope),
+			Providers:                             settingsProviderItemPayloads(envelope.Providers),
+		}, nil
+	case settingspkg.CollectionMCPServers:
+		return contract.SettingsMCPServersResponse{
+			SettingsCollectionResponseMetaPayload: settingsCollectionMetaPayload(envelope),
+			MCPServers:                            settingsMCPServerItemPayloads(envelope.MCPServers),
+		}, nil
+	case settingspkg.CollectionEnvironments:
+		return contract.SettingsEnvironmentsResponse{
+			SettingsCollectionResponseMetaPayload: settingsCollectionMetaPayload(envelope),
+			Environments:                          settingsEnvironmentItemPayloads(envelope.Environments),
+		}, nil
+	case settingspkg.CollectionHooks:
+		return contract.SettingsHooksResponse{
+			SettingsCollectionResponseMetaPayload: settingsCollectionMetaPayload(envelope),
+			Hooks:                                 settingsHookItemPayloads(envelope.Hooks),
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown settings collection %q", envelope.Collection)
+	}
+}
+
+// SettingsMutationResultPayloadFromResult converts one settings mutation result into the shared payload.
+func SettingsMutationResultPayloadFromResult(result settingspkg.MutationResult) contract.MutationResult {
+	return contract.MutationResult{
+		Section:         contract.SettingsSectionName(result.Section),
+		Scope:           contract.SettingsScopeKind(result.Scope),
+		WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
+		WorkspaceID:     strings.TrimSpace(result.WorkspaceID),
+		Behavior:        contract.SettingsMutationBehavior(result.Behavior),
+		Applied:         result.Applied,
+		RestartRequired: result.RestartRequired,
+		RestartScope:    strings.TrimSpace(result.RestartScope),
+		Warnings:        cloneStrings(result.Warnings),
+	}
+}
+
+// SettingsRestartActionResponseFromOperation converts one daemon restart operation into the action response payload.
+func SettingsRestartActionResponseFromOperation(operation SettingsRestartOperation) contract.RestartActionResponse {
+	return contract.RestartActionResponse{
+		OperationID:        strings.TrimSpace(operation.OperationID),
+		Status:             contract.RestartOperationStatus(operation.Status),
+		StatusURL:          settingsRestartStatusURL(operation.OperationID),
+		ActiveSessionCount: operation.ActiveSessionCount,
+	}
+}
+
+// SettingsRestartActionStatusFromOperation converts one daemon restart operation into the polling payload.
+func SettingsRestartActionStatusFromOperation(operation SettingsRestartOperation) contract.RestartActionStatus {
+	return contract.RestartActionStatus{
+		OperationID:        strings.TrimSpace(operation.OperationID),
+		Status:             contract.RestartOperationStatus(operation.Status),
+		OldPID:             operation.OldPID,
+		OldStartedAt:       operation.OldStartedAt,
+		OldSocketPath:      strings.TrimSpace(operation.OldSocketPath),
+		NewPID:             operation.NewPID,
+		ActiveSessionCount: operation.ActiveSessionCount,
+		FailureReason:      strings.TrimSpace(operation.FailureReason),
+		StartedAt:          operation.StartedAt,
+		UpdatedAt:          operation.UpdatedAt,
+		CompletedAt:        cloneTimePointer(operation.CompletedAt),
+	}
+}
+
+func settingsSectionMetaPayload(envelope settingspkg.SectionEnvelope) contract.SettingsSectionResponseMetaPayload {
+	return contract.SettingsSectionResponseMetaPayload{
+		Section:         contract.SettingsSectionName(envelope.Section),
+		Scope:           contract.SettingsScopeKind(envelope.Scope),
+		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
+		AvailableScopes: settingsScopeKindsPayload(envelope.AvailableScopes),
+	}
+}
+
+func settingsCollectionMetaPayload(
+	envelope settingspkg.CollectionEnvelope,
+) contract.SettingsCollectionResponseMetaPayload {
+	return contract.SettingsCollectionResponseMetaPayload{
+		Collection:      contract.SettingsCollectionName(envelope.Collection),
+		Scope:           contract.SettingsScopeKind(envelope.Scope),
+		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
+		AvailableScopes: settingsScopeKindsPayload(envelope.AvailableScopes),
+	}
+}
+
+func settingsScopeKindsPayload(scopes []settingspkg.ScopeKind) []contract.SettingsScopeKind {
+	if len(scopes) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsScopeKind, 0, len(scopes))
+	for _, scope := range scopes {
+		payloads = append(payloads, contract.SettingsScopeKind(scope))
+	}
+	return payloads
+}
+
+func settingsConfigPathsPayload(paths settingspkg.ConfigPaths) contract.SettingsConfigPathsPayload {
+	return contract.SettingsConfigPathsPayload{
+		HomeDir:          strings.TrimSpace(paths.HomeDir),
+		GlobalConfig:     strings.TrimSpace(paths.GlobalConfig),
+		GlobalMCPSidecar: strings.TrimSpace(paths.GlobalMCPSidecar),
+		LogFile:          strings.TrimSpace(paths.LogFile),
+		DaemonInfo:       strings.TrimSpace(paths.DaemonInfo),
+	}
+}
+
+func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.SettingsGeneralConfigPayload {
+	return contract.SettingsGeneralConfigPayload{
+		Defaults: contract.SettingsDefaultsPayload{
+			Agent:       strings.TrimSpace(value.Defaults.Agent),
+			Provider:    strings.TrimSpace(value.Defaults.Provider),
+			Environment: strings.TrimSpace(value.Defaults.Environment),
+		},
+		Limits: contract.SettingsLimitsPayload{
+			MaxSessions:         value.Limits.MaxSessions,
+			MaxConcurrentAgents: value.Limits.MaxConcurrentAgents,
+		},
+		Permissions: contract.SettingsPermissionsPayload{
+			Mode: contract.SettingsPermissionMode(value.Permissions.Mode),
+		},
+		SessionTimeout: value.SessionTimeout.String(),
+		HTTP: contract.SettingsHTTPPayload{
+			Host: strings.TrimSpace(value.HTTP.Host),
+			Port: value.HTTP.Port,
+		},
+		Daemon: contract.SettingsDaemonPayload{
+			Socket: strings.TrimSpace(value.Daemon.Socket),
+		},
+	}
+}
+
+func settingsMemoryConfigPayload(value aghconfig.MemoryConfig) contract.SettingsMemoryConfigPayload {
+	return contract.SettingsMemoryConfigPayload{
+		Enabled:   value.Enabled,
+		GlobalDir: strings.TrimSpace(value.GlobalDir),
+		Dream: contract.SettingsMemoryDreamPayload{
+			Enabled:       value.Dream.Enabled,
+			Agent:         strings.TrimSpace(value.Dream.Agent),
+			MinHours:      value.Dream.MinHours,
+			MinSessions:   value.Dream.MinSessions,
+			CheckInterval: value.Dream.CheckInterval.String(),
+		},
+	}
+}
+
+func settingsSkillsConfigPayload(value aghconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
+	return contract.SettingsSkillsConfigPayload{
+		Enabled:                 value.Enabled,
+		DisabledSkills:          cloneStrings(value.DisabledSkills),
+		PollInterval:            value.PollInterval.String(),
+		AllowedMarketplaceMCP:   cloneStrings(value.AllowedMarketplaceMCP),
+		AllowedMarketplaceHooks: cloneStrings(value.AllowedMarketplaceHooks),
+		Marketplace: contract.SettingsMarketplacePayload{
+			Registry: strings.TrimSpace(value.Marketplace.Registry),
+			BaseURL:  strings.TrimSpace(value.Marketplace.BaseURL),
+		},
+	}
+}
+
+func settingsAutomationConfigPayload(value settingspkg.AutomationSettings) contract.SettingsAutomationConfigPayload {
+	return contract.SettingsAutomationConfigPayload{
+		Enabled:           value.Enabled,
+		Timezone:          strings.TrimSpace(value.Timezone),
+		MaxConcurrentJobs: value.MaxConcurrentJobs,
+		DefaultFireLimit:  value.DefaultFireLimit,
+	}
+}
+
+func settingsNetworkConfigPayload(value aghconfig.NetworkConfig) contract.SettingsNetworkConfigPayload {
+	return contract.SettingsNetworkConfigPayload{
+		Enabled:        value.Enabled,
+		DefaultChannel: strings.TrimSpace(value.DefaultChannel),
+		Port:           value.Port,
+		MaxPayload:     value.MaxPayload,
+		GreetInterval:  value.GreetInterval,
+		MaxReplayAge:   value.MaxReplayAge,
+		MaxQueueDepth:  value.MaxQueueDepth,
+	}
+}
+
+func settingsObservabilityConfigPayload(
+	value aghconfig.ObservabilityConfig,
+) contract.SettingsObservabilityConfigPayload {
+	return contract.SettingsObservabilityConfigPayload{
+		Enabled:        value.Enabled,
+		RetentionDays:  value.RetentionDays,
+		MaxGlobalBytes: value.MaxGlobalBytes,
+		Transcripts: contract.SettingsObservabilityTranscriptPayload{
+			Enabled:            value.Transcripts.Enabled,
+			SegmentBytes:       value.Transcripts.SegmentBytes,
+			MaxBytesPerSession: value.Transcripts.MaxBytesPerSession,
+		},
+	}
+}
+
+func settingsExtensionsConfigPayload(value aghconfig.ExtensionsConfig) contract.SettingsExtensionsConfigPayload {
+	return contract.SettingsExtensionsConfigPayload{
+		Marketplace: contract.SettingsMarketplacePayload{
+			Registry: strings.TrimSpace(value.Marketplace.Registry),
+			BaseURL:  strings.TrimSpace(value.Marketplace.BaseURL),
+		},
+		Resources: contract.SettingsExtensionResourcesPayload{
+			AllowedKinds:           resourceKindsToStrings(value.Resources.AllowedKinds),
+			MaxScope:               value.Resources.MaxScope,
+			SnapshotRateLimit:      settingsExtensionRateLimitPayload(value.Resources.SnapshotRateLimit),
+			OperatorWriteRateLimit: settingsExtensionRateLimitPayload(value.Resources.OperatorWriteRateLimit),
+		},
+	}
+}
+
+func settingsExtensionRateLimitPayload(
+	value aghconfig.ExtensionsResourceRateLimitConfig,
+) contract.SettingsExtensionRateLimitPayload {
+	return contract.SettingsExtensionRateLimitPayload{
+		Requests: value.Requests,
+		Window:   value.Window.String(),
+		Queue:    value.Queue,
+	}
+}
+
+func settingsDaemonRuntimePayload(value settingspkg.DaemonRuntimeStatus) contract.SettingsDaemonRuntimePayload {
+	payload := contract.SettingsDaemonRuntimePayload{
+		Available:      value.Available,
+		Status:         strings.TrimSpace(value.Status),
+		PID:            value.PID,
+		UptimeSeconds:  value.UptimeSeconds,
+		Socket:         strings.TrimSpace(value.Socket),
+		HTTPHost:       strings.TrimSpace(value.HTTPHost),
+		HTTPPort:       value.HTTPPort,
+		ActiveSessions: value.ActiveSessions,
+		ActiveAgents:   value.ActiveAgents,
+		TotalSessions:  value.TotalSessions,
+		Version:        strings.TrimSpace(value.Version),
+	}
+	if startedAt := optionalTime(value.StartedAt); startedAt != nil {
+		payload.StartedAt = startedAt
+	}
+	return payload
+}
+
+func settingsMemoryHealthPayload(value settingspkg.MemoryHealthStatus) contract.SettingsMemoryHealthPayload {
+	return contract.SettingsMemoryHealthPayload{
+		Available:          value.Available,
+		FileCount:          value.FileCount,
+		DreamEnabled:       value.DreamEnabled,
+		LastConsolidatedAt: cloneTimePointer(value.LastConsolidatedAt),
+	}
+}
+
+func settingsAutomationRuntimePayload(
+	value settingspkg.AutomationRuntimeStatus,
+) contract.SettingsAutomationRuntimePayload {
+	return contract.SettingsAutomationRuntimePayload{
+		Available:        value.Available,
+		Running:          value.Running,
+		SchedulerRunning: value.SchedulerRunning,
+		JobTotal:         value.JobTotal,
+		JobEnabled:       value.JobEnabled,
+		TriggerTotal:     value.TriggerTotal,
+		TriggerEnabled:   value.TriggerEnabled,
+		NextFire:         cloneTimePointer(value.NextFire),
+		LastSyncedAt:     cloneTimePointer(value.LastSyncedAt),
+	}
+}
+
+func settingsNetworkRuntimePayload(value settingspkg.NetworkRuntimeStatus) contract.SettingsNetworkRuntimePayload {
+	return contract.SettingsNetworkRuntimePayload{
+		Available:       value.Available,
+		Enabled:         value.Enabled,
+		Status:          strings.TrimSpace(value.Status),
+		ListenerHost:    strings.TrimSpace(value.ListenerHost),
+		ListenerPort:    value.ListenerPort,
+		LocalPeers:      value.LocalPeers,
+		RemotePeers:     value.RemotePeers,
+		Channels:        value.Channels,
+		QueuedMessages:  value.QueuedMessages,
+		QueuedSessions:  value.QueuedSessions,
+		DeliveryWorkers: value.DeliveryWorkers,
+	}
+}
+
+func settingsObservabilityRuntimePayload(
+	value settingspkg.ObservabilityRuntimeStatus,
+) contract.SettingsObservabilityRuntimePayload {
+	return contract.SettingsObservabilityRuntimePayload{
+		Available:          value.Available,
+		Status:             strings.TrimSpace(value.Status),
+		GlobalDBSizeBytes:  value.GlobalDBSizeBytes,
+		SessionDBSizeBytes: value.SessionDBSizeBytes,
+		ActiveSessions:     value.ActiveSessions,
+		ActiveAgents:       value.ActiveAgents,
+		UptimeSeconds:      value.UptimeSeconds,
+	}
+}
+
+func settingsLogTailCapabilityPayload(value settingspkg.CapabilityStatus) contract.SettingsLogTailCapabilityPayload {
+	payload := contract.SettingsLogTailCapabilityPayload{Available: value.Available}
+	if value.Available {
+		payload.StreamURL = settingsObservabilityLogTailPath
+		payload.Transport = contract.SettingsStreamTransportSSE
+	}
+	return payload
+}
+
+func settingsActionMetadataPayload(value settingspkg.ActionMetadata) contract.SettingsActionMetadataPayload {
+	return contract.SettingsActionMetadataPayload{
+		Name:      strings.TrimSpace(value.Name),
+		Available: value.Available,
+		Behavior:  contract.SettingsMutationBehavior(value.Behavior),
+	}
+}
+
+func settingsOperationalLinkPayloads(values []settingspkg.OperationalLink) []contract.SettingsOperationalLinkPayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsOperationalLinkPayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, contract.SettingsOperationalLinkPayload{
+			Label: strings.TrimSpace(value.Label),
+			Path:  strings.TrimSpace(value.Path),
+		})
+	}
+	return payloads
+}
+
+func settingsTransportParityPayload(value settingspkg.TransportParityStatus) contract.SettingsTransportParityPayload {
+	return contract.SettingsTransportParityPayload{
+		Known:          value.Known,
+		SettingsHTTP:   value.SettingsHTTP,
+		SettingsUDS:    value.SettingsUDS,
+		ExtensionsHTTP: value.ExtensionsHTTP,
+		ExtensionsUDS:  value.ExtensionsUDS,
+	}
+}
+
+func settingsInstalledExtensionPayloads(
+	values []settingspkg.InstalledExtension,
+) []contract.SettingsInstalledExtensionPayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsInstalledExtensionPayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, contract.SettingsInstalledExtensionPayload{
+			Name:          strings.TrimSpace(value.Name),
+			Version:       strings.TrimSpace(value.Version),
+			Enabled:       value.Enabled,
+			State:         strings.TrimSpace(value.State),
+			Health:        strings.TrimSpace(value.Health),
+			HealthMessage: strings.TrimSpace(value.HealthMessage),
+			LastError:     strings.TrimSpace(value.LastError),
+		})
+	}
+	return payloads
+}
+
+func settingsProviderItemPayloads(values []settingspkg.ProviderItem) []contract.SettingsProviderItemPayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsProviderItemPayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, settingsProviderItemPayload(value))
+	}
+	return payloads
+}
+
+func settingsProviderItemPayload(value settingspkg.ProviderItem) contract.SettingsProviderItemPayload {
+	payload := contract.SettingsProviderItemPayload{
+		Name:             strings.TrimSpace(value.Name),
+		Settings:         settingsProviderSettingsPayload(value.Settings),
+		Default:          value.Default,
+		CommandAvailable: value.CommandAvailable,
+		APIKeyEnvPresent: value.APIKeyEnvPresent,
+		SourceMetadata:   settingsSourceMetadataPayload(value.SourceMetadata),
+	}
+	if value.Fallback != nil {
+		payload.Fallback = &contract.SettingsProviderFallbackPayload{
+			Source:   settingsSourceRefPayload(value.Fallback.Source),
+			Settings: settingsProviderSettingsPayload(value.Fallback.Settings),
+		}
+	}
+	return payload
+}
+
+func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contract.SettingsProviderSettingsPayload {
+	return contract.SettingsProviderSettingsPayload{
+		Command:      strings.TrimSpace(value.Command),
+		DefaultModel: strings.TrimSpace(value.DefaultModel),
+		APIKeyEnv:    strings.TrimSpace(value.APIKeyEnv),
+	}
+}
+
+func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contract.SettingsMCPServerItemPayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsMCPServerItemPayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, contract.SettingsMCPServerItemPayload{
+			Name:           strings.TrimSpace(value.Name),
+			Command:        strings.TrimSpace(value.Command),
+			Args:           cloneStrings(value.Args),
+			Env:            cloneStringMap(value.Env),
+			Scope:          contract.SettingsScopeKind(value.Scope),
+			WorkspaceID:    strings.TrimSpace(value.WorkspaceID),
+			SourceMetadata: settingsSourceMetadataPayload(value.SourceMetadata),
+		})
+	}
+	return payloads
+}
+
+func settingsEnvironmentItemPayloads(values []settingspkg.EnvironmentItem) []contract.SettingsEnvironmentItemPayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsEnvironmentItemPayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, contract.SettingsEnvironmentItemPayload{
+			Name:                strings.TrimSpace(value.Name),
+			Profile:             settingsEnvironmentProfilePayload(value.Profile),
+			WorkspaceUsageCount: value.WorkspaceUsageCount,
+			SourceMetadata:      settingsSourceMetadataPayload(value.SourceMetadata),
+		})
+	}
+	return payloads
+}
+
+func settingsEnvironmentProfilePayload(value aghconfig.EnvironmentProfile) contract.SettingsEnvironmentProfilePayload {
+	payload := contract.SettingsEnvironmentProfilePayload{
+		Backend:     strings.TrimSpace(value.Backend),
+		SyncMode:    strings.TrimSpace(value.SyncMode),
+		Persistence: strings.TrimSpace(value.Persistence),
+		RuntimeRoot: strings.TrimSpace(value.RuntimeRoot),
+		Env:         cloneStringMap(value.Env),
+	}
+	if network := settingsEnvironmentNetworkPayload(value.Network); network != nil {
+		payload.Network = network
+	}
+	if daytona := settingsEnvironmentDaytonaPayload(value.Daytona); daytona != nil {
+		payload.Daytona = daytona
+	}
+	return payload
+}
+
+func settingsEnvironmentNetworkPayload(
+	value aghconfig.NetworkProfile,
+) *contract.SettingsEnvironmentNetworkPayload {
+	if !value.AllowPublicIngress &&
+		!value.AllowOutbound &&
+		!value.Required &&
+		len(value.AllowList) == 0 &&
+		len(value.DenyList) == 0 {
+		return nil
+	}
+	return &contract.SettingsEnvironmentNetworkPayload{
+		AllowPublicIngress: value.AllowPublicIngress,
+		AllowOutbound:      value.AllowOutbound,
+		AllowList:          cloneStrings(value.AllowList),
+		DenyList:           cloneStrings(value.DenyList),
+		Required:           value.Required,
+	}
+}
+
+func settingsEnvironmentDaytonaPayload(
+	value aghconfig.DaytonaProfile,
+) *contract.SettingsEnvironmentDaytonaPayload {
+	if strings.TrimSpace(value.APIURL) == "" &&
+		strings.TrimSpace(value.Target) == "" &&
+		strings.TrimSpace(value.Image) == "" &&
+		strings.TrimSpace(value.Snapshot) == "" &&
+		strings.TrimSpace(value.Class) == "" &&
+		strings.TrimSpace(value.AutoStop) == "" &&
+		strings.TrimSpace(value.AutoArchive) == "" {
+		return nil
+	}
+	return &contract.SettingsEnvironmentDaytonaPayload{
+		APIURL:      strings.TrimSpace(value.APIURL),
+		Target:      strings.TrimSpace(value.Target),
+		Image:       strings.TrimSpace(value.Image),
+		Snapshot:    strings.TrimSpace(value.Snapshot),
+		Class:       strings.TrimSpace(value.Class),
+		AutoStop:    strings.TrimSpace(value.AutoStop),
+		AutoArchive: strings.TrimSpace(value.AutoArchive),
+	}
+}
+
+func settingsHookItemPayloads(values []settingspkg.HookItem) []contract.SettingsHookItemPayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsHookItemPayload, 0, len(values))
+	for i := range values {
+		value := &values[i]
+		payloads = append(payloads, contract.SettingsHookItemPayload{
+			Name:           strings.TrimSpace(value.Name),
+			Declaration:    settingsHookDeclarationPayload(value.Declaration),
+			SourceMetadata: settingsSourceMetadataPayload(value.SourceMetadata),
+		})
+	}
+	return payloads
+}
+
+func settingsHookDeclarationPayload(value hookspkg.HookDecl) contract.SettingsHookDeclarationPayload {
+	return contract.SettingsHookDeclarationPayload{
+		Name:         strings.TrimSpace(value.Name),
+		Event:        value.Event,
+		Mode:         value.Mode,
+		Required:     value.Required,
+		Priority:     value.Priority,
+		Timeout:      durationString(value.Timeout),
+		Matcher:      value.Matcher,
+		ExecutorKind: value.ExecutorKind,
+		Command:      strings.TrimSpace(value.Command),
+		Args:         cloneStrings(value.Args),
+		Env:          cloneStringMap(value.Env),
+		Metadata:     cloneStringMap(value.Metadata),
+	}
+}
+
+func settingsSourceMetadataPayload(value settingspkg.SourceMetadata) contract.SettingsSourceMetadataPayload {
+	return contract.SettingsSourceMetadataPayload{
+		EffectiveSource:  settingsSourceRefPayload(value.EffectiveSource),
+		ShadowedSources:  settingsSourceRefPayloads(value.ShadowedSources),
+		AvailableTargets: settingsWriteTargetKindsPayload(value.AvailableTargets),
+	}
+}
+
+func settingsSourceRefPayload(value settingspkg.SourceRef) contract.SettingsSourceRefPayload {
+	return contract.SettingsSourceRefPayload{
+		Kind:        contract.SettingsSourceKind(value.Kind),
+		Scope:       contract.SettingsScopeKind(value.Scope),
+		WorkspaceID: strings.TrimSpace(value.WorkspaceID),
+	}
+}
+
+func settingsSourceRefPayloads(values []settingspkg.SourceRef) []contract.SettingsSourceRefPayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsSourceRefPayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, settingsSourceRefPayload(value))
+	}
+	return payloads
+}
+
+func settingsWriteTargetKindsPayload(values []settingspkg.WriteTargetKind) []contract.SettingsWriteTargetKind {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsWriteTargetKind, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, contract.SettingsWriteTargetKind(value))
+	}
+	return payloads
+}
+
+func cloneStringMap(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]string, len(src))
+	maps.Copy(dst, src)
+	return dst
+}
+
+func cloneStrings(src []string) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	return append([]string(nil), src...)
+}
+
+func resourceKindsToStrings(values []resources.ResourceKind) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]string, 0, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(string(value)); trimmed != "" {
+			payloads = append(payloads, trimmed)
+		}
+	}
+	return payloads
+}
+
+func cloneTimePointer(src *time.Time) *time.Time {
+	if src == nil {
+		return nil
+	}
+	cloned := src.UTC()
+	return &cloned
+}
+
+func durationString(value time.Duration) string {
+	if value <= 0 {
+		return ""
+	}
+	return value.String()
 }
 
 func cloneFilter(source map[string]string) map[string]string {

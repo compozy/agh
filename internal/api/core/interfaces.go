@@ -15,6 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
+	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -105,6 +106,42 @@ type DreamTrigger interface {
 	Trigger(ctx context.Context, workspace string) (bool, string, error)
 	LastConsolidatedAt() (time.Time, error)
 	Enabled() bool
+}
+
+// SettingsService exposes the daemon-owned settings read and mutation surface to API transports.
+type SettingsService interface {
+	GetSection(ctx context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
+	UpdateSection(ctx context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
+	ListCollection(ctx context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
+	PutCollectionItem(ctx context.Context, req settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
+	DeleteCollectionItem(
+		ctx context.Context,
+		req settingspkg.CollectionItemDeleteRequest,
+	) (
+		settingspkg.MutationResult,
+		error,
+	)
+}
+
+// SettingsRestartOperation is the daemon-owned restart record exposed to settings transports.
+type SettingsRestartOperation struct {
+	OperationID        string
+	Status             string
+	OldPID             int
+	OldStartedAt       time.Time
+	OldSocketPath      string
+	NewPID             int
+	ActiveSessionCount int
+	FailureReason      string
+	StartedAt          time.Time
+	UpdatedAt          time.Time
+	CompletedAt        *time.Time
+}
+
+// SettingsRestartController exposes the daemon-owned restart action and persisted status surface.
+type SettingsRestartController interface {
+	RequestRestart(ctx context.Context) (SettingsRestartOperation, error)
+	GetRestartOperation(ctx context.Context, operationID string) (SettingsRestartOperation, error)
 }
 
 // ResourceService exposes the operator-facing desired-state CRUD surface to API transports.

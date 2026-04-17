@@ -118,6 +118,8 @@ type RuntimeDeps struct {
 	AgentCatalog      core.AgentCatalog
 	SkillsRegistry    core.SkillsRegistry
 	DreamTrigger      DreamTrigger
+	Settings          core.SettingsService
+	SettingsRestart   core.SettingsRestartController
 	Extensions        udsapi.ExtensionService
 	Bundles           core.BundleService
 	Resources         core.ResourceService
@@ -837,6 +839,8 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				httpapi.WithAutomation(deps.Automation),
 				httpapi.WithBridgeService(deps.Bridges),
 				httpapi.WithBundleService(deps.Bundles),
+				httpapi.WithSettingsService(deps.Settings),
+				httpapi.WithSettingsRestartController(deps.SettingsRestart),
 				httpapi.WithResourceService(deps.Resources),
 				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
 				httpapi.WithAgentCatalog(deps.AgentCatalog),
@@ -861,6 +865,8 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				udsapi.WithAutomation(deps.Automation),
 				udsapi.WithBridgeService(deps.Bridges),
 				udsapi.WithBundleService(deps.Bundles),
+				udsapi.WithSettingsService(deps.Settings),
+				udsapi.WithSettingsRestartController(deps.SettingsRestart),
 				udsapi.WithResourceService(deps.Resources),
 				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
 				udsapi.WithAgentCatalog(deps.AgentCatalog),

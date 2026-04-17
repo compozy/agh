@@ -33,30 +33,32 @@ type Option func(*Server)
 type Server struct {
 	mu sync.Mutex
 
-	homePaths      aghconfig.HomePaths
-	config         aghconfig.Config
-	host           string
-	port           int
-	logger         *slog.Logger
-	startedAt      time.Time
-	now            func() time.Time
-	pollInterval   time.Duration
-	sessions       core.SessionManager
-	tasks          core.TaskService
-	network        core.NetworkService
-	networkStore   core.NetworkStore
-	observer       core.Observer
-	automation     core.AutomationManager
-	bridges        core.BridgeService
-	bundles        core.BundleService
-	workspaces     core.WorkspaceService
-	agentCatalog   core.AgentCatalog
-	skillsRegistry core.SkillsRegistry
-	memoryStore    *memory.Store
-	dreamTrigger   core.DreamTrigger
-	agentLoader    core.AgentLoader
-	resources      core.ResourceService
-	resourceAuth   []gin.HandlerFunc
+	homePaths       aghconfig.HomePaths
+	config          aghconfig.Config
+	host            string
+	port            int
+	logger          *slog.Logger
+	startedAt       time.Time
+	now             func() time.Time
+	pollInterval    time.Duration
+	sessions        core.SessionManager
+	tasks           core.TaskService
+	network         core.NetworkService
+	networkStore    core.NetworkStore
+	observer        core.Observer
+	automation      core.AutomationManager
+	bridges         core.BridgeService
+	bundles         core.BundleService
+	settings        core.SettingsService
+	settingsRestart core.SettingsRestartController
+	workspaces      core.WorkspaceService
+	agentCatalog    core.AgentCatalog
+	skillsRegistry  core.SkillsRegistry
+	memoryStore     *memory.Store
+	dreamTrigger    core.DreamTrigger
+	agentLoader     core.AgentLoader
+	resources       core.ResourceService
+	resourceAuth    []gin.HandlerFunc
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -180,6 +182,20 @@ func WithBridgeService(bridges core.BridgeService) Option {
 func WithBundleService(service core.BundleService) Option {
 	return func(server *Server) {
 		server.bundles = service
+	}
+}
+
+// WithSettingsService injects the daemon-owned settings service.
+func WithSettingsService(service core.SettingsService) Option {
+	return func(server *Server) {
+		server.settings = service
+	}
+}
+
+// WithSettingsRestartController injects the daemon-owned restart action surface for settings handlers.
+func WithSettingsRestartController(controller core.SettingsRestartController) Option {
+	return func(server *Server) {
+		server.settingsRestart = controller
 	}
 }
 
@@ -366,30 +382,32 @@ func (s *Server) ensureEngine() {
 
 func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 	return &handlerConfig{
-		sessions:       s.sessions,
-		tasks:          s.tasks,
-		network:        s.network,
-		networkStore:   s.networkStore,
-		observer:       s.observer,
-		resources:      s.resources,
-		automation:     s.automation,
-		bridges:        s.bridges,
-		bundles:        s.bundles,
-		workspaces:     s.workspaces,
-		agentCatalog:   s.agentCatalog,
-		skillsRegistry: s.skillsRegistry,
-		memoryStore:    s.memoryStore,
-		dreamTrigger:   s.dreamTrigger,
-		staticFS:       staticFS,
-		homePaths:      s.homePaths,
-		config:         s.config,
-		logger:         s.logger,
-		startedAt:      s.startedAt,
-		now:            s.now,
-		pollInterval:   s.pollInterval,
-		agentLoader:    s.agentLoader,
-		httpPort:       s.port,
-		resourceAuth:   append([]gin.HandlerFunc(nil), s.resourceAuth...),
+		sessions:        s.sessions,
+		tasks:           s.tasks,
+		network:         s.network,
+		networkStore:    s.networkStore,
+		observer:        s.observer,
+		resources:       s.resources,
+		automation:      s.automation,
+		bridges:         s.bridges,
+		bundles:         s.bundles,
+		settings:        s.settings,
+		settingsRestart: s.settingsRestart,
+		workspaces:      s.workspaces,
+		agentCatalog:    s.agentCatalog,
+		skillsRegistry:  s.skillsRegistry,
+		memoryStore:     s.memoryStore,
+		dreamTrigger:    s.dreamTrigger,
+		staticFS:        staticFS,
+		homePaths:       s.homePaths,
+		config:          s.config,
+		logger:          s.logger,
+		startedAt:       s.startedAt,
+		now:             s.now,
+		pollInterval:    s.pollInterval,
+		agentLoader:     s.agentLoader,
+		httpPort:        s.port,
+		resourceAuth:    append([]gin.HandlerFunc(nil), s.resourceAuth...),
 	}
 }
 

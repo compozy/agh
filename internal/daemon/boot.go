@@ -27,6 +27,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
+	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -167,6 +168,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return err
 	}
 	if err := d.bootExtensions(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootSettings(ctx, state); err != nil {
 		return err
 	}
 	if err := d.bootServers(ctx, state, cleanup); err != nil {
@@ -1271,6 +1275,35 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 	state.httpServer = httpServer
 	state.udsServer = udsServer
 	state.info = info
+	return nil
+}
+
+func (d *Daemon) bootSettings(_ context.Context, state *bootState) error {
+	if state == nil {
+		return errors.New("daemon: boot settings state is required")
+	}
+
+	surface := newSettingsRuntimeSurface(d, state)
+	service, err := settingspkg.NewService(d.homePaths, settingspkg.Dependencies{
+		WorkspaceResolver:          state.workspaceResolver,
+		GeneralRuntime:             surface,
+		MemoryRuntime:              surface,
+		SkillsRuntime:              state.skillsRegistry,
+		AutomationRuntime:          surface,
+		NetworkRuntime:             surface,
+		ObservabilityRuntime:       surface,
+		Extensions:                 surface,
+		TransportParity:            surface,
+		RestartActionAvailable:     true,
+		ConsolidateActionAvailable: state.dreamRuntime != nil && state.dreamRuntime.Enabled(),
+		LogTailAvailable:           strings.TrimSpace(d.homePaths.LogFile) != "",
+	})
+	if err != nil {
+		return fmt.Errorf("daemon: create settings service: %w", err)
+	}
+
+	state.deps.Settings = service
+	state.deps.SettingsRestart = settingsRestartController{daemon: d}
 	return nil
 }
 

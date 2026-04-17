@@ -12,30 +12,32 @@ import (
 )
 
 type handlerConfig struct {
-	sessions       core.SessionManager
-	tasks          core.TaskService
-	network        core.NetworkService
-	networkStore   core.NetworkStore
-	observer       core.Observer
-	resources      core.ResourceService
-	automation     core.AutomationManager
-	bridges        core.BridgeService
-	bundles        core.BundleService
-	workspaces     core.WorkspaceService
-	agentCatalog   core.AgentCatalog
-	skillsRegistry core.SkillsRegistry
-	memoryStore    *memory.Store
-	dreamTrigger   core.DreamTrigger
-	staticFS       fs.FS
-	homePaths      aghconfig.HomePaths
-	config         aghconfig.Config
-	logger         *slog.Logger
-	startedAt      time.Time
-	now            func() time.Time
-	pollInterval   time.Duration
-	agentLoader    core.AgentLoader
-	httpPort       int
-	resourceAuth   []gin.HandlerFunc
+	sessions        core.SessionManager
+	tasks           core.TaskService
+	network         core.NetworkService
+	networkStore    core.NetworkStore
+	observer        core.Observer
+	resources       core.ResourceService
+	automation      core.AutomationManager
+	bridges         core.BridgeService
+	bundles         core.BundleService
+	settings        core.SettingsService
+	settingsRestart core.SettingsRestartController
+	workspaces      core.WorkspaceService
+	agentCatalog    core.AgentCatalog
+	skillsRegistry  core.SkillsRegistry
+	memoryStore     *memory.Store
+	dreamTrigger    core.DreamTrigger
+	staticFS        fs.FS
+	homePaths       aghconfig.HomePaths
+	config          aghconfig.Config
+	logger          *slog.Logger
+	startedAt       time.Time
+	now             func() time.Time
+	pollInterval    time.Duration
+	agentLoader     core.AgentLoader
+	httpPort        int
+	resourceAuth    []gin.HandlerFunc
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
@@ -71,6 +73,8 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,
 			Bundles:                      cfg.bundles,
+			Settings:                     cfg.settings,
+			SettingsRestart:              cfg.settingsRestart,
 			Workspaces:                   cfg.workspaces,
 			AgentCatalog:                 cfg.agentCatalog,
 			SkillsRegistry:               cfg.skillsRegistry,
