@@ -72,19 +72,19 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 			}`),
 		},
 		{
-			name:      "illegal delivery defaults",
+			name:      "invalid delivery defaults field type",
 			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			wantError: "thread_id requires peer_id or group_id",
+			wantError: `bridge instance delivery defaults field "thread_id" must be a string`,
 			raw: []byte(`{
-				"scope":"global",
-				"platform":"telegram",
-				"extension_name":"ext-telegram",
-				"display_name":"Support",
-				"enabled":true,
-				"dm_policy":"open",
-				"routing_policy":{"include_peer":true},
-				"delivery_defaults":{"thread_id":"thread-without-peer"}
-			}`),
+					"scope":"global",
+					"platform":"telegram",
+					"extension_name":"ext-telegram",
+					"display_name":"Support",
+					"enabled":true,
+					"dm_policy":"open",
+					"routing_policy":{"include_peer":true},
+					"delivery_defaults":{"thread_id":{"nested":"bad"}}
+				}`),
 		},
 	}
 
@@ -103,6 +103,39 @@ func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {
 				t.Fatalf("DecodeAndValidate() error = %v, want substring %q", err, tt.wantError)
 			}
 		})
+	}
+}
+
+func TestBridgeInstanceResourceCodecAllowsProviderSpecificDeliveryDefaults(t *testing.T) {
+	t.Parallel()
+
+	codec, err := bridgepkg.NewBridgeInstanceResourceCodec(nil)
+	if err != nil {
+		t.Fatalf("NewBridgeInstanceResourceCodec() error = %v", err)
+	}
+
+	spec, err := codec.DecodeAndValidate(
+		testutil.Context(t),
+		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		[]byte(`{
+			"scope":"global",
+			"platform":"telegram",
+			"extension_name":"ext-telegram",
+			"display_name":"Support",
+			"enabled":true,
+			"dm_policy":"open",
+			"routing_policy":{"include_peer":true},
+			"delivery_defaults":{"parse_mode":"markdown","thread_id":"thread-marketing"}
+		}`),
+	)
+	if err != nil {
+		t.Fatalf("DecodeAndValidate() error = %v", err)
+	}
+
+	if got, want := string(
+		spec.DeliveryDefaults,
+	), `{"parse_mode":"markdown","thread_id":"thread-marketing"}`; got != want {
+		t.Fatalf("spec.DeliveryDefaults = %s, want %s", got, want)
 	}
 }
 
