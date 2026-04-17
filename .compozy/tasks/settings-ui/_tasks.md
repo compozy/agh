@@ -7,7 +7,7 @@
 | # | Title | Status | Complexity | Dependencies |
 |---|-------|--------|------------|--------------|
 | 01 | Comment-preserving config editors and write targets | pending | high | — |
-| 02 | Settings service orchestration in internal/settings | pending | high | task_01 |
+| 02 | Settings service orchestration in internal/settings | completed | high | task_01 |
 | 03 | Daemon relaunch helper and restart operation store | pending | high | — |
 | 04 | Settings API contract and OpenAPI surface | pending | high | task_02, task_03 |
 | 05 | Shared settings handlers in api/core | pending | high | task_02, task_03, task_04 |
