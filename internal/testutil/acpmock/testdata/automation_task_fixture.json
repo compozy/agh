@@ -1,5 +1,5 @@
 {
-    "version": 1,
+    "version": 2,
     "agents": [
         {
             "name": "automation-runner",
@@ -10,7 +10,8 @@
                 {
                     "name": "webhook-deploy-review",
                     "match": {
-                        "contains": "Review payload deploy for main"
+                        "turn_source": "user",
+                        "user_text": "Review payload deploy for main"
                     },
                     "steps": [
                         {
@@ -22,7 +23,8 @@
                 {
                     "name": "task-session-follow-up",
                     "match": {
-                        "contains": "Continue delegated task run"
+                        "turn_source": "user",
+                        "user_text": "Continue delegated task run"
                     },
                     "steps": [
                         {

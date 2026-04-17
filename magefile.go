@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -26,6 +27,8 @@ const (
 	openAPISpecPath     = "openapi/agh.json"
 	webOpenAPITypePath  = "web/src/generated/agh-openapi.d.ts"
 	webDistIndex        = "web/dist/index.html"
+	daemonBinaryEnvVar  = "AGH_TEST_DAEMON_BIN"
+	driverBinaryEnvVar  = "AGH_TEST_ACPMOCK_DRIVER_BIN"
 )
 
 var Default = Verify
@@ -371,14 +374,19 @@ func runE2ELane(lane e2elane.Lane) error {
 		}
 	}
 
+	laneEnv, err := prepareE2ELaneEnv()
+	if err != nil {
+		return err
+	}
+
 	for _, suite := range plan.GoSuites {
-		if err := runIntegrationSuite(suite); err != nil {
+		if err := runIntegrationSuite(suite, laneEnv); err != nil {
 			return err
 		}
 	}
 
 	for _, suite := range plan.ScriptSuites {
-		if err := runCommandInDir(suite.Dir, "bun", "run", suite.Script); err != nil {
+		if err := runCommandInDirWithEnv(suite.Dir, laneEnv, "bun", "run", suite.Script); err != nil {
 			return err
 		}
 	}
@@ -390,7 +398,81 @@ func shouldEnsureWebBundle(plan e2elane.Plan) bool {
 	return len(plan.GoSuites) > 0 || plan.RequiresDaemonServedBrowser
 }
 
-func runIntegrationSuite(suite e2elane.GoSuite) error {
+func prepareE2ELaneEnv() (map[string]string, error) {
+	daemonPath, err := resolveOrBuildLaneBinary(daemonBinaryEnvVar, func(outputPath string) error {
+		return runCommandInDir(
+			".",
+			"go",
+			"build",
+			"-ldflags",
+			buildLDFlags(),
+			"-o",
+			outputPath,
+			"./cmd/agh",
+		)
+	}, cliBinary)
+	if err != nil {
+		return nil, err
+	}
+
+	driverPath, err := resolveOrBuildLaneBinary(driverBinaryEnvVar, func(outputPath string) error {
+		return runCommandInDir(
+			".",
+			"go",
+			"build",
+			"-o",
+			outputPath,
+			"./internal/testutil/acpmock/cmd/acpmock-driver",
+		)
+	}, "acpmock-driver")
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{
+		daemonBinaryEnvVar: daemonPath,
+		driverBinaryEnvVar: driverPath,
+	}, nil
+}
+
+func resolveOrBuildLaneBinary(
+	envVar string,
+	build func(string) error,
+	name string,
+) (string, error) {
+	if override := strings.TrimSpace(os.Getenv(envVar)); override != "" {
+		if filepath.IsAbs(override) {
+			return override, nil
+		}
+		absPath, err := filepath.Abs(override)
+		if err != nil {
+			return "", err
+		}
+		return absPath, nil
+	}
+
+	buildDir, err := os.MkdirTemp("", "agh-e2e-lane-")
+	if err != nil {
+		return "", err
+	}
+	outputPath := filepath.Join(buildDir, laneBinaryName(name))
+	if err := build(outputPath); err != nil {
+		return "", err
+	}
+	return outputPath, nil
+}
+
+func laneBinaryName(name string) string {
+	if strings.EqualFold(filepath.Ext(name), ".exe") {
+		return name
+	}
+	if runtime.GOOS == "windows" {
+		return name + ".exe"
+	}
+	return name
+}
+
+func runIntegrationSuite(suite e2elane.GoSuite, env map[string]string) error {
 	args := []string{
 		"run",
 		"gotest.tools/gotestsum@latest",
@@ -407,16 +489,42 @@ func runIntegrationSuite(suite e2elane.GoSuite) error {
 		args = append(args, "-run", suite.Run)
 	}
 	args = append(args, suite.Packages...)
-	return sh.RunV("go", args...)
+	return runCommandInDirWithEnv(".", env, "go", args...)
 }
 
 func runCommandInDir(dir string, name string, args ...string) error {
+	return runCommandInDirWithEnv(dir, nil, name, args...)
+}
+
+func runCommandInDirWithEnv(dir string, env map[string]string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
+	cmd.Env = mergeCommandEnv(env)
 	return cmd.Run()
+}
+
+func mergeCommandEnv(overrides map[string]string) []string {
+	env := append([]string(nil), os.Environ()...)
+	if len(overrides) == 0 {
+		return env
+	}
+	for key, value := range overrides {
+		prefix := key + "="
+		replaced := false
+		for idx, current := range env {
+			if strings.HasPrefix(current, prefix) {
+				env[idx] = prefix + value
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			env = append(env, prefix+value)
+		}
+	}
+	return env
 }
 
 func checkGeneratedFile(path string, want []byte) error {

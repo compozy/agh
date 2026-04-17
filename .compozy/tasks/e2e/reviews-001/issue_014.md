@@ -43,4 +43,4 @@ instead of comparing err.Error() to a literal.
 - Root cause: this provider-failure test uses the same brittle string-equality pattern as issue 013.
 - Fix plan: reuse a sentinel provider error and assert the wrapped result with `errors.Is`.
 - Resolution: introduced a real sentinel provider error and switched the assertion to `errors.Is`.
-- Verification: `go test ./internal/daemon` passed. `make verify` was rerun after the fix set and still fails in unrelated pre-existing `internal/testutil/acpmock` and `internal/testutil/e2e` packages because this branch does not contain `internal/testutil/acpmock/driver/dist/index.js`.
+- Verification: `go test ./internal/daemon` passed. Historical note: the earlier `driver/dist/index.js` blocker was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

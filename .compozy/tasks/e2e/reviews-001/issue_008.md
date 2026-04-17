@@ -263,4 +263,4 @@ corresponding url escaping call to ensure reserved characters are encoded.
 - Root cause: the HTTP network helpers interpolate raw channel names into query strings and URL paths, so reserved characters can corrupt the request instead of being treated as data.
 - Fix plan: use `url.QueryEscape` for the optional peers query and `url.PathEscape` for all channel path segments, including the channel-messages helper that shares the same bug pattern.
 - Resolution: escaped the peers query parameter and all channel path segments in the network HTTP helper functions.
-- Verification: `go test ./internal/daemon` passed. `go test -tags integration ./internal/api/httpapi ./internal/api/udsapi ./internal/daemon` was rerun but is blocked before these tests execute because the branch is missing `internal/testutil/acpmock/driver/dist/index.js`. `make verify` hits the same unrelated blocker in `internal/testutil/acpmock` and `internal/testutil/e2e`.
+- Verification: `go test ./internal/daemon` passed. Historical note: the later blocker about a missing `driver/dist/index.js` was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

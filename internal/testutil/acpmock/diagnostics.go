@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/pedronauck/agh/internal/acp"
 )
 
 // DiagnosticsRecord captures one prompt execution emitted by the ACP mock driver.
@@ -14,21 +16,24 @@ type DiagnosticsRecord struct {
 	SessionID   string            `json:"session_id"`
 	PromptIndex int               `json:"prompt_index"`
 	Prompt      string            `json:"prompt"`
+	PromptMeta  acp.PromptMeta    `json:"prompt_meta"`
 	TurnName    string            `json:"turn_name,omitempty"`
+	Match       TurnMatch         `json:"match"`
 	Steps       []DiagnosticsStep `json:"steps"`
 }
 
 // DiagnosticsStep captures one executed fixture step with any observed runtime outputs.
 type DiagnosticsStep struct {
-	Kind       StepKind `json:"kind"`
-	Text       string   `json:"text,omitempty"`
-	ToolCallID string   `json:"tool_call_id,omitempty"`
-	Decision   string   `json:"decision,omitempty"`
-	Command    string   `json:"command,omitempty"`
-	Args       []string `json:"args,omitempty"`
-	ExitCode   *int     `json:"exit_code,omitempty"`
-	Output     string   `json:"output,omitempty"`
-	Error      string   `json:"error,omitempty"`
+	Kind         StepKind            `json:"kind"`
+	Text         string              `json:"text,omitempty"`
+	ToolCallID   string              `json:"tool_call_id,omitempty"`
+	Decision     string              `json:"decision,omitempty"`
+	Command      string              `json:"command,omitempty"`
+	Args         []string            `json:"args,omitempty"`
+	ExitCode     *int                `json:"exit_code,omitempty"`
+	Output       string              `json:"output,omitempty"`
+	Error        string              `json:"error,omitempty"`
+	DriverAction DriverControlAction `json:"driver_action,omitempty"`
 }
 
 // ReadDiagnostics decodes newline-delimited diagnostics written by the mock driver.

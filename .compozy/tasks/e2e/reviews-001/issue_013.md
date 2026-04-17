@@ -72,4 +72,4 @@ sentinel from the package under test or add/export one if missing).
 - Root cause: the test compares `err.Error()` to a literal even though the failure is intentionally represented by a sentinel-style test error.
 - Fix plan: switch the test to a real sentinel error value and assert it with `errors.Is`.
 - Resolution: introduced a real sentinel trigger error and switched the assertion to `errors.Is`.
-- Verification: `go test ./internal/daemon` passed. `make verify` was rerun after the fix set and still fails in unrelated pre-existing `internal/testutil/acpmock` and `internal/testutil/e2e` packages because this branch does not contain `internal/testutil/acpmock/driver/dist/index.js`.
+- Verification: `go test ./internal/daemon` passed. Historical note: the earlier `driver/dist/index.js` blocker was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

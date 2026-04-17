@@ -42,7 +42,12 @@ var (
 const recipeBodyExample = `  --body '{"recipe":{"recipe_id":"reply-recipe","version":"1.0.0","title":"Reply Recipe","summary":"Compact inline checklist.","content_type":"text/markdown","digest":"sha256:replace-me","inline":"# Reply Recipe\n- Step 1\n- Step 2"}}' \`
 
 type deliveryPrompter interface {
-	PromptNetwork(ctx context.Context, sessionID string, message string) (<-chan acp.AgentEvent, error)
+	PromptNetwork(
+		ctx context.Context,
+		sessionID string,
+		message string,
+		meta ...acp.PromptNetworkMeta,
+	) (<-chan acp.AgentEvent, error)
 	IsPrompting(sessionID string) bool
 }
 
@@ -340,7 +345,7 @@ func (c *deliveryCoordinator) processQueuedItem(sessionID string, item queuedEnv
 		return false
 	}
 
-	events, err := c.prompter.PromptNetwork(c.lifecycleCtx, sessionID, message)
+	events, err := c.prompter.PromptNetwork(c.lifecycleCtx, sessionID, message, promptNetworkMeta(envelope))
 	if err != nil {
 		c.handleDeliveryFailure(sessionID, item, state, err)
 		return false
@@ -352,6 +357,31 @@ func (c *deliveryCoordinator) processQueuedItem(sessionID string, item queuedEnv
 
 	c.finishDeliveredMessage(sessionID, item)
 	return true
+}
+
+func promptNetworkMeta(envelope Envelope) acp.PromptNetworkMeta {
+	meta := acp.PromptNetworkMeta{
+		MessageID: envelope.ID,
+		Kind:      string(envelope.Kind),
+		Channel:   envelope.Channel,
+		From:      envelope.From,
+	}
+	if envelope.To != nil {
+		meta.To = strings.TrimSpace(*envelope.To)
+	}
+	if envelope.InteractionID != nil {
+		meta.InteractionID = strings.TrimSpace(*envelope.InteractionID)
+	}
+	if envelope.ReplyTo != nil {
+		meta.ReplyTo = strings.TrimSpace(*envelope.ReplyTo)
+	}
+	if envelope.TraceID != nil {
+		meta.TraceID = strings.TrimSpace(*envelope.TraceID)
+	}
+	if envelope.CausationID != nil {
+		meta.CausationID = strings.TrimSpace(*envelope.CausationID)
+	}
+	return meta.Normalize()
 }
 
 func (c *deliveryCoordinator) handleRenderFailure(

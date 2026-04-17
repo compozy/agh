@@ -13,6 +13,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 )
 
@@ -163,8 +164,13 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 		return acpsdk.PromptResponse{}, errors.New("sessionId is required")
 	}
 
+	promptMeta, err := decodePromptMeta(params.Meta)
+	if err != nil {
+		return acpsdk.PromptResponse{}, err
+	}
+
 	prompt, occurrence := a.recordPrompt(sessionID, extractPromptText(params.Prompt))
-	turn, err := a.agent.SelectTurn(prompt, occurrence)
+	turn, err := a.agent.SelectTurn(prompt, occurrence, promptMeta)
 	if err != nil {
 		return acpsdk.PromptResponse{}, err
 	}
@@ -174,7 +180,9 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 		SessionID:   sessionID,
 		PromptIndex: occurrence,
 		Prompt:      prompt,
+		PromptMeta:  promptMeta,
 		TurnName:    strings.TrimSpace(turn.Name),
+		Match:       turn.Match.Normalize(),
 		Steps:       make([]acpmock.DiagnosticsStep, 0, len(turn.Steps)),
 	}
 
@@ -233,6 +241,8 @@ func (a *mockAgent) executeStep(
 		return a.requestPermission(ctx, sessionID, step)
 	case acpmock.StepKindEnvironment:
 		return a.executeEnvironmentCommand(ctx, sessionID, step)
+	case acpmock.StepKindDriverControl:
+		return a.executeDriverControl(ctx, step)
 	default:
 		return acpmock.DiagnosticsStep{}, fmt.Errorf("unsupported step kind %s", step.Kind)
 	}
@@ -419,6 +429,73 @@ func (a *mockAgent) executeEnvironmentCommand(
 		ExitCode:   result.ExitCode,
 		Output:     result.Output,
 	}, nil
+}
+
+func (a *mockAgent) executeDriverControl(
+	ctx context.Context,
+	step acpmock.Step,
+) (acpmock.DiagnosticsStep, error) {
+	if step.DriverControl == nil {
+		return acpmock.DiagnosticsStep{}, errors.New("driver_control payload is required")
+	}
+
+	diagnostics := acpmock.DiagnosticsStep{
+		Kind:         acpmock.StepKindDriverControl,
+		DriverAction: step.DriverControl.Action,
+		Text:         strings.TrimSpace(step.DriverControl.RawJSONRPC),
+	}
+	control := *step.DriverControl
+	if control.Async {
+		asyncCtx := context.WithoutCancel(ctx)
+		go func(asyncCtx context.Context, control acpmock.DriverControlStep) {
+			if err := waitDriverControlDelay(asyncCtx, control.DelayMS); err != nil {
+				return
+			}
+			if err := a.performDriverControl(asyncCtx, control); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "acpmock async driver_control %s error: %v\n", control.Action, err)
+			}
+		}(asyncCtx, control)
+		return diagnostics, nil
+	}
+	if err := waitDriverControlDelay(ctx, control.DelayMS); err != nil {
+		return acpmock.DiagnosticsStep{}, err
+	}
+	return diagnostics, a.performDriverControl(ctx, control)
+}
+
+func waitDriverControlDelay(ctx context.Context, delayMS int) error {
+	if delayMS <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(time.Duration(delayMS) * time.Millisecond)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (a *mockAgent) performDriverControl(ctx context.Context, control acpmock.DriverControlStep) error {
+	switch control.Action {
+	case acpmock.DriverControlDisconnect:
+		os.Exit(23)
+		return nil
+	case acpmock.DriverControlWriteRawJSONRPC:
+		frame := control.RawJSONRPC
+		if !strings.HasSuffix(frame, "\n") {
+			frame += "\n"
+		}
+		_, err := os.Stdout.WriteString(frame)
+		return err
+	case acpmock.DriverControlBlockUntilCancel:
+		<-ctx.Done()
+		return ctx.Err()
+	default:
+		return fmt.Errorf("unsupported driver_control action %s", control.Action)
+	}
 }
 
 func (a *mockAgent) writeDiagnostics(record acpmock.DiagnosticsRecord) error {
@@ -713,6 +790,26 @@ func normalizedChunks(step acpmock.Step) []string {
 		return []string{step.Text}
 	}
 	return []string{""}
+}
+
+func decodePromptMeta(raw any) (acp.PromptMeta, error) {
+	if raw == nil {
+		return acp.PromptMeta{}, nil
+	}
+
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return acp.PromptMeta{}, fmt.Errorf("encode prompt metadata: %w", err)
+	}
+
+	var meta acp.PromptMeta
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return acp.PromptMeta{}, fmt.Errorf("decode prompt metadata: %w", err)
+	}
+	if err := meta.Validate(); err != nil {
+		return acp.PromptMeta{}, err
+	}
+	return meta.Normalize(), nil
 }
 
 func extractPromptText(blocks []acpsdk.ContentBlock) string {

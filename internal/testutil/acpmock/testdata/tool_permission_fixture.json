@@ -1,5 +1,5 @@
 {
-    "version": 1,
+    "version": 2,
     "agents": [
         {
             "name": "golden",
@@ -10,7 +10,8 @@
                 {
                     "name": "tool-and-permission",
                     "match": {
-                        "contains": "exercise golden"
+                        "turn_source": "user",
+                        "user_text": "exercise golden"
                     },
                     "steps": [
                         {

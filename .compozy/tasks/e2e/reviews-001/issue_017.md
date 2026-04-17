@@ -23,4 +23,4 @@ As per coding guidelines: "Use t.Parallel() for independent subtests in Go tests
 - Root cause: the make-target subtests are read-only command invocations over independent targets, so they can safely run in parallel.
 - Fix plan: add `t.Parallel()` inside the target subtests.
 - Resolution: added `t.Parallel()` to the make-target subtests and to the independent top-level command-wiring tests.
-- Verification: `go test ./internal/e2elane` passed. `make verify` was rerun after the fix set and still fails in unrelated pre-existing `internal/testutil/acpmock` and `internal/testutil/e2e` packages because this branch does not contain `internal/testutil/acpmock/driver/dist/index.js`.
+- Verification: `go test ./internal/e2elane` passed. Historical note: the earlier `driver/dist/index.js` blocker was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

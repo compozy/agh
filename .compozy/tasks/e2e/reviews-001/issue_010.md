@@ -150,4 +150,4 @@ transcript.
 - Root cause: the helper currently searches for each expected attribute in the combined transcript text, so different messages can satisfy different parts of the same correlation tuple.
 - Fix plan: require one transcript message to contain the full non-empty attribute set and add a regression test that proves split-message matches are rejected.
 - Resolution: tightened correlation matching to require a single transcript surface to carry the full attribute tuple and added a negative regression test for split-message matches.
-- Verification: `go test ./internal/daemon` passed. `make verify` was rerun after the fix set and still fails in unrelated pre-existing `internal/testutil/acpmock` and `internal/testutil/e2e` packages because this branch does not contain `internal/testutil/acpmock/driver/dist/index.js`.
+- Verification: `go test ./internal/daemon` passed. Historical note: the earlier `driver/dist/index.js` blocker was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

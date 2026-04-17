@@ -21,4 +21,4 @@ The test functions are missing `t.Parallel()` calls. For integration tests that 
 - Root cause: the transport-parity integration tests use isolated runtime harnesses and package-local state only, so they currently leave easy parallelism on the table.
 - Fix plan: add `t.Parallel()` after the environment precondition check in each top-level test in this file.
 - Resolution: added `t.Parallel()` to both top-level HTTP transport-parity integration tests.
-- Verification: `go test ./internal/api/httpapi` passed. `go test -tags integration ./internal/api/httpapi ./internal/api/udsapi ./internal/daemon` was rerun but is blocked before these tests execute because the branch is missing `internal/testutil/acpmock/driver/dist/index.js`. `make verify` hits the same unrelated blocker in `internal/testutil/acpmock` and `internal/testutil/e2e`.
+- Verification: `go test ./internal/api/httpapi` passed. Historical note: the later blocker about a missing `driver/dist/index.js` was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

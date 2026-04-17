@@ -1,5 +1,5 @@
 {
-    "version": 1,
+    "version": 2,
     "agents": [
         {
             "name": "alpha",
@@ -10,7 +10,8 @@
                 {
                     "name": "alpha-hello",
                     "match": {
-                        "contains": "hello alpha"
+                        "turn_source": "user",
+                        "user_text": "hello alpha"
                     },
                     "steps": [
                         {
@@ -34,7 +35,8 @@
                 {
                     "name": "beta-hello",
                     "match": {
-                        "contains": "hello beta"
+                        "turn_source": "user",
+                        "user_text": "hello beta"
                     },
                     "steps": [
                         {

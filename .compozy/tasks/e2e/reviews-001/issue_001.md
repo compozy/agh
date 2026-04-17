@@ -23,4 +23,4 @@ As per coding guidelines: `Never use interface{}/any when a concrete type is kno
 - Root cause: the test decodes the `done` SSE payload into `map[string]any` even though the finish payload shape is known and stable in this package.
 - Fix plan: introduce a typed finish payload and decode the test fixture into that struct so the assertions become compile-time checked.
 - Resolution: added `promptFinishPayload` and updated the handler test to decode the `done` event into that typed payload.
-- Verification: `go test ./internal/api/httpapi` passed. `make verify` was rerun after the fix set and still fails in unrelated pre-existing `internal/testutil/acpmock` and `internal/testutil/e2e` packages because this branch does not contain `internal/testutil/acpmock/driver/dist/index.js`.
+- Verification: `go test ./internal/api/httpapi` passed. Historical note: the earlier `driver/dist/index.js` blocker was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

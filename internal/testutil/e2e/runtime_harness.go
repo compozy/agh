@@ -32,6 +32,7 @@ const (
 	defaultStartTimeout = 20 * time.Second
 	defaultPollInterval = 100 * time.Millisecond
 	windowsGOOS         = "windows"
+	daemonBinaryEnvVar  = "AGH_TEST_DAEMON_BIN"
 )
 
 var (
@@ -1112,6 +1113,7 @@ func withRuntimeCLIEnv(
 	}
 	withPath := setEnvValue(env, "PATH", prependPath(filepath.Dir(shimPath), lookupEnvValue(env, "PATH")))
 	withPath = setEnvValue(withPath, "AGH_E2E_CLI_BIN", shimPath)
+	withPath = setEnvValue(withPath, daemonBinaryEnvVar, trimmedBinaryPath)
 	return withPath, nil
 }
 
@@ -1219,6 +1221,14 @@ func readNetworkAuditSnapshot(path string) ([]store.NetworkAuditEntry, error) {
 func buildAGHBinary(t testing.TB) string {
 	t.Helper()
 
+	repoRoot := mustRepoRoot(t)
+	if override := strings.TrimSpace(os.Getenv(daemonBinaryEnvVar)); override != "" {
+		if filepath.IsAbs(override) {
+			return override
+		}
+		return filepath.Clean(filepath.Join(repoRoot, override))
+	}
+
 	buildBinaryMu.Lock()
 	defer buildBinaryMu.Unlock()
 
@@ -1228,7 +1238,6 @@ func buildAGHBinary(t testing.TB) string {
 		}
 	}
 
-	repoRoot := mustRepoRoot(t)
 	binaryPath := filepath.Join(os.TempDir(), fmt.Sprintf("agh-e2e-%d", os.Getpid()))
 	// #nosec G204 -- test harness builds the local agh binary from the checked-out repository.
 	cmd := execabs.CommandContext(context.Background(), "go", "build", "-o", binaryPath, "./cmd/agh")

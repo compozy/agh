@@ -21,4 +21,4 @@ The custom `errorString` type works but adds complexity. Standard sentinel error
 - Root cause: the custom `errorString` helper exists only to synthesize sentinel-like test errors, which is unnecessary now that the surrounding assertions should use `errors.Is`.
 - Fix plan: replace the helper with standard `errors.New` sentinel vars and remove the custom error type.
 - Resolution: replaced the custom `errorString` helper with standard `errors.New` sentinel values and removed the bespoke error type.
-- Verification: `go test ./internal/daemon` passed. `make verify` was rerun after the fix set and still fails in unrelated pre-existing `internal/testutil/acpmock` and `internal/testutil/e2e` packages because this branch does not contain `internal/testutil/acpmock/driver/dist/index.js`.
+- Verification: `go test ./internal/daemon` passed. Historical note: the earlier `driver/dist/index.js` blocker was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

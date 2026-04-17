@@ -27,6 +27,7 @@ import {
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
 const DEFAULT_READY_POLL_MS = 200;
+const DAEMON_BINARY_ENV_VAR = "AGH_TEST_DAEMON_BIN";
 
 let daemonBinaryPromise: Promise<string> | undefined;
 
@@ -291,6 +292,11 @@ async function waitForRuntimeReady(
 }
 
 async function ensureDaemonBinary(repoRoot: string): Promise<string> {
+  const override = process.env[DAEMON_BINARY_ENV_VAR]?.trim();
+  if (override) {
+    return path.isAbsolute(override) ? override : path.resolve(repoRoot, override);
+  }
+
   daemonBinaryPromise ??= buildDaemonBinary(repoRoot);
   return daemonBinaryPromise;
 }
@@ -341,6 +347,7 @@ async function createRuntimeEnv(
   return {
     ...env,
     AGH_E2E_CLI_BIN: paths.cliShim,
+    [DAEMON_BINARY_ENV_VAR]: binaryPath,
     AGH_HOME: paths.homeDir,
     HOME: paths.homeDir,
     PATH: prependPath(path.dirname(paths.cliShim), env.PATH),

@@ -19,14 +19,15 @@ import (
 type TurnSource string
 
 const (
-	TurnSourceUser    TurnSource = "user"
-	TurnSourceNetwork TurnSource = "network"
+	TurnSourceUser    TurnSource = TurnSource(acp.PromptTurnSourceUser)
+	TurnSourceNetwork TurnSource = TurnSource(acp.PromptTurnSourceNetwork)
 )
 
 // PromptOpts carries per-turn metadata through the session prompt pipeline.
 type PromptOpts struct {
 	Message    string
 	TurnSource TurnSource
+	PromptMeta acp.PromptMeta
 }
 
 // NetworkPeerLifecycle is the late-bound network join/leave surface consumed by

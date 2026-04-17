@@ -357,6 +357,55 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 	}
 }
 
+func TestPromptTransmitsStructuredMetadata(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	proc := startHelperProcess(t, driver, "echo_prompt_meta", "", StartOpts{})
+	defer stopProcess(t, driver, proc)
+
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+		TurnID:  "turn-meta",
+		Message: "network delivery",
+		Meta: PromptMeta{
+			TurnSource: PromptTurnSourceNetwork,
+			Network: &PromptNetworkMeta{
+				MessageID:     "msg-meta-1",
+				Kind:          "direct",
+				Channel:       "builders",
+				From:          "ops.peer",
+				To:            "worker.peer",
+				InteractionID: "int-meta-1",
+				ReplyTo:       "msg-root-1",
+				TraceID:       "trace-meta-1",
+				CausationID:   "msg-root-1",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+
+	events := collectEvents(t, eventsCh)
+	if len(events) == 0 {
+		t.Fatal("Prompt() returned no events")
+	}
+
+	var payload PromptMeta
+	if err := json.Unmarshal([]byte(events[0].Text), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(prompt meta echo) error = %v", err)
+	}
+	if got, want := payload.TurnSource, PromptTurnSourceNetwork; got != want {
+		t.Fatalf("payload.TurnSource = %q, want %q", got, want)
+	}
+	if payload.Network == nil {
+		t.Fatal("payload.Network = nil, want populated network metadata")
+	}
+	if got, want := payload.Network.MessageID, "msg-meta-1"; got != want {
+		t.Fatalf("payload.Network.MessageID = %q, want %q", got, want)
+	}
+}
+
 func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	t.Parallel()
 
@@ -1198,6 +1247,17 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
 			SessionId: params.SessionId,
 			Update:    acpsdk.UpdateAgentMessageText(text),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
+	case "echo_prompt_meta":
+		data, err := json.Marshal(params.Meta)
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText(string(data)),
 		}); sendErr != nil {
 			return acpsdk.PromptResponse{}, sendErr
 		}

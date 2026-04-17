@@ -16,6 +16,7 @@ type promptRequest struct {
 	target     string
 	message    string
 	turnSource TurnSource
+	meta       acp.PromptMeta
 }
 
 // Prompt sends one prompt turn to an active session and mirrors the runtime stream into storage and observers.
@@ -27,10 +28,20 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 }
 
 // PromptNetwork sends one network-originated prompt turn to an active session.
-func (m *Manager) PromptNetwork(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
+func (m *Manager) PromptNetwork(
+	ctx context.Context,
+	id string,
+	msg string,
+	meta ...acp.PromptNetworkMeta,
+) (<-chan acp.AgentEvent, error) {
+	var promptMeta acp.PromptMeta
+	if len(meta) > 0 {
+		promptMeta.Network = &meta[0]
+	}
 	return m.PromptWithOpts(ctx, id, PromptOpts{
 		Message:    msg,
 		TurnSource: TurnSourceNetwork,
+		PromptMeta: promptMeta,
 	})
 }
 
@@ -77,7 +88,11 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 		return nil, err
 	}
 
-	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{TurnID: turnID, Message: message})
+	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{
+		TurnID:  turnID,
+		Message: message,
+		Meta:    req.meta,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("session: prompt session %q: %w", req.target, err)
 	}
@@ -112,11 +127,38 @@ func parsePromptRequest(ctx context.Context, id string, opts PromptOpts) (prompt
 		)
 	}
 
+	meta, err := normalizePromptMeta(turnSource, opts.PromptMeta)
+	if err != nil {
+		return promptRequest{}, err
+	}
+
 	return promptRequest{
 		target:     target,
 		message:    message,
 		turnSource: turnSource,
+		meta:       meta,
 	}, nil
+}
+
+func normalizePromptMeta(turnSource TurnSource, meta acp.PromptMeta) (acp.PromptMeta, error) {
+	normalized := meta.Normalize()
+	if normalized.TurnSource == "" {
+		normalized.TurnSource = string(turnSource)
+	}
+	if normalized.TurnSource != string(turnSource) {
+		return acp.PromptMeta{}, fmt.Errorf(
+			"session: prompt turn source %q does not match metadata turn_source %q",
+			turnSource,
+			normalized.TurnSource,
+		)
+	}
+	if turnSource == TurnSourceUser && normalized.Network != nil {
+		return acp.PromptMeta{}, errors.New("session: user prompt metadata cannot include network fields")
+	}
+	if err := normalized.Validate(); err != nil {
+		return acp.PromptMeta{}, err
+	}
+	return normalized, nil
 }
 
 func (m *Manager) lookupPromptSession(target string) (*Session, error) {

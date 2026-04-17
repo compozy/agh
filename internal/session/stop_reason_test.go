@@ -142,3 +142,67 @@ func TestStopMethodsRejectNilManager(t *testing.T) {
 		}
 	})
 }
+
+func TestStopWithCauseFinalizesAlreadyExitedProcess(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	proc := h.driver.lastProcess()
+	if proc == nil {
+		t.Fatal("lastProcess() = nil")
+	}
+
+	crashErr := errors.New("agent crashed before daemon shutdown")
+	proc.crash(crashErr, "stderr: invalid frame")
+
+	if err := h.manager.StopWithCause(testutil.Context(t), session.ID, CauseShutdown, "daemon shutdown"); err != nil {
+		t.Fatalf("StopWithCause() error = %v, want nil after finalizing exited process", err)
+	}
+
+	meta := readMeta(t, session.MetaPath())
+	if got, want := meta.State, string(StateStopped); got != want {
+		t.Fatalf("meta state = %q, want %q", got, want)
+	}
+	if meta.StopReason == nil {
+		t.Fatal("meta stop_reason = nil, want agent_crashed")
+	}
+	if got, want := *meta.StopReason, store.StopAgentCrashed; got != want {
+		t.Fatalf("meta stop_reason = %q, want %q", got, want)
+	}
+	if got, want := meta.StopDetail, crashErr.Error(); got != want {
+		t.Fatalf("meta stop_detail = %q, want %q", got, want)
+	}
+}
+
+func TestRequestStopWithCauseFinalizesAlreadyExitedProcess(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	proc := h.driver.lastProcess()
+	if proc == nil {
+		t.Fatal("lastProcess() = nil")
+	}
+
+	crashErr := errors.New("agent crashed before cancel")
+	proc.crash(crashErr, "stderr: disconnect")
+
+	if err := h.manager.RequestStopWithCause(testutil.Context(t), session.ID, CauseUserRequested, ""); err != nil {
+		t.Fatalf("RequestStopWithCause() error = %v, want nil after finalizing exited process", err)
+	}
+
+	meta := readMeta(t, session.MetaPath())
+	if got, want := meta.State, string(StateStopped); got != want {
+		t.Fatalf("meta state = %q, want %q", got, want)
+	}
+	if meta.StopReason == nil {
+		t.Fatal("meta stop_reason = nil, want agent_crashed")
+	}
+	if got, want := *meta.StopReason, store.StopAgentCrashed; got != want {
+		t.Fatalf("meta stop_reason = %q, want %q", got, want)
+	}
+	if got, want := meta.StopDetail, crashErr.Error(); got != want {
+		t.Fatalf("meta stop_detail = %q, want %q", got, want)
+	}
+}

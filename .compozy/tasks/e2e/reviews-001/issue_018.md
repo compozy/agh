@@ -94,4 +94,4 @@ than reusing the original slices.
 - Root cause: `PlanForLane` clones only the outer `[]GoSuite`, so callers can mutate `Packages` slices that are still shared with the package-level templates.
 - Fix plan: deep-copy every `GoSuite.Packages` slice before returning a plan and add a regression test that proves one call cannot taint the next.
 - Resolution: deep-copied every returned `GoSuite.Packages` slice and added a regression test that mutates one returned plan without contaminating the next call.
-- Verification: `go test ./internal/e2elane` passed. `make verify` was rerun after the fix set and still fails in unrelated pre-existing `internal/testutil/acpmock` and `internal/testutil/e2e` packages because this branch does not contain `internal/testutil/acpmock/driver/dist/index.js`.
+- Verification: `go test ./internal/e2elane` passed. Historical note: the earlier `driver/dist/index.js` blocker was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

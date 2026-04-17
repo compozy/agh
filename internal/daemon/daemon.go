@@ -148,7 +148,12 @@ type networkRuntime interface {
 }
 
 type networkBindableSessionManager interface {
-	PromptNetwork(ctx context.Context, sessionID string, message string) (<-chan acp.AgentEvent, error)
+	PromptNetwork(
+		ctx context.Context,
+		sessionID string,
+		message string,
+		meta ...acp.PromptNetworkMeta,
+	) (<-chan acp.AgentEvent, error)
 	IsPrompting(sessionID string) bool
 	SetNetworkPeerLifecycle(session.NetworkPeerLifecycle)
 	SetTurnEndNotifier(session.TurnEndNotifier)

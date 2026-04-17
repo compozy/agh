@@ -76,4 +76,4 @@ returns wrap the underlying sentinel/typed errors with fmt.Errorf("%s: %w", ...
 - Root cause: `newToolMCPPublisher` wraps codec resolution failures with `%w`, but the tests still inspect message prefixes instead of matching the underlying `resources.ErrCodecNotFound`.
 - Fix plan: replace the prefix assertions with `errors.Is(err, resources.ErrCodecNotFound)`.
 - Resolution: replaced the string-prefix assertions with `errors.Is(err, resources.ErrCodecNotFound)`.
-- Verification: `go test ./internal/daemon` passed. `make verify` was rerun after the fix set and still fails in unrelated pre-existing `internal/testutil/acpmock` and `internal/testutil/e2e` packages because this branch does not contain `internal/testutil/acpmock/driver/dist/index.js`.
+- Verification: `go test ./internal/daemon` passed. Historical note: the earlier `driver/dist/index.js` blocker was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

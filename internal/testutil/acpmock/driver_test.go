@@ -48,6 +48,7 @@ func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 	eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
 		TurnID:  "turn-tool-permission",
 		Message: "exercise golden",
+		Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 	})
 	if err != nil {
 		t.Fatalf("driver.Prompt() error = %v", err)
@@ -119,6 +120,7 @@ func TestDriverSupportsNetworkOriginEnvironmentExpectations(t *testing.T) {
 	eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
 		TurnID:  "turn-network-environment",
 		Message: "run environment",
+		Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceNetwork},
 	})
 	if err != nil {
 		t.Fatalf("driver.Prompt() error = %v", err)
@@ -205,6 +207,215 @@ func TestDriverAdvertisesAndSupportsLoadSession(t *testing.T) {
 	}
 }
 
+func TestDriverDiagnosticsIncludePromptMetadataAndMatch(t *testing.T) {
+	t.Parallel()
+
+	driverPath, err := DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("DefaultDriverPath() error = %v", err)
+	}
+	fixturePath, err := filepath.Abs(filepath.Join("testdata", "multi_agent_fixture.json"))
+	if err != nil {
+		t.Fatalf("filepath.Abs(fixture) error = %v", err)
+	}
+	diagnosticsPath := filepath.Join(t.TempDir(), "alpha-diagnostics.jsonl")
+	command := BuildCommand(driverPath, fixturePath, "alpha", diagnosticsPath)
+
+	driver := acp.New()
+	proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+		AgentName:   "alpha",
+		Command:     command,
+		Cwd:         t.TempDir(),
+		Permissions: aghconfig.PermissionModeApproveAll,
+	})
+	if err != nil {
+		t.Fatalf("driver.Start() error = %v", err)
+	}
+	defer stopDriverProcess(t, driver, proc)
+
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+		TurnID:  "turn-alpha",
+		Message: "hello alpha",
+		Meta: acp.PromptMeta{
+			TurnSource: acp.PromptTurnSourceUser,
+		},
+	})
+	if err != nil {
+		t.Fatalf("driver.Prompt() error = %v", err)
+	}
+	_ = collectPromptEvents(t, eventsCh, nil)
+
+	records, err := ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics() error = %v", err)
+	}
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("len(records) = %d, want %d", got, want)
+	}
+	if got, want := records[0].PromptMeta.TurnSource, acp.PromptTurnSourceUser; got != want {
+		t.Fatalf("records[0].PromptMeta.TurnSource = %q, want %q", got, want)
+	}
+	if got, want := records[0].Match.UserText, "hello alpha"; got != want {
+		t.Fatalf("records[0].Match.UserText = %q, want %q", got, want)
+	}
+}
+
+func TestDriverControlDisconnectSurfacesPromptFailure(t *testing.T) {
+	t.Parallel()
+
+	driverPath, err := DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("DefaultDriverPath() error = %v", err)
+	}
+	fixturePath, err := filepath.Abs(filepath.Join("testdata", "driver_fault_fixture.json"))
+	if err != nil {
+		t.Fatalf("filepath.Abs(fixture) error = %v", err)
+	}
+	command := BuildCommand(
+		driverPath,
+		fixturePath,
+		"faulty",
+		filepath.Join(t.TempDir(), "faulty-diagnostics.jsonl"),
+	)
+
+	driver := acp.New()
+	proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+		AgentName:   "faulty",
+		Command:     command,
+		Cwd:         t.TempDir(),
+		Permissions: aghconfig.PermissionModeDenyAll,
+	})
+	if err != nil {
+		t.Fatalf("driver.Start() error = %v", err)
+	}
+	defer stopDriverProcess(t, driver, proc)
+
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+		TurnID:  "turn-crash",
+		Message: "trigger crash mid-stream",
+		Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+	})
+	if err != nil {
+		t.Fatalf("driver.Prompt() error = %v", err)
+	}
+
+	events := collectPromptEvents(t, eventsCh, nil)
+	if !containsNormalizedEvent(normalizeEvents(events), map[string]string{
+		"type": acp.EventTypeAgentMessage,
+		"text": "partial before crash",
+	}) {
+		t.Fatalf("events = %#v, want partial assistant output before crash", events)
+	}
+	if !containsNormalizedEvent(normalizeEvents(events), map[string]string{
+		"type": acp.EventTypeError,
+	}) {
+		t.Fatalf("events = %#v, want error event after driver disconnect", events)
+	}
+}
+
+func TestDriverControlBlockUntilCancelReturnsCanceledStopReason(t *testing.T) {
+	t.Parallel()
+
+	driverPath, err := DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("DefaultDriverPath() error = %v", err)
+	}
+	fixturePath, err := filepath.Abs(filepath.Join("testdata", "driver_fault_fixture.json"))
+	if err != nil {
+		t.Fatalf("filepath.Abs(fixture) error = %v", err)
+	}
+	command := BuildCommand(
+		driverPath,
+		fixturePath,
+		"faulty",
+		filepath.Join(t.TempDir(), "block-diagnostics.jsonl"),
+	)
+
+	driver := acp.New()
+	proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+		AgentName:   "faulty",
+		Command:     command,
+		Cwd:         t.TempDir(),
+		Permissions: aghconfig.PermissionModeDenyAll,
+	})
+	if err != nil {
+		t.Fatalf("driver.Start() error = %v", err)
+	}
+	defer stopDriverProcess(t, driver, proc)
+
+	ctx, cancel := context.WithCancel(testutil.Context(t))
+	eventsCh, err := driver.Prompt(ctx, proc, acp.PromptRequest{
+		TurnID:  "turn-cancel",
+		Message: "block until canceled",
+		Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+	})
+	if err != nil {
+		t.Fatalf("driver.Prompt() error = %v", err)
+	}
+
+	time.AfterFunc(100*time.Millisecond, cancel)
+	events := collectPromptEvents(t, eventsCh, nil)
+	if !containsNormalizedEvent(normalizeEvents(events), map[string]string{
+		"type": acp.EventTypeError,
+	}) {
+		t.Fatalf("events = %#v, want error event after prompt cancellation", events)
+	}
+}
+
+func TestDriverControlAsyncDisconnectDuringPermissionRequestSurfacesPromptFailure(t *testing.T) {
+	t.Parallel()
+
+	driverPath, err := DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("DefaultDriverPath() error = %v", err)
+	}
+	fixturePath, err := filepath.Abs(filepath.Join("testdata", "driver_fault_fixture.json"))
+	if err != nil {
+		t.Fatalf("filepath.Abs(fixture) error = %v", err)
+	}
+	command := BuildCommand(
+		driverPath,
+		fixturePath,
+		"faulty",
+		filepath.Join(t.TempDir(), "permission-disconnect-diagnostics.jsonl"),
+	)
+
+	driver := acp.New()
+	proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+		AgentName:   "faulty",
+		Command:     command,
+		Cwd:         t.TempDir(),
+		Permissions: aghconfig.PermissionModeDenyAll,
+	})
+	if err != nil {
+		t.Fatalf("driver.Start() error = %v", err)
+	}
+	defer stopDriverProcess(t, driver, proc)
+
+	ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+	defer cancel()
+	eventsCh, err := driver.Prompt(ctx, proc, acp.PromptRequest{
+		TurnID:  "turn-permission-disconnect",
+		Message: "trigger permission disconnect",
+		Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+	})
+	if err != nil {
+		t.Fatalf("driver.Prompt() error = %v", err)
+	}
+
+	events := collectPromptEvents(t, eventsCh, nil)
+	if !containsNormalizedEvent(normalizeEvents(events), map[string]string{
+		"type": acp.EventTypePermission,
+	}) {
+		t.Fatalf("events = %#v, want permission event before disconnect", events)
+	}
+	if !containsNormalizedEvent(normalizeEvents(events), map[string]string{
+		"type": acp.EventTypeError,
+	}) {
+		t.Fatalf("events = %#v, want error event after disconnect", events)
+	}
+}
+
 func collectPromptEvents(
 	t testing.TB,
 	eventsCh <-chan acp.AgentEvent,
@@ -250,6 +461,23 @@ func containsNormalizedEvent(events []map[string]string, want map[string]string)
 
 func stopDriverProcess(t testing.TB, driver *acp.Driver, proc *acp.AgentProcess) {
 	t.Helper()
+	if proc == nil {
+		return
+	}
+	select {
+	case <-proc.Done():
+		_ = proc.Wait()
+		return
+	default:
+	}
+	timer := time.NewTimer(150 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-proc.Done():
+		_ = proc.Wait()
+		return
+	case <-timer.C:
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

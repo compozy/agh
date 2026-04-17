@@ -99,18 +99,106 @@ func (o StartOpts) Validate() error {
 type PromptRequest struct {
 	TurnID  string
 	Message string
+	Meta    PromptMeta
 }
 
 // Validate ensures the prompt request can be sent to the agent.
 func (r PromptRequest) Validate() error {
-	switch {
-	case strings.TrimSpace(r.TurnID) == "":
+	if strings.TrimSpace(r.TurnID) == "" {
 		return errors.New("acp: prompt turn id is required")
-	case strings.TrimSpace(r.Message) == "":
-		return errors.New("acp: prompt message is required")
-	default:
-		return nil
 	}
+	if strings.TrimSpace(r.Message) == "" {
+		return errors.New("acp: prompt message is required")
+	}
+	if err := r.Meta.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+const (
+	// PromptTurnSourceUser identifies a daemon prompt that originated from the
+	// user-facing prompt surfaces.
+	PromptTurnSourceUser = "user"
+	// PromptTurnSourceNetwork identifies a daemon prompt that originated from an
+	// AGH network envelope delivery.
+	PromptTurnSourceNetwork = "network"
+)
+
+// PromptMeta carries structured, transport-stable metadata for one ACP prompt.
+type PromptMeta struct {
+	TurnSource string             `json:"turn_source,omitempty"`
+	Network    *PromptNetworkMeta `json:"network,omitempty"`
+}
+
+// PromptNetworkMeta captures stable AGH network envelope correlation fields.
+type PromptNetworkMeta struct {
+	MessageID     string `json:"message_id,omitempty"`
+	Kind          string `json:"kind,omitempty"`
+	Channel       string `json:"channel,omitempty"`
+	From          string `json:"from,omitempty"`
+	To            string `json:"to,omitempty"`
+	InteractionID string `json:"interaction_id,omitempty"`
+	ReplyTo       string `json:"reply_to,omitempty"`
+	TraceID       string `json:"trace_id,omitempty"`
+	CausationID   string `json:"causation_id,omitempty"`
+}
+
+// Normalize returns a trimmed copy of the prompt metadata.
+func (m PromptMeta) Normalize() PromptMeta {
+	normalized := PromptMeta{
+		TurnSource: strings.TrimSpace(m.TurnSource),
+	}
+	if m.Network != nil {
+		network := m.Network.Normalize()
+		if !network.IsZero() {
+			normalized.Network = &network
+		}
+	}
+	return normalized
+}
+
+// IsZero reports whether the prompt metadata carries any fields.
+func (m PromptMeta) IsZero() bool {
+	normalized := m.Normalize()
+	return normalized.TurnSource == "" && normalized.Network == nil
+}
+
+// Validate ensures the metadata shape is internally consistent.
+func (m PromptMeta) Validate() error {
+	normalized := m.Normalize()
+	switch normalized.TurnSource {
+	case "", PromptTurnSourceUser:
+		if normalized.Network != nil {
+			return errors.New("acp: user prompt metadata cannot include network fields")
+		}
+		return nil
+	case PromptTurnSourceNetwork:
+		return nil
+	default:
+		return fmt.Errorf("acp: invalid prompt turn source %q", normalized.TurnSource)
+	}
+}
+
+// Normalize returns a trimmed copy of the network metadata.
+func (m PromptNetworkMeta) Normalize() PromptNetworkMeta {
+	return PromptNetworkMeta{
+		MessageID:     strings.TrimSpace(m.MessageID),
+		Kind:          strings.TrimSpace(m.Kind),
+		Channel:       strings.TrimSpace(m.Channel),
+		From:          strings.TrimSpace(m.From),
+		To:            strings.TrimSpace(m.To),
+		InteractionID: strings.TrimSpace(m.InteractionID),
+		ReplyTo:       strings.TrimSpace(m.ReplyTo),
+		TraceID:       strings.TrimSpace(m.TraceID),
+		CausationID:   strings.TrimSpace(m.CausationID),
+	}
+}
+
+// IsZero reports whether the network metadata carries any fields.
+func (m PromptNetworkMeta) IsZero() bool {
+	normalized := m.Normalize()
+	return normalized == (PromptNetworkMeta{})
 }
 
 // Caps captures the usable capabilities exposed by an ACP agent.

@@ -23,4 +23,4 @@ As per coding guidelines: `Never use interface{}/any when a concrete type is kno
 - Root cause: `promptStreamState.finish` assembles a known payload contract through `map[string]any`, which is avoidable in package-local code.
 - Fix plan: replace the map with a typed finish payload struct and keep the SSE wire format unchanged.
 - Resolution: replaced the finish-event `map[string]any` payload with the typed `promptFinishPayload` struct.
-- Verification: `go test ./internal/api/httpapi` passed. `make verify` was rerun after the fix set and still fails in unrelated pre-existing `internal/testutil/acpmock` and `internal/testutil/e2e` packages because this branch does not contain `internal/testutil/acpmock/driver/dist/index.js`.
+- Verification: `go test ./internal/api/httpapi` passed. Historical note: the earlier `driver/dist/index.js` blocker was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

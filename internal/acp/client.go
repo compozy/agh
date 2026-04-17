@@ -634,6 +634,9 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		SessionId: acpsdk.SessionId(proc.SessionID),
 		Prompt:    []acpsdk.ContentBlock{acpsdk.TextBlock(proc.nextPromptText(req.Message))},
 	}
+	if meta := req.Meta.Normalize(); !meta.IsZero() {
+		promptRequest.Meta = meta
+	}
 	response, err := acpsdk.SendRequest[wirePromptResponse](
 		proc.conn,
 		ctx,

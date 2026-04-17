@@ -1,15 +1,18 @@
 package acpmock
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pedronauck/agh/internal/acp"
 )
 
-const FixtureVersion = 1
+const FixtureVersion = 2
 
 type StepKind string
 
@@ -20,6 +23,7 @@ const (
 	StepKindPermission    StepKind = "permission"
 	StepKindEnvironment   StepKind = "environment_exec"
 	StepKindBridgeContent StepKind = "bridge_response"
+	StepKindDriverControl StepKind = "driver_control"
 )
 
 // Fixture describes one deterministic multi-agent ACP mock scenario.
@@ -46,11 +50,25 @@ type TurnFixture struct {
 	StopReason string    `json:"stop_reason,omitempty"`
 }
 
-// TurnMatch routes a prompt to a turn fixture.
+// TurnMatch routes a prompt to a turn fixture using exact stable fields only.
 type TurnMatch struct {
-	Equals     string `json:"equals,omitempty"`
-	Contains   string `json:"contains,omitempty"`
-	Occurrence int    `json:"occurrence,omitempty"`
+	TurnSource string            `json:"turn_source,omitempty"`
+	UserText   string            `json:"user_text,omitempty"`
+	Occurrence int               `json:"occurrence,omitempty"`
+	Network    *TurnMatchNetwork `json:"network,omitempty"`
+}
+
+// TurnMatchNetwork captures exact AGH network envelope field matching.
+type TurnMatchNetwork struct {
+	MessageID     string `json:"message_id,omitempty"`
+	Kind          string `json:"kind,omitempty"`
+	Channel       string `json:"channel,omitempty"`
+	From          string `json:"from,omitempty"`
+	To            string `json:"to,omitempty"`
+	InteractionID string `json:"interaction_id,omitempty"`
+	ReplyTo       string `json:"reply_to,omitempty"`
+	TraceID       string `json:"trace_id,omitempty"`
+	CausationID   string `json:"causation_id,omitempty"`
 }
 
 // Step describes one deterministic ACP action emitted or executed by the driver.
@@ -73,14 +91,32 @@ type Step struct {
 	EmitDecision   bool   `json:"emit_decision,omitempty"`
 	EmitText       string `json:"emit_text,omitempty"`
 
-	Command              string   `json:"command,omitempty"`
-	Args                 []string `json:"args,omitempty"`
-	Cwd                  string   `json:"cwd,omitempty"`
-	ExpectExitCode       *int     `json:"expect_exit_code,omitempty"`
-	ExpectOutputContains string   `json:"expect_output_contains,omitempty"`
-	ExpectErrorContains  string   `json:"expect_error_contains,omitempty"`
-	EmitOutput           bool     `json:"emit_output,omitempty"`
+	Command              string             `json:"command,omitempty"`
+	Args                 []string           `json:"args,omitempty"`
+	Cwd                  string             `json:"cwd,omitempty"`
+	ExpectExitCode       *int               `json:"expect_exit_code,omitempty"`
+	ExpectOutputContains string             `json:"expect_output_contains,omitempty"`
+	ExpectErrorContains  string             `json:"expect_error_contains,omitempty"`
+	EmitOutput           bool               `json:"emit_output,omitempty"`
+	DriverControl        *DriverControlStep `json:"driver_control,omitempty"`
 }
+
+// DriverControlStep injects driver-level protocol or lifecycle faults.
+type DriverControlStep struct {
+	Action     DriverControlAction `json:"action"`
+	RawJSONRPC string              `json:"raw_jsonrpc,omitempty"`
+	Async      bool                `json:"async,omitempty"`
+	DelayMS    int                 `json:"delay_ms,omitempty"`
+}
+
+// DriverControlAction identifies one supported driver fault injection action.
+type DriverControlAction string
+
+const (
+	DriverControlDisconnect       DriverControlAction = "disconnect"
+	DriverControlWriteRawJSONRPC  DriverControlAction = "write_raw_jsonrpc"
+	DriverControlBlockUntilCancel DriverControlAction = "block_until_cancel"
+)
 
 // LoadFixture parses and validates one fixture file.
 func LoadFixture(path string) (Fixture, error) {
@@ -103,8 +139,13 @@ func LoadFixture(path string) (Fixture, error) {
 // ParseFixture decodes and validates fixture JSON.
 func ParseFixture(data []byte) (Fixture, error) {
 	var fixture Fixture
-	if err := json.Unmarshal(data, &fixture); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&fixture); err != nil {
 		return Fixture{}, err
+	}
+	if decoder.More() {
+		return Fixture{}, errors.New("acpmock: fixture JSON must contain exactly one document")
 	}
 	if err := fixture.Validate(); err != nil {
 		return Fixture{}, err
@@ -154,23 +195,30 @@ func (f Fixture) Agent(name string) (AgentFixture, error) {
 }
 
 // SelectTurn returns the first turn that matches the supplied prompt occurrence.
-func (a AgentFixture) SelectTurn(prompt string, occurrence int) (TurnFixture, error) {
+func (a AgentFixture) SelectTurn(prompt string, occurrence int, meta ...acp.PromptMeta) (TurnFixture, error) {
 	if occurrence <= 0 {
 		return TurnFixture{}, fmt.Errorf("acpmock: prompt occurrence %d must be >= 1", occurrence)
 	}
 
-	text := strings.TrimSpace(prompt)
+	input := turnMatchInput{
+		UserText: strings.TrimSpace(prompt),
+	}
+	if len(meta) > 0 {
+		input.Meta = meta[0].Normalize()
+	}
+
 	for _, turn := range a.Turns {
-		if turn.Match.matches(text, occurrence) {
+		if turn.Match.matches(input, occurrence) {
 			return turn, nil
 		}
 	}
 
 	return TurnFixture{}, fmt.Errorf(
-		"acpmock: no turn matched agent %q prompt %q at occurrence %d",
+		"acpmock: no turn matched agent %q prompt %q at occurrence %d with meta %#v",
 		a.Name,
-		text,
+		input.UserText,
 		occurrence,
+		input.Meta,
 	)
 }
 
@@ -213,83 +261,219 @@ func (t TurnFixture) Validate(path string) error {
 	return nil
 }
 
-// Validate ensures the turn match contains only supported selectors.
+// Validate ensures the turn match contains only supported exact selectors.
 func (m TurnMatch) Validate(path string) error {
 	if m.Occurrence < 0 {
 		return fmt.Errorf("acpmock: %s.occurrence must be >= 0", path)
 	}
-	if strings.TrimSpace(m.Equals) != "" && strings.TrimSpace(m.Contains) != "" {
-		return fmt.Errorf("acpmock: %s cannot set both equals and contains", path)
+	normalized := m.Normalize()
+	switch normalized.TurnSource {
+	case "", acp.PromptTurnSourceUser, acp.PromptTurnSourceNetwork:
+	default:
+		return fmt.Errorf("acpmock: %s.turn_source %q is invalid", path, normalized.TurnSource)
+	}
+	if normalized.TurnSource == "" && normalized.UserText == "" && normalized.Network == nil {
+		return fmt.Errorf("acpmock: %s requires at least one exact selector", path)
+	}
+	if normalized.Network != nil {
+		if err := normalized.Network.Validate(path + ".network"); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (m TurnMatch) matches(prompt string, occurrence int) bool {
-	if m.Occurrence > 0 && m.Occurrence != occurrence {
+// Normalize returns a trimmed copy of the turn matcher.
+func (m TurnMatch) Normalize() TurnMatch {
+	normalized := TurnMatch{
+		TurnSource: strings.TrimSpace(m.TurnSource),
+		UserText:   strings.TrimSpace(m.UserText),
+		Occurrence: m.Occurrence,
+	}
+	if m.Network != nil {
+		network := m.Network.Normalize()
+		if !network.IsZero() {
+			normalized.Network = &network
+		}
+	}
+	return normalized
+}
+
+type turnMatchInput struct {
+	UserText string
+	Meta     acp.PromptMeta
+}
+
+func (m TurnMatch) matches(input turnMatchInput, occurrence int) bool {
+	normalized := m.Normalize()
+	if normalized.Occurrence > 0 && normalized.Occurrence != occurrence {
 		return false
 	}
+	if normalized.TurnSource != "" && input.Meta.Normalize().TurnSource != normalized.TurnSource {
+		return false
+	}
+	if normalized.UserText != "" && strings.TrimSpace(input.UserText) != normalized.UserText {
+		return false
+	}
+	if normalized.Network != nil {
+		if input.Meta.Network == nil {
+			return false
+		}
+		if !normalized.Network.matches(*input.Meta.Network) {
+			return false
+		}
+	}
+	return true
+}
 
-	switch {
-	case strings.TrimSpace(m.Equals) != "":
-		return prompt == strings.TrimSpace(m.Equals)
-	case strings.TrimSpace(m.Contains) != "":
-		return strings.Contains(prompt, strings.TrimSpace(m.Contains))
-	default:
+// Normalize returns a trimmed copy of the network matcher.
+func (m TurnMatchNetwork) Normalize() TurnMatchNetwork {
+	return TurnMatchNetwork{
+		MessageID:     strings.TrimSpace(m.MessageID),
+		Kind:          strings.TrimSpace(m.Kind),
+		Channel:       strings.TrimSpace(m.Channel),
+		From:          strings.TrimSpace(m.From),
+		To:            strings.TrimSpace(m.To),
+		InteractionID: strings.TrimSpace(m.InteractionID),
+		ReplyTo:       strings.TrimSpace(m.ReplyTo),
+		TraceID:       strings.TrimSpace(m.TraceID),
+		CausationID:   strings.TrimSpace(m.CausationID),
+	}
+}
+
+// IsZero reports whether the network matcher carries any fields.
+func (m TurnMatchNetwork) IsZero() bool {
+	return m.Normalize() == (TurnMatchNetwork{})
+}
+
+// Validate ensures only exact-match network selectors are configured.
+func (m TurnMatchNetwork) Validate(path string) error {
+	if m.IsZero() {
+		return fmt.Errorf("acpmock: %s requires at least one network selector", path)
+	}
+	return nil
+}
+
+func (m TurnMatchNetwork) matches(meta acp.PromptNetworkMeta) bool {
+	want := m.Normalize()
+	got := meta.Normalize()
+	return exactStringMatch(want.MessageID, got.MessageID) &&
+		exactStringMatch(want.Kind, got.Kind) &&
+		exactStringMatch(want.Channel, got.Channel) &&
+		exactStringMatch(want.From, got.From) &&
+		exactStringMatch(want.To, got.To) &&
+		exactStringMatch(want.InteractionID, got.InteractionID) &&
+		exactStringMatch(want.ReplyTo, got.ReplyTo) &&
+		exactStringMatch(want.TraceID, got.TraceID) &&
+		exactStringMatch(want.CausationID, got.CausationID)
+}
+
+func exactStringMatch(want string, got string) bool {
+	if strings.TrimSpace(want) == "" {
 		return true
 	}
+	return strings.TrimSpace(got) == strings.TrimSpace(want)
 }
 
 // Validate ensures the step kind and payload are internally consistent.
 func (s Step) Validate(path string) error {
-	switch s.Kind {
-	case StepKindAssistant, StepKindThought, StepKindBridgeContent:
-		if !hasTextPayload(s.Text, s.Chunks) {
-			return fmt.Errorf("acpmock: %s requires text or chunks", path)
-		}
-	case StepKindToolCall:
-		if strings.TrimSpace(s.ToolCallID) == "" {
-			return fmt.Errorf("acpmock: %s.tool_call_id is required", path)
-		}
-		if strings.TrimSpace(s.Title) == "" {
-			return fmt.Errorf("acpmock: %s.title is required", path)
-		}
-		if err := validateToolKind(path+".tool_kind", s.ToolKind); err != nil {
-			return err
-		}
-		if err := validateToolStatus(path+".status", s.Status); err != nil {
-			return err
-		}
-	case StepKindPermission:
-		if strings.TrimSpace(s.ToolCallID) == "" {
-			return fmt.Errorf("acpmock: %s.tool_call_id is required", path)
-		}
-		if err := validateToolKind(path+".tool_kind", s.ToolKind); err != nil {
-			return err
-		}
-		if err := validateToolStatus(path+".status", s.Status); err != nil {
-			return err
-		}
-		if err := validatePermissionDecision(path+".expect_decision", s.ExpectDecision); err != nil {
-			return err
-		}
-	case StepKindEnvironment:
-		if strings.TrimSpace(s.Command) == "" {
-			return fmt.Errorf("acpmock: %s.command is required", path)
-		}
-		if err := validateToolKind(path+".tool_kind", s.ToolKind); err != nil {
-			return err
-		}
-		if err := validateToolStatus(path+".status", s.Status); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("acpmock: %s.kind %q is invalid", path, s.Kind)
+	if err := s.validateKindPayload(path); err != nil {
+		return err
 	}
-
 	if strings.TrimSpace(s.Cwd) != "" && !filepath.IsAbs(strings.TrimSpace(s.Cwd)) {
 		return fmt.Errorf("acpmock: %s.cwd must be absolute when set", path)
 	}
 
+	return nil
+}
+
+func (s Step) validateKindPayload(path string) error {
+	switch s.Kind {
+	case StepKindAssistant, StepKindThought, StepKindBridgeContent:
+		return validateTextStep(path, s)
+	case StepKindToolCall:
+		return validateToolCallStep(path, s)
+	case StepKindPermission:
+		return validatePermissionStep(path, s)
+	case StepKindEnvironment:
+		return validateEnvironmentStep(path, s)
+	case StepKindDriverControl:
+		return validateDriverControlStep(path, s)
+	default:
+		return fmt.Errorf("acpmock: %s.kind %q is invalid", path, s.Kind)
+	}
+}
+
+func validateTextStep(path string, step Step) error {
+	if !hasTextPayload(step.Text, step.Chunks) {
+		return fmt.Errorf("acpmock: %s requires text or chunks", path)
+	}
+	return nil
+}
+
+func validateToolCallStep(path string, step Step) error {
+	if strings.TrimSpace(step.ToolCallID) == "" {
+		return fmt.Errorf("acpmock: %s.tool_call_id is required", path)
+	}
+	if strings.TrimSpace(step.Title) == "" {
+		return fmt.Errorf("acpmock: %s.title is required", path)
+	}
+	if err := validateToolKind(path+".tool_kind", step.ToolKind); err != nil {
+		return err
+	}
+	return validateToolStatus(path+".status", step.Status)
+}
+
+func validatePermissionStep(path string, step Step) error {
+	if strings.TrimSpace(step.ToolCallID) == "" {
+		return fmt.Errorf("acpmock: %s.tool_call_id is required", path)
+	}
+	if err := validateToolKind(path+".tool_kind", step.ToolKind); err != nil {
+		return err
+	}
+	if err := validateToolStatus(path+".status", step.Status); err != nil {
+		return err
+	}
+	return validatePermissionDecision(path+".expect_decision", step.ExpectDecision)
+}
+
+func validateEnvironmentStep(path string, step Step) error {
+	if strings.TrimSpace(step.Command) == "" {
+		return fmt.Errorf("acpmock: %s.command is required", path)
+	}
+	if err := validateToolKind(path+".tool_kind", step.ToolKind); err != nil {
+		return err
+	}
+	return validateToolStatus(path+".status", step.Status)
+}
+
+func validateDriverControlStep(path string, step Step) error {
+	if step.DriverControl == nil {
+		return fmt.Errorf("acpmock: %s.driver_control is required", path)
+	}
+	return step.DriverControl.Validate(path + ".driver_control")
+}
+
+// Validate ensures the driver-control payload is internally consistent.
+func (d DriverControlStep) Validate(path string) error {
+	if d.DelayMS < 0 {
+		return fmt.Errorf("acpmock: %s.delay_ms must be >= 0", path)
+	}
+	switch d.Action {
+	case DriverControlDisconnect, DriverControlBlockUntilCancel:
+		if strings.TrimSpace(d.RawJSONRPC) != "" {
+			return fmt.Errorf("acpmock: %s.raw_jsonrpc is only valid for write_raw_jsonrpc", path)
+		}
+	case DriverControlWriteRawJSONRPC:
+		if strings.TrimSpace(d.RawJSONRPC) == "" {
+			return fmt.Errorf("acpmock: %s.raw_jsonrpc is required", path)
+		}
+	default:
+		return fmt.Errorf("acpmock: %s.action %q is invalid", path, d.Action)
+	}
+	if d.Async && d.Action == DriverControlBlockUntilCancel {
+		return fmt.Errorf("acpmock: %s.async is invalid for block_until_cancel", path)
+	}
 	return nil
 }
 

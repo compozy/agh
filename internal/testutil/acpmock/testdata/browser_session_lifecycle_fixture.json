@@ -1,5 +1,5 @@
 {
-    "version": 1,
+    "version": 2,
     "agents": [
         {
             "name": "browser-lifecycle-agent",
@@ -10,7 +10,8 @@
                 {
                     "name": "browser-session-lifecycle",
                     "match": {
-                        "contains": "browser lifecycle"
+                        "turn_source": "user",
+                        "user_text": "run browser lifecycle flow"
                     },
                     "steps": [
                         {

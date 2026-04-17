@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,11 +19,13 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
+	"github.com/pedronauck/agh/internal/transcript"
 )
 
 const (
 	transportUDSApprovalAgent   = "transport-uds-approver"
 	transportUDSAutomationAgent = "transport-uds-automation-runner"
+	transportUDSFaultyAgent     = "transport-uds-faulty-runner"
 )
 
 var errStopAfterUDSApprovalGap = errors.New("stop after documenting UDS approval gap")
@@ -146,6 +149,54 @@ func TestUDSTransportProjectionParityMatchesHTTPAndCLI(t *testing.T) {
 	}
 }
 
+func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  transportMockFixturePath(t, "driver_fault_fixture.json"),
+			FixtureAgent: "faulty",
+			AgentName:    transportUDSFaultyAgent,
+		}},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	session, err := runtimeHarness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+		AgentName:     transportUDSFaultyAgent,
+		WorkspacePath: runtimeHarness.WorkspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+
+	stream, err := runtimeHarness.PromptSession(ctx, session.ID, "trigger crash mid-stream")
+	if err != nil {
+		t.Fatalf("PromptSession() error = %v", err)
+	}
+	if !udsSSEContainsEvent(stream, "error") {
+		t.Fatalf("UDS prompt stream = %#v, want error event", stream)
+	}
+
+	transcript, err := runtimeHarness.SessionTranscript(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("SessionTranscript() error = %v", err)
+	}
+	if !strings.Contains(joinTransportTranscript(transcript.Messages), "partial before crash") {
+		t.Fatalf("transcript = %#v, want partial assistant output", transcript.Messages)
+	}
+
+	eventsResp, err := runtimeHarness.SessionEvents(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("SessionEvents() error = %v", err)
+	}
+	if !udsSessionEventsContainType(eventsResp.Events, "error") {
+		t.Fatalf("UDS session events = %#v, want error projection", eventsResp.Events)
+	}
+}
+
 func waitForUDSAutomationRun(
 	t testing.TB,
 	ctx context.Context,
@@ -262,6 +313,34 @@ func waitForTransportAutomationRun(
 		case <-ticker.C:
 		}
 	}
+}
+
+func udsSSEContainsEvent(records []e2etest.SSEEvent, want string) bool {
+	for _, record := range records {
+		if record.Event == want {
+			return true
+		}
+	}
+	return false
+}
+
+func udsSessionEventsContainType(events []aghcontract.SessionEventPayload, want string) bool {
+	for _, event := range events {
+		if strings.Contains(string(event.Content), `"type":"`+want+`"`) {
+			return true
+		}
+	}
+	return false
+}
+
+func joinTransportTranscript(messages []transcript.Message) string {
+	parts := make([]string, 0, len(messages))
+	for _, message := range messages {
+		if text := strings.TrimSpace(message.Content); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func transportMockFixturePath(t testing.TB, name string) string {

@@ -21,4 +21,4 @@ Every waiter in this file now depends on a polling loop with `time.Sleep`, which
 - Root cause: `waitForRuntimeCondition` polls with a fixed `time.Sleep`, which delays cancellation and adds unnecessary timing sensitivity to the daemon E2E lane.
 - Fix plan: switch the helper to a timer+ticker loop so waiting is context-free but event-driven instead of sleep-driven.
 - Resolution: replaced the fixed-sleep loop in `waitForRuntimeCondition` with a timer+ticker wait.
-- Verification: `go test ./internal/daemon` passed. `go test -tags integration ./internal/api/httpapi ./internal/api/udsapi ./internal/daemon` was rerun but is blocked before these tests execute because the branch is missing `internal/testutil/acpmock/driver/dist/index.js`. `make verify` hits the same unrelated blocker in `internal/testutil/acpmock` and `internal/testutil/e2e`.
+- Verification: `go test ./internal/daemon` passed. Historical note: the later blocker about a missing `driver/dist/index.js` was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

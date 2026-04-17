@@ -1,5 +1,5 @@
 {
-    "version": 1,
+    "version": 2,
     "agents": [
         {
             "name": "bridge-runner",
@@ -10,7 +10,8 @@
                 {
                     "name": "initial-bridge-summary",
                     "match": {
-                        "contains": "Need a runtime bridge summary"
+                        "turn_source": "user",
+                        "occurrence": 1
                     },
                     "steps": [
                         {
@@ -22,7 +23,8 @@
                 {
                     "name": "follow-up-bridge-summary",
                     "match": {
-                        "contains": "Provide a follow-up runtime bridge summary"
+                        "turn_source": "user",
+                        "occurrence": 2
                     },
                     "steps": [
                         {

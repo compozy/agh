@@ -28,4 +28,4 @@ Splitting into focused subtests improves:
 - Root cause: `TestToolMCPComparisonAndNilHelpers` currently mixes nil-receiver behavior, codec comparison helpers, publisher behavior, and constructor behavior in one long flow, which weakens failure diagnostics.
 - Fix plan: split the unrelated concerns into focused subtests and keep them parallel where independence is clear.
 - Resolution: split the monolithic test into focused parallel subtests for nil helpers, codec comparison, publisher behavior, and nil-logger syncer construction.
-- Verification: `go test ./internal/daemon` passed. `make verify` was rerun after the fix set and still fails in unrelated pre-existing `internal/testutil/acpmock` and `internal/testutil/e2e` packages because this branch does not contain `internal/testutil/acpmock/driver/dist/index.js`.
+- Verification: `go test ./internal/daemon` passed. Historical note: the earlier `driver/dist/index.js` blocker was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

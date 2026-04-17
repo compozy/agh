@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 const (
 	transportApprovalAgentName = "transport-approver"
 	transportAutomationAgent   = "transport-automation-runner"
+	transportFaultyAgent       = "transport-faulty-runner"
 )
 
 func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
@@ -158,6 +160,55 @@ func TestHTTPTransportWebhookIngressUsesSharedRuntimeHarness(t *testing.T) {
 	}
 }
 
+func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  transportMockFixturePath(t, "driver_fault_fixture.json"),
+			FixtureAgent: "faulty",
+			AgentName:    transportFaultyAgent,
+		}},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	session, err := runtimeHarness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+		AgentName:     transportFaultyAgent,
+		WorkspacePath: runtimeHarness.WorkspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+
+	stream, err := runtimeHarness.PromptSessionHTTP(ctx, session.ID, "trigger invalid frame")
+	if err != nil {
+		t.Fatalf("PromptSessionHTTP() error = %v", err)
+	}
+	if !e2etest.RecordsContainTextDelta(stream, "partial before invalid frame") {
+		t.Fatalf("HTTP prompt stream = %#v, want partial assistant delta", stream)
+	}
+	if !httpSSEContainsEvent(stream, "error") {
+		t.Fatalf("HTTP prompt stream = %#v, want error event", stream)
+	}
+
+	var eventsResp aghcontract.SessionEventsResponse
+	if err := runtimeHarness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/sessions/"+url.PathEscape(session.ID)+"/events",
+		nil,
+		&eventsResp,
+	); err != nil {
+		t.Fatalf("HTTP session events error = %v", err)
+	}
+	if !httpSessionEventsContainType(eventsResp.Events, "error") {
+		t.Fatalf("HTTP session events = %#v, want error projection", eventsResp.Events)
+	}
+}
+
 func seedTransportWebhookTrigger(
 	t testing.TB,
 	ctx context.Context,
@@ -240,4 +291,22 @@ func transportMockFixturePath(t testing.TB, name string) string {
 		t.Fatal("runtime.Caller(0) failed")
 	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "testutil", "acpmock", "testdata", name)
+}
+
+func httpSSEContainsEvent(records []e2etest.SSEEvent, want string) bool {
+	for _, record := range records {
+		if record.Event == want {
+			return true
+		}
+	}
+	return false
+}
+
+func httpSessionEventsContainType(events []aghcontract.SessionEventPayload, want string) bool {
+	for _, event := range events {
+		if strings.Contains(string(event.Content), `"type":"`+want+`"`) {
+			return true
+		}
+	}
+	return false
 }

@@ -21,4 +21,4 @@ The daemon E2E test functions are missing `t.Parallel()` calls. Each test uses a
 - Root cause: these daemon E2E tests each spin up their own isolated harness and do not share mutable state, so they can run in parallel safely.
 - Fix plan: add `t.Parallel()` to each top-level test after the Node precondition guard.
 - Resolution: added `t.Parallel()` to the top-level fixture-backed daemon mock-agent integration tests.
-- Verification: `go test ./internal/daemon` passed. `go test -tags integration ./internal/api/httpapi ./internal/api/udsapi ./internal/daemon` was rerun but is blocked before these tests execute because the branch is missing `internal/testutil/acpmock/driver/dist/index.js`. `make verify` hits the same unrelated blocker in `internal/testutil/acpmock` and `internal/testutil/e2e`.
+- Verification: `go test ./internal/daemon` passed. Historical note: the later blocker about a missing `driver/dist/index.js` was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

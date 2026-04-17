@@ -374,14 +374,14 @@ func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bo
 	}
 }
 
-func (s *Session) setStopCause(cause StopCause, detail string) {
+func (s *Session) setStopCause(cause StopCause) {
 	if s == nil {
 		return
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.applyStopCauseLocked(cause, detail)
+	s.applyStopCauseLocked(cause, "")
 }
 
 func (s *Session) stopCauseDetail() (StopCause, string) {

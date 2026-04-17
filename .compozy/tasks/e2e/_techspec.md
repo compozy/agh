@@ -18,9 +18,9 @@ The runtime lane is the source of truth for protocol correctness, cross-domain o
 The E2E architecture is intentionally layered instead of trying to force one harness to prove everything:
 
 - `internal/testutil/acpmock/`
-  - shared helper for deterministic ACP subprocess agents
+  - shared helper for deterministic Go ACP subprocess agents
   - writes temporary agent definitions into the isolated AGH home
-  - keeps `@copilotkit/aimock` narrow: assistant text chunking and stream cadence only
+  - keeps the mock boundary narrow: exact fixture matching, deterministic streaming, and fault injection only
 - `internal/testutil/e2e/`
   - shared daemon/runtime fixture utilities
   - isolated `AGH_HOME`, isolated workspace, seeded config, artifact collection, and runtime boot helpers
@@ -99,13 +99,17 @@ type RuntimeHarness struct {
 }
 
 type MockAgentSpec struct {
-    Name        string
-    FixturePath string
+    FixturePath     string
+    FixtureAgent    string
+    AgentName       string
+    DiagnosticsPath string
 }
 
 func StartRuntimeHarness(t *testing.T, opts RuntimeHarnessOptions) *RuntimeHarness
 func (h *RuntimeHarness) RegisterMockAgent(t *testing.T, spec MockAgentSpec)
 ```
+
+`MockAgentSpec` is the required narrow waist for runtime and browser E2E mock-agent wiring. Tests should register fixture-backed agents through `internal/testutil/e2e` instead of calling `acpmock.Register` directly.
 
 The harness is responsible for:
 
@@ -128,6 +132,12 @@ The deterministic ACP fixture model expands from single-session transcript flows
 - real `agh network send` and other shell/tool-host operations when the scenario requires agent-driven collaboration
 - bridge response content
 - environment command execution expectations
+
+Fixture schema v2 is the contract for these flows:
+
+- exact matching by `turn_source`, `user_text`, and structured network metadata instead of rendered prompt substring heuristics
+- diagnostics that persist both the received prompt metadata and the selected matcher for failed-run forensics
+- a constrained `driver_control` step for pathological ACP behaviors such as disconnect, raw invalid JSON-RPC frames, and cancel-blocked sessions
 
 Each E2E scenario must emit an artifact manifest that captures the assertion surfaces required by that domain:
 
@@ -189,9 +199,12 @@ The E2E suites must treat these as first-class product surfaces:
 
 ## Integration Points
 
-- `@copilotkit/aimock`
-  - planned harness dependency for deterministic assistant text chunking and streaming inside `mock-acp`
-  - not a replacement for network, task, automation, bridge, or browser assertions
+- `internal/testutil/acpmock/cmd/acpmock-driver`
+  - canonical deterministic ACP mock driver shared by runtime and browser lanes
+  - prebuilt once per lane and overridable via `AGH_TEST_ACPMOCK_DRIVER_BIN`
+- `cmd/agh`
+  - daemon binary reused by runtime and browser lanes
+  - prebuilt once per lane and overridable via `AGH_TEST_DAEMON_BIN`
 - Embedded NATS network runtime
   - required for true channel and peer collaboration scenarios
 - Existing bridge adapter harness in `internal/extensiontest/`
@@ -346,11 +359,13 @@ These flows are important, but they should be built on top of the base harness i
 
 ### Technical Dependencies
 
-- Node 20 is required for `mock-acp` and Playwright.
+- Node 20 is required for the daemon-served web bundle and Playwright only.
+- Runtime E2E builds Go binaries only and may reuse prebuilt `agh` / `acpmock-driver` binaries through environment overrides.
 - The web bundle must be built before daemon-served browser E2E runs.
 - Embedded network must be enabled in runtime fixtures for collaboration scenarios.
 - UDS already exposes `/api/sessions/{id}/approve`, but it currently returns `501 Not Implemented`; approval-sensitive coverage stays in the HTTP and browser lanes until transport parity exists.
 - Local environment flows are PR-required; Daytona flows are nightly or credentialed.
+- No current lane exercises real LLM providers; any credentialed provider coverage is a separate follow-up lane rather than an implicit promise of the deterministic suite.
 
 ## Monitoring and Observability
 
@@ -387,10 +402,15 @@ Artifact capture is mandatory, not best-effort.
   - Trade-offs: Playwright scenarios become a bit heavier and need seeded runtime state.
   - Alternatives rejected: smoke-only browser checks, or pretending non-existent web workflows such as tasks already exist.
 
-- Decision: keep `@copilotkit/aimock` narrow.
-  - Rationale: it is useful for deterministic assistant streaming, not for simulating the whole system.
-  - Trade-offs: more scenario orchestration remains in AGH-specific fixtures.
-  - Alternatives rejected: turning `aimock` into the top-level system harness.
+- Decision: keep the ACP mock narrow and implement it in Go.
+  - Rationale: the shipped suite already shares the ACP SDK with production code, avoids cross-language parity drift, and keeps fixture ownership inside the existing Go test toolchain.
+  - Trade-offs: the deterministic driver still needs explicit fault-injection primitives for protocol-path coverage.
+  - Alternatives rejected: reviving a separate Node mock driver or treating the mock as a top-level system simulator.
+
+- Decision: route fixture turns by structured prompt metadata and exact user text.
+  - Rationale: rendered prompt substrings are not a stable contract once network/system prompts are composed by the runtime.
+  - Trade-offs: fixture v2 is intentionally breaking and requires in-repo migration.
+  - Alternatives rejected: keeping `contains` / `equals` as a legacy fallback inside the active suite.
 
 - Decision: place cross-system runtime E2E at the composition root under `internal/daemon`.
   - Rationale: daemon boot is where network, automation, tasks, bridges, extensions, and environments are actually wired together.
@@ -406,6 +426,11 @@ Artifact capture is mandatory, not best-effort.
   - Rationale: the suite must not claim runtime flows that are only partially wired.
   - Trade-offs: some implemented-but-unwired seams remain out of P0.
   - Alternatives rejected: promising network-to-task handoff E2E before that path is exposed through a real product ingress.
+
+- Decision: make no real-provider claim for the current E2E matrix.
+  - Rationale: deterministic ACP fixtures prove runtime integration behavior, not provider quality or provider-specific schema correctness.
+  - Trade-offs: product-level provider confidence must come from a separate, credentialed lane if the team wants it.
+  - Alternatives rejected: implying that deterministic mock coverage is equivalent to running canonical flows against Claude, OpenAI, or Gemini.
 
 ### Known Risks
 
@@ -427,8 +452,10 @@ Artifact capture is mandatory, not best-effort.
 
 ## Architecture Decision Records
 
-- [ADR-001: Mock ACP Through a Temporary Agent Definition](adrs/adr-001.md) - Use normal AGH agent definitions to launch deterministic ACP mock subprocesses through the real daemon startup path.
+- [ADR-001: Mock ACP Through a Temporary Agent Definition](adrs/adr-001.md) - Historical proposal for a temp-agent mock strategy; superseded by ADR-006.
 - [ADR-002: Separate Runtime and Browser E2E Lanes](adrs/adr-002.md) - Treat daemon/runtime proof and browser/operator proof as coordinated but distinct test layers.
 - [ADR-003: Run Cross-System Runtime E2E From the Composition Root](adrs/adr-003.md) - Put network, tasks, automation, bridges, extensions, and environments together under `internal/daemon`.
 - [ADR-004: Assert Through Domain-Specific Product Surfaces](adrs/adr-004.md) - Use transcripts, network logs, run records, bridge health, environment metadata, and UI outcomes instead of transcript-only goldens.
 - [ADR-005: Keep PR-Required E2E On Shipped Surfaces and Use Tiered Execution](adrs/adr-005.md) - Cover externally reachable flows in PRs and move heavier credentialed or future surfaces into later tiers.
+- [ADR-006: Keep ACP Mock Implemented in Go](adrs/adr-006.md) - Standardize the shipped Go mock driver and the shared-binary runtime/browser harness contract.
+- [ADR-007: No Current E2E Lane Uses Real LLM Providers](adrs/adr-007.md) - Document the present confidence boundary and keep provider coverage as a separate future tier.

@@ -296,6 +296,12 @@ func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 		if !strings.Contains(call.message, "idle message") {
 			t.Fatalf("idle call message missing rendered preview: %s", call.message)
 		}
+		if got, want := call.meta.MessageID, "msg-idle"; got != want {
+			t.Fatalf("idle call meta message_id = %q, want %q", got, want)
+		}
+		if got, want := call.meta.Kind, "direct"; got != want {
+			t.Fatalf("idle call meta kind = %q, want %q", got, want)
+		}
 
 		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
 		coordinator.wait()
@@ -334,6 +340,9 @@ func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 		call := prompter.call(0)
 		if !strings.Contains(call.message, "busy message") {
 			t.Fatalf("busy call message missing rendered preview: %s", call.message)
+		}
+		if got, want := call.meta.MessageID, "msg-busy"; got != want {
+			t.Fatalf("busy call meta message_id = %q, want %q", got, want)
 		}
 		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
 		coordinator.wait()
@@ -635,6 +644,7 @@ type fakeDeliveryPrompter struct {
 type fakePromptCall struct {
 	sessionID string
 	message   string
+	meta      acp.PromptNetworkMeta
 	events    chan acp.AgentEvent
 }
 
@@ -649,13 +659,19 @@ func (p *fakeDeliveryPrompter) PromptNetwork(
 	_ context.Context,
 	sessionID string,
 	message string,
+	meta ...acp.PromptNetworkMeta,
 ) (<-chan acp.AgentEvent, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	var promptMeta acp.PromptNetworkMeta
+	if len(meta) > 0 {
+		promptMeta = meta[0]
+	}
 	call := &fakePromptCall{
 		sessionID: sessionID,
 		message:   message,
+		meta:      promptMeta,
 		events:    make(chan acp.AgentEvent, 4),
 	}
 	p.calls = append(p.calls, call)
@@ -719,6 +735,7 @@ func (p *fakeDeliveryPrompter) call(index int) fakePromptCall {
 	return fakePromptCall{
 		sessionID: call.sessionID,
 		message:   call.message,
+		meta:      call.meta,
 	}
 }
 

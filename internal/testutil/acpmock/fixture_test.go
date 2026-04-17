@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
@@ -30,7 +31,7 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fixture.Agent(alpha) error = %v", err)
 		}
-		turn, err := alpha.SelectTurn("hello alpha", 1)
+		turn, err := alpha.SelectTurn("hello alpha", 1, acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
 		if err != nil {
 			t.Fatalf("alpha.SelectTurn() error = %v", err)
 		}
@@ -57,7 +58,11 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fixture.Agent(approver) error = %v", err)
 		}
-		permissionTurn, err := approver.SelectTurn("request permission", 1)
+		permissionTurn, err := approver.SelectTurn(
+			"request permission",
+			1,
+			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+		)
 		if err != nil {
 			t.Fatalf("approver.SelectTurn() error = %v", err)
 		}
@@ -72,7 +77,11 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fixture.Agent(runner) error = %v", err)
 		}
-		environmentTurn, err := runner.SelectTurn("run environment", 1)
+		environmentTurn, err := runner.SelectTurn(
+			"run environment",
+			1,
+			acp.PromptMeta{TurnSource: acp.PromptTurnSourceNetwork},
+		)
 		if err != nil {
 			t.Fatalf("runner.SelectTurn() error = %v", err)
 		}
@@ -139,14 +148,33 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 			SessionID:   "sess-1",
 			PromptIndex: 1,
 			Prompt:      "hello",
+			PromptMeta:  acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 			TurnName:    "alpha-hello",
+			Match: TurnMatch{
+				TurnSource: acp.PromptTurnSourceUser,
+				UserText:   "hello",
+			},
 		},
 		{
 			AgentName:   "beta",
 			SessionID:   "sess-2",
 			PromptIndex: 2,
 			Prompt:      "hello beta",
-			TurnName:    "beta-hello",
+			PromptMeta: acp.PromptMeta{
+				TurnSource: acp.PromptTurnSourceNetwork,
+				Network: &acp.PromptNetworkMeta{
+					MessageID: "msg-2",
+					Kind:      "direct",
+				},
+			},
+			TurnName: "beta-hello",
+			Match: TurnMatch{
+				TurnSource: acp.PromptTurnSourceNetwork,
+				Network: &TurnMatchNetwork{
+					MessageID: "msg-2",
+					Kind:      "direct",
+				},
+			},
 		},
 	}
 
@@ -198,33 +226,38 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 	}{
 		{
 			name: "invalid version",
-			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
-			want: "fixture version 2",
+			raw:  `{"version":1,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+			want: "fixture version 1",
 		},
 		{
 			name: "duplicate agent",
-			raw:  `{"version":1,"agents":[{"name":"alpha","provider":"claude","turns":[{"steps":[{"kind":"assistant","text":"hi"}]}]},{"name":"alpha","provider":"claude","turns":[{"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]},{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hello"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
 			want: "duplicate agent",
 		},
 		{
-			name: "turn match cannot set equals and contains",
-			raw:  `{"version":1,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"equals":"a","contains":"b"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
-			want: "cannot set both equals and contains",
+			name: "legacy matcher fields are rejected",
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"equals":"a"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+			want: "unknown field",
 		},
 		{
 			name: "invalid stop reason",
-			raw:  `{"version":1,"agents":[{"name":"alpha","provider":"claude","turns":[{"stop_reason":"bad","steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"stop_reason":"bad","steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
 			want: "stop_reason",
 		},
 		{
 			name: "invalid permission decision",
-			raw:  `{"version":1,"agents":[{"name":"alpha","provider":"claude","turns":[{"steps":[{"kind":"permission","tool_call_id":"perm-1","tool_kind":"edit","expect_decision":"maybe"}]}]}]}`,
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"permission","tool_call_id":"perm-1","tool_kind":"edit","expect_decision":"maybe"}]}]}]}`,
 			want: "expect_decision",
 		},
 		{
 			name: "environment cwd must be absolute",
-			raw:  `{"version":1,"agents":[{"name":"alpha","provider":"claude","turns":[{"steps":[{"kind":"environment_exec","command":"agh","cwd":"relative"}]}]}]}`,
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"environment_exec","command":"agh","cwd":"relative"}]}]}]}`,
 			want: "cwd must be absolute",
+		},
+		{
+			name: "driver control requires payload",
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"driver_control"}]}]}]}`,
+			want: "driver_control is required",
 		},
 	}
 
@@ -264,9 +297,38 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	if _, err := alpha.SelectTurn(
 		"different prompt",
 		1,
+		acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 	); err == nil ||
 		!strings.Contains(err.Error(), "no turn matched") {
 		t.Fatalf("alpha.SelectTurn(missing) error = %v, want no-match error", err)
+	}
+
+	networkFixture, err := LoadFixture(filepath.Join("testdata", "network_collaboration_fixture.json"))
+	if err != nil {
+		t.Fatalf("LoadFixture(network) error = %v", err)
+	}
+	ops, err := networkFixture.Agent("ops-coordinator")
+	if err != nil {
+		t.Fatalf("fixture.Agent(ops-coordinator) error = %v", err)
+	}
+	turn, err := ops.SelectTurn("", 2, acp.PromptMeta{
+		TurnSource: acp.PromptTurnSourceNetwork,
+		Network: &acp.PromptNetworkMeta{
+			MessageID:   "msg_direct_01",
+			Kind:        "direct",
+			Channel:     "builders",
+			From:        "patch-worker.sess",
+			ReplyTo:     "msg_say_01",
+			TraceID:     "trace_ops_patch_42",
+			To:          "ops-coordinator.sess",
+			CausationID: "msg_say_01",
+		},
+	})
+	if err != nil {
+		t.Fatalf("ops.SelectTurn(network) error = %v", err)
+	}
+	if got, want := turn.Name, "accept-direct-request"; got != want {
+		t.Fatalf("network turn.Name = %q, want %q", got, want)
 	}
 }
 
@@ -358,6 +420,21 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 		}
 		if (TurnMatch{Occurrence: -1}).Validate("match") == nil {
 			t.Fatal("TurnMatch.Validate(negative occurrence) error = nil, want non-nil")
+		}
+		if (TurnMatch{TurnSource: acp.PromptTurnSourceUser}).Validate("match") != nil {
+			t.Fatal("TurnMatch.Validate(user selector) error != nil, want nil")
+		}
+		if (TurnMatchNetwork{}).Validate("match.network") == nil {
+			t.Fatal("TurnMatchNetwork.Validate(empty) error = nil, want non-nil")
+		}
+		if (DriverControlStep{Action: DriverControlWriteRawJSONRPC}).Validate("driver_control") == nil {
+			t.Fatal("DriverControlStep.Validate(missing raw_jsonrpc) error = nil, want non-nil")
+		}
+		if (DriverControlStep{Action: DriverControlDisconnect, DelayMS: -1}).Validate("driver_control") == nil {
+			t.Fatal("DriverControlStep.Validate(negative delay) error = nil, want non-nil")
+		}
+		if (DriverControlStep{Action: DriverControlBlockUntilCancel, Async: true}).Validate("driver_control") == nil {
+			t.Fatal("DriverControlStep.Validate(async block_until_cancel) error = nil, want non-nil")
 		}
 		if (TurnFixture{}).Validate("turn") == nil {
 			t.Fatal("TurnFixture.Validate(no steps) error = nil, want non-nil")

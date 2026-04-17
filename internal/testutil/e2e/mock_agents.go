@@ -17,7 +17,9 @@ import (
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 )
 
-// MockAgentSpec describes one temporary fixture-backed mock ACP registration.
+// MockAgentSpec is the narrow-waist contract for fixture-backed mock agents.
+// Runtime and browser E2E helpers should register mock agents through this type
+// instead of calling acpmock.Register directly.
 type MockAgentSpec struct {
 	FixturePath     string
 	FixtureAgent    string

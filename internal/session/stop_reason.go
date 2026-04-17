@@ -64,7 +64,7 @@ func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause Sto
 		cause = CauseUserRequested
 	}
 
-	session, proc, alreadyStopped, err := m.prepareStopWithCause(ctx, id, cause, detail)
+	session, proc, alreadyStopped, stopWasAlreadyRequested, err := m.prepareStopWithCause(ctx, id, cause, detail)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,14 @@ func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause Sto
 		return fmt.Errorf("session: request cooperative stop for %q: %w", id, cancelErr)
 	}
 	if isProcessDone(proc) {
-		return errors.Join(cancelErr, m.finalizeStopped(ctx, session, nil))
+		waitErr := proc.Wait()
+		reconcileObservedTerminalStop(session, stopWasAlreadyRequested, waitErr)
+
+		finalizeErr := m.finalizeStopped(ctx, session, waitErr)
+		if finalizeErr != nil {
+			return errors.Join(cancelErr, finalizeErr)
+		}
+		return nil
 	}
 	return cancelErr
 }
@@ -97,7 +104,7 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 		cause = CauseUserRequested
 	}
 
-	session, proc, alreadyStopped, err := m.prepareStopWithCause(ctx, id, cause, detail)
+	session, proc, alreadyStopped, stopWasAlreadyRequested, err := m.prepareStopWithCause(ctx, id, cause, detail)
 	if err != nil {
 		return err
 	}
@@ -126,7 +133,14 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 		stopErr = nil
 	}
 
-	return errors.Join(stopErr, m.finalizeStopped(ctx, session, nil))
+	waitErr := proc.Wait()
+	reconcileObservedTerminalStop(session, stopWasAlreadyRequested, waitErr)
+
+	finalizeErr := m.finalizeStopped(ctx, session, waitErr)
+	if finalizeErr != nil {
+		return errors.Join(stopErr, finalizeErr)
+	}
+	return nil
 }
 
 func (m *Manager) prepareStopWithCause(
@@ -134,33 +148,55 @@ func (m *Manager) prepareStopWithCause(
 	id string,
 	cause StopCause,
 	detail string,
-) (*Session, *AgentProcess, bool, error) {
+) (*Session, *AgentProcess, bool, bool, error) {
 	session, err := m.lookup(id)
 	if err != nil {
-		return nil, nil, false, err
+		return nil, nil, false, false, err
 	}
-	if session.Info().State == StateActive {
+	process := session.processHandle()
+	stopWasAlreadyRequested := session.stopWasRequested()
+	observedProcessExit := isProcessDone(process)
+
+	appliedCause := cause
+	appliedDetail := detail
+	if observedProcessExit && !stopWasAlreadyRequested {
+		appliedCause = CauseNone
+		appliedDetail = ""
+	}
+
+	if session.Info().State == StateActive && !observedProcessExit {
 		if err := m.dispatchSessionPreStop(ctx, session); err != nil {
-			return nil, nil, false, err
+			return nil, nil, false, false, err
 		}
 	}
 
-	writeMeta, promptSetupDone, err := session.prepareStop(m.now(), cause, detail)
+	writeMeta, promptSetupDone, err := session.prepareStop(m.now(), appliedCause, appliedDetail)
 	if err != nil {
-		return nil, nil, false, err
+		return nil, nil, false, false, err
 	}
 	if writeMeta {
 		if err := m.writeMeta(session); err != nil {
-			return nil, nil, false, err
+			return nil, nil, false, false, err
 		}
 	}
 	if err := waitForPromptSetup(ctx, session, promptSetupDone); err != nil {
-		return nil, nil, false, err
+		return nil, nil, false, false, err
 	}
 
 	if session.Info().State == StateStopped {
-		return session, nil, true, nil
+		return session, nil, true, stopWasAlreadyRequested, nil
 	}
-	process := session.processHandle()
-	return session, process, false, nil
+	process = session.processHandle()
+	return session, process, false, stopWasAlreadyRequested, nil
+}
+
+func reconcileObservedTerminalStop(session *Session, stopWasAlreadyRequested bool, waitErr error) {
+	if session == nil || stopWasAlreadyRequested {
+		return
+	}
+	if waitErr != nil {
+		session.setStopCause(CauseProcessExited)
+		return
+	}
+	session.setStopCause(CauseCompleted)
 }

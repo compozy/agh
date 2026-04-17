@@ -131,9 +131,9 @@ func (m *Manager) handleProcessExit(ctx context.Context, session *Session, waitE
 	if !session.stopWasRequested() {
 		switch waitErr {
 		case nil:
-			session.setStopCause(CauseCompleted, "")
+			session.setStopCause(CauseCompleted)
 		default:
-			session.setStopCause(CauseProcessExited, "")
+			session.setStopCause(CauseProcessExited)
 		}
 	}
 

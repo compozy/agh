@@ -325,3 +325,15 @@ func TestBuildAGHBinaryProducesReusableExecutable(t *testing.T) {
 		t.Fatalf("second buildAGHBinary() = %q, want %q", got, want)
 	}
 }
+
+func TestBuildAGHBinaryHonorsEnvironmentOverride(t *testing.T) {
+	override := filepath.Join(t.TempDir(), "agh-custom")
+	if err := os.WriteFile(override, []byte("fake"), 0o755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", override, err)
+	}
+
+	t.Setenv(daemonBinaryEnvVar, override)
+	if got, want := buildAGHBinary(t), override; got != want {
+		t.Fatalf("buildAGHBinary() with env override = %q, want %q", got, want)
+	}
+}

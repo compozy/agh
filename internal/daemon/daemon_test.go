@@ -3570,6 +3570,7 @@ func (f *fakeNetworkBindableSessionManager) PromptNetwork(
 	ctx context.Context,
 	id string,
 	msg string,
+	_ ...acp.PromptNetworkMeta,
 ) (<-chan acp.AgentEvent, error) {
 	f.mu.Lock()
 	fn := f.promptNetworkFn

@@ -1,5 +1,5 @@
 {
-    "version": 1,
+    "version": 2,
     "agents": [
         {
             "name": "approver",
@@ -10,7 +10,8 @@
                 {
                     "name": "permission-turn",
                     "match": {
-                        "contains": "request permission"
+                        "turn_source": "user",
+                        "user_text": "request permission"
                     },
                     "steps": [
                         {
@@ -36,7 +37,8 @@
                 {
                     "name": "environment-turn",
                     "match": {
-                        "contains": "run environment"
+                        "turn_source": "network",
+                        "user_text": "run environment"
                     },
                     "steps": [
                         {

@@ -11,7 +11,7 @@ dependencies:
 
 ## Overview
 
-Expand the deterministic ACP mock layer so it can drive realistic agentic runtime scenarios instead of only narrow session transcript flows. This task keeps `@copilotkit/aimock` limited to deterministic assistant streaming while adding AGH-specific fixture primitives for multiple agents, tool permissions, network turns, and environment-aware expectations.
+Expand the deterministic Go ACP mock layer so it can drive realistic agentic runtime scenarios instead of only narrow session transcript flows. This task keeps the mock boundary limited to deterministic ACP behavior while adding AGH-specific fixture primitives for multiple agents, tool permissions, network turns, exact prompt-metadata matching, and environment-aware expectations.
 
 <critical>
 - ALWAYS READ the PRD and TechSpec before starting
@@ -25,8 +25,8 @@ Expand the deterministic ACP mock layer so it can drive realistic agentic runtim
 1. MUST extend `internal/testutil/acpmock/` to support multiple named agents and fixture-driven behaviors needed by runtime E2E scenarios.
 2. MUST keep the daemon launch path unchanged by rendering temporary agent definitions that still resolve through normal AGH config and provider rules.
 3. MUST support fixture primitives for permission requests, tool calls, inbound network-origin prompt turns, bridge response content, and environment command expectations.
-4. MUST keep `@copilotkit/aimock` scoped to deterministic assistant text chunking and stream cadence rather than turning it into the top-level system simulator.
-5. SHOULD produce fixture outputs and diagnostics that plug into the artifact model introduced by `task_01`.
+4. MUST route fixture turns through exact matcher inputs (`turn_source`, `user_text`, structured network metadata) rather than rendered prompt substring heuristics.
+5. SHOULD produce fixture outputs and diagnostics that plug into the artifact model introduced by `task_01`, including the matched turn selector and received prompt metadata.
 </requirements>
 
 ## Subtasks
@@ -46,17 +46,17 @@ See TechSpec sections "Component Overview", "Core Interfaces", "Data Models", an
 - `internal/session/manager_start.go` — real session start path that the mock ACP driver must still flow through.
 - `internal/acp/client.go` — event behavior and prompt-driving expectations that the mock subprocess needs to satisfy.
 - `internal/testutil/testutil.go` — may provide generic test helpers shared by the fixture layer.
-- `.compozy/tasks/e2e/adrs/adr-001.md` — decision source for launching mock ACP through normal agent definitions.
+- `.compozy/tasks/e2e/adrs/adr-006.md` — decision source for the shipped Go mock driver and temp-agent registration strategy.
 
 ### Dependent Files
 - `internal/testutil/acpmock/fixture.go` — expanded fixture schema and parsing helpers.
-- `internal/testutil/acpmock/driver/` — test-only Node driver workspace used by temporary agent definitions.
+- `internal/testutil/acpmock/cmd/acpmock-driver/` — test-only Go driver command used by temporary agent definitions.
 - `internal/testutil/acpmock/testdata/` — fixture scenarios and goldens for multi-agent and tool-aware flows.
 - `internal/testutil/e2e/runtime_harness.go` — consumes mock agent registration once fixtures are expanded.
 - `internal/daemon/daemon_integration_test.go` — first major consumer of the expanded mock-agent fixtures.
 
 ### Related ADRs
-- [ADR-001: Mock ACP Through a Temporary Agent Definition](adrs/adr-001.md) — This task directly implements the accepted mock-agent strategy.
+- [ADR-006: Keep ACP Mock Implemented in Go](adrs/adr-006.md) — This task is the shipped mock-agent strategy.
 - [ADR-004: Assert Through Domain-Specific Product Surfaces](adrs/adr-004.md) — Fixture outputs must align with domain-specific assertions rather than transcript-only goldens.
 
 ## Deliverables
@@ -83,4 +83,5 @@ See TechSpec sections "Component Overview", "Core Interfaces", "Data Models", an
 - Test coverage >=80%
 - Multi-agent fixtures exist and are consumable by runtime E2E scenarios
 - Mock ACP agents still launch through the real daemon startup path with no new production seam
+- Fixture routing is driven by exact prompt metadata instead of rendered-prompt substring matching
 - Fixture behavior covers the scenario primitives required by later runtime and browser tasks
