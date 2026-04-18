@@ -1,7 +1,13 @@
+export { SettingsCollectionHeader } from "./settings-collection-header";
+export { SettingsDeleteDialog } from "./settings-delete-dialog";
+export { SettingsEditorDialog } from "./settings-editor-dialog";
+export type { EditorMode } from "./settings-editor-dialog";
 export { SettingsFieldRow } from "./settings-field-row";
 export { SettingsPageShell } from "./settings-page-shell";
 export { SettingsRestartBanner } from "./settings-restart-banner";
 export type { RestartBannerState } from "./settings-restart-banner";
 export { SettingsSaveBar } from "./settings-save-bar";
 export { SettingsSectionCard } from "./settings-section-card";
+export { SettingsSourceBadge } from "./settings-source-badge";
+export type { SettingsSource } from "./settings-source-badge";
 export { SettingsStatusLine } from "./settings-status-line";

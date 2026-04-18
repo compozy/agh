@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Providers and Environments collection pages
 type: frontend
 complexity: high
@@ -40,11 +40,11 @@ Implement the collection-driven settings pages for `providers` and `environments
 
 ## Subtasks
 
-- [ ] 12.1 Implement the `providers` collection page with list, detail, edit, and delete flows
-- [ ] 12.2 Implement the `environments` collection page with list, detail, edit, and delete flows
-- [ ] 12.3 Build shared collection-page UI patterns for list/detail and editor state where useful
-- [ ] 12.4 Surface source metadata, conflicts, and builtin-fallback behavior in the UI
-- [ ] 12.5 Add tests for collection CRUD behavior and error handling
+- [x] 12.1 Implement the `providers` collection page with list, detail, edit, and delete flows
+- [x] 12.2 Implement the `environments` collection page with list, detail, edit, and delete flows
+- [x] 12.3 Build shared collection-page UI patterns for list/detail and editor state where useful
+- [x] 12.4 Surface source metadata, conflicts, and builtin-fallback behavior in the UI
+- [x] 12.5 Add tests for collection CRUD behavior and error handling
 
 ## Implementation Details
 
@@ -81,16 +81,16 @@ See TechSpec sections "Data Models", "Collection mutation semantics", and "Web r
 ## Tests
 
 - Unit tests:
-  - [ ] `providers` page renders list/detail state, source metadata, and submits full-replacement edits correctly
-  - [ ] Provider delete flow explains builtin fallback when an overlay is removed
-  - [ ] `environments` page renders usage counts, empty states, and handles save/delete states correctly
-  - [ ] Validation and conflict errors surface clearly in both collection pages
-  - [ ] Shared collection editor state distinguishes create versus replace semantics without dropping the selected item
+  - [x] `providers` page renders list/detail state, source metadata, and submits full-replacement edits correctly
+  - [x] Provider delete flow explains builtin fallback when an overlay is removed
+  - [x] `environments` page renders usage counts, empty states, and handles save/delete states correctly
+  - [x] Validation and conflict errors surface clearly in both collection pages
+  - [x] Shared collection editor state distinguishes create versus replace semantics without dropping the selected item
 - Integration tests:
-  - [ ] Selecting, editing, and deleting collection items updates the correct queries and visible detail panels
-  - [ ] Shared collection components can render both providers and environments without losing semantic differences
-  - [ ] Duplicate-name or conflict responses are surfaced inline without corrupting list selection or editor state
-  - [ ] Deleting an overlaid provider reveals builtin fallback metadata on the next refetch without a manual refresh
+  - [x] Selecting, editing, and deleting collection items updates the correct queries and visible detail panels
+  - [x] Shared collection components can render both providers and environments without losing semantic differences
+  - [x] Duplicate-name or conflict responses are surfaced inline without corrupting list selection or editor state
+  - [x] Deleting an overlaid provider reveals builtin fallback metadata on the next refetch without a manual refresh
 - Test coverage target: >=80%
 - All tests must pass
 
