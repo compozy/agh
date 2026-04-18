@@ -1,7 +1,7 @@
 import { AlertCircle, Book, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PillButton } from "@/components/design-system";
+import { Pills } from "@agh/ui";
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
 import { KnowledgeDetailPanel, KnowledgeListPanel } from "@/systems/knowledge";
 import { WorkspacePageShell } from "@/systems/workspace/components/workspace-page-shell";
@@ -40,18 +40,16 @@ function KnowledgePage() {
       icon={<Book className="size-4" />}
       count={page.memoryCount}
       controls={
-        <div className="flex items-center gap-1.5" data-testid="tab-pills">
-          {(["all", "global", "workspace"] as const).map(tab => (
-            <PillButton
-              key={tab}
-              active={page.activeTab === tab}
-              data-testid={`tab-${tab}`}
-              onClick={() => page.setActiveTab(tab)}
-            >
-              {tab.toUpperCase()}
-            </PillButton>
-          ))}
-        </div>
+        <Pills
+          data-testid="tab-pills"
+          value={page.activeTab}
+          onChange={page.setActiveTab}
+          items={[
+            { value: "all", label: "ALL", testId: "tab-all" },
+            { value: "global", label: "GLOBAL", testId: "tab-global" },
+            { value: "workspace", label: "WORKSPACE", testId: "tab-workspace" },
+          ]}
+        />
       }
       meta={
         <div className="flex items-center gap-1.5" data-testid="dream-status">

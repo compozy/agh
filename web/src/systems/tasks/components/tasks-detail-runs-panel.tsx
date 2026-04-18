@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 
 import { formatRelativeTime, taskRunStatusTone } from "../lib/task-formatters";
 import type { TaskRun } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksDetailRunsPanelProps {
   taskId: string;
   runs: TaskRun[];
@@ -70,7 +71,7 @@ export function TasksDetailRunsPanel({
           >
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-secondary)]">
-                <Pill emphasis="strong" kind="state" tone={taskRunStatusTone(run.status)}>
+                <Pill variant={pillVariantFromTone(taskRunStatusTone(run.status))}>
                   {run.status}
                 </Pill>
                 <span className="font-mono text-[color:var(--color-text-primary)]">{run.id}</span>

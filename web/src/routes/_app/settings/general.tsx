@@ -2,7 +2,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { PillButton } from "@/components/design-system";
+import { Pills } from "@agh/ui";
 import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
 import type { SettingsGeneralSection } from "@/systems/settings";
 import {
@@ -221,25 +221,17 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
 function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
   return (
     <SettingsSectionCard eyebrow="Permissions" note="tool approval policy">
-      <div
-        className="flex flex-wrap gap-2"
+      <Pills
         data-testid="settings-page-general-permissions-group"
-        role="radiogroup"
         aria-label="Tool approval policy"
-      >
-        {PERMISSION_MODES.map(mode => (
-          <PillButton
-            key={mode}
-            role="radio"
-            aria-checked={draft.permissions.mode === mode}
-            active={draft.permissions.mode === mode}
-            data-testid={`settings-page-general-permission-${mode}`}
-            onClick={() => setDraft({ ...draft, permissions: { mode } })}
-          >
-            {mode}
-          </PillButton>
-        ))}
-      </div>
+        value={draft.permissions.mode}
+        onChange={mode => setDraft({ ...draft, permissions: { mode } })}
+        items={PERMISSION_MODES.map(mode => ({
+          value: mode,
+          label: mode,
+          testId: `settings-page-general-permission-${mode}`,
+        }))}
+      />
       <p className="text-xs text-[color:var(--color-text-tertiary)]">
         {describePermissionMode(draft.permissions.mode)}
       </p>

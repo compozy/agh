@@ -1,9 +1,10 @@
 import { AlertCircle, Loader2, Pencil, Power, RotateCw, SendHorizontal } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
-import { Button, Input } from "@agh/ui";
+import { Button, Input, Pill } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 import {
   bridgeScopeTone,
   bridgeStatusTone,
@@ -183,13 +184,11 @@ export function BridgeDetailPanel({
                   {bridge.display_name}
                 </h2>
                 <Pill
-                  emphasis="strong"
-                  kind="state"
-                  tone={bridgeStatusTone(effectiveStatus ?? bridge.status)}
+                  variant={pillVariantFromTone(bridgeStatusTone(effectiveStatus ?? bridge.status))}
                 >
                   {effectiveStatus ?? bridge.status}
                 </Pill>
-                <Pill kind="tag" tone={bridgeScopeTone(bridge.scope)}>
+                <Pill variant={pillVariantFromTone(bridgeScopeTone(bridge.scope))}>
                   {bridge.scope}
                 </Pill>
               </div>
@@ -328,10 +327,12 @@ export function BridgeDetailPanel({
                       <p className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-[color:var(--color-text-primary)]">
                         {slot.name}
                       </p>
-                      <Pill kind="tag" tone={slot.required === false ? "neutral" : "amber"}>
+                      <Pill
+                        variant={pillVariantFromTone(slot.required === false ? "neutral" : "amber")}
+                      >
                         {slot.required === false ? "optional" : "required"}
                       </Pill>
-                      <Pill kind="tag" tone={binding ? "green" : "neutral"}>
+                      <Pill variant={pillVariantFromTone(binding ? "green" : "neutral")}>
                         {binding ? "bound" : "unbound"}
                       </Pill>
                     </div>
@@ -418,14 +419,7 @@ export function BridgeDetailPanel({
           </div>
         </DetailSection>
 
-        <DetailSection
-          action={
-            <Pill emphasis="strong" kind="state" tone="neutral">
-              {routes.length}
-            </Pill>
-          }
-          title="Routes"
-        >
+        <DetailSection action={<Pill>{routes.length}</Pill>} title="Routes">
           {isRoutesLoading ? (
             <div className="flex items-center gap-2 text-sm text-[color:var(--color-text-tertiary)]">
               <Loader2 className="size-4 animate-spin" />
@@ -461,7 +455,7 @@ export function BridgeDetailPanel({
                         {describeBridgeRouteTarget(route)}
                       </p>
                     </div>
-                    <Pill kind="tag" tone={bridgeScopeTone(route.scope)}>
+                    <Pill variant={pillVariantFromTone(bridgeScopeTone(route.scope))}>
                       {route.scope}
                     </Pill>
                   </div>

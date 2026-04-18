@@ -1,8 +1,7 @@
 import { Outlet, createFileRoute, useChildMatches, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 
-import { PillButton } from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { Button, Pills } from "@agh/ui";
 import {
   TasksDashboardView,
   TasksDetailPreviewPanel,
@@ -56,44 +55,22 @@ function TasksRoute() {
   return (
     <TasksPageShell
       controls={
-        <div className="flex items-center gap-1.5" data-testid="tasks-mode-pills">
-          <PillButton
-            active={surfaceMode === "list"}
-            data-testid="tasks-mode-list"
-            onClick={() => handleModeSelect("list")}
-          >
-            List
-          </PillButton>
-          <PillButton
-            active={surfaceMode === "kanban"}
-            data-testid="tasks-mode-kanban"
-            onClick={() => handleModeSelect("kanban")}
-          >
-            Kanban
-          </PillButton>
-          <PillButton
-            active={surfaceMode === "dashboard"}
-            data-testid="tasks-mode-dashboard"
-            onClick={() => handleModeSelect("dashboard")}
-          >
-            Dashboard
-          </PillButton>
-          <PillButton
-            active={surfaceMode === "inbox"}
-            data-testid="tasks-mode-inbox"
-            onClick={() => handleModeSelect("inbox")}
-          >
-            Inbox
-            {page.inbox && page.inbox.unread_total > 0 ? (
-              <span
-                className="ml-1.5 inline-flex size-4 items-center justify-center rounded-full bg-[color:var(--color-warning)] text-[0.58rem] font-semibold text-[color:var(--color-accent-ink)]"
-                data-testid="tasks-mode-inbox-unread"
-              >
-                {page.inbox.unread_total}
-              </span>
-            ) : null}
-          </PillButton>
-        </div>
+        <Pills
+          data-testid="tasks-mode-pills"
+          value={surfaceMode}
+          onChange={handleModeSelect}
+          items={[
+            { value: "list", label: "List", testId: "tasks-mode-list" },
+            { value: "kanban", label: "Kanban", testId: "tasks-mode-kanban" },
+            { value: "dashboard", label: "Dashboard", testId: "tasks-mode-dashboard" },
+            {
+              value: "inbox",
+              label: "Inbox",
+              badge: page.inbox?.unread_total ?? 0,
+              testId: "tasks-mode-inbox",
+            },
+          ]}
+        />
       }
       count={shellCount}
       meta={

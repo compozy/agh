@@ -1,8 +1,9 @@
 import { Search } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 import {
   automationScopeLabel,
   automationScopeTone,
@@ -42,7 +43,7 @@ function AutomationTag({
   tone: "amber" | "danger" | "green" | "neutral" | "violet";
 }) {
   return (
-    <Pill className="border-none" emphasis="strong" kind="state" tone={tone}>
+    <Pill className="border-none" variant={pillVariantFromTone(tone)}>
       {children}
     </Pill>
   );

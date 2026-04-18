@@ -1,6 +1,5 @@
 import { Loader2 } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
 import {
   Button,
   Dialog,
@@ -9,7 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Pill,
+  Switch,
 } from "@agh/ui";
+
 import {
   Field,
   FieldContent,
@@ -19,7 +21,7 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Switch } from "@agh/ui";
+
 import { Textarea } from "@/components/ui/textarea";
 
 import {
@@ -147,9 +149,7 @@ export function BridgeEditDialog({
                   </p>
                   {provider?.secret_slots?.length ? (
                     <div className="mt-3 flex items-center gap-2">
-                      <Pill kind="tag" tone="neutral">
-                        {provider.secret_slots.length}
-                      </Pill>
+                      <Pill>{provider.secret_slots.length}</Pill>
                       <p className="text-xs text-[color:var(--color-text-secondary)]">
                         Secret slots are managed inline from the detail panel.
                       </p>

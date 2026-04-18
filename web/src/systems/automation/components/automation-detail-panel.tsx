@@ -14,16 +14,7 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 
-import { Pill } from "@/components/design-system";
-import { Button } from "@agh/ui";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { Button, Empty, Pill } from "@agh/ui";
 
 import { AutomationRunHistory } from "./automation-run-history";
 import {
@@ -40,6 +31,7 @@ import {
 } from "../lib/automation-formatters";
 import type { AutomationJob, AutomationRun, AutomationTrigger } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface AutomationDetailEmptyState {
   actionLabel?: string;
   description: string;
@@ -74,7 +66,7 @@ function AutomationTag({
   tone: "amber" | "danger" | "green" | "neutral" | "violet";
 }) {
   return (
-    <Pill className="border-none" emphasis="strong" kind="state" tone={tone}>
+    <Pill className="border-none" variant={pillVariantFromTone(tone)}>
       {children}
     </Pill>
   );
@@ -119,25 +111,13 @@ function EmptyState({
       className="flex flex-1 items-center justify-center px-8 py-8"
       data-testid="automation-detail-empty"
     >
-      <Empty className="border-none bg-transparent p-0">
-        <EmptyHeader className="gap-4">
-          <EmptyMedia
-            className="size-18 rounded-3xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] text-[color:var(--color-text-label)] [&_svg:not([class*='size-'])]:size-8"
-            variant="icon"
-          >
-            <Icon />
-          </EmptyMedia>
-          <div className="space-y-2">
-            <EmptyTitle className="text-xl font-medium text-[color:var(--color-text-primary)]">
-              {title}
-            </EmptyTitle>
-            <EmptyDescription className="max-w-md text-sm leading-6 text-[color:var(--color-text-secondary)]">
-              {description}
-            </EmptyDescription>
-          </div>
-        </EmptyHeader>
-        {actionLabel && onAction ? (
-          <EmptyContent className="pt-1">
+      <Empty
+        className="border-none bg-transparent"
+        icon={Icon}
+        title={title}
+        description={description}
+        action={
+          actionLabel && onAction ? (
             <Button
               className="border-[color:var(--color-accent)] bg-transparent text-[color:var(--color-accent)] hover:bg-[color:var(--color-accent-tint)] hover:text-[color:var(--color-accent)]"
               onClick={onAction}
@@ -148,9 +128,9 @@ function EmptyState({
               <span className="font-mono text-[0.8rem] leading-none">+</span>
               {actionLabel}
             </Button>
-          </EmptyContent>
-        ) : null}
-      </Empty>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 
 import { taskOwnerLabel, taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
 import type { TaskDetailView } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 type DependencyReference = NonNullable<TaskDetailView["dependency_references"]>[number];
 
 export interface TasksDetailDependenciesPanelProps {
@@ -56,7 +57,7 @@ export function TasksDetailDependenciesPanel({
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-secondary)]">
-                  <Pill emphasis="strong" kind="state" tone={taskStatusTone(target.status)}>
+                  <Pill variant={pillVariantFromTone(taskStatusTone(target.status))}>
                     {taskStatusLabel(target.status)}
                   </Pill>
                   <span className="font-mono text-[color:var(--color-text-primary)]">

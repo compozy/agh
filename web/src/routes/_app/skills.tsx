@@ -1,7 +1,7 @@
 import { AlertCircle, Loader2, Wrench } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PillButton } from "@/components/design-system";
+import { Pills } from "@agh/ui";
 import { useSkillsPage } from "@/hooks/routes/use-skills-page";
 import { MarketplaceView, SkillDetailPanel, SkillListPanel } from "@/systems/skill";
 import { WorkspacePageShell } from "@/systems/workspace/components/workspace-page-shell";
@@ -40,22 +40,15 @@ function SkillsPage() {
       icon={<Wrench className="size-4" />}
       count={page.skillCount}
       controls={
-        <div className="flex items-center gap-1.5" data-testid="tab-pills">
-          <PillButton
-            active={page.activeTab === "installed"}
-            data-testid="tab-installed"
-            onClick={() => page.setActiveTab("installed")}
-          >
-            INSTALLED
-          </PillButton>
-          <PillButton
-            active={page.activeTab === "marketplace"}
-            data-testid="tab-marketplace"
-            onClick={() => page.setActiveTab("marketplace")}
-          >
-            MARKETPLACE
-          </PillButton>
-        </div>
+        <Pills
+          data-testid="tab-pills"
+          value={page.activeTab}
+          onChange={page.setActiveTab}
+          items={[
+            { value: "installed", label: "INSTALLED", testId: "tab-installed" },
+            { value: "marketplace", label: "MARKETPLACE", testId: "tab-marketplace" },
+          ]}
+        />
       }
     >
       {page.activeTab === "installed" ? (

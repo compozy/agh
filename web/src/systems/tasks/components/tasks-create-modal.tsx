@@ -8,15 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Pill,
 } from "@agh/ui";
 import { Textarea } from "@/components/ui/textarea";
-import { Pill } from "@/components/design-system";
 
 import type { CreateTaskDraftInput } from "@/hooks/routes/use-tasks-page";
 import type { TaskOwnerKind, TaskPriority, TaskScope } from "../types";
 import { TASK_TEMPLATES, type TaskTemplate, type TaskTemplateId } from "../lib/task-templates";
 import { useTasksCreateModalForm } from "./use-tasks-create-modal-form";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 const PRIORITY_OPTIONS: TaskPriority[] = ["low", "medium", "high", "urgent"];
 const SCOPE_OPTIONS: TaskScope[] = ["workspace", "global"];
 const OWNER_KIND_OPTIONS: TaskOwnerKind[] = [
@@ -317,7 +318,11 @@ export function TasksCreateModal({
 
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-3 py-2 text-xs text-[color:var(--color-text-secondary)]">
               <span data-testid="tasks-create-modal-notice">{noticeText}</span>
-              <Pill kind="state" tone={template.preview.enqueueOnSubmit ? "violet" : "neutral"}>
+              <Pill
+                variant={pillVariantFromTone(
+                  template.preview.enqueueOnSubmit ? "violet" : "neutral"
+                )}
+              >
                 {template.preview.enqueueOnSubmit ? "Enqueues" : "Draft"}
               </Pill>
             </div>

@@ -1,8 +1,8 @@
 import { AlertCircle, Check, KeyRound, Loader2, Plus, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Button } from "@agh/ui";
-import { Pill } from "@/components/design-system";
+import { Button, Pill } from "@agh/ui";
+
 import {
   useSettingsProvidersPage,
   type ProviderDraft,
@@ -213,11 +213,7 @@ function ProviderRow({
           <span className="font-mono text-sm text-[color:var(--color-text-primary)]">
             {provider.name}
           </span>
-          {provider.default ? (
-            <Pill emphasis="strong" kind="state" tone="amber">
-              DEFAULT
-            </Pill>
-          ) : null}
+          {provider.default ? <Pill variant="accent">DEFAULT</Pill> : null}
         </div>
       </td>
       <td
@@ -242,9 +238,7 @@ function ProviderRow({
           </span>
           {provider.settings.api_key_env ? (
             <Pill
-              emphasis="strong"
-              kind="state"
-              tone={provider.api_key_env_present ? "green" : "amber"}
+              variant={provider.api_key_env_present ? "success" : "accent"}
               data-testid={`settings-page-providers-row-${provider.name}-api-key-state`}
             >
               {provider.api_key_env_present ? "SET" : "MISSING"}

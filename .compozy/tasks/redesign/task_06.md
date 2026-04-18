@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add PageHeader, Pills, SearchInput, Empty, Section, Toolbar and migrate design-system primitives
 type: refactor
 complexity: critical
@@ -44,12 +44,12 @@ Introduce the six page-level primitives from the mock and migrate the legacy `we
 
 ## Subtasks
 
-- [ ] 6.1 Implement `PageHeader`, `Pills`, `SearchInput`, `Empty`, `Section`, `Toolbar` with stories.
-- [ ] 6.2 Audit every `design-system/pill` importer and map its tone prop to the new `Pills` variants.
-- [ ] 6.3 Rewrite `design-system/{pill,pill-button,page-content,panel,section-heading,toolbar}` importers in `web/src/**`.
-- [ ] 6.4 Rewrite `ui/empty` importers to use `@agh/ui` `Empty`.
-- [ ] 6.5 Delete the migrated source files (including `texture-canvas.tsx` without replacement).
-- [ ] 6.6 Run `make verify`; fix regressions; confirm every screen using the legacy primitives still renders.
+- [x] 6.1 Implement `PageHeader`, `Pills`, `SearchInput`, `Empty`, `Section`, `Toolbar` with stories.
+- [x] 6.2 Audit every `design-system/pill` importer and map its tone prop to the new `Pills` variants.
+- [x] 6.3 Rewrite `design-system/{pill,pill-button,page-content,panel,section-heading,toolbar}` importers in `web/src/**`.
+- [x] 6.4 Rewrite `ui/empty` importers to use `@agh/ui` `Empty`.
+- [x] 6.5 Delete the migrated source files (including `texture-canvas.tsx` without replacement).
+- [x] 6.6 Run `make verify`; fix regressions; confirm every screen using the legacy primitives still renders.
 
 ## Implementation Details
 

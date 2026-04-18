@@ -1,6 +1,7 @@
 import type { SettingsSourceKind } from "../types";
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 interface SettingsSource {
   kind: SettingsSourceKind;
   scope: "global" | "workspace";
@@ -41,9 +42,7 @@ function SettingsSourceBadge({
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
       <Pill
-        emphasis="strong"
-        kind="state"
-        tone={badgeTone(source.kind)}
+        variant={pillVariantFromTone(badgeTone(source.kind))}
         data-testid={testId ? `${testId}-effective` : undefined}
       >
         {sourceLabel(source)}
@@ -58,9 +57,6 @@ function SettingsSourceBadge({
             <Pill
               // biome-ignore lint/suspicious/noArrayIndexKey: source list is stable per read
               key={`${entry.kind}-${entry.scope}-${entry.workspace_id ?? ""}-${index}`}
-              emphasis="muted"
-              kind="state"
-              tone="neutral"
             >
               {sourceLabel(entry)}
             </Pill>

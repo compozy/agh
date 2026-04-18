@@ -1,14 +1,6 @@
 import { AlertCircle, Plus, Search } from "lucide-react";
 
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { Input } from "@agh/ui";
-import { Button } from "@agh/ui";
+import { Button, Empty, Input } from "@agh/ui";
 
 import type { TaskListItem, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
@@ -143,19 +135,11 @@ export function TasksListPanel({
             className="flex min-h-full items-center justify-center px-4 py-8"
             data-testid="tasks-list-empty"
           >
-            <Empty className="border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-6 py-8">
-              <EmptyHeader className="max-w-xs">
-                <EmptyMedia className="flex size-10 items-center justify-center rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] text-[color:var(--color-accent)]">
-                  <Search className="size-4" />
-                </EmptyMedia>
-                <EmptyTitle className="text-base font-semibold text-[color:var(--color-text-primary)]">
-                  Nothing matches the current filters
-                </EmptyTitle>
-                <EmptyDescription className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
-                  Adjust the search or open a new task contract from the rail.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <Empty
+              icon={Search}
+              title="Nothing matches the current filters"
+              description="Adjust the search or open a new task contract from the rail."
+            />
           </div>
         ) : (
           tasks.map(task => (

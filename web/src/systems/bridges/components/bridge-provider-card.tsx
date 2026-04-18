@@ -1,4 +1,4 @@
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import {
   bridgeProviderHealthTone,
@@ -8,6 +8,7 @@ import {
 } from "@/systems/bridges/lib/bridge-formatters";
 import type { BridgeProvider } from "@/systems/bridges/types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 interface BridgeProviderCardProps {
   onSelect?: () => void;
   provider: BridgeProvider;
@@ -31,7 +32,7 @@ export function BridgeProviderCard({
             {provider.platform} / {provider.extension_name}
           </p>
         </div>
-        <Pill emphasis="strong" kind="state" tone={bridgeProviderHealthTone(provider.health)}>
+        <Pill variant={pillVariantFromTone(bridgeProviderHealthTone(provider.health))}>
           {provider.health}
         </Pill>
       </div>
@@ -47,14 +48,10 @@ export function BridgeProviderCard({
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Pill kind="tag" tone={bridgeProviderStateTone(provider.state)}>
+        <Pill variant={pillVariantFromTone(bridgeProviderStateTone(provider.state))}>
           {provider.state}
         </Pill>
-        {!selectable && (
-          <Pill kind="tag" tone="danger">
-            unavailable
-          </Pill>
-        )}
+        {!selectable && <Pill variant="danger">unavailable</Pill>}
       </div>
 
       <p className="text-xs leading-relaxed text-[color:var(--color-text-tertiary)]">

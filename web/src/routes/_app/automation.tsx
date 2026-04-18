@@ -1,8 +1,7 @@
 import { AlertCircle, Loader2, Plus, Zap } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PillButton } from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { Button, Pills } from "@agh/ui";
 import {
   AutomationDetailPanel,
   AutomationEditorDialog,
@@ -52,35 +51,26 @@ function AutomationPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5" data-testid="automation-kind-tabs">
-            <PillButton
-              active={page.activeTab === "jobs"}
-              data-testid="automation-kind-jobs"
-              onClick={() => page.handleTabChange("jobs")}
-            >
-              JOBS
-            </PillButton>
-            <PillButton
-              active={page.activeTab === "triggers"}
-              data-testid="automation-kind-triggers"
-              onClick={() => page.handleTabChange("triggers")}
-            >
-              TRIGGERS
-            </PillButton>
-          </div>
+          <Pills
+            data-testid="automation-kind-tabs"
+            value={page.activeTab}
+            onChange={page.handleTabChange}
+            items={[
+              { value: "jobs", label: "JOBS", testId: "automation-kind-jobs" },
+              { value: "triggers", label: "TRIGGERS", testId: "automation-kind-triggers" },
+            ]}
+          />
 
-          <div className="flex items-center gap-1.5" data-testid="automation-scope-tabs">
-            {(["all", "global", "workspace"] as const).map(scope => (
-              <PillButton
-                key={scope}
-                active={page.scopeFilter === scope}
-                data-testid={`automation-scope-${scope}`}
-                onClick={() => page.handleScopeChange(scope)}
-              >
-                {scope.toUpperCase()}
-              </PillButton>
-            ))}
-          </div>
+          <Pills
+            data-testid="automation-scope-tabs"
+            value={page.scopeFilter}
+            onChange={page.handleScopeChange}
+            items={[
+              { value: "all", label: "ALL", testId: "automation-scope-all" },
+              { value: "global", label: "GLOBAL", testId: "automation-scope-global" },
+              { value: "workspace", label: "WORKSPACE", testId: "automation-scope-workspace" },
+            ]}
+          />
         </div>
 
         <div className="ml-auto flex items-center gap-2">

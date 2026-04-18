@@ -2,8 +2,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-import { Pill, PillButton } from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { Button, Pill, Pills } from "@agh/ui";
 
 import {
   AutomationCheckbox,
@@ -136,41 +135,30 @@ export function AutomationTriggerForm({
             <span className="text-sm font-medium text-[color:var(--color-text-primary)]">
               Scope
             </span>
-            <div className="flex flex-wrap items-center gap-2">
-              <PillButton
-                active={draft.scope === "global"}
-                data-testid="trigger-scope-global"
-                onClick={() =>
-                  onChange({
-                    ...draft,
-                    scope: "global",
-                    workspace_id: undefined,
-                  })
-                }
-              >
-                GLOBAL
-              </PillButton>
-              <PillButton
-                active={draft.scope === "workspace"}
-                data-testid="trigger-scope-workspace"
-                onClick={() =>
+            <Pills
+              aria-label="Scope"
+              value={draft.scope}
+              onChange={next => {
+                if (next === "global") {
+                  onChange({ ...draft, scope: "global", workspace_id: undefined });
+                } else {
                   onChange({
                     ...draft,
                     scope: "workspace",
                     workspace_id: activeWorkspaceId ?? draft.workspace_id,
-                  })
+                  });
                 }
-              >
-                WORKSPACE
-              </PillButton>
-            </div>
+              }}
+              items={[
+                { value: "global", label: "GLOBAL", testId: "trigger-scope-global" },
+                { value: "workspace", label: "WORKSPACE", testId: "trigger-scope-workspace" },
+              ]}
+            />
           </div>
           <AutomationField label="Prompt template">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <Pill emphasis="strong" kind="state" tone="violet">
-                  GO TEMPLATE
-                </Pill>
+                <Pill variant="info">GO TEMPLATE</Pill>
                 <span className="text-xs text-[color:var(--color-text-tertiary)]">
                   Variables: .EventName, .Source, .Data, .Timestamp
                 </span>
@@ -258,28 +246,22 @@ export function AutomationTriggerForm({
             <div className="mt-4 space-y-4">
               <div className="grid gap-4 md:grid-cols-3">
                 <AutomationField label="Retry policy">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PillButton
-                      active={retry.strategy === "none"}
-                      data-testid="trigger-retry-strategy-none"
-                      onClick={() =>
-                        onChange({ ...draft, retry: retryDraftForStrategy("none", retry) })
-                      }
-                      size="dense"
-                    >
-                      NONE
-                    </PillButton>
-                    <PillButton
-                      active={retry.strategy === "backoff"}
-                      data-testid="trigger-retry-strategy-backoff"
-                      onClick={() =>
-                        onChange({ ...draft, retry: retryDraftForStrategy("backoff", retry) })
-                      }
-                      size="dense"
-                    >
-                      BACKOFF
-                    </PillButton>
-                  </div>
+                  <Pills
+                    size="sm"
+                    aria-label="Retry policy"
+                    value={retry.strategy}
+                    onChange={next =>
+                      onChange({ ...draft, retry: retryDraftForStrategy(next, retry) })
+                    }
+                    items={[
+                      { value: "none", label: "NONE", testId: "trigger-retry-strategy-none" },
+                      {
+                        value: "backoff",
+                        label: "BACKOFF",
+                        testId: "trigger-retry-strategy-backoff",
+                      },
+                    ]}
+                  />
                 </AutomationField>
                 <AutomationField label="Max retries">
                   <AutomationInput

@@ -1,8 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { Button, Pill } from "@agh/ui";
 
 import {
   formatRelativeTime,
@@ -17,6 +16,7 @@ import {
 } from "../lib/task-formatters";
 import type { TaskDetailView } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksDetailHeaderProps {
   detail: TaskDetailView;
   isPublishPending?: boolean;
@@ -76,18 +76,16 @@ export function TasksDetailHeader({
             className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-secondary)]"
             data-testid="tasks-detail-meta"
           >
-            <Pill emphasis="strong" kind="state" tone={taskStatusTone(record.status)}>
+            <Pill variant={pillVariantFromTone(taskStatusTone(record.status))}>
               {taskStatusLabel(record.status)}
             </Pill>
             {record.priority ? (
-              <Pill kind="state" tone={taskPriorityTone(record.priority)}>
+              <Pill variant={pillVariantFromTone(taskPriorityTone(record.priority))}>
                 {taskPriorityLabel(record.priority)}
               </Pill>
             ) : null}
             {taskHasApprovalPending(record) ? (
-              <Pill kind="state" tone="amber">
-                {taskApprovalStateLabel(record.approval_state)}
-              </Pill>
+              <Pill variant="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
             ) : null}
             <span>Owner {taskOwnerLabel(record.owner)}</span>
             <span>· Origin {record.origin?.kind?.toUpperCase() ?? "UNKNOWN"}</span>
