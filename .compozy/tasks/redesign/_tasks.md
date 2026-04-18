@@ -14,7 +14,7 @@
 | 08 | Close web/src/components/ui/: migrate remaining shadcn + delete folder | completed | high       | task_01, task_02, task_03, task_04, task_05, task_06 |
 | 09 | Add CodeBlock primitive                                               | completed | low        | task_01                               |
 | 10 | Add ChatMessageBubble + ToolCallCard shells                           | completed | medium     | task_01                               |
-| 11 | Wire Playwright visual snapshot harness for @agh/ui                   | pending | high       | task_02, task_03, task_04, task_05, task_06, task_07, task_08, task_09, task_10 |
+| 11 | Wire Playwright visual snapshot harness for @agh/ui                   | completed | high       | task_02, task_03, task_04, task_05, task_06, task_07, task_08, task_09, task_10 |
 | 12 | Write packages/ui contributor guide (README.md)                       | pending | low        | task_02, task_03, task_04, task_05, task_06, task_07, task_08, task_09, task_10, task_11 |
 | 13 | Rewrite app-sidebar on @agh/ui Sidebar                                | pending | high       | task_05, task_08                      |
 | 14 | Rewrite root layout + route-level motion                              | pending | high       | task_05, task_06                      |
