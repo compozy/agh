@@ -19,7 +19,7 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@agh/ui";
 import { Textarea } from "@/components/ui/textarea";
 
 import {

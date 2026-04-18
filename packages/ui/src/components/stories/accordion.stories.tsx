@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../accordion";
 
 const meta: Meta<typeof Accordion> = {
-  title: "components/ui/Accordion",
+  title: "ui/Accordion",
   component: Accordion,
   parameters: {
     layout: "centered",
@@ -14,6 +15,7 @@ const meta: Meta<typeof Accordion> = {
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
@@ -41,7 +43,6 @@ const faq = [
 ] as const;
 
 export const Default: Story = {
-  args: {},
   render: () => (
     <div className="w-[32rem]">
       <Accordion defaultValue={[faq[0].value]}>
@@ -57,10 +58,16 @@ export const Default: Story = {
 };
 
 export const MultipleExpansion: Story = {
-  args: {},
+  parameters: {
+    docs: {
+      description: {
+        story: "`multiple` lets several items stay open at the same time.",
+      },
+    },
+  },
   render: () => (
     <div className="w-[32rem]">
-      <Accordion defaultValue={[faq[0].value, faq[1].value]}>
+      <Accordion multiple defaultValue={[faq[0].value, faq[1].value]}>
         {faq.map(item => (
           <AccordionItem key={item.value} value={item.value}>
             <AccordionTrigger>{item.question}</AccordionTrigger>
@@ -70,4 +77,28 @@ export const MultipleExpansion: Story = {
       </Accordion>
     </div>
   ),
+};
+
+export const OpensAndCloses: Story = {
+  render: () => (
+    <div className="w-[32rem]">
+      <Accordion>
+        {faq.map(item => (
+          <AccordionItem key={item.value} value={item.value}>
+            <AccordionTrigger>{item.question}</AccordionTrigger>
+            <AccordionContent>{item.answer}</AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("button", { name: faq[0].question });
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(trigger);
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));
+    await userEvent.click(trigger);
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "false"));
+  },
 };

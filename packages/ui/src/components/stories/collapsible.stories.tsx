@@ -1,21 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button, Card, CardContent, CardHeader, CardTitle } from "@agh/ui";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "../button";
+import { Card, CardContent, CardHeader, CardTitle } from "../card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../collapsible";
 
 const meta: Meta<typeof Collapsible> = {
-  title: "components/ui/Collapsible",
+  title: "ui/Collapsible",
   component: Collapsible,
   parameters: {
     layout: "centered",
     docs: {
       description: {
         component:
-          "Minimal single-section disclosure. Prefer Collapsible over Accordion when there's only one expandable block.",
+          "Minimal single-section disclosure. Prefer `Collapsible` over `Accordion` when there's only one expandable block.",
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
@@ -28,7 +30,6 @@ const details = [
 ];
 
 export const Default: Story = {
-  args: {},
   render: () => (
     <Card className="w-[28rem]">
       <CardHeader>
@@ -65,7 +66,6 @@ export const Default: Story = {
 };
 
 export const OpenByDefault: Story = {
-  args: {},
   render: () => (
     <Card className="w-[28rem]">
       <CardHeader>

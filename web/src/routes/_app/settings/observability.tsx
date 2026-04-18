@@ -2,7 +2,7 @@ import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@agh/ui";
 import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
 import type { SettingsObservabilitySection } from "@/systems/settings";
 import {

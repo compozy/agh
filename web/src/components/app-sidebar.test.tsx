@@ -50,7 +50,9 @@ vi.mock("@tanstack/react-router", () => ({
   },
 }));
 
-vi.mock("@/components/ui/collapsible", () => ({
+vi.mock("@agh/ui", () => ({
+  cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
+  Kbd: ({ children }: { children: ReactNode }) => <kbd>{children}</kbd>,
   Collapsible: ({
     children,
     className,
@@ -68,11 +70,6 @@ vi.mock("@/components/ui/collapsible", () => ({
   CollapsibleTrigger: ({ children, className }: { children: ReactNode; className?: string }) => (
     <button className={className}>{children}</button>
   ),
-}));
-
-vi.mock("@agh/ui", () => ({
-  cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
-  Kbd: ({ children }: { children: ReactNode }) => <kbd>{children}</kbd>,
 }));
 
 vi.mock("@/systems/agent", () => ({

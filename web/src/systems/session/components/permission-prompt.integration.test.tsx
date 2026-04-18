@@ -52,9 +52,6 @@ vi.mock("@agh/ui", () => ({
   CardTitle: ({ children }: Record<string, unknown>) => <h3>{children as React.ReactNode}</h3>,
   CardContent: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
   CardFooter: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
-}));
-
-vi.mock("@/components/ui/collapsible", () => ({
   Collapsible: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
   CollapsibleTrigger: ({ children }: Record<string, unknown>) => (
     <button>{children as React.ReactNode}</button>

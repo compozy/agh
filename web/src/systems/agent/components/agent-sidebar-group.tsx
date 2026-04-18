@@ -1,7 +1,7 @@
 import { ChevronRight, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@agh/ui";
 import {
   SidebarGroup,
   SidebarGroupAction,

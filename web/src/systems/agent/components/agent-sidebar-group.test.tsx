@@ -3,19 +3,23 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AgentPayload } from "../types";
 
-vi.mock("@/components/ui/collapsible", () => ({
-  Collapsible: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="collapsible">{children}</div>
-  ),
-  CollapsibleTrigger: ({ children, ...props }: { children?: React.ReactNode }) => (
-    <button data-testid="collapsible-trigger" {...props}>
-      {children}
-    </button>
-  ),
-  CollapsibleContent: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="collapsible-content">{children}</div>
-  ),
-}));
+vi.mock("@agh/ui", async importActual => {
+  const actual = await importActual<typeof import("@agh/ui")>();
+  return {
+    ...actual,
+    Collapsible: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="collapsible">{children}</div>
+    ),
+    CollapsibleTrigger: ({ children, ...props }: { children?: React.ReactNode }) => (
+      <button data-testid="collapsible-trigger" {...props}>
+        {children}
+      </button>
+    ),
+    CollapsibleContent: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="collapsible-content">{children}</div>
+    ),
+  };
+});
 
 vi.mock("@/components/ui/sidebar", () => ({
   SidebarGroup: ({ children, ...props }: { children: React.ReactNode }) => (

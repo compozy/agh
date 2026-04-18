@@ -4,7 +4,7 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 
 ## Current State
 
-- Phase 1 in progress. Tasks 01 + 02 + 03 landed: tokens/motion/UIProvider, Dialog/Popover/Sheet/Tooltip (motion), plus Combobox/Command/Select/ScrollArea/Tabs in `@agh/ui` (CSS animations kept — see decisions below).
+- Phase 1 in progress. Tasks 01 + 02 + 03 + 04 landed: tokens/motion/UIProvider, Dialog/Popover/Sheet/Tooltip (motion), Combobox/Command/Select/ScrollArea/Tabs, plus DropdownMenu/Switch/Toggle/ToggleGroup/Accordion/Collapsible in `@agh/ui` (CSS animations kept — see decisions below).
 
 ## Shared Decisions
 
@@ -15,6 +15,9 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - **Select + Combobox kept CSS animations, not motion.** `SelectPortal` does not expose `keepMounted`, and Select's `alignItemWithTrigger` already suppresses the CSS animation; converting them to motion requires a deeper rewrite. They stay on `tw-animate-css` until a future task explicitly migrates them.
 - **Base UI's `Input` is `Field.Control`.** Do not use it inside a `ComboboxPrimitive.Input render={}` — `Field.Control` intercepts the input state and the combobox stops receiving typed values in tests. Use a raw `<input>` with the primitive's classes instead.
 - **Base UI Combobox input filtering under jsdom.** `userEvent.type` does not fire the input event the combobox listens to; use `fireEvent.change(input, { target: { value } })` to drive filter tests.
+- **`web/src/lib/utils.ts` only re-exports `cn` from `@agh/ui`.** When a vitest test mocks `@agh/ui`, the factory must either (a) include a working `cn`, or (b) use `vi.mock("@agh/ui", async importActual => ({ ...(await importActual()), … }))`. Replacing the whole module leaves `cn` undefined and any downstream component that calls `cn(...)` crashes at render.
+- **Base UI Menu group parts require `<Menu.Group>`.** `DropdownMenuLabel` (MenuGroupLabel) throws `MenuGroupRootContext is missing` if not wrapped in `DropdownMenuGroup`. Same rule applies to any group-scoped part.
+- **Base UI's Accordion and ToggleGroup use `multiple` (boolean), not Radix's `type="single"/"multiple"`.** Tests and docs written against Radix conventions will not compile or will silently no-op.
 
 ## Shared Learnings
 
