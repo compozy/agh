@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Write packages/ui contributor guide (README.md)
 type: docs
 complexity: low
@@ -49,11 +49,11 @@ Produce `packages/ui/README.md` — the canonical contributor guide for `@agh/ui
 
 ## Subtasks
 
-- [ ] 12.1 Draft README structure with the required sections.
-- [ ] 12.2 Enumerate every primitive exported from `packages/ui/src/index.ts` after task 10 + link each to its story.
-- [ ] 12.3 Document the `UIProvider` setup and the expected `reducedMotion` behavior.
-- [ ] 12.4 Write the motion vs CSS decision rules with three concrete examples (hover color change → CSS; unmount animation → motion; route transition → motion).
-- [ ] 12.5 Document the Playwright snapshot workflow (generate, update, review).
+- [x] 12.1 Draft README structure with the required sections.
+- [x] 12.2 Enumerate every primitive exported from `packages/ui/src/index.ts` after task 10 + link each to its story.
+- [x] 12.3 Document the `UIProvider` setup and the expected `reducedMotion` behavior.
+- [x] 12.4 Write the motion vs CSS decision rules with three concrete examples (hover color change → CSS; unmount animation → motion; route transition → motion).
+- [x] 12.5 Document the Playwright snapshot workflow (generate, update, review).
 
 ## Implementation Details
 
@@ -65,6 +65,10 @@ This is a docs task. No unit tests in the traditional sense — replace the test
 - `DESIGN.md` — linked from the README.
 - `.compozy/tasks/20260418-132824-web-redesign/adrs/adr-001.md` through `adr-005.md` — linked.
 - `packages/ui/src/index.ts` — authoritative export list.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md` — link target for foundational rules.
+  - `docs/design/design-system/README.md` — structural + voice reference; the packages/ui README mirrors its sectioning and tone.
+  - `docs/design/design-system/SKILL.md` — Claude-invocable skill contract; the "when to add a primitive" rule block lives here and should be cross-referenced.
 
 ### Dependent Files
 
