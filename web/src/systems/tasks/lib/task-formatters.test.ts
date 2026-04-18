@@ -1,0 +1,132 @@
+import { describe, expect, it } from "vitest";
+
+import type { TaskListItem } from "../types";
+import {
+  countTasksByStatus,
+  matchesTaskQuery,
+  taskApprovalStateLabel,
+  taskHasApprovalPending,
+  taskInboxLaneLabel,
+  taskIsBlocked,
+  taskIsDraft,
+  taskLaneTone,
+  taskPriorityLabel,
+  taskPriorityTone,
+  taskRunStatusTone,
+  taskStatusLabel,
+  taskStatusTone,
+} from "./task-formatters";
+
+function makeTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
+  return {
+    id: "task_001",
+    title: "Review",
+    status: "ready",
+    scope: "workspace",
+    origin: { kind: "web", ref: "op" },
+    created_at: "2026-04-11T09:00:00Z",
+    updated_at: "2026-04-11T09:00:00Z",
+    created_by: { kind: "human", ref: "op" },
+    ...overrides,
+  } as TaskListItem;
+}
+
+describe("task status and priority labels", () => {
+  it("labels every documented task status", () => {
+    expect(taskStatusLabel("draft")).toBe("Draft");
+    expect(taskStatusLabel("pending")).toBe("Pending");
+    expect(taskStatusLabel("blocked")).toBe("Blocked");
+    expect(taskStatusLabel("ready")).toBe("Ready");
+    expect(taskStatusLabel("in_progress")).toBe("In Progress");
+    expect(taskStatusLabel("completed")).toBe("Completed");
+    expect(taskStatusLabel("failed")).toBe("Failed");
+    expect(taskStatusLabel("canceled")).toBe("Canceled");
+    expect(taskStatusLabel(null)).toBe("Unknown");
+  });
+
+  it("labels priorities", () => {
+    expect(taskPriorityLabel("low")).toBe("Low");
+    expect(taskPriorityLabel("urgent")).toBe("Urgent");
+    expect(taskPriorityLabel(null)).toBe("Unset");
+  });
+
+  it("labels inbox lanes", () => {
+    expect(taskInboxLaneLabel("my_work")).toBe("My Work");
+    expect(taskInboxLaneLabel("approvals")).toBe("Approvals");
+    expect(taskInboxLaneLabel("failed_runs")).toBe("Failed Runs");
+    expect(taskInboxLaneLabel("blocked")).toBe("Blocked");
+    expect(taskInboxLaneLabel("archived")).toBe("Archived");
+  });
+
+  it("labels approval states", () => {
+    expect(taskApprovalStateLabel("pending")).toBe("Pending Approval");
+    expect(taskApprovalStateLabel("approved")).toBe("Approved");
+    expect(taskApprovalStateLabel(undefined)).toBe("Not Required");
+  });
+});
+
+describe("task semantic tones", () => {
+  it("maps task statuses to tones", () => {
+    expect(taskStatusTone("completed")).toBe("green");
+    expect(taskStatusTone("failed")).toBe("danger");
+    expect(taskStatusTone("in_progress")).toBe("violet");
+    expect(taskStatusTone("blocked")).toBe("amber");
+    expect(taskStatusTone("draft")).toBe("neutral");
+    expect(taskStatusTone(undefined)).toBe("neutral");
+  });
+
+  it("maps priorities to tones", () => {
+    expect(taskPriorityTone("urgent")).toBe("danger");
+    expect(taskPriorityTone("high")).toBe("amber");
+    expect(taskPriorityTone("medium")).toBe("violet");
+    expect(taskPriorityTone("low")).toBe("neutral");
+  });
+
+  it("maps run statuses to tones", () => {
+    expect(taskRunStatusTone("running")).toBe("violet");
+    expect(taskRunStatusTone("completed")).toBe("green");
+    expect(taskRunStatusTone("failed")).toBe("danger");
+    expect(taskRunStatusTone("queued")).toBe("amber");
+  });
+
+  it("maps inbox lanes to tones", () => {
+    expect(taskLaneTone("approvals")).toBe("violet");
+    expect(taskLaneTone("failed_runs")).toBe("danger");
+    expect(taskLaneTone("blocked")).toBe("amber");
+    expect(taskLaneTone("archived")).toBe("neutral");
+    expect(taskLaneTone("my_work")).toBe("green");
+  });
+});
+
+describe("task predicates and counts", () => {
+  it("detects draft, blocked, and approval-pending tasks", () => {
+    expect(taskIsDraft(makeTask({ draft: true }))).toBe(true);
+    expect(taskIsDraft(makeTask({ status: "draft" }))).toBe(true);
+    expect(taskIsDraft(makeTask())).toBe(false);
+    expect(taskIsBlocked(makeTask({ status: "blocked" }))).toBe(true);
+    expect(taskIsBlocked(makeTask())).toBe(false);
+    expect(taskHasApprovalPending(makeTask({ approval_state: "pending" }))).toBe(true);
+    expect(taskHasApprovalPending(makeTask({ approval_state: "approved" }))).toBe(false);
+  });
+
+  it("matches queries by title and identifier", () => {
+    const task = makeTask({ title: "Review PR", identifier: "TASK-42" });
+
+    expect(matchesTaskQuery(task, "")).toBe(true);
+    expect(matchesTaskQuery(task, "review")).toBe(true);
+    expect(matchesTaskQuery(task, "TASK-42")).toBe(true);
+    expect(matchesTaskQuery(task, "missing")).toBe(false);
+  });
+
+  it("counts tasks by status", () => {
+    const counts = countTasksByStatus([
+      makeTask({ status: "ready" }),
+      makeTask({ status: "ready" }),
+      makeTask({ status: "failed" }),
+    ]);
+
+    expect(counts.ready).toBe(2);
+    expect(counts.failed).toBe(1);
+    expect(counts.draft).toBe(0);
+  });
+});

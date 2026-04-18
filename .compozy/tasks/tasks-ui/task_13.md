@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: web/src/systems/tasks scaffold
 type: frontend
 complexity: high
@@ -31,11 +31,11 @@ Build the tasks domain scaffold in `web/src/systems/tasks/` so every later scree
 </requirements>
 
 ## Subtasks
-- [ ] 13.1 Create the tasks system barrel, domain types, and adapter error surface
-- [ ] 13.2 Add query keys/options for list, detail, timeline, tree, run detail, dashboard, and inbox
-- [ ] 13.3 Add shared task hooks for reads, mutations, and live subscriptions
-- [ ] 13.4 Add route hooks for the base tasks page, task detail page, and run-detail page
-- [ ] 13.5 Add adapter, query, and hook tests for the scaffold
+- [x] 13.1 Create the tasks system barrel, domain types, and adapter error surface
+- [x] 13.2 Add query keys/options for list, detail, timeline, tree, run detail, dashboard, and inbox
+- [x] 13.3 Add shared task hooks for reads, mutations, and live subscriptions
+- [x] 13.4 Add route hooks for the base tasks page, task detail page, and run-detail page
+- [x] 13.5 Add adapter, query, and hook tests for the scaffold
 
 ## Implementation Details
 
