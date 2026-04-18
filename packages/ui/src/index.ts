@@ -182,6 +182,7 @@ export {
   type MonoBadgeTone,
 } from "./components/mono-badge";
 export { KindChip, type KindChipProps } from "./components/kind-chip";
+export { CodeBlock, type CodeBlockProps } from "./components/code-block";
 export { Metric, type MetricProps, type MetricTone } from "./components/metric";
 export {
   ConnectionIndicator,
