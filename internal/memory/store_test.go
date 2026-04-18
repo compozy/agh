@@ -791,6 +791,33 @@ func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
 }
 
 func TestStoreSearchAndReindex(t *testing.T) {
+	t.Run("Should reject tokenless queries before warming the catalog", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(catalogPath),
+		).ForWorkspace(workspaceRoot)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+
+		_, err := store.Search(
+			context.Background(),
+			"!!!",
+			SearchOptions{Workspace: workspaceRoot, Limit: maxSearchLimit + 25},
+		)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("Store.Search() error = %v, want ErrValidation", err)
+		}
+		if _, statErr := os.Stat(catalogPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(%q) error = %v, want catalog database to remain absent", catalogPath, statErr)
+		}
+	})
+
 	t.Run("Should search and reindex visible scopes on cold start", func(t *testing.T) {
 		t.Parallel()
 
@@ -846,6 +873,42 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		}
 		if stats.IndexedFiles != 2 || stats.OrphanedFiles != 0 || stats.LastReindex == nil {
 			t.Fatalf("HealthStats() = %#v, want indexed=2 orphaned=0 lastReindex set", stats)
+		}
+	})
+
+	t.Run("Should clamp oversized search limits server-side", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(catalogPath),
+		)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+
+		for idx := range maxSearchLimit + 5 {
+			filename := fmt.Sprintf("shared-%02d.md", idx)
+			if err := store.Write(ScopeGlobal, filename, mustMemoryContent(t, testMemoryMeta{
+				Name:        fmt.Sprintf("Shared signal %02d", idx),
+				Description: "Common token across many memories",
+				Type:        MemoryTypeUser,
+			}, "Common token appears in every generated memory.\n")); err != nil {
+				t.Fatalf("Store.Write(%q) error = %v", filename, err)
+			}
+		}
+
+		results, err := store.Search(context.Background(), "common token", SearchOptions{
+			Scope: ScopeGlobal,
+			Limit: maxSearchLimit + 25,
+		})
+		if err != nil {
+			t.Fatalf("Store.Search() error = %v", err)
+		}
+		if len(results) != maxSearchLimit {
+			t.Fatalf("len(results) = %d, want %d", len(results), maxSearchLimit)
 		}
 	})
 
@@ -908,6 +971,78 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		}
 		if stats.IndexedFiles != 2 || stats.OrphanedFiles != 0 || stats.LastReindex == nil {
 			t.Fatalf("HealthStats() = %#v, want indexed=2 orphaned=0 lastReindex set", stats)
+		}
+	})
+
+	t.Run("Should not reindex empty synced scopes on subsequent reads", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(catalogPath),
+		).ForWorkspace(workspaceRoot)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+
+		results, err := store.Search(context.Background(), "auth", SearchOptions{
+			Workspace: workspaceRoot,
+			Limit:     5,
+		})
+		if err != nil {
+			t.Fatalf("Store.Search() error = %v", err)
+		}
+		if len(results) != 0 {
+			t.Fatalf("len(results) = %d, want 0", len(results))
+		}
+
+		workspaceReady, err := store.catalog.scopeReady(context.Background(), ScopeWorkspace, workspaceRoot)
+		if err != nil {
+			t.Fatalf("catalog.scopeReady(workspace) error = %v", err)
+		}
+		if !workspaceReady {
+			t.Fatal("catalog.scopeReady(workspace) = false, want true after empty reindex")
+		}
+		globalReady, err := store.catalog.scopeReady(context.Background(), ScopeGlobal, "")
+		if err != nil {
+			t.Fatalf("catalog.scopeReady(global) error = %v", err)
+		}
+		if !globalReady {
+			t.Fatal("catalog.scopeReady(global) = false, want true after empty reindex")
+		}
+
+		firstReindex, err := store.catalog.lastReindex(context.Background())
+		if err != nil {
+			t.Fatalf("catalog.lastReindex() error = %v", err)
+		}
+		if firstReindex == nil {
+			t.Fatal("catalog.lastReindex() = nil, want timestamp after initial reindex")
+		}
+
+		stats, err := store.HealthStats(context.Background(), []string{workspaceRoot})
+		if err != nil {
+			t.Fatalf("Store.HealthStats() error = %v", err)
+		}
+		if stats.IndexedFiles != 0 || stats.OrphanedFiles != 0 || stats.LastReindex == nil {
+			t.Fatalf("HealthStats() = %#v, want indexed=0 orphaned=0 lastReindex set", stats)
+		}
+
+		secondReindex, err := store.catalog.lastReindex(context.Background())
+		if err != nil {
+			t.Fatalf("catalog.lastReindex() error = %v", err)
+		}
+		if secondReindex == nil {
+			t.Fatal("catalog.lastReindex() = nil, want timestamp after health check")
+		}
+		if !secondReindex.Equal(*firstReindex) {
+			t.Fatalf(
+				"catalog.lastReindex() changed from %s to %s, want empty synced scopes to stay warm",
+				firstReindex.Format(time.RFC3339Nano),
+				secondReindex.Format(time.RFC3339Nano),
+			)
 		}
 	})
 }

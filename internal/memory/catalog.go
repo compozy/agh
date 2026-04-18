@@ -20,7 +20,9 @@ import (
 
 const (
 	defaultSearchLimit         = 10
+	maxSearchLimit             = 50
 	catalogStateKeyLastReindex = "last_reindex_at"
+	catalogStateKeyScopePrefix = "scope_synced::"
 	catalogEventAgentName      = "daemon"
 )
 
@@ -203,6 +205,19 @@ func (c *catalog) replaceScope(
 			return fmt.Errorf("memory: insert catalog entry %q: %w", doc.Filename, err)
 		}
 	}
+	if err := upsertCatalogStateTx(
+		ctx,
+		tx,
+		catalogScopeStateKey(scope, workspaceRoot),
+		storepkg.FormatTimestamp(c.now().UTC()),
+	); err != nil {
+		return fmt.Errorf(
+			"memory: persist catalog scope state %q/%q: %w",
+			scope.Normalize(),
+			strings.TrimSpace(workspaceRoot),
+			err,
+		)
+	}
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("memory: commit catalog scope replace: %w", err)
@@ -212,20 +227,11 @@ func (c *catalog) replaceScope(
 }
 
 func (c *catalog) setLastReindex(ctx context.Context, when time.Time) error {
-	db, err := c.ensureDB(ctx)
-	if err != nil {
-		return err
-	}
-	if db == nil {
-		return nil
-	}
 	if when.IsZero() {
 		when = c.now()
 	}
-	if _, err := db.ExecContext(
+	if err := c.upsertState(
 		ctx,
-		`INSERT INTO memory_catalog_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		catalogStateKeyLastReindex,
 		storepkg.FormatTimestamp(when.UTC()),
 	); err != nil {
@@ -235,24 +241,12 @@ func (c *catalog) setLastReindex(ctx context.Context, when time.Time) error {
 }
 
 func (c *catalog) lastReindex(ctx context.Context) (*time.Time, error) {
-	db, err := c.ensureDB(ctx)
+	raw, ok, err := c.stateValue(ctx, catalogStateKeyLastReindex)
 	if err != nil {
 		return nil, err
 	}
-	if db == nil {
+	if !ok {
 		return nil, nil
-	}
-
-	var raw string
-	if err := db.QueryRowContext(
-		ctx,
-		`SELECT value FROM memory_catalog_state WHERE key = ?`,
-		catalogStateKeyLastReindex,
-	).Scan(&raw); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("memory: load catalog reindex timestamp: %w", err)
 	}
 
 	parsed, err := storepkg.ParseTimestamp(raw)
@@ -261,6 +255,42 @@ func (c *catalog) lastReindex(ctx context.Context) (*time.Time, error) {
 	}
 	parsed = parsed.UTC()
 	return &parsed, nil
+}
+
+func (c *catalog) setScopeReady(ctx context.Context, scope Scope, workspaceRoot string) error {
+	if err := c.upsertState(
+		ctx,
+		catalogScopeStateKey(scope, workspaceRoot),
+		storepkg.FormatTimestamp(c.now().UTC()),
+	); err != nil {
+		return fmt.Errorf(
+			"memory: persist catalog scope state %q/%q: %w",
+			scope.Normalize(),
+			strings.TrimSpace(workspaceRoot),
+			err,
+		)
+	}
+	return nil
+}
+
+func (c *catalog) scopeReady(ctx context.Context, scope Scope, workspaceRoot string) (bool, error) {
+	raw, ok, err := c.stateValue(ctx, catalogScopeStateKey(scope, workspaceRoot))
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, nil
+	}
+	if _, err := storepkg.ParseTimestamp(raw); err != nil {
+		return false, fmt.Errorf(
+			"memory: parse catalog scope state %q/%q timestamp %q: %w",
+			scope.Normalize(),
+			strings.TrimSpace(workspaceRoot),
+			raw,
+			err,
+		)
+	}
+	return true, nil
 }
 
 func (c *catalog) scopeEntryCount(ctx context.Context, scope Scope, workspaceRoot string) (int, error) {
@@ -315,6 +345,7 @@ func (c *catalog) listEntries(ctx context.Context, filters []catalogFilter) ([]c
 		return nil, fmt.Errorf("memory: list catalog entries: %w", err)
 	}
 	defer func() {
+		// rows.Err() or scanErr above reports any actionable read failure after we drain this SELECT result set.
 		_ = rows.Close()
 	}()
 
@@ -376,9 +407,7 @@ func (c *catalog) search(
 	if err != nil {
 		return nil, err
 	}
-	if limit <= 0 {
-		limit = defaultSearchLimit
-	}
+	limit = clampSearchLimit(limit)
 
 	base := strings.Join([]string{
 		`SELECT`,
@@ -406,6 +435,7 @@ func (c *catalog) search(
 		return nil, fmt.Errorf("memory: search catalog: %w", err)
 	}
 	defer func() {
+		// rows.Err() or scanErr above reports any actionable read failure after we drain this SELECT result set.
 		_ = rows.Close()
 	}()
 
@@ -544,9 +574,9 @@ func scanSearchResult(scanner interface{ Scan(dest ...any) error }) (SearchResul
 }
 
 func buildCatalogMatchQuery(query string) (string, error) {
-	terms := tokenizeSearchQuery(query)
-	if len(terms) == 0 {
-		return "", wrapValidationError("search query", query, errors.New("query is required"))
+	terms, err := searchQueryTerms(query)
+	if err != nil {
+		return "", err
 	}
 	quoted := make([]string, 0, len(terms))
 	for _, term := range terms {
@@ -621,13 +651,11 @@ func buildCatalogDocument(
 }
 
 func fallbackSearchDocuments(query string, docs []catalogDocument, limit int) ([]SearchResult, error) {
-	terms := tokenizeSearchQuery(query)
-	if len(terms) == 0 {
-		return nil, wrapValidationError("search query", query, errors.New("query is required"))
+	terms, err := searchQueryTerms(query)
+	if err != nil {
+		return nil, err
 	}
-	if limit <= 0 {
-		limit = defaultSearchLimit
-	}
+	limit = clampSearchLimit(limit)
 
 	results := make([]SearchResult, 0, min(limit, len(docs)))
 	for _, doc := range docs {
@@ -662,6 +690,100 @@ func fallbackSearchDocuments(query string, docs []catalogDocument, limit int) ([
 		results = results[:limit]
 	}
 	return results, nil
+}
+
+func searchQueryTerms(query string) ([]string, error) {
+	terms := tokenizeSearchQuery(query)
+	if len(terms) == 0 {
+		return nil, wrapValidationError(
+			"search query",
+			query,
+			errors.New("query must include at least one letter or number"),
+		)
+	}
+	return terms, nil
+}
+
+func clampSearchLimit(limit int) int {
+	if limit <= 0 {
+		return defaultSearchLimit
+	}
+	return min(limit, maxSearchLimit)
+}
+
+func (c *catalog) upsertState(ctx context.Context, key string, value string) error {
+	db, err := c.ensureDB(ctx)
+	if err != nil {
+		return err
+	}
+	if db == nil {
+		return nil
+	}
+	return upsertCatalogState(ctx, db, key, value)
+}
+
+func (c *catalog) stateValue(ctx context.Context, key string) (string, bool, error) {
+	db, err := c.ensureDB(ctx)
+	if err != nil {
+		return "", false, err
+	}
+	if db == nil {
+		return "", false, nil
+	}
+
+	var raw string
+	if err := db.QueryRowContext(
+		ctx,
+		`SELECT value FROM memory_catalog_state WHERE key = ?`,
+		key,
+	).Scan(&raw); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("memory: load catalog state %q: %w", key, err)
+	}
+	return raw, true, nil
+}
+
+func catalogScopeStateKey(scope Scope, workspaceRoot string) string {
+	return fmt.Sprintf(
+		"%s%s::%s",
+		catalogStateKeyScopePrefix,
+		scope.Normalize(),
+		strings.TrimSpace(workspaceRoot),
+	)
+}
+
+func upsertCatalogStateTx(ctx context.Context, tx *sql.Tx, key string, value string) error {
+	if tx == nil {
+		return errors.New("catalog transaction is required")
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO memory_catalog_state (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		key,
+		value,
+	); err != nil {
+		return fmt.Errorf("persist catalog state %q: %w", key, err)
+	}
+	return nil
+}
+
+func upsertCatalogState(ctx context.Context, db *sql.DB, key string, value string) error {
+	if db == nil {
+		return nil
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO memory_catalog_state (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		key,
+		value,
+	); err != nil {
+		return fmt.Errorf("persist catalog state %q: %w", key, err)
+	}
+	return nil
 }
 
 func fallbackDocumentScore(doc catalogDocument, terms []string) float64 {

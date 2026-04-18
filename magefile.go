@@ -33,7 +33,10 @@ const (
 	driverBinaryEnvVar    = "AGH_TEST_ACPMOCK_DRIVER_BIN"
 )
 
-var Default = Verify
+var (
+	Default                 = Verify
+	errRaceEnabledGoCommand = errors.New("run race-enabled go command")
+)
 
 func Deps() error {
 	return sh.RunV("go", "mod", "tidy")
@@ -533,7 +536,7 @@ func mergeCommandEnv(overrides map[string]string) []string {
 
 func runRaceEnabledGoCommand(env map[string]string, args ...string) error {
 	if err := runCommandInDirWithEnv(".", withRaceEnabledEnv(env), "go", args...); err != nil {
-		return fmt.Errorf("run race-enabled go command %v: %w", args, err)
+		return fmt.Errorf("%w %v: %w", errRaceEnabledGoCommand, args, err)
 	}
 	return nil
 }

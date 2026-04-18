@@ -333,10 +333,10 @@ func (s *Store) Search(ctx context.Context, query string, opts SearchOptions) ([
 	if err != nil {
 		return nil, err
 	}
-	limit := opts.Limit
-	if limit <= 0 {
-		limit = defaultSearchLimit
+	if _, err := searchQueryTerms(query); err != nil {
+		return nil, err
 	}
+	limit := clampSearchLimit(opts.Limit)
 
 	if err := s.ensureCatalogReady(ctx, scope, workspaceRoot); err != nil {
 		return nil, err
@@ -620,12 +620,20 @@ func (s *Store) ensureCatalogFilterReady(ctx context.Context, filter catalogFilt
 		return nil
 	}
 
+	ready, err := s.catalog.scopeReady(ctx, filter.scope, filter.workspaceRoot)
+	if err != nil {
+		return err
+	}
+	if ready {
+		return nil
+	}
+
 	entryCount, err := s.catalog.scopeEntryCount(ctx, filter.scope, filter.workspaceRoot)
 	if err != nil {
 		return err
 	}
 	if entryCount > 0 {
-		return nil
+		return s.catalog.setScopeReady(ctx, filter.scope, filter.workspaceRoot)
 	}
 
 	_, err = s.reindexScopes(ctx, filter.scope, filter.workspaceRoot)

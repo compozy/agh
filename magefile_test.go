@@ -3,7 +3,8 @@
 package main
 
 import (
-	"strings"
+	"errors"
+	"os/exec"
 	"testing"
 
 	"github.com/pedronauck/agh/internal/e2elane"
@@ -94,18 +95,19 @@ func TestWithRaceEnabledEnv(t *testing.T) {
 func TestRunRaceEnabledGoCommand(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should wrap subprocess failures with command context", func(t *testing.T) {
+	t.Run("Should wrap subprocess failures with typed context", func(t *testing.T) {
 		t.Parallel()
 
 		err := runRaceEnabledGoCommand(nil, "definitely-not-a-go-subcommand")
 		if err == nil {
 			t.Fatal("runRaceEnabledGoCommand() error = nil, want non-nil")
 		}
-		if !strings.Contains(err.Error(), "run race-enabled go command") {
-			t.Fatalf("runRaceEnabledGoCommand() error = %q, want wrapper context", err)
+		if !errors.Is(err, errRaceEnabledGoCommand) {
+			t.Fatalf("runRaceEnabledGoCommand() error = %v, want errRaceEnabledGoCommand in chain", err)
 		}
-		if !strings.Contains(err.Error(), "definitely-not-a-go-subcommand") {
-			t.Fatalf("runRaceEnabledGoCommand() error = %q, want failing args in context", err)
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("runRaceEnabledGoCommand() error = %v, want exec.ExitError in chain", err)
 		}
 	})
 }
