@@ -120,9 +120,13 @@ func TestRequireDelegatedTaskAutomationRun(t *testing.T) {
 func TestFindTaskRunInDetailReturnsMissingForNilDetail(t *testing.T) {
 	t.Parallel()
 
-	if _, ok := findTaskRunInDetail(nil, "task-run-1"); ok {
-		t.Fatal("findTaskRunInDetail(nil) = present, want missing")
-	}
+	t.Run("Should return missing for nil detail", func(t *testing.T) {
+		t.Parallel()
+
+		if _, ok := findTaskRunInDetail(nil, "task-run-1"); ok {
+			t.Fatal("findTaskRunInDetail(nil) = present, want missing")
+		}
+	})
 }
 
 func TestClassifyAutomationRunLinkageRejectsMixedSurfaces(t *testing.T) {

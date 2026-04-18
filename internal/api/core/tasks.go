@@ -18,6 +18,7 @@ import (
 
 const (
 	defaultTaskActorRef        = "local-user"
+	taskDraftOverfetchMaxLimit = 500
 	taskActionList             = "list"
 	taskActionCreate           = "create"
 	taskActionGet              = "get"
@@ -121,12 +122,18 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 		return
 	}
 
-	tasks, err := manager.ListTasks(c.Request.Context(), query, actor)
+	tasks, err := listTasksWithDraftCompensation(
+		c.Request.Context(),
+		query,
+		transportQuery,
+		func(ctx context.Context, query taskpkg.Query) ([]taskpkg.Summary, error) {
+			return manager.ListTasks(ctx, query, actor)
+		},
+	)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	tasks = filterTaskListDrafts(tasks, transportQuery)
 
 	c.JSON(http.StatusOK, contract.TasksResponse{Tasks: TaskSummaryPayloadsFromSummaries(tasks)})
 }
@@ -1149,6 +1156,62 @@ func filterTaskListDrafts(tasks []taskpkg.Summary, query contract.TaskListQuery)
 		filtered = filtered[:query.Limit]
 	}
 	return filtered
+}
+
+func shouldOverfetchTaskDrafts(query contract.TaskListQuery) bool {
+	return !query.IncludeDrafts && query.Status.Normalize() == "" && query.Limit > 0
+}
+
+func listTasksWithDraftCompensation(
+	ctx context.Context,
+	query taskpkg.Query,
+	transportQuery contract.TaskListQuery,
+	fetch func(context.Context, taskpkg.Query) ([]taskpkg.Summary, error),
+) ([]taskpkg.Summary, error) {
+	if !shouldOverfetchTaskDrafts(transportQuery) {
+		tasks, err := fetch(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		return filterTaskListDrafts(tasks, transportQuery), nil
+	}
+
+	fetchLimit := max(query.Limit, transportQuery.Limit)
+	previousTaskCount := -1
+	for {
+		currentQuery := query
+		currentQuery.Limit = fetchLimit
+
+		tasks, err := fetch(ctx, currentQuery)
+		if err != nil {
+			return nil, err
+		}
+		filtered := filterTaskListDrafts(tasks, transportQuery)
+		if len(filtered) >= transportQuery.Limit ||
+			len(tasks) < fetchLimit ||
+			fetchLimit >= taskDraftOverfetchMaxLimit ||
+			len(tasks) == previousTaskCount {
+			return filtered, nil
+		}
+
+		previousTaskCount = len(tasks)
+		nextLimit := nextDraftOverfetchLimit(fetchLimit, transportQuery.Limit)
+		if nextLimit <= fetchLimit {
+			return filtered, nil
+		}
+		fetchLimit = nextLimit
+	}
+}
+
+func nextDraftOverfetchLimit(currentLimit, requestedLimit int) int {
+	nextLimit := currentLimit * 2
+	if nextLimit < currentLimit+requestedLimit {
+		nextLimit = currentLimit + requestedLimit
+	}
+	if nextLimit > taskDraftOverfetchMaxLimit {
+		return taskDraftOverfetchMaxLimit
+	}
+	return nextLimit
 }
 
 func (h *BaseHandlers) createTaskSpecFromRequest(

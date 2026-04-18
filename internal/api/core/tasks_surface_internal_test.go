@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -27,7 +28,7 @@ func newExpandedTaskHandlers(workspaceGet func(context.Context, string) (workspa
 func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 	t.Parallel()
 
-	t.Run("task list", func(t *testing.T) {
+	t.Run("Should parse and convert task list filters", func(t *testing.T) {
 		t.Parallel()
 
 		handlers := newExpandedTaskHandlers(func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
@@ -73,7 +74,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		}
 	})
 
-	t.Run("timeline and stream", func(t *testing.T) {
+	t.Run("Should parse and convert timeline and stream filters", func(t *testing.T) {
 		t.Parallel()
 
 		handlers := newExpandedTaskHandlers(nil)
@@ -130,7 +131,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		}
 	})
 
-	t.Run("dashboard and inbox", func(t *testing.T) {
+	t.Run("Should parse and convert dashboard and inbox filters", func(t *testing.T) {
 		t.Parallel()
 
 		handlers := newExpandedTaskHandlers(func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
@@ -207,7 +208,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("invalid lane", func(t *testing.T) {
+	t.Run("Should reject an invalid inbox lane", func(t *testing.T) {
 		t.Parallel()
 
 		handlers := newExpandedTaskHandlers(nil)
@@ -237,7 +238,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("workspace lookup failure", func(t *testing.T) {
+	t.Run("Should surface workspace lookup failures", func(t *testing.T) {
 		t.Parallel()
 
 		handlers := newExpandedTaskHandlers(func(context.Context, string) (workspacepkg.Workspace, error) {
@@ -276,7 +277,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 func TestTaskDraftFilteringAndNormalizationHelpers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("filter task list drafts", func(t *testing.T) {
+	t.Run("Should filter draft tasks from default list queries", func(t *testing.T) {
 		t.Parallel()
 
 		tasks := []taskpkg.Summary{
@@ -301,7 +302,76 @@ func TestTaskDraftFilteringAndNormalizationHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("normalize pointer helpers", func(t *testing.T) {
+	t.Run("Should compensate for draft filtering when a limited page is under-filled", func(t *testing.T) {
+		t.Parallel()
+
+		allTasks := []taskpkg.Summary{
+			{ID: "task-draft-1", Status: taskpkg.TaskStatusDraft, Draft: true},
+			{ID: "task-draft-2", Status: taskpkg.TaskStatusDraft, Draft: true},
+			{ID: "task-ready-1", Status: taskpkg.TaskStatusReady},
+			{ID: "task-ready-2", Status: taskpkg.TaskStatusReady},
+		}
+		var limits []int
+
+		filtered, err := listTasksWithDraftCompensation(
+			context.Background(),
+			taskpkg.Query{Limit: 2},
+			contract.TaskListQuery{Limit: 2},
+			func(_ context.Context, query taskpkg.Query) ([]taskpkg.Summary, error) {
+				limits = append(limits, query.Limit)
+				if query.Limit >= len(allTasks) {
+					return allTasks, nil
+				}
+				return allTasks[:query.Limit], nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("listTasksWithDraftCompensation() error = %v", err)
+		}
+		if got, want := limits, []int{2, 4}; !slices.Equal(got, want) {
+			t.Fatalf("fetch limits = %#v, want %#v", got, want)
+		}
+		if got, want := len(filtered), 2; got != want {
+			t.Fatalf("len(filtered) = %d, want %d", got, want)
+		}
+		if filtered[0].ID != "task-ready-1" || filtered[1].ID != "task-ready-2" {
+			t.Fatalf("filtered = %#v, want ready tasks only", filtered)
+		}
+	})
+
+	t.Run("Should cap draft compensation overfetch", func(t *testing.T) {
+		t.Parallel()
+
+		var limits []int
+		_, err := listTasksWithDraftCompensation(
+			context.Background(),
+			taskpkg.Query{Limit: 200},
+			contract.TaskListQuery{Limit: 200},
+			func(_ context.Context, query taskpkg.Query) ([]taskpkg.Summary, error) {
+				limits = append(limits, query.Limit)
+				tasks := make([]taskpkg.Summary, query.Limit)
+				for idx := range tasks {
+					tasks[idx] = taskpkg.Summary{
+						ID:     "task-draft",
+						Status: taskpkg.TaskStatusDraft,
+						Draft:  true,
+					}
+				}
+				return tasks, nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("listTasksWithDraftCompensation() error = %v", err)
+		}
+		if len(limits) == 0 {
+			t.Fatal("fetch limits = empty, want bounded compensation attempts")
+		}
+		if got := limits[len(limits)-1]; got != taskDraftOverfetchMaxLimit {
+			t.Fatalf("last fetch limit = %d, want %d", got, taskDraftOverfetchMaxLimit)
+		}
+	})
+
+	t.Run("Should normalize optional pointer helpers", func(t *testing.T) {
 		t.Parallel()
 
 		if got := normalizePriorityPtr(nil); got != nil {

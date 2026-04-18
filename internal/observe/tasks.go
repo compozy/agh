@@ -2,6 +2,7 @@ package observe
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -84,6 +85,11 @@ type TaskDashboardQuery struct {
 
 // Validate ensures the dashboard query uses supported filters.
 func (q TaskDashboardQuery) Validate() error {
+	if q.Scope.Normalize() != "" {
+		if err := taskpkg.ValidateScopeBinding(q.Scope, q.WorkspaceID, "task_dashboard_query", "workspace_id"); err != nil {
+			return err
+		}
+	}
 	return q.summaryQuery().Validate()
 }
 
@@ -1603,16 +1609,16 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		return taskSnapshot{}, fmt.Errorf("observe: list tasks for summary: %w", err)
 	}
 	tasks = filterTasksByOrigin(tasks, query.OriginKind)
+	dependencyCounts, err := o.loadTaskDependencyCounts(ctx, tasks)
+	if err != nil {
+		return taskSnapshot{}, err
+	}
 	for idx := range tasks {
 		taskID := strings.TrimSpace(tasks[idx].ID)
 		if taskID == "" {
 			continue
 		}
-		dependencyCount, err := o.registry.CountDependencies(ctx, taskID)
-		if err != nil {
-			return taskSnapshot{}, fmt.Errorf("observe: count dependencies for task %q: %w", taskID, err)
-		}
-		tasks[idx].DependencyCount = dependencyCount
+		tasks[idx].DependencyCount = dependencyCounts[taskID]
 	}
 
 	tasksByID := make(map[string]taskpkg.Summary, len(tasks))
@@ -1663,6 +1669,104 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		tasksByID: tasksByID,
 		runsByID:  runsByID,
 	}, nil
+}
+
+func (o *Observer) loadTaskDependencyCounts(
+	ctx context.Context,
+	tasks []taskpkg.Summary,
+) (map[string]int, error) {
+	taskIDs := make([]string, 0, len(tasks))
+	seen := make(map[string]struct{}, len(tasks))
+	for _, item := range tasks {
+		taskID := strings.TrimSpace(item.ID)
+		if taskID == "" {
+			continue
+		}
+		if _, ok := seen[taskID]; ok {
+			continue
+		}
+		seen[taskID] = struct{}{}
+		taskIDs = append(taskIDs, taskID)
+	}
+	if len(taskIDs) == 0 {
+		return map[string]int{}, nil
+	}
+
+	path := strings.TrimSpace(o.registry.Path())
+	if path == "" {
+		return o.loadTaskDependencyCountsIndividually(ctx, taskIDs)
+	}
+
+	db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("observe: open registry database for dependency counts: %w", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	counts, err := queryTaskDependencyCounts(ctx, db, taskIDs)
+	if err != nil {
+		return nil, err
+	}
+	return counts, nil
+}
+
+func (o *Observer) loadTaskDependencyCountsIndividually(
+	ctx context.Context,
+	taskIDs []string,
+) (map[string]int, error) {
+	counts := make(map[string]int, len(taskIDs))
+	for _, taskID := range taskIDs {
+		count, err := o.registry.CountDependencies(ctx, taskID)
+		if err != nil {
+			return nil, fmt.Errorf("observe: count dependencies for task %q: %w", taskID, err)
+		}
+		counts[taskID] = count
+	}
+	return counts, nil
+}
+
+func queryTaskDependencyCounts(
+	ctx context.Context,
+	db *sql.DB,
+	taskIDs []string,
+) (map[string]int, error) {
+	placeholders := make([]string, len(taskIDs))
+	args := make([]any, len(taskIDs))
+	for idx, taskID := range taskIDs {
+		placeholders[idx] = "?"
+		args[idx] = taskID
+	}
+
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT task_id, COUNT(1)
+		FROM task_dependencies
+		WHERE task_id IN (`+strings.Join(placeholders, ",")+`)
+		GROUP BY task_id`,
+		args...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("observe: query dependency counts: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	counts := make(map[string]int, len(taskIDs))
+	for rows.Next() {
+		var taskID string
+		var count int
+		if err := rows.Scan(&taskID, &count); err != nil {
+			return nil, fmt.Errorf("observe: scan dependency counts: %w", err)
+		}
+		counts[strings.TrimSpace(taskID)] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("observe: iterate dependency counts: %w", err)
+	}
+	return counts, nil
 }
 
 func summarizeTasks(tasks []taskpkg.Summary) []TaskStatusTotal {

@@ -4,6 +4,8 @@ package observe
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -35,6 +37,14 @@ type observeSessionExecutor struct {
 type taskStopCall struct {
 	SessionID string
 	Reason    taskpkg.StopReason
+}
+
+type forbidCountDependenciesRegistry struct {
+	Registry
+}
+
+func (r *forbidCountDependenciesRegistry) CountDependencies(_ context.Context, taskID string) (int, error) {
+	return 0, fmt.Errorf("CountDependencies(%q) should not be called", taskID)
 }
 
 func (e *observeSessionExecutor) StartTaskSession(
@@ -257,6 +267,88 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 	}
 }
 
+func TestObserveTaskDashboardRejectsInvalidScopeWorkspaceBinding(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	_, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{
+		Scope:       taskpkg.ScopeGlobal,
+		WorkspaceID: h.workspaceID,
+	})
+	if !errors.Is(err, taskpkg.ErrInvalidScopeBinding) {
+		t.Fatalf("QueryTaskDashboard() error = %v, want %v", err, taskpkg.ErrInvalidScopeBinding)
+	}
+}
+
+func TestObserveTaskDashboardConfigLayersPartialOverrides(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	WithTaskDashboardConfig(TaskDashboardConfig{
+		ActiveRunLimit:   6,
+		BacklogWarnAfter: 20 * time.Minute,
+	})(h.observer)
+	WithTaskDashboardConfig(TaskDashboardConfig{
+		StaleAfter: 45 * time.Minute,
+	})(h.observer)
+
+	if got, want := h.observer.taskDashboardConfig.activeRunLimit, 6; got != want {
+		t.Fatalf("taskDashboardConfig.activeRunLimit = %d, want %d", got, want)
+	}
+	if got, want := h.observer.taskDashboardConfig.backlogWarnAfter, 20*time.Minute; got != want {
+		t.Fatalf("taskDashboardConfig.backlogWarnAfter = %v, want %v", got, want)
+	}
+	if got, want := h.observer.taskDashboardConfig.staleAfter, 45*time.Minute; got != want {
+		t.Fatalf("taskDashboardConfig.staleAfter = %v, want %v", got, want)
+	}
+}
+
+func TestObserveTaskDashboardLoadsDependencyCountsWithoutPerTaskCalls(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.observer.registry = &forbidCountDependenciesRegistry{Registry: h.registry}
+
+	createObserveTask(t, h, taskpkg.Task{
+		ID:          "task-dependent",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Dependency blocked task",
+		Status:      taskpkg.TaskStatusBlocked,
+		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
+		Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		CreatedAt:   h.now,
+		UpdatedAt:   h.now,
+	})
+	createObserveTask(t, h, taskpkg.Task{
+		ID:          "task-prerequisite",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Prerequisite task",
+		Status:      taskpkg.TaskStatusReady,
+		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
+		Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		CreatedAt:   h.now.Add(time.Minute),
+		UpdatedAt:   h.now.Add(time.Minute),
+	})
+	createObserveDependency(t, h, taskpkg.Dependency{
+		TaskID:          "task-dependent",
+		DependsOnTaskID: "task-prerequisite",
+		Kind:            taskpkg.DependencyKindBlocks,
+		CreatedAt:       h.now.Add(2 * time.Minute),
+	})
+
+	dashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+	if err != nil {
+		t.Fatalf("QueryTaskDashboard() error = %v", err)
+	}
+	if got, want := dashboard.Totals.DependencyBlockedTasks, 1; got != want {
+		t.Fatalf("dashboard.Totals.DependencyBlockedTasks = %d, want %d", got, want)
+	}
+}
+
 func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 	t.Parallel()
 
@@ -267,7 +359,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 		executor := &observeSessionExecutor{nextSessionID: "sess-observe-dashboard"}
 		manager := newObserveTaskManager(t, h, executor, clock)
 		h.observer.now = clock.Now
-		h.observer.taskDashboardConfig.backlogWarnAfter = 20 * time.Minute
+		WithTaskDashboardConfig(TaskDashboardConfig{BacklogWarnAfter: 20 * time.Minute})(h.observer)
 
 		humanActor, err := taskpkg.DeriveHumanActorContext("user-ops", taskpkg.OriginKindCLI, "agh task")
 		if err != nil {
@@ -458,7 +550,7 @@ func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
 		executor := &observeSessionExecutor{nextSessionID: "sess-observe-refresh"}
 		manager := newObserveTaskManager(t, h, executor, clock)
 		h.observer.now = clock.Now
-		h.observer.taskDashboardConfig.backlogWarnAfter = 5 * time.Minute
+		WithTaskDashboardConfig(TaskDashboardConfig{BacklogWarnAfter: 5 * time.Minute})(h.observer)
 
 		humanActor, err := taskpkg.DeriveHumanActorContext("user-ops", taskpkg.OriginKindCLI, "agh task")
 		if err != nil {

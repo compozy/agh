@@ -134,42 +134,52 @@ func TestTaskContractsMarshalExpandedTaskReadModels(t *testing.T) {
 		},
 	}
 
-	object := marshalObject(t, TaskDetailResponse{Task: detail})
-	taskObject := nestedObject(t, object, "task")
-	assertObjectKeys(
-		t,
-		taskObject,
-		"summary",
-		"task",
-		"children",
-		"dependencies",
-		"dependency_references",
-		"runs",
-		"events",
-	)
-	assertObjectKeys(t, nestedObject(t, taskObject, "task"), "draft")
+	t.Run("Should marshal task detail payload keys", func(t *testing.T) {
+		t.Parallel()
 
-	summaryObject := nestedObject(t, taskObject, "summary")
-	assertObjectKeys(
-		t,
-		summaryObject,
-		"priority",
-		"max_attempts",
-		"approval_policy",
-		"approval_state",
-		"draft",
-		"child_count",
-		"dependency_count",
-		"dependencies",
-		"active_run",
-		"last_activity_at",
-	)
+		object := marshalObject(t, TaskDetailResponse{Task: detail})
+		taskObject := nestedObject(t, object, "task")
+		assertObjectKeys(
+			t,
+			taskObject,
+			"summary",
+			"task",
+			"children",
+			"dependencies",
+			"dependency_references",
+			"runs",
+			"events",
+		)
+		assertObjectKeys(t, nestedObject(t, taskObject, "task"), "draft")
+	})
 
-	dependency := firstObjectFromArray(t, summaryObject, "dependencies")
-	assertObjectKeys(t, dependency, "depends_on")
+	t.Run("Should marshal summary dependency reference keys", func(t *testing.T) {
+		t.Parallel()
 
-	dependsOn := nestedObject(t, dependency, "depends_on")
-	assertObjectKeys(t, dependsOn, "id", "identifier", "title", "status", "priority", "owner", "scope")
+		object := marshalObject(t, TaskDetailResponse{Task: detail})
+		taskObject := nestedObject(t, object, "task")
+		summaryObject := nestedObject(t, taskObject, "summary")
+		assertObjectKeys(
+			t,
+			summaryObject,
+			"priority",
+			"max_attempts",
+			"approval_policy",
+			"approval_state",
+			"draft",
+			"child_count",
+			"dependency_count",
+			"dependencies",
+			"active_run",
+			"last_activity_at",
+		)
+
+		dependency := firstObjectFromArray(t, summaryObject, "dependencies")
+		assertObjectKeys(t, dependency, "depends_on")
+
+		dependsOn := nestedObject(t, dependency, "depends_on")
+		assertObjectKeys(t, dependsOn, "id", "identifier", "title", "status", "priority", "owner", "scope")
+	})
 }
 
 func TestTaskContractsMarshalLiveDashboardAndInboxPayloads(t *testing.T) {
@@ -359,82 +369,118 @@ func TestTaskContractsMarshalLiveDashboardAndInboxPayloads(t *testing.T) {
 		},
 	}
 
-	runDetailObject := marshalObject(t, runDetail)
-	assertObjectKeys(t, nestedObject(t, runDetailObject, "run"), "run", "task", "session", "summary")
+	t.Run("Should marshal run detail payload keys", func(t *testing.T) {
+		t.Parallel()
 
-	treeObject := marshalObject(t, tree)
-	assertObjectKeys(t, nestedObject(t, treeObject, "tree"), "root", "descendants")
+		runDetailObject := marshalObject(t, runDetail)
+		assertObjectKeys(t, nestedObject(t, runDetailObject, "run"), "run", "task", "session", "summary")
+	})
 
-	timelineObject := marshalObject(t, timeline)
-	firstTimelineItem := firstObjectFromArray(t, timelineObject, "timeline")
-	assertObjectKeys(
-		t,
-		firstTimelineItem,
-		"sequence",
-		"event_id",
-		"task",
-		"run",
-		"event_type",
-		"actor",
-		"origin",
-		"payload",
-		"timestamp",
-	)
+	t.Run("Should marshal task tree payload keys", func(t *testing.T) {
+		t.Parallel()
 
-	dashboardObject := marshalObject(t, dashboard)
-	assertObjectKeys(
-		t,
-		nestedObject(t, dashboardObject, "dashboard"),
-		"totals",
-		"cards",
-		"status_breakdown",
-		"queue",
-		"health",
-		"active_runs",
-		"freshness",
-	)
+		treeObject := marshalObject(t, tree)
+		assertObjectKeys(t, nestedObject(t, treeObject, "tree"), "root", "descendants")
+	})
 
-	inboxObject := marshalObject(t, inbox)
-	inboxRoot := nestedObject(t, inboxObject, "inbox")
-	assertObjectKeys(t, inboxRoot, "total", "unread_total", "archived_total", "groups")
-	firstGroup := firstObjectFromArray(t, inboxRoot, "groups")
-	assertObjectKeys(t, firstGroup, "lane", "count", "unread_count", "items")
-	firstItem := firstObjectFromArray(t, firstGroup, "items")
-	assertObjectKeys(
-		t,
-		firstItem,
-		"task",
-		"lane",
-		"approval_policy",
-		"approval_state",
-		"blocking_reason",
-		"latest_activity_at",
-		"run",
-		"triage",
-	)
+	t.Run("Should marshal timeline item payload keys", func(t *testing.T) {
+		t.Parallel()
+
+		timelineObject := marshalObject(t, timeline)
+		firstTimelineItem := firstObjectFromArray(t, timelineObject, "timeline")
+		assertObjectKeys(
+			t,
+			firstTimelineItem,
+			"sequence",
+			"event_id",
+			"task",
+			"run",
+			"event_type",
+			"actor",
+			"origin",
+			"payload",
+			"timestamp",
+		)
+	})
+
+	t.Run("Should marshal dashboard payload keys", func(t *testing.T) {
+		t.Parallel()
+
+		dashboardObject := marshalObject(t, dashboard)
+		assertObjectKeys(
+			t,
+			nestedObject(t, dashboardObject, "dashboard"),
+			"totals",
+			"cards",
+			"status_breakdown",
+			"queue",
+			"health",
+			"active_runs",
+			"freshness",
+		)
+	})
+
+	t.Run("Should marshal inbox payload keys", func(t *testing.T) {
+		t.Parallel()
+
+		inboxObject := marshalObject(t, inbox)
+		inboxRoot := nestedObject(t, inboxObject, "inbox")
+		assertObjectKeys(t, inboxRoot, "total", "unread_total", "archived_total", "groups")
+		firstGroup := firstObjectFromArray(t, inboxRoot, "groups")
+		assertObjectKeys(t, firstGroup, "lane", "count", "unread_count", "items")
+		firstItem := firstObjectFromArray(t, firstGroup, "items")
+		assertObjectKeys(
+			t,
+			firstItem,
+			"task",
+			"lane",
+			"approval_policy",
+			"approval_state",
+			"blocking_reason",
+			"latest_activity_at",
+			"run",
+			"triage",
+		)
+	})
 }
 
 func TestUpdateTaskRequestHasChangesIncludesExpandedFields(t *testing.T) {
 	t.Parallel()
 
-	if (UpdateTaskRequest{}).HasChanges() {
-		t.Fatal("HasChanges() = true, want false for empty request")
-	}
+	t.Run("Should report no changes for an empty request", func(t *testing.T) {
+		t.Parallel()
 
-	priority := taskpkg.PriorityUrgent
-	if !(UpdateTaskRequest{Priority: &priority}).HasChanges() {
-		t.Fatal("HasChanges() = false, want true when priority changes")
-	}
+		if (UpdateTaskRequest{}).HasChanges() {
+			t.Fatal("HasChanges() = true, want false for empty request")
+		}
+	})
 
-	maxAttempts := 5
-	if !(UpdateTaskRequest{MaxAttempts: &maxAttempts}).HasChanges() {
-		t.Fatal("HasChanges() = false, want true when max_attempts changes")
-	}
+	t.Run("Should report changes for a priority patch", func(t *testing.T) {
+		t.Parallel()
 
-	approvalPolicy := taskpkg.ApprovalPolicyManual
-	if !(UpdateTaskRequest{ApprovalPolicy: &approvalPolicy}).HasChanges() {
-		t.Fatal("HasChanges() = false, want true when approval_policy changes")
-	}
+		priority := taskpkg.PriorityUrgent
+		if !(UpdateTaskRequest{Priority: &priority}).HasChanges() {
+			t.Fatal("HasChanges() = false, want true when priority changes")
+		}
+	})
+
+	t.Run("Should report changes for a max attempts patch", func(t *testing.T) {
+		t.Parallel()
+
+		maxAttempts := 5
+		if !(UpdateTaskRequest{MaxAttempts: &maxAttempts}).HasChanges() {
+			t.Fatal("HasChanges() = false, want true when max_attempts changes")
+		}
+	})
+
+	t.Run("Should report changes for an approval policy patch", func(t *testing.T) {
+		t.Parallel()
+
+		approvalPolicy := taskpkg.ApprovalPolicyManual
+		if !(UpdateTaskRequest{ApprovalPolicy: &approvalPolicy}).HasChanges() {
+			t.Fatal("HasChanges() = false, want true when approval_policy changes")
+		}
+	})
 }
 
 func marshalObject(t *testing.T, value any) map[string]any {

@@ -216,7 +216,7 @@ func WithTaskHealthConfig(cfg TaskHealthConfig) Option {
 // list sizing used by the observer task dashboard view.
 func WithTaskDashboardConfig(cfg TaskDashboardConfig) Option {
 	return func(observer *Observer) {
-		observer.taskDashboardConfig = normalizeTaskDashboardConfig(cfg)
+		observer.taskDashboardConfig = normalizeTaskDashboardConfig(observer.taskDashboardConfig, cfg)
 	}
 }
 
@@ -228,8 +228,11 @@ func defaultTaskDashboardConfig() taskDashboardConfig {
 	}
 }
 
-func normalizeTaskDashboardConfig(cfg TaskDashboardConfig) taskDashboardConfig {
-	normalized := defaultTaskDashboardConfig()
+func normalizeTaskDashboardConfig(base taskDashboardConfig, cfg TaskDashboardConfig) taskDashboardConfig {
+	normalized := base
+	if normalized.activeRunLimit <= 0 {
+		normalized = defaultTaskDashboardConfig()
+	}
 	if cfg.ActiveRunLimit > 0 {
 		normalized.activeRunLimit = cfg.ActiveRunLimit
 	}

@@ -29,15 +29,17 @@ func (h *HostAPIHandler) handleTasks(ctx context.Context, raw json.RawMessage) (
 	if err != nil {
 		return nil, err
 	}
-	if shouldOverfetchTaskDrafts(params) {
-		query.Limit = 0
-	}
-
-	tasks, err := manager.ListTasks(ctx, query, actor)
+	tasks, err := listTasksWithDraftCompensation(
+		ctx,
+		query,
+		params,
+		func(ctx context.Context, query taskpkg.Query) ([]taskpkg.Summary, error) {
+			return manager.ListTasks(ctx, query, actor)
+		},
+	)
 	if err != nil {
 		return nil, mapTaskRPCError("", err)
 	}
-	tasks = filterTaskListDrafts(tasks, params)
 	return taskSummaryPayloadsFromSummaries(tasks), nil
 }
 
@@ -1441,6 +1443,53 @@ func filterTaskListDrafts(tasks []taskpkg.Summary, query apicontract.TaskListQue
 
 func shouldOverfetchTaskDrafts(query apicontract.TaskListQuery) bool {
 	return !query.IncludeDrafts && query.Status.Normalize() == "" && query.Limit > 0
+}
+
+func listTasksWithDraftCompensation(
+	ctx context.Context,
+	query taskpkg.Query,
+	transportQuery apicontract.TaskListQuery,
+	fetch func(context.Context, taskpkg.Query) ([]taskpkg.Summary, error),
+) ([]taskpkg.Summary, error) {
+	if !shouldOverfetchTaskDrafts(transportQuery) {
+		tasks, err := fetch(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		return filterTaskListDrafts(tasks, transportQuery), nil
+	}
+
+	fetchLimit := max(query.Limit, transportQuery.Limit)
+	previousTaskCount := -1
+	for {
+		currentQuery := query
+		currentQuery.Limit = min(nextDraftFetchLimit(fetchLimit, transportQuery.Limit), taskDraftOverfetchMaxLimit)
+
+		tasks, err := fetch(ctx, currentQuery)
+		if err != nil {
+			return nil, err
+		}
+		filtered := filterTaskListDrafts(tasks, transportQuery)
+		if len(filtered) >= transportQuery.Limit ||
+			len(tasks) < currentQuery.Limit ||
+			currentQuery.Limit >= taskDraftOverfetchMaxLimit ||
+			len(tasks) == previousTaskCount {
+			return filtered, nil
+		}
+
+		previousTaskCount = len(tasks)
+		fetchLimit = currentQuery.Limit
+	}
+}
+
+const taskDraftOverfetchMaxLimit = 500
+
+func nextDraftFetchLimit(currentLimit, requestedLimit int) int {
+	nextLimit := currentLimit * 2
+	if nextLimit < currentLimit+requestedLimit {
+		nextLimit = currentLimit + requestedLimit
+	}
+	return nextLimit
 }
 
 func cloneOwnership(source *taskpkg.Ownership) *taskpkg.Ownership {
