@@ -1,28 +1,28 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Label } from "@agh/ui";
+import { expect, userEvent, within } from "storybook/test";
 
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { Switch } from "@/components/ui/switch";
+import { Label } from "../label";
+import { Switch } from "../switch";
 
 const meta: Meta<typeof Switch> = {
-  title: "components/ui/Switch",
+  title: "ui/Switch",
   component: Switch,
   parameters: {
     layout: "centered",
     docs: {
       description: {
         component:
-          "Binary on/off control. Use inside a horizontal Field for settings rows or pair with a standalone Label for toolbars.",
+          "Binary on/off control. Pair with a `Label` for settings rows. Supports `sm` and `default` sizes plus disabled state.",
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-  args: {},
   render: () => (
     <div className="flex items-center gap-3">
       <Switch id="switch-default" defaultChecked />
@@ -31,23 +31,7 @@ export const Default: Story = {
   ),
 };
 
-export const InField: Story = {
-  args: {},
-  render: () => (
-    <div className="w-[24rem]">
-      <Field orientation="horizontal">
-        <Switch id="switch-field" defaultChecked />
-        <FieldLabel htmlFor="switch-field">Auto-compact conversation</FieldLabel>
-        <FieldDescription>
-          Summarize long runs once they exceed 80% of the context window.
-        </FieldDescription>
-      </Field>
-    </div>
-  ),
-};
-
 export const Small: Story = {
-  args: {},
   render: () => (
     <div className="flex items-center gap-3">
       <Switch id="switch-sm" size="sm" />
@@ -59,11 +43,26 @@ export const Small: Story = {
 };
 
 export const Disabled: Story = {
-  args: {},
   render: () => (
     <div className="flex items-center gap-3">
       <Switch id="switch-disabled" disabled defaultChecked />
       <Label htmlFor="switch-disabled">Workspace lock (set by admin)</Label>
     </div>
   ),
+};
+
+export const TogglesOnClick: Story = {
+  render: () => (
+    <div className="flex items-center gap-3">
+      <Switch id="switch-play" aria-label="toggle" />
+      <Label htmlFor="switch-play">Enable telemetry</Label>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = canvas.getByRole("switch", { name: "toggle" });
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await userEvent.click(toggle);
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+  },
 };

@@ -2,8 +2,7 @@ import { AlertCircle, ExternalLink, Loader2, Wrench } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Button } from "@agh/ui";
-import { Switch } from "@/components/ui/switch";
+import { Button, Switch } from "@agh/ui";
 import { useSettingsSkillsPage } from "@/hooks/routes/use-settings-skills-page";
 import type { SettingsSkillsSection } from "@/systems/settings";
 import {

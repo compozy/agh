@@ -9,10 +9,10 @@ import {
   UnderlineIcon,
 } from "lucide-react";
 
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "../toggle-group";
 
 const meta: Meta<typeof ToggleGroup> = {
-  title: "components/ui/ToggleGroup",
+  title: "ui/ToggleGroup",
   component: ToggleGroup,
   parameters: {
     layout: "centered",
@@ -23,13 +23,13 @@ const meta: Meta<typeof ToggleGroup> = {
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const SingleSelection: Story = {
-  args: {},
   render: () => (
     <ToggleGroup defaultValue={["left"]}>
       <ToggleGroupItem value="left" aria-label="Align left">
@@ -49,7 +49,6 @@ export const SingleSelection: Story = {
 };
 
 export const MultiSelection: Story = {
-  args: {},
   parameters: {
     docs: {
       description: {
@@ -73,7 +72,6 @@ export const MultiSelection: Story = {
 };
 
 export const Vertical: Story = {
-  args: {},
   render: () => (
     <ToggleGroup orientation="vertical" defaultValue={["left"]} variant="outline">
       <ToggleGroupItem value="left" aria-label="Align left">

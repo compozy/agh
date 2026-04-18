@@ -20,7 +20,7 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
-vi.mock("@/components/ui/collapsible", () => ({
+vi.mock("@agh/ui", () => ({
   Collapsible: ({ children, ...props }: Record<string, unknown>) => (
     <div data-testid="collapsible" {...props}>
       {children as React.ReactNode}

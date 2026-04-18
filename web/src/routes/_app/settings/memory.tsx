@@ -2,8 +2,7 @@ import { AlertCircle, Loader2, Play } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Button } from "@agh/ui";
-import { Switch } from "@/components/ui/switch";
+import { Button, Switch } from "@agh/ui";
 import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
 import type { SettingsMemorySection } from "@/systems/settings";
 import {

@@ -18,8 +18,7 @@ import {
 import { type ReactNode } from "react";
 
 import { useSessionsByAgent } from "@/hooks/use-sessions-by-agent";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Kbd } from "@agh/ui";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, Kbd } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { AgentIcon, type AgentPayload } from "@/systems/agent";
 import { ConnectionStatus } from "@/systems/daemon";

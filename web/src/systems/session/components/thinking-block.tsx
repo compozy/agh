@@ -2,7 +2,7 @@ import { memo, useState } from "react";
 import { ChevronRight, Brain } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@agh/ui";
 
 export interface ThinkingBlockProps {
   thinking: string;

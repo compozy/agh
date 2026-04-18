@@ -14,7 +14,6 @@ describe("storybook story and fixture regressions", () => {
 
   it("loads the edited story modules", async () => {
     const modules = await Promise.all([
-      import("@/components/ui/stories/collapsible.stories"),
       import("@/systems/knowledge/components/stories/knowledge-detail-panel.stories"),
       import("@/systems/knowledge/components/stories/knowledge-list-panel.stories"),
       import("@/systems/network/components/stories/network-channels-list-panel.stories"),
@@ -24,7 +23,7 @@ describe("storybook story and fixture regressions", () => {
       import("@/systems/session/components/tool-renderers/stories/search-content.stories"),
     ]);
 
-    expect(modules).toHaveLength(8);
+    expect(modules).toHaveLength(7);
 
     for (const module of modules) {
       expect(module.default).toBeDefined();
@@ -33,7 +32,10 @@ describe("storybook story and fixture regressions", () => {
 
   it("keeps the scoped story and fixture source aligned with the review fixes", async () => {
     const sources = await Promise.all([
-      readFile(fromWeb("src/components/ui/stories/collapsible.stories.tsx"), "utf8"),
+      readFile(
+        resolve(process.cwd(), "../packages/ui/src/components/stories/collapsible.stories.tsx"),
+        "utf8"
+      ),
       readFile(
         fromWeb("src/systems/knowledge/components/stories/knowledge-detail-panel.stories.tsx"),
         "utf8"

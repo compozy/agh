@@ -2,8 +2,7 @@ import { AlertCircle, AlertTriangle, Check, Loader2, Puzzle, X } from "lucide-re
 import { createFileRoute } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Button } from "@agh/ui";
-import { Switch } from "@/components/ui/switch";
+import { Button, Switch } from "@agh/ui";
 import { useSettingsHooksExtensionsPage } from "@/hooks/routes/use-settings-hooks-extensions-page";
 import type {
   SettingsExtensionEntry,
