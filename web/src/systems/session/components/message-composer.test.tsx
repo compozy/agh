@@ -24,7 +24,7 @@ describe("MessageComposer", () => {
 
   it("renders circular send button with accent background", () => {
     render(<MessageComposer onSend={vi.fn()} />);
-    const sendButton = screen.getByTestId("composer-send-button");
+    const sendButton = screen.getByRole("button", { name: "Send message" });
     expect(sendButton.className).toContain("rounded-full");
     expect(sendButton.className).toMatch(/bg-\[color:var\(--color-accent\)\]/);
     expect(sendButton.className).toContain("text-white");

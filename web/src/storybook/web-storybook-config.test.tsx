@@ -20,6 +20,7 @@ const {
   routerDecorator,
   storybookDecorators,
   storybookLoaders,
+  storybookSystemHandlers,
   themeDecorator,
 } = webPreviewModule;
 const webPreview = webPreviewModule.default;
@@ -60,6 +61,8 @@ describe("web Storybook config", () => {
     expect(webPreview.loaders).toEqual(storybookLoaders);
     expect(storybookLoaders).toEqual([mswLoader]);
     expect(webPreview.decorators).toEqual(storybookDecorators);
+    expect(webPreview.parameters?.msw?.handlers).toEqual(storybookSystemHandlers);
+    expect(storybookSystemHandlers.length).toBeGreaterThan(0);
     expect(storybookDecorators.filter(decorator => decorator === themeDecorator)).toHaveLength(1);
     expect(
       storybookDecorators.filter(decorator => decorator === queryClientDecorator)
@@ -88,6 +91,16 @@ describe("web Storybook config", () => {
 
     expect(router.state.location.pathname).toBe("/");
     expect(storybookDecorators).toContain(routerDecorator);
+  });
+
+  it("includes placeholder routes for linked app surfaces used by stories", async () => {
+    const router = createStorybookRouter();
+
+    await router.navigate({ to: "/session/$id", params: { id: "sess-storybook" } });
+    expect(router.state.location.pathname).toBe("/session/sess-storybook");
+
+    await router.navigate({ to: "/automation" });
+    expect(router.state.location.pathname).toBe("/automation");
   });
 
   it("renders stories through the router decorator stub", async () => {
