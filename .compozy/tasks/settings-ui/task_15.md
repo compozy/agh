@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Settings QA plan and regression artifacts
 type: docs
 complexity: high
@@ -41,11 +41,11 @@ All 10 Settings Paper artboards are in scope for this task. Use the local export
 
 ## Subtasks
 
-- [ ] 15.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/settings-ui`
-- [ ] 15.2 Write the feature-level settings test plan with scope, risks, environments, and entry/exit criteria
-- [ ] 15.3 Generate route-by-route manual test cases with explicit expected results and edge cases
-- [ ] 15.4 Build the regression suite definitions and identify the P0/P1 flows that `/qa-execution` must run first
-- [ ] 15.5 Validate artifact completeness, traceability, and handoff readiness for `task_16`
+- [x] 15.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/settings-ui`
+- [x] 15.2 Write the feature-level settings test plan with scope, risks, environments, and entry/exit criteria
+- [x] 15.3 Generate route-by-route manual test cases with explicit expected results and edge cases
+- [x] 15.4 Build the regression suite definitions and identify the P0/P1 flows that `/qa-execution` must run first
+- [x] 15.5 Validate artifact completeness, traceability, and handoff readiness for `task_16`
 
 ## Implementation Details
 
@@ -88,16 +88,16 @@ See TechSpec sections "Testing Approach", "Web route coverage", "Known Risks", a
 ## Tests
 
 - Unit tests:
-  - [ ] `settings-ui-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, and risk assessment
-  - [ ] Manual test cases exist for every settings route and include setup, explicit steps, expected results, and cleanup notes where needed
-  - [ ] Regression suite documents identify smoke, targeted, and full coverage lanes plus the execution order for P0/P1 flows
-  - [ ] Route-to-task traceability maps cases back to the relevant settings routes or task files clearly
-  - [ ] All generated artifacts land under `.compozy/tasks/settings-ui/qa/` with stable names and no missing referenced files
+  - [x] `settings-ui-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, and risk assessment
+  - [x] Manual test cases exist for every settings route and include setup, explicit steps, expected results, and cleanup notes where needed
+  - [x] Regression suite documents identify smoke, targeted, and full coverage lanes plus the execution order for P0/P1 flows
+  - [x] Route-to-task traceability maps cases back to the relevant settings routes or task files clearly
+  - [x] All generated artifacts land under `.compozy/tasks/settings-ui/qa/` with stable names and no missing referenced files
 - Integration tests:
-  - [ ] Restart, restart-status, workspace-scope, collection CRUD, and operator-action flows are represented coherently across plan, cases, and regression docs
-  - [ ] Manual cases and regression suites align on priorities, environment prerequisites, and expected test data setup
-  - [ ] Generated artifacts can be consumed directly by `/qa-execution` without manual reformatting or missing dependencies
-  - [ ] Any bug report or open-risk note created during planning references the originating test case or design discrepancy clearly
+  - [x] Restart, restart-status, workspace-scope, collection CRUD, and operator-action flows are represented coherently across plan, cases, and regression docs
+  - [x] Manual cases and regression suites align on priorities, environment prerequisites, and expected test data setup
+  - [x] Generated artifacts can be consumed directly by `/qa-execution` without manual reformatting or missing dependencies
+  - [x] Any bug report or open-risk note created during planning references the originating test case or design discrepancy clearly
 
 ## Success Criteria
 
