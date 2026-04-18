@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Dashboard and inbox routes
 type: frontend
 complexity: high
@@ -31,10 +31,10 @@ Implement the aggregate operator views for Tasks: dashboard and inbox. This task
 </requirements>
 
 ## Subtasks
-- [ ] 16.1 Extend the tasks page orchestration for dashboard and inbox modes
-- [ ] 16.2 Implement dashboard cards, summaries, queue/health sections, and recent activity panels
-- [ ] 16.3 Implement inbox lanes, task cards, and approval/triage actions
-- [ ] 16.4 Add route and component tests for aggregate loading, action, and empty-state behavior
+- [x] 16.1 Extend the tasks page orchestration for dashboard and inbox modes
+- [x] 16.2 Implement dashboard cards, summaries, queue/health sections, and recent activity panels
+- [x] 16.3 Implement inbox lanes, task cards, and approval/triage actions
+- [x] 16.4 Add route and component tests for aggregate loading, action, and empty-state behavior
 
 ## Implementation Details
 

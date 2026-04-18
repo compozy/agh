@@ -3,14 +3,16 @@ import { Plus } from "lucide-react";
 
 import { PillButton } from "@/components/design-system";
 import { Button } from "@agh/ui";
-import { useTask } from "@/systems/tasks";
 import {
   TasksCreateModal,
+  TasksDashboardView,
   TasksDetailPreviewPanel,
   TasksEmptyState,
+  TasksInboxView,
   TasksKanbanBoard,
   TasksListPanel,
   TasksPageShell,
+  useTask,
 } from "@/systems/tasks";
 import { useTasksPage } from "@/hooks/routes/use-tasks-page";
 
@@ -23,8 +25,10 @@ function TasksRoute() {
   const hasChildMatch = childMatches.length > 0;
   const page = useTasksPage();
 
+  const showDetailPreview = page.mode === "list" && !hasChildMatch;
+
   const detailQuery = useTask(page.effectiveSelectedTaskId ?? "", {
-    enabled: !hasChildMatch && page.mode === "list" && Boolean(page.effectiveSelectedTaskId),
+    enabled: showDetailPreview && Boolean(page.effectiveSelectedTaskId),
   });
 
   if (hasChildMatch) {
@@ -34,6 +38,14 @@ function TasksRoute() {
       </TasksPageShell>
     );
   }
+
+  const showCreateButton = page.mode !== "inbox";
+  const shellCount =
+    page.mode === "inbox"
+      ? (page.inbox?.total ?? 0)
+      : page.mode === "dashboard"
+        ? (page.dashboard?.totals.tasks_total ?? page.tasksCount)
+        : page.tasksCount;
 
   return (
     <>
@@ -54,26 +66,74 @@ function TasksRoute() {
             >
               Kanban
             </PillButton>
+            <PillButton
+              active={page.mode === "dashboard"}
+              data-testid="tasks-mode-dashboard"
+              onClick={() => page.handleModeChange("dashboard")}
+            >
+              Dashboard
+            </PillButton>
+            <PillButton
+              active={page.mode === "inbox"}
+              data-testid="tasks-mode-inbox"
+              onClick={() => page.handleModeChange("inbox")}
+            >
+              Inbox
+              {page.inbox && page.inbox.unread_total > 0 ? (
+                <span
+                  className="ml-1.5 inline-flex size-4 items-center justify-center rounded-full bg-[color:var(--color-warning)] text-[0.58rem] font-semibold text-[color:var(--color-accent-ink)]"
+                  data-testid="tasks-mode-inbox-unread"
+                >
+                  {page.inbox.unread_total}
+                </span>
+              ) : null}
+            </PillButton>
           </div>
         }
-        count={page.tasksCount}
+        count={shellCount}
         meta={
           <div className="flex items-center gap-1.5">
-            <Button
-              className="border-[color:var(--color-accent)] bg-transparent text-[color:var(--color-accent)] hover:bg-[color:var(--color-accent-tint)] hover:text-[color:var(--color-accent)]"
-              data-testid="tasks-open-create"
-              onClick={() => page.handleOpenCreateModal()}
-              size="lg"
-              type="button"
-              variant="outline"
-            >
-              <Plus className="size-4" />
-              Task
-            </Button>
+            {showCreateButton ? (
+              <Button
+                className="border-[color:var(--color-accent)] bg-transparent text-[color:var(--color-accent)] hover:bg-[color:var(--color-accent-tint)] hover:text-[color:var(--color-accent)]"
+                data-testid="tasks-open-create"
+                onClick={() => page.handleOpenCreateModal()}
+                size="lg"
+                type="button"
+                variant="outline"
+              >
+                <Plus className="size-4" />
+                Task
+              </Button>
+            ) : null}
           </div>
         }
       >
-        {page.isEmpty ? (
+        {page.mode === "dashboard" ? (
+          <TasksDashboardView
+            dashboard={page.dashboard}
+            errorMessage={page.dashboardError?.message ?? null}
+            isLoading={page.dashboardLoading}
+          />
+        ) : page.mode === "inbox" ? (
+          <TasksInboxView
+            errorMessage={page.inboxError?.message ?? null}
+            inbox={page.inbox}
+            isLoading={page.inboxLoading}
+            laneFilter={page.inboxLaneFilter}
+            onApprove={page.handleApproveTask}
+            onArchive={page.handleArchiveTask}
+            onDismiss={page.handleDismissTask}
+            onLaneChange={page.handleInboxLaneChange}
+            onMarkRead={page.handleMarkTaskRead}
+            onReject={page.handleRejectTask}
+            onRetry={page.handleRetryTask}
+            onSearchChange={page.setInboxSearchQuery}
+            onToggleUnread={page.handleInboxUnreadToggle}
+            searchQuery={page.inboxSearchQuery}
+            unreadOnly={page.inboxUnreadOnly}
+          />
+        ) : page.isEmpty ? (
           <TasksEmptyState
             onSelectTemplate={page.handleOpenCreateModal}
             workspaceName={page.activeWorkspaceName}

@@ -4,6 +4,8 @@ import type { TaskListItem } from "../types";
 import {
   countTasksByStatus,
   formatAttemptLabel,
+  formatDurationMs,
+  formatPercent,
   formatRelativeTime,
   matchesTaskQuery,
   taskApprovalStateLabel,
@@ -142,6 +144,23 @@ describe("task predicates and counts", () => {
     expect(formatAttemptLabel(2, 3)).toBe("attempt 2 of 3");
     expect(formatAttemptLabel(1)).toBe("attempt 1");
     expect(formatAttemptLabel(null)).toBeNull();
+  });
+
+  it("formats durations and percentages for dashboard metrics", () => {
+    expect(formatDurationMs(0)).toBe("0ms");
+    expect(formatDurationMs(450)).toBe("450ms");
+    expect(formatDurationMs(12_000)).toBe("12s");
+    expect(formatDurationMs(167_000)).toBe("2m 47s");
+    expect(formatDurationMs(3_600_000)).toBe("1h");
+    expect(formatDurationMs(3_900_000)).toBe("1h 5m");
+    expect(formatDurationMs(null)).toBe("—");
+    expect(formatDurationMs(-10)).toBe("—");
+
+    expect(formatPercent(43)).toBe("43%");
+    expect(formatPercent(100)).toBe("100%");
+    expect(formatPercent(120)).toBe("100%");
+    expect(formatPercent(-5)).toBe("0%");
+    expect(formatPercent(null)).toBe("—");
   });
 
   it("counts tasks by status", () => {

@@ -95,6 +95,8 @@ export type { TaskSemanticTone } from "./lib/task-formatters";
 export {
   countTasksByStatus,
   formatAttemptLabel,
+  formatDurationMs,
+  formatPercent,
   formatRelativeTime,
   matchesTaskQuery,
   taskApprovalStateLabel,
@@ -204,3 +206,22 @@ export type {
 } from "./components/task-run-detail-panels";
 export { TaskRunDetailSessionLink } from "./components/task-run-detail-session-link";
 export type { TaskRunDetailSessionLinkProps } from "./components/task-run-detail-session-link";
+
+// Dashboard + Inbox aggregate components
+export { TasksDashboardCards } from "./components/tasks-dashboard-cards";
+export type { TasksDashboardCardsProps } from "./components/tasks-dashboard-cards";
+export { TasksDashboardStatusBreakdown } from "./components/tasks-dashboard-status-breakdown";
+export type { TasksDashboardStatusBreakdownProps } from "./components/tasks-dashboard-status-breakdown";
+export { TasksDashboardQueueHealth } from "./components/tasks-dashboard-queue-health";
+export type { TasksDashboardQueueHealthProps } from "./components/tasks-dashboard-queue-health";
+export { TasksDashboardActiveRuns } from "./components/tasks-dashboard-active-runs";
+export type { TasksDashboardActiveRunsProps } from "./components/tasks-dashboard-active-runs";
+export { TasksDashboardView } from "./components/tasks-dashboard-view";
+export type { TasksDashboardViewProps } from "./components/tasks-dashboard-view";
+
+export { TasksInboxLaneTabs } from "./components/tasks-inbox-lane-tabs";
+export type { TasksInboxLaneTabsProps } from "./components/tasks-inbox-lane-tabs";
+export { TasksInboxItem } from "./components/tasks-inbox-item";
+export type { TasksInboxItemProps } from "./components/tasks-inbox-item";
+export { TasksInboxView } from "./components/tasks-inbox-view";
+export type { TasksInboxViewProps } from "./components/tasks-inbox-view";

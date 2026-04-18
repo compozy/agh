@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,34 +17,44 @@ vi.mock("@tanstack/react-router", () => ({
   useChildMatches: () => childMatches,
 }));
 
+const listTasksMock = vi.fn();
+const getTaskDashboardMock = vi.fn();
+const getTaskInboxMock = vi.fn();
+const approveTaskMock = vi.fn();
+const rejectTaskMock = vi.fn();
+const archiveTaskMock = vi.fn();
+const markTaskReadMock = vi.fn();
+const dismissTaskMock = vi.fn();
+const enqueueTaskRunMock = vi.fn();
+
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
-  listTasks: vi.fn().mockResolvedValue([]),
+  listTasks: (...args: unknown[]) => listTasksMock(...args),
   getTask: vi.fn().mockResolvedValue({}),
   listTaskRuns: vi.fn().mockResolvedValue([]),
   getTaskTimeline: vi.fn().mockResolvedValue([]),
   getTaskTree: vi.fn().mockResolvedValue({}),
   getTaskRun: vi.fn().mockResolvedValue({}),
-  getTaskDashboard: vi.fn().mockResolvedValue({}),
-  getTaskInbox: vi.fn().mockResolvedValue({}),
+  getTaskDashboard: (...args: unknown[]) => getTaskDashboardMock(...args),
+  getTaskInbox: (...args: unknown[]) => getTaskInboxMock(...args),
   createTask: vi.fn(),
   updateTask: vi.fn(),
   publishTask: vi.fn(),
   cancelTask: vi.fn(),
-  approveTask: vi.fn(),
-  rejectTask: vi.fn(),
+  approveTask: (...args: unknown[]) => approveTaskMock(...args),
+  rejectTask: (...args: unknown[]) => rejectTaskMock(...args),
   createChildTask: vi.fn(),
   addTaskDependency: vi.fn(),
   removeTaskDependency: vi.fn(),
-  enqueueTaskRun: vi.fn(),
+  enqueueTaskRun: (...args: unknown[]) => enqueueTaskRunMock(...args),
   attachTaskRunSession: vi.fn(),
   cancelTaskRun: vi.fn(),
   claimTaskRun: vi.fn(),
   startTaskRun: vi.fn(),
   completeTaskRun: vi.fn(),
   failTaskRun: vi.fn(),
-  markTaskRead: vi.fn(),
-  archiveTask: vi.fn(),
-  dismissTask: vi.fn(),
+  markTaskRead: (...args: unknown[]) => markTaskReadMock(...args),
+  archiveTask: (...args: unknown[]) => archiveTaskMock(...args),
+  dismissTask: (...args: unknown[]) => dismissTaskMock(...args),
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -54,13 +64,24 @@ vi.mock("@/systems/workspace", () => ({
   }),
 }));
 
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
 import { Route } from "./tasks";
+import {
+  buildDashboardFixture,
+  buildInboxFixture,
+  buildInboxItemFixture,
+} from "@/systems/tasks/components/test-fixtures";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const TasksRoute = (Route as any).component as () => ReactNode;
 
 function renderTasksRoute() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
     <QueryClientProvider client={client}>
       <TasksRoute />
@@ -71,6 +92,53 @@ function renderTasksRoute() {
 describe("TasksRoute", () => {
   beforeEach(() => {
     childMatches = [];
+    listTasksMock.mockReset();
+    listTasksMock.mockResolvedValue([]);
+    getTaskDashboardMock.mockReset();
+    getTaskDashboardMock.mockResolvedValue(buildDashboardFixture());
+    getTaskInboxMock.mockReset();
+    getTaskInboxMock.mockResolvedValue(
+      buildInboxFixture({
+        total: 1,
+        unread_total: 1,
+        groups: [
+          {
+            lane: "approvals",
+            count: 1,
+            unread_count: 1,
+            items: [
+              buildInboxItemFixture({
+                lane: "approvals",
+                approval_policy: "manual",
+                approval_state: "pending",
+                task: {
+                  id: "task_apr",
+                  identifier: "TASK-33",
+                  scope: "workspace",
+                  status: "pending",
+                  title: "Rotate keys",
+                },
+                triage: {
+                  actor: { kind: "human", ref: "op" },
+                  archived: false,
+                  dismissed: false,
+                  read: false,
+                  task_id: "task_apr",
+                  updated_at: "2026-04-17T10:00:00Z",
+                },
+              }),
+            ],
+          },
+        ],
+      })
+    );
+    approveTaskMock.mockReset();
+    approveTaskMock.mockResolvedValue({ id: "task_apr" });
+    rejectTaskMock.mockReset();
+    archiveTaskMock.mockReset();
+    markTaskReadMock.mockReset();
+    dismissTaskMock.mockReset();
+    enqueueTaskRunMock.mockReset();
   });
 
   it("renders the shared tasks shell with the Tasks title", () => {
@@ -85,6 +153,8 @@ describe("TasksRoute", () => {
     expect(screen.getByTestId("tasks-mode-pills")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-mode-list")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-mode-kanban")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-mode-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-mode-inbox")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-open-create")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("tasks-empty-state")).toBeInTheDocument());
     expect(screen.getByTestId("tasks-empty-template-one_shot")).toBeInTheDocument();
@@ -96,5 +166,54 @@ describe("TasksRoute", () => {
     expect(screen.getByTestId("tasks-outlet")).toBeInTheDocument();
     expect(screen.queryByTestId("tasks-empty-state")).not.toBeInTheDocument();
     expect(screen.queryByTestId("tasks-mode-pills")).not.toBeInTheDocument();
+  });
+
+  it("switches to the dashboard view and renders the cards + queue/health sections", async () => {
+    renderTasksRoute();
+
+    fireEvent.click(screen.getByTestId("tasks-mode-dashboard"));
+
+    await waitFor(() => {
+      expect(getTaskDashboardMock).toHaveBeenCalled();
+    });
+
+    expect(await screen.findByTestId("tasks-dashboard-view")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-dashboard-cards")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-dashboard-queue-health")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-list-panel")).not.toBeInTheDocument();
+  });
+
+  it("switches to the inbox view, renders the approvals lane, and triggers approve action", async () => {
+    renderTasksRoute();
+
+    fireEvent.click(screen.getByTestId("tasks-mode-inbox"));
+
+    await waitFor(() => expect(getTaskInboxMock).toHaveBeenCalled());
+
+    expect(await screen.findByTestId("tasks-inbox-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-open-create")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-mode-inbox-unread")).toHaveTextContent("1");
+    expect(screen.getByTestId("tasks-inbox-group-approvals")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tasks-inbox-item-approve-task_apr"));
+    await waitFor(() => {
+      expect(approveTaskMock).toHaveBeenCalledWith("task_apr");
+    });
+  });
+
+  it("changes lane filter and re-queries the inbox endpoint", async () => {
+    renderTasksRoute();
+
+    fireEvent.click(screen.getByTestId("tasks-mode-inbox"));
+    await waitFor(() => expect(getTaskInboxMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("tasks-inbox-lane-approvals"));
+
+    await waitFor(() => {
+      expect(getTaskInboxMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ lane: "approvals" }),
+        expect.any(AbortSignal)
+      );
+    });
   });
 });

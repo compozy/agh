@@ -227,6 +227,40 @@ export function formatRelativeTime(value?: string | null, now: Date = new Date()
   return `${days}d`;
 }
 
+export function formatDurationMs(ms?: number | null): string {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) {
+    return "—";
+  }
+
+  if (ms < SECOND) {
+    return `${Math.round(ms)}ms`;
+  }
+
+  if (ms < MINUTE) {
+    const seconds = Math.round(ms / SECOND);
+    return `${seconds}s`;
+  }
+
+  if (ms < HOUR) {
+    const minutes = Math.floor(ms / MINUTE);
+    const seconds = Math.floor((ms % MINUTE) / SECOND);
+    return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+  }
+
+  const hours = Math.floor(ms / HOUR);
+  const minutes = Math.floor((ms % HOUR) / MINUTE);
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+}
+
+export function formatPercent(value?: number | null): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "—";
+  }
+
+  const rounded = Math.max(0, Math.min(100, Math.round(value)));
+  return `${rounded}%`;
+}
+
 export function formatAttemptLabel(current?: number | null, total?: number | null): string | null {
   if (typeof current !== "number") {
     return null;

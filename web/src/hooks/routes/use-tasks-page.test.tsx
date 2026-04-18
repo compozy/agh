@@ -48,19 +48,24 @@ vi.mock("@/systems/workspace", () => ({
 }));
 
 import {
+  approveTask,
+  archiveTask,
   createTask,
+  dismissTask,
   enqueueTaskRun,
   getTaskDashboard,
   getTaskInbox,
   listTasks,
+  markTaskRead,
   publishTask,
+  rejectTask,
 } from "@/systems/tasks/adapters/tasks-api";
 
 import { useTasksPage } from "./use-tasks-page";
 
 function createWrapper() {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
 
   return ({ children }: { children: ReactNode }) =>
@@ -101,6 +106,11 @@ beforeEach(() => {
   vi.mocked(createTask).mockResolvedValue({ id: "task_999", title: "Generated" } as never);
   vi.mocked(publishTask).mockResolvedValue({ id: "task_003", title: "Draft" } as never);
   vi.mocked(enqueueTaskRun).mockResolvedValue({ id: "run_001" } as never);
+  vi.mocked(approveTask).mockResolvedValue({ id: "task_001" } as never);
+  vi.mocked(rejectTask).mockResolvedValue({ id: "task_001" } as never);
+  vi.mocked(markTaskRead).mockResolvedValue({ task_id: "task_001", read: true } as never);
+  vi.mocked(archiveTask).mockResolvedValue({ task_id: "task_001", archived: true } as never);
+  vi.mocked(dismissTask).mockResolvedValue({ task_id: "task_001", dismissed: true } as never);
 });
 
 afterEach(() => {
@@ -155,6 +165,54 @@ describe("useTasksPage", () => {
     });
 
     expect(result.current.mode).toBe("inbox");
+  });
+
+  it("maps inbox lane, unread and search state into the inbox query", async () => {
+    const { result } = renderHook(() => useTasksPage({ initialMode: "inbox" }), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(getTaskInbox).toHaveBeenCalled();
+    });
+
+    act(() => {
+      result.current.handleInboxLaneChange("approvals");
+      result.current.handleInboxUnreadToggle(true);
+      result.current.setInboxSearchQuery("rotate");
+    });
+
+    await waitFor(() => {
+      expect(getTaskInbox).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          lane: "approvals",
+          unread: true,
+          query: "rotate",
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it("maps scope and workspace into the dashboard query", async () => {
+    const { result } = renderHook(() => useTasksPage({ initialMode: "dashboard" }), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(getTaskDashboard).toHaveBeenCalled();
+    });
+
+    act(() => {
+      result.current.handleScopeChange("workspace");
+    });
+
+    await waitFor(() => {
+      expect(getTaskDashboard).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: "workspace", workspace: "ws_alpha" }),
+        expect.any(AbortSignal)
+      );
+    });
   });
 
   it("updates scope and search params without losing active workspace id", async () => {
@@ -277,5 +335,25 @@ describe("useTasksPage", () => {
     });
 
     expect(publishTask).toHaveBeenCalledWith("task_003");
+  });
+
+  it("delegates approve, reject, archive, dismiss, mark-read and retry triage actions", async () => {
+    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+
+    await act(async () => {
+      await result.current.handleApproveTask("task_001");
+      await result.current.handleRejectTask("task_001");
+      await result.current.handleArchiveTask("task_001");
+      await result.current.handleDismissTask("task_001");
+      await result.current.handleMarkTaskRead("task_001");
+      await result.current.handleRetryTask("task_001");
+    });
+
+    expect(approveTask).toHaveBeenCalledWith("task_001");
+    expect(rejectTask).toHaveBeenCalledWith("task_001");
+    expect(archiveTask).toHaveBeenCalledWith("task_001");
+    expect(dismissTask).toHaveBeenCalledWith("task_001");
+    expect(markTaskRead).toHaveBeenCalledWith("task_001");
+    expect(enqueueTaskRun).toHaveBeenCalledWith("task_001", {});
   });
 });
