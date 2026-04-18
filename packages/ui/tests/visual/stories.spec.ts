@@ -5,7 +5,11 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { STORYBOOK_URL } from "../../playwright.config";
-import { assertStorybookIndex, collectVisualTargets, type StorybookIndex } from "./story-index";
+import {
+  assertStorybookIndex,
+  collectVisualTargets,
+  type StorybookIndex,
+} from "../../src/testing/visual-story-index";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const indexPath = path.join(rootDir, ".tmp", "storybook-static", "index.json");

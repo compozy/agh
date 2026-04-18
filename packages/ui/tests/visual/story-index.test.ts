@@ -5,7 +5,7 @@ import {
   collectVisualTargets,
   StorybookIndexError,
   type StorybookIndex,
-} from "./story-index";
+} from "../../src/testing/visual-story-index";
 
 const fixture: StorybookIndex = {
   v: 5,
