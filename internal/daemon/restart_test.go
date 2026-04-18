@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -1292,9 +1293,16 @@ func TestRunRelaunchHelperWrapperUsesDefaultLauncherAndPersistsFailure(t *testin
 		t.Fatalf("Transition(stopping) error = %v", err)
 	}
 
-	scriptPath := filepath.Join(t.TempDir(), "agh-helper.sh")
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "agh-helper.sh")
 	script := "#!/bin/sh\nexit 0\n"
-	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+	mode := os.FileMode(0o755)
+	if runtime.GOOS == "windows" {
+		scriptPath = filepath.Join(dir, "agh-helper.cmd")
+		script = "@echo off\r\nexit /b 0\r\n"
+		mode = 0o600
+	}
+	if err := os.WriteFile(scriptPath, []byte(script), mode); err != nil {
 		t.Fatalf("os.WriteFile(script) error = %v", err)
 	}
 
