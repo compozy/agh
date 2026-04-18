@@ -25,7 +25,6 @@ const meta: Meta<typeof SectionHeading> = {
       </StoryFrame>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

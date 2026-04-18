@@ -34,6 +34,11 @@ func freshnessWarning(modTime time.Time, now time.Time) string {
 	return fmt.Sprintf("This memory is %d days old. Verify against current state before asserting as fact.", age)
 }
 
+// FreshnessWarning reports whether a memory should be treated as stale.
+func FreshnessWarning(modTime time.Time, now time.Time) string {
+	return freshnessWarning(modTime, now)
+}
+
 func calendarDayNumber(value time.Time) int {
 	year, month, day := value.Date()
 	return int(time.Date(year, month, day, 12, 0, 0, 0, time.UTC).Unix() / int64(24*time.Hour/time.Second))

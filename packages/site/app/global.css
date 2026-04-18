@@ -182,19 +182,13 @@ a {
   color: var(--color-text-primary);
 }
 
-.site-doc-body code {
+.site-doc-body :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
   border: 1px solid var(--color-divider);
   border-radius: 0.55rem;
   background: rgba(44, 44, 46, 0.78);
   padding-inline: 0.38rem;
   padding-block: 0.12rem;
   color: var(--color-text-primary);
-}
-
-.site-doc-body pre {
-  border: 1px solid var(--color-divider);
-  border-radius: 1rem;
-  background: var(--color-surface) !important;
 }
 
 .site-doc-body hr {

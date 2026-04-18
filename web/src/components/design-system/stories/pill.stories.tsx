@@ -23,7 +23,6 @@ const meta: Meta<typeof Pill> = {
       </StoryFrame>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

@@ -3,8 +3,6 @@ title: Workspace Resolver
 description: How AGH registers workspace roots, resolves the active workspace, and discovers project-local runtime resources.
 ---
 
-# Workspace Resolver
-
 A workspace is a registered project root. AGH stores the registration in the global database, but
 the filesystem remains the source of truth. Each session starts by resolving a workspace snapshot:
 the canonical root directory, optional additional roots, effective configuration, visible agents,

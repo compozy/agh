@@ -861,6 +861,68 @@ func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 	}
 }
 
+func TestPromptAugmenterPreservesStoredUserMessageAndAugmentsDriverDispatch(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptInputAugmenter(func(
+		_ context.Context,
+		_ *Session,
+		message string,
+	) (string, error) {
+		return "MEMORY RECALL\n\n" + message, nil
+	}))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "remember me")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	_ = collectEvents(t, eventsCh)
+
+	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if len(stored) == 0 {
+		t.Fatal("stored events = 0, want at least one event")
+	}
+	if got := h.driver.promptCalls[0].Message; got != "MEMORY RECALL\n\nremember me" {
+		t.Fatalf("driver prompt message = %q, want augmented content", got)
+	}
+	if !strings.Contains(stored[0].Content, `"text":"remember me"`) {
+		t.Fatalf("stored user_message content = %s, want original message", stored[0].Content)
+	}
+	if strings.Contains(stored[0].Content, "MEMORY RECALL") {
+		t.Fatalf("stored user_message content = %s, want no augmentation block", stored[0].Content)
+	}
+}
+
+func TestPromptAugmenterPropagatesCancellationAndSkipsDriverDispatch(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptInputAugmenter(func(
+		_ context.Context,
+		_ *Session,
+		_ string,
+	) (string, error) {
+		return "", context.Canceled
+	}))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "remember me"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Prompt() error = %v, want context.Canceled", err)
+	}
+	if got := len(h.driver.promptCalls); got != 0 {
+		t.Fatalf("len(driver.promptCalls) = %d, want 0 after canceled augmentation", got)
+	}
+}
+
 func TestPromptWithOptsTracksTurnSourceAndClearsAfterPrompt(t *testing.T) {
 	t.Parallel()
 

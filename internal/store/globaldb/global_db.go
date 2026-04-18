@@ -59,6 +59,15 @@ var globalSchemaStatements = append([]string{
 	`CREATE INDEX IF NOT EXISTS idx_summaries_session ON event_summaries(session_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_summaries_type ON event_summaries(type);`,
 	`CREATE INDEX IF NOT EXISTS idx_summaries_timestamp ON event_summaries(timestamp);`,
+	`CREATE TABLE IF NOT EXISTS memory_operation_log (
+		id         TEXT PRIMARY KEY,
+		type       TEXT NOT NULL,
+		agent_name TEXT NOT NULL DEFAULT 'daemon',
+		summary    TEXT NOT NULL DEFAULT '',
+		timestamp  TEXT NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_type ON memory_operation_log(type);`,
+	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_timestamp ON memory_operation_log(timestamp);`,
 	`CREATE TABLE IF NOT EXISTS token_stats (
 		id            TEXT PRIMARY KEY,
 		session_id    TEXT NOT NULL REFERENCES sessions(id),

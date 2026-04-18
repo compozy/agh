@@ -66,6 +66,7 @@ type Manager struct {
 	notifier         Notifier
 	networkPeers     NetworkPeerLifecycle
 	turnEndNotifier  TurnEndNotifier
+	inputAugmenter   PromptInputAugmenter
 	hooks            HookSet
 	environment      *environment.Registry
 	agentResolver    AgentResolver
@@ -173,6 +174,13 @@ func WithHomePaths(homePaths aghconfig.HomePaths) Option {
 func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
 	return func(manager *Manager) {
 		manager.workspace = resolver
+	}
+}
+
+// WithPromptInputAugmenter injects a bounded pre-dispatch message augmenter.
+func WithPromptInputAugmenter(augmenter PromptInputAugmenter) Option {
+	return func(manager *Manager) {
+		manager.inputAugmenter = augmenter
 	}
 }
 

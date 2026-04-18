@@ -822,10 +822,23 @@ func (h *RuntimeHarness) CaptureBrowserNetworkJSON(value any) error {
 
 // Run executes one CLI command against the isolated daemon runtime.
 func (c *CLIClient) Run(ctx context.Context, args ...string) (string, string, error) {
+	return c.RunInDir(ctx, "", args...)
+}
+
+// RunInDir executes one CLI command against the isolated daemon runtime using the provided working directory.
+func (c *CLIClient) RunInDir(ctx context.Context, workdir string, args ...string) (string, string, error) {
 	// #nosec G204 -- test helper intentionally shells out to the current agh test binary.
 	cmd := execabs.CommandContext(ctx, c.binaryPath, args...)
 	cmd.Env = append([]string(nil), c.env...)
-	cmd.Dir = c.workdir
+	trimmedDir := strings.TrimSpace(workdir)
+	switch {
+	case trimmedDir == "":
+		cmd.Dir = c.workdir
+	case filepath.IsAbs(trimmedDir):
+		cmd.Dir = trimmedDir
+	default:
+		cmd.Dir = filepath.Join(c.workdir, trimmedDir)
+	}
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -838,7 +851,12 @@ func (c *CLIClient) Run(ctx context.Context, args ...string) (string, string, er
 
 // RunJSON executes one CLI command and decodes its JSON stdout.
 func (c *CLIClient) RunJSON(ctx context.Context, dest any, args ...string) error {
-	stdout, stderr, err := c.Run(ctx, args...)
+	return c.RunJSONInDir(ctx, "", dest, args...)
+}
+
+// RunJSONInDir executes one CLI command in the provided working directory and decodes its JSON stdout.
+func (c *CLIClient) RunJSONInDir(ctx context.Context, workdir string, dest any, args ...string) error {
+	stdout, stderr, err := c.RunInDir(ctx, workdir, args...)
 	if err != nil {
 		return fmt.Errorf("run CLI %q: %w; stderr=%s", strings.Join(args, " "), err, strings.TrimSpace(stderr))
 	}

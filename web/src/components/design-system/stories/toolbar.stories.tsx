@@ -24,7 +24,6 @@ const meta: Meta<typeof Toolbar> = {
       </StoryFrame>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

@@ -258,6 +258,7 @@ type SessionManagerDeps struct {
 	Notifier            session.Notifier
 	Hooks               session.HookSet
 	PromptAssembler     session.PromptAssembler
+	MemoryStore         *memory.Store
 	AgentResolver       session.AgentResolver
 	SkillRegistry       session.SkillRegistry
 	MCPResolver         session.MCPResolver
@@ -499,6 +500,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithNotifier(deps.Notifier),
 			session.WithHookSet(deps.Hooks),
 			session.WithPromptAssembler(deps.PromptAssembler),
+			session.WithPromptInputAugmenter(memory.NewRecallAugmenter(deps.MemoryStore)),
 			session.WithAgentResolver(deps.AgentResolver),
 			session.WithSkillRegistry(deps.SkillRegistry),
 			session.WithMCPResolver(deps.MCPResolver),

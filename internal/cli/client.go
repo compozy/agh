@@ -83,6 +83,7 @@ type DaemonClient interface {
 	StreamObserveEvents(ctx context.Context, query ObserveEventQuery, lastEventID string, handler SSEHandler) error
 	ObserveHealth(ctx context.Context) (HealthStatus, error)
 	ListMemory(ctx context.Context, scope memory.Scope, workspace string) ([]MemoryHeaderRecord, error)
+	SearchMemory(ctx context.Context, query string, opts MemorySearchQuery) ([]MemorySearchRecord, error)
 	ReadMemory(ctx context.Context, filename string, scope memory.Scope, workspace string) (MemoryReadRecord, error)
 	WriteMemory(ctx context.Context, filename string, request MemoryWriteRequest) (MemoryMutationRecord, error)
 	DeleteMemory(
@@ -91,6 +92,7 @@ type DaemonClient interface {
 		scope memory.Scope,
 		workspace string,
 	) (MemoryMutationRecord, error)
+	ReindexMemory(ctx context.Context, request MemoryReindexRequest) (MemoryReindexRecord, error)
 	ConsolidateMemory(ctx context.Context, workspace string) (MemoryConsolidateRecord, error)
 	ListAutomationJobs(ctx context.Context, query AutomationJobQuery) ([]JobRecord, error)
 	CreateAutomationJob(ctx context.Context, request AutomationJobCreateRequest) (JobRecord, error)
@@ -222,11 +224,27 @@ type MemoryHeaderRecord = memory.Header
 // MemoryReadRecord is the shared daemon memory document payload.
 type MemoryReadRecord = contract.MemoryReadResponse
 
+// MemorySearchQuery captures filters for durable memory search.
+type MemorySearchQuery struct {
+	Scope     memory.Scope
+	Workspace string
+	Limit     int
+}
+
+// MemorySearchRecord is one ranked durable memory search hit.
+type MemorySearchRecord = memory.SearchResult
+
 // MemoryWriteRequest captures the daemon API write payload.
 type MemoryWriteRequest = contract.MemoryWriteRequest
 
 // MemoryMutationRecord captures the daemon API write/delete response.
 type MemoryMutationRecord = contract.MemoryMutationResponse
+
+// MemoryReindexRequest captures the daemon API memory reindex payload.
+type MemoryReindexRequest = contract.MemoryReindexRequest
+
+// MemoryReindexRecord captures the daemon API memory reindex response.
+type MemoryReindexRecord = memory.ReindexResult
 
 // MemoryConsolidateRecord captures the daemon API consolidation response.
 type MemoryConsolidateRecord = contract.MemoryConsolidateResponse
@@ -948,6 +966,25 @@ func (c *unixSocketClient) ListMemory(
 	return response, nil
 }
 
+func (c *unixSocketClient) SearchMemory(
+	ctx context.Context,
+	query string,
+	opts MemorySearchQuery,
+) ([]MemorySearchRecord, error) {
+	var response []MemorySearchRecord
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/memory/search",
+		memorySearchValues(query, opts),
+		nil,
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) ReadMemory(
 	ctx context.Context,
 	filename string,
@@ -1003,6 +1040,24 @@ func (c *unixSocketClient) DeleteMemory(
 		&response,
 	); err != nil {
 		return MemoryMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ReindexMemory(
+	ctx context.Context,
+	request MemoryReindexRequest,
+) (MemoryReindexRecord, error) {
+	var response MemoryReindexRecord
+	if err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		"/api/memory/reindex",
+		nil,
+		request,
+		&response,
+	); err != nil {
+		return MemoryReindexRecord{}, err
 	}
 	return response, nil
 }
@@ -1706,6 +1761,17 @@ func memoryValues(scope memory.Scope, workspace string) url.Values {
 	}
 	if trimmed := strings.TrimSpace(workspace); trimmed != "" {
 		values.Set("workspace", trimmed)
+	}
+	return values
+}
+
+func memorySearchValues(query string, opts MemorySearchQuery) url.Values {
+	values := memoryValues(opts.Scope, opts.Workspace)
+	if trimmed := strings.TrimSpace(query); trimmed != "" {
+		values.Set("q", trimmed)
+	}
+	if opts.Limit > 0 {
+		values.Set("limit", strconv.Itoa(opts.Limit))
 	}
 	return values
 }

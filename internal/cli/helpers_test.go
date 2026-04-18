@@ -60,9 +60,11 @@ type stubClient struct {
 	streamObserveEventsFn     func(context.Context, ObserveEventQuery, string, SSEHandler) error
 	observeHealthFn           func(context.Context) (HealthStatus, error)
 	listMemoryFn              func(context.Context, memory.Scope, string) ([]MemoryHeaderRecord, error)
+	searchMemoryFn            func(context.Context, string, MemorySearchQuery) ([]MemorySearchRecord, error)
 	readMemoryFn              func(context.Context, string, memory.Scope, string) (MemoryReadRecord, error)
 	writeMemoryFn             func(context.Context, string, MemoryWriteRequest) (MemoryMutationRecord, error)
 	deleteMemoryFn            func(context.Context, string, memory.Scope, string) (MemoryMutationRecord, error)
+	reindexMemoryFn           func(context.Context, MemoryReindexRequest) (MemoryReindexRecord, error)
 	consolidateMemoryFn       func(context.Context, string) (MemoryConsolidateRecord, error)
 	listAutomationJobsFn      func(context.Context, AutomationJobQuery) ([]JobRecord, error)
 	createAutomationJobFn     func(context.Context, AutomationJobCreateRequest) (JobRecord, error)
@@ -472,6 +474,17 @@ func (s *stubClient) ListMemory(
 	return nil, errors.New("unexpected ListMemory call")
 }
 
+func (s *stubClient) SearchMemory(
+	ctx context.Context,
+	query string,
+	opts MemorySearchQuery,
+) ([]MemorySearchRecord, error) {
+	if s.searchMemoryFn != nil {
+		return s.searchMemoryFn(ctx, query, opts)
+	}
+	return nil, errors.New("unexpected SearchMemory call")
+}
+
 func (s *stubClient) ReadMemory(
 	ctx context.Context,
 	filename string,
@@ -505,6 +518,16 @@ func (s *stubClient) DeleteMemory(
 		return s.deleteMemoryFn(ctx, filename, scope, workspace)
 	}
 	return MemoryMutationRecord{}, errors.New("unexpected DeleteMemory call")
+}
+
+func (s *stubClient) ReindexMemory(
+	ctx context.Context,
+	request MemoryReindexRequest,
+) (MemoryReindexRecord, error) {
+	if s.reindexMemoryFn != nil {
+		return s.reindexMemoryFn(ctx, request)
+	}
+	return MemoryReindexRecord{}, errors.New("unexpected ReindexMemory call")
 }
 
 func (s *stubClient) ConsolidateMemory(

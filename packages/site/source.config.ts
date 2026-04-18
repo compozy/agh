@@ -8,4 +8,13 @@ export const protocol = defineDocs({
   dir: "content/protocol",
 });
 
-export default defineConfig();
+export default defineConfig({
+  mdxOptions: {
+    rehypeCodeOptions: {
+      themes: {
+        light: "vitesse-light",
+        dark: "vitesse-dark",
+      },
+    },
+  },
+});

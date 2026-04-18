@@ -3,8 +3,6 @@ title: Hook Declaration Format
 description: Reference for declaring AGH hooks, matchers, subprocess executors, ordering, and runtime execution behavior.
 ---
 
-# Hook Declaration Format
-
 A hook declaration binds one event to one executor. The matcher decides whether the hook is eligible;
 the executor receives the payload and writes a patch. AGH normalizes declarations from config files,
 agent definitions, skills, and extension manifests into one deterministic pipeline.
@@ -30,7 +28,7 @@ agent definitions, skills, and extension manifests into one deterministic pipeli
 | Field                                               | Required                  | Meaning                                                                                             |
 | --------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------- |
 | `name`                                              | yes                       | Stable hook name used in catalog and run history.                                                   |
-| `event`                                             | yes                       | One event from the [event catalog](/runtime/core/hooks/event-catalog).                                   |
+| `event`                                             | yes                       | One event from the [event catalog](/runtime/core/hooks/event-catalog).                              |
 | `mode`                                              | no                        | `async` by default; set `sync` only for sync-eligible events.                                       |
 | `required`                                          | no                        | If `true`, the hook must be `sync`; execution failure aborts the dispatch.                          |
 | `priority`                                          | no                        | Higher values run earlier inside the same source group.                                             |

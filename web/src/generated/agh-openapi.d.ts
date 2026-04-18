@@ -6931,10 +6931,21 @@ export interface operations {
               version: string;
             };
             memory: {
+              dream_agent?: string;
+              dream_check_interval?: string;
               dream_enabled: boolean;
+              /** Format: double */
+              dream_min_hours?: number;
+              dream_min_sessions?: number;
+              enabled: boolean;
+              global_dir?: string;
               global_files: number;
+              indexed_files: number;
               /** Format: date-time */
               last_consolidation: string | null;
+              /** Format: date-time */
+              last_reindex: string | null;
+              orphaned_files: number;
               workspace_files: number;
             };
           };

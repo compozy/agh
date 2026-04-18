@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,37 @@ func (h *BaseHandlers) ListMemory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, headers)
+}
+
+// SearchMemory returns ranked durable memory matches.
+func (h *BaseHandlers) SearchMemory(c *gin.Context) {
+	if h.MemoryStore == nil {
+		h.respondError(c, http.StatusInternalServerError, errors.New("memory store is not configured"))
+		return
+	}
+
+	scope, workspace, err := resolveMemoryScopeAndWorkspace(c.Query("scope"), c.Query("workspace"))
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+	limit, err := parseMemoryLimit(c.Query("limit"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	results, err := h.MemoryStore.Search(c.Request.Context(), c.Query("q"), memory.SearchOptions{
+		Scope:     scope,
+		Workspace: workspace,
+		Limit:     limit,
+	})
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, results)
 }
 
 // ReadMemory returns one memory document.
@@ -110,6 +142,50 @@ func (h *BaseHandlers) DeleteMemory(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.MemoryMutationResponse{OK: true})
 }
 
+// ReindexMemory rebuilds the derived memory catalog from Markdown memory files.
+func (h *BaseHandlers) ReindexMemory(c *gin.Context) {
+	if h.MemoryStore == nil {
+		h.respondError(c, http.StatusInternalServerError, errors.New("memory store is not configured"))
+		return
+	}
+
+	var req contract.MemoryReindexRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%s: decode memory reindex request: %w", h.transportName(), err),
+		)
+		return
+	}
+
+	scopeRaw := req.Scope
+	if strings.TrimSpace(scopeRaw) == "" {
+		scopeRaw = c.Query("scope")
+	}
+	workspaceRaw := req.Workspace
+	if strings.TrimSpace(workspaceRaw) == "" {
+		workspaceRaw = c.Query("workspace")
+	}
+
+	scope, workspace, err := resolveMemoryScopeAndWorkspace(scopeRaw, workspaceRaw)
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	result, err := h.MemoryStore.Reindex(c.Request.Context(), memory.ReindexOptions{
+		Scope:     scope,
+		Workspace: workspace,
+	})
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 // ConsolidateMemory triggers dream consolidation when enabled.
 func (h *BaseHandlers) ConsolidateMemory(c *gin.Context) {
 	var req contract.MemoryConsolidateRequest
@@ -143,7 +219,14 @@ func (h *BaseHandlers) ConsolidateMemory(c *gin.Context) {
 }
 
 func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayload, error) {
-	payload := contract.MemoryHealthPayload{}
+	payload := contract.MemoryHealthPayload{
+		Enabled:            h.Config.Memory.Enabled,
+		GlobalDir:          strings.TrimSpace(h.Config.Memory.GlobalDir),
+		DreamAgent:         strings.TrimSpace(h.Config.Memory.Dream.Agent),
+		DreamMinHours:      h.Config.Memory.Dream.MinHours,
+		DreamMinSessions:   h.Config.Memory.Dream.MinSessions,
+		DreamCheckInterval: h.Config.Memory.Dream.CheckInterval.String(),
+	}
 	if h.DreamTrigger != nil {
 		payload.DreamEnabled = h.DreamTrigger.Enabled()
 		lastConsolidation, err := h.DreamTrigger.LastConsolidatedAt()
@@ -177,6 +260,14 @@ func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayloa
 		}
 		payload.WorkspaceFiles += len(headers)
 	}
+
+	stats, err := h.MemoryStore.HealthStats(c.Request.Context(), workspaces)
+	if err != nil {
+		return contract.MemoryHealthPayload{}, err
+	}
+	payload.IndexedFiles = stats.IndexedFiles
+	payload.OrphanedFiles = stats.OrphanedFiles
+	payload.LastReindex = stats.LastReindex
 
 	return payload, nil
 }
@@ -429,4 +520,31 @@ func resolveMemoryWorkspace(raw string) (string, error) {
 		return "", fmt.Errorf("resolve workspace %q: %w", trimmed, err)
 	}
 	return workspace, nil
+}
+
+func resolveMemoryScopeAndWorkspace(rawScope string, rawWorkspace string) (memory.Scope, string, error) {
+	scope, err := parseOptionalMemoryScope(rawScope)
+	if err != nil {
+		return "", "", err
+	}
+	if scope == memory.ScopeWorkspace || strings.TrimSpace(rawWorkspace) != "" {
+		workspace, err := resolveMemoryWorkspace(rawWorkspace)
+		if err != nil {
+			return "", "", err
+		}
+		return scope, workspace, nil
+	}
+	return scope, "", nil
+}
+
+func parseMemoryLimit(raw string) (int, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return 0, nil
+	}
+	limit, err := strconv.Atoi(trimmed)
+	if err != nil || limit <= 0 {
+		return 0, NewMemoryValidationError(errors.New("limit must be a positive integer"))
+	}
+	return limit, nil
 }

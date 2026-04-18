@@ -110,6 +110,31 @@ func TestRuntimeHarnessStopFallsBackToInterruptWhenCLIStopFails(t *testing.T) {
 	}
 }
 
+func TestCLIClientRunInDirResolvesRelativePathsAgainstBaseWorkdir(t *testing.T) {
+	t.Run("Should resolve relative paths against base workdir", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		targetDir := filepath.Join(baseDir, "nested")
+		if err := os.MkdirAll(targetDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", targetDir, err)
+		}
+
+		client := &CLIClient{
+			binaryPath: writeCLIScript(t, "#!/bin/sh\npwd\n"),
+			workdir:    baseDir,
+		}
+
+		stdout, stderr, err := client.RunInDir(context.Background(), "nested", "ignored")
+		if err != nil {
+			t.Fatalf("RunInDir() error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+		}
+		if got, want := strings.TrimSpace(stdout), targetDir; got != want {
+			t.Fatalf("RunInDir() stdout = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestRuntimeHelpersCoverRequestAndTimingUtilities(t *testing.T) {
 	t.Parallel()
 

@@ -482,12 +482,27 @@ type MemoryConsolidateResponse struct {
 	Reason    string `json:"reason,omitempty"`
 }
 
+// MemoryReindexRequest is the shared memory-catalog reindex request payload.
+type MemoryReindexRequest struct {
+	Scope     string `json:"scope,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+}
+
 // MemoryHealthPayload is the shared memory health response payload.
 type MemoryHealthPayload struct {
-	GlobalFiles       int        `json:"global_files"`
-	WorkspaceFiles    int        `json:"workspace_files"`
-	LastConsolidation *time.Time `json:"last_consolidation"`
-	DreamEnabled      bool       `json:"dream_enabled"`
+	Enabled            bool       `json:"enabled"`
+	GlobalDir          string     `json:"global_dir,omitempty"`
+	GlobalFiles        int        `json:"global_files"`
+	WorkspaceFiles     int        `json:"workspace_files"`
+	DreamEnabled       bool       `json:"dream_enabled"`
+	DreamAgent         string     `json:"dream_agent,omitempty"`
+	DreamMinHours      float64    `json:"dream_min_hours,omitempty"`
+	DreamMinSessions   int        `json:"dream_min_sessions,omitempty"`
+	DreamCheckInterval string     `json:"dream_check_interval,omitempty"`
+	IndexedFiles       int        `json:"indexed_files"`
+	OrphanedFiles      int        `json:"orphaned_files"`
+	LastReindex        *time.Time `json:"last_reindex"`
+	LastConsolidation  *time.Time `json:"last_consolidation"`
 }
 
 // CreateWorkspaceRequest is the shared workspace creation request payload.

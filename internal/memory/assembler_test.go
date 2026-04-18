@@ -89,7 +89,14 @@ func TestAssemblerAssemble(t *testing.T) {
 		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
 
 		got := env.assemble(t)
-		for _, want := range []string{"## Memory Commands", "`agh memory list`", "`agh memory read <filename>`", "`agh memory write <filename> --type <type> --description <desc> --content <content>`"} {
+		for _, want := range []string{
+			"## Memory Commands",
+			"`agh memory list`",
+			"`agh memory search <query>`",
+			"`agh memory read <filename>`",
+			"`agh memory reindex`",
+			"`agh memory write <filename> --type <type> --description <desc> --content <content>`",
+		} {
 			if !strings.Contains(got, want) {
 				t.Fatalf("assembled prompt missing command reference %q: %q", want, got)
 			}
@@ -265,11 +272,13 @@ func resolvedWorkspacePtr(root string) *workspacepkg.ResolvedWorkspace {
 func (e assemblerTestEnv) writeGlobalIndex(t *testing.T, content string) {
 	t.Helper()
 	writeAssemblerFileForTest(t, filepath.Join(e.store.globalDir, indexFilename), content)
+	e.writeIndexBackedDocuments(t, ScopeGlobal, "", content)
 }
 
 func (e assemblerTestEnv) writeWorkspaceIndex(t *testing.T, content string) {
 	t.Helper()
 	writeAssemblerFileForTest(t, filepath.Join(e.store.ForWorkspace(e.workspace).workspaceDir, indexFilename), content)
+	e.writeIndexBackedDocuments(t, ScopeWorkspace, e.workspace, content)
 }
 
 func writeAssemblerFileForTest(t *testing.T, path string, content string) {
@@ -280,6 +289,58 @@ func writeAssemblerFileForTest(t *testing.T, path string, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)
 	}
+}
+
+func (e assemblerTestEnv) writeIndexBackedDocuments(t *testing.T, scope Scope, workspace string, content string) {
+	t.Helper()
+
+	target := e.store
+	if scope == ScopeWorkspace {
+		target = e.store.ForWorkspace(workspace)
+	}
+
+	for line := range strings.SplitSeq(content, "\n") {
+		filename, ok := firstMarkdownLinkTarget(line)
+		if !ok {
+			continue
+		}
+		name := "Stub Memory"
+		if start := strings.Index(line, "["); start >= 0 {
+			if end := strings.Index(line[start+1:], "]"); end >= 0 {
+				name = strings.TrimSpace(line[start+1 : start+1+end])
+			}
+		}
+		description := "stub description"
+		if _, after, ok0 := strings.Cut(line, " - "); ok0 {
+			description = strings.TrimSpace(after)
+		}
+		doc := strings.Join([]string{
+			"---",
+			"name: " + name,
+			"description: " + description,
+			"type: user",
+			"---",
+			"",
+			"stub body",
+			"",
+		}, "\n")
+		if err := os.WriteFile(
+			filepath.Join(target.dirForScopeMust(t, scope), filename),
+			[]byte(doc),
+			0o644,
+		); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", filename, err)
+		}
+	}
+}
+
+func (s *Store) dirForScopeMust(t *testing.T, scope Scope) string {
+	t.Helper()
+	dir, err := s.dirForScope(scope)
+	if err != nil {
+		t.Fatalf("dirForScope(%q) error = %v", scope, err)
+	}
+	return dir
 }
 
 func testResolvedWorkspace(root string) workspacepkg.ResolvedWorkspace {

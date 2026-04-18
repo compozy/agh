@@ -10979,10 +10979,32 @@
                                         },
                                         "memory": {
                                             "properties": {
+                                                "dream_agent": {
+                                                    "type": "string"
+                                                },
+                                                "dream_check_interval": {
+                                                    "type": "string"
+                                                },
                                                 "dream_enabled": {
                                                     "type": "boolean"
                                                 },
+                                                "dream_min_hours": {
+                                                    "format": "double",
+                                                    "type": "number"
+                                                },
+                                                "dream_min_sessions": {
+                                                    "type": "integer"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "global_dir": {
+                                                    "type": "string"
+                                                },
                                                 "global_files": {
+                                                    "type": "integer"
+                                                },
+                                                "indexed_files": {
                                                     "type": "integer"
                                                 },
                                                 "last_consolidation": {
@@ -10990,14 +11012,26 @@
                                                     "nullable": true,
                                                     "type": "string"
                                                 },
+                                                "last_reindex": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "orphaned_files": {
+                                                    "type": "integer"
+                                                },
                                                 "workspace_files": {
                                                     "type": "integer"
                                                 }
                                             },
                                             "required": [
                                                 "dream_enabled",
+                                                "enabled",
                                                 "global_files",
+                                                "indexed_files",
                                                 "last_consolidation",
+                                                "last_reindex",
+                                                "orphaned_files",
                                                 "workspace_files"
                                             ],
                                             "type": "object"

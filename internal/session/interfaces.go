@@ -40,6 +40,9 @@ type NetworkPeerLifecycle interface {
 // TurnEndNotifier is invoked once after a prompt turn finishes dispatching.
 type TurnEndNotifier func(sessionID string)
 
+// PromptInputAugmenter can add bounded daemon-local context before prompt dispatch.
+type PromptInputAugmenter func(ctx context.Context, session *Session, message string) (string, error)
+
 func normalizeTurnSource(source TurnSource) TurnSource {
 	switch TurnSource(strings.TrimSpace(string(source))) {
 	case "", TurnSourceUser:

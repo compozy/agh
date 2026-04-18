@@ -171,10 +171,12 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	memoryGroup := api.Group("/memory")
 	memoryGroup.GET("", handlers.ListMemory)
+	memoryGroup.GET("/search", handlers.SearchMemory)
+	memoryGroup.POST("/reindex", handlers.ReindexMemory)
+	memoryGroup.POST("/consolidate", handlers.ConsolidateMemory)
 	memoryGroup.GET("/:filename", handlers.ReadMemory)
 	memoryGroup.PUT("/:filename", handlers.WriteMemory)
 	memoryGroup.DELETE("/:filename", handlers.DeleteMemory)
-	memoryGroup.POST("/consolidate", handlers.ConsolidateMemory)
 }
 
 func registerDaemonRoutes(api gin.IRouter, handlers *Handlers) {

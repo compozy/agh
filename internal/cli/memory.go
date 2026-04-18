@@ -41,6 +41,25 @@ type memoryMutationView struct {
 	Reason   string       `json:"reason,omitempty"`
 }
 
+type memorySearchItem struct {
+	Filename    string       `json:"filename"`
+	Name        string       `json:"name"`
+	Type        memory.Type  `json:"type"`
+	Scope       memory.Scope `json:"scope"`
+	Workspace   string       `json:"workspace,omitempty"`
+	Score       float64      `json:"score"`
+	Description string       `json:"description,omitempty"`
+	Snippet     string       `json:"snippet,omitempty"`
+	ModTime     time.Time    `json:"mod_time"`
+}
+
+type memoryReindexView struct {
+	IndexedFiles int          `json:"indexed_files"`
+	Scope        memory.Scope `json:"scope,omitempty"`
+	Workspace    string       `json:"workspace,omitempty"`
+	CompletedAt  time.Time    `json:"completed_at"`
+}
+
 var memoryWriteExample = strings.Join([]string{
 	"  # Write workspace-scoped project memory from a flag",
 	`  agh memory write runtime-notes.md --type project --description "Runtime docs live in the site package" ` +
@@ -64,9 +83,11 @@ func newMemoryCommand(deps commandDeps) *cobra.Command {
 	}
 
 	cmd.AddCommand(newMemoryListCommand(deps))
+	cmd.AddCommand(newMemorySearchCommand(deps))
 	cmd.AddCommand(newMemoryReadCommand(deps))
 	cmd.AddCommand(newMemoryWriteCommand(deps))
 	cmd.AddCommand(newMemoryDeleteCommand(deps))
+	cmd.AddCommand(newMemoryReindexCommand(deps))
 	cmd.AddCommand(newMemoryConsolidateCommand(deps))
 	return cmd
 }
@@ -136,6 +157,61 @@ func newMemoryReadCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
+	return cmd
+}
+
+func newMemorySearchCommand(deps commandDeps) *cobra.Command {
+	var (
+		scope string
+		limit int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "search <terms...>",
+		Short: "Search durable memory",
+		Example: `  # Search global and current-workspace memories
+  agh memory search auth rewrite
+
+  # Search only workspace-scoped memories
+  agh memory search release plan --scope workspace --limit 5`,
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+
+			query := strings.TrimSpace(strings.Join(args, " "))
+			if query == "" {
+				return errors.New("memory query is required")
+			}
+
+			parsedScope, err := parseOptionalCLIMemoryScope(scope)
+			if err != nil {
+				return err
+			}
+
+			workspace := ""
+			if parsedScope != memory.ScopeGlobal {
+				workspace, err = currentWorkingDirectory(deps)
+				if err != nil {
+					return err
+				}
+			}
+
+			results, err := client.SearchMemory(cmd.Context(), query, MemorySearchQuery{
+				Scope:     parsedScope,
+				Workspace: workspace,
+				Limit:     limit,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memorySearchBundle(results))
+		},
+	}
+	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
+	cmd.Flags().IntVar(&limit, "limit", 10, "Maximum number of results to return")
 	return cmd
 }
 
@@ -249,6 +325,51 @@ func newMemoryDeleteCommand(deps commandDeps) *cobra.Command {
 				Scope:    location.Scope,
 				Status:   "deleted",
 			}))
+		},
+	}
+	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
+	return cmd
+}
+
+func newMemoryReindexCommand(deps commandDeps) *cobra.Command {
+	var scope string
+
+	cmd := &cobra.Command{
+		Use:   "reindex",
+		Short: "Rebuild the derived memory search catalog",
+		Example: `  # Reindex global and current-workspace memory
+  agh memory reindex
+
+  # Reindex only workspace-scoped memory
+  agh memory reindex --scope workspace`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+
+			parsedScope, err := parseOptionalCLIMemoryScope(scope)
+			if err != nil {
+				return err
+			}
+
+			workspace := ""
+			if parsedScope != memory.ScopeGlobal {
+				workspace, err = currentWorkingDirectory(deps)
+				if err != nil {
+					return err
+				}
+			}
+
+			result, err := client.ReindexMemory(cmd.Context(), MemoryReindexRequest{
+				Scope:     string(parsedScope),
+				Workspace: workspace,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryReindexBundle(memoryReindexView(result)))
 		},
 	}
 	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
@@ -592,6 +713,50 @@ func memoryReadBundle(view memoryReadView) outputBundle {
 	}
 }
 
+func memorySearchBundle(results []MemorySearchRecord) outputBundle {
+	items := make([]memorySearchItem, 0, len(results))
+	for _, result := range results {
+		items = append(items, memorySearchItem{
+			Filename:    result.Filename,
+			Name:        result.Name,
+			Type:        result.Type,
+			Scope:       result.Scope,
+			Workspace:   result.Workspace,
+			Score:       result.Score,
+			Description: result.Description,
+			Snippet:     result.Snippet,
+			ModTime:     result.ModTime,
+		})
+	}
+
+	return listBundle(
+		items,
+		items,
+		"Memory Search",
+		[]string{"Filename", "Name", "Scope", "Score", "Snippet"},
+		"results",
+		[]string{"filename", "name", "scope", "score", "snippet"},
+		func(item memorySearchItem) []string {
+			return []string{
+				stringOrDash(item.Filename),
+				stringOrDash(item.Name),
+				stringOrDash(string(item.Scope)),
+				fmt.Sprintf("%.2f", item.Score),
+				stringOrDash(item.Snippet),
+			}
+		},
+		func(item memorySearchItem) []string {
+			return []string{
+				item.Filename,
+				item.Name,
+				string(item.Scope),
+				fmt.Sprintf("%.2f", item.Score),
+				item.Snippet,
+			}
+		},
+	)
+}
+
 func memoryMutationBundle(view memoryMutationView) outputBundle {
 	return outputBundle{
 		jsonValue: view,
@@ -615,6 +780,32 @@ func memoryMutationBundle(view memoryMutationView) outputBundle {
 				view.Status,
 				view.Reason,
 			}), nil
+		},
+	}
+}
+
+func memoryReindexBundle(view memoryReindexView) outputBundle {
+	return outputBundle{
+		jsonValue: view,
+		human: func() (string, error) {
+			return renderHumanSection("Memory Reindex", []keyValue{
+				{Label: "Scope", Value: stringOrDash(string(view.Scope))},
+				{Label: "Workspace", Value: stringOrDash(view.Workspace)},
+				{Label: "Indexed Files", Value: fmt.Sprintf("%d", view.IndexedFiles)},
+				{Label: "Completed At", Value: view.CompletedAt.Format(time.RFC3339)},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"memory_reindex",
+				[]string{"scope", "workspace", "indexed_files", "completed_at"},
+				[]string{
+					string(view.Scope),
+					view.Workspace,
+					fmt.Sprintf("%d", view.IndexedFiles),
+					view.CompletedAt.Format(time.RFC3339),
+				},
+			), nil
 		},
 	}
 }

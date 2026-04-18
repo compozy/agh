@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -20,18 +21,22 @@ import (
 )
 
 const (
-	golangciLintVersion = "v2.11.4"
-	binDir              = "bin"
-	cliBinary           = "agh"
-	versionPackage      = "github.com/pedronauck/agh/internal/version"
-	openAPISpecPath     = "openapi/agh.json"
-	webOpenAPITypePath  = "web/src/generated/agh-openapi.d.ts"
-	webDistIndex        = "web/dist/index.html"
-	daemonBinaryEnvVar  = "AGH_TEST_DAEMON_BIN"
-	driverBinaryEnvVar  = "AGH_TEST_ACPMOCK_DRIVER_BIN"
+	golangciLintVersion   = "v2.11.4"
+	goplsModernizeVersion = "v0.21.1"
+	gotestsumVersion      = "v1.13.0"
+	binDir                = "bin"
+	cliBinary             = "agh"
+	versionPackage        = "github.com/pedronauck/agh/internal/version"
+	openAPISpecPath       = "openapi/agh.json"
+	webOpenAPITypePath    = "web/src/generated/agh-openapi.d.ts"
+	webDistIndex          = "web/dist/index.html"
+	daemonBinaryEnvVar    = "AGH_TEST_DAEMON_BIN"
+	driverBinaryEnvVar    = "AGH_TEST_ACPMOCK_DRIVER_BIN"
 )
 
-var Default = Verify
+var (
+	Default = Verify
+)
 
 func Deps() error {
 	return sh.RunV("go", "mod", "tidy")
@@ -72,7 +77,7 @@ func Modernize() error {
 	return sh.RunV(
 		"go",
 		"run",
-		"golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest",
+		"golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@"+goplsModernizeVersion,
 		"-fix",
 		"./...",
 	)
@@ -83,7 +88,8 @@ func Test() error {
 	if err := ensureWebBundle(); err != nil {
 		return err
 	}
-	return sh.RunV("go", "run", "gotest.tools/gotestsum@latest",
+	return runRaceEnabledGoCommand(context.Background(), nil,
+		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
 		"--format", "pkgname", "--", "-race", "-parallel=4", "./...")
 }
 
@@ -92,7 +98,8 @@ func TestIntegration() error {
 	if err := ensureWebBundle(); err != nil {
 		return err
 	}
-	return sh.RunV("go", "run", "gotest.tools/gotestsum@latest",
+	return runRaceEnabledGoCommand(context.Background(), nil,
+		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
 		"--format", "pkgname", "--", "-race", "-parallel=4", "-tags", "integration", "./...")
 }
 
@@ -127,33 +134,33 @@ func Build() error {
 }
 
 func Codegen() error {
-	if err := runCommandInDir(".", "go", "run", "./cmd/agh-codegen", "all"); err != nil {
+	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/agh-codegen", "all"); err != nil {
 		return err
 	}
 	return generateWebOpenAPITypes(webOpenAPITypePath)
 }
 
 func CodegenCheck() error {
-	if err := runCommandInDir(".", "go", "run", "./cmd/agh-codegen", "check"); err != nil {
+	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/agh-codegen", "check"); err != nil {
 		return err
 	}
 	return checkWebOpenAPITypes(webOpenAPITypePath)
 }
 
 func WebLint() error {
-	return runCommandInDir("web", "bun", "run", "lint")
+	return runCommandInDir(context.Background(), "web", "bun", "run", "lint")
 }
 
 func WebTypecheck() error {
-	return runCommandInDir("web", "bun", "run", "typecheck:raw")
+	return runCommandInDir(context.Background(), "web", "bun", "run", "typecheck:raw")
 }
 
 func WebTest() error {
-	return runCommandInDir("web", "bun", "run", "test:raw")
+	return runCommandInDir(context.Background(), "web", "bun", "run", "test:raw")
 }
 
 func WebBuild() error {
-	return runCommandInDir("web", "bun", "run", "build:raw")
+	return runCommandInDir(context.Background(), "web", "bun", "run", "build:raw")
 }
 
 func buildGo() error {
@@ -266,10 +273,10 @@ func generateWebOpenAPITypes(outputPath string) error {
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return err
 	}
-	if err := runCommandInDir(".", "bunx", "openapi-typescript", openAPISpecPath, "-o", outputPath); err != nil {
+	if err := runCommandInDir(context.Background(), ".", "bunx", "openapi-typescript", openAPISpecPath, "-o", outputPath); err != nil {
 		return err
 	}
-	return runCommandInDir(".", "bunx", "oxfmt", outputPath)
+	return runCommandInDir(context.Background(), ".", "bunx", "oxfmt", outputPath)
 }
 
 func checkWebOpenAPITypes(path string) error {
@@ -363,6 +370,8 @@ func ensureWebBundle() error {
 }
 
 func runE2ELane(lane e2elane.Lane) error {
+	ctx := context.Background()
+
 	plan, err := e2elane.PlanForLane(lane)
 	if err != nil {
 		return err
@@ -380,13 +389,13 @@ func runE2ELane(lane e2elane.Lane) error {
 	}
 
 	for _, suite := range plan.GoSuites {
-		if err := runIntegrationSuite(suite, laneEnv); err != nil {
+		if err := runIntegrationSuite(ctx, suite, laneEnv); err != nil {
 			return err
 		}
 	}
 
 	for _, suite := range plan.ScriptSuites {
-		if err := runCommandInDirWithEnv(suite.Dir, laneEnv, "bun", "run", suite.Script); err != nil {
+		if err := runCommandInDirWithEnv(ctx, suite.Dir, laneEnv, "bun", "run", suite.Script); err != nil {
 			return err
 		}
 	}
@@ -401,6 +410,7 @@ func shouldEnsureWebBundle(plan e2elane.Plan) bool {
 func prepareE2ELaneEnv() (map[string]string, error) {
 	daemonPath, err := resolveOrBuildLaneBinary(daemonBinaryEnvVar, func(outputPath string) error {
 		return runCommandInDir(
+			context.Background(),
 			".",
 			"go",
 			"build",
@@ -417,6 +427,7 @@ func prepareE2ELaneEnv() (map[string]string, error) {
 
 	driverPath, err := resolveOrBuildLaneBinary(driverBinaryEnvVar, func(outputPath string) error {
 		return runCommandInDir(
+			context.Background(),
 			".",
 			"go",
 			"build",
@@ -472,10 +483,10 @@ func laneBinaryName(name string) string {
 	return name
 }
 
-func runIntegrationSuite(suite e2elane.GoSuite, env map[string]string) error {
+func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[string]string) error {
 	args := []string{
 		"run",
-		"gotest.tools/gotestsum@latest",
+		"gotest.tools/gotestsum@" + gotestsumVersion,
 		"--format",
 		"pkgname",
 		"--",
@@ -489,15 +500,15 @@ func runIntegrationSuite(suite e2elane.GoSuite, env map[string]string) error {
 		args = append(args, "-run", suite.Run)
 	}
 	args = append(args, suite.Packages...)
-	return runCommandInDirWithEnv(".", env, "go", args...)
+	return runRaceEnabledGoCommand(ctx, env, args...)
 }
 
-func runCommandInDir(dir string, name string, args ...string) error {
-	return runCommandInDirWithEnv(dir, nil, name, args...)
+func runCommandInDir(ctx context.Context, dir string, name string, args ...string) error {
+	return runCommandInDirWithEnv(ctx, dir, nil, name, args...)
 }
 
-func runCommandInDirWithEnv(dir string, env map[string]string, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+func runCommandInDirWithEnv(ctx context.Context, dir string, env map[string]string, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -524,6 +535,22 @@ func mergeCommandEnv(overrides map[string]string) []string {
 			env = append(env, prefix+value)
 		}
 	}
+	return env
+}
+
+func runRaceEnabledGoCommand(ctx context.Context, env map[string]string, args ...string) error {
+	if err := runCommandInDirWithEnv(ctx, ".", withRaceEnabledEnv(env), "go", args...); err != nil {
+		return fmt.Errorf("race-enabled go command %v: %w", args, err)
+	}
+	return nil
+}
+
+func withRaceEnabledEnv(overrides map[string]string) map[string]string {
+	env := make(map[string]string, len(overrides)+1)
+	for key, value := range overrides {
+		env[key] = value
+	}
+	env["CGO_ENABLED"] = "1"
 	return env
 }
 
