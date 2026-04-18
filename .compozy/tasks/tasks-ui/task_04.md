@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Task live timelines, streams, and run detail views
 type: backend
 complexity: high
@@ -32,11 +32,11 @@ Add the task-native live surfaces required for the detail, run-detail, and multi
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Add task-native live service interfaces and supporting read-model types
-- [ ] 4.2 Implement timeline and run-detail queries over existing task/run/session state
-- [ ] 4.3 Implement task-tree live aggregation for parent and descendant execution state
-- [ ] 4.4 Wire task-scoped stream emission and event sequencing through the existing notifier pattern
-- [ ] 4.5 Add focused tests for ordering, reconnect behavior, and live aggregation
+- [x] 4.1 Add task-native live service interfaces and supporting read-model types
+- [x] 4.2 Implement timeline and run-detail queries over existing task/run/session state
+- [x] 4.3 Implement task-tree live aggregation for parent and descendant execution state
+- [x] 4.4 Wire task-scoped stream emission and event sequencing through the existing notifier pattern
+- [x] 4.5 Add focused tests for ordering, reconnect behavior, and live aggregation
 
 ## Implementation Details
 
@@ -70,16 +70,16 @@ See TechSpec sections "Core Interfaces", "API Endpoints", and ADR-003. The backe
 
 ## Tests
 - Unit tests:
-  - [ ] Timeline rows are ordered deterministically across task events and run-linked events using stable tie-breakers when timestamps collide
-  - [ ] Timeline cursor or limit behavior returns stable windows so reconnect or pagination logic does not duplicate or skip rows
-  - [ ] Run-detail reads include linked task, linked session, timing, tool-call, and token-usage summary fields when available, while omitting optional fields safely
-  - [ ] Task-tree views include descendants with parent linkage, active-run chips, and latest-activity state across multi-level hierarchies
-  - [ ] Stream events emit stable sequence metadata and event typing across reconnect-friendly emission boundaries
+  - [x] Timeline rows are ordered deterministically across task events and run-linked events using stable tie-breakers when timestamps collide
+  - [x] Timeline cursor or limit behavior returns stable windows so reconnect or pagination logic does not duplicate or skip rows
+  - [x] Run-detail reads include linked task, linked session, timing, tool-call, and token-usage summary fields when available, while omitting optional fields safely
+  - [x] Task-tree views include descendants with parent linkage, active-run chips, and latest-activity state across multi-level hierarchies
+  - [x] Stream events emit stable sequence metadata and event typing across reconnect-friendly emission boundaries
 - Integration tests:
-  - [ ] Persisted task events and runs produce the expected timeline payload, including run-linked rows and ordering across mixed event types
-  - [ ] Persisted runs produce run-detail payloads with linked task/session context and operational summaries aligned with real stored data
-  - [ ] Task-tree reads work across parent/child task hierarchies without N+1 client fetch requirements or missing descendant activity
-  - [ ] Stream consumers observe task updates for active execution, descendant state changes, and reconnect-style resubscription without sequence drift
+  - [x] Persisted task events and runs produce the expected timeline payload, including run-linked rows and ordering across mixed event types
+  - [x] Persisted runs produce run-detail payloads with linked task/session context and operational summaries aligned with real stored data
+  - [x] Task-tree reads work across parent/child task hierarchies without N+1 client fetch requirements or missing descendant activity
+  - [x] Stream consumers observe task updates for active execution, descendant state changes, and reconnect-style resubscription without sequence drift
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Tasks QA plan and regression artifacts
 type: docs
 complexity: high
@@ -36,11 +36,11 @@ Generate the reusable QA planning artifacts for the full Tasks feature before li
 </requirements>
 
 ## Subtasks
-- [ ] 18.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/tasks-ui`
-- [ ] 18.2 Write the feature-level Tasks test plan with scope, risks, environments, and entry/exit criteria
-- [ ] 18.3 Generate route-by-route manual test cases for Tasks and the required Settings regression-critical flows
-- [ ] 18.4 Build regression-suite definitions and identify the P0/P1 flows that `/qa-execution` must run first
-- [ ] 18.5 Validate artifact completeness, traceability, and handoff readiness for `task_19`
+- [x] 18.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/tasks-ui`
+- [x] 18.2 Write the feature-level Tasks test plan with scope, risks, environments, and entry/exit criteria
+- [x] 18.3 Generate route-by-route manual test cases for Tasks and the required Settings regression-critical flows
+- [x] 18.4 Build regression-suite definitions and identify the P0/P1 flows that `/qa-execution` must run first
+- [x] 18.5 Validate artifact completeness, traceability, and handoff readiness for `task_19`
 
 ## Implementation Details
 
@@ -77,16 +77,16 @@ See TechSpec sections "Testing Approach", "Known Risks", and "Development Sequen
 
 ## Tests
 - Unit tests:
-  - [ ] `tasks-ui-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, risk assessment, and explicit artifact ownership
-  - [ ] Manual test cases exist for dashboard, inbox, list, kanban, empty state, create modal, detail timeline, run detail, and multi-agent live
-  - [ ] Required Settings regression-critical browser flows are represented explicitly rather than being implied by a generic regression note
-  - [ ] Each manual test case includes preconditions, steps, expected results, and priority or severity metadata suitable for execution
-  - [ ] Regression-suite documents identify smoke, targeted, and full coverage plus execution order and blocker expectations for P0/P1 flows
+  - [x] `tasks-ui-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, risk assessment, and explicit artifact ownership
+  - [x] Manual test cases exist for dashboard, inbox, list, kanban, empty state, create modal, detail timeline, run detail, and multi-agent live
+  - [x] Required Settings regression-critical browser flows are represented explicitly rather than being implied by a generic regression note
+  - [x] Each manual test case includes preconditions, steps, expected results, and priority or severity metadata suitable for execution
+  - [x] Regression-suite documents identify smoke, targeted, and full coverage plus execution order and blocker expectations for P0/P1 flows
 - Integration tests:
-  - [ ] All generated artifacts land under `.compozy/tasks/tasks-ui/qa/` and can be consumed directly by `/qa-execution`
-  - [ ] Test cases trace back to the relevant Tasks routes, Paper screens, or regression-critical Settings flows clearly
-  - [ ] Regression-suite and test-plan documents reference the same case IDs, priorities, and artifact paths without naming drift
-  - [ ] Any bug report created during planning references the originating test case or design discrepancy clearly
+  - [x] All generated artifacts land under `.compozy/tasks/tasks-ui/qa/` and can be consumed directly by `/qa-execution`
+  - [x] Test cases trace back to the relevant Tasks routes, Paper screens, or regression-critical Settings flows clearly
+  - [x] Regression-suite and test-plan documents reference the same case IDs, priorities, and artifact paths without naming drift
+  - [x] Any bug report created during planning references the originating test case or design discrepancy clearly
 - Test coverage target: >=80%
 - All tests must pass
 

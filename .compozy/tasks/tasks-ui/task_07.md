@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Task API contracts and OpenAPI codegen
 type: backend
 complexity: critical
@@ -35,10 +35,10 @@ Expose the expanded task read/write surface through authoritative shared contrac
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Add the new shared task and observe payload/request types
-- [ ] 7.2 Extend the OpenAPI spec with the new endpoints, payloads, and stream documentation
-- [ ] 7.3 Regenerate the frontend OpenAPI types and verify codegen consistency
-- [ ] 7.4 Add spec and contract tests for the new task surface
+- [x] 7.1 Add the new shared task and observe payload/request types
+- [x] 7.2 Extend the OpenAPI spec with the new endpoints, payloads, and stream documentation
+- [x] 7.3 Regenerate the frontend OpenAPI types and verify codegen consistency
+- [x] 7.4 Add spec and contract tests for the new task surface
 
 ## Implementation Details
 
@@ -73,16 +73,16 @@ See TechSpec sections "API Endpoints", "Response and status conventions", and AD
 
 ## Tests
 - Unit tests:
-  - [ ] Contract payloads serialize the expected enriched task list, task detail, dashboard, inbox, timeline, tree, and run-detail fields including optional references
-  - [ ] Publish, approval, and triage request or response contracts declare the expected required and optional fields without metadata fallbacks
-  - [ ] Stream endpoint documentation declares the expected `text/event-stream` media type, path params, and event payload shape
-  - [ ] Error contracts and status-code documentation remain consistent for `404`, `409`, `422`, and transport-safe failure cases across the new routes
-  - [ ] Generated type references and operation identifiers remain stable for the new task operations
+  - [x] Contract payloads serialize the expected enriched task list, task detail, dashboard, inbox, timeline, tree, and run-detail fields including optional references
+  - [x] Publish, approval, and triage request or response contracts declare the expected required and optional fields without metadata fallbacks
+  - [x] Stream endpoint documentation declares the expected `text/event-stream` media type, path params, and event payload shape
+  - [x] Error contracts and status-code documentation remain consistent for `404`, `409`, `422`, and transport-safe failure cases across the new routes
+  - [x] Generated type references and operation identifiers remain stable for the new task operations
 - Integration tests:
-  - [ ] `make codegen` or `make codegen-check` succeeds with the updated spec and produces no unexpected diff outside generated artifacts
-  - [ ] Spec tests confirm the new task, task-run, and observe-task endpoints are present, tagged correctly, and well-formed
-  - [ ] Generated client or type artifacts compile against the updated contracts without manual patching or type escapes
-  - [ ] Operation IDs, route paths, and method combinations remain unique so codegen consumers do not drift
+  - [x] `make codegen` or `make codegen-check` succeeds with the updated spec and produces no unexpected diff outside generated artifacts
+  - [x] Spec tests confirm the new task, task-run, and observe-task endpoints are present, tagged correctly, and well-formed
+  - [x] Generated client or type artifacts compile against the updated contracts without manual patching or type escapes
+  - [x] Operation IDs, route paths, and method combinations remain unique so codegen consumers do not drift
 - Test coverage target: >=80%
 - All tests must pass
 

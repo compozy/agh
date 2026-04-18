@@ -23,5 +23,5 @@
 | 15 | Detail timeline and run detail routes | completed | high | task_13 |
 | 16 | Dashboard and inbox routes | completed | high | task_13 |
 | 17 | Multi-agent live route and live-state polish | completed | high | task_15 |
-| 18 | Tasks QA plan and regression artifacts | pending | high | task_11, task_14, task_15, task_16, task_17 |
-| 19 | Tasks QA execution and settings-aligned browser E2E | pending | critical | task_18 |
+| 18 | Tasks QA plan and regression artifacts | completed | high | task_11, task_14, task_15, task_16, task_17 |
+| 19 | Tasks QA execution and settings-aligned browser E2E | completed | critical | task_18 |

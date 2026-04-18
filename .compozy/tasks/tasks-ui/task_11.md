@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Host API parity for task read and aggregate surfaces
 type: backend
 complexity: medium
@@ -31,10 +31,10 @@ Extend the extension Host API so embedded consumers can read the same richer tas
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Extend Host API contract/request shapes for the richer task reads and aggregate surfaces
-- [ ] 11.2 Register the new `tasks/*` methods on the Host API dispatcher
-- [ ] 11.3 Implement handler logic for the new task point reads and aggregates
-- [ ] 11.4 Add Host API unit and integration tests for the expanded task surface
+- [x] 11.1 Extend Host API contract/request shapes for the richer task reads and aggregate surfaces
+- [x] 11.2 Register the new `tasks/*` methods on the Host API dispatcher
+- [x] 11.3 Implement handler logic for the new task point reads and aggregates
+- [x] 11.4 Add Host API unit and integration tests for the expanded task surface
 
 ## Implementation Details
 
@@ -65,15 +65,15 @@ See TechSpec "Impact Analysis" and ADR-003/ADR-004. The Host API should remain a
 
 ## Tests
 - Unit tests:
-  - [ ] Host API dispatch registers the new task detail, run-detail, dashboard, inbox, and live-read methods
-  - [ ] Request decoding and error mapping behave consistently with existing `tasks/*` methods for identifiers, filters, and missing resources
-  - [ ] New Host API task reads return the expected richer payloads without requiring extension-side JSON reshaping
-  - [ ] Aggregate method payloads remain aligned with observer-backed reads rather than list-derived fallbacks
+  - [x] Host API dispatch registers the new task detail, run-detail, dashboard, inbox, and live-read methods
+  - [x] Request decoding and error mapping behave consistently with existing `tasks/*` methods for identifiers, filters, and missing resources
+  - [x] New Host API task reads return the expected richer payloads without requiring extension-side JSON reshaping
+  - [x] Aggregate method payloads remain aligned with observer-backed reads rather than list-derived fallbacks
 - Integration tests:
-  - [ ] Host API execution can fetch the richer task-detail and run-detail payloads against real task state and persisted runs
-  - [ ] Host API aggregate methods return dashboard and inbox data aligned with the observer-backed task reads
-  - [ ] Unknown method or missing-task calls return the expected host-facing error responses instead of transport-specific failures
-  - [ ] Host API task surfaces remain aligned with the contract layer after code generation or interface updates
+  - [x] Host API execution can fetch the richer task-detail and run-detail payloads against real task state and persisted runs
+  - [x] Host API aggregate methods return dashboard and inbox data aligned with the observer-backed task reads
+  - [x] Unknown method or missing-task calls return the expected host-facing error responses instead of transport-specific failures
+  - [x] Host API task surfaces remain aligned with the contract layer after code generation or interface updates
 - Test coverage target: >=80%
 - All tests must pass
 

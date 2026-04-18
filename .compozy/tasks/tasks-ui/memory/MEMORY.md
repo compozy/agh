@@ -32,6 +32,7 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - `internal/task/manager.go` now owns draft publication (`PublishTask`) plus approval-aware and attempt-aware canonical status reconciliation, which downstream task/API/read-model work should treat as authoritative.
 - The daemon boot/runtime path only enables task services when the backing registry satisfies the full `task.Store` contract, so store/test doubles must keep pace when new live-read methods are added.
 - Shared contract changes can fail extension integration through `TestReferenceExtensionsEndToEnd` because the reference SDK build runs `make codegen-check`; when task/host contract surfaces change, regenerate `sdk/typescript/src/generated/contracts.ts` (and companion codegen outputs) before expecting integration or repo verification to pass.
+- `GET /api/tasks/{id}` is a task-detail envelope (`{ task: { summary, task, children, ... } }`), while task mutations such as publish and approve return direct task payloads. Future browser or API tests must not treat these response shapes as interchangeable.
 
 ## Open Risks
 
