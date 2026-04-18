@@ -1,6 +1,5 @@
 import { Loader2 } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
 import {
   Button,
   Dialog,
@@ -9,7 +8,9 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Pill,
 } from "@agh/ui";
+
 import {
   Field,
   FieldContent,
@@ -25,6 +26,7 @@ import {
 } from "@/systems/bridges/lib/bridge-formatters";
 import type { BridgeTestDeliveryDraft, TestBridgeDeliveryResponse } from "@/systems/bridges/types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 interface BridgeTestDeliveryDialogProps {
   bridgeName?: string;
   draft: BridgeTestDeliveryDraft;
@@ -187,11 +189,7 @@ export function BridgeTestDeliveryDialog({
                     <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
                       Resolved target
                     </p>
-                    <Pill
-                      emphasis="strong"
-                      kind="state"
-                      tone={bridgeProviderStateTone(result.status)}
-                    >
+                    <Pill variant={pillVariantFromTone(bridgeProviderStateTone(result.status))}>
                       {result.status}
                     </Pill>
                   </div>

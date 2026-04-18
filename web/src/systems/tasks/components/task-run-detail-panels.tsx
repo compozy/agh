@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 
 import { taskRunStatusTone } from "../lib/task-formatters";
 import type { TaskRunDetailView } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TaskRunIdentityPanelProps {
   run: TaskRunDetailView;
 }
@@ -42,7 +43,7 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
         </div>
         <div className="flex items-center justify-between gap-4">
           <SidePanelLabel>Status</SidePanelLabel>
-          <Pill emphasis="strong" kind="state" tone={taskRunStatusTone(record.status)}>
+          <Pill variant={pillVariantFromTone(taskRunStatusTone(record.status))}>
             {record.status}
           </Pill>
         </div>

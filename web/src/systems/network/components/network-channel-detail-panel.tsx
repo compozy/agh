@@ -1,7 +1,7 @@
 import { AlertCircle, Hash, Info, Loader2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import {
@@ -42,11 +42,7 @@ function MessageItem({ message }: { message: NetworkChannelMessage }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm font-medium text-[color:var(--color-text-primary)]">{author}</p>
-          {message.local ? (
-            <Pill kind="state" tone="amber">
-              local
-            </Pill>
-          ) : null}
+          {message.local ? <Pill variant="accent">local</Pill> : null}
           <span className="text-xs text-[color:var(--color-text-tertiary)]">
             {formatNetworkClockTime(message.timestamp)}
           </span>
@@ -122,12 +118,8 @@ export function NetworkChannelDetailPanel({
           <h2 className="text-xl font-semibold text-[color:var(--color-text-primary)]">
             {channel.channel}
           </h2>
-          <Pill emphasis="strong" kind="state" tone="green">
-            active
-          </Pill>
-          <Pill kind="tag" tone="neutral">
-            {formatChannelMemberCount(channel)}
-          </Pill>
+          <Pill variant="success">active</Pill>
+          <Pill>{formatChannelMemberCount(channel)}</Pill>
         </div>
         <p className="mt-2 text-sm text-[color:var(--color-text-secondary)]">
           {getChannelDetailDescription(channel)}

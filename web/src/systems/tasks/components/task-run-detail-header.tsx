@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { Button, Pill } from "@agh/ui";
 
 import { formatRelativeTime, taskRunStatusTone } from "../lib/task-formatters";
 import type { TaskRunDetailView } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TaskRunDetailHeaderProps {
   run: TaskRunDetailView;
   onCancelRun?: () => void;
@@ -94,7 +94,7 @@ export function TaskRunDetailHeader({
             >
               Run {record.id}
             </h1>
-            <Pill emphasis="strong" kind="state" tone={taskRunStatusTone(record.status)}>
+            <Pill variant={pillVariantFromTone(taskRunStatusTone(record.status))}>
               {record.status}
             </Pill>
           </div>

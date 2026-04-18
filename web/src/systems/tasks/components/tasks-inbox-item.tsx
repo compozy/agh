@@ -2,7 +2,7 @@ import { AlertCircle, Archive, ArchiveX, Check, Eye, RotateCcw, X } from "lucide
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import {
@@ -16,6 +16,7 @@ import {
 } from "../lib/task-formatters";
 import type { TaskInboxItem } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksInboxItemProps {
   item: TaskInboxItem;
   onApprove?: (taskId: string) => void;
@@ -86,10 +87,8 @@ export function TasksInboxItem({
               : ""}
           </span>
         ) : null}
-        <Pill kind="state" tone={taskLaneTone(lane)}>
-          {taskInboxLaneLabel(lane)}
-        </Pill>
-        <Pill kind="state" tone={taskStatusTone(task.status)}>
+        <Pill variant={pillVariantFromTone(taskLaneTone(lane))}>{taskInboxLaneLabel(lane)}</Pill>
+        <Pill variant={pillVariantFromTone(taskStatusTone(task.status))}>
           {taskStatusLabel(task.status)}
         </Pill>
         {unread ? (

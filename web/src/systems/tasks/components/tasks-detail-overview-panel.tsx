@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 
 import { formatRelativeTime, taskRunStatusTone } from "../lib/task-formatters";
 import type { TaskDetailView } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksDetailOverviewPanelProps {
   detail: TaskDetailView;
 }
@@ -41,7 +42,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
               <span className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
                 Active Run
               </span>
-              <Pill emphasis="strong" kind="state" tone={taskRunStatusTone(activeRun.status)}>
+              <Pill variant={pillVariantFromTone(taskRunStatusTone(activeRun.status))}>
                 {activeRun.status}
               </Pill>
             </div>

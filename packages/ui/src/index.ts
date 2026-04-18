@@ -153,3 +153,19 @@ export {
   type SidebarProps,
 } from "./components/sidebar";
 export { SplitPane, SPLIT_LIST_WIDTH_DEFAULT, type SplitPaneProps } from "./components/split-pane";
+export { PageHeader, type PageHeaderProps } from "./components/page-header";
+export {
+  Pill,
+  Pills,
+  pillVariants,
+  pillToggleVariants,
+  type PillProps,
+  type PillsProps,
+  type PillsItem,
+  type PillVariant,
+  type PillSize,
+} from "./components/pills";
+export { SearchInput, type SearchInputProps } from "./components/search-input";
+export { Empty, type EmptyProps } from "./components/empty";
+export { Section, type SectionProps } from "./components/section";
+export { Toolbar, type ToolbarProps } from "./components/toolbar";

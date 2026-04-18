@@ -1,13 +1,6 @@
 import { AlertCircle, Loader2, Search } from "lucide-react";
 
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { Input } from "@agh/ui";
+import { Empty, Input } from "@agh/ui";
 
 import type { InboxLaneFilter } from "@/hooks/routes/use-tasks-page";
 
@@ -137,22 +130,12 @@ export function TasksInboxView({
             className="flex min-h-full items-center justify-center py-10"
             data-testid="tasks-inbox-empty"
           >
-            <Empty className="max-w-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-8 py-10">
-              <EmptyHeader className="gap-4">
-                <EmptyMedia className="flex size-12 items-center justify-center rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] text-[color:var(--color-accent)]">
-                  <Search className="size-5" />
-                </EmptyMedia>
-                <div className="space-y-2">
-                  <EmptyTitle className="text-base font-semibold text-[color:var(--color-text-primary)]">
-                    Nothing is waiting in the inbox
-                  </EmptyTitle>
-                  <EmptyDescription className="max-w-md text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
-                    Approval requests, failed runs, blockers, and archived items will appear here as
-                    work progresses.
-                  </EmptyDescription>
-                </div>
-              </EmptyHeader>
-            </Empty>
+            <Empty
+              className="max-w-xl"
+              icon={Search}
+              title="Nothing is waiting in the inbox"
+              description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."
+            />
           </div>
         ) : (
           <div className="flex flex-col gap-6">

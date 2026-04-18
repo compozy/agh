@@ -2,8 +2,7 @@ import { AlertCircle, Check, Loader2, Plus, Trash2, X } from "lucide-react";
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Button } from "@agh/ui";
-import { Pill } from "@/components/design-system";
+import { Button, Pill } from "@agh/ui";
 import {
   useSettingsMCPServersPage,
   type MCPDraft,
@@ -583,9 +582,7 @@ function TargetSelector({
             >
               <span>allowed:</span>
               {entry.source_metadata.available_targets.map(available => (
-                <Pill key={available} emphasis="muted" kind="state" tone="neutral">
-                  {targetWriteLabel(available)}
-                </Pill>
+                <Pill key={available}>{targetWriteLabel(available)}</Pill>
               ))}
             </div>
           ) : null}

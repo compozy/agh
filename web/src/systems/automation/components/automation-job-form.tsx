@@ -1,7 +1,6 @@
 import type { FormEvent } from "react";
 
-import { PillButton } from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { Button, Pills } from "@agh/ui";
 
 import {
   AutomationCheckbox,
@@ -107,34 +106,25 @@ export function AutomationJobForm({
             <span className="text-sm font-medium text-[color:var(--color-text-primary)]">
               Scope
             </span>
-            <div className="flex flex-wrap items-center gap-2">
-              <PillButton
-                active={draft.scope === "global"}
-                data-testid="job-scope-global"
-                onClick={() =>
-                  onChange({
-                    ...draft,
-                    scope: "global",
-                    workspace_id: undefined,
-                  })
-                }
-              >
-                GLOBAL
-              </PillButton>
-              <PillButton
-                active={draft.scope === "workspace"}
-                data-testid="job-scope-workspace"
-                onClick={() =>
+            <Pills
+              aria-label="Scope"
+              value={draft.scope}
+              onChange={next => {
+                if (next === "global") {
+                  onChange({ ...draft, scope: "global", workspace_id: undefined });
+                } else {
                   onChange({
                     ...draft,
                     scope: "workspace",
                     workspace_id: activeWorkspaceId ?? draft.workspace_id,
-                  })
+                  });
                 }
-              >
-                WORKSPACE
-              </PillButton>
-            </div>
+              }}
+              items={[
+                { value: "global", label: "GLOBAL", testId: "job-scope-global" },
+                { value: "workspace", label: "WORKSPACE", testId: "job-scope-workspace" },
+              ]}
+            />
             {draft.scope === "workspace" ? (
               <p className="text-xs text-[color:var(--color-text-secondary)]">
                 {draft.workspace_id
@@ -151,44 +141,33 @@ export function AutomationJobForm({
         >
           <div className="space-y-2">
             <span className="text-sm font-medium text-[color:var(--color-text-primary)]">Mode</span>
-            <div className="flex flex-wrap items-center gap-2">
-              <PillButton
-                active={schedule.mode === "cron"}
-                data-testid="job-schedule-mode-cron"
-                onClick={() =>
+            <Pills
+              aria-label="Schedule mode"
+              value={schedule.mode}
+              onChange={next => {
+                if (next === "cron") {
                   onChange({
                     ...draft,
                     schedule: { mode: "cron", expr: schedule.expr ?? "0 9 * * *" },
-                  })
-                }
-              >
-                CRON
-              </PillButton>
-              <PillButton
-                active={schedule.mode === "every"}
-                data-testid="job-schedule-mode-every"
-                onClick={() =>
+                  });
+                } else if (next === "every") {
                   onChange({
                     ...draft,
                     schedule: { mode: "every", interval: schedule.interval ?? "30m" },
-                  })
-                }
-              >
-                EVERY
-              </PillButton>
-              <PillButton
-                active={schedule.mode === "at"}
-                data-testid="job-schedule-mode-at"
-                onClick={() =>
+                  });
+                } else {
                   onChange({
                     ...draft,
                     schedule: { mode: "at", time: schedule.time ?? new Date().toISOString() },
-                  })
+                  });
                 }
-              >
-                AT
-              </PillButton>
-            </div>
+              }}
+              items={[
+                { value: "cron", label: "CRON", testId: "job-schedule-mode-cron" },
+                { value: "every", label: "EVERY", testId: "job-schedule-mode-every" },
+                { value: "at", label: "AT", testId: "job-schedule-mode-at" },
+              ]}
+            />
           </div>
           <AutomationField
             hint={
@@ -252,28 +231,16 @@ export function AutomationJobForm({
         >
           <div className="grid gap-4 md:grid-cols-3">
             <AutomationField label="Retry policy">
-              <div className="flex flex-wrap items-center gap-2">
-                <PillButton
-                  active={retry.strategy === "none"}
-                  data-testid="job-retry-strategy-none"
-                  onClick={() =>
-                    onChange({ ...draft, retry: retryDraftForStrategy("none", retry) })
-                  }
-                  size="dense"
-                >
-                  NONE
-                </PillButton>
-                <PillButton
-                  active={retry.strategy === "backoff"}
-                  data-testid="job-retry-strategy-backoff"
-                  onClick={() =>
-                    onChange({ ...draft, retry: retryDraftForStrategy("backoff", retry) })
-                  }
-                  size="dense"
-                >
-                  BACKOFF
-                </PillButton>
-              </div>
+              <Pills
+                size="sm"
+                aria-label="Retry policy"
+                value={retry.strategy}
+                onChange={next => onChange({ ...draft, retry: retryDraftForStrategy(next, retry) })}
+                items={[
+                  { value: "none", label: "NONE", testId: "job-retry-strategy-none" },
+                  { value: "backoff", label: "BACKOFF", testId: "job-retry-strategy-backoff" },
+                ]}
+              />
             </AutomationField>
             <AutomationField label="Max retries">
               <AutomationInput

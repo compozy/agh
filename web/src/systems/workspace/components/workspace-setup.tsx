@@ -1,6 +1,5 @@
 import { FolderPlus, Home, Loader2, Sparkles } from "lucide-react";
 
-import { PillButton } from "@/components/design-system/pill-button";
 import {
   Button,
   Dialog,
@@ -9,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Pill,
 } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
@@ -57,9 +57,7 @@ function WorkspaceSetupContent({
             <span className="text-sm font-semibold text-[color:var(--color-text-primary)]">
               Use global workspace
             </span>
-            <PillButton active size="dense" className="pointer-events-none">
-              HOME
-            </PillButton>
+            <Pill variant="accent">HOME</Pill>
           </div>
           <p className="mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]">
             Register your OS home directory as the default AGH workspace and start with one click.
@@ -97,9 +95,7 @@ function WorkspaceSetupContent({
             <span className="text-sm font-semibold text-[color:var(--color-text-primary)]">
               Register workspace
             </span>
-            <PillButton size="dense" className="pointer-events-none">
-              PATH
-            </PillButton>
+            <Pill>PATH</Pill>
           </div>
           <p className="mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]">
             Add any project root by absolute path. AGH will resolve and register it as a workspace.
@@ -208,9 +204,7 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,24rem)] lg:gap-8 xl:gap-10">
           <div className="flex flex-col justify-between gap-6">
             <div className="space-y-4">
-              <PillButton active size="dense" className="pointer-events-none">
-                Workspace setup
-              </PillButton>
+              <Pill variant="accent">Workspace setup</Pill>
               <div className="space-y-3">
                 <h1 className="max-w-xl text-3xl font-semibold tracking-[-0.03em] text-[color:var(--color-text-primary)] sm:text-4xl">
                   Start AGH with a real workspace, not an empty shell.

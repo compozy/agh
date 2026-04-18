@@ -1,16 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Pencil, Plus } from "lucide-react";
+import type * as React from "react";
 
-import {
-  Pill,
-  Panel,
-  PanelBody,
-  PanelDescription,
-  PanelHeader,
-  PanelTitle,
-} from "@/components/design-system";
 import { Textarea } from "@/components/ui/textarea";
-import { Button, Input } from "@agh/ui";
+import { Button, Input, Pill } from "@agh/ui";
+import { cn } from "@/lib/utils";
 
 import type { CreateTaskDraftInput } from "@/hooks/routes/use-tasks-page";
 import type { TaskOwnerKind, TaskPriority, TaskRecord, TaskScope } from "../types";
@@ -121,11 +115,7 @@ export function TaskEditorSurface({
 
           {task ? (
             <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-secondary)]">
-              {task.identifier ? (
-                <Pill emphasis="strong" kind="state" tone="neutral">
-                  {task.identifier}
-                </Pill>
-              ) : null}
+              {task.identifier ? <Pill>{task.identifier}</Pill> : null}
               <span>Scope {task.scope}</span>
               {task.parent_task_id ? <span>· Parent {task.parent_task_id}</span> : null}
               <span>· Status {task.status}</span>
@@ -494,6 +484,59 @@ export function TaskEditorSurface({
       </form>
     </section>
   );
+}
+
+function Panel({
+  className,
+  ...props
+}: React.ComponentProps<"section"> & { tone?: "default" | "elevated" }) {
+  const { tone, ...rest } = props as React.ComponentProps<"section"> & {
+    tone?: "default" | "elevated";
+  };
+  return (
+    <section
+      className={cn(
+        "relative flex flex-col gap-5 rounded-[20px] border border-[color:var(--color-divider)] p-6",
+        tone === "elevated"
+          ? "bg-[color:var(--color-surface-panel)]"
+          : "bg-[color:var(--color-surface)]",
+        className
+      )}
+      {...rest}
+    />
+  );
+}
+
+function PanelHeader({ className, ...props }: React.ComponentProps<"header">) {
+  return <header className={cn("flex flex-col gap-3", className)} {...props} />;
+}
+
+function PanelTitle({ className, ...props }: React.ComponentProps<"h2">) {
+  return (
+    <h2
+      className={cn(
+        "text-balance text-lg font-medium text-[color:var(--color-text-primary)]",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function PanelDescription({ className, ...props }: React.ComponentProps<"p">) {
+  return (
+    <p
+      className={cn(
+        "max-w-2xl text-sm leading-6 text-[color:var(--color-text-secondary)]",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function PanelBody({ className, ...props }: React.ComponentProps<"div">) {
+  return <div className={cn("flex flex-col gap-4", className)} {...props} />;
 }
 
 function Fieldset({

@@ -1,6 +1,5 @@
 import { Loader2 } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
 import {
   Button,
   Dialog,
@@ -9,7 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Pill,
+  Switch,
 } from "@agh/ui";
+
 import {
   Field,
   FieldContent,
@@ -19,7 +21,7 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Switch } from "@agh/ui";
+
 import { Textarea } from "@/components/ui/textarea";
 
 import {
@@ -35,6 +37,7 @@ import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
 import type { BridgeCreateDraft, BridgeProvider } from "../types";
 import { BridgeProviderCard } from "./bridge-provider-card";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 interface BridgeCreateDialogProps {
   activeWorkspaceId?: string | null;
   activeWorkspaceName?: string | null;
@@ -166,9 +169,7 @@ export function BridgeCreateDialog({
                         <p className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
                           Secret slots
                         </p>
-                        <Pill kind="tag" tone="neutral">
-                          {selectedProvider.secret_slots?.length ?? 0}
-                        </Pill>
+                        <Pill>{selectedProvider.secret_slots?.length ?? 0}</Pill>
                       </div>
                       {selectedProvider.secret_slots?.length ? (
                         <ul className="mt-3 space-y-2" data-testid="bridge-provider-secret-slots">
@@ -182,8 +183,9 @@ export function BridgeCreateDialog({
                                   {slot.name}
                                 </span>
                                 <Pill
-                                  kind="tag"
-                                  tone={slot.required === false ? "neutral" : "amber"}
+                                  variant={pillVariantFromTone(
+                                    slot.required === false ? "neutral" : "amber"
+                                  )}
                                 >
                                   {slot.required === false ? "optional" : "required"}
                                 </Pill>

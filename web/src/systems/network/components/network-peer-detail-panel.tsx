@@ -2,7 +2,7 @@ import { AlertCircle, Hash, Link2, Loader2, Network, Radio, Workflow } from "luc
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 
 import {
   formatNetworkDateTime,
@@ -14,6 +14,7 @@ import {
 } from "../lib/network-formatters";
 import type { NetworkPeerDetail } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 interface NetworkPeerDetailPanelProps {
   error: Error | null;
   isLoading: boolean;
@@ -102,9 +103,7 @@ export function NetworkPeerDetailPanel({ error, isLoading, peer }: NetworkPeerDe
             <h2 className="text-xl font-semibold text-[color:var(--color-text-primary)]">
               {displayName}
             </h2>
-            <Pill emphasis="strong" kind="state" tone={peer.local ? "amber" : "neutral"}>
-              {typeLabel}
-            </Pill>
+            <Pill variant={pillVariantFromTone(peer.local ? "amber" : "neutral")}>{typeLabel}</Pill>
             {peer.session_id ? (
               <Link
                 className="ml-auto inline-flex h-8 items-center rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-3 text-sm font-medium text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-surface-panel)]"
@@ -145,9 +144,7 @@ export function NetworkPeerDetailPanel({ error, isLoading, peer }: NetworkPeerDe
             <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
               Channel
             </p>
-            <Pill emphasis="strong" kind="state" tone="neutral">
-              {peer.channel ? "1" : "0"}
-            </Pill>
+            <Pill>{peer.channel ? "1" : "0"}</Pill>
           </div>
           {peer.channel ? (
             <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-2 text-sm text-[color:var(--color-text-primary)]">

@@ -1,8 +1,7 @@
 import { AlertCircle, Loader2, Plus, Waypoints } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PillButton } from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { Button, Pills } from "@agh/ui";
 import {
   BridgeCreateDialog,
   BridgeDetailPanel,
@@ -49,18 +48,16 @@ function BridgesPage() {
         icon={<Waypoints className="size-4" />}
         count={page.totalBridgeCount}
         controls={
-          <div className="flex items-center gap-1.5" data-testid="bridge-scope-pills">
-            {(["all", "global", "workspace"] as const).map(scope => (
-              <PillButton
-                key={scope}
-                active={page.activeScope === scope}
-                data-testid={`bridge-scope-${scope}`}
-                onClick={() => page.selectScope(scope)}
-              >
-                {scope.toUpperCase()}
-              </PillButton>
-            ))}
-          </div>
+          <Pills
+            data-testid="bridge-scope-pills"
+            value={page.activeScope}
+            onChange={page.selectScope}
+            items={[
+              { value: "all", label: "ALL", testId: "bridge-scope-all" },
+              { value: "global", label: "GLOBAL", testId: "bridge-scope-global" },
+              { value: "workspace", label: "WORKSPACE", testId: "bridge-scope-workspace" },
+            ]}
+          />
         }
         meta={
           <Button

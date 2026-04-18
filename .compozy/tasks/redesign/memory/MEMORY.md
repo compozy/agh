@@ -4,7 +4,7 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 
 ## Current State
 
-- Phase 1 in progress. Tasks 01 + 02 + 03 + 04 + 05 landed: tokens/motion/UIProvider, Dialog/Popover/Sheet/Tooltip (motion), Combobox/Command/Select/ScrollArea/Tabs, DropdownMenu/Switch/Toggle/ToggleGroup/Accordion/Collapsible (CSS animations kept), and now the structural primitives `Sidebar` (rail + header + nav + footer slots with motion width collapse) and `SplitPane` (list + detail with responsive collapse). Old `web/src/components/ui/sidebar.tsx` + sidebar hooks are gone.
+- Phase 1 in progress. Tasks 01 + 02 + 03 + 04 + 05 + 06 landed: tokens/motion/UIProvider, Dialog/Popover/Sheet/Tooltip (motion), Combobox/Command/Select/ScrollArea/Tabs, DropdownMenu/Switch/Toggle/ToggleGroup/Accordion/Collapsible (CSS animations kept), `Sidebar` (rail + header + nav + footer slots with motion width collapse) and `SplitPane` (list + detail), and now the page-level primitives `PageHeader`, `Pill` + `Pills`, `SearchInput`, `Empty`, `Section`, `Toolbar`. Deleted: `web/src/components/design-system/{pill,pill-button,page-content,panel,section-heading,toolbar,texture-canvas}.tsx` + `web/src/components/ui/empty.tsx`.
 
 ## Shared Decisions
 
@@ -21,6 +21,10 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - **`web/src/lib/utils.ts` only re-exports `cn` from `@agh/ui`.** When a vitest test mocks `@agh/ui`, the factory must either (a) include a working `cn`, or (b) use `vi.mock("@agh/ui", async importActual => ({ ...(await importActual()), … }))`. Replacing the whole module leaves `cn` undefined and any downstream component that calls `cn(...)` crashes at render.
 - **Base UI Menu group parts require `<Menu.Group>`.** `DropdownMenuLabel` (MenuGroupLabel) throws `MenuGroupRootContext is missing` if not wrapped in `DropdownMenuGroup`. Same rule applies to any group-scoped part.
 - **Base UI's Accordion and ToggleGroup use `multiple` (boolean), not Radix's `type="single"/"multiple"`.** Tests and docs written against Radix conventions will not compile or will silently no-op.
+- **`Pill` + `Pills` tone mapping (`@agh/ui`).** Legacy `design-system/pill` tones collapse onto the six-variant `@agh/ui` system via `web/src/lib/pill-variant.ts` (`pillVariantFromTone`). Mapping: `neutral → default`, `amber | accent → accent`, `green → success`, `violet → info`, `danger → danger`, `warning → warning`. `kind` is dropped (pills render at `size="sm"` for badges, `size="md"` for filter toggles); `emphasis` is dropped (tints give full semantic color). Downstream domain helpers (`taskStatusTone`, `bridgeStatusTone`, …) still return legacy strings — wrap them with `pillVariantFromTone()` at call sites instead of rewriting the formatters.
+- **`Pills` is a tablist, not a radiogroup.** Renders `role="tab"` with `aria-selected`/`aria-pressed`/`data-active` on each item. Tests previously asserting `aria-checked` against `PillButton` must switch to `aria-selected`. The badge on selected items is available at `[data-slot="pills-badge"]`.
+- **`@agh/ui` `Empty.icon` accepts both a Lucide component reference and a pre-rendered ReactNode.** Internal detection covers `typeof === "function"` (plain components) AND `{render, $$typeof}` (Lucide's memoized forwardRef shape). Do not assume `typeof Icon === "function"` is enough when accepting icon components in any new primitive.
+- **oxfmt does not merge multiple single-import lines from the same module.** After scripted migrations that append `import { X } from "@agh/ui"` next to an existing `import { Y } from "@agh/ui"`, run a manual merge pass (not `make web-fmt`).
 
 ## Shared Learnings
 

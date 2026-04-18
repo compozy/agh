@@ -1,7 +1,8 @@
 import { AlertCircle } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 import { cn } from "@/lib/utils";
+import { pillVariantFromTone } from "@/lib/pill-variant";
 
 import {
   formatAttemptLabel,
@@ -110,18 +111,16 @@ export function TaskCard({
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <Pill kind="state" tone={taskStatusTone(task.status)}>
+        <Pill variant={pillVariantFromTone(taskStatusTone(task.status))}>
           {taskStatusLabel(task.status)}
         </Pill>
         {task.priority ? (
-          <Pill kind="state" tone={taskPriorityTone(task.priority)}>
+          <Pill variant={pillVariantFromTone(taskPriorityTone(task.priority))}>
             {taskPriorityLabel(task.priority)}
           </Pill>
         ) : null}
         {showApproval ? (
-          <Pill kind="state" tone="amber">
-            {taskApprovalStateLabel(task.approval_state)}
-          </Pill>
+          <Pill variant="accent">{taskApprovalStateLabel(task.approval_state)}</Pill>
         ) : null}
         {isDraft && onPublish ? (
           <button

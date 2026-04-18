@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ArrowUpRight, ChevronRight, Loader2 } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import type { MultiAgentAgent, MultiAgentLiveState } from "@/hooks/routes/use-task-detail-page";
@@ -17,6 +17,7 @@ import {
 import type { TaskTimelineItem } from "../types";
 import { TasksTimelinePanel } from "./tasks-timeline-panel";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksMultiAgentPanelProps {
   agents: MultiAgentAgent[];
   state: MultiAgentLiveState;
@@ -201,11 +202,11 @@ function TasksMultiAgentAgentCard({ agent }: TasksMultiAgentAgentCardProps) {
               {task.title}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-secondary)]">
-              <Pill emphasis="strong" kind="state" tone={taskStatusTone(task.status)}>
+              <Pill variant={pillVariantFromTone(taskStatusTone(task.status))}>
                 {taskStatusLabel(task.status)}
               </Pill>
               {run ? (
-                <Pill kind="state" tone={taskRunStatusTone(run.status)}>
+                <Pill variant={pillVariantFromTone(taskRunStatusTone(run.status))}>
                   {run.status}
                 </Pill>
               ) : null}

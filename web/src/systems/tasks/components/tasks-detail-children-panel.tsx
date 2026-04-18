@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 
 import {
   formatRelativeTime,
@@ -13,6 +13,7 @@ import {
 } from "../lib/task-formatters";
 import type { TaskChildSummary } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksDetailChildrenPanelProps {
   items: TaskChildSummary[];
   errorMessage?: string | null;
@@ -59,11 +60,11 @@ export function TasksDetailChildrenPanel({
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-secondary)]">
-                <Pill emphasis="strong" kind="state" tone={taskStatusTone(child.status)}>
+                <Pill variant={pillVariantFromTone(taskStatusTone(child.status))}>
                   {taskStatusLabel(child.status)}
                 </Pill>
                 {child.priority ? (
-                  <Pill kind="state" tone={taskPriorityTone(child.priority)}>
+                  <Pill variant={pillVariantFromTone(taskPriorityTone(child.priority))}>
                     {taskPriorityLabel(child.priority)}
                   </Pill>
                 ) : null}

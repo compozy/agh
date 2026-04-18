@@ -1,8 +1,8 @@
 import { Hash, Network as NetworkIcon, Plus, Users } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { MetricStrip, PillButton } from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { MetricStrip } from "@/components/design-system";
+import { Button, Pills } from "@agh/ui";
 import {
   NetworkChannelDetailPanel,
   NetworkChannelsListPanel,
@@ -29,22 +29,15 @@ function NetworkPage() {
         icon={<NetworkIcon className="size-4" />}
         count={page.headerCount}
         controls={
-          <div className="flex items-center gap-1.5" data-testid="network-tab-pills">
-            <PillButton
-              active={page.activeTab === "channels"}
-              data-testid="network-tab-channels"
-              onClick={() => page.setActiveTab("channels")}
-            >
-              Channels
-            </PillButton>
-            <PillButton
-              active={page.activeTab === "peers"}
-              data-testid="network-tab-peers"
-              onClick={() => page.setActiveTab("peers")}
-            >
-              Peers
-            </PillButton>
-          </div>
+          <Pills
+            data-testid="network-tab-pills"
+            value={page.activeTab}
+            onChange={page.setActiveTab}
+            items={[
+              { value: "channels", label: "Channels", testId: "network-tab-channels" },
+              { value: "peers", label: "Peers", testId: "network-tab-peers" },
+            ]}
+          />
         }
         meta={
           page.activeTab === "channels" && page.isNetworkEnabled ? (

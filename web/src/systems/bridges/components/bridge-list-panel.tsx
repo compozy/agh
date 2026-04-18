@@ -1,7 +1,7 @@
 import { Search } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
-import { Input } from "@agh/ui";
+import { Input, Pill } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 import {
   bridgeScopeTone,
@@ -10,6 +10,7 @@ import {
 } from "@/systems/bridges/lib/bridge-formatters";
 import type { BridgeHealthMap, BridgeSummary } from "@/systems/bridges/types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 interface BridgeListPanelProps {
   bridgeHealth: BridgeHealthMap;
   bridges: BridgeSummary[];
@@ -66,12 +67,8 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Pill emphasis="strong" kind="state" tone={bridgeStatusTone(bridge.status)}>
-          {bridge.status}
-        </Pill>
-        <Pill kind="tag" tone={bridgeScopeTone(bridge.scope)}>
-          {bridge.scope}
-        </Pill>
+        <Pill variant={pillVariantFromTone(bridgeStatusTone(bridge.status))}>{bridge.status}</Pill>
+        <Pill variant={pillVariantFromTone(bridgeScopeTone(bridge.scope))}>{bridge.scope}</Pill>
       </div>
     </button>
   );

@@ -1,11 +1,12 @@
 import { AlertCircle, ArrowRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 
 import { formatAttemptLabel, formatDurationMs, taskRunStatusTone } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksDashboardActiveRunsProps {
   dashboard: TaskDashboardView;
   maxItems?: number;
@@ -60,7 +61,7 @@ export function TasksDashboardActiveRuns({
                         {run.task_identifier}
                       </span>
                     ) : null}
-                    <Pill kind="state" tone={taskRunStatusTone(run.run_status)}>
+                    <Pill variant={pillVariantFromTone(taskRunStatusTone(run.run_status))}>
                       {run.run_status}
                     </Pill>
                     {run.stuck ? (

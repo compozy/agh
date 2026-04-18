@@ -1,15 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, Loader2 } from "lucide-react";
+import type * as React from "react";
 
-import {
-  Panel,
-  PanelBody,
-  PanelDescription,
-  PanelHeader,
-  PanelTitle,
-  Pill,
-} from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { Button, Pill } from "@agh/ui";
+import { cn } from "@/lib/utils";
+import { pillVariantFromTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
@@ -100,18 +95,16 @@ export function TasksDetailPreviewPanel({
               {record.identifier ? (
                 <span className="font-mono uppercase tracking-[0.12em]">{record.identifier}</span>
               ) : null}
-              <Pill emphasis="strong" kind="state" tone={taskStatusTone(record.status)}>
+              <Pill variant={pillVariantFromTone(taskStatusTone(record.status))}>
                 {taskStatusLabel(record.status)}
               </Pill>
               {record.priority ? (
-                <Pill kind="state" tone={taskPriorityTone(record.priority)}>
+                <Pill variant={pillVariantFromTone(taskPriorityTone(record.priority))}>
                   {taskPriorityLabel(record.priority)}
                 </Pill>
               ) : null}
               {taskHasApprovalPending(record) ? (
-                <Pill kind="state" tone="amber">
-                  {taskApprovalStateLabel(record.approval_state)}
-                </Pill>
+                <Pill variant="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
               ) : null}
             </div>
             <h2
@@ -241,4 +234,48 @@ function MetricPanel({ label, testId, value }: { label: string; testId: string; 
       </p>
     </Panel>
   );
+}
+
+function Panel({ className, ...props }: React.ComponentProps<"section">) {
+  return (
+    <section
+      className={cn(
+        "relative flex flex-col gap-5 rounded-[20px] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-6",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function PanelHeader({ className, ...props }: React.ComponentProps<"header">) {
+  return <header className={cn("flex flex-col gap-3", className)} {...props} />;
+}
+
+function PanelTitle({ className, ...props }: React.ComponentProps<"h2">) {
+  return (
+    <h2
+      className={cn(
+        "text-balance text-lg font-medium text-[color:var(--color-text-primary)]",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function PanelDescription({ className, ...props }: React.ComponentProps<"p">) {
+  return (
+    <p
+      className={cn(
+        "max-w-2xl text-sm leading-6 text-[color:var(--color-text-secondary)]",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function PanelBody({ className, ...props }: React.ComponentProps<"div">) {
+  return <div className={cn("flex flex-col gap-4", className)} {...props} />;
 }

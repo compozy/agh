@@ -1,10 +1,11 @@
 import { AlertTriangle, Check } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
+import { Pill } from "@agh/ui";
 
 import { formatDurationMs } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksDashboardQueueHealthProps {
   dashboard: TaskDashboardView;
 }
@@ -31,7 +32,7 @@ export function TasksDashboardQueueHealth({ dashboard }: TasksDashboardQueueHeal
             {totals.runs_total} runs tracked · {totals.completed_runs} completed
           </p>
         </div>
-        <Pill kind="state" tone={healthTone} data-testid="tasks-dashboard-health-status">
+        <Pill variant={pillVariantFromTone(healthTone)} data-testid="tasks-dashboard-health-status">
           {health.status}
         </Pill>
       </div>
