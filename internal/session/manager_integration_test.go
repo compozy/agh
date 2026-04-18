@@ -201,6 +201,11 @@ func TestManagerIntegrationSyntheticQueuePreservesOrderingBehindActivePrompt(t *
 			events := make(chan acp.AgentEvent)
 			go func() {
 				<-releaseFirstPrompt
+				events <- acp.AgentEvent{
+					Type:      acp.EventTypeDone,
+					TurnID:    req.TurnID,
+					Timestamp: time.Now().UTC(),
+				}
 				close(events)
 			}()
 			return events, nil
@@ -237,18 +242,121 @@ func TestManagerIntegrationSyntheticQueuePreservesOrderingBehindActivePrompt(t *
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
-	if len(events) < 2 {
-		t.Fatalf("stored events = %d, want at least two input events", len(events))
+	if len(events) < 3 {
+		t.Fatalf("stored events = %d, want at least user, done, and synthetic events", len(events))
 	}
-	if got := events[0].Type; got != acp.EventTypeUserMessage {
-		t.Fatalf("events[0].Type = %q, want %q", got, acp.EventTypeUserMessage)
+
+	userIndex := -1
+	doneIndex := -1
+	syntheticIndex := -1
+	for i, event := range events {
+		switch event.Type {
+		case acp.EventTypeUserMessage:
+			if userIndex < 0 {
+				userIndex = i
+			}
+		case acp.EventTypeDone:
+			if doneIndex < 0 {
+				doneIndex = i
+			}
+		case acp.EventTypeSyntheticReentry:
+			if syntheticIndex < 0 {
+				syntheticIndex = i
+			}
+		}
 	}
-	if got := events[1].Type; got != acp.EventTypeSyntheticReentry {
-		t.Fatalf("events[1].Type = %q, want %q", got, acp.EventTypeSyntheticReentry)
+	if userIndex < 0 {
+		t.Fatalf("stored events missing %q: %#v", acp.EventTypeUserMessage, events)
+	}
+	if doneIndex < 0 {
+		t.Fatalf("stored events missing %q: %#v", acp.EventTypeDone, events)
+	}
+	if syntheticIndex < 0 {
+		t.Fatalf("stored events missing %q: %#v", acp.EventTypeSyntheticReentry, events)
+	}
+	if !(userIndex < doneIndex && doneIndex < syntheticIndex) {
+		t.Fatalf("event order user=%d done=%d synthetic=%d, want user < done < synthetic", userIndex, doneIndex, syntheticIndex)
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("cleanup Stop() error = %v", err)
+	}
+}
+
+func TestManagerIntegrationRemovePurgesSyntheticState(t *testing.T) {
+	tests := []struct {
+		name   string
+		remove func(*Manager, string)
+	}{
+		{
+			name: "Should purge synthetic state on remove",
+			remove: func(m *Manager, id string) {
+				m.remove(id)
+			},
+		},
+		{
+			name: "Should purge synthetic state on removeActive",
+			remove: func(m *Manager, id string) {
+				m.removeActive(id)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			eventsCh := make(chan acp.AgentEvent, 1)
+			finalizing := make(chan struct{})
+			manager := &Manager{
+				sessions: map[string]*Session{
+					"sess-synth": {ID: "sess-synth"},
+				},
+				pending: map[string]struct{}{
+					"sess-synth": {},
+				},
+				finalizing: map[string]chan struct{}{
+					"sess-synth": finalizing,
+				},
+				syntheticQueues: map[string][]queuedSyntheticPrompt{
+					"sess-synth": {{
+						request: promptRequest{target: "sess-synth", turnID: "turn-synth"},
+						out:     eventsCh,
+					}},
+				},
+				syntheticDispatching: map[string]bool{
+					"sess-synth": true,
+				},
+			}
+
+			tc.remove(manager, "sess-synth")
+
+			manager.syntheticMu.Lock()
+			if got := len(manager.syntheticQueues["sess-synth"]); got != 0 {
+				manager.syntheticMu.Unlock()
+				t.Fatalf("len(syntheticQueues[\"sess-synth\"]) = %d, want 0", got)
+			}
+			if manager.syntheticDispatching["sess-synth"] {
+				manager.syntheticMu.Unlock()
+				t.Fatal("syntheticDispatching[\"sess-synth\"] = true, want cleared")
+			}
+			manager.syntheticMu.Unlock()
+
+			event, ok := <-eventsCh
+			if !ok {
+				t.Fatal("queued synthetic output closed without error event")
+			}
+			if got, want := event.Type, acp.EventTypeError; got != want {
+				t.Fatalf("queued synthetic event type = %q, want %q", got, want)
+			}
+			if got, want := event.TurnID, "turn-synth"; got != want {
+				t.Fatalf("queued synthetic event turn id = %q, want %q", got, want)
+			}
+			if !strings.Contains(event.Error, "synthetic prompt dropped") {
+				t.Fatalf("queued synthetic error = %q, want drop summary", event.Error)
+			}
+			if _, ok := <-eventsCh; ok {
+				t.Fatal("queued synthetic output channel left open after removal")
+			}
+		})
 	}
 }
 

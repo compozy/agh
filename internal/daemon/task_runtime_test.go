@@ -1889,14 +1889,26 @@ func waitForEventSummaryTypes(
 func waitForTaskRuntimeCondition(t *testing.T, timeout time.Duration, check func() bool) {
 	t.Helper()
 
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if check() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	if check() {
+		return
 	}
-	t.Fatal("timed out waiting for task runtime condition")
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if check() {
+				return
+			}
+		case <-timer.C:
+			t.Fatal("timed out waiting for task runtime condition")
+		}
+	}
 }
 
 func newDetachedHarnessTaskRuntimeForTest(

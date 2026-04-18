@@ -1805,6 +1805,9 @@ func TestPromptProjectionEventFromStoredEventUsesStoredFallbacks(t *testing.T) {
 	if got, want := projected.TurnID, "turn-synth"; got != want {
 		t.Fatalf("projected.TurnID = %q, want %q", got, want)
 	}
+	if got, want := projected.Text, "daemon wake-up"; got != want {
+		t.Fatalf("projected.Text = %q, want %q", got, want)
+	}
 	if got := projected.Timestamp; !got.Equal(now) {
 		t.Fatalf("projected.Timestamp = %s, want %s", got, now)
 	}

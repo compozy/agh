@@ -192,21 +192,21 @@ func (m *Manager) prepareStopWithCause(
 
 	if session.Info().State == StateActive && !observedProcessExit {
 		if err := m.dispatchSessionPreStop(ctx, session); err != nil {
-			return nil, nil, false, false, false, err
+			return nil, nil, false, false, false, fmt.Errorf("session: prepare stop pre-stop hooks for %q: %w", id, err)
 		}
 	}
 
 	writeMeta, promptSetupDone, err := session.prepareStop(m.now(), appliedCause, appliedDetail)
 	if err != nil {
-		return nil, nil, false, false, false, err
+		return nil, nil, false, false, false, fmt.Errorf("session: prepare stop state sync for %q: %w", id, err)
 	}
 	if writeMeta {
 		if err := m.writeMeta(session); err != nil {
-			return nil, nil, false, false, false, err
+			return nil, nil, false, false, false, fmt.Errorf("session: prepare stop metadata write for %q: %w", id, err)
 		}
 	}
 	if err := waitForPromptSetup(ctx, session, promptSetupDone); err != nil {
-		return nil, nil, false, false, false, err
+		return nil, nil, false, false, false, fmt.Errorf("session: prepare stop prompt setup wait for %q: %w", id, err)
 	}
 
 	if session.Info().State == StateStopped {

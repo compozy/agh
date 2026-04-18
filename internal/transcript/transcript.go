@@ -317,18 +317,20 @@ func applyToolResult(messages *[]Message, toolStates map[string]*toolLifecycle, 
 
 func toolLifecycleKey(parsed event) string {
 	toolID := strings.TrimSpace(parsed.ToolCallID)
-	if toolID == "" {
-		toolID = strings.TrimSpace(parsed.ID)
+	if toolID != "" {
+		return toolID
 	}
-	if toolID == "" {
+
+	fallbackID := strings.TrimSpace(parsed.ID)
+	if fallbackID == "" {
 		return ""
 	}
 
 	turnID := strings.TrimSpace(parsed.TurnID)
 	if turnID == "" {
-		return toolID
+		return fallbackID
 	}
-	return turnID + ":" + toolID
+	return turnID + ":" + fallbackID
 }
 
 func toolMessageID(parsed event) string {

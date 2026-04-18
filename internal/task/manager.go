@@ -2571,15 +2571,20 @@ func (m *Service) recordTaskEvent(
 		return err
 	}
 
-	record, err := m.store.GetTaskEventRecord(ctx, event.ID)
+	postCommitCtx := context.Background()
+	if ctx != nil {
+		postCommitCtx = context.WithoutCancel(ctx)
+	}
+
+	record, err := m.store.GetTaskEventRecord(postCommitCtx, event.ID)
 	if err != nil {
-		m.emitTaskLiveEventBestEffort(ctx, event.ID)
+		m.emitTaskLiveEventBestEffort(postCommitCtx, event.ID)
 		return nil
 	}
 	if m.eventObserver != nil {
-		m.eventObserver.OnTaskEvent(ctx, record)
+		m.eventObserver.OnTaskEvent(postCommitCtx, record)
 	}
-	m.emitTaskLiveRecordBestEffort(ctx, record)
+	m.emitTaskLiveRecordBestEffort(postCommitCtx, record)
 	return nil
 }
 

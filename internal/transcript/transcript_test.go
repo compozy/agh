@@ -297,7 +297,7 @@ func TestAssembleRendersSyntheticReentryAsSystemMessage(t *testing.T) {
 	}
 }
 
-func TestAssemblePreservesMixedTurnOrderingAndToolPairingWithRepeatedToolIDs(t *testing.T) {
+func TestAssemblePreservesMixedTurnOrderingAndToolPairingAcrossTurns(t *testing.T) {
 	t.Parallel()
 
 	events := []store.SessionEvent{
@@ -332,7 +332,7 @@ func TestAssemblePreservesMixedTurnOrderingAndToolPairingWithRepeatedToolIDs(t *
 				time.Date(2026, 4, 18, 12, 0, 1, 0, time.UTC),
 				"",
 				"Bash",
-				"shared-call",
+				"call-user",
 				json.RawMessage(`{"command":"echo user"}`),
 				nil,
 				false,
@@ -370,7 +370,7 @@ func TestAssemblePreservesMixedTurnOrderingAndToolPairingWithRepeatedToolIDs(t *
 				time.Date(2026, 4, 18, 12, 0, 3, 0, time.UTC),
 				"",
 				"Bash",
-				"shared-call",
+				"call-user",
 				nil,
 				&ToolResult{Stdout: "user"},
 				false,
@@ -408,7 +408,7 @@ func TestAssemblePreservesMixedTurnOrderingAndToolPairingWithRepeatedToolIDs(t *
 				time.Date(2026, 4, 18, 12, 0, 5, 0, time.UTC),
 				"",
 				"Bash",
-				"shared-call",
+				"call-network",
 				json.RawMessage(`{"command":"echo network"}`),
 				nil,
 				false,
@@ -427,7 +427,7 @@ func TestAssemblePreservesMixedTurnOrderingAndToolPairingWithRepeatedToolIDs(t *
 				time.Date(2026, 4, 18, 12, 0, 6, 0, time.UTC),
 				"",
 				"Bash",
-				"shared-call",
+				"call-network",
 				nil,
 				&ToolResult{Stdout: "network"},
 				false,
@@ -474,16 +474,16 @@ func TestAssemblePreservesMixedTurnOrderingAndToolPairingWithRepeatedToolIDs(t *
 	if got := messages[6].Role; got != RoleToolResult {
 		t.Fatalf("messages[6].Role = %q, want %q", got, RoleToolResult)
 	}
-	if got, want := messages[1].ID, "turn-user:shared-call"; got != want {
+	if got, want := messages[1].ID, "call-user"; got != want {
 		t.Fatalf("messages[1].ID = %q, want %q", got, want)
 	}
-	if got, want := messages[3].ID, "turn-user:shared-call"; got != want {
+	if got, want := messages[3].ID, "call-user"; got != want {
 		t.Fatalf("messages[3].ID = %q, want %q", got, want)
 	}
-	if got, want := messages[5].ID, "turn-network:shared-call"; got != want {
+	if got, want := messages[5].ID, "call-network"; got != want {
 		t.Fatalf("messages[5].ID = %q, want %q", got, want)
 	}
-	if got, want := messages[6].ID, "turn-network:shared-call"; got != want {
+	if got, want := messages[6].ID, "call-network"; got != want {
 		t.Fatalf("messages[6].ID = %q, want %q", got, want)
 	}
 	if messages[3].ToolResult == nil || messages[3].ToolResult.Stdout != "user" {
@@ -527,6 +527,74 @@ func TestAssembleSkipsIgnorableEvents(t *testing.T) {
 	}
 	if len(messages) != 0 {
 		t.Fatalf("Assemble() len = %d, want 0", len(messages))
+	}
+}
+
+func TestAssemblePairsToolLifecycleWhenResultOmitsTurnID(t *testing.T) {
+	t.Parallel()
+
+	timestamp := time.Date(2026, 4, 18, 16, 0, 0, 0, time.UTC)
+	events := []store.SessionEvent{
+		{
+			ID:       "call-1",
+			Sequence: 1,
+			TurnID:   "turn-tool",
+			Type:     acp.EventTypeToolCall,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeToolCall,
+				"turn-tool",
+				timestamp,
+				"",
+				"Bash",
+				"shared-call",
+				json.RawMessage(`{"command":"pwd"}`),
+				nil,
+				false,
+			),
+			Timestamp: timestamp,
+		},
+		{
+			ID:       "result-1",
+			Sequence: 2,
+			Type:     acp.EventTypeToolResult,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeToolResult,
+				"",
+				timestamp.Add(time.Second),
+				"",
+				"Bash",
+				"shared-call",
+				nil,
+				&ToolResult{Stdout: "workspace"},
+				false,
+			),
+			Timestamp: timestamp.Add(time.Second),
+		},
+	}
+
+	messages, err := Assemble(events)
+	if err != nil {
+		t.Fatalf("Assemble() error = %v", err)
+	}
+	if got, want := len(messages), 2; got != want {
+		t.Fatalf("Assemble() len = %d, want %d", got, want)
+	}
+	if got, want := messages[0].Role, RoleToolCall; got != want {
+		t.Fatalf("messages[0].Role = %q, want %q", got, want)
+	}
+	if got, want := messages[1].Role, RoleToolResult; got != want {
+		t.Fatalf("messages[1].Role = %q, want %q", got, want)
+	}
+	if got, want := messages[0].ID, "shared-call"; got != want {
+		t.Fatalf("messages[0].ID = %q, want %q", got, want)
+	}
+	if got, want := messages[1].ID, "shared-call"; got != want {
+		t.Fatalf("messages[1].ID = %q, want %q", got, want)
+	}
+	if messages[1].ToolResult == nil || messages[1].ToolResult.Stdout != "workspace" {
+		t.Fatalf("messages[1].ToolResult = %#v, want stdout workspace", messages[1].ToolResult)
 	}
 }
 

@@ -1,10 +1,14 @@
 package session
 
 import (
+	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -204,5 +208,103 @@ func TestRequestStopWithCauseFinalizesAlreadyExitedProcess(t *testing.T) {
 	}
 	if got, want := meta.StopDetail, crashErr.Error(); got != want {
 		t.Fatalf("meta stop_detail = %q, want %q", got, want)
+	}
+}
+
+func TestPrepareStopWithCauseWrapsStageFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T) (*Manager, *Session, context.Context)
+		wantStage string
+		wantErr   error
+	}{
+		{
+			name: "Should wrap pre-stop hook failures",
+			setup: func(t *testing.T) (*Manager, *Session, context.Context) {
+				t.Helper()
+
+				dispatcher := &spyHookDispatcher{
+					dispatchSessionPreStopFn: func(
+						_ context.Context,
+						payload hookspkg.SessionPreStopPayload,
+					) (hookspkg.SessionPreStopPayload, error) {
+						return payload, errors.New("hook boom")
+					},
+				}
+				h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+				return h.manager, createSession(t, h), testutil.Context(t)
+			},
+			wantStage: "prepare stop pre-stop hooks",
+		},
+		{
+			name: "Should wrap state synchronization failures",
+			setup: func(t *testing.T) (*Manager, *Session, context.Context) {
+				t.Helper()
+
+				h := newHarness(t)
+				session := createSession(t, h)
+				session.mu.Lock()
+				session.State = StateStarting
+				session.mu.Unlock()
+				return h.manager, session, testutil.Context(t)
+			},
+			wantStage: "prepare stop state sync",
+			wantErr:   ErrInvalidStateTransition,
+		},
+		{
+			name: "Should wrap metadata write failures",
+			setup: func(t *testing.T) (*Manager, *Session, context.Context) {
+				t.Helper()
+
+				h := newHarness(t)
+				session := createSession(t, h)
+				blockingPath := filepath.Join(t.TempDir(), "meta-parent")
+				if err := os.WriteFile(blockingPath, []byte("block"), 0o644); err != nil {
+					t.Fatalf("WriteFile(blockingPath) error = %v", err)
+				}
+				session.mu.Lock()
+				session.metaPath = filepath.Join(blockingPath, "session.json")
+				session.mu.Unlock()
+				return h.manager, session, testutil.Context(t)
+			},
+			wantStage: "prepare stop metadata write",
+		},
+		{
+			name: "Should wrap prompt setup wait failures",
+			setup: func(t *testing.T) (*Manager, *Session, context.Context) {
+				t.Helper()
+
+				h := newHarness(t)
+				session := createSession(t, h)
+				if _, err := session.beginPromptSetup(); err != nil {
+					t.Fatalf("beginPromptSetup() error = %v", err)
+				}
+				ctx, cancel := context.WithCancel(testutil.Context(t))
+				cancel()
+				return h.manager, session, ctx
+			},
+			wantStage: "prepare stop prompt setup wait",
+			wantErr:   context.Canceled,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager, session, ctx := tc.setup(t)
+			_, _, _, _, _, err := manager.prepareStopWithCause(ctx, session.ID, CauseUserRequested, "")
+			if err == nil {
+				t.Fatal("prepareStopWithCause() error = nil, want wrapped stage failure")
+			}
+			if !strings.Contains(err.Error(), tc.wantStage) {
+				t.Fatalf("prepareStopWithCause() error = %v, want stage context %q", err, tc.wantStage)
+			}
+			if tc.wantErr != nil && !errors.Is(err, tc.wantErr) {
+				t.Fatalf("prepareStopWithCause() error = %v, want wrapped %v", err, tc.wantErr)
+			}
+		})
 	}
 }

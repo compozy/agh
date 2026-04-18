@@ -472,21 +472,54 @@ func (m *Manager) releaseReservation(id string) {
 }
 
 func (m *Manager) remove(id string) {
+	target := strings.TrimSpace(id)
+
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if done, ok := m.finalizing[id]; ok {
+	if done, ok := m.finalizing[target]; ok {
 		close(done)
 	}
-	delete(m.sessions, id)
-	delete(m.pending, id)
-	delete(m.finalizing, id)
+	delete(m.sessions, target)
+	delete(m.pending, target)
+	delete(m.finalizing, target)
+	m.mu.Unlock()
+
+	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotFound)
 }
 
 func (m *Manager) removeActive(id string) {
+	target := strings.TrimSpace(id)
+
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.sessions, id)
-	delete(m.pending, id)
+	delete(m.sessions, target)
+	delete(m.pending, target)
+	m.mu.Unlock()
+
+	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotActive)
+}
+
+func (m *Manager) takeQueuedSyntheticPrompts(sessionID string) []queuedSyntheticPrompt {
+	if m == nil {
+		return nil
+	}
+
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return nil
+	}
+
+	m.syntheticMu.Lock()
+	defer m.syntheticMu.Unlock()
+
+	queue := append([]queuedSyntheticPrompt(nil), m.syntheticQueues[target]...)
+	delete(m.syntheticQueues, target)
+	delete(m.syntheticDispatching, target)
+	return queue
+}
+
+func (m *Manager) emitDroppedSyntheticPrompts(items []queuedSyntheticPrompt, err error) {
+	for _, item := range items {
+		m.emitQueuedSyntheticDispatchError(item, err)
+	}
 }
 
 func (m *Manager) finishFinalization(id string) {
