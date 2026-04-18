@@ -1,9 +1,9 @@
-import type { WorkspaceDetailPayload, WorkspacePayload } from "../types";
+import type { WorkspaceDetailPayload, WorkspacePayload } from "@/systems/workspace/types";
 
 export const workspaceFixtures: WorkspacePayload[] = [
   {
     id: "ws_home",
-    root_dir: "/Users/pedro",
+    root_dir: "/workspaces/home",
     add_dirs: [],
     name: "home",
     created_at: "2026-04-15T09:00:00Z",
@@ -11,8 +11,8 @@ export const workspaceFixtures: WorkspacePayload[] = [
   },
   {
     id: "ws_storybook",
-    root_dir: "/Users/pedro/Dev/compozy/agh2",
-    add_dirs: ["/Users/pedro/Dev/compozy/shared"],
+    root_dir: "/workspaces/agh2",
+    add_dirs: ["/workspaces/shared"],
     name: "agh2",
     created_at: "2026-04-16T09:00:00Z",
     updated_at: "2026-04-17T17:42:00Z",

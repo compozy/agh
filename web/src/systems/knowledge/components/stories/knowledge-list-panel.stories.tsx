@@ -4,8 +4,7 @@ import { delay, http, HttpResponse } from "msw";
 
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
 import { PanelSurface } from "@/storybook/story-layout";
-
-import { KnowledgeListPanel } from "../knowledge-list-panel";
+import { KnowledgeListPanel } from "@/systems/knowledge/components/knowledge-list-panel";
 
 const meta: Meta<typeof KnowledgeListPanel> = {
   title: "systems/knowledge/KnowledgeListPanel",
@@ -54,10 +53,12 @@ function KnowledgeListPanelFromPage() {
 }
 
 export const Default: Story = {
+  args: {},
   render: () => <KnowledgeListPanelFromPage />,
 };
 
 export const Loading: Story = {
+  args: {},
   parameters: {
     msw: {
       handlers: [

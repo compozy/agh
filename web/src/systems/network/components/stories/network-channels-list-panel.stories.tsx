@@ -1,9 +1,9 @@
+import type { ComponentProps } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { PanelSurface } from "@/storybook/story-layout";
+import { NetworkChannelsListPanel } from "@/systems/network/components/network-channels-list-panel";
 import { networkChannelsFixture } from "@/systems/network/mocks";
-
-import { NetworkChannelsListPanel } from "../network-channels-list-panel";
 
 const meta: Meta<typeof NetworkChannelsListPanel> = {
   title: "systems/network/NetworkChannelsListPanel",
@@ -16,9 +16,7 @@ const meta: Meta<typeof NetworkChannelsListPanel> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function NetworkChannelsListPanelFrame(
-  props: React.ComponentProps<typeof NetworkChannelsListPanel>
-) {
+function NetworkChannelsListPanelFrame(props: ComponentProps<typeof NetworkChannelsListPanel>) {
   return (
     <PanelSurface className="max-w-[280px]">
       <NetworkChannelsListPanel {...props} />
@@ -27,6 +25,7 @@ function NetworkChannelsListPanelFrame(
 }
 
 export const Default: Story = {
+  args: {},
   render: () => (
     <NetworkChannelsListPanelFrame
       channels={networkChannelsFixture.channels}
@@ -39,6 +38,7 @@ export const Default: Story = {
 };
 
 export const Loading: Story = {
+  args: {},
   render: () => (
     <NetworkChannelsListPanelFrame
       channels={[]}
@@ -52,6 +52,7 @@ export const Loading: Story = {
 };
 
 export const Empty: Story = {
+  args: {},
   render: () => (
     <NetworkChannelsListPanelFrame
       channels={[]}

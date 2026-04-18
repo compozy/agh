@@ -3,8 +3,7 @@ import { http, HttpResponse } from "msw";
 
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
 import { PanelSurface } from "@/storybook/story-layout";
-
-import { KnowledgeDetailPanel } from "../knowledge-detail-panel";
+import { KnowledgeDetailPanel } from "@/systems/knowledge/components/knowledge-detail-panel";
 
 const meta: Meta<typeof KnowledgeDetailPanel> = {
   title: "systems/knowledge/KnowledgeDetailPanel",
@@ -36,10 +35,12 @@ function KnowledgeDetailPanelFromPage() {
 }
 
 export const Default: Story = {
+  args: {},
   render: () => <KnowledgeDetailPanelFromPage />,
 };
 
 export const Empty: Story = {
+  args: {},
   parameters: {
     msw: {
       handlers: [http.get("/api/memory", () => HttpResponse.json([]))],

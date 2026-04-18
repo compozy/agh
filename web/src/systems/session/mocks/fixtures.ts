@@ -6,7 +6,7 @@ import type {
   TranscriptMessage,
   TurnHistoryPayload,
   UIMessage,
-} from "../types";
+} from "@/systems/session/types";
 
 export const sessionFixtures: SessionPayload[] = [
   {
@@ -298,6 +298,7 @@ export const uiMessageFixtures: UIMessage[] = [
   bashToolMessageFixture,
   {
     ...bashToolMessageFixture,
+    id: "tool_bash_result",
     role: "tool_result",
   },
   {

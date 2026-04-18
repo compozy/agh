@@ -1,9 +1,9 @@
+import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { CenteredSurface } from "@/storybook/story-layout";
+import { ReadContent } from "@/systems/session/components/tool-renderers/read-content";
 import { readToolMessageFixture, truncatedReadToolMessageFixture } from "@/systems/session/mocks";
-
-import { ReadContent } from "../read-content";
 
 const meta: Meta<typeof ReadContent> = {
   title: "systems/session/tool-renderers/ReadContent",
@@ -16,7 +16,11 @@ const meta: Meta<typeof ReadContent> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function ReadFrame({ children }: { children: React.ReactNode }) {
+interface ReadFrameProps {
+  children: ReactNode;
+}
+
+function ReadFrame({ children }: ReadFrameProps) {
   return (
     <CenteredSurface>
       <div className="w-full max-w-3xl rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] p-4">
@@ -27,6 +31,7 @@ function ReadFrame({ children }: { children: React.ReactNode }) {
 }
 
 export const Default: Story = {
+  args: {},
   render: () => (
     <ReadFrame>
       <ReadContent message={readToolMessageFixture} />
@@ -35,6 +40,7 @@ export const Default: Story = {
 };
 
 export const Truncated: Story = {
+  args: {},
   render: () => (
     <ReadFrame>
       <ReadContent message={truncatedReadToolMessageFixture} />

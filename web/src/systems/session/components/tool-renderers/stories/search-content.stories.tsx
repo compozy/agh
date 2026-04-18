@@ -1,9 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { CenteredSurface } from "@/storybook/story-layout";
+import { SearchContent } from "@/systems/session/components/tool-renderers/search-content";
 import { emptySearchToolMessageFixture, searchToolMessageFixture } from "@/systems/session/mocks";
-
-import { SearchContent } from "../search-content";
 
 const meta: Meta<typeof SearchContent> = {
   title: "systems/session/tool-renderers/SearchContent",
@@ -27,6 +26,7 @@ function SearchFrame({ children }: { children: React.ReactNode }) {
 }
 
 export const Default: Story = {
+  args: {},
   render: () => (
     <SearchFrame>
       <SearchContent message={searchToolMessageFixture} />
@@ -35,6 +35,7 @@ export const Default: Story = {
 };
 
 export const EmptyResultSet: Story = {
+  args: {},
   render: () => (
     <SearchFrame>
       <SearchContent message={emptySearchToolMessageFixture} />

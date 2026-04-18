@@ -2,8 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { CenteredSurface } from "@/storybook/story-layout";
-
-import { CopyButton } from "../copy-button";
+import { CopyButton } from "@/systems/session/components/copy-button";
 
 const meta: Meta<typeof CopyButton> = {
   title: "systems/session/CopyButton",
@@ -34,14 +33,19 @@ function CopiedButtonHarness() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const originalClipboard = navigator.clipboard;
+    const hadClipboard = Boolean(navigator.clipboard);
 
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: {
-        writeText: async () => undefined,
-      },
-    });
+    if (!navigator.clipboard) {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: async () => undefined,
+        },
+      });
+    }
+
+    const originalWriteText = navigator.clipboard.writeText;
+    navigator.clipboard.writeText = async () => undefined;
 
     const frame = window.requestAnimationFrame(() => {
       containerRef.current?.querySelector("button")?.click();
@@ -49,10 +53,11 @@ function CopiedButtonHarness() {
 
     return () => {
       window.cancelAnimationFrame(frame);
-      Object.defineProperty(navigator, "clipboard", {
-        configurable: true,
-        value: originalClipboard,
-      });
+      navigator.clipboard.writeText = originalWriteText;
+
+      if (!hadClipboard) {
+        Reflect.deleteProperty(navigator, "clipboard");
+      }
     };
   }, []);
 
@@ -64,6 +69,7 @@ function CopiedButtonHarness() {
 }
 
 export const Default: Story = {
+  args: {},
   render: args => (
     <CopyButtonFrame>
       <CopyButton {...args} />
@@ -72,6 +78,7 @@ export const Default: Story = {
 };
 
 export const Copied: Story = {
+  args: {},
   render: () => (
     <CopyButtonFrame>
       <CopiedButtonHarness />
