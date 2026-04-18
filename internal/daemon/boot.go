@@ -40,6 +40,7 @@ type bootState struct {
 	logger              *slog.Logger
 	closeLogger         func() error
 	lock                *Lock
+	harnessResolver     *HarnessContextResolver
 	memoryStore         *memory.Store
 	skillsRegistry      *skills.Registry
 	mcpResolver         *skills.MCPResolver
@@ -47,6 +48,8 @@ type bootState struct {
 	dreamRuntime        *consolidation.Runtime
 	globalMemoryDir     string
 	promptAssembler     session.PromptAssembler
+	startupOverlay      session.StartupPromptOverlay
+	promptAugmenter     session.PromptInputAugmenter
 	notifier            *hooksNotifier
 	registry            Registry
 	environmentRegistry *environment.Registry
@@ -285,6 +288,18 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		WithPrependPromptProviders(prependProviders...),
 		WithAppendPromptProviders(appendProviders...),
 	)
+	state.harnessResolver = NewHarnessContextResolver(HarnessRuntimeSignals{
+		MemoryPromptSectionEnabled: state.memoryStore != nil,
+		SkillsPromptSectionEnabled: state.skillsRegistry != nil,
+		DurableMemoryAugmenter:     state.memoryStore != nil,
+		SyntheticTurnsEnabled:      true,
+		DetachedTaskRuntimeEnabled: true,
+	})
+	state.startupOverlay = newHarnessStartupPromptOverlay(state.harnessResolver)
+	state.promptAugmenter = newHarnessPromptInputAugmenter(
+		state.harnessResolver,
+		memory.NewRecallAugmenter(state.memoryStore),
+	)
 	return nil
 }
 
@@ -454,13 +469,15 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 			Conversation: state.notifier,
 			Compaction:   state.notifier,
 		},
-		PromptAssembler:     state.promptAssembler,
-		MemoryStore:         state.memoryStore,
-		AgentResolver:       agentCatalogDependency(state.agentCatalog),
-		SkillRegistry:       skillRegistryDependency(state.skillsRegistry),
-		MCPResolver:         mcpResolverDependency(state.mcpResolver),
-		WorkspaceResolver:   state.workspaceResolver,
-		EnvironmentRegistry: state.environmentRegistry,
+		PromptAssembler:      state.promptAssembler,
+		StartupPromptOverlay: state.startupOverlay,
+		PromptInputAugmenter: state.promptAugmenter,
+		MemoryStore:          state.memoryStore,
+		AgentResolver:        agentCatalogDependency(state.agentCatalog),
+		SkillRegistry:        skillRegistryDependency(state.skillsRegistry),
+		MCPResolver:          mcpResolverDependency(state.mcpResolver),
+		WorkspaceResolver:    state.workspaceResolver,
+		EnvironmentRegistry:  state.environmentRegistry,
 	}
 }
 
@@ -1374,6 +1391,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.closeLogger = state.closeLogger
 	d.booting = false
 	d.lock = state.lock
+	d.harnessResolver = state.harnessResolver
 	d.registry = state.registry
 	d.memoryStore = state.memoryStore
 	d.sessions = state.sessions

@@ -1204,10 +1204,7 @@ func listTasksWithDraftCompensation(
 }
 
 func nextDraftOverfetchLimit(currentLimit, requestedLimit int) int {
-	nextLimit := currentLimit * 2
-	if nextLimit < currentLimit+requestedLimit {
-		nextLimit = currentLimit + requestedLimit
-	}
+	nextLimit := max(currentLimit*2, currentLimit+requestedLimit)
 	if nextLimit > taskDraftOverfetchMaxLimit {
 		return taskDraftOverfetchMaxLimit
 	}

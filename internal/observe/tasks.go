@@ -86,7 +86,12 @@ type TaskDashboardQuery struct {
 // Validate ensures the dashboard query uses supported filters.
 func (q TaskDashboardQuery) Validate() error {
 	if q.Scope.Normalize() != "" {
-		if err := taskpkg.ValidateScopeBinding(q.Scope, q.WorkspaceID, "task_dashboard_query", "workspace_id"); err != nil {
+		if err := taskpkg.ValidateScopeBinding(
+			q.Scope,
+			q.WorkspaceID,
+			"task_dashboard_query",
+			"workspace_id",
+		); err != nil {
 			return err
 		}
 	}
@@ -1732,20 +1737,18 @@ func queryTaskDependencyCounts(
 	db *sql.DB,
 	taskIDs []string,
 ) (map[string]int, error) {
-	placeholders := make([]string, len(taskIDs))
-	args := make([]any, len(taskIDs))
-	for idx, taskID := range taskIDs {
-		placeholders[idx] = "?"
-		args[idx] = taskID
+	taskIDsJSON, err := json.Marshal(taskIDs)
+	if err != nil {
+		return nil, fmt.Errorf("observe: encode dependency count task ids: %w", err)
 	}
 
 	rows, err := db.QueryContext(
 		ctx,
-		`SELECT task_id, COUNT(1)
-		FROM task_dependencies
-		WHERE task_id IN (`+strings.Join(placeholders, ",")+`)
-		GROUP BY task_id`,
-		args...,
+		`SELECT dep.task_id, COUNT(1)
+		FROM task_dependencies dep
+		JOIN json_each(?) requested ON requested.value = dep.task_id
+		GROUP BY dep.task_id`,
+		string(taskIDsJSON),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("observe: query dependency counts: %w", err)

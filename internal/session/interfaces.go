@@ -19,8 +19,9 @@ import (
 type TurnSource string
 
 const (
-	TurnSourceUser    TurnSource = TurnSource(acp.PromptTurnSourceUser)
-	TurnSourceNetwork TurnSource = TurnSource(acp.PromptTurnSourceNetwork)
+	TurnSourceUser      TurnSource = TurnSource(acp.PromptTurnSourceUser)
+	TurnSourceNetwork   TurnSource = TurnSource(acp.PromptTurnSourceNetwork)
+	TurnSourceSynthetic TurnSource = "synthetic"
 )
 
 // PromptOpts carries per-turn metadata through the session prompt pipeline.
@@ -49,6 +50,8 @@ func normalizeTurnSource(source TurnSource) TurnSource {
 		return TurnSourceUser
 	case TurnSourceNetwork:
 		return TurnSourceNetwork
+	case TurnSourceSynthetic:
+		return TurnSourceSynthetic
 	default:
 		return ""
 	}

@@ -67,6 +67,7 @@ type Manager struct {
 	networkPeers     NetworkPeerLifecycle
 	turnEndNotifier  TurnEndNotifier
 	inputAugmenter   PromptInputAugmenter
+	startupOverlay   StartupPromptOverlay
 	hooks            HookSet
 	environment      *environment.Registry
 	agentResolver    AgentResolver
@@ -181,6 +182,13 @@ func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
 func WithPromptInputAugmenter(augmenter PromptInputAugmenter) Option {
 	return func(manager *Manager) {
 		manager.inputAugmenter = augmenter
+	}
+}
+
+// WithStartupPromptOverlay injects a daemon-owned startup prompt overlay.
+func WithStartupPromptOverlay(overlay StartupPromptOverlay) Option {
+	return func(manager *Manager) {
+		manager.startupOverlay = overlay
 	}
 }
 

@@ -1224,7 +1224,14 @@ func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTaskEventRecords() error = %v", err)
 	}
-	if got, want := []int64{records[0].Sequence, records[1].Sequence}, []int64{1, 2}; got[0] != want[0] || got[1] != want[1] {
+	if got, want := []int64{
+		records[0].Sequence,
+		records[1].Sequence,
+	}, []int64{
+		1,
+		2,
+	}; got[0] != want[0] ||
+		got[1] != want[1] {
 		t.Fatalf("record sequences = %#v, want %#v", got, want)
 	}
 }

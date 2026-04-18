@@ -212,6 +212,19 @@ func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.S
 	return ctx
 }
 
+func (s *sessionStartSpec) startupPromptContext() StartupPromptContext {
+	ref := workref.NewRoot(s.workspace.ID, s.workspace.RootDir)
+	return StartupPromptContext{
+		SessionID:   strings.TrimSpace(s.sessionID),
+		SessionName: strings.TrimSpace(s.sessionName),
+		AgentName:   strings.TrimSpace(s.agentName),
+		WorkspaceID: ref.WorkspaceID,
+		Workspace:   ref.Workspace,
+		Channel:     strings.TrimSpace(s.channel),
+		SessionType: normalizeSessionType(s.sessionType),
+	}
+}
+
 func (m *Manager) prepareSessionStartRuntime(
 	ctx context.Context,
 	spec *sessionStartSpec,
@@ -226,9 +239,11 @@ func (m *Manager) prepareSessionStartRuntime(
 	if err != nil {
 		return sessionStartRuntime{}, err
 	}
-	startupPrompt, err = appendBundledNetworkSkill(startupPrompt, spec.channel)
-	if err != nil {
-		return sessionStartRuntime{}, err
+	if m.startupOverlay != nil {
+		startupPrompt, err = m.startupOverlay.Apply(ctx, spec.startupPromptContext(), startupPrompt)
+		if err != nil {
+			return sessionStartRuntime{}, fmt.Errorf("session: apply startup prompt overlay: %w", err)
+		}
 	}
 	agentDef.Prompt = startupPrompt
 

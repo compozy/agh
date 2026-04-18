@@ -1020,6 +1020,30 @@ func TestPromptNetworkRejectsMultipleMetadataValues(t *testing.T) {
 	}
 }
 
+func TestPromptWithOptsRejectsSyntheticTurnSourceUntilDedicatedPathExists(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	_, err := h.manager.PromptWithOpts(testutil.Context(t), session.ID, PromptOpts{
+		Message:    "synthetic prompt",
+		TurnSource: TurnSourceSynthetic,
+	})
+	if err == nil {
+		t.Fatal("PromptWithOpts(synthetic) error = nil, want validation failure")
+	}
+	if !strings.Contains(err.Error(), "dedicated synthetic submission path") {
+		t.Fatalf("PromptWithOpts(synthetic) error = %v, want dedicated-path validation", err)
+	}
+	if got := len(h.driver.promptCalls); got != 0 {
+		t.Fatalf("len(promptCalls) = %d, want 0 when synthetic validation fails", got)
+	}
+}
+
 func TestApprovePermissionRoutesToActiveSession(t *testing.T) {
 	t.Parallel()
 
@@ -1636,6 +1660,66 @@ func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	var (
+		called       bool
+		gotChannel   string
+		gotType      Type
+		gotWorkspace string
+	)
+	h.manager = newManagerWithHarness(
+		t,
+		h,
+		WithPromptAssembler(nil),
+		WithStartupPromptOverlay(
+			startupPromptOverlayFunc(func(
+				_ context.Context,
+				startup StartupPromptContext,
+				prompt string,
+			) (string, error) {
+				called = true
+				gotChannel = startup.Channel
+				gotType = startup.SessionType
+				gotWorkspace = startup.Workspace
+				return prompt + "\n\noverlay block", nil
+			}),
+		),
+	)
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Channel:   "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	if !called {
+		t.Fatal("Create() did not invoke the configured startup prompt overlay")
+	}
+	if gotChannel != "builders" {
+		t.Fatalf("startup overlay channel = %q, want %q", gotChannel, "builders")
+	}
+	if gotType != SessionTypeUser {
+		t.Fatalf("startup overlay session type = %q, want %q", gotType, SessionTypeUser)
+	}
+	if gotWorkspace != h.workspace {
+		t.Fatalf("startup overlay workspace = %q, want %q", gotWorkspace, h.workspace)
+	}
+	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant.\n\noverlay block" {
+		t.Fatalf("start system prompt = %q, want overlay output", got)
+	}
+}
+
 func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testing.T) {
 	t.Parallel()
 
@@ -2045,6 +2129,13 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithHomePaths(h.homePaths),
 		WithDriver(h.driver),
 		WithNotifier(h.notifier),
+		WithStartupPromptOverlay(
+			startupPromptOverlayFunc(
+				func(_ context.Context, startup StartupPromptContext, prompt string) (string, error) {
+					return appendBundledNetworkSkill(prompt, startup.Channel)
+				},
+			),
+		),
 		WithWorkspaceResolver(h.resolver),
 		WithStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
@@ -2188,6 +2279,16 @@ func (fn promptAssemblerFunc) Assemble(
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	return fn(ctx, agent, workspace)
+}
+
+type startupPromptOverlayFunc func(context.Context, StartupPromptContext, string) (string, error)
+
+func (fn startupPromptOverlayFunc) Apply(
+	ctx context.Context,
+	startup StartupPromptContext,
+	prompt string,
+) (string, error) {
+	return fn(ctx, startup, prompt)
 }
 
 type fakeNotifier struct {

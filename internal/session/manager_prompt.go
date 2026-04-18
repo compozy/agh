@@ -168,6 +168,11 @@ func normalizePromptMeta(turnSource TurnSource, meta acp.PromptMeta) (acp.Prompt
 			normalized.TurnSource,
 		)
 	}
+	if turnSource == TurnSourceSynthetic {
+		return acp.PromptMeta{}, errors.New(
+			"session: synthetic prompt turns require the dedicated synthetic submission path",
+		)
+	}
 	if turnSource == TurnSourceUser && normalized.Network != nil {
 		return acp.PromptMeta{}, errors.New("session: user prompt metadata cannot include network fields")
 	}

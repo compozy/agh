@@ -2146,6 +2146,7 @@ func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	signalCh := make(chan os.Signal, 1)
+	const waitTimeout = 5 * time.Second
 
 	d := newTestDaemon(t, homePaths, &cfg)
 	d.signalCh = signalCh
@@ -2161,17 +2162,34 @@ func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 		return &fakeObserver{}, nil
 	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
 
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- d.Run(context.Background())
 	}()
 
-	<-d.readyCh
+	select {
+	case <-d.readyCh:
+	case err := <-errCh:
+		t.Fatalf("Run() exited before signaling ready: %v", err)
+	case <-time.After(waitTimeout):
+		t.Fatal("Run() did not signal ready after boot")
+	}
 	signalCh <- syscall.SIGTERM
 
-	if err := <-errCh; err != nil {
-		t.Fatalf("Run() error = %v", err)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+	case <-time.After(waitTimeout):
+		t.Fatal("Run() did not shut down after injected signal")
 	}
 }
 
@@ -2416,6 +2434,12 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 
 			if capturedDeps.PromptAssembler == nil {
 				t.Fatal("boot() did not inject the composed prompt assembler")
+			}
+			if capturedDeps.StartupPromptOverlay == nil {
+				t.Fatal("boot() did not inject the startup prompt overlay")
+			}
+			if capturedDeps.PromptInputAugmenter == nil {
+				t.Fatal("boot() did not inject the prompt input augmenter")
 			}
 			if capturedDeps.WorkspaceResolver == nil {
 				t.Fatal("boot() did not inject the workspace resolver")
@@ -3837,6 +3861,11 @@ type recordingRegistry struct {
 	onClose func()
 }
 
+var (
+	_ Registry  = (*recordingRegistry)(nil)
+	_ taskStore = (*recordingRegistry)(nil)
+)
+
 func (r *recordingRegistry) Path() string {
 	return r.path
 }
@@ -4018,6 +4047,18 @@ func (r *recordingRegistry) ListTaskTriageStates(
 
 func (r *recordingRegistry) CountActiveSessionBindings(context.Context, string) (int, error) {
 	return 0, nil
+}
+
+func (r *recordingRegistry) ReserveQueuedRun(
+	context.Context,
+	string,
+	string,
+	string,
+	taskpkg.Origin,
+	string,
+	time.Time,
+) (taskpkg.Task, taskpkg.Run, bool, error) {
+	return taskpkg.Task{}, taskpkg.Run{}, false, taskpkg.ErrTaskNotFound
 }
 
 func (r *recordingRegistry) CreateTaskEvent(context.Context, taskpkg.Event) error {

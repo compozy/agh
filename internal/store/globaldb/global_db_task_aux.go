@@ -24,6 +24,15 @@ type taskSQLExecutor interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
+type queuedRunReservationInput struct {
+	taskID           string
+	runID            string
+	idempotencyKey   string
+	origin           taskpkg.Origin
+	requestedChannel string
+	queuedAt         time.Time
+}
+
 // GetTaskTriageState returns the durable actor-scoped triage state for one task.
 func (g *GlobalDB) GetTaskTriageState(
 	ctx context.Context,
@@ -595,169 +604,267 @@ func (g *GlobalDB) ReserveQueuedRun(
 		return taskpkg.Task{}, taskpkg.Run{}, false, err
 	}
 
-	trimmedTaskID, err := requireTaskValue(taskID, "task id")
+	input, err := g.normalizeQueuedRunReservationInput(
+		taskID,
+		runID,
+		idempotencyKey,
+		origin,
+		requestedChannel,
+		queuedAt,
+	)
 	if err != nil {
 		return taskpkg.Task{}, taskpkg.Run{}, false, err
-	}
-	trimmedRunID, err := requireTaskValue(runID, "task run id")
-	if err != nil {
-		return taskpkg.Task{}, taskpkg.Run{}, false, err
-	}
-	normalizedOrigin := taskpkg.Origin{
-		Kind: origin.Kind.Normalize(),
-		Ref:  strings.TrimSpace(origin.Ref),
-	}
-	if err := normalizedOrigin.Validate("task_run.origin"); err != nil {
-		return taskpkg.Task{}, taskpkg.Run{}, false, err
-	}
-	trimmedKey := strings.TrimSpace(idempotencyKey)
-	normalizedQueuedAt := queuedAt.UTC()
-	if normalizedQueuedAt.IsZero() {
-		normalizedQueuedAt = g.now()
 	}
 
 	var reservedTask taskpkg.Task
 	var reservedRun taskpkg.Run
 	var existing bool
 	if err := g.withTaskImmediateTransaction(ctx, "reserve queued task run", func(exec taskSQLExecutor) error {
-		taskRecord, err := g.getTaskWithExecutor(ctx, exec, trimmedTaskID)
+		taskRecord, runRecord, alreadyExists, err := g.reserveQueuedRunWithExecutor(ctx, exec, input)
 		if err != nil {
 			return err
 		}
-		if err := validateTaskForQueuedRunReservation(taskRecord); err != nil {
-			return err
-		}
-
-		if trimmedKey != "" {
-			current, err := getTaskRunIdempotencyRecord(ctx, exec, trimmedKey, normalizedOrigin)
-			switch {
-			case err == nil:
-				run, err := g.getTaskRunWithExecutor(ctx, exec, current.RunID)
-				if err != nil {
-					return err
-				}
-				if strings.TrimSpace(run.TaskID) != trimmedTaskID {
-					return fmt.Errorf(
-						"%w: idempotency key %q is already bound to task %q",
-						taskpkg.ErrValidation,
-						trimmedKey,
-						run.TaskID,
-					)
-				}
-				reservedTask = taskRecord
-				reservedRun = run
-				existing = true
-				return nil
-			case !errors.Is(err, taskpkg.ErrTaskRunIdempotencyNotFound):
-				return err
-			}
-		}
-
-		nextAttempt, err := nextTaskRunAttemptWithExecutor(ctx, exec, taskRecord)
-		if err != nil {
-			return err
-		}
-
-		run := taskpkg.Run{
-			ID:             trimmedRunID,
-			TaskID:         taskRecord.ID,
-			Status:         taskpkg.TaskRunStatusQueued,
-			Attempt:        nextAttempt,
-			Origin:         normalizedOrigin,
-			IdempotencyKey: trimmedKey,
-			NetworkChannel: resolveStoredRunChannel(requestedChannel, taskRecord.NetworkChannel),
-			QueuedAt:       normalizedQueuedAt,
-		}
-		normalizedRun, err := g.normalizeTaskRunForCreate(run)
-		if err != nil {
-			return err
-		}
-		if _, err := exec.ExecContext(
-			ctx,
-			`INSERT INTO task_runs (
-				id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
-				idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, result_json
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			normalizedRun.ID,
-			normalizedRun.TaskID,
-			string(normalizedRun.Status),
-			normalizedRun.Attempt,
-			taskActorKindValue(normalizedRun.ClaimedBy),
-			taskActorRefValue(normalizedRun.ClaimedBy),
-			store.NullableString(normalizedRun.SessionID),
-			string(normalizedRun.Origin.Kind),
-			normalizedRun.Origin.Ref,
-			store.NullableString(normalizedRun.IdempotencyKey),
-			store.NullableString(normalizedRun.NetworkChannel),
-			store.FormatTimestamp(normalizedRun.QueuedAt),
-			nullableTaskTimestamp(normalizedRun.ClaimedAt),
-			nullableTaskTimestamp(normalizedRun.StartedAt),
-			nullableTaskTimestamp(normalizedRun.EndedAt),
-			store.NullableString(normalizedRun.Error),
-			nullableTaskJSON(normalizedRun.Result),
-		); err != nil {
-			return fmt.Errorf("store: create task run %q: %w", normalizedRun.ID, err)
-		}
-
-		if trimmedKey != "" {
-			idempotency := taskpkg.RunIdempotency{
-				IdempotencyKey: trimmedKey,
-				RunID:          normalizedRun.ID,
-				Origin:         normalizedOrigin,
-				CreatedAt:      normalizedQueuedAt,
-			}
-			normalizedID, err := g.normalizeTaskRunIdempotencyForCreate(idempotency)
-			if err != nil {
-				return err
-			}
-			result, err := exec.ExecContext(
-				ctx,
-				`INSERT INTO task_run_idempotency (
-					idempotency_key, origin_kind, origin_ref, run_id, created_at
-				) VALUES (?, ?, ?, ?, ?)
-				ON CONFLICT(idempotency_key, origin_kind, origin_ref) DO NOTHING`,
-				normalizedID.IdempotencyKey,
-				string(normalizedID.Origin.Kind),
-				normalizedID.Origin.Ref,
-				normalizedID.RunID,
-				store.FormatTimestamp(normalizedID.CreatedAt),
-			)
-			if err != nil {
-				return fmt.Errorf("store: save task run idempotency %q: %w", normalizedID.IdempotencyKey, err)
-			}
-			rowsAffected, err := result.RowsAffected()
-			if err != nil {
-				return fmt.Errorf(
-					"store: rows affected for task run idempotency %q: %w",
-					normalizedID.IdempotencyKey,
-					err,
-				)
-			}
-			if rowsAffected == 0 {
-				current, err := getTaskRunIdempotencyRecord(ctx, exec, normalizedID.IdempotencyKey, normalizedID.Origin)
-				if err != nil {
-					return err
-				}
-				if current.RunID != normalizedID.RunID {
-					return fmt.Errorf(
-						"%w: idempotency key %q is already bound to run %q",
-						taskpkg.ErrValidation,
-						normalizedID.IdempotencyKey,
-						current.RunID,
-					)
-				}
-			}
-		}
-
 		reservedTask = taskRecord
-		reservedRun = normalizedRun
-		existing = false
+		reservedRun = runRecord
+		existing = alreadyExists
 		return nil
 	}); err != nil {
 		return taskpkg.Task{}, taskpkg.Run{}, false, err
 	}
 
 	return reservedTask, reservedRun, existing, nil
+}
+
+func (g *GlobalDB) normalizeQueuedRunReservationInput(
+	taskID string,
+	runID string,
+	idempotencyKey string,
+	origin taskpkg.Origin,
+	requestedChannel string,
+	queuedAt time.Time,
+) (queuedRunReservationInput, error) {
+	trimmedTaskID, err := requireTaskValue(taskID, "task id")
+	if err != nil {
+		return queuedRunReservationInput{}, err
+	}
+	trimmedRunID, err := requireTaskValue(runID, "task run id")
+	if err != nil {
+		return queuedRunReservationInput{}, err
+	}
+	normalizedOrigin := taskpkg.Origin{
+		Kind: origin.Kind.Normalize(),
+		Ref:  strings.TrimSpace(origin.Ref),
+	}
+	if err := normalizedOrigin.Validate("task_run.origin"); err != nil {
+		return queuedRunReservationInput{}, err
+	}
+	trimmedKey := strings.TrimSpace(idempotencyKey)
+	normalizedQueuedAt := queuedAt.UTC()
+	if normalizedQueuedAt.IsZero() {
+		normalizedQueuedAt = g.now()
+	}
+	return queuedRunReservationInput{
+		taskID:           trimmedTaskID,
+		runID:            trimmedRunID,
+		idempotencyKey:   trimmedKey,
+		origin:           normalizedOrigin,
+		requestedChannel: strings.TrimSpace(requestedChannel),
+		queuedAt:         normalizedQueuedAt,
+	}, nil
+}
+
+func (g *GlobalDB) reserveQueuedRunWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	input queuedRunReservationInput,
+) (taskpkg.Task, taskpkg.Run, bool, error) {
+	taskRecord, err := g.getTaskWithExecutor(ctx, exec, input.taskID)
+	if err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+	if err := validateTaskForQueuedRunReservation(taskRecord); err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+
+	runRecord, exists, err := g.lookupQueuedRunReservationByIdempotency(
+		ctx,
+		exec,
+		taskRecord,
+		input.idempotencyKey,
+		input.origin,
+	)
+	if err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+	if exists {
+		return taskRecord, runRecord, true, nil
+	}
+
+	runRecord, err = g.createQueuedRunWithExecutor(ctx, exec, taskRecord, input)
+	if err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+	return taskRecord, runRecord, false, nil
+}
+
+func (g *GlobalDB) lookupQueuedRunReservationByIdempotency(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskRecord taskpkg.Task,
+	idempotencyKey string,
+	origin taskpkg.Origin,
+) (taskpkg.Run, bool, error) {
+	if idempotencyKey == "" {
+		return taskpkg.Run{}, false, nil
+	}
+
+	current, err := getTaskRunIdempotencyRecord(ctx, exec, idempotencyKey, origin)
+	switch {
+	case errors.Is(err, taskpkg.ErrTaskRunIdempotencyNotFound):
+		return taskpkg.Run{}, false, nil
+	case err != nil:
+		return taskpkg.Run{}, false, err
+	}
+
+	run, err := g.getTaskRunWithExecutor(ctx, exec, current.RunID)
+	if err != nil {
+		return taskpkg.Run{}, false, err
+	}
+	if strings.TrimSpace(run.TaskID) != taskRecord.ID {
+		return taskpkg.Run{}, false, fmt.Errorf(
+			"%w: idempotency key %q is already bound to task %q",
+			taskpkg.ErrValidation,
+			idempotencyKey,
+			run.TaskID,
+		)
+	}
+	return run, true, nil
+}
+
+func (g *GlobalDB) createQueuedRunWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskRecord taskpkg.Task,
+	input queuedRunReservationInput,
+) (taskpkg.Run, error) {
+	nextAttempt, err := nextTaskRunAttemptWithExecutor(ctx, exec, taskRecord)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+
+	run := taskpkg.Run{
+		ID:             input.runID,
+		TaskID:         taskRecord.ID,
+		Status:         taskpkg.TaskRunStatusQueued,
+		Attempt:        nextAttempt,
+		Origin:         input.origin,
+		IdempotencyKey: input.idempotencyKey,
+		NetworkChannel: resolveStoredRunChannel(input.requestedChannel, taskRecord.NetworkChannel),
+		QueuedAt:       input.queuedAt,
+	}
+	normalizedRun, err := g.normalizeTaskRunForCreate(run)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	if err := insertQueuedTaskRun(ctx, exec, normalizedRun); err != nil {
+		return taskpkg.Run{}, err
+	}
+	if err := g.saveQueuedRunIdempotencyWithExecutor(ctx, exec, normalizedRun); err != nil {
+		return taskpkg.Run{}, err
+	}
+	return normalizedRun, nil
+}
+
+func insertQueuedTaskRun(ctx context.Context, exec taskSQLExecutor, run taskpkg.Run) error {
+	if _, err := exec.ExecContext(
+		ctx,
+		`INSERT INTO task_runs (
+			id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
+			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, result_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		run.ID,
+		run.TaskID,
+		string(run.Status),
+		run.Attempt,
+		taskActorKindValue(run.ClaimedBy),
+		taskActorRefValue(run.ClaimedBy),
+		store.NullableString(run.SessionID),
+		string(run.Origin.Kind),
+		run.Origin.Ref,
+		store.NullableString(run.IdempotencyKey),
+		store.NullableString(run.NetworkChannel),
+		store.FormatTimestamp(run.QueuedAt),
+		nullableTaskTimestamp(run.ClaimedAt),
+		nullableTaskTimestamp(run.StartedAt),
+		nullableTaskTimestamp(run.EndedAt),
+		store.NullableString(run.Error),
+		nullableTaskJSON(run.Result),
+	); err != nil {
+		return fmt.Errorf("store: create task run %q: %w", run.ID, err)
+	}
+	return nil
+}
+
+func (g *GlobalDB) saveQueuedRunIdempotencyWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run taskpkg.Run,
+) error {
+	if strings.TrimSpace(run.IdempotencyKey) == "" {
+		return nil
+	}
+
+	idempotency := taskpkg.RunIdempotency{
+		IdempotencyKey: run.IdempotencyKey,
+		RunID:          run.ID,
+		Origin:         run.Origin,
+		CreatedAt:      run.QueuedAt,
+	}
+	normalizedID, err := g.normalizeTaskRunIdempotencyForCreate(idempotency)
+	if err != nil {
+		return err
+	}
+	result, err := exec.ExecContext(
+		ctx,
+		`INSERT INTO task_run_idempotency (
+			idempotency_key, origin_kind, origin_ref, run_id, created_at
+		) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(idempotency_key, origin_kind, origin_ref) DO NOTHING`,
+		normalizedID.IdempotencyKey,
+		string(normalizedID.Origin.Kind),
+		normalizedID.Origin.Ref,
+		normalizedID.RunID,
+		store.FormatTimestamp(normalizedID.CreatedAt),
+	)
+	if err != nil {
+		return fmt.Errorf("store: save task run idempotency %q: %w", normalizedID.IdempotencyKey, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf(
+			"store: rows affected for task run idempotency %q: %w",
+			normalizedID.IdempotencyKey,
+			err,
+		)
+	}
+	if rowsAffected > 0 {
+		return nil
+	}
+
+	current, err := getTaskRunIdempotencyRecord(ctx, exec, normalizedID.IdempotencyKey, normalizedID.Origin)
+	if err != nil {
+		return err
+	}
+	if current.RunID != normalizedID.RunID {
+		return fmt.Errorf(
+			"%w: idempotency key %q is already bound to run %q",
+			taskpkg.ErrValidation,
+			normalizedID.IdempotencyKey,
+			current.RunID,
+		)
+	}
+	return nil
 }
 
 // GetTaskRunByIdempotencyKey returns the original persisted run bound to one origin-scoped idempotency key.

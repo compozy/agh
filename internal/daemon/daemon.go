@@ -255,17 +255,19 @@ type automationManagerDeps struct {
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
 type SessionManagerDeps struct {
-	HomePaths           aghconfig.HomePaths
-	Logger              *slog.Logger
-	Notifier            session.Notifier
-	Hooks               session.HookSet
-	PromptAssembler     session.PromptAssembler
-	MemoryStore         *memory.Store
-	AgentResolver       session.AgentResolver
-	SkillRegistry       session.SkillRegistry
-	MCPResolver         session.MCPResolver
-	WorkspaceResolver   workspacepkg.RuntimeResolver
-	EnvironmentRegistry *environment.Registry
+	HomePaths            aghconfig.HomePaths
+	Logger               *slog.Logger
+	Notifier             session.Notifier
+	Hooks                session.HookSet
+	PromptAssembler      session.PromptAssembler
+	StartupPromptOverlay session.StartupPromptOverlay
+	PromptInputAugmenter session.PromptInputAugmenter
+	MemoryStore          *memory.Store
+	AgentResolver        session.AgentResolver
+	SkillRegistry        session.SkillRegistry
+	MCPResolver          session.MCPResolver
+	WorkspaceResolver    workspacepkg.RuntimeResolver
+	EnvironmentRegistry  *environment.Registry
 }
 
 // Daemon is the sole AGH composition root.
@@ -307,6 +309,7 @@ type Daemon struct {
 	startedAt            time.Time
 	info                 Info
 	lock                 *Lock
+	harnessResolver      *HarnessContextResolver
 	registry             Registry
 	memoryStore          *memory.Store
 	sessions             SessionManager
@@ -504,7 +507,8 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithNotifier(deps.Notifier),
 			session.WithHookSet(deps.Hooks),
 			session.WithPromptAssembler(deps.PromptAssembler),
-			session.WithPromptInputAugmenter(memory.NewRecallAugmenter(deps.MemoryStore)),
+			session.WithStartupPromptOverlay(deps.StartupPromptOverlay),
+			session.WithPromptInputAugmenter(deps.PromptInputAugmenter),
 			session.WithAgentResolver(deps.AgentResolver),
 			session.WithSkillRegistry(deps.SkillRegistry),
 			session.WithMCPResolver(deps.MCPResolver),
@@ -996,6 +1000,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.udsServer = nil
 	d.observer = nil
 	d.registry = nil
+	d.harnessResolver = nil
 	d.memoryStore = nil
 	d.skillsRegistry = nil
 	d.lock = nil
