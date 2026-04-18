@@ -1,10 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-
-import { StatusDot } from "@/components/design-system";
+import { StatusDot, type StatusDotTone } from "@agh/ui";
 
 import {
-  automationSemanticTone,
+  automationStatusTone,
   formatDateTime,
   formatRunDuration,
 } from "../lib/automation-formatters";
@@ -19,8 +18,8 @@ interface AutomationRunHistoryProps {
   title?: string;
 }
 
-function dotToneForRun(run: AutomationRun): "amber" | "danger" | "green" | "neutral" | "violet" {
-  return automationSemanticTone(run.status);
+function dotToneForRun(run: AutomationRun): StatusDotTone {
+  return automationStatusTone(run.status);
 }
 
 function statusLabel(run: AutomationRun): string {

@@ -11,11 +11,11 @@ describe("ConnectionStatus", () => {
 
   it("renders red indicator when daemon is unreachable (disconnected)", () => {
     render(<ConnectionStatus status="disconnected" />);
-    expect(screen.getByText("Offline")).toBeInTheDocument();
+    expect(screen.getByText("Disconnected")).toBeInTheDocument();
   });
 
-  it("renders amber indicator when reconnecting", () => {
+  it("renders warning indicator when reconnecting", () => {
     render(<ConnectionStatus status="reconnecting" />);
-    expect(screen.getByText("Reconnecting...")).toBeInTheDocument();
+    expect(screen.getByText("Reconnecting")).toBeInTheDocument();
   });
 });

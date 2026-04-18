@@ -1,7 +1,4 @@
-import {
-  ConnectionIndicator,
-  type ConnectionStatus as ConnectionStatusType,
-} from "@/components/design-system/connection-indicator";
+import { ConnectionIndicator, type ConnectionStatus as ConnectionStatusType } from "@agh/ui";
 
 interface ConnectionStatusProps {
   status: ConnectionStatusType;
