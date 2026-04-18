@@ -24,6 +24,7 @@ import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
 import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
 import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
+import { Route as AppSettingsMcpServersRouteImport } from './routes/_app/settings/mcp-servers'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSettingsEnvironmentsRouteImport } from './routes/_app/settings/environments'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
@@ -104,6 +105,11 @@ const AppSettingsMemoryRoute = AppSettingsMemoryRouteImport.update({
   path: '/memory',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsMcpServersRoute = AppSettingsMcpServersRouteImport.update({
+  id: '/mcp-servers',
+  path: '/mcp-servers',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -138,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/environments': typeof AppSettingsEnvironmentsRoute
   '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/mcp-servers': typeof AppSettingsMcpServersRoute
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
@@ -157,6 +164,7 @@ export interface FileRoutesByTo {
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/environments': typeof AppSettingsEnvironmentsRoute
   '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/mcp-servers': typeof AppSettingsMcpServersRoute
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
@@ -179,6 +187,7 @@ export interface FileRoutesById {
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
   '/_app/settings/environments': typeof AppSettingsEnvironmentsRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
+  '/_app/settings/mcp-servers': typeof AppSettingsMcpServersRoute
   '/_app/settings/memory': typeof AppSettingsMemoryRoute
   '/_app/settings/network': typeof AppSettingsNetworkRoute
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/settings/automation'
     | '/settings/environments'
     | '/settings/general'
+    | '/settings/mcp-servers'
     | '/settings/memory'
     | '/settings/network'
     | '/settings/observability'
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/settings/automation'
     | '/settings/environments'
     | '/settings/general'
+    | '/settings/mcp-servers'
     | '/settings/memory'
     | '/settings/network'
     | '/settings/observability'
@@ -241,6 +252,7 @@ export interface FileRouteTypes {
     | '/_app/settings/automation'
     | '/_app/settings/environments'
     | '/_app/settings/general'
+    | '/_app/settings/mcp-servers'
     | '/_app/settings/memory'
     | '/_app/settings/network'
     | '/_app/settings/observability'
@@ -361,6 +373,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsMemoryRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/mcp-servers': {
+      id: '/_app/settings/mcp-servers'
+      path: '/mcp-servers'
+      fullPath: '/settings/mcp-servers'
+      preLoaderRoute: typeof AppSettingsMcpServersRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/settings/general': {
       id: '/_app/settings/general'
       path: '/general'
@@ -396,6 +415,7 @@ interface AppSettingsRouteChildren {
   AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
   AppSettingsEnvironmentsRoute: typeof AppSettingsEnvironmentsRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
+  AppSettingsMcpServersRoute: typeof AppSettingsMcpServersRoute
   AppSettingsMemoryRoute: typeof AppSettingsMemoryRoute
   AppSettingsNetworkRoute: typeof AppSettingsNetworkRoute
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
@@ -408,6 +428,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsAutomationRoute: AppSettingsAutomationRoute,
   AppSettingsEnvironmentsRoute: AppSettingsEnvironmentsRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
+  AppSettingsMcpServersRoute: AppSettingsMcpServersRoute,
   AppSettingsMemoryRoute: AppSettingsMemoryRoute,
   AppSettingsNetworkRoute: AppSettingsNetworkRoute,
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,

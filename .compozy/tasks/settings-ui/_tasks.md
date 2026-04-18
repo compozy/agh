@@ -18,7 +18,7 @@
 | 10 | General, Memory, and Observability pages | completed | high | task_09 |
 | 11 | Skills, Automation, and Network summary pages | completed | high | task_09 |
 | 12 | Providers and Environments collection pages | completed | high | task_09 |
-| 13 | MCP Servers scoped collection page | pending | high | task_09 |
+| 13 | MCP Servers scoped collection page | completed | high | task_09 |
 | 14 | Hooks and Extensions page | pending | high | task_09 |
 | 15 | Settings QA plan and regression artifacts | pending | high | task_10, task_11, task_12, task_13, task_14 |
 | 16 | Settings QA execution and daemon-served browser E2E | pending | critical | task_15 |

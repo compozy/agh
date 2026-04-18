@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: MCP Servers scoped collection page
 type: frontend
 complexity: high
@@ -39,11 +39,11 @@ Implement the most complex collection page in the settings UI: `mcp-servers`, wi
 
 ## Subtasks
 
-- [ ] 13.1 Implement the `mcp-servers` route with scope-aware list and detail state
-- [ ] 13.2 Add explicit target selection controls for `auto`, `config`, and `sidecar`
-- [ ] 13.3 Render precedence metadata such as `effective_source`, `shadowed_sources`, and `available_targets`
-- [ ] 13.4 Support workspace-scoped editing and deletion with clear fallback behavior
-- [ ] 13.5 Add tests for scope changes, target behavior, and precedence rendering
+- [x] 13.1 Implement the `mcp-servers` route with scope-aware list and detail state
+- [x] 13.2 Add explicit target selection controls for `auto`, `config`, and `sidecar`
+- [x] 13.3 Render precedence metadata such as `effective_source`, `shadowed_sources`, and `available_targets`
+- [x] 13.4 Support workspace-scoped editing and deletion with clear fallback behavior
+- [x] 13.5 Add tests for scope changes, target behavior, and precedence rendering
 
 ## Implementation Details
 
@@ -80,16 +80,16 @@ See TechSpec sections "Data Models", "Scope rules", "Collection mutation semanti
 ## Tests
 
 - Unit tests:
-  - [ ] Scope switching between global and workspace reloads the correct collection state
-  - [ ] Target selector renders and submits `auto`, `config`, and `sidecar` correctly
-  - [ ] `effective_source`, `shadowed_sources`, and `available_targets` render correctly from backend metadata
-  - [ ] Delete flow explains when a lower-precedence definition becomes effective again
-  - [ ] New-server flows default `target=auto` to the intended sidecar destination while existing-server edits preserve highest-precedence semantics
+  - [x] Scope switching between global and workspace reloads the correct collection state
+  - [x] Target selector renders and submits `auto`, `config`, and `sidecar` correctly
+  - [x] `effective_source`, `shadowed_sources`, and `available_targets` render correctly from backend metadata
+  - [x] Delete flow explains when a lower-precedence definition becomes effective again
+  - [x] New-server flows default `target=auto` to the intended sidecar destination while existing-server edits preserve highest-precedence semantics
 - Integration tests:
-  - [ ] Workspace-scoped MCP edits use the active workspace context correctly
-  - [ ] Saving or deleting a server invalidates and refreshes the correct scoped query set
-  - [ ] Switching between global and workspace scopes preserves separate cache entries and editor state boundaries
-  - [ ] Auto-target edits update the effective source shown after refetch when a lower-precedence definition remains underneath
+  - [x] Workspace-scoped MCP edits use the active workspace context correctly
+  - [x] Saving or deleting a server invalidates and refreshes the correct scoped query set
+  - [x] Switching between global and workspace scopes preserves separate cache entries and editor state boundaries
+  - [x] Auto-target edits update the effective source shown after refetch when a lower-precedence definition remains underneath
 - Test coverage target: >=80%
 - All tests must pass
 
