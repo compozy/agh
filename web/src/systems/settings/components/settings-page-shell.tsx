@@ -9,6 +9,7 @@ interface SettingsPageShellProps {
   statusLine?: ReactNode;
   actions?: ReactNode;
   banner?: ReactNode;
+  footer?: ReactNode;
   children: ReactNode;
   className?: string;
 }
@@ -20,6 +21,7 @@ function SettingsPageShell({
   statusLine,
   actions,
   banner,
+  footer,
   children,
   className,
 }: SettingsPageShellProps) {
@@ -29,11 +31,11 @@ function SettingsPageShell({
       data-testid={`settings-page-${slug}`}
     >
       <header
-        className="flex flex-col gap-3 border-b border-[color:var(--color-divider)] px-8 py-6"
+        className="flex flex-col gap-4 border-b border-[color:var(--color-divider)] px-8 py-6 md:px-10"
         data-testid={`settings-page-${slug}-header`}
       >
-        <div className="flex items-start justify-between gap-6">
-          <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
             <p className="font-mono text-[0.6rem] uppercase tracking-[0.22em] text-[color:var(--color-text-label)]">
               {eyebrow} / {title}
             </p>
@@ -43,7 +45,7 @@ function SettingsPageShell({
           </div>
           {actions ? (
             <div
-              className="flex shrink-0 items-center gap-2"
+              className="flex shrink-0 flex-wrap items-center gap-2"
               data-testid={`settings-page-${slug}-actions`}
             >
               {actions}
@@ -52,7 +54,7 @@ function SettingsPageShell({
         </div>
         {statusLine ? (
           <div
-            className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[color:var(--color-text-secondary)]"
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] text-[color:var(--color-text-secondary)]"
             data-testid={`settings-page-${slug}-status`}
           >
             {statusLine}
@@ -63,11 +65,20 @@ function SettingsPageShell({
       {banner ? <div data-testid={`settings-page-${slug}-banner-slot`}>{banner}</div> : null}
 
       <div
-        className={cn("flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-6", className)}
+        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto px-8 py-6 md:px-10", className)}
         data-testid={`settings-page-${slug}-body`}
       >
-        {children}
+        <div className="flex flex-col gap-8 pb-8">{children}</div>
       </div>
+
+      {footer ? (
+        <div
+          className="border-t border-[color:var(--color-divider)]"
+          data-testid={`settings-page-${slug}-footer`}
+        >
+          {footer}
+        </div>
+      ) : null}
     </div>
   );
 }

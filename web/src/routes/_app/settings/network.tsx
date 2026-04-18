@@ -7,10 +7,13 @@ import { useSettingsNetworkPage } from "@/hooks/routes/use-settings-network-page
 import type { SettingsNetworkSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
   SettingsSectionCard,
+  SettingsStatGrid,
+  SettingsStatItem,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -69,29 +72,28 @@ function NetworkSettingsPage() {
             <span key="peers">
               {runtime.local_peers} local · {runtime.remote_peers} remote peers
             </span>,
-            <span key="channels">
-              {runtime.channels} channels · {runtime.queued_messages} queued
-            </span>,
           ]}
         />
       }
+      actions={<SettingsPageActions slug="network" restart={restart} />}
       banner={<SettingsRestartBanner slug="network" restart={restart} />}
+      footer={
+        <SettingsSaveBar
+          slug="network"
+          isDirty={page.isDirty}
+          isSaving={page.isSaving}
+          error={page.saveError}
+          warnings={page.warnings}
+          lastAppliedLabel={page.lastAppliedLabel}
+          onSave={page.handleSave}
+          onReset={page.handleReset}
+        />
+      }
     >
       <OperationalLinksRow />
       <RuntimeStatusSection runtime={runtime} />
       <ListenerSection draft={draft} setDraft={setDraft} />
       <DeliverySection draft={draft} setDraft={setDraft} />
-
-      <SettingsSaveBar
-        slug="network"
-        isDirty={page.isDirty}
-        isSaving={page.isSaving}
-        error={page.saveError}
-        warnings={page.warnings}
-        lastAppliedLabel={page.lastAppliedLabel}
-        onSave={page.handleSave}
-        onReset={page.handleReset}
-      />
     </SettingsPageShell>
   );
 }
@@ -124,48 +126,48 @@ function RuntimeStatusSection({ runtime }: { runtime: NetworkRuntime }) {
 
   return (
     <SettingsSectionCard eyebrow="Runtime" note="read-only">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <RuntimeBlock
+      <SettingsStatGrid>
+        <SettingsStatItem
           label="Status"
           value={runtime.status ?? (runtime.enabled ? "enabled" : "disabled")}
           testId="settings-page-network-runtime-status"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Listener"
           value={listener}
           testId="settings-page-network-runtime-listener"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Local peers"
           value={String(runtime.local_peers)}
           testId="settings-page-network-runtime-local-peers"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Remote peers"
           value={String(runtime.remote_peers)}
           testId="settings-page-network-runtime-remote-peers"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Channels"
           value={String(runtime.channels)}
           testId="settings-page-network-runtime-channels"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Queued messages"
           value={String(runtime.queued_messages)}
           testId="settings-page-network-runtime-queued-messages"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Queued sessions"
           value={String(runtime.queued_sessions)}
           testId="settings-page-network-runtime-queued-sessions"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Delivery workers"
           value={String(runtime.delivery_workers)}
           testId="settings-page-network-runtime-delivery-workers"
         />
-      </div>
+      </SettingsStatGrid>
     </SettingsSectionCard>
   );
 }
@@ -290,23 +292,6 @@ function NumberField({ label, testId, value, suffix, onChange }: NumberFieldProp
           </span>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-interface RuntimeBlockProps {
-  label: string;
-  value: string;
-  testId: string;
-}
-
-function RuntimeBlock({ label, value, testId }: RuntimeBlockProps) {
-  return (
-    <div className="flex flex-col gap-1" data-testid={testId}>
-      <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-        {label}
-      </span>
-      <span className="text-sm text-[color:var(--color-text-primary)]">{value}</span>
     </div>
   );
 }

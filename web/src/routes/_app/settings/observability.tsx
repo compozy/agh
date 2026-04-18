@@ -7,6 +7,7 @@ import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observ
 import type { SettingsObservabilitySection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
@@ -78,16 +79,27 @@ function ObservabilitySettingsPage() {
           data-testid="settings-page-observability-status-line"
           daemonAvailable={runtime.available}
           items={[
-            <span key="sessions">
-              {runtime.active_sessions} active sessions · {runtime.active_agents} agents
-            </span>,
+            <span key="sessions">{runtime.active_sessions} active sessions</span>,
             <span key="storage" data-testid="settings-page-observability-storage-summary">
               storage {formatBytes(totalStorage)} / {formatBytes(cap)}
             </span>,
           ]}
         />
       }
+      actions={<SettingsPageActions slug="observability" restart={restart} />}
       banner={<SettingsRestartBanner slug="observability" restart={restart} />}
+      footer={
+        <SettingsSaveBar
+          slug="observability"
+          isDirty={page.isDirty}
+          isSaving={page.isSaving}
+          error={page.saveError}
+          warnings={page.warnings}
+          lastAppliedLabel={page.lastAppliedLabel}
+          onSave={page.handleSave}
+          onReset={page.handleReset}
+        />
+      }
     >
       <CaptureSection
         draft={draft}
@@ -99,17 +111,6 @@ function ObservabilitySettingsPage() {
       />
       <TranscriptsSection draft={draft} setDraft={setDraft} />
       <LogTailSection logTail={logTail} />
-
-      <SettingsSaveBar
-        slug="observability"
-        isDirty={page.isDirty}
-        isSaving={page.isSaving}
-        error={page.saveError}
-        warnings={page.warnings}
-        lastAppliedLabel={page.lastAppliedLabel}
-        onSave={page.handleSave}
-        onReset={page.handleReset}
-      />
     </SettingsPageShell>
   );
 }

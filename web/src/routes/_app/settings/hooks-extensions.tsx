@@ -13,6 +13,7 @@ import type {
 } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSectionCard,
@@ -87,6 +88,7 @@ function HooksExtensionsSettingsPage() {
           ]}
         />
       }
+      actions={<SettingsPageActions slug="hooks-extensions" restart={page.restart} />}
       banner={<SettingsRestartBanner slug="hooks-extensions" restart={page.restart} />}
     >
       {page.lastAction ? (

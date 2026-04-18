@@ -19,6 +19,7 @@ import {
   SettingsDeleteDialog,
   SettingsEditorDialog,
   SettingsFieldRow,
+  SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSourceBadge,
@@ -90,6 +91,7 @@ function MCPServersSettingsPage() {
           ]}
         />
       }
+      actions={<SettingsPageActions slug="mcp-servers" restart={page.restart} />}
       banner={<SettingsRestartBanner slug="mcp-servers" restart={page.restart} />}
     >
       {page.lastAction ? (

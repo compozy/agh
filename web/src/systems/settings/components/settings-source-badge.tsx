@@ -21,10 +21,8 @@ const KIND_LABELS: Record<SettingsSourceKind, string> = {
   "workspace-mcp-sidecar": "WS-MCP.JSON",
 };
 
-function badgeTone(kind: SettingsSourceKind): "neutral" | "amber" | "green" | "violet" {
-  if (kind === "builtin-provider") return "violet";
-  if (kind === "workspace-config" || kind === "workspace-mcp-sidecar") return "amber";
-  return "green";
+function badgeTone(_kind: SettingsSourceKind): "neutral" {
+  return "neutral";
 }
 
 function sourceLabel(source: SettingsSource): string {

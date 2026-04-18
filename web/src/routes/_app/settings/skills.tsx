@@ -8,6 +8,7 @@ import { useSettingsSkillsPage } from "@/hooks/routes/use-settings-skills-page";
 import type { SettingsSkillsSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSectionCard,
@@ -66,6 +67,7 @@ function SkillsSettingsPage() {
           ]}
         />
       }
+      actions={<SettingsPageActions slug="skills" restart={restart} />}
       banner={<SettingsRestartBanner slug="skills" restart={restart} />}
     >
       <OperationalLinksRow />

@@ -7,10 +7,13 @@ import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page
 import type { SettingsGeneralSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
   SettingsSectionCard,
+  SettingsStatGrid,
+  SettingsStatItem,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -72,7 +75,6 @@ function GeneralSettingsPage() {
   const { envelope, draft, setDraft, restart } = page;
   const runtime = envelope.runtime;
   const configPaths = envelope.config_paths;
-  const restartAction = envelope.actions.restart;
 
   return (
     <SettingsPageShell
@@ -92,32 +94,25 @@ function GeneralSettingsPage() {
           ]}
         />
       }
-      actions={
-        <PillButton
-          data-testid="settings-page-general-restart-action"
-          disabled={!restartAction.available || restart.isTriggerPending || restart.isPolling}
-          onClick={() => restart.trigger()}
-        >
-          {restart.isTriggerPending || restart.isPolling ? "Restarting…" : "Restart daemon"}
-        </PillButton>
-      }
+      actions={<SettingsPageActions slug="general" restart={restart} />}
       banner={<SettingsRestartBanner slug="general" restart={restart} />}
+      footer={
+        <SettingsSaveBar
+          slug="general"
+          isDirty={page.isDirty}
+          isSaving={page.isSaving}
+          error={page.saveError}
+          warnings={page.warnings}
+          lastAppliedLabel={page.lastAppliedLabel}
+          onSave={page.handleSave}
+          onReset={page.handleReset}
+        />
+      }
     >
       <RuntimeSection envelope={envelope} />
       <DefaultsSection draft={draft} setDraft={setDraft} />
       <PermissionsSection draft={draft} setDraft={setDraft} />
       <SessionSection draft={draft} setDraft={setDraft} />
-
-      <SettingsSaveBar
-        slug="general"
-        isDirty={page.isDirty}
-        isSaving={page.isSaving}
-        error={page.saveError}
-        warnings={page.warnings}
-        lastAppliedLabel={page.lastAppliedLabel}
-        onSave={page.handleSave}
-        onReset={page.handleReset}
-      />
     </SettingsPageShell>
   );
 }
@@ -126,9 +121,12 @@ function RuntimeSection({ envelope }: { envelope: SettingsGeneralSection }) {
   const runtime = envelope.runtime;
   return (
     <SettingsSectionCard eyebrow="Runtime" note="read-only">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <RuntimeBlock label="UDS socket" value={runtime.socket ?? envelope.config.daemon.socket} />
-        <RuntimeBlock
+      <SettingsStatGrid>
+        <SettingsStatItem
+          label="UDS socket"
+          value={runtime.socket ?? envelope.config.daemon.socket}
+        />
+        <SettingsStatItem
           label="HTTP bind"
           value={
             runtime.http_host && runtime.http_port
@@ -136,15 +134,15 @@ function RuntimeSection({ envelope }: { envelope: SettingsGeneralSection }) {
               : `${envelope.config.http.host}:${envelope.config.http.port}`
           }
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Active sessions"
           value={`${runtime.active_sessions} / ${envelope.config.limits.max_sessions} max`}
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Concurrent agents"
           value={`${runtime.active_agents} / ${envelope.config.limits.max_concurrent_agents} max`}
         />
-      </div>
+      </SettingsStatGrid>
     </SettingsSectionCard>
   );
 }
@@ -279,17 +277,6 @@ function SessionSection({ draft, setDraft }: DraftSectionProps) {
         }
       />
     </SettingsSectionCard>
-  );
-}
-
-function RuntimeBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-        {label}
-      </span>
-      <span className="font-mono text-sm text-[color:var(--color-text-primary)]">{value}</span>
-    </div>
   );
 }
 

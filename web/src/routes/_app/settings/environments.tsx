@@ -14,6 +14,7 @@ import {
   SettingsDeleteDialog,
   SettingsEditorDialog,
   SettingsFieldRow,
+  SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSourceBadge,
@@ -72,6 +73,7 @@ function EnvironmentsSettingsPage() {
           ]}
         />
       }
+      actions={<SettingsPageActions slug="environments" restart={page.restart} />}
       banner={<SettingsRestartBanner slug="environments" restart={page.restart} />}
     >
       {page.lastAction ? (

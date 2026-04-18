@@ -15,6 +15,7 @@ import {
   SettingsDeleteDialog,
   SettingsEditorDialog,
   SettingsFieldRow,
+  SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSourceBadge,
@@ -79,6 +80,7 @@ function ProvidersSettingsPage() {
           ]}
         />
       }
+      actions={<SettingsPageActions slug="providers" restart={page.restart} />}
       banner={<SettingsRestartBanner slug="providers" restart={page.restart} />}
     >
       {page.lastAction ? (
@@ -300,7 +302,7 @@ function providerStateTone(provider: SettingsProviderEntry) {
   if (!provider.api_key_env_present && provider.settings.api_key_env) {
     return { dot: "bg-[color:var(--color-warning)]", label: "unconfigured" };
   }
-  return { dot: "bg-[color:var(--color-success)]", label: "installed" };
+  return { dot: "bg-[color:var(--color-text-tertiary)]", label: "installed" };
 }
 
 interface ProviderEditorProps {

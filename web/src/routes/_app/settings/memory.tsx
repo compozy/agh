@@ -8,6 +8,7 @@ import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
 import type { SettingsMemorySection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
@@ -72,7 +73,20 @@ function MemorySettingsPage() {
           ]}
         />
       }
+      actions={<SettingsPageActions slug="memory" restart={restart} />}
       banner={<SettingsRestartBanner slug="memory" restart={restart} />}
+      footer={
+        <SettingsSaveBar
+          slug="memory"
+          isDirty={page.isDirty}
+          isSaving={page.isSaving}
+          error={page.saveError}
+          warnings={page.warnings}
+          lastAppliedLabel={page.lastAppliedLabel}
+          onSave={page.handleSave}
+          onReset={page.handleReset}
+        />
+      }
     >
       <MemorySystemSection draft={draft} setDraft={setDraft} />
       <DreamSection
@@ -84,17 +98,6 @@ function MemorySettingsPage() {
         consolidatePending={page.isConsolidating}
         onConsolidate={page.handleConsolidate}
         actionMessage={page.actionMessage}
-      />
-
-      <SettingsSaveBar
-        slug="memory"
-        isDirty={page.isDirty}
-        isSaving={page.isSaving}
-        error={page.saveError}
-        warnings={page.warnings}
-        lastAppliedLabel={page.lastAppliedLabel}
-        onSave={page.handleSave}
-        onReset={page.handleReset}
       />
     </SettingsPageShell>
   );

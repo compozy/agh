@@ -7,10 +7,13 @@ import { useSettingsAutomationPage } from "@/hooks/routes/use-settings-automatio
 import type { SettingsAutomationSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
   SettingsSectionCard,
+  SettingsStatGrid,
+  SettingsStatItem,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -69,29 +72,28 @@ function AutomationSettingsPage() {
             <span key="triggers">
               {runtime.trigger_enabled}/{runtime.trigger_total} triggers active
             </span>,
-            <span key="scheduler">
-              {runtime.scheduler_running ? "scheduler running" : "scheduler idle"}
-            </span>,
           ]}
         />
       }
+      actions={<SettingsPageActions slug="automation" restart={restart} />}
       banner={<SettingsRestartBanner slug="automation" restart={restart} />}
+      footer={
+        <SettingsSaveBar
+          slug="automation"
+          isDirty={page.isDirty}
+          isSaving={page.isSaving}
+          error={page.saveError}
+          warnings={page.warnings}
+          lastAppliedLabel={page.lastAppliedLabel}
+          onSave={page.handleSave}
+          onReset={page.handleReset}
+        />
+      }
     >
       <OperationalLinksRow />
       <ManagerSummarySection runtime={runtime} />
       <EngineSection draft={draft} setDraft={setDraft} />
       <LimitsSection draft={draft} setDraft={setDraft} />
-
-      <SettingsSaveBar
-        slug="automation"
-        isDirty={page.isDirty}
-        isSaving={page.isSaving}
-        error={page.saveError}
-        warnings={page.warnings}
-        lastAppliedLabel={page.lastAppliedLabel}
-        onSave={page.handleSave}
-        onReset={page.handleReset}
-      />
     </SettingsPageShell>
   );
 }
@@ -124,38 +126,38 @@ function ManagerSummarySection({ runtime }: { runtime: AutomationRuntime }) {
 
   return (
     <SettingsSectionCard eyebrow="Manager" note="read-only">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <RuntimeBlock
+      <SettingsStatGrid className="xl:grid-cols-3">
+        <SettingsStatItem
           label="Engine"
           value={runtime.running ? "running" : "stopped"}
           testId="settings-page-automation-runtime-engine"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Scheduler"
           value={runtime.scheduler_running ? "running" : "stopped"}
           testId="settings-page-automation-runtime-scheduler"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Jobs (enabled/total)"
           value={`${runtime.job_enabled} / ${runtime.job_total}`}
           testId="settings-page-automation-runtime-jobs"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Triggers (enabled/total)"
           value={`${runtime.trigger_enabled} / ${runtime.trigger_total}`}
           testId="settings-page-automation-runtime-triggers"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Next fire"
           value={nextFire}
           testId="settings-page-automation-runtime-next-fire"
         />
-        <RuntimeBlock
+        <SettingsStatItem
           label="Last synced"
           value={lastSynced}
           testId="settings-page-automation-runtime-last-synced"
         />
-      </div>
+      </SettingsStatGrid>
     </SettingsSectionCard>
   );
 }
@@ -269,22 +271,5 @@ function LimitsSection({ draft, setDraft }: DraftSectionProps) {
         }
       />
     </SettingsSectionCard>
-  );
-}
-
-interface RuntimeBlockProps {
-  label: string;
-  value: string;
-  testId: string;
-}
-
-function RuntimeBlock({ label, value, testId }: RuntimeBlockProps) {
-  return (
-    <div className="flex flex-col gap-1" data-testid={testId}>
-      <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-        {label}
-      </span>
-      <span className="text-sm text-[color:var(--color-text-primary)]">{value}</span>
-    </div>
   );
 }

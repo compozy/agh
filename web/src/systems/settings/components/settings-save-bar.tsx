@@ -33,13 +33,13 @@ function SettingsSaveBar({
   return (
     <div
       className={cn(
-        "sticky bottom-0 left-0 right-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-8 py-3",
+        "flex flex-col gap-4 bg-[color:var(--color-surface)] px-8 py-4 md:flex-row md:items-center md:justify-between md:px-10",
         className
       )}
       data-testid={`settings-page-${slug}-save-bar`}
       data-dirty={isDirty ? "true" : "false"}
     >
-      <div className="flex min-w-0 flex-col gap-1 text-xs">
+      <div className="flex min-w-0 flex-1 flex-col gap-1 text-xs">
         {error ? (
           <span
             className="flex items-center gap-1.5 text-[color:var(--color-danger)]"
@@ -74,7 +74,7 @@ function SettingsSaveBar({
           </span>
         )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-end gap-2">
         <Button
           type="button"
           variant="ghost"
