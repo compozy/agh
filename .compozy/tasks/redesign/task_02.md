@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Migrate shadcn batch 1 (Dialog, Popover, Sheet, Tooltip) to @agh/ui
 type: refactor
 complexity: medium
@@ -41,12 +41,12 @@ Move the dialog-family shadcn primitives out of `web/src/components/ui/` and int
 
 ## Subtasks
 
-- [ ] 2.1 Move the four primitive source files to `packages/ui/src/components/`.
-- [ ] 2.2 Update `packages/ui/src/index.ts` with the four new exports.
-- [ ] 2.3 Add or update stories for each primitive (variants, open states, focus behavior, reduced-motion).
-- [ ] 2.4 Run a repo-wide rewrite of `from "@/components/ui/(dialog|popover|sheet|tooltip)"` to `from "@agh/ui"` in `web/src/**`.
-- [ ] 2.5 Delete the old files from `web/src/components/ui/`.
-- [ ] 2.6 Verify `make verify` passes and the domain screens still render.
+- [x] 2.1 Move the four primitive source files to `packages/ui/src/components/`.
+- [x] 2.2 Update `packages/ui/src/index.ts` with the four new exports.
+- [x] 2.3 Add or update stories for each primitive (variants, open states, focus behavior, reduced-motion).
+- [x] 2.4 Run a repo-wide rewrite of `from "@/components/ui/(dialog|popover|sheet|tooltip)"` to `from "@agh/ui"` in `web/src/**`.
+- [x] 2.5 Delete the old files from `web/src/components/ui/`.
+- [x] 2.6 Verify `make verify` passes and the domain screens still render.
 
 ## Implementation Details
 
@@ -61,6 +61,10 @@ Dialog in particular needs AnimatePresence for the overlay; the existing shadcn 
 - `packages/ui/src/index.ts` — add exports.
 - `packages/ui/src/components/stories/` — destination for stories.
 - ~15 importers across `web/src/systems/**`, including `tasks-create-modal.tsx`, `settings-save-bar.tsx` and various dialog usages — grep `@/components/ui/dialog` etc. to get the full list.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4` — dialog + overlay visual spec.
+  - `docs/design/design-system/preview/components-buttons.html` — ghost/primary button style used by dialog triggers.
+  - `docs/design/design-system/preview/components-nav.html` — popover/tooltip positioning reference.
 
 ### Dependent Files
 
@@ -84,14 +88,14 @@ Dialog in particular needs AnimatePresence for the overlay; the existing shadcn 
 ## Tests
 
 - Unit tests:
-  - [ ] `Dialog` opens on trigger click and closes on `Escape`.
-  - [ ] `Popover` positions relative to trigger and closes on outside click.
-  - [ ] `Sheet` enters from the declared side and traps focus while open.
-  - [ ] `Tooltip` delays show by the configured `delayDuration`.
-  - [ ] Under `prefers-reduced-motion: reduce` no transform animations run (opacity only).
+  - [x] `Dialog` opens on trigger click and closes on `Escape`.
+  - [x] `Popover` positions relative to trigger and closes on outside click.
+  - [x] `Sheet` enters from the declared side and traps focus while open.
+  - [x] `Tooltip` delays show by the configured `delayDuration`.
+  - [x] Under `prefers-reduced-motion: reduce` no transform animations run (opacity only).
 - Integration tests:
-  - [ ] Storybook `play()` opens a Dialog, tabs through internal focusables, and closes via overlay click.
-  - [ ] One existing `web/src/systems/**` screen that used `Dialog` renders and its test suite continues to pass after the import rewrite.
+  - [x] Storybook `play()` opens a Dialog, tabs through internal focusables, and closes via overlay click.
+  - [x] One existing `web/src/systems/**` screen that used `Dialog` renders and its test suite continues to pass after the import rewrite.
 - Test coverage target: >=80%
 - All tests must pass
 

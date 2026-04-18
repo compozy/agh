@@ -1,0 +1,219 @@
+"use client";
+
+import * as React from "react";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { AnimatePresence, motion } from "motion/react";
+import { XIcon } from "lucide-react";
+
+import { cn } from "../lib/utils";
+import { Button } from "./button";
+
+type DialogActionsRef = React.RefObject<DialogPrimitive.Root.Actions | null>;
+
+interface DialogMotionContextValue {
+  actionsRef: DialogActionsRef;
+  open: boolean;
+}
+
+const DialogMotionContext = React.createContext<DialogMotionContextValue | null>(null);
+
+function useDialogMotion(): DialogMotionContextValue {
+  const ctx = React.useContext(DialogMotionContext);
+  if (!ctx) {
+    throw new Error("Dialog.* components must be used inside <Dialog>.");
+  }
+  return ctx;
+}
+
+type DialogRootProps = DialogPrimitive.Root.Props;
+
+function Dialog({
+  open: controlledOpen,
+  defaultOpen = false,
+  onOpenChange,
+  children,
+  ...props
+}: DialogRootProps) {
+  const actionsRef = React.useRef<DialogPrimitive.Root.Actions | null>(null);
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? Boolean(controlledOpen) : uncontrolledOpen;
+
+  const handleOpenChange: NonNullable<DialogRootProps["onOpenChange"]> = (next, details) => {
+    if (!isControlled) setUncontrolledOpen(next);
+    onOpenChange?.(next, details);
+  };
+
+  const value = React.useMemo<DialogMotionContextValue>(() => ({ actionsRef, open }), [open]);
+
+  return (
+    <DialogPrimitive.Root
+      data-slot="dialog"
+      actionsRef={actionsRef}
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={handleOpenChange}
+      {...props}
+    >
+      <DialogMotionContext.Provider value={value}>
+        {children as React.ReactNode}
+      </DialogMotionContext.Provider>
+    </DialogPrimitive.Root>
+  );
+}
+
+function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
+}
+
+function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
+  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+}
+
+function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
+  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
+}
+
+function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
+  return (
+    <DialogPrimitive.Backdrop
+      data-slot="dialog-overlay"
+      render={
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15, ease: "easeOut" }}
+        />
+      }
+      className={cn(
+        "fixed inset-0 isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+interface DialogContentProps extends DialogPrimitive.Popup.Props {
+  showCloseButton?: boolean;
+}
+
+function DialogContent({
+  className,
+  children,
+  showCloseButton = true,
+  ...props
+}: DialogContentProps) {
+  const { actionsRef, open } = useDialogMotion();
+
+  const handleExitComplete = React.useCallback(() => {
+    actionsRef.current?.unmount();
+  }, [actionsRef]);
+
+  return (
+    <AnimatePresence onExitComplete={handleExitComplete}>
+      {open ? (
+        <DialogPortal key="dialog-portal" keepMounted>
+          <DialogOverlay />
+          <DialogPrimitive.Popup
+            data-slot="dialog-content"
+            render={
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+              />
+            }
+            className={cn(
+              "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none sm:max-w-sm",
+              className
+            )}
+            {...props}
+          >
+            {children}
+            {showCloseButton ? (
+              <DialogPrimitive.Close
+                data-slot="dialog-close"
+                render={
+                  <Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />
+                }
+              >
+                <XIcon />
+                <span className="sr-only">Close</span>
+              </DialogPrimitive.Close>
+            ) : null}
+          </DialogPrimitive.Popup>
+        </DialogPortal>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div data-slot="dialog-header" className={cn("flex flex-col gap-2", className)} {...props} />
+  );
+}
+
+function DialogFooter({
+  className,
+  showCloseButton = false,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & {
+  showCloseButton?: boolean;
+}) {
+  return (
+    <div
+      data-slot="dialog-footer"
+      className={cn(
+        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        className
+      )}
+      {...props}
+    >
+      {children}
+      {showCloseButton ? (
+        <DialogPrimitive.Close render={<Button variant="outline" />}>Close</DialogPrimitive.Close>
+      ) : null}
+    </div>
+  );
+}
+
+function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
+  return (
+    <DialogPrimitive.Title
+      data-slot="dialog-title"
+      className={cn("text-base leading-none font-medium", className)}
+      {...props}
+    />
+  );
+}
+
+function DialogDescription({ className, ...props }: DialogPrimitive.Description.Props) {
+  return (
+    <DialogPrimitive.Description
+      data-slot="dialog-description"
+      className={cn(
+        "text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+};

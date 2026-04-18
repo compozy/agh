@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button, Input, Label } from "@agh/ui";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
   Popover,
@@ -8,28 +8,32 @@ import {
   PopoverHeader,
   PopoverTitle,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "../popover";
+import { Button } from "../button";
+import { Input } from "../input";
+import { Label } from "../label";
+import { UIProvider } from "../ui-provider";
 
 const meta: Meta<typeof Popover> = {
-  title: "components/ui/Popover",
+  title: "ui/Popover",
   component: Popover,
   parameters: {
     layout: "centered",
     docs: {
       description: {
         component:
-          "Floating surface for contextual actions and quick forms. Base UI positioning handles alignment and collisions.",
+          "Floating surface for contextual actions and quick forms. Positioning is delegated to Base UI's collision-aware Positioner; enter/exit animations run through motion's `AnimatePresence`.",
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-  args: {},
-  render: () => (
+function QuickRenamePopover() {
+  return (
     <Popover>
       <PopoverTrigger render={<Button variant="outline">Open popover</Button>} />
       <PopoverContent>
@@ -44,11 +48,14 @@ export const Default: Story = {
         <Button size="sm">Save</Button>
       </PopoverContent>
     </Popover>
-  ),
+  );
+}
+
+export const Default: Story = {
+  render: () => <QuickRenamePopover />,
 };
 
 export const RightAligned: Story = {
-  args: {},
   render: () => (
     <Popover>
       <PopoverTrigger render={<Button variant="ghost">Show context</Button>} />
@@ -67,4 +74,36 @@ export const RightAligned: Story = {
       </PopoverContent>
     </Popover>
   ),
+};
+
+export const ReducedMotion: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "With `UIProvider reducedMotion='always'`, motion drops the scale transform and only opacity animates.",
+      },
+    },
+  },
+  render: () => (
+    <UIProvider reducedMotion="always">
+      <QuickRenamePopover />
+    </UIProvider>
+  ),
+};
+
+export const OpenAndClose: Story = {
+  render: () => <QuickRenamePopover />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = await canvas.findByRole("button", { name: "Open popover" });
+    await userEvent.click(trigger);
+    const title = await waitFor(() => within(document.body).getByText("Quick rename"));
+    await expect(title).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(
+      () => expect(within(document.body).queryByText("Quick rename")).not.toBeInTheDocument(),
+      { timeout: 2000 }
+    );
+  },
 };

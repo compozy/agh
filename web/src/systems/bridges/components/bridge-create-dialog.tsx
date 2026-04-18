@@ -1,14 +1,15 @@
 import { Loader2 } from "lucide-react";
 
 import { Pill } from "@/components/design-system";
-import { Button, Input } from "@agh/ui";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+  Input,
+} from "@agh/ui";
 import {
   Field,
   FieldContent,

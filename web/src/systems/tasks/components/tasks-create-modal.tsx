@@ -1,14 +1,15 @@
 import { Loader2, Plus } from "lucide-react";
 
-import { Button, Input } from "@agh/ui";
-import { Textarea } from "@/components/ui/textarea";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+  Input,
+} from "@agh/ui";
+import { Textarea } from "@/components/ui/textarea";
 import { Pill } from "@/components/design-system";
 
 import type { CreateTaskDraftInput } from "@/hooks/routes/use-tasks-page";

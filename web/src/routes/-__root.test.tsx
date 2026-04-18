@@ -13,11 +13,15 @@ vi.mock("@/components/ui/sonner", () => ({
   Toaster: () => <div data-testid="toaster" />,
 }));
 
-vi.mock("@/components/ui/tooltip", () => ({
-  TooltipProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="tooltip-provider">{children}</div>
-  ),
-}));
+vi.mock("@agh/ui", async () => {
+  const actual = await vi.importActual<typeof import("@agh/ui")>("@agh/ui");
+  return {
+    ...actual,
+    TooltipProvider: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="tooltip-provider">{children}</div>
+    ),
+  };
+});
 
 vi.mock("@tanstack/react-router", () => ({
   createRootRoute: (opts: { component: () => React.ReactNode }) => ({
