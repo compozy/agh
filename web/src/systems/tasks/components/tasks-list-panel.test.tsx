@@ -20,7 +20,7 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 }
 
 describe("TasksListPanel", () => {
-  it("renders the headline, total count, and one card per task", () => {
+  it("renders the headline, total count, and one row per task", () => {
     const tasks = [
       buildTask({ id: "a", title: "First", identifier: "TASK-1" }),
       buildTask({ id: "b", title: "Second", identifier: "TASK-2" }),
@@ -44,7 +44,7 @@ describe("TasksListPanel", () => {
     expect(screen.getByTestId("task-card-b")).toBeInTheDocument();
   });
 
-  it("forwards search and selection events", () => {
+  it("forwards search query changes and selection events", () => {
     const onSearchChange = vi.fn();
     const onSelectTask = vi.fn();
 
@@ -59,13 +59,40 @@ describe("TasksListPanel", () => {
       />
     );
 
-    fireEvent.change(screen.getByTestId("tasks-list-search-input"), {
-      target: { value: "client" },
-    });
+    const search = screen.getByTestId("tasks-list-search-input") as HTMLInputElement;
+    fireEvent.change(search, { target: { value: "client" } });
     expect(onSearchChange).toHaveBeenCalledWith("client");
 
     fireEvent.click(screen.getByTestId("task-card-task_001"));
     expect(onSelectTask).toHaveBeenCalledWith("task_001");
+  });
+
+  it("renders the lane switcher with All / Mine / Watched and emits lane changes", () => {
+    const onLaneChange = vi.fn();
+    render(
+      <TasksListPanel
+        lane="all"
+        laneBadges={{ mine: 2 }}
+        onLaneChange={onLaneChange}
+        onSearchChange={vi.fn()}
+        onSelectTask={vi.fn()}
+        searchQuery=""
+        selectedTaskId={null}
+        tasks={[buildTask()]}
+        totalCount={1}
+      />
+    );
+
+    const laneAll = screen.getByTestId("tasks-list-lane-all");
+    const laneMine = screen.getByTestId("tasks-list-lane-mine");
+    const laneWatched = screen.getByTestId("tasks-list-lane-watched");
+
+    expect(laneAll).toHaveAttribute("aria-selected", "true");
+    expect(laneMine).toHaveAttribute("aria-selected", "false");
+    expect(laneWatched).toHaveAttribute("aria-selected", "false");
+
+    fireEvent.click(laneMine);
+    expect(onLaneChange).toHaveBeenCalledWith("mine");
   });
 
   it("renders loading, error, and empty states cleanly", () => {

@@ -81,13 +81,23 @@ describe("TasksDetailPreviewPanel", () => {
     expect(screen.getByTestId("tasks-detail-preview-counts-children")).toHaveTextContent("1");
     expect(screen.getByTestId("tasks-detail-preview-counts-deps")).toHaveTextContent("1");
     expect(screen.getByTestId("tasks-detail-preview-counts-runs")).toHaveTextContent("2");
-    expect(screen.getByTestId("tasks-detail-preview-deeplink")).toHaveAttribute(
-      "data-testid",
-      "tasks-detail-preview-deeplink"
-    );
+    expect(screen.getByTestId("tasks-detail-preview-deeplink")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tasks-detail-preview-enqueue"));
     expect(onEnqueueRun).toHaveBeenCalledWith(task.id);
+  });
+
+  it("wraps the task preview in CodeBlock with the yaml language when task.kind === 'yaml'", () => {
+    const task = buildTask();
+    const detail = buildDetail(task);
+    (detail.task as unknown as { kind: string }).kind = "yaml";
+
+    const { container } = render(<TasksDetailPreviewPanel detail={detail} task={task} />);
+
+    const code = container.querySelector('[data-slot="code-block"]');
+    expect(code).not.toBeNull();
+    const language = container.querySelector('[data-slot="code-block-language"]');
+    expect(language).toHaveTextContent("yaml");
   });
 
   it("offers a publish action for draft tasks", () => {

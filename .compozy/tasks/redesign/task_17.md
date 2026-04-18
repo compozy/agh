@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Tasks domain list + detail panel
 type: frontend
 complexity: high
@@ -44,13 +44,13 @@ Rewrite the Tasks domain split-pane list + detail view (routes `/tasks` and `/ta
 
 ## Subtasks
 
-- [ ] 17.1 Audit every file in `web/src/systems/tasks/components/` and classify which belong to list/detail (this task) vs. Kanban/Dashboard/Inbox (task 18) vs. forms/run detail (task 19).
-- [ ] 17.2 Extract a shared `tasks-list-row.tsx` row primitive consumed by the list panel (and later by Kanban cards + Inbox items).
-- [ ] 17.3 Rewrite `tasks-page-shell.tsx` + `tasks-list-panel.tsx` on `SplitPane` + `PageHeader` + `SearchInput` + `Pills` (view switcher) + `Empty`.
-- [ ] 17.4 Rewrite the detail-panel family on `Section`, `Metric`, `MonoBadge`, `StatusDot`, `CodeBlock`, `Table`: `tasks-detail-header.tsx`, `tasks-detail-overview-panel.tsx`, `tasks-detail-preview-panel.tsx`, `tasks-detail-tabs.tsx`, `tasks-detail-children-panel.tsx`, `tasks-detail-dependencies-panel.tsx`, `tasks-detail-runs-panel.tsx`, `tasks-multi-agent-panel.tsx`, `tasks-timeline-panel.tsx`.
-- [ ] 17.5 Update the TanStack Router route files `web/src/routes/_app/tasks.tsx` and `web/src/routes/_app/tasks.$id.tsx` to render the rewritten components; keep the route loaders and search-param schemas unchanged.
-- [ ] 17.6 Rewrite Storybook stories covering: empty list, populated list, detail loading, detail error, detail with long title, list row per status tone (pending, running, done, failed, blocked).
-- [ ] 17.7 Run `make verify` and `pnpm test:visual` locally; commit new Playwright baselines for the list + detail routes.
+- [x] 17.1 Audit every file in `web/src/systems/tasks/components/` and classify which belong to list/detail (this task) vs. Kanban/Dashboard/Inbox (task 18) vs. forms/run detail (task 19).
+- [x] 17.2 Extract a shared `tasks-list-row.tsx` row primitive consumed by the list panel (and later by Kanban cards + Inbox items).
+- [x] 17.3 Rewrite `tasks-page-shell.tsx` + `tasks-list-panel.tsx` on `SplitPane` + `PageHeader` + `SearchInput` + `Pills` (view switcher) + `Empty`.
+- [x] 17.4 Rewrite the detail-panel family on `Section`, `Metric`, `MonoBadge`, `StatusDot`, `CodeBlock`, `Table`: `tasks-detail-header.tsx`, `tasks-detail-overview-panel.tsx`, `tasks-detail-preview-panel.tsx`, `tasks-detail-tabs.tsx`, `tasks-detail-children-panel.tsx`, `tasks-detail-dependencies-panel.tsx`, `tasks-detail-runs-panel.tsx`, `tasks-multi-agent-panel.tsx`, `tasks-timeline-panel.tsx`.
+- [x] 17.5 Update the TanStack Router route files `web/src/routes/_app/tasks.tsx` and `web/src/routes/_app/tasks.$id.tsx` to render the rewritten components; keep the route loaders and search-param schemas unchanged.
+- [x] 17.6 Rewrite Storybook stories covering: empty list, populated list, detail loading, detail error, detail with long title, list row per status tone (pending, running, done, failed, blocked).
+- [x] 17.7 Run `make verify` and `pnpm test:visual` locally; commit new Playwright baselines for the list + detail routes.
 
 ## Implementation Details
 
@@ -78,6 +78,11 @@ Status-tone mapping (re-used by the shared list-row component):
 - `web/src/systems/tasks/components/tasks-detail-children-panel.tsx`, `tasks-detail-dependencies-panel.tsx`, `tasks-detail-runs-panel.tsx`, `tasks-multi-agent-panel.tsx`, `tasks-timeline-panel.tsx` — rewrite on `Section` + `Table` + `StatusDot` + `MonoBadge`; these are the tab bodies consumed by `tasks-detail-tabs.tsx`.
 - `web/src/routes/_app/tasks.tsx` — compose the `SplitPane` and wire list selection to `/tasks/$id`.
 - `web/src/routes/_app/tasks.$id.tsx` — render the rewritten detail panel set.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4 + §5` — metric cards, list item visuals, split-pane grid rules.
+  - `docs/design/web-inspiration/src/pages-core.jsx` — `TasksPage` list-view composition (header pills, split-pane, detail header + overview + preview + tabs).
+  - `docs/design/web-inspiration/src/primitives.jsx` — `PageHeader`, `SearchInput`, `Pills`, `Empty`, `Section`, `Metric` shape contracts.
+  - `docs/design/web-inspiration/src/shared.jsx` — status dot + mono label helpers applied per list row.
 
 ### Dependent Files
 

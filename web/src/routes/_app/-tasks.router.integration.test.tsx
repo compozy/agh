@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   RouterProvider,
   createMemoryHistory,
@@ -6,8 +6,15 @@ import {
   createRoute,
   createRouter,
   Outlet,
+  useNavigate,
 } from "@tanstack/react-router";
+import { useState } from "react";
 import { describe, expect, it } from "vitest";
+
+import { UIProvider } from "@agh/ui";
+
+import { TasksDetailHeader, TasksListPanel } from "@/systems/tasks";
+import type { TaskDetailView, TaskListItem } from "@/systems/tasks";
 
 function buildTestRouter(initialUrl: string) {
   const rootRoute = createRootRoute({
@@ -163,5 +170,120 @@ describe("tasks router registration (integration)", () => {
     });
     await waitFor(() => expect(screen.getByTestId("tasks-run-detail")).toBeInTheDocument());
     expect(screen.getByTestId("tasks-shell")).toBe(baseShell);
+  });
+});
+
+// ----- List → detail selection integration -----
+
+const FIXTURE_TASKS: TaskListItem[] = [
+  {
+    id: "task_001",
+    identifier: "TASK-1",
+    title: "Summarize review feedback",
+    status: "in_progress",
+    scope: "workspace",
+    origin: { kind: "web", ref: "op" },
+    created_at: "2026-04-11T09:00:00Z",
+    updated_at: "2026-04-11T09:00:00Z",
+    created_by: { kind: "human", ref: "pedro@" },
+    owner: { kind: "agent_session", ref: "Coder" },
+    priority: "high",
+  } as TaskListItem,
+  {
+    id: "task_002",
+    identifier: "TASK-2",
+    title: "Generate API client",
+    status: "ready",
+    scope: "workspace",
+    origin: { kind: "web", ref: "op" },
+    created_at: "2026-04-11T09:00:00Z",
+    updated_at: "2026-04-11T09:00:00Z",
+    created_by: { kind: "human", ref: "pedro@" },
+    owner: { kind: "agent_session", ref: "Coder" },
+  } as TaskListItem,
+];
+
+function buildSelectionRouter(initialUrl: string) {
+  const rootRoute = createRootRoute({
+    component: () => (
+      <UIProvider reducedMotion="always">
+        <Outlet />
+      </UIProvider>
+    ),
+  });
+
+  const tasksRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "tasks",
+    component: TasksListRouteComponent,
+  });
+
+  const detailRoute = createRoute({
+    getParentRoute: () => tasksRoute,
+    path: "$id",
+    component: TaskDetailRouteComponent,
+  });
+
+  const routeTree = rootRoute.addChildren([tasksRoute.addChildren([detailRoute])]);
+
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: [initialUrl] }),
+  });
+
+  return { router, detailRoute };
+
+  function TasksListRouteComponent() {
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [query, setQuery] = useState("");
+    const navigate = useNavigate({ from: "/tasks" });
+
+    return (
+      <div data-testid="tasks-shell">
+        <TasksListPanel
+          onSearchChange={setQuery}
+          onSelectTask={taskId => {
+            setSelectedId(taskId);
+            void navigate({ params: { id: taskId }, to: "/tasks/$id" });
+          }}
+          searchQuery={query}
+          selectedTaskId={selectedId}
+          tasks={FIXTURE_TASKS}
+          totalCount={FIXTURE_TASKS.length}
+        />
+        <Outlet />
+      </div>
+    );
+  }
+
+  function TaskDetailRouteComponent() {
+    const params = detailRoute.useParams() as unknown as { id: string };
+    const match = FIXTURE_TASKS.find(task => task.id === params.id);
+    if (!match) return null;
+    const detail = {
+      task: match,
+      summary: match as unknown as TaskDetailView["summary"],
+    } as TaskDetailView;
+    return <TasksDetailHeader detail={detail} />;
+  }
+}
+
+describe("tasks router selection (integration)", () => {
+  it("navigates to /tasks/$id when a list row is clicked and renders the matching detail header", async () => {
+    const { router } = buildSelectionRouter("/tasks");
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => expect(screen.getByTestId("tasks-list-panel")).toBeInTheDocument());
+    expect(router.state.location.pathname).toBe("/tasks");
+
+    // Click the second task row.
+    fireEvent.click(screen.getByTestId("task-card-task_002"));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/tasks/task_002");
+    });
+
+    const title = await screen.findByTestId("tasks-detail-title");
+    expect(title).toHaveTextContent("Generate API client");
   });
 });

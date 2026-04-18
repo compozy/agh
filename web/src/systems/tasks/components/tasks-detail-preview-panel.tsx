@@ -1,9 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, Loader2 } from "lucide-react";
-import type * as React from "react";
 
-import { Button, Pill } from "@agh/ui";
-import { cn } from "@/lib/utils";
+import { Button, CodeBlock, Metric, MonoBadge, Pill, Section, StatusDot } from "@agh/ui";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 
 import {
@@ -14,10 +12,12 @@ import {
   taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
+  taskShortId,
   taskStatusLabel,
+  taskStatusSignal,
   taskStatusTone,
 } from "../lib/task-formatters";
-import type { TaskDetailView, TaskListItem } from "../types";
+import type { TaskDetailView, TaskListItem, TaskRecord } from "../types";
 
 export interface TasksDetailPreviewPanelProps {
   task: TaskListItem | null;
@@ -30,6 +30,26 @@ export interface TasksDetailPreviewPanelProps {
   isPublishPending?: boolean;
 }
 
+type PreviewRecord = Pick<
+  TaskRecord,
+  | "id"
+  | "identifier"
+  | "title"
+  | "status"
+  | "priority"
+  | "approval_state"
+  | "owner"
+  | "scope"
+  | "updated_at"
+  | "created_by"
+  | "origin"
+> & { kind?: string | null };
+
+/**
+ * Inline preview rendered on `/tasks` when a list row is selected but no detail
+ * route is active. Composes `StatusDot`, `MonoBadge`, `Pill`, `Metric`, `Section`,
+ * and a `CodeBlock` preview of the task prompt + scope + agent.
+ */
 export function TasksDetailPreviewPanel({
   task,
   detail,
@@ -76,206 +96,183 @@ export function TasksDetailPreviewPanel({
     );
   }
 
-  const record = detail?.task ?? task;
+  const record = (detail?.task ?? task) as PreviewRecord & { description?: string | null };
   const childCount = detail?.children?.length ?? task.child_count ?? 0;
   const dependencyReferences = detail?.dependency_references ?? detail?.dependencies ?? [];
   const dependencyCount = dependencyReferences.length || (task.dependency_count ?? 0);
   const runs = detail?.runs ?? [];
   const isDraft = taskIsDraft(record);
+  const signal = taskStatusSignal(record.status);
+  const identifier = taskShortId({ id: record.id, identifier: record.identifier });
+  const description = detail?.task.description ?? null;
+  const ownerLabel = taskOwnerLabel(record.owner);
+  const previewLanguage =
+    (record as { kind?: string | null }).kind === "yaml" ? "yaml" : "markdown";
+  const previewCode = buildPreviewCode({
+    record,
+    description,
+    ownerLabel,
+  });
+  const canCancel =
+    record.status === "ready" || record.status === "in_progress" || record.status === "blocked";
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[color:var(--color-canvas)]"
+      className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto bg-[color:var(--color-canvas)] px-6 py-5"
       data-testid="tasks-detail-preview-panel"
     >
-      <div className="border-b border-[color:var(--color-divider)] px-6 py-5">
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-tertiary)]">
-              {record.identifier ? (
-                <span className="font-mono uppercase tracking-[0.12em]">{record.identifier}</span>
-              ) : null}
-              <Pill variant={pillVariantFromTone(taskStatusTone(record.status))}>
-                {taskStatusLabel(record.status)}
-              </Pill>
-              {record.priority ? (
-                <Pill variant={pillVariantFromTone(taskPriorityTone(record.priority))}>
-                  {taskPriorityLabel(record.priority)}
-                </Pill>
-              ) : null}
-              {taskHasApprovalPending(record) ? (
-                <Pill variant="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
-              ) : null}
-            </div>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <StatusDot tone={signal.tone} pulse={signal.pulse} />
             <h2
-              className="mt-3 text-[1.7rem] font-semibold tracking-[-0.03em] text-[color:var(--color-text-primary)]"
+              className="truncate text-[1.35rem] font-semibold tracking-[-0.02em] text-[color:var(--color-text-primary)]"
               data-testid="tasks-detail-preview-title"
             >
               {record.title}
             </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--color-text-secondary)]">
-              Owner {taskOwnerLabel(record.owner)} · Scope {record.scope} · Updated{" "}
-              {formatRelativeTime(record.updated_at)}
-            </p>
+            <MonoBadge>{identifier}</MonoBadge>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Link
-              data-testid="tasks-detail-preview-edit-link"
-              params={{ id: record.id }}
-              to="/tasks/$id/edit"
-            >
-              <Button size="sm" type="button" variant="outline">
-                Edit
-              </Button>
-            </Link>
-            {isDraft && onPublishTask ? (
-              <Button
-                data-testid="tasks-detail-preview-publish"
-                disabled={isPublishPending}
-                onClick={() => onPublishTask(record.id)}
-                size="sm"
-                type="button"
-              >
-                Publish
-              </Button>
+          <div className="flex flex-wrap items-center gap-2 text-[13px] text-[color:var(--color-text-secondary)]">
+            <Pill variant={pillVariantFromTone(taskStatusTone(record.status))}>
+              {taskStatusLabel(record.status)}
+            </Pill>
+            {record.priority ? (
+              <Pill variant={pillVariantFromTone(taskPriorityTone(record.priority))}>
+                {taskPriorityLabel(record.priority)}
+              </Pill>
             ) : null}
-            {!isDraft && onEnqueueRun ? (
-              <Button
-                data-testid="tasks-detail-preview-enqueue"
-                onClick={() => onEnqueueRun(record.id)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Enqueue run
-              </Button>
+            {taskHasApprovalPending(record) ? (
+              <Pill variant="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
             ) : null}
-            {onCancelTask &&
-            (record.status === "ready" ||
-              record.status === "in_progress" ||
-              record.status === "blocked") ? (
-              <Button
-                data-testid="tasks-detail-preview-cancel"
-                onClick={() => onCancelTask(record.id)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Cancel
-              </Button>
-            ) : null}
+            <span>Owner {ownerLabel}</span>
+            <span>· Scope {record.scope}</span>
+            <span>· Updated {formatRelativeTime(record.updated_at)}</span>
           </div>
         </div>
-      </div>
+        <div
+          className="flex shrink-0 flex-wrap items-center gap-2"
+          data-testid="tasks-detail-preview-actions"
+        >
+          <Link
+            data-testid="tasks-detail-preview-edit-link"
+            params={{ id: record.id }}
+            to="/tasks/$id/edit"
+          >
+            <Button size="sm" type="button" variant="outline">
+              Edit
+            </Button>
+          </Link>
+          {isDraft && onPublishTask ? (
+            <Button
+              data-testid="tasks-detail-preview-publish"
+              disabled={isPublishPending}
+              onClick={() => onPublishTask(record.id)}
+              size="sm"
+              type="button"
+            >
+              Publish
+            </Button>
+          ) : null}
+          {!isDraft && onEnqueueRun ? (
+            <Button
+              data-testid="tasks-detail-preview-enqueue"
+              onClick={() => onEnqueueRun(record.id)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Enqueue run
+            </Button>
+          ) : null}
+          {canCancel && onCancelTask ? (
+            <Button
+              data-testid="tasks-detail-preview-cancel"
+              onClick={() => onCancelTask(record.id)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+          ) : null}
+        </div>
+      </header>
 
-      <div className="grid gap-4 px-6 py-5 md:grid-cols-3">
-        <MetricPanel
+      <div className="grid gap-4 md:grid-cols-3">
+        <Metric
+          data-testid="tasks-detail-preview-counts-children"
           label="Children"
-          testId="tasks-detail-preview-counts-children"
           value={childCount}
         />
-        <MetricPanel
+        <Metric
+          data-testid="tasks-detail-preview-counts-deps"
           label="Dependencies"
-          testId="tasks-detail-preview-counts-deps"
           value={dependencyCount}
         />
-        <MetricPanel label="Runs" testId="tasks-detail-preview-counts-runs" value={runs.length} />
+        <Metric
+          data-testid="tasks-detail-preview-counts-runs"
+          label="Runs"
+          value={runs.length}
+          tone={runs.length > 0 ? "accent" : "default"}
+        />
       </div>
 
-      <div className="px-6 pb-6">
-        <Panel data-testid="tasks-detail-preview-overview">
-          <PanelHeader>
-            <PanelTitle>Overview</PanelTitle>
-            <PanelDescription>
-              Open the full detail view for timeline, descendant work, and run history.
-            </PanelDescription>
-          </PanelHeader>
-          <PanelBody className="gap-4">
-            {detail?.task.description ? (
-              <p className="whitespace-pre-wrap text-sm leading-6 text-[color:var(--color-text-secondary)]">
-                {detail.task.description}
-              </p>
-            ) : (
-              <p className="text-sm italic text-[color:var(--color-text-tertiary)]">
-                No description provided yet. Open the full detail view to inspect timeline, runs,
-                and dependencies.
-              </p>
-            )}
+      <Section
+        data-testid="tasks-detail-preview-overview"
+        label="Overview"
+        right={
+          <Link
+            className="font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
+            data-testid="tasks-detail-preview-deeplink"
+            params={{ id: record.id }}
+            to="/tasks/$id"
+          >
+            Open detail
+          </Link>
+        }
+      >
+        {description ? (
+          <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
+            {description}
+          </p>
+        ) : (
+          <p className="text-[13px] italic text-[color:var(--color-text-tertiary)]">
+            No description provided yet. Open the full detail view to inspect timeline, runs, and
+            dependencies.
+          </p>
+        )}
+      </Section>
 
-            <div className="flex items-center justify-between gap-3 border-t border-[color:var(--color-divider)] pt-4">
-              <div className="text-xs text-[color:var(--color-text-secondary)]">
-                Created by {record.created_by?.ref ?? "unknown"} · origin{" "}
-                {record.origin?.kind ?? "unknown"}
-              </div>
-              <Link
-                className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)] underline-offset-2 hover:underline"
-                data-testid="tasks-detail-preview-deeplink"
-                params={{ id: record.id }}
-                to="/tasks/$id"
-              >
-                Open detail
-              </Link>
-            </div>
-          </PanelBody>
-        </Panel>
-      </div>
+      <Section data-testid="tasks-detail-preview-preview" label="Preview">
+        <CodeBlock
+          code={previewCode}
+          copyable={false}
+          data-testid="tasks-detail-preview-code"
+          language={previewLanguage}
+          showPrompt={false}
+        />
+      </Section>
     </section>
   );
 }
 
-function MetricPanel({ label, testId, value }: { label: string; testId: string; value: number }) {
-  return (
-    <Panel className="gap-3" data-testid={testId}>
-      <p className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-        {label}
-      </p>
-      <p className="text-2xl font-semibold tracking-[-0.03em] text-[color:var(--color-text-primary)]">
-        {value}
-      </p>
-    </Panel>
-  );
+interface BuildPreviewCodeParams {
+  record: PreviewRecord & { description?: string | null };
+  description: string | null;
+  ownerLabel: string;
 }
 
-function Panel({ className, ...props }: React.ComponentProps<"section">) {
-  return (
-    <section
-      className={cn(
-        "relative flex flex-col gap-5 rounded-[20px] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-6",
-        className
-      )}
-      {...props}
-    />
-  );
-}
-
-function PanelHeader({ className, ...props }: React.ComponentProps<"header">) {
-  return <header className={cn("flex flex-col gap-3", className)} {...props} />;
-}
-
-function PanelTitle({ className, ...props }: React.ComponentProps<"h2">) {
-  return (
-    <h2
-      className={cn(
-        "text-balance text-lg font-medium text-[color:var(--color-text-primary)]",
-        className
-      )}
-      {...props}
-    />
-  );
-}
-
-function PanelDescription({ className, ...props }: React.ComponentProps<"p">) {
-  return (
-    <p
-      className={cn(
-        "max-w-2xl text-sm leading-6 text-[color:var(--color-text-secondary)]",
-        className
-      )}
-      {...props}
-    />
-  );
-}
-
-function PanelBody({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("flex flex-col gap-4", className)} {...props} />;
+function buildPreviewCode({ record, description, ownerLabel }: BuildPreviewCodeParams): string {
+  const scope = record.scope ?? "workspace";
+  const owner = ownerLabel.toLowerCase().replace(/\s+/g, "-");
+  const origin = record.origin?.kind ?? "unknown";
+  const prompt = (description ?? "").trim() || "—";
+  return [
+    `# scope    ${scope}`,
+    `# owner    ${owner}`,
+    `# origin   ${origin}`,
+    `# prompt`,
+    prompt,
+  ].join("\n");
 }

@@ -1,7 +1,8 @@
 import { AlertCircle, Loader2 } from "lucide-react";
 
-import { Button } from "@agh/ui";
+import { Button, MonoBadge, Section, StatusDot } from "@agh/ui";
 
+import { taskStatusSignal } from "../lib/task-formatters";
 import type { TaskRunStatus, TaskTimelineItem } from "../types";
 
 export interface TasksTimelinePanelProps {
@@ -31,15 +32,9 @@ function isLiveEvent(eventType: string): boolean {
 }
 
 function formatTime(value?: string | null): string {
-  if (!value) {
-    return "";
-  }
-
+  if (!value) return "";
   const ts = Date.parse(value);
-  if (Number.isNaN(ts)) {
-    return "";
-  }
-
+  if (Number.isNaN(ts)) return "";
   const date = new Date(ts);
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
@@ -50,9 +45,7 @@ function formatTime(value?: string | null): string {
 function describeEvent(item: TaskTimelineItem): string {
   const payload = item.payload as Record<string, unknown> | undefined;
   const message = payload && typeof payload === "object" ? (payload.message as string) : undefined;
-  if (typeof message === "string" && message.trim().length > 0) {
-    return message;
-  }
+  if (typeof message === "string" && message.trim().length > 0) return message;
 
   switch (item.event_type) {
     case "task.created":
@@ -105,6 +98,12 @@ function runStatusPill(status: TaskRunStatus): string {
   }
 }
 
+/**
+ * Interleaved event timeline — `Section` header + vertical list of rows, each
+ * with a `StatusDot` marker (success/accent/danger based on event type), event
+ * metadata in `MonoBadge`s, and message body. Load-more button surfaces when the
+ * cursor is saturated.
+ */
 export function TasksTimelinePanel({
   items,
   isLoading = false,
@@ -150,15 +149,34 @@ export function TasksTimelinePanel({
   }
 
   return (
-    <section
+    <Section
       aria-label="Task timeline"
-      className="flex min-h-0 flex-1 flex-col"
+      className="px-6 py-5"
       data-testid="tasks-timeline-panel"
+      label={`Timeline · ${items.length}`}
+      right={
+        isLive ? (
+          <span
+            className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)]"
+            data-testid="tasks-timeline-live"
+          >
+            <StatusDot tone="accent" pulse />
+            Live
+          </span>
+        ) : undefined
+      }
     >
-      <ol className="flex flex-col gap-4 px-6 py-5">
+      <ol className="flex flex-col gap-4">
         {items.map(item => {
           const isFailure = isFailureEvent(item.event_type);
           const isRunning = isLive && isLiveEvent(item.event_type);
+          const tone = isFailure ? "danger" : isRunning ? "accent" : "neutral";
+          const signalTone = isFailure
+            ? "danger"
+            : item.run
+              ? taskStatusSignal(item.run.status).tone
+              : tone;
+          const pulse = isRunning;
           const timestamp = formatTime(item.timestamp);
 
           return (
@@ -167,18 +185,11 @@ export function TasksTimelinePanel({
               data-testid={`tasks-timeline-item-${item.event_id}`}
               key={item.event_id}
             >
-              <span
-                aria-hidden="true"
-                className={`mt-1 block size-2.5 shrink-0 rounded-full ${
-                  isFailure
-                    ? "bg-[color:var(--color-danger)]"
-                    : isRunning
-                      ? "bg-[color:var(--color-accent)]"
-                      : "border border-[color:var(--color-divider)] bg-transparent"
-                }`}
-              />
+              <div className="mt-1">
+                <StatusDot pulse={pulse} tone={signalTone} />
+              </div>
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2 font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
                   <span
                     className={
                       isFailure
@@ -189,7 +200,7 @@ export function TasksTimelinePanel({
                   >
                     {item.event_type}
                   </span>
-                  <span>seq {item.sequence}</span>
+                  <MonoBadge>seq {item.sequence}</MonoBadge>
                   {item.run ? (
                     <>
                       <span>· attempt {item.run.attempt}</span>
@@ -198,16 +209,13 @@ export function TasksTimelinePanel({
                   ) : null}
                   {item.origin?.ref ? <span>· {item.origin.ref}</span> : null}
                   {isRunning ? (
-                    <span
-                      className="inline-flex h-4 items-center rounded-sm bg-[color:var(--color-accent-tint)] px-1.5 text-[color:var(--color-accent)]"
-                      data-testid={`tasks-timeline-live-${item.event_id}`}
-                    >
+                    <MonoBadge data-testid={`tasks-timeline-live-${item.event_id}`} tone="accent">
                       Live
-                    </span>
+                    </MonoBadge>
                   ) : null}
                 </div>
                 <p
-                  className={`mt-1 text-sm ${
+                  className={`mt-1 text-[13px] ${
                     isFailure
                       ? "text-[color:var(--color-danger)]"
                       : "text-[color:var(--color-text-primary)]"
@@ -219,7 +227,7 @@ export function TasksTimelinePanel({
               </div>
               {timestamp ? (
                 <span
-                  className="mt-1 shrink-0 font-mono text-[0.66rem] text-[color:var(--color-text-tertiary)]"
+                  className="mt-1 shrink-0 font-mono text-[11px] text-[color:var(--color-text-tertiary)]"
                   data-testid={`tasks-timeline-timestamp-${item.event_id}`}
                 >
                   {timestamp}
@@ -231,7 +239,7 @@ export function TasksTimelinePanel({
       </ol>
 
       {canLoadMore && onLoadMore ? (
-        <div className="flex items-center justify-center border-t border-[color:var(--color-divider)] px-6 py-4">
+        <div className="flex items-center justify-center border-t border-[color:var(--color-divider)] pt-4">
           <Button
             data-testid="tasks-timeline-load-more"
             onClick={onLoadMore}
@@ -243,6 +251,6 @@ export function TasksTimelinePanel({
           </Button>
         </div>
       ) : null}
-    </section>
+    </Section>
   );
 }

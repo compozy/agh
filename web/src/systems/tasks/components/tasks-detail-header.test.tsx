@@ -32,13 +32,24 @@ function buildDetail(overrides: Partial<TaskDetailView["task"]> = {}): TaskDetai
 }
 
 describe("TasksDetailHeader", () => {
-  it("renders breadcrumb, title, and status metadata", () => {
-    render(<TasksDetailHeader detail={buildDetail()} />);
-    expect(screen.getByTestId("tasks-detail-breadcrumb")).toHaveTextContent("TASK-42");
+  it("renders PageHeader with title, MonoBadge id, status pill, and action slot in DOM order", () => {
+    const { container } = render(<TasksDetailHeader detail={buildDetail()} />);
+
     expect(screen.getByTestId("tasks-detail-title")).toHaveTextContent("Summarize review feedback");
-    expect(screen.getByTestId("tasks-detail-meta")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("tasks-detail-id")).toHaveTextContent("TASK-42");
+    expect(screen.getByTestId("tasks-detail-status")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("tasks-detail-actions")).toBeInTheDocument();
+
+    // Breadcrumb surfaces the short identifier
+    expect(screen.getByTestId("tasks-detail-breadcrumb")).toHaveTextContent("TASK-42");
+
+    // Meta row contains priority pill + created-by
     expect(screen.getByTestId("tasks-detail-meta")).toHaveTextContent("High");
     expect(screen.getByTestId("tasks-detail-meta")).toHaveTextContent("pedro@");
+
+    // Status dot rendered alongside title
+    const dot = container.querySelector('[data-slot="status-dot"]');
+    expect(dot).not.toBeNull();
   });
 
   it("fires cancel, publish, and enqueue callbacks", () => {

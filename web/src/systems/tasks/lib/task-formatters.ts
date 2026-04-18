@@ -1,3 +1,5 @@
+import type { StatusDotTone } from "@agh/ui";
+
 import type {
   TaskApprovalState,
   TaskInboxLane,
@@ -9,6 +11,45 @@ import type {
 } from "../types";
 
 export type TaskSemanticTone = "amber" | "danger" | "green" | "neutral" | "violet";
+
+export interface TaskStatusSignal {
+  tone: StatusDotTone;
+  pulse?: boolean;
+}
+
+/**
+ * Maps a task status (production vocabulary OR the `docs/design/web-inspiration/`
+ * shorthand of `done | running | pending | blocked | failed`) to the DESIGN.md §4
+ * `StatusDot` tone and pulse. Used by `tasks-list-row`, detail header, kanban cards,
+ * inbox rows and table cells so that the visual signal stays consistent.
+ */
+export function taskStatusSignal(status?: TaskStatus | string | null): TaskStatusSignal {
+  switch (status) {
+    case "completed":
+    case "done":
+      return { tone: "success" };
+    case "in_progress":
+    case "running":
+      return { tone: "accent", pulse: true };
+    case "ready":
+    case "pending":
+    case "draft":
+      return { tone: "info" };
+    case "blocked":
+      return { tone: "warning" };
+    case "failed":
+    case "canceled":
+      return { tone: "danger" };
+    default:
+      return { tone: "neutral" };
+  }
+}
+
+/** Convenience: short 7-char identifier for `MonoBadge` id chips in list rows. */
+export function taskShortId(task: { id: string; identifier?: string | null }): string {
+  if (task.identifier) return task.identifier;
+  return task.id.length > 7 ? task.id.slice(0, 7) : task.id;
+}
 
 const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   draft: "Draft",
