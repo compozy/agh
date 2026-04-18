@@ -253,7 +253,10 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		if state.globalMemoryDir == "" {
 			state.globalMemoryDir = d.homePaths.MemoryDir
 		}
-		state.memoryStore = memory.NewStore(state.globalMemoryDir)
+		state.memoryStore = memory.NewStore(
+			state.globalMemoryDir,
+			memory.WithCatalogDatabasePath(d.homePaths.DatabaseFile),
+		)
 		if err := state.memoryStore.EnsureDirs(); err != nil {
 			return fmt.Errorf("daemon: ensure memory store directories: %w", err)
 		}
@@ -445,6 +448,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 			Compaction:   state.notifier,
 		},
 		PromptAssembler:     state.promptAssembler,
+		MemoryStore:         state.memoryStore,
 		AgentResolver:       agentCatalogDependency(state.agentCatalog),
 		SkillRegistry:       skillRegistryDependency(state.skillsRegistry),
 		MCPResolver:         mcpResolverDependency(state.mcpResolver),

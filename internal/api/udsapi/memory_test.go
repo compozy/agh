@@ -253,6 +253,59 @@ func TestMemoryHandlersDeleteAndNotFound(t *testing.T) {
 	}
 }
 
+func TestMemoryHandlersSearchAndReindex(t *testing.T) {
+	t.Parallel()
+
+	store, workspace := newTestMemoryStore(t)
+	mustWriteMemory(t, store, memory.ScopeGlobal, "", "prefs.md", memory.MemoryTypeUser, "User prefers concise answers")
+	mustWriteMemory(
+		t,
+		store,
+		memory.ScopeWorkspace,
+		workspace,
+		"auth.md",
+		memory.MemoryTypeProject,
+		"Auth migration uses sessions",
+	)
+
+	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, &stubDreamTrigger{})
+	engine := newTestRouter(t, handlers)
+
+	search := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/memory/search?q=auth%20sessions&workspace="+workspace,
+		nil,
+	)
+	if search.Code != http.StatusOK {
+		t.Fatalf("search status = %d, want %d; body=%s", search.Code, http.StatusOK, search.Body.String())
+	}
+
+	var results []memory.SearchResult
+	decodeJSONResponse(t, search, &results)
+	if len(results) == 0 || results[0].Scope != memory.ScopeWorkspace {
+		t.Fatalf("search results = %#v, want workspace hit first", results)
+	}
+
+	reindex := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/api/memory/reindex",
+		[]byte(`{"workspace":"`+escapeJSON(workspace)+`"}`),
+	)
+	if reindex.Code != http.StatusOK {
+		t.Fatalf("reindex status = %d, want %d; body=%s", reindex.Code, http.StatusOK, reindex.Body.String())
+	}
+
+	var payload memory.ReindexResult
+	decodeJSONResponse(t, reindex, &payload)
+	if payload.IndexedFiles != 2 {
+		t.Fatalf("reindex payload = %#v, want indexed_files=2", payload)
+	}
+}
+
 func TestMemoryHandlersConsolidate(t *testing.T) {
 	t.Parallel()
 
@@ -369,6 +422,12 @@ func TestHealthIncludesMemoryStats(t *testing.T) {
 	}
 	if payload.Memory.LastConsolidation == nil || !payload.Memory.LastConsolidation.Equal(last) {
 		t.Fatalf("last consolidation = %#v, want %s", payload.Memory.LastConsolidation, last)
+	}
+	if !payload.Memory.Enabled || payload.Memory.IndexedFiles != 2 || payload.Memory.OrphanedFiles != 0 {
+		t.Fatalf("memory health catalog stats = %#v, want enabled+indexed stats", payload.Memory)
+	}
+	if payload.Memory.LastReindex == nil {
+		t.Fatalf("last reindex = %#v, want non-nil", payload.Memory.LastReindex)
 	}
 }
 
@@ -565,8 +624,9 @@ func newTestMemoryHandlers(
 func newTestMemoryStore(t *testing.T) (*memory.Store, string) {
 	t.Helper()
 
-	globalDir := filepath.Join(t.TempDir(), "global-memory")
-	store := memory.NewStore(globalDir)
+	baseDir := t.TempDir()
+	globalDir := filepath.Join(baseDir, "global-memory")
+	store := memory.NewStore(globalDir, memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 	if err := store.EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}

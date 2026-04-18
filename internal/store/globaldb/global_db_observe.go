@@ -52,23 +52,36 @@ func (g *GlobalDB) ListEventSummaries(
 		return nil, err
 	}
 
-	baseQuery := `SELECT rowid, id, session_id, type, agent_name, summary, timestamp FROM event_summaries`
-	where, args := store.BuildClauses(
+	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, session_id, type, agent_name, summary, timestamp FROM event_summaries`
+	eventWhere, args := store.BuildClauses(
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("type", query.Type),
 		store.TimeClause("timestamp", ">=", query.Since),
 	)
-	baseQuery = store.AppendWhere(baseQuery, where)
+	eventQuery = store.AppendWhere(eventQuery, eventWhere)
 
-	sqlQuery := baseQuery
+	combinedQuery := eventQuery
+	if strings.TrimSpace(query.SessionID) == "" {
+		memoryQuery := `SELECT 1 AS source_rank, rowid AS source_rowid, id, '' AS session_id, type, agent_name, summary, timestamp FROM memory_operation_log`
+		memoryWhere, memoryArgs := store.BuildClauses(
+			store.StringClause("agent_name", query.AgentName),
+			store.StringClause("type", query.Type),
+			store.TimeClause("timestamp", ">=", query.Since),
+		)
+		memoryQuery = store.AppendWhere(memoryQuery, memoryWhere)
+		combinedQuery += ` UNION ALL ` + memoryQuery
+		args = append(args, memoryArgs...)
+	}
+
+	sqlQuery := `SELECT source_rowid, id, session_id, type, agent_name, summary, timestamp FROM (` + combinedQuery + `)`
 	if query.Limit > 0 {
-		sqlQuery = `SELECT rowid, id, session_id, type, agent_name, summary, timestamp
-			FROM (` + baseQuery + ` ORDER BY timestamp DESC LIMIT ?) AS recent_summaries
-			ORDER BY timestamp ASC, rowid ASC`
+		sqlQuery = `SELECT source_rowid, id, session_id, type, agent_name, summary, timestamp
+			FROM (` + combinedQuery + ` ORDER BY timestamp DESC, source_rank DESC, source_rowid DESC LIMIT ?) AS recent_summaries
+			ORDER BY timestamp ASC, source_rank ASC, source_rowid ASC`
 		args = append(args, query.Limit)
 	} else {
-		sqlQuery += " ORDER BY timestamp ASC, rowid ASC"
+		sqlQuery += " ORDER BY timestamp ASC, source_rank ASC, source_rowid ASC"
 	}
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)

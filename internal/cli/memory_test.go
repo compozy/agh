@@ -77,6 +77,58 @@ func TestMemoryReadCommandOutputsContent(t *testing.T) {
 	}
 }
 
+func TestMemorySearchAndReindexCommands(t *testing.T) {
+	t.Parallel()
+
+	var searchQuery MemorySearchQuery
+	var searchText string
+	var reindexReq MemoryReindexRequest
+	deps := newTestDeps(t, &stubClient{
+		searchMemoryFn: func(_ context.Context, query string, opts MemorySearchQuery) ([]MemorySearchRecord, error) {
+			searchText = query
+			searchQuery = opts
+			return []MemorySearchRecord{{
+				Filename:  "auth.md",
+				Name:      "Auth Rewrite",
+				Scope:     memory.ScopeWorkspace,
+				Score:     4.2,
+				Snippet:   "Auth migration uses sessions",
+				Workspace: "/workspace/project",
+			}}, nil
+		},
+		reindexMemoryFn: func(_ context.Context, request MemoryReindexRequest) (MemoryReindexRecord, error) {
+			reindexReq = request
+			return MemoryReindexRecord{
+				IndexedFiles: 2,
+				Workspace:    "/workspace/project",
+				CompletedAt:  fixedTestNow,
+			}, nil
+		},
+	})
+
+	searchOut, _, err := executeRootCommand(t, deps, "memory", "search", "auth rewrite")
+	if err != nil {
+		t.Fatalf("memory search error = %v", err)
+	}
+	if searchText != "auth rewrite" || searchQuery.Workspace != "/workspace/project" {
+		t.Fatalf("search call = query:%q opts:%#v", searchText, searchQuery)
+	}
+	if !strings.Contains(searchOut, "Auth Rewrite") || !strings.Contains(searchOut, "auth.md") {
+		t.Fatalf("search output = %q", searchOut)
+	}
+
+	reindexOut, _, err := executeRootCommand(t, deps, "memory", "reindex")
+	if err != nil {
+		t.Fatalf("memory reindex error = %v", err)
+	}
+	if reindexReq.Workspace != "/workspace/project" {
+		t.Fatalf("reindex request = %#v, want workspace", reindexReq)
+	}
+	if !strings.Contains(reindexOut, "Indexed Files") || !strings.Contains(reindexOut, "2") {
+		t.Fatalf("reindex output = %q", reindexOut)
+	}
+}
+
 func TestMemoryWriteCommandBuildsDocumentAndUsesContentFlag(t *testing.T) {
 	t.Parallel()
 

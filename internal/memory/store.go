@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -39,15 +40,38 @@ type Store struct {
 	maxIndexLines int
 	maxIndexBytes int
 	logger        *slog.Logger
+	catalog       *catalog
 }
 
 // NewStore constructs a Store for the provided global memory directory.
-func NewStore(globalDir string) *Store {
-	return &Store{
+func NewStore(globalDir string, opts ...StoreOption) *Store {
+	store := &Store{
 		globalDir:     cleanDirPath(globalDir),
 		maxIndexLines: defaultIndexLines,
 		maxIndexBytes: defaultIndexBytes,
 		logger:        slog.Default(),
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(store)
+		}
+	}
+	return store
+}
+
+// StoreOption customizes a Store instance.
+type StoreOption func(*Store)
+
+// WithCatalogDatabasePath enables the derived SQLite-backed memory catalog in
+// the shared global database file.
+func WithCatalogDatabasePath(path string) StoreOption {
+	return func(store *Store) {
+		if store == nil {
+			return
+		}
+		store.catalog = newCatalog(path, func() time.Time {
+			return time.Now().UTC()
+		})
 	}
 }
 
@@ -56,6 +80,11 @@ func (s *Store) ForWorkspace(workspaceRoot string) *Store {
 	clone := *s
 	clone.workspaceDir = workspaceMemoryDir(workspaceRoot)
 	return &clone
+}
+
+// List is the backend-aligned alias for Scan.
+func (s *Store) List(scope Scope) ([]Header, error) {
+	return s.Scan(scope)
 }
 
 // EnsureDirs creates the configured memory directories when missing.
@@ -129,6 +158,16 @@ func (s *Store) Write(scope Scope, filename string, content []byte) error {
 	if err := fileutil.AtomicWriteFile(path, content, filePerm); err != nil {
 		return fmt.Errorf("memory: write %q: %w", path, err)
 	}
+	if err := s.syncScope(context.Background(), scope.Normalize()); err != nil {
+		return err
+	}
+	if err := s.logCatalogEvent(
+		context.Background(),
+		"memory.write",
+		fmt.Sprintf("scope=%s filename=%s", scope.Normalize(), filepath.Base(path)),
+	); err != nil {
+		s.warn("memory: record write event failed", "scope", scope, "filename", filepath.Base(path), "error", err)
+	}
 
 	return nil
 }
@@ -145,8 +184,15 @@ func (s *Store) Delete(scope Scope, filename string) error {
 	if filepath.Base(path) == indexFilename {
 		return nil
 	}
-	if err := s.removeIndexEntry(scope, filepath.Base(path)); err != nil {
+	if err := s.syncScope(context.Background(), scope.Normalize()); err != nil {
 		return err
+	}
+	if err := s.logCatalogEvent(
+		context.Background(),
+		"memory.delete",
+		fmt.Sprintf("scope=%s filename=%s", scope.Normalize(), filepath.Base(path)),
+	); err != nil {
+		s.warn("memory: record delete event failed", "scope", scope, "filename", filepath.Base(path), "error", err)
 	}
 
 	return nil
@@ -154,6 +200,10 @@ func (s *Store) Delete(scope Scope, filename string) error {
 
 // Scan lists memory headers for a scope, sorted newest-first and capped at 200 files.
 func (s *Store) Scan(scope Scope) ([]Header, error) {
+	return s.scan(scope, maxScanEntries)
+}
+
+func (s *Store) scan(scope Scope, limit int) ([]Header, error) {
 	dir, err := s.dirForScope(scope)
 	if err != nil {
 		return nil, err
@@ -167,7 +217,10 @@ func (s *Store) Scan(scope Scope) ([]Header, error) {
 		return nil, fmt.Errorf("memory: scan %q: %w", dir, err)
 	}
 
-	capacity := min(len(entries), maxScanEntries)
+	capacity := len(entries)
+	if limit > 0 {
+		capacity = min(capacity, limit)
+	}
 	headers := make([]Header, 0, capacity)
 	candidates := make([]scanCandidate, 0, len(entries))
 	for _, entry := range entries {
@@ -225,7 +278,7 @@ func (s *Store) Scan(scope Scope) ([]Header, error) {
 		header.ModTime = candidate.modTime
 		headers = append(headers, header)
 
-		if len(headers) == maxScanEntries {
+		if limit > 0 && len(headers) == limit {
 			break
 		}
 	}
@@ -240,27 +293,189 @@ func (s *Store) LoadIndex(scope Scope) (content string, truncated bool, err erro
 		return "", false, err
 	}
 
+	headers, err := s.scan(scope.Normalize(), 0)
+	if err != nil {
+		return "", false, err
+	}
+
 	path := filepath.Join(dir, indexFilename)
 	indexBytes, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+	switch {
+	case err == nil:
+	case errors.Is(err, os.ErrNotExist):
+		if len(headers) == 0 {
 			return "", false, nil
 		}
+		generated, generatedTruncated := truncateIndex(renderIndex(headers), s.maxIndexLines, s.maxIndexBytes)
+		return generated, generatedTruncated, nil
+	default:
 		return "", false, fmt.Errorf("memory: load index %q: %w", path, err)
 	}
 
-	content, truncated = truncateIndex(string(indexBytes), s.maxIndexLines, s.maxIndexBytes)
-	if truncated {
-		s.warn(
-			"memory: truncated memory index",
-			"scope", scope,
-			"path", path,
-			"max_lines", s.maxIndexLines,
-			"max_bytes", s.maxIndexBytes,
-		)
+	indexContent := string(indexBytes)
+	if indexMatchesHeaders(indexContent, headers) {
+		content, truncated = truncateIndex(indexContent, s.maxIndexLines, s.maxIndexBytes)
+		if truncated {
+			s.warn(
+				"memory: truncated memory index",
+				"scope", scope,
+				"path", path,
+				"max_lines", s.maxIndexLines,
+				"max_bytes", s.maxIndexBytes,
+			)
+		}
+		return content, truncated, nil
 	}
 
-	return content, truncated, nil
+	s.warn("memory: synthesized prompt index from memory files", "scope", scope, "path", path)
+	generated, generatedTruncated := truncateIndex(renderIndex(headers), s.maxIndexLines, s.maxIndexBytes)
+	return generated, generatedTruncated, nil
+}
+
+// Search performs bounded lexical memory search across the visible scopes.
+func (s *Store) Search(ctx context.Context, query string, opts SearchOptions) ([]SearchResult, error) {
+	if ctx == nil {
+		return nil, errors.New("memory: search context is required")
+	}
+
+	scope, workspaceRoot, err := s.normalizeScopeAndWorkspace(opts.Scope, opts.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = defaultSearchLimit
+	}
+
+	if err := s.ensureCatalogReady(ctx, scope, workspaceRoot); err != nil {
+		return nil, err
+	}
+	if s.catalog != nil {
+		results, err := s.catalog.search(ctx, query, scope, workspaceRoot, limit)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.logCatalogEvent(
+			ctx,
+			"memory.search",
+			fmt.Sprintf("query=%q results=%d", strings.TrimSpace(query), len(results)),
+		); err != nil {
+			s.warn("memory: record search event failed", "error", err)
+		}
+		if len(results) > 0 {
+			return results, nil
+		}
+	}
+
+	docs, err := s.collectSearchDocuments(scope, workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	results, err := fallbackSearchDocuments(query, docs, limit)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// Reindex rebuilds the derived catalog from the Markdown source of truth.
+func (s *Store) Reindex(ctx context.Context, opts ReindexOptions) (ReindexResult, error) {
+	if ctx == nil {
+		return ReindexResult{}, errors.New("memory: reindex context is required")
+	}
+
+	scope, workspaceRoot, err := s.normalizeScopeAndWorkspace(opts.Scope, opts.Workspace)
+	if err != nil {
+		return ReindexResult{}, err
+	}
+
+	indexed, err := s.reindexScopes(ctx, scope, workspaceRoot)
+	if err != nil {
+		return ReindexResult{}, err
+	}
+	completedAt := time.Now().UTC()
+	if err := s.logCatalogEvent(
+		ctx,
+		"memory.reindex",
+		fmt.Sprintf("scope=%s workspace=%s indexed=%d", string(scope.Normalize()), workspaceRoot, indexed),
+	); err != nil {
+		s.warn("memory: record reindex event failed", "error", err)
+	}
+	return ReindexResult{
+		IndexedFiles: indexed,
+		Scope:        scope.Normalize(),
+		Workspace:    workspaceRoot,
+		CompletedAt:  completedAt,
+	}, nil
+}
+
+// HealthStats returns derived-catalog stats for the visible scopes.
+func (s *Store) HealthStats(ctx context.Context, workspaces []string) (HealthStats, error) {
+	if ctx == nil {
+		return HealthStats{}, errors.New("memory: health stats context is required")
+	}
+	if s.catalog == nil {
+		return HealthStats{}, nil
+	}
+
+	filters := make([]catalogFilter, 0, len(workspaces)+1)
+	filters = append(filters, catalogFilter{scope: ScopeGlobal})
+	seen := map[string]struct{}{}
+	for _, workspace := range workspaces {
+		trimmed := strings.TrimSpace(workspace)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		filters = append(filters, catalogFilter{scope: ScopeWorkspace, workspaceRoot: trimmed})
+	}
+
+	entryCount, err := s.catalog.entryCount(ctx)
+	if err != nil {
+		return HealthStats{}, err
+	}
+	if entryCount == 0 {
+		if _, err := s.reindexScopes(ctx, ScopeGlobal, ""); err != nil {
+			return HealthStats{}, err
+		}
+		for _, filter := range filters {
+			if filter.scope != ScopeWorkspace {
+				continue
+			}
+			if _, err := s.reindexScopes(ctx, ScopeWorkspace, filter.workspaceRoot); err != nil {
+				return HealthStats{}, err
+			}
+		}
+	}
+
+	entries, err := s.catalog.listEntries(ctx, filters)
+	if err != nil {
+		return HealthStats{}, err
+	}
+	actual, err := s.collectActualCatalogIDs(filters)
+	if err != nil {
+		return HealthStats{}, err
+	}
+
+	orphaned := 0
+	for _, entry := range entries {
+		if _, exists := actual[entry.ID]; !exists {
+			orphaned++
+		}
+	}
+
+	lastReindex, err := s.catalog.lastReindex(ctx)
+	if err != nil {
+		return HealthStats{}, err
+	}
+	return HealthStats{
+		IndexedFiles:  len(entries),
+		OrphanedFiles: orphaned,
+		LastReindex:   lastReindex,
+	}, nil
 }
 
 func (s *Store) dirForScope(scope Scope) (string, error) {
@@ -303,39 +518,59 @@ func (s *Store) pathFor(scope Scope, filename string) (string, error) {
 	return filepath.Join(dir, base), nil
 }
 
-func (s *Store) removeIndexEntry(scope Scope, filename string) error {
+func (s *Store) syncScope(ctx context.Context, scope Scope) error {
+	scope = scope.Normalize()
+	headers, err := s.scan(scope, 0)
+	if err != nil {
+		return err
+	}
+	if err := s.syncIndex(scope, headers); err != nil {
+		return err
+	}
+	if err := s.syncCatalogScope(ctx, scope, headers); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) syncIndex(scope Scope, headers []Header) error {
 	dir, err := s.dirForScope(scope)
 	if err != nil {
 		return err
 	}
 
 	indexPath := filepath.Join(dir, indexFilename)
-	indexContent, err := os.ReadFile(indexPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
+	if len(headers) == 0 {
+		if err := os.Remove(indexPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("memory: remove empty index %q: %w", indexPath, err)
 		}
-		return fmt.Errorf("memory: load index %q: %w", indexPath, err)
-	}
-
-	lines := strings.SplitAfter(string(indexContent), "\n")
-	filtered := make([]string, 0, len(lines))
-	removed := false
-	for _, line := range lines {
-		if indexLineTargetsFilename(line, filename) {
-			removed = true
-			continue
-		}
-		filtered = append(filtered, line)
-	}
-	if !removed {
 		return nil
 	}
 
-	if err := fileutil.AtomicWriteFile(indexPath, []byte(strings.Join(filtered, "")), filePerm); err != nil {
-		return fmt.Errorf("memory: update index %q: %w", indexPath, err)
+	if err := fileutil.AtomicWriteFile(indexPath, []byte(renderIndex(headers)), filePerm); err != nil {
+		return fmt.Errorf("memory: write index %q: %w", indexPath, err)
 	}
+	return nil
+}
 
+func (s *Store) syncCatalogScope(ctx context.Context, scope Scope, headers []Header) error {
+	if s.catalog == nil {
+		return nil
+	}
+	workspaceRoot := ""
+	if scope.Normalize() == ScopeWorkspace {
+		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+	}
+	docs, err := s.documentsForHeaders(scope, workspaceRoot, headers)
+	if err != nil {
+		return err
+	}
+	if err := s.catalog.replaceScope(ctx, scope, workspaceRoot, docs); err != nil {
+		return err
+	}
+	if err := s.catalog.setLastReindex(ctx, time.Now().UTC()); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -352,6 +587,178 @@ type scanCandidate struct {
 	name    string
 	path    string
 	modTime time.Time
+}
+
+func (s *Store) normalizeScopeAndWorkspace(scope Scope, workspace string) (Scope, string, error) {
+	normalizedScope := scope.Normalize()
+	if normalizedScope != "" {
+		if err := normalizedScope.Validate(); err != nil {
+			return "", "", wrapValidationError("resolve scope", string(scope), err)
+		}
+	}
+
+	workspaceRoot := cleanDirPath(workspace)
+	if workspaceRoot == "" {
+		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+	}
+	if normalizedScope == ScopeWorkspace && workspaceRoot == "" {
+		return "", "", wrapValidationError(
+			"resolve scope",
+			string(scope),
+			errors.New("workspace directory is required"),
+		)
+	}
+	return normalizedScope, workspaceRoot, nil
+}
+
+func (s *Store) ensureCatalogReady(ctx context.Context, scope Scope, workspaceRoot string) error {
+	if s.catalog == nil {
+		return nil
+	}
+	entryCount, err := s.catalog.entryCount(ctx)
+	if err != nil {
+		return err
+	}
+	if entryCount > 0 {
+		return nil
+	}
+	_, err = s.reindexScopes(ctx, scope, workspaceRoot)
+	return err
+}
+
+func (s *Store) reindexScopes(ctx context.Context, scope Scope, workspaceRoot string) (int, error) {
+	if s.catalog == nil {
+		return 0, nil
+	}
+
+	total := 0
+	seenWorkspace := strings.TrimSpace(workspaceRoot)
+
+	reindexScope := func(scope Scope, workspaceRoot string) error {
+		headers, err := s.headersForCatalogScope(scope, workspaceRoot)
+		if err != nil {
+			return err
+		}
+		docs, err := s.documentsForHeaders(scope, workspaceRoot, headers)
+		if err != nil {
+			return err
+		}
+		if err := s.catalog.replaceScope(ctx, scope, workspaceRoot, docs); err != nil {
+			return err
+		}
+		total += len(docs)
+		return nil
+	}
+
+	switch scope.Normalize() {
+	case ScopeGlobal:
+		if err := reindexScope(ScopeGlobal, ""); err != nil {
+			return 0, err
+		}
+	case ScopeWorkspace:
+		if err := reindexScope(ScopeWorkspace, seenWorkspace); err != nil {
+			return 0, err
+		}
+	default:
+		if err := reindexScope(ScopeGlobal, ""); err != nil {
+			return 0, err
+		}
+		if seenWorkspace != "" {
+			if err := reindexScope(ScopeWorkspace, seenWorkspace); err != nil {
+				return 0, err
+			}
+		}
+	}
+
+	if err := s.catalog.setLastReindex(ctx, time.Now().UTC()); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (s *Store) headersForCatalogScope(scope Scope, workspaceRoot string) ([]Header, error) {
+	target := s
+	if scope.Normalize() == ScopeWorkspace {
+		target = s.ForWorkspace(workspaceRoot)
+	}
+	return target.scan(scope, 0)
+}
+
+func (s *Store) documentsForHeaders(scope Scope, workspaceRoot string, headers []Header) ([]catalogDocument, error) {
+	target := s
+	if scope.Normalize() == ScopeWorkspace {
+		target = s.ForWorkspace(workspaceRoot)
+	}
+
+	docs := make([]catalogDocument, 0, len(headers))
+	for _, header := range headers {
+		rawContent, err := target.Read(scope, header.Filename)
+		if err != nil {
+			return nil, err
+		}
+		doc, err := buildCatalogDocument(scope, workspaceRoot, header, rawContent)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, doc)
+	}
+	return docs, nil
+}
+
+func (s *Store) collectSearchDocuments(scope Scope, workspaceRoot string) ([]catalogDocument, error) {
+	scopes := []struct {
+		scope     Scope
+		workspace string
+	}{{scope: ScopeGlobal}}
+	if scope.Normalize() == ScopeWorkspace {
+		scopes = []struct {
+			scope     Scope
+			workspace string
+		}{{scope: ScopeWorkspace, workspace: workspaceRoot}}
+	} else if strings.TrimSpace(workspaceRoot) != "" {
+		scopes = append(scopes, struct {
+			scope     Scope
+			workspace string
+		}{scope: ScopeWorkspace, workspace: workspaceRoot})
+	}
+
+	docs := make([]catalogDocument, 0)
+	for _, item := range scopes {
+		headers, err := s.headersForCatalogScope(item.scope, item.workspace)
+		if err != nil {
+			return nil, err
+		}
+		items, err := s.documentsForHeaders(item.scope, item.workspace, headers)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, items...)
+	}
+	return docs, nil
+}
+
+func (s *Store) collectActualCatalogIDs(filters []catalogFilter) (map[string]struct{}, error) {
+	actual := make(map[string]struct{})
+	for _, filter := range filters {
+		headers, err := s.headersForCatalogScope(filter.scope, filter.workspaceRoot)
+		if err != nil {
+			return nil, err
+		}
+		for _, header := range headers {
+			actual[catalogDocID(filter.scope, filter.workspaceRoot, header.Filename)] = struct{}{}
+		}
+	}
+	return actual, nil
+}
+
+func (s *Store) logCatalogEvent(ctx context.Context, eventType string, summary string) error {
+	if s.catalog == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.catalog.logEvent(ctx, eventType, summary)
 }
 
 func truncateIndex(content string, maxLines int, maxBytes int) (string, bool) {
@@ -400,11 +807,6 @@ func truncateToUTF8Boundary(value string, maxBytes int) string {
 	return truncated
 }
 
-func indexLineTargetsFilename(line string, filename string) bool {
-	target, ok := firstMarkdownLinkTarget(line)
-	return ok && target == strings.TrimSpace(filename)
-}
-
 func firstMarkdownLinkTarget(line string) (string, bool) {
 	start := strings.Index(line, "](")
 	if start < 0 {
@@ -430,6 +832,52 @@ func firstMarkdownLinkTarget(line string) (string, bool) {
 	}
 
 	return "", false
+}
+
+func renderIndex(headers []Header) string {
+	if len(headers) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(headers))
+	for _, header := range headers {
+		lines = append(lines, renderIndexLine(header))
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func renderIndexLine(header Header) string {
+	header.Normalize()
+	if header.Description == "" {
+		return fmt.Sprintf("- [%s](%s)", header.Name, header.Filename)
+	}
+	return fmt.Sprintf("- [%s](%s) - %s", header.Name, header.Filename, header.Description)
+}
+
+func indexMatchesHeaders(content string, headers []Header) bool {
+	if len(headers) == 0 {
+		return strings.TrimSpace(content) == ""
+	}
+	targets := make(map[string]struct{}, len(headers))
+	for _, header := range headers {
+		targets[header.Filename] = struct{}{}
+	}
+
+	seen := make(map[string]struct{}, len(headers))
+	for line := range strings.SplitSeq(content, "\n") {
+		target, ok := firstMarkdownLinkTarget(line)
+		if !ok {
+			continue
+		}
+		if _, exists := targets[target]; !exists {
+			return false
+		}
+		if _, exists := seen[target]; exists {
+			return false
+		}
+		seen[target] = struct{}{}
+	}
+
+	return len(seen) == len(targets)
 }
 
 func shouldSkipFile(name string) bool {

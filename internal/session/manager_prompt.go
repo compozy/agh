@@ -92,9 +92,18 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 		return nil, err
 	}
 
+	dispatchMessage := message
+	if m.inputAugmenter != nil {
+		augmented, augmentErr := m.inputAugmenter(ctx, session, message)
+		if augmentErr != nil {
+			m.sessionLogger(session).Warn("session: prompt input augmentation failed", "error", augmentErr)
+		} else if strings.TrimSpace(augmented) != "" {
+			dispatchMessage = augmented
+		}
+	}
 	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{
 		TurnID:  turnID,
-		Message: message,
+		Message: dispatchMessage,
 		Meta:    req.meta,
 	})
 	if err != nil {

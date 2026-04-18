@@ -67,6 +67,7 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		"workspaces",
 		"sessions",
 		"event_summaries",
+		"memory_operation_log",
 		"token_stats",
 		"permission_log",
 		"extensions",
@@ -1273,6 +1274,59 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	}
 }
 
+func TestGlobalDBListEventSummariesIncludesMemoryOperations(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	registerSessionForGlobalTests(t, globalDB, "sess-summary")
+
+	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
+		SessionID: "sess-summary",
+		Type:      "agent_message",
+		AgentName: "coder",
+		Summary:   "assistant replied",
+		Timestamp: time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("WriteEventSummary() error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		testutil.Context(t),
+		`INSERT INTO memory_operation_log (id, type, agent_name, summary, timestamp) VALUES (?, ?, ?, ?, ?)`,
+		"mem-1",
+		"memory.write",
+		"daemon",
+		`scope=global filename=prefs.md`,
+		formatTimestamp(time.Date(2026, 4, 3, 14, 1, 0, 0, time.UTC)),
+	); err != nil {
+		t.Fatalf("insert memory operation log error = %v", err)
+	}
+
+	summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+	if err != nil {
+		t.Fatalf("ListEventSummaries() error = %v", err)
+	}
+	if got, want := len(summaries), 2; got != want {
+		t.Fatalf("len(summaries) = %d, want %d", got, want)
+	}
+	if got, want := summaries[1].Type, "memory.write"; got != want {
+		t.Fatalf("summaries[1].Type = %q, want %q", got, want)
+	}
+	if got := summaries[1].SessionID; got != "" {
+		t.Fatalf("summaries[1].SessionID = %q, want empty for memory operation", got)
+	}
+
+	sessionOnly, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{SessionID: "sess-summary"})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(session filter) error = %v", err)
+	}
+	if got, want := len(sessionOnly), 1; got != want {
+		t.Fatalf("len(sessionOnly) = %d, want %d", got, want)
+	}
+	if got, want := sessionOnly[0].Type, "agent_message"; got != want {
+		t.Fatalf("sessionOnly[0].Type = %q, want %q", got, want)
+	}
+}
+
 func TestGlobalDBUpdateTokenStatsAggregation(t *testing.T) {
 	t.Parallel()
 
@@ -1760,7 +1814,16 @@ func TestGlobalDBRecoversFromCorruption(t *testing.T) {
 		}
 	})
 
-	assertTablesPresent(t, globalDB.db, "workspaces", "sessions", "event_summaries", "token_stats", "permission_log")
+	assertTablesPresent(
+		t,
+		globalDB.db,
+		"workspaces",
+		"sessions",
+		"event_summaries",
+		"memory_operation_log",
+		"token_stats",
+		"permission_log",
+	)
 
 	matches, err := filepath.Glob(path + ".corrupt.*")
 	if err != nil {

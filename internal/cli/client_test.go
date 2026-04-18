@@ -223,6 +223,23 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`[{"filename":"memory.md","mod_time":"2026-04-03T12:00:00Z","name":"Memory","description":"desc","type":"user"}]`,
 					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/search":
+					if got := req.URL.Query().Get("q"); got != "release plan" {
+						t.Fatalf("memory search q = %q, want %q", got, "release plan")
+					}
+					if got := req.URL.Query().Get("scope"); got != "workspace" {
+						t.Fatalf("memory search scope = %q, want %q", got, "workspace")
+					}
+					if got := req.URL.Query().Get("workspace"); got != "/workspace/project" {
+						t.Fatalf("memory search workspace = %q, want %q", got, "/workspace/project")
+					}
+					if got := req.URL.Query().Get("limit"); got != "5" {
+						t.Fatalf("memory search limit = %q, want %q", got, "5")
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`[{"filename":"release.md","scope":"workspace","workspace":"/workspace/project","type":"project","name":"Release Plan","description":"plan","score":3.4,"snippet":"Ship phases incrementally","mod_time":"2026-04-03T12:00:00Z"}]`,
+					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/memory.md":
 					return newHTTPResponse(http.StatusOK, `{"content":"---\nname: Memory\n---\n\nhello"}`), nil
 				case req.Method == http.MethodPut && req.URL.Path == "/api/memory/memory.md":
@@ -234,6 +251,19 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					return newHTTPResponse(http.StatusOK, `{"ok":true}`), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/consolidate":
 					return newHTTPResponse(http.StatusOK, `{"triggered":true}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/reindex":
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(memory reindex body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"scope":"workspace"`) ||
+						!strings.Contains(string(body), `"workspace":"/workspace/project"`) {
+						t.Fatalf("memory reindex body = %s, want scope/workspace", body)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"indexed_files":2,"scope":"workspace","workspace":"/workspace/project","completed_at":"2026-04-03T12:00:00Z"}`,
+					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/daemon/status":
 					return newHTTPResponse(
 						http.StatusOK,
@@ -385,6 +415,15 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("ListMemory() = %#v, %v", memories, err)
 	}
 
+	searchResults, err := client.SearchMemory(ctx, "release plan", MemorySearchQuery{
+		Scope:     memory.ScopeWorkspace,
+		Workspace: "/workspace/project",
+		Limit:     5,
+	})
+	if err != nil || len(searchResults) != 1 || searchResults[0].Filename != "release.md" {
+		t.Fatalf("SearchMemory() = %#v, %v", searchResults, err)
+	}
+
 	memoryRecord, err := client.ReadMemory(ctx, "memory.md", memory.ScopeGlobal, "")
 	if err != nil || !strings.Contains(memoryRecord.Content, "hello") {
 		t.Fatalf("ReadMemory() = %#v, %v", memoryRecord, err)
@@ -398,6 +437,14 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	deleted, err := client.DeleteMemory(ctx, "memory.md", memory.ScopeWorkspace, "/workspace/project")
 	if err != nil || !deleted.OK {
 		t.Fatalf("DeleteMemory() = %#v, %v", deleted, err)
+	}
+
+	reindexed, err := client.ReindexMemory(ctx, MemoryReindexRequest{
+		Scope:     "workspace",
+		Workspace: "/workspace/project",
+	})
+	if err != nil || reindexed.IndexedFiles != 2 {
+		t.Fatalf("ReindexMemory() = %#v, %v", reindexed, err)
 	}
 
 	consolidated, err := client.ConsolidateMemory(ctx, "/workspace/project")
@@ -1420,6 +1467,17 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	); got.Get("scope") != "workspace" ||
 		got.Get("workspace") != "/workspace/project" {
 		t.Fatalf("memoryValues() = %v, want scope/workspace", got)
+	}
+
+	if got := memorySearchValues("release plan", MemorySearchQuery{
+		Scope:     memory.ScopeWorkspace,
+		Workspace: "/workspace/project",
+		Limit:     5,
+	}); got.Get("q") != "release plan" ||
+		got.Get("scope") != "workspace" ||
+		got.Get("workspace") != "/workspace/project" ||
+		got.Get("limit") != "5" {
+		t.Fatalf("memorySearchValues() = %v, want q/scope/workspace/limit", got)
 	}
 
 	if got := automationJobValues(AutomationJobQuery{

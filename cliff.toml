@@ -64,9 +64,7 @@ conventional_commits = true
 filter_unconventional = true
 split_commits = false
 
-commit_preprocessors = [
-  { pattern = '  +', replace = " " },
-]
+commit_preprocessors = [{ pattern = '  +', replace = " " }]
 
 commit_parsers = [
   { message = "^feat", group = "🎉 Features" },

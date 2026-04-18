@@ -3143,7 +3143,31 @@ func testConfigPtr(t *testing.T, homePaths aghconfig.HomePaths) *aghconfig.Confi
 func writeDaemonMemoryIndex(t *testing.T, globalDir string, workspace string) {
 	t.Helper()
 
+	writeDaemonFile(
+		t,
+		filepath.Join(globalDir, "global.md"),
+		`---
+name: Global
+description: global note
+type: user
+---
+
+global note
+`,
+	)
 	writeDaemonFile(t, filepath.Join(globalDir, "MEMORY.md"), "- [Global](global.md) - global note")
+	writeDaemonFile(
+		t,
+		filepath.Join(workspace, aghconfig.DirName, "memory", "workspace.md"),
+		`---
+name: Workspace
+description: workspace note
+type: project
+---
+
+workspace note
+`,
+	)
 	writeDaemonFile(
 		t,
 		filepath.Join(workspace, aghconfig.DirName, "memory", "MEMORY.md"),

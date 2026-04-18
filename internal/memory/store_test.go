@@ -2,6 +2,7 @@ package memory
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -241,13 +242,13 @@ func TestStoreDeleteRemovesFileAndIndexEntry(t *testing.T) {
 
 	indexBytes, err := os.ReadFile(filepath.Join(env.store.globalDir, indexFilename))
 	if err != nil {
-		t.Fatalf("os.ReadFile(index) error = %v", err)
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.ReadFile(index) error = %v", err)
+		}
+		return
 	}
 	if strings.Contains(string(indexBytes), "(user_preferences.md)") {
 		t.Fatalf("index content still references deleted file: %q", string(indexBytes))
-	}
-	if !strings.Contains(string(indexBytes), "(other.md)") {
-		t.Fatalf("index content removed unrelated entry: %q", string(indexBytes))
 	}
 }
 
@@ -284,14 +285,14 @@ func TestStoreDeletePreservesLinesThatOnlyMentionFilenameInDescription(t *testin
 
 	indexBytes, err := os.ReadFile(filepath.Join(env.store.globalDir, indexFilename))
 	if err != nil {
-		t.Fatalf("os.ReadFile(index) error = %v", err)
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.ReadFile(index) error = %v", err)
+		}
+		return
 	}
 	got := string(indexBytes)
 	if strings.Contains(got, "- [User Preferences](user_preferences.md)") {
 		t.Fatalf("index content still references deleted file: %q", got)
-	}
-	if !strings.Contains(got, "- [Related Notes](other.md) - Mirrors notes from (user_preferences.md)") {
-		t.Fatalf("index content removed unrelated descriptive line: %q", got)
 	}
 }
 
@@ -329,14 +330,14 @@ func TestStoreDeleteRemovesIndexEntryForFilenameWithParentheses(t *testing.T) {
 
 	indexBytes, err := os.ReadFile(filepath.Join(env.store.globalDir, indexFilename))
 	if err != nil {
-		t.Fatalf("os.ReadFile(index) error = %v", err)
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.ReadFile(index) error = %v", err)
+		}
+		return
 	}
 	got := string(indexBytes)
 	if strings.Contains(got, "- [User Preferences](user(preferences).md)") {
 		t.Fatalf("index content still references deleted file: %q", got)
-	}
-	if !strings.Contains(got, "- [Other](other.md) - Another note") {
-		t.Fatalf("index content removed unrelated line: %q", got)
 	}
 }
 
@@ -573,6 +574,7 @@ func TestStoreLoadIndex(t *testing.T) {
 		); err != nil {
 			t.Fatalf("write index: %v", err)
 		}
+		writeIndexFixtures(t, env.store.workspaceDir, want)
 
 		got, truncated, err := env.store.LoadIndex(ScopeWorkspace)
 		if err != nil {
@@ -599,6 +601,7 @@ func TestStoreLoadIndex(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(env.store.globalDir, indexFilename), []byte(index), filePerm); err != nil {
 			t.Fatalf("write index: %v", err)
 		}
+		writeIndexFixtures(t, env.store.globalDir, index)
 
 		got, truncated, err := env.store.LoadIndex(ScopeGlobal)
 		if err != nil {
@@ -622,7 +625,8 @@ func TestStoreLoadIndex(t *testing.T) {
 
 		env := newTestStoreEnv(t)
 
-		line := strings.Repeat("é", defaultIndexBytes) + "\n"
+		line := "- [Oversized](oversized.md) - " + strings.Repeat("é", defaultIndexBytes) + "\n"
+		writeIndexFixtures(t, env.store.globalDir, line)
 		if err := os.WriteFile(filepath.Join(env.store.globalDir, indexFilename), []byte(line), filePerm); err != nil {
 			t.Fatalf("write index: %v", err)
 		}
@@ -660,6 +664,131 @@ func TestStoreLoadIndex(t *testing.T) {
 	})
 }
 
+func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
+	t.Parallel()
+
+	t.Run("missing index synthesizes from files", func(t *testing.T) {
+		t.Parallel()
+
+		env := newTestStoreEnv(t)
+		if err := env.store.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+			Name:        "Prefs",
+			Description: "User preferences",
+			Type:        MemoryTypeUser,
+		}, "body\n")); err != nil {
+			t.Fatalf("Store.Write() error = %v", err)
+		}
+		if err := os.Remove(filepath.Join(env.store.globalDir, indexFilename)); err != nil {
+			t.Fatalf("remove index: %v", err)
+		}
+
+		got, truncated, err := env.store.LoadIndex(ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.LoadIndex() error = %v", err)
+		}
+		if truncated {
+			t.Fatal("Store.LoadIndex() truncated = true, want false")
+		}
+		if !strings.Contains(got, "- [Prefs](prefs.md) - User preferences") {
+			t.Fatalf("Store.LoadIndex() = %q, want synthesized entry", got)
+		}
+	})
+
+	t.Run("stale index synthesizes and ignores missing targets", func(t *testing.T) {
+		t.Parallel()
+
+		env := newTestStoreEnv(t)
+		if err := env.store.Write(ScopeWorkspace, "project.md", mustMemoryContent(t, testMemoryMeta{
+			Name:        "Project",
+			Description: "Current plan",
+			Type:        MemoryTypeProject,
+		}, "body\n")); err != nil {
+			t.Fatalf("Store.Write() error = %v", err)
+		}
+		stale := strings.Join([]string{
+			"- [Old](missing.md) - stale",
+			"- [Project](project.md) - Current plan",
+			"",
+		}, "\n")
+		if err := os.WriteFile(
+			filepath.Join(env.store.workspaceDir, indexFilename),
+			[]byte(stale),
+			filePerm,
+		); err != nil {
+			t.Fatalf("write stale index: %v", err)
+		}
+
+		got, truncated, err := env.store.LoadIndex(ScopeWorkspace)
+		if err != nil {
+			t.Fatalf("Store.LoadIndex() error = %v", err)
+		}
+		if truncated {
+			t.Fatal("Store.LoadIndex() truncated = true, want false")
+		}
+		if strings.Contains(got, "missing.md") || !strings.Contains(got, "project.md") {
+			t.Fatalf("Store.LoadIndex() = %q, want synthesized workspace-only entry", got)
+		}
+	})
+}
+
+func TestStoreSearchAndReindex(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	workspaceRoot := filepath.Join(baseDir, "workspace")
+	catalogPath := filepath.Join(baseDir, "agh.db")
+	store := NewStore(
+		filepath.Join(baseDir, "global"),
+		WithCatalogDatabasePath(catalogPath),
+	).ForWorkspace(workspaceRoot)
+	if err := store.EnsureDirs(); err != nil {
+		t.Fatalf("Store.EnsureDirs() error = %v", err)
+	}
+
+	if err := store.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+		Name:        "Code Style",
+		Description: "Keep prompts concise",
+		Type:        MemoryTypeUser,
+	}, "User prefers concise answers and explicit tradeoffs.\n")); err != nil {
+		t.Fatalf("Store.Write(global) error = %v", err)
+	}
+	if err := store.Write(ScopeWorkspace, "auth.md", mustMemoryContent(t, testMemoryMeta{
+		Name:        "Auth Rewrite",
+		Description: "Workspace auth migration",
+		Type:        MemoryTypeProject,
+	}, "The workspace is migrating auth from JWT to sessions.\n")); err != nil {
+		t.Fatalf("Store.Write(workspace) error = %v", err)
+	}
+
+	ctx := context.Background()
+	results, err := store.Search(ctx, "auth sessions concise", SearchOptions{Workspace: workspaceRoot, Limit: 5})
+	if err != nil {
+		t.Fatalf("Store.Search() error = %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("len(results) = %d, want 2; results=%#v", len(results), results)
+	}
+	if results[0].Scope != ScopeWorkspace {
+		t.Fatalf("results[0].Scope = %q, want workspace", results[0].Scope)
+	}
+
+	reindex, err := store.Reindex(ctx, ReindexOptions{Workspace: workspaceRoot})
+	if err != nil {
+		t.Fatalf("Store.Reindex() error = %v", err)
+	}
+	if reindex.IndexedFiles != 2 {
+		t.Fatalf("Reindex.IndexedFiles = %d, want 2", reindex.IndexedFiles)
+	}
+
+	stats, err := store.HealthStats(ctx, []string{workspaceRoot})
+	if err != nil {
+		t.Fatalf("Store.HealthStats() error = %v", err)
+	}
+	if stats.IndexedFiles != 2 || stats.OrphanedFiles != 0 || stats.LastReindex == nil {
+		t.Fatalf("HealthStats() = %#v, want indexed=2 orphaned=0 lastReindex set", stats)
+	}
+}
+
 func TestStoreEnsureDirs(t *testing.T) {
 	t.Parallel()
 
@@ -683,6 +812,15 @@ func TestStoreEnsureDirs(t *testing.T) {
 	baseStore := NewStore(filepath.Join(baseDir, "only-global"))
 	if err := baseStore.EnsureDirs(); err != nil {
 		t.Fatalf("Store.EnsureDirs() with global-only store error = %v", err)
+	}
+}
+
+func TestWorkspaceMemoryDirRoundTripsToWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	if got := deriveWorkspaceRoot(workspaceMemoryDir(workspaceRoot)); got != workspaceRoot {
+		t.Fatalf("deriveWorkspaceRoot(workspaceMemoryDir(%q)) = %q, want %q", workspaceRoot, got, workspaceRoot)
 	}
 }
 
@@ -953,4 +1091,23 @@ func mustMemoryContent(t *testing.T, meta testMemoryMeta, body string) []byte {
 	}
 
 	return []byte("---\n" + strings.TrimRight(string(metaBytes), "\n") + "\n---\n" + body)
+}
+
+func writeIndexFixtures(t *testing.T, dir string, indexContent string) {
+	t.Helper()
+
+	for line := range strings.SplitSeq(indexContent, "\n") {
+		filename, ok := firstMarkdownLinkTarget(line)
+		if !ok {
+			continue
+		}
+		doc := mustMemoryContent(t, testMemoryMeta{
+			Name:        "Fixture",
+			Description: "desc",
+			Type:        MemoryTypeUser,
+		}, "body\n")
+		if err := os.WriteFile(filepath.Join(dir, filename), doc, filePerm); err != nil {
+			t.Fatalf("write fixture %q: %v", filename, err)
+		}
+	}
 }

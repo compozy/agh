@@ -2,6 +2,7 @@
 package memory
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -40,6 +41,58 @@ type Header struct {
 	Description string    `json:"description,omitempty" yaml:"description,omitempty"`
 	Type        Type      `json:"type"                  yaml:"type"`
 	AgentName   string    `json:"agent_name,omitempty"  yaml:"agent_name,omitempty"`
+}
+
+// SearchOptions controls catalog-backed or fallback memory search behavior.
+type SearchOptions struct {
+	Scope     Scope
+	Workspace string
+	Limit     int
+}
+
+// SearchResult is one ranked memory search hit.
+type SearchResult struct {
+	Filename    string    `json:"filename"`
+	Scope       Scope     `json:"scope"`
+	Workspace   string    `json:"workspace,omitempty"`
+	Type        Type      `json:"type"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	Score       float64   `json:"score"`
+	Snippet     string    `json:"snippet,omitempty"`
+	ModTime     time.Time `json:"mod_time"`
+}
+
+// ReindexOptions controls which scopes are rebuilt into the derived catalog.
+type ReindexOptions struct {
+	Scope     Scope
+	Workspace string
+}
+
+// ReindexResult reports the outcome of a catalog rebuild.
+type ReindexResult struct {
+	IndexedFiles int       `json:"indexed_files"`
+	Scope        Scope     `json:"scope,omitempty"`
+	Workspace    string    `json:"workspace,omitempty"`
+	CompletedAt  time.Time `json:"completed_at"`
+}
+
+// HealthStats summarizes derived-catalog state for operator surfaces.
+type HealthStats struct {
+	IndexedFiles  int        `json:"indexed_files"`
+	OrphanedFiles int        `json:"orphaned_files"`
+	LastReindex   *time.Time `json:"last_reindex"`
+}
+
+// Backend captures the memory backend surface used by daemon, API, and CLI layers.
+type Backend interface {
+	List(scope Scope) ([]Header, error)
+	Read(scope Scope, filename string) ([]byte, error)
+	Write(scope Scope, filename string, content []byte) error
+	Delete(scope Scope, filename string) error
+	Search(ctx context.Context, query string, opts SearchOptions) ([]SearchResult, error)
+	Reindex(ctx context.Context, opts ReindexOptions) (ReindexResult, error)
+	LoadPromptIndex(scope Scope) (content string, truncated bool, err error)
 }
 
 // Normalize returns the normalized representation of the memory type.

@@ -23,7 +23,9 @@ Only prompt-safe MEMORY.md indexes are injected here. Read full memory files on 
 	memoryCommandsSection = `## Memory Commands
 
 - ` + "`agh memory list`" + ` shows discoverable memory files in the current scope.
+- ` + "`agh memory search <query>`" + ` searches durable memory before opening individual files.
 - ` + "`agh memory read <filename>`" + ` reads the full content of one memory file.
+- ` + "`agh memory reindex`" + ` rebuilds the derived search catalog from Markdown memory files.
 - ` + "`agh memory write <filename> --type <type> --description <desc> --content <content>`" + ` writes or updates durable memory.`
 	memoryStalenessSection = `## Staleness Policy
 
