@@ -41,6 +41,7 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 	composite, err := newPromptInputCompositeAugmenter(
 		discardLogger(),
 		compositeResolver,
+		nil,
 		append(
 			defaultPromptInputAugmenterDescriptors(memory.NewRecallAugmenter(daemonInstance.memoryStore)),
 			promptInputAugmenterDescriptor{

@@ -41,6 +41,7 @@ type bootState struct {
 	closeLogger         func() error
 	lock                *Lock
 	harnessResolver     *HarnessContextResolver
+	harnessRecorder     *harnessLifecycleRecorder
 	memoryStore         *memory.Store
 	skillsRegistry      *skills.Registry
 	mcpResolver         *skills.MCPResolver
@@ -292,8 +293,9 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		SyntheticTurnsEnabled:      true,
 		DetachedTaskRuntimeEnabled: true,
 	})
+	state.harnessRecorder = newHarnessLifecycleRecorder(state.logger, d.now)
 	state.promptAssembler = NewComposedAssembler(
-		WithSectionSelector(NewSectionSelector(state.harnessResolver)),
+		WithSectionSelector(NewSectionSelector(state.harnessResolver, state.harnessRecorder)),
 		WithPromptSectionDescriptors(
 			defaultStartupPromptSectionDescriptorsFromProviders(prependProviders, appendProviders)...,
 		),
@@ -301,6 +303,7 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 	state.promptAugmenter, err = newPromptInputCompositeAugmenter(
 		state.logger,
 		state.harnessResolver,
+		state.harnessRecorder,
 		defaultPromptInputAugmenterDescriptors(
 			memory.NewRecallAugmenter(state.memoryStore),
 		)...,
@@ -394,6 +397,9 @@ func (d *Daemon) bootRegistryState(
 	}
 	state.registry = registry
 	state.workspaceResolver = workspaceResolver
+	if state.harnessRecorder != nil {
+		state.harnessRecorder.SetStore(registry)
+	}
 	return nil
 }
 
@@ -843,6 +849,9 @@ func (d *Daemon) initializeHookObservers(state *bootState) ([]hookspkg.HookDecl,
 	state.lifecycleObservers = newSessionLifecycleFanout()
 	if state.observer != nil {
 		state.lifecycleObservers.Add(state.observer)
+	}
+	if state.harnessRecorder != nil {
+		state.lifecycleObservers.Add(state.harnessRecorder)
 	}
 	state.hookTelemetrySinks = newHookTelemetryFanout()
 	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {

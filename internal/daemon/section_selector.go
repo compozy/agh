@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/session"
 )
@@ -13,14 +14,18 @@ import (
 // sections before final assembly.
 type SectionSelector struct {
 	resolver *HarnessContextResolver
+	recorder *harnessLifecycleRecorder
 }
 
 // NewSectionSelector constructs a daemon-owned startup section selector.
-func NewSectionSelector(resolver *HarnessContextResolver) *SectionSelector {
+func NewSectionSelector(
+	resolver *HarnessContextResolver,
+	recorder *harnessLifecycleRecorder,
+) *SectionSelector {
 	if resolver == nil {
 		return nil
 	}
-	return &SectionSelector{resolver: resolver}
+	return &SectionSelector{resolver: resolver, recorder: recorder}
 }
 
 // Select resolves startup policy for the provided startup context and returns
@@ -38,6 +43,11 @@ func (s *SectionSelector) Select(
 	if err != nil {
 		return nil, ResolvedHarnessContext{}, err
 	}
+	var timestamp time.Time
+	if s.recorder != nil {
+		timestamp = s.recorder.timestamp(time.Time{})
+		s.recorder.RecordStartupContextResolved(startup, resolved, timestamp)
+	}
 
 	selected := make([]PromptSectionDescriptor, 0, len(normalized))
 	seen := make(map[string]struct{}, len(normalized))
@@ -54,6 +64,9 @@ func (s *SectionSelector) Select(
 		}
 		seen[descriptor.Name] = struct{}{}
 		selected = append(selected, descriptor)
+	}
+	if s.recorder != nil {
+		s.recorder.RecordStartupSectionSelected(startup, resolved, selected, timestamp)
 	}
 
 	return selected, resolved, nil

@@ -216,7 +216,7 @@ func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.
 		SkillsPromptSectionEnabled: true,
 	})
 	assembler := NewComposedAssembler(
-		WithSectionSelector(NewSectionSelector(resolver)),
+		WithSectionSelector(NewSectionSelector(resolver, nil)),
 		WithPromptSectionDescriptors(
 			PromptSectionDescriptor{
 				Name:     string(HarnessPromptSectionNetwork),
@@ -310,7 +310,7 @@ func TestComposedAssemblerDeduplicatesEligibleSectionNames(t *testing.T) {
 		SkillsPromptSectionEnabled: true,
 	})
 	assembler := NewComposedAssembler(
-		WithSectionSelector(NewSectionSelector(resolver)),
+		WithSectionSelector(NewSectionSelector(resolver, nil)),
 		WithPromptSectionDescriptors(
 			PromptSectionDescriptor{
 				Name:     string(HarnessPromptSectionMemory),
@@ -366,7 +366,7 @@ func TestComposedAssemblerAssembleStartupLoadsBundledNetworkSectionDescriptor(t 
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{})
 	assembler := NewComposedAssembler(
-		WithSectionSelector(NewSectionSelector(resolver)),
+		WithSectionSelector(NewSectionSelector(resolver, nil)),
 		WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil)...),
 	)
 

@@ -32,6 +32,7 @@ const (
 	transportUDSApprovalAgent   = "transport-uds-approver"
 	transportUDSAutomationAgent = "transport-uds-automation-runner"
 	transportUDSFaultyAgent     = "transport-uds-faulty-runner"
+	transportUDSObserveAgent    = "transport-uds-observe"
 )
 
 var errStopAfterUDSApprovalGap = errors.New("stop after documenting UDS approval gap")
@@ -209,6 +210,115 @@ func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.
 	}
 	if !udsSessionEventsContainType(eventsResp.Events, "error") {
 		t.Fatalf("UDS session events = %#v, want error projection", eventsResp.Events)
+	}
+}
+
+func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  transportMockFixturePath(t, "multi_agent_fixture.json"),
+			FixtureAgent: "alpha",
+			AgentName:    transportUDSObserveAgent,
+		}},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	session, err := runtimeHarness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+		AgentName:     transportUDSObserveAgent,
+		WorkspacePath: runtimeHarness.WorkspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+
+	stream, err := runtimeHarness.PromptSessionHTTP(ctx, session.ID, "hello alpha")
+	if err != nil {
+		t.Fatalf("PromptSessionHTTP() error = %v", err)
+	}
+	if len(stream) == 0 {
+		t.Fatal("prompt stream = empty, want streamed events")
+	}
+
+	transcriptResp, err := runtimeHarness.SessionTranscript(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("SessionTranscript() error = %v", err)
+	}
+	if !strings.Contains(joinTransportTranscript(transcriptResp.Messages), "alpha says hi") {
+		t.Fatalf("transcript = %#v, want assistant reply", transcriptResp.Messages)
+	}
+
+	httpHarnessEvents := waitForTransportObserveEvents(
+		t,
+		ctx,
+		"waitForHTTPObserveEvents",
+		[]string{
+			"harness.context_resolved",
+			"harness.section_selected",
+			"harness.context_resolved",
+			"harness.augmenter_applied",
+		},
+		func(fetchCtx context.Context) ([]aghcontract.ObserveEventPayload, error) {
+			var response aghcontract.ObserveEventsResponse
+			err := runtimeHarness.HTTPJSON(
+				fetchCtx,
+				http.MethodGet,
+				"/api/observe/events?session_id="+url.QueryEscape(session.ID)+"&limit=20",
+				nil,
+				&response,
+			)
+			return response.Events, err
+		},
+	)
+	udsHarnessEvents := waitForTransportObserveEvents(
+		t,
+		ctx,
+		"waitForUDSObserveEvents",
+		[]string{
+			"harness.context_resolved",
+			"harness.section_selected",
+			"harness.context_resolved",
+			"harness.augmenter_applied",
+		},
+		func(fetchCtx context.Context) ([]aghcontract.ObserveEventPayload, error) {
+			var response aghcontract.ObserveEventsResponse
+			err := runtimeHarness.UDSJSON(
+				fetchCtx,
+				http.MethodGet,
+				"/api/observe/events?session_id="+url.QueryEscape(session.ID)+"&limit=20",
+				nil,
+				&response,
+			)
+			return response.Events, err
+		},
+	)
+
+	if !reflect.DeepEqual(httpHarnessEvents, udsHarnessEvents) {
+		t.Fatalf("HTTP harness events = %#v, want UDS parity %#v", httpHarnessEvents, udsHarnessEvents)
+	}
+	if got, want := observeEventTypes(httpHarnessEvents), []string{
+		"harness.context_resolved",
+		"harness.section_selected",
+		"harness.context_resolved",
+		"harness.augmenter_applied",
+	}; !slices.Equal(got, want) {
+		t.Fatalf("harness event types = %#v, want %#v", got, want)
+	}
+	if !strings.Contains(httpHarnessEvents[0].Summary, "surface=startup") {
+		t.Fatalf("startup summary = %q, want startup surface", httpHarnessEvents[0].Summary)
+	}
+	if !strings.Contains(httpHarnessEvents[1].Summary, "selected=") {
+		t.Fatalf("section summary = %q, want selected sections", httpHarnessEvents[1].Summary)
+	}
+	if !strings.Contains(httpHarnessEvents[2].Summary, "surface=turn") {
+		t.Fatalf("turn summary = %q, want turn surface", httpHarnessEvents[2].Summary)
+	}
+	if !strings.Contains(httpHarnessEvents[3].Summary, "augmenter=durable_memory") {
+		t.Fatalf("augmenter summary = %q, want durable memory metadata", httpHarnessEvents[3].Summary)
 	}
 }
 
@@ -651,6 +761,50 @@ func waitForTransportAutomationRun(
 	}
 }
 
+func waitForTransportObserveEvents(
+	t testing.TB,
+	ctx context.Context,
+	label string,
+	wantTypes []string,
+	fetch func(context.Context) ([]aghcontract.ObserveEventPayload, error),
+) []aghcontract.ObserveEventPayload {
+	t.Helper()
+
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+
+	var (
+		lastErr    error
+		lastEvents []aghcontract.ObserveEventPayload
+	)
+	for {
+		events, err := fetch(waitCtx)
+		if err == nil {
+			harnessEvents := filterHarnessObserveEvents(events)
+			if slices.Equal(observeEventTypes(harnessEvents), wantTypes) {
+				return harnessEvents
+			}
+			lastEvents = harnessEvents
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-waitCtx.Done():
+			t.Fatalf(
+				"%s timed out: %v; last error=%v last harness events=%#v",
+				label,
+				waitCtx.Err(),
+				lastErr,
+				lastEvents,
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
 func udsSSEContainsEvent(records []e2etest.SSEEvent, want string) bool {
 	for _, record := range records {
 		if record.Event == want {
@@ -670,6 +824,24 @@ func udsSessionEventsContainType(events []aghcontract.SessionEventPayload, want 
 		}
 	}
 	return false
+}
+
+func filterHarnessObserveEvents(events []aghcontract.ObserveEventPayload) []aghcontract.ObserveEventPayload {
+	filtered := make([]aghcontract.ObserveEventPayload, 0, len(events))
+	for _, event := range events {
+		if strings.HasPrefix(event.Type, "harness.") {
+			filtered = append(filtered, event)
+		}
+	}
+	return filtered
+}
+
+func observeEventTypes(events []aghcontract.ObserveEventPayload) []string {
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.Type)
+	}
+	return types
 }
 
 func joinTransportTranscript(messages []transcript.Message) string {

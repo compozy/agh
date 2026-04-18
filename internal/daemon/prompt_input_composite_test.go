@@ -30,6 +30,7 @@ func TestPromptInputCompositeOrdersEnabledAugmentersByDescriptorOrder(t *testing
 	augmenter, err := newPromptInputCompositeAugmenter(
 		discardLogger(),
 		resolver,
+		nil,
 		promptInputAugmenterDescriptor{
 			Name:   "later",
 			Order:  200,
@@ -173,6 +174,7 @@ func TestPromptInputCompositeAppliesAggregateBudgetPolicies(t *testing.T) {
 			augmenter, err := newPromptInputCompositeAugmenter(
 				discardLogger(),
 				resolver,
+				nil,
 				promptInputAugmenterDescriptor{
 					Name:   "prefix",
 					Order:  100,
@@ -220,6 +222,7 @@ func TestPromptInputCompositePreservesCurrentMessageForOverBudgetRewrite(t *test
 	augmenter, err := newPromptInputCompositeAugmenter(
 		discardLogger(),
 		resolver,
+		nil,
 		promptInputAugmenterDescriptor{
 			Name:           "rewrite",
 			Order:          100,
@@ -270,6 +273,7 @@ func TestPromptInputCompositeCriticalFailureStopsPipeline(t *testing.T) {
 	augmenter, err := newPromptInputCompositeAugmenter(
 		discardLogger(),
 		resolver,
+		nil,
 		promptInputAugmenterDescriptor{
 			Name:   "prefix",
 			Order:  100,
@@ -325,6 +329,7 @@ func TestPromptInputCompositeContextCancellationStopsPipeline(t *testing.T) {
 	augmenter, err := newPromptInputCompositeAugmenter(
 		discardLogger(),
 		resolver,
+		nil,
 		promptInputAugmenterDescriptor{
 			Name:   "warn",
 			Order:  100,
@@ -366,6 +371,7 @@ func TestPromptInputCompositeNoncriticalFailureWarnsAndContinues(t *testing.T) {
 	augmenter, err := newPromptInputCompositeAugmenter(
 		logger,
 		resolver,
+		nil,
 		promptInputAugmenterDescriptor{
 			Name:   "warn",
 			Order:  100,
@@ -416,6 +422,7 @@ func TestPromptInputCompositeBlankOutputPreservesLastValidMessage(t *testing.T) 
 	augmenter, err := newPromptInputCompositeAugmenter(
 		discardLogger(),
 		resolver,
+		nil,
 		promptInputAugmenterDescriptor{
 			Name:   "blank",
 			Order:  100,
@@ -484,6 +491,7 @@ Remember auth migration details and session handling.
 	augmenter, err := newPromptInputCompositeAugmenter(
 		discardLogger(),
 		resolver,
+		nil,
 		defaultPromptInputAugmenterDescriptors(memory.NewRecallAugmenter(store))...,
 	)
 	if err != nil {

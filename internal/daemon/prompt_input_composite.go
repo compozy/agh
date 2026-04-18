@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/pedronauck/agh/internal/acp"
@@ -45,6 +46,7 @@ type promptInputAugmenterDescriptor struct {
 type promptInputComposite struct {
 	logger      *slog.Logger
 	resolver    promptInputAugmenterResolver
+	recorder    *harnessLifecycleRecorder
 	descriptors []promptInputAugmenterDescriptor
 	byName      map[HarnessAugmenter]promptInputAugmenterDescriptor
 }
@@ -69,6 +71,7 @@ func defaultPromptInputAugmenterDescriptors(
 func newPromptInputCompositeAugmenter(
 	logger *slog.Logger,
 	resolver promptInputAugmenterResolver,
+	recorder *harnessLifecycleRecorder,
 	descriptors ...promptInputAugmenterDescriptor,
 ) (session.PromptInputAugmenter, error) {
 	if resolver == nil {
@@ -83,6 +86,7 @@ func newPromptInputCompositeAugmenter(
 	composite := &promptInputComposite{
 		logger:      logger,
 		resolver:    resolver,
+		recorder:    recorder,
 		descriptors: normalized,
 		byName:      make(map[HarnessAugmenter]promptInputAugmenterDescriptor, len(normalized)),
 	}
@@ -168,6 +172,11 @@ func (c *promptInputComposite) Augment(
 	if err != nil {
 		return "", fmt.Errorf("daemon: resolve prompt augmentation policy: %w", err)
 	}
+	timestamp := time.Now().UTC()
+	if c.recorder != nil {
+		timestamp = c.recorder.timestamp(time.Time{})
+		c.recorder.RecordPromptContextResolved(ctx, info, resolved, timestamp)
+	}
 
 	descriptors, err := c.selectedDescriptors(resolved.Policy.EnableAugmenters)
 	if err != nil {
@@ -182,44 +191,189 @@ func (c *promptInputComposite) Augment(
 	current := message
 
 	for _, descriptor := range descriptors {
-		next, augmentErr := descriptor.Augmenter(ctx, sess, current)
-		if augmentErr != nil {
-			wrappedErr := fmt.Errorf("daemon: prompt augmenter %q: %w", descriptor.Name, augmentErr)
-			if descriptor.Critical ||
-				errors.Is(augmentErr, context.Canceled) ||
-				errors.Is(augmentErr, context.DeadlineExceeded) {
-				return "", wrappedErr
-			}
-			c.loggerForSession(sess).Warn(
-				"daemon: noncritical prompt augmenter failed",
-				"augmenter",
-				descriptor.Name,
-				"error",
-				augmentErr,
-			)
-			continue
-		}
-		if strings.TrimSpace(next) == "" {
-			continue
-		}
-
-		bounded, consumed := applyPromptInputAugmenterBudget(
+		var stepErr error
+		current, remainingBudget, stepErr = c.applyAugmenterDescriptor(
+			ctx,
+			sess,
+			info,
+			resolved,
+			descriptor,
 			current,
-			next,
-			limited,
 			remainingBudget,
-			descriptor.BudgetBehavior,
+			limited,
+			timestamp,
 		)
-		if strings.TrimSpace(bounded) == "" {
-			continue
-		}
-		current = bounded
-		if limited {
-			remainingBudget = max(remainingBudget-consumed, 0)
+		if stepErr != nil {
+			return "", stepErr
 		}
 	}
 
 	return current, nil
+}
+
+func (c *promptInputComposite) applyAugmenterDescriptor(
+	ctx context.Context,
+	sess *session.Session,
+	info *session.Info,
+	resolved ResolvedHarnessContext,
+	descriptor promptInputAugmenterDescriptor,
+	current string,
+	remainingBudget int,
+	limited bool,
+	timestamp time.Time,
+) (string, int, error) {
+	next, augmentErr := descriptor.Augmenter(ctx, sess, current)
+	if augmentErr != nil {
+		return c.handleAugmenterFailure(
+			ctx,
+			sess,
+			info,
+			resolved,
+			descriptor,
+			current,
+			remainingBudget,
+			timestamp,
+			augmentErr,
+		)
+	}
+
+	nextCurrent, nextBudget := c.applyAugmentedMessage(
+		ctx,
+		info,
+		resolved,
+		descriptor,
+		current,
+		next,
+		remainingBudget,
+		limited,
+		timestamp,
+	)
+	return nextCurrent, nextBudget, nil
+}
+
+func (c *promptInputComposite) handleAugmenterFailure(
+	ctx context.Context,
+	sess *session.Session,
+	info *session.Info,
+	resolved ResolvedHarnessContext,
+	descriptor promptInputAugmenterDescriptor,
+	current string,
+	remainingBudget int,
+	timestamp time.Time,
+	augmentErr error,
+) (string, int, error) {
+	wrappedErr := fmt.Errorf("daemon: prompt augmenter %q: %w", descriptor.Name, augmentErr)
+	if c.recorder != nil {
+		c.recorder.RecordAugmenterFailed(ctx, info, resolved, descriptor, augmentErr, timestamp)
+	}
+	if descriptor.Critical ||
+		errors.Is(augmentErr, context.Canceled) ||
+		errors.Is(augmentErr, context.DeadlineExceeded) {
+		return "", remainingBudget, wrappedErr
+	}
+	c.loggerForSession(sess).Warn(
+		"daemon: noncritical prompt augmenter failed",
+		"augmenter",
+		descriptor.Name,
+		"error",
+		augmentErr,
+	)
+	return current, remainingBudget, nil
+}
+
+func (c *promptInputComposite) applyAugmentedMessage(
+	ctx context.Context,
+	info *session.Info,
+	resolved ResolvedHarnessContext,
+	descriptor promptInputAugmenterDescriptor,
+	current string,
+	next string,
+	remainingBudget int,
+	limited bool,
+	timestamp time.Time,
+) (string, int) {
+	if strings.TrimSpace(next) == "" {
+		c.recordAugmenterApplied(
+			ctx,
+			info,
+			resolved,
+			descriptor,
+			"blank",
+			0,
+			remainingBudget,
+			timestamp,
+		)
+		return current, remainingBudget
+	}
+
+	bounded, consumed := applyPromptInputAugmenterBudget(
+		current,
+		next,
+		limited,
+		remainingBudget,
+		descriptor.BudgetBehavior,
+	)
+	if strings.TrimSpace(bounded) == "" {
+		nextBudget := max(remainingBudget-consumed, 0)
+		c.recordAugmenterApplied(
+			ctx,
+			info,
+			resolved,
+			descriptor,
+			"omitted",
+			consumed,
+			nextBudget,
+			timestamp,
+		)
+		return current, remainingBudget
+	}
+
+	outcome := "applied"
+	if bounded == current {
+		outcome = "unchanged"
+	} else if bounded != next {
+		outcome = "trimmed"
+	}
+
+	nextBudget := remainingBudget
+	if limited {
+		nextBudget = max(remainingBudget-consumed, 0)
+	}
+	c.recordAugmenterApplied(
+		ctx,
+		info,
+		resolved,
+		descriptor,
+		outcome,
+		consumed,
+		nextBudget,
+		timestamp,
+	)
+	return bounded, nextBudget
+}
+
+func (c *promptInputComposite) recordAugmenterApplied(
+	ctx context.Context,
+	info *session.Info,
+	resolved ResolvedHarnessContext,
+	descriptor promptInputAugmenterDescriptor,
+	outcome string,
+	consumed int,
+	remaining int,
+	timestamp time.Time,
+) {
+	if c.recorder == nil {
+		return
+	}
+	c.recorder.RecordAugmenterApplied(ctx, info, resolved, harnessAugmenterObservation{
+		Name:           descriptor.Name,
+		Outcome:        outcome,
+		Critical:       descriptor.Critical,
+		Budget:         descriptor.Budget,
+		BudgetBehavior: descriptor.BudgetBehavior,
+		Consumed:       consumed,
+		Remaining:      remaining,
+	}, timestamp)
 }
 
 func (c *promptInputComposite) selectedDescriptors(

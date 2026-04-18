@@ -22,6 +22,10 @@ const (
 	harnessSummarySyntheticReentryEmitted = "harness.synthetic_reentry_emitted"
 	harnessSummarySyntheticReentryDropped = "harness.synthetic_reentry_dropped"
 
+	harnessTaskEventRunCompleted = "task.run_completed"
+	harnessTaskEventRunFailed    = "task.run_failed"
+	harnessTaskEventRunCanceled  = "task.run_canceled"
+
 	harnessReentryOutcomeEmitted = "emitted"
 	harnessReentryOutcomeSilent  = "silent"
 	harnessReentryOutcomeDropped = "dropped"
@@ -88,6 +92,7 @@ type harnessReentryBridge struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	resolver *HarnessContextResolver
+	recorder *harnessLifecycleRecorder
 	store    harnessReentryStore
 	sessions harnessReentrySessionManager
 	logger   *slog.Logger
@@ -106,6 +111,7 @@ var _ taskpkg.EventObserver = (*harnessReentryBridge)(nil)
 func newHarnessReentryBridge(
 	ctx context.Context,
 	resolver *HarnessContextResolver,
+	recorder *harnessLifecycleRecorder,
 	store harnessReentryStore,
 	sessions harnessReentrySessionManager,
 	logger *slog.Logger,
@@ -131,6 +137,7 @@ func newHarnessReentryBridge(
 		ctx:        bridgeCtx,
 		cancel:     cancel,
 		resolver:   resolver,
+		recorder:   recorder,
 		store:      store,
 		sessions:   sessions,
 		logger:     logger,
@@ -460,7 +467,7 @@ func (b *harnessReentryBridge) resolveSummaryAgentName(
 			return strings.TrimSpace(info.AgentName)
 		}
 	}
-	return "daemon"
+	return harnessSummaryDefaultAgentName
 }
 
 func (b *harnessReentryBridge) evaluateDecision(
@@ -495,11 +502,29 @@ func (b *harnessReentryBridge) evaluateDecision(
 
 	resolved, err := b.resolver.Resolve(input)
 	if err != nil || resolved.Policy.ReentryMode != ReentryModeSynthetic {
+		if err == nil && b.recorder != nil {
+			b.recorder.RecordSyntheticContextResolved(
+				b.ctx,
+				target.SessionID,
+				b.resolveSummaryAgentName(target, metadata),
+				resolved,
+				run.EndedAt,
+			)
+		}
 		return harnessReentryDecision{
 			outcome: harnessReentryOutcomeSilent,
 			reason:  harnessReentryReasonPolicySilent,
 			target:  target,
 		}
+	}
+	if b.recorder != nil {
+		b.recorder.RecordSyntheticContextResolved(
+			b.ctx,
+			target.SessionID,
+			b.resolveSummaryAgentName(target, metadata),
+			resolved,
+			run.EndedAt,
+		)
 	}
 
 	return harnessReentryDecision{
@@ -827,7 +852,7 @@ func detachedHarnessReentryProcessed(state *detachedHarnessReentry) bool {
 
 func isDetachedHarnessTerminalTaskEvent(eventType string) bool {
 	switch strings.TrimSpace(eventType) {
-	case "task.run_completed", "task.run_failed", "task.run_canceled":
+	case harnessTaskEventRunCompleted, harnessTaskEventRunFailed, harnessTaskEventRunCanceled:
 		return true
 	default:
 		return false
@@ -846,11 +871,11 @@ func isDetachedHarnessTerminalRun(status taskpkg.RunStatus) bool {
 func syntheticReasonForTerminalRun(status taskpkg.RunStatus) (string, string) {
 	switch status.Normalize() {
 	case taskpkg.TaskRunStatusFailed:
-		return harnessReentryReasonFailed, "task.run_failed"
+		return harnessReentryReasonFailed, harnessTaskEventRunFailed
 	case taskpkg.TaskRunStatusCanceled:
-		return harnessReentryReasonCanceled, "task.run_canceled"
+		return harnessReentryReasonCanceled, harnessTaskEventRunCanceled
 	default:
-		return harnessReentryReasonCompleted, "task.run_completed"
+		return harnessReentryReasonCompleted, harnessTaskEventRunCompleted
 	}
 }
 

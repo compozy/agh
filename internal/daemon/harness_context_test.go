@@ -296,7 +296,7 @@ func TestSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testi
 		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
 	})
-	selector := NewSectionSelector(resolver)
+	selector := NewSectionSelector(resolver, nil)
 	descriptors := defaultStartupPromptSectionDescriptors(
 		promptSectionProviderFunc(
 			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "memory", nil },
@@ -385,6 +385,7 @@ func TestHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 	augmenter, err := newPromptInputCompositeAugmenter(
 		discardLogger(),
 		resolver,
+		nil,
 		defaultPromptInputAugmenterDescriptors(
 			func(_ context.Context, _ *session.Session, message string) (string, error) {
 				calls++
@@ -415,7 +416,7 @@ func TestHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 func TestSectionSelectorValidationHelpers(t *testing.T) {
 	t.Parallel()
 
-	if got := NewSectionSelector(nil); got != nil {
+	if got := NewSectionSelector(nil, nil); got != nil {
 		t.Fatalf("NewSectionSelector(nil) = %#v, want nil", got)
 	}
 

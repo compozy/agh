@@ -231,7 +231,14 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	if !ok {
 		return errors.New("daemon: global registry does not support harness reentry summaries")
 	}
-	reentry, err := newHarnessReentryBridge(ctx, state.harnessResolver, reentryStore, reentrySessions, state.logger)
+	reentry, err := newHarnessReentryBridge(
+		ctx,
+		state.harnessResolver,
+		state.harnessRecorder,
+		reentryStore,
+		reentrySessions,
+		state.logger,
+	)
 	if err != nil {
 		return fmt.Errorf("daemon: create harness reentry bridge: %w", err)
 	}

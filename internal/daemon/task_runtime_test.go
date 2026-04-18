@@ -1458,20 +1458,27 @@ func TestHarnessReentryBridgeHelperCoverage(t *testing.T) {
 		},
 	}
 
-	if _, err := newHarnessReentryBridge(nil, resolver, db, sessions, discardLogger()); err == nil {
+	if _, err := newHarnessReentryBridge(nil, resolver, nil, db, sessions, discardLogger()); err == nil {
 		t.Fatal("newHarnessReentryBridge(nil ctx) error = nil, want validation error")
 	}
-	if _, err := newHarnessReentryBridge(context.Background(), nil, db, sessions, discardLogger()); err == nil {
+	if _, err := newHarnessReentryBridge(context.Background(), nil, nil, db, sessions, discardLogger()); err == nil {
 		t.Fatal("newHarnessReentryBridge(nil resolver) error = nil, want validation error")
 	}
-	if _, err := newHarnessReentryBridge(context.Background(), resolver, nil, sessions, discardLogger()); err == nil {
+	if _, err := newHarnessReentryBridge(
+		context.Background(),
+		resolver,
+		nil,
+		nil,
+		sessions,
+		discardLogger(),
+	); err == nil {
 		t.Fatal("newHarnessReentryBridge(nil store) error = nil, want validation error")
 	}
-	if _, err := newHarnessReentryBridge(context.Background(), resolver, db, nil, discardLogger()); err == nil {
+	if _, err := newHarnessReentryBridge(context.Background(), resolver, nil, db, nil, discardLogger()); err == nil {
 		t.Fatal("newHarnessReentryBridge(nil sessions) error = nil, want validation error")
 	}
 
-	bridge, err := newHarnessReentryBridge(context.Background(), resolver, db, sessions, discardLogger())
+	bridge, err := newHarnessReentryBridge(context.Background(), resolver, nil, db, sessions, discardLogger())
 	if err != nil {
 		t.Fatalf("newHarnessReentryBridge() error = %v", err)
 	}
@@ -1968,6 +1975,7 @@ func newDetachedHarnessTaskRuntimeForTest(
 	reentry, err := newHarnessReentryBridge(
 		testutil.Context(t),
 		harnessResolver,
+		nil,
 		db,
 		sessions,
 		discardLogger(),

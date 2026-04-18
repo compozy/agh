@@ -454,10 +454,16 @@ func TestDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T
 		daemonInstance.tasks,
 		"sess-wake",
 		harnessSummaryDetachedCompleted,
+		harnessSummaryContextResolved,
 		harnessSummarySyntheticReentryEmitted,
 	)
-	if slices.Contains(types, harnessSummarySyntheticReentryDropped) {
-		t.Fatalf("event summary types = %#v, want no drop summary", types)
+	wantTypes := []string{
+		harnessSummaryContextResolved,
+		harnessSummaryDetachedCompleted,
+		harnessSummarySyntheticReentryEmitted,
+	}
+	if !slices.Equal(types, wantTypes) {
+		t.Fatalf("event summary types = %#v, want %#v", types, wantTypes)
 	}
 
 	sessions.mu.Lock()
