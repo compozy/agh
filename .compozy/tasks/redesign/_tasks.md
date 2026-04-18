@@ -18,7 +18,7 @@
 | 12 | Write packages/ui contributor guide (README.md)                       | completed | low        | task_02, task_03, task_04, task_05, task_06, task_07, task_08, task_09, task_10, task_11 |
 | 13 | Rewrite app-sidebar on @agh/ui Sidebar                                | completed | high       | task_05, task_08                      |
 | 14 | Rewrite root layout + route-level motion                              | completed | high       | task_05, task_06                      |
-| 15 | Rewrite /design-system showcase and delete design-system folder       | pending | medium     | task_06, task_07, task_14             |
+| 15 | Rewrite /design-system showcase and delete design-system folder       | completed | medium     | task_06, task_07, task_14             |
 | 16 | Wire Playwright visual snapshot baseline for web/                     | pending | medium     | task_11, task_13, task_14             |
 | 17 | Rewrite Tasks domain list + detail panel                              | pending | high       | task_13, task_14                      |
 | 18 | Rewrite Tasks domain Kanban, Dashboard, Inbox views                   | pending | high       | task_17                               |

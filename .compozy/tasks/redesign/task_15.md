@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite /design-system showcase and delete design-system folder
 type: refactor
 complexity: medium
@@ -43,12 +43,12 @@ Rewrite `web/src/components/design-system/design-system-showcase.tsx` (and its r
 
 ## Subtasks
 
-- [ ] 15.1 Rewrite `design-system-showcase.tsx` as a pure `@agh/ui` consumer organized by primitive category.
-- [ ] 15.2 Add a "Tokens" section at the top that renders swatches for the full color + radii + type scale from `packages/ui/src/tokens.css`.
-- [ ] 15.3 Move the rewritten showcase file to `web/src/components/design-system-showcase.tsx` (outside the deleted folder) or inline it into the `/design-system` route file.
-- [ ] 15.4 Delete the `web/src/components/design-system/` directory entirely.
-- [ ] 15.5 Update the `/design-system` route file to import from the new location and verify the route renders.
-- [ ] 15.6 Run `make verify`.
+- [x] 15.1 Rewrite `design-system-showcase.tsx` as a pure `@agh/ui` consumer organized by primitive category.
+- [x] 15.2 Add a "Tokens" section at the top that renders swatches for the full color + radii + type scale from `packages/ui/src/tokens.css`.
+- [x] 15.3 Move the rewritten showcase file to `web/src/components/design-system-showcase.tsx` (outside the deleted folder) or inline it into the `/design-system` route file.
+- [x] 15.4 Delete the `web/src/components/design-system/` directory entirely.
+- [x] 15.5 Update the `/design-system` route file to import from the new location and verify the route renders.
+- [x] 15.6 Run `make verify`.
 
 ## Implementation Details
 
@@ -60,7 +60,10 @@ See TechSpec "Impact Analysis" row for `/design-system` route + `design-system/`
 - `web/src/routes/**/design-system.tsx` (or similar) — route file consuming the showcase.
 - `packages/ui/src/index.ts` — primitive source for the showcase.
 - `packages/ui/src/tokens.css` — token source for the swatches section.
-- `DESIGN.md` — anchor targets for section links.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md` — section anchors the showcase links to.
+  - `docs/design/design-system/README.md` — showcase mirrors the README's primitive grouping.
+  - `docs/design/design-system/preview/*.html` — every preview card becomes a subsection in the showcase route.
 
 ### Dependent Files
 
@@ -82,13 +85,13 @@ See TechSpec "Impact Analysis" row for `/design-system` route + `design-system/`
 ## Tests
 
 - Unit tests:
-  - [ ] Showcase renders a section for each primitive group.
-  - [ ] Token swatch section renders every CSS variable defined in `packages/ui/src/tokens.css`.
-  - [ ] Section headers render as links to the appropriate DESIGN.md anchor.
-  - [ ] Showcase component imports only from `@agh/ui` + neutral libraries (asserted via a lint test or a file-content check).
+  - [x] Showcase renders a section for each primitive group.
+  - [x] Token swatch section renders every CSS variable defined in `packages/ui/src/tokens.css`.
+  - [x] Section headers render as links to the appropriate DESIGN.md anchor.
+  - [x] Showcase component imports only from `@agh/ui` + neutral libraries (asserted via a lint test or a file-content check).
 - Integration tests:
-  - [ ] Navigating to `/design-system` in dev server renders the showcase without errors.
-  - [ ] Playwright snapshot baseline committed for the showcase page.
+  - [x] Navigating to `/design-system` in dev server renders the showcase without errors. (Covered via RTL `render(<DesignSystemShowcase />)` in `design-system-showcase.test.tsx`; the route is a thin `createFileRoute` wrapper around the same component.)
+  - [ ] Playwright snapshot baseline committed for the showcase page. **Deferred to task 16** — the web-side Playwright visual harness does not exist yet. Stable selectors published in shared workflow memory under "Handoffs".
 - Test coverage target: >=80%
 - All tests must pass
 
