@@ -157,6 +157,7 @@
         ".claude/skills/**",
         ".agents/skills/**",
         "**/routeTree.gen.ts",
-        ".compozy/tasks/**"
+        ".compozy/tasks/**",
+        "docs/design/**"
     ]
 }

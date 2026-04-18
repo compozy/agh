@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Semantic Colors</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 24px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+      .card {
+        border: 1px solid var(--color-divider);
+        border-radius: 12px;
+        background: var(--color-surface);
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .chip {
+        align-self: flex-start;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 3px 8px;
+        border-radius: 6px;
+      }
+      .stack {
+        display: flex;
+        gap: 6px;
+      }
+      .dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+      }
+      .meta {
+        font-family: var(--font-mono);
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--color-text-tertiary);
+        display: flex;
+        justify-content: space-between;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid">
+      <div class="card">
+        <span class="chip" style="background: #30d15826; color: #30d158">success</span>
+        <div class="stack">
+          <div class="dot" style="background: #30d158"></div>
+          <div class="dot" style="background: #30d15826; border: 1px solid #3c3a39"></div>
+        </div>
+        <div class="meta"><span>success</span><span>#30D158</span></div>
+      </div>
+      <div class="card">
+        <span class="chip" style="background: #ff453a26; color: #ff453a">danger</span>
+        <div class="stack">
+          <div class="dot" style="background: #ff453a"></div>
+          <div class="dot" style="background: #ff453a26; border: 1px solid #3c3a39"></div>
+        </div>
+        <div class="meta"><span>danger</span><span>#FF453A</span></div>
+      </div>
+      <div class="card">
+        <span class="chip" style="background: #ffd60a26; color: #ffd60a">warning</span>
+        <div class="stack">
+          <div class="dot" style="background: #ffd60a"></div>
+          <div class="dot" style="background: #ffd60a26; border: 1px solid #3c3a39"></div>
+        </div>
+        <div class="meta"><span>warning</span><span>#FFD60A</span></div>
+      </div>
+      <div class="card">
+        <span class="chip" style="background: #bf5af226; color: #bf5af2">info</span>
+        <div class="stack">
+          <div class="dot" style="background: #bf5af2"></div>
+          <div class="dot" style="background: #bf5af226; border: 1px solid #3c3a39"></div>
+        </div>
+        <div class="meta"><span>info</span><span>#BF5AF2</span></div>
+      </div>
+    </div>
+  </body>
+</html>

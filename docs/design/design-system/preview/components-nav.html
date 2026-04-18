@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Nav & Tabs</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .tag {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #636366;
+        margin-bottom: 6px;
+      }
+      .nav {
+        display: flex;
+        gap: 4px;
+      }
+      .pill {
+        font-family: "Inter", sans-serif;
+        font-size: 13px;
+        color: #8e8e93;
+        padding: 6px 12px;
+        border-radius: 9999px;
+        text-decoration: none;
+      }
+      .pill.active {
+        background: rgba(232, 87, 42, 0.12);
+        color: #e8572a;
+      }
+      .pill:hover {
+        color: #e5e5e7;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        background: #141312;
+        border: 1px solid #3c3a39;
+        border-radius: 8px;
+        padding: 4px;
+        max-width: 520px;
+      }
+      .tab {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        letter-spacing: 0.02em;
+        color: #8e8e93;
+        padding: 6px 12px;
+        border-radius: 5px;
+        cursor: pointer;
+        flex: 1;
+        text-align: center;
+      }
+      .tab.active {
+        background: rgba(232, 87, 42, 0.15);
+        color: #e8572a;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <div class="tag">Header nav pills</div>
+      <div class="nav">
+        <a class="pill active">Home</a><a class="pill">Runtime</a><a class="pill">AGH Network</a>
+      </div>
+    </div>
+    <div>
+      <div class="tag">Install tabs</div>
+      <div class="tabs">
+        <div class="tab active">Homebrew</div>
+        <div class="tab">go install</div>
+        <div class="tab">Binary</div>
+      </div>
+    </div>
+  </body>
+</html>

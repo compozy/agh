@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Neutral Surfaces</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 24px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 14px;
+      }
+      .sw {
+        height: 84px;
+        border-radius: 12px;
+        border: 1px solid var(--color-divider);
+        display: flex;
+        align-items: flex-end;
+        padding: 10px;
+      }
+      .sw .hex {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--color-text-primary);
+        letter-spacing: 0.04em;
+      }
+      .lbl {
+        margin-top: 8px;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--color-text-tertiary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid">
+      <div>
+        <div class="sw" style="background: #0e0e0f"><span class="hex">#0E0E0F</span></div>
+        <div class="lbl">Canvas · deep</div>
+      </div>
+      <div>
+        <div class="sw" style="background: #141312"><span class="hex">#141312</span></div>
+        <div class="lbl">Canvas</div>
+      </div>
+      <div>
+        <div class="sw" style="background: #181716"><span class="hex">#181716</span></div>
+        <div class="lbl">Surface · panel</div>
+      </div>
+      <div>
+        <div class="sw" style="background: #1e1c1b"><span class="hex">#1E1C1B</span></div>
+        <div class="lbl">Surface</div>
+      </div>
+      <div>
+        <div class="sw" style="background: #2e2c2b"><span class="hex">#2E2C2B</span></div>
+        <div class="lbl">Surface · elevated</div>
+      </div>
+      <div>
+        <div class="sw" style="background: #3c3a39"><span class="hex">#3C3A39</span></div>
+        <div class="lbl">Divider / line</div>
+      </div>
+    </div>
+  </body>
+</html>
