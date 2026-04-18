@@ -7,21 +7,25 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
-vi.mock("@/components/ui/tooltip", () => ({
-  Tooltip: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="tooltip">{children}</div>
-  ),
-  TooltipTrigger: ({ children, ...props }: Record<string, unknown>) => (
-    <div data-testid="tooltip-trigger" {...props}>
-      {children as React.ReactNode}
-    </div>
-  ),
-  TooltipContent: ({ children, ...props }: Record<string, unknown>) => (
-    <div data-testid="tooltip-content" {...props}>
-      {children as React.ReactNode}
-    </div>
-  ),
-}));
+vi.mock("@agh/ui", async () => {
+  const actual = await vi.importActual<typeof import("@agh/ui")>("@agh/ui");
+  return {
+    ...actual,
+    Tooltip: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="tooltip">{children}</div>
+    ),
+    TooltipTrigger: ({ children, ...props }: Record<string, unknown>) => (
+      <div data-testid="tooltip-trigger" {...props}>
+        {children as React.ReactNode}
+      </div>
+    ),
+    TooltipContent: ({ children, ...props }: Record<string, unknown>) => (
+      <div data-testid="tooltip-content" {...props}>
+        {children as React.ReactNode}
+      </div>
+    ),
+  };
+});
 
 import { ToolCallCard } from "./tool-call-card";
 

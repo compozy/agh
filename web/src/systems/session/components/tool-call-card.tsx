@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { AlertCircle, ChevronRight } from "lucide-react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { useToolCallCard } from "../hooks/use-tool-call-card";
 import { toolToneClass } from "../lib/tool-labels";

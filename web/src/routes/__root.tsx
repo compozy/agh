@@ -1,8 +1,9 @@
 import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { ThemeProvider } from "next-themes";
 
+import { TooltipProvider } from "@agh/ui";
+
 import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const Route = createRootRoute({
   component: RootComponent,

@@ -4,17 +4,22 @@ import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
-import { Button, Input, Separator, Skeleton } from "@agh/ui";
-import { useSidebarProvider } from "@/components/ui/hooks/use-sidebar-provider";
-import { SidebarContext, useSidebar } from "@/components/ui/hooks/use-sidebar";
 import {
+  Button,
+  Input,
+  Separator,
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+  Skeleton,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@agh/ui";
+import { useSidebarProvider } from "@/components/ui/hooks/use-sidebar-provider";
+import { SidebarContext, useSidebar } from "@/components/ui/hooks/use-sidebar";
 import { PanelLeftIcon } from "lucide-react";
 
 const SIDEBAR_WIDTH = "16rem";

@@ -1,15 +1,16 @@
 import { Check, Loader2 } from "lucide-react";
 import type { FormEvent } from "react";
 
-import { Button, Input } from "@agh/ui";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+  Input,
+} from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { AgentIcon, type AgentPayload } from "@/systems/agent";
 
