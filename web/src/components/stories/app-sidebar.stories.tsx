@@ -64,7 +64,7 @@ const meta: Meta<typeof AppSidebarHarness> = {
     docs: {
       description: {
         component:
-          "Thin composition over `@agh/ui` `Sidebar`. The rail owns the workspace switcher, the header owns the wordmark, the nav owns the agent tree and workspace nav, and the footer owns the connection indicator + settings link.",
+          "Thin composition over `@agh/ui` `Sidebar`. The rail owns the workspace switcher, the header surfaces the active workspace name + search, the nav owns the agent tree and workspace nav, and the footer owns the connection indicator + settings link. The global `agh` wordmark lives in the app-shell header one level up.",
       },
     },
   },

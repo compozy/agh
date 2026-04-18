@@ -1,14 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("next-themes", () => ({
-  ThemeProvider: ({ children, ...props }: { children: React.ReactNode; attribute?: string }) => (
-    <div data-testid="theme-provider" data-attribute={props.attribute}>
-      {children}
-    </div>
-  ),
-}));
-
 vi.mock("@agh/ui", async () => {
   const actual = await vi.importActual<typeof import("@agh/ui")>("@agh/ui");
   return {
@@ -33,26 +25,28 @@ describe("RootComponent", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const RootComponent = (Route as any).component as () => React.ReactNode;
 
-  it("wraps app with ThemeProvider using class attribute", () => {
+  it("renders the sticky app header with wordmark, ALPHA chip, and placeholder nav", () => {
     render(<RootComponent />);
-    const themeProvider = screen.getByTestId("theme-provider");
-    expect(themeProvider).toBeInTheDocument();
-    expect(themeProvider).toHaveAttribute("data-attribute", "class");
+    const header = screen.getByTestId("app-header");
+    expect(header).toBeInTheDocument();
+    expect(screen.getByTestId("app-header-wordmark")).toHaveTextContent("agh");
+    expect(screen.getByTestId("app-header-alpha-chip")).toHaveTextContent(/alpha/i);
+    expect(screen.getByTestId("app-header-nav")).toBeInTheDocument();
   });
 
-  it("renders TooltipProvider inside ThemeProvider", () => {
+  it("wraps the shell in a TooltipProvider", () => {
     render(<RootComponent />);
-    const themeProvider = screen.getByTestId("theme-provider");
     const tooltipProvider = screen.getByTestId("tooltip-provider");
-    expect(themeProvider).toContainElement(tooltipProvider);
+    expect(tooltipProvider).toBeInTheDocument();
+    expect(tooltipProvider).toContainElement(screen.getByTestId("app-shell"));
   });
 
-  it("renders Outlet for child routes", () => {
+  it("renders the Outlet below the header", () => {
     render(<RootComponent />);
     expect(screen.getByTestId("outlet")).toBeInTheDocument();
   });
 
-  it("renders Toaster for notifications", () => {
+  it("mounts the global Toaster once", () => {
     render(<RootComponent />);
     expect(screen.getByTestId("toaster")).toBeInTheDocument();
   });

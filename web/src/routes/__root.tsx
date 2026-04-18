@@ -1,7 +1,8 @@
 import { Outlet, createRootRoute } from "@tanstack/react-router";
-import { ThemeProvider } from "next-themes";
 
 import { Toaster, TooltipProvider } from "@agh/ui";
+
+import { AppHeader } from "@/components/app-header";
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -9,11 +10,17 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <TooltipProvider>
-        <Outlet />
-        <Toaster />
-      </TooltipProvider>
-    </ThemeProvider>
+    <TooltipProvider>
+      <div
+        data-testid="app-shell"
+        className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
+      >
+        <AppHeader />
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <Outlet />
+        </div>
+      </div>
+      <Toaster />
+    </TooltipProvider>
   );
 }
