@@ -505,6 +505,85 @@ func TestDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T
 	}
 }
 
+func TestDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	sessions := &fakeSessionManager{}
+	daemonInstance := bootDetachedHarnessIntegrationDaemon(t, homePaths, &cfg, sessions)
+	t.Cleanup(func() {
+		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+	sessions.infos = []*session.Info{
+		{
+			ID:          "sess-owner",
+			AgentName:   "coder",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+		{
+			ID:          "sess-wake",
+			AgentName:   "coder",
+			Type:        session.SessionTypeUser,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+	}
+	seedDetachedHarnessSessionIndex(t, homePaths, sessions.infos)
+
+	submission := submitDetachedHarnessWorkForTest(t, daemonInstance.tasks, detachedHarnessSubmitRequest{
+		SubmissionKey:  "integration-reentry-silent",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "Silent detached completion",
+		NetworkChannel: "builders",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+
+	completeDetachedHarnessRunForTest(t, daemonInstance.tasks, submission.Run.ID, "sess-owner")
+	metadata := waitForDetachedHarnessReentryState(t, daemonInstance.tasks, submission.Run.ID, harnessReentryOutcomeSilent)
+	if got, want := metadata.Reentry.Reason, harnessReentryReasonPolicySilent; got != want {
+		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
+	}
+	if got := sessions.syntheticPromptCount(); got != 0 {
+		t.Fatalf("synthetic prompt count = %d, want 0 for silent completion", got)
+	}
+
+	types := waitForEventSummaryTypes(
+		t,
+		daemonInstance.tasks,
+		"sess-wake",
+		harnessSummaryDetachedCompleted,
+		harnessSummarySyntheticReentryDropped,
+	)
+	wantTypes := []string{
+		harnessSummaryDetachedCompleted,
+		harnessSummarySyntheticReentryDropped,
+	}
+	if !slices.Equal(types, wantTypes) {
+		t.Fatalf("event summary types = %#v, want %#v", types, wantTypes)
+	}
+
+	sessions.mu.Lock()
+	events := append([]store.SessionEvent(nil), sessions.sessionEvents["sess-wake"]...)
+	sessions.mu.Unlock()
+
+	if got := len(events); got != 0 {
+		t.Fatalf("len(synthetic session events) = %d, want 0 for silent completion", got)
+	}
+}
+
 func TestDetachedHarnessCompletionWakePreservesFIFOAcrossRuns(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
