@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -11,6 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
+)
+
+var errLoopbackMutationRequired = errors.New(
+	"remote HTTP settings and extension mutations are disabled in v1 unless the daemon is bound to a loopback host",
 )
 
 func requestLoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
@@ -226,5 +231,17 @@ func errorMiddleware() gin.HandlerFunc {
 			return
 		}
 		core.RespondError(c, http.StatusInternalServerError, c.Errors.Last(), true)
+	}
+}
+
+func loopbackMutationGuard(boundHost string) gin.HandlerFunc {
+	allowed := isLoopbackHost(canonicalHost(boundHost))
+	return func(c *gin.Context) {
+		if allowed {
+			c.Next()
+			return
+		}
+		core.RespondError(c, http.StatusForbidden, errLoopbackMutationRequired, false)
+		c.Abort()
 	}
 }

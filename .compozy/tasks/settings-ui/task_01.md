@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Comment-preserving config editors and write targets
 type: backend
 complexity: high
@@ -36,12 +36,12 @@ This task is foundational — it does not render any individual Paper screen, bu
 
 ## Subtasks
 
-- [ ] 1.1 Add comment-preserving TOML edit primitives for global and workspace overlay files
-- [ ] 1.2 Add explicit write-target resolution for config and sidecar destinations
-- [ ] 1.3 Implement MCP JSON writer behavior that preserves unknown top-level keys and untouched definitions
-- [ ] 1.4 Validate merged effective config before committing any write
-- [ ] 1.5 Reject unsupported mutations when safe structured edits are not possible
-- [ ] 1.6 Cover preservation, validation, and target-selection behavior with tests
+- [x] 1.1 Add comment-preserving TOML edit primitives for global and workspace overlay files
+- [x] 1.2 Add explicit write-target resolution for config and sidecar destinations
+- [x] 1.3 Implement MCP JSON writer behavior that preserves unknown top-level keys and untouched definitions
+- [x] 1.4 Validate merged effective config before committing any write
+- [x] 1.5 Reject unsupported mutations when safe structured edits are not possible
+- [x] 1.6 Cover preservation, validation, and target-selection behavior with tests
 
 ## Implementation Details
 
@@ -77,15 +77,19 @@ See TechSpec sections "Data Models", "Collection mutation semantics", "Technical
 ## Tests
 
 - Unit tests:
-  - [ ] Editing one TOML field preserves unrelated comments and untouched sections
-  - [ ] Unsupported TOML mutation returns a descriptive error instead of reserializing the full file
-  - [ ] MCP writer preserves unknown top-level keys and untouched server definitions
-  - [ ] Write-target resolution chooses the correct config or sidecar destination for global and workspace scope
-  - [ ] Merged-config validation blocks invalid writes before commit
+  - [x] Editing one TOML field preserves unrelated comments and untouched sections
+  - [x] Editing existing boolean fields preserves sibling keys and does not corrupt TOML formatting
+  - [x] Unsupported TOML mutation returns a descriptive error instead of reserializing the full file
+  - [x] Unsupported TOML mutation leaves the original file bytes unchanged on disk
+  - [x] MCP writer preserves unknown top-level keys and untouched server definitions
+  - [x] Write-target resolution chooses the correct config or sidecar destination for global and workspace scope
+  - [x] Workspace write-target resolution fails with explicit context when the workspace root is missing
+  - [x] Merged-config validation blocks invalid writes before commit
 - Integration tests:
-  - [ ] Global settings write updates `config.toml` on disk while preserving unrelated TOML structure
-  - [ ] Workspace-scoped write updates `<workspace>/.agh/config.toml` without altering global config
-  - [ ] MCP sidecar write updates `mcp.json` on disk and preserves unaffected entries
+  - [x] Global settings write updates `config.toml` on disk while preserving unrelated TOML structure
+  - [x] Workspace-scoped write updates `<workspace>/.agh/config.toml` without altering global config
+  - [x] MCP sidecar write updates `mcp.json` on disk and preserves unaffected entries
+  - [x] Workspace-scoped merged config load reflects the overlay change while the global-only load remains unchanged
 - Test coverage target: >=80%
 - All tests must pass
 

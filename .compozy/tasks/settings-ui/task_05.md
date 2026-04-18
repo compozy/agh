@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Shared settings handlers in api/core
 type: backend
 complexity: high
@@ -39,11 +39,11 @@ This task is foundational — the shared `api/core` handlers fan out to every se
 
 ## Subtasks
 
-- [ ] 5.1 Add settings service interfaces and dependencies to `internal/api/core`
-- [ ] 5.2 Implement section and collection handlers using shared contract DTOs
-- [ ] 5.3 Implement restart trigger and restart-status polling handlers
-- [ ] 5.4 Add settings-specific error mapping and payload validation helpers
-- [ ] 5.5 Cover happy-path and error-path behavior with core-level tests
+- [x] 5.1 Add settings service interfaces and dependencies to `internal/api/core`
+- [x] 5.2 Implement section and collection handlers using shared contract DTOs
+- [x] 5.3 Implement restart trigger and restart-status polling handlers
+- [x] 5.4 Add settings-specific error mapping and payload validation helpers
+- [x] 5.5 Cover happy-path and error-path behavior with core-level tests
 
 ## Implementation Details
 
@@ -81,14 +81,17 @@ See TechSpec sections "Core Interfaces", "API Endpoints", "Response behavior", a
 ## Tests
 
 - Unit tests:
-  - [ ] Invalid section payloads return `400` with section-specific context
-  - [ ] Missing resources return `404` and conflicting names or targets return `409`
-  - [ ] Restart action handler returns `202` with operation id, status URL, and active session count
-  - [ ] Restart status polling returns the persisted operation record shape from the contract
-  - [ ] `MutationResult` responses preserve semantic `write_target` and restart metadata
+  - [x] Invalid section payloads return `400` with section-specific context
+  - [x] Missing resources return `404` and conflicting names or targets return `409`
+  - [x] Restart action handler returns `202` with operation id, status URL, and active session count
+  - [x] Restart status polling returns the persisted operation record shape from the contract
+  - [x] `MutationResult` responses preserve semantic `write_target` and restart metadata
+  - [x] Collection PUT and DELETE handlers preserve `scope`, `workspace_id`, and `target` semantics when delegating into the settings service
+  - [x] Action-trigger sections map to the correct downstream action handlers instead of being treated as restart-required config saves
 - Integration tests:
-  - [ ] Shared handlers behave identically across HTTP/UDS shims in core-level tests
-  - [ ] Log-tail or observability action plumbing exposes the expected response contract to transports
+  - [x] Shared handlers behave identically across HTTP/UDS shims in core-level tests
+  - [x] Log-tail or observability action plumbing exposes the expected response contract to transports
+  - [x] Restart-trigger and restart-status handlers round-trip the same operation identifiers and polling payloads through transport-facing adapters
 - Test coverage target: >=80%
 - All tests must pass
 

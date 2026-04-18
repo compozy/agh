@@ -16,6 +16,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
+	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -85,6 +86,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/bridges/:id/secret-bindings/:binding_name",
 		"DELETE /api/bundles/activations/:id",
 		"DELETE /api/memory/:filename",
+		"DELETE /api/settings/environments/:name",
+		"DELETE /api/settings/hooks/:name",
+		"DELETE /api/settings/mcp-servers/:name",
+		"DELETE /api/settings/providers/:name",
 		"DELETE /api/resources/:kind/:id",
 		"DELETE /api/sessions/:id",
 		"DELETE /api/tasks/:id/dependencies/:depends_on_id",
@@ -137,6 +142,21 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/sessions/:id/history",
 		"GET /api/sessions/:id/transcript",
 		"GET /api/sessions/:id/stream",
+		"GET /api/settings/actions/restart/:operation_id",
+		"GET /api/settings/automation",
+		"GET /api/settings/environments",
+		"GET /api/settings/environments/:name",
+		"GET /api/settings/general",
+		"GET /api/settings/hooks",
+		"GET /api/settings/hooks-extensions",
+		"GET /api/settings/mcp-servers",
+		"GET /api/settings/memory",
+		"GET /api/settings/network",
+		"GET /api/settings/observability",
+		"GET /api/settings/observability/log-tail",
+		"GET /api/settings/providers",
+		"GET /api/settings/providers/:name",
+		"GET /api/settings/skills",
 		"GET /api/skills",
 		"GET /api/skills/:name",
 		"GET /api/skills/:name/content",
@@ -149,6 +169,13 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PATCH /api/automation/triggers/:id",
 		"PATCH /api/bridges/:id",
 		"PATCH /api/bundles/activations/:id",
+		"PATCH /api/settings/automation",
+		"PATCH /api/settings/general",
+		"PATCH /api/settings/hooks-extensions",
+		"PATCH /api/settings/memory",
+		"PATCH /api/settings/network",
+		"PATCH /api/settings/observability",
+		"PATCH /api/settings/skills",
 		"PATCH /api/tasks/:id",
 		"PATCH /api/workspaces/:id",
 		"POST /api/automation/jobs",
@@ -172,6 +199,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/sessions/:id/approve",
 		"POST /api/sessions/:id/prompt",
 		"POST /api/sessions/:id/resume",
+		"POST /api/settings/actions/restart",
 		"POST /api/skills/:name/disable",
 		"POST /api/skills/:name/enable",
 		"POST /api/task-runs/:id/attach-session",
@@ -189,6 +217,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/workspaces/resolve",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
 		"PUT /api/memory/:filename",
+		"PUT /api/settings/environments/:name",
+		"PUT /api/settings/hooks/:name",
+		"PUT /api/settings/mcp-servers/:name",
+		"PUT /api/settings/providers/:name",
 		"PUT /api/resources/:kind/:id",
 	}
 	sort.Strings(want)
@@ -200,6 +232,227 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("route[%d] = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	if err := os.WriteFile(homePaths.LogFile, []byte("daemon booted\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", homePaths.LogFile, err)
+	}
+
+	settingsService := &stubSettingsService{}
+	restartController := &stubSettingsRestartController{}
+	handlers := newTestHandlersWithSettingsAndExtensions(
+		t,
+		settingsService,
+		restartController,
+		stubExtensionService{},
+		homePaths,
+	)
+	engine := newTestRouter(t, handlers)
+
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		body       []byte
+		wantStatus int
+		assert     func(t *testing.T, recorder *httptest.ResponseRecorder)
+	}{
+		{
+			name:       "get general section",
+			method:     http.MethodGet,
+			path:       "/api/settings/general",
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsGeneralResponse
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionGeneral {
+					t.Fatalf("response.Section = %q, want %q", response.Section, contract.SettingsSectionGeneral)
+				}
+				if settingsService.LastGetSectionRequest.Section != settingspkg.SectionGeneral {
+					t.Fatalf(
+						"LastGetSectionRequest.Section = %q, want %q",
+						settingsService.LastGetSectionRequest.Section,
+						settingspkg.SectionGeneral,
+					)
+				}
+			},
+		},
+		{
+			name:       "patch general section",
+			method:     http.MethodPatch,
+			path:       "/api/settings/general",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.UpdateSettingsGeneralRequest{
+				Config: contract.SettingsGeneralConfigPayload{
+					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
+					Limits:   contract.SettingsLimitsPayload{MaxSessions: 4, MaxConcurrentAgents: 2},
+					Permissions: contract.SettingsPermissionsPayload{
+						Mode: contract.SettingsPermissionModeApproveReads,
+					},
+					SessionTimeout: "30m",
+					HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
+					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/agh.sock"},
+				},
+			}),
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.MutationResult
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionGeneral {
+					t.Fatalf("response.Section = %q, want %q", response.Section, contract.SettingsSectionGeneral)
+				}
+				if settingsService.LastUpdateSectionRequest.Section != settingspkg.SectionGeneral {
+					t.Fatalf(
+						"LastUpdateSectionRequest.Section = %q, want %q",
+						settingsService.LastUpdateSectionRequest.Section,
+						settingspkg.SectionGeneral,
+					)
+				}
+				if settingsService.LastUpdateSectionRequest.General == nil ||
+					settingsService.LastUpdateSectionRequest.General.Defaults.Agent != "coder" {
+					t.Fatalf(
+						"LastUpdateSectionRequest.General = %#v, want parsed payload",
+						settingsService.LastUpdateSectionRequest.General,
+					)
+				}
+			},
+		},
+		{
+			name:       "list scoped mcp servers",
+			method:     http.MethodGet,
+			path:       "/api/settings/mcp-servers?scope=workspace&workspace_id=ws-1",
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsMCPServersResponse
+				decodeJSONResponse(t, recorder, &response)
+				if response.Scope != contract.SettingsScopeWorkspace || response.WorkspaceID != "ws-1" {
+					t.Fatalf("response meta = %#v, want workspace ws-1", response.SettingsCollectionResponseMetaPayload)
+				}
+				if settingsService.LastListCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
+					settingsService.LastListCollectionRequest.Scope != settingspkg.ScopeWorkspace ||
+					settingsService.LastListCollectionRequest.WorkspaceID != "ws-1" {
+					t.Fatalf("LastListCollectionRequest = %#v", settingsService.LastListCollectionRequest)
+				}
+			},
+		},
+		{
+			name:       "put scoped mcp server",
+			method:     http.MethodPut,
+			path:       "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=ws-1&target=sidecar",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.PutSettingsMCPServerRequest{
+				Server: contract.SettingsMCPServerPayload{Name: "server-a", Command: "mcpd"},
+			}),
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.MutationResult
+				decodeJSONResponse(t, recorder, &response)
+				if response.Scope != contract.SettingsScopeWorkspace || response.WorkspaceID != "ws-1" {
+					t.Fatalf("response = %#v, want workspace mutation metadata", response)
+				}
+				if settingsService.LastPutCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
+					settingsService.LastPutCollectionRequest.Scope != settingspkg.ScopeWorkspace ||
+					settingsService.LastPutCollectionRequest.WorkspaceID != "ws-1" ||
+					settingsService.LastPutCollectionRequest.Target != settingspkg.TargetSidecar {
+					t.Fatalf("LastPutCollectionRequest = %#v", settingsService.LastPutCollectionRequest)
+				}
+				if settingsService.LastPutCollectionRequest.MCPServer == nil ||
+					settingsService.LastPutCollectionRequest.MCPServer.Command != "mcpd" {
+					t.Fatalf(
+						"LastPutCollectionRequest.MCPServer = %#v, want parsed server payload",
+						settingsService.LastPutCollectionRequest.MCPServer,
+					)
+				}
+			},
+		},
+		{
+			name:       "delete scoped mcp server",
+			method:     http.MethodDelete,
+			path:       "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=ws-1&target=sidecar",
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.MutationResult
+				decodeJSONResponse(t, recorder, &response)
+				if response.Scope != contract.SettingsScopeWorkspace || response.WorkspaceID != "ws-1" {
+					t.Fatalf("response = %#v, want workspace mutation metadata", response)
+				}
+				if settingsService.LastDeleteCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
+					settingsService.LastDeleteCollectionRequest.Scope != settingspkg.ScopeWorkspace ||
+					settingsService.LastDeleteCollectionRequest.WorkspaceID != "ws-1" ||
+					settingsService.LastDeleteCollectionRequest.Target != settingspkg.TargetSidecar {
+					t.Fatalf("LastDeleteCollectionRequest = %#v", settingsService.LastDeleteCollectionRequest)
+				}
+			},
+		},
+		{
+			name:       "trigger restart action",
+			method:     http.MethodPost,
+			path:       "/api/settings/actions/restart",
+			body:       []byte(`{}`),
+			wantStatus: http.StatusAccepted,
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.RestartActionResponse
+				decodeJSONResponse(t, recorder, &response)
+				if response.OperationID != "op-123" || response.StatusURL != "/api/settings/actions/restart/op-123" {
+					t.Fatalf("response = %#v, want restart payload shape", response)
+				}
+				if restartController.RequestRestartCalls != 1 {
+					t.Fatalf("RequestRestartCalls = %d, want 1", restartController.RequestRestartCalls)
+				}
+			},
+		},
+		{
+			name:       "poll restart action",
+			method:     http.MethodGet,
+			path:       "/api/settings/actions/restart/op-123",
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.RestartActionStatus
+				decodeJSONResponse(t, recorder, &response)
+				if response.OperationID != "op-123" || response.Status != contract.RestartOperationReady {
+					t.Fatalf("response = %#v, want persisted restart status payload", response)
+				}
+				if restartController.GetRestartOperationID != "op-123" {
+					t.Fatalf("GetRestartOperationID = %q, want %q", restartController.GetRestartOperationID, "op-123")
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := performRequest(t, engine, tc.method, tc.path, tc.body)
+			if recorder.Code != tc.wantStatus {
+				t.Fatalf(
+					"%s %s status = %d, want %d; body=%s",
+					tc.method,
+					tc.path,
+					recorder.Code,
+					tc.wantStatus,
+					recorder.Body.String(),
+				)
+			}
+			if tc.assert != nil {
+				tc.assert(t, recorder)
+			}
+		})
 	}
 }
 

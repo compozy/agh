@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Settings QA execution and daemon-served browser E2E
 type: test
 complexity: critical
@@ -39,11 +39,11 @@ This task covers the complete settings surface and should treat all 10 Settings 
 
 ## Subtasks
 
-- [ ] 16.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/settings-ui` and derive the execution matrix from `task_15` artifacts
-- [ ] 16.2 Extend shared Playwright selector/runtime-seed helpers for settings flows only where the existing `web/e2e` pattern needs explicit support
-- [ ] 16.3 Implement one or more daemon-served browser E2E specs for the critical settings operator flows
-- [ ] 16.4 Execute CLI, API, and browser QA flows, capture evidence/bugs, and fix root-cause regressions with matching regression tests
-- [ ] 16.5 Rerun `make test-e2e-web`, `make verify`, and publish `.compozy/tasks/settings-ui/qa/verification-report.md`
+- [x] 16.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/settings-ui` and derive the execution matrix from `task_15` artifacts
+- [x] 16.2 Extend shared Playwright selector/runtime-seed helpers for settings flows only where the existing `web/e2e` pattern needs explicit support
+- [x] 16.3 Implement one or more daemon-served browser E2E specs for the critical settings operator flows
+- [x] 16.4 Execute CLI, API, and browser QA flows, capture evidence/bugs, and fix root-cause regressions with matching regression tests
+- [x] 16.5 Rerun `make test-e2e-web`, `make verify`, and publish `.compozy/tasks/settings-ui/qa/verification-report.md`
 
 ## Implementation Details
 
@@ -93,15 +93,19 @@ See TechSpec sections "Testing Approach", "Web route coverage", "Verification ga
 ## Tests
 
 - Unit tests:
-  - [ ] New settings browser selector helpers resolve stable shell, section, collection, and restart surfaces
-  - [ ] Runtime seed helpers can create deterministic settings prerequisites without hidden global-state assumptions
+  - [x] New settings browser selector helpers resolve stable shell, navigation, collection, and restart-status surfaces without brittle text-only selectors
+  - [x] Runtime seed helpers can create deterministic global and workspace-scoped settings prerequisites without hidden global-state assumptions
+  - [x] Shared wait/assert helpers distinguish applied-now banners, restart-required banners, and action-trigger progress states correctly
+  - [x] Cleanup helpers remove created fixtures and restart-operation residue between specs
 - Integration tests:
-  - [ ] Settings Playwright coverage exercises shell navigation plus a representative save flow with restart-required messaging and status polling
-  - [ ] Settings Playwright coverage exercises at least one collection CRUD flow (`providers` or `environments`) through the daemon-served UI
-  - [ ] Settings Playwright coverage exercises the workspace-scoped `mcp-servers` flow, including visible scope/target semantics
-  - [ ] Settings Playwright coverage exercises the `hooks-extensions` page and distinguishes immediate operational actions from restart-aware config edits
-  - [ ] `make test-e2e-web` passes with the settings scenarios included in the browser lane
-  - [ ] `make verify` passes after the final QA fix set
+  - [x] Settings Playwright coverage exercises shell navigation plus a representative save flow with restart-required messaging and status polling
+  - [x] Settings Playwright coverage exercises at least one collection CRUD flow (`providers` or `environments`) through the daemon-served UI
+  - [x] Settings Playwright coverage exercises the workspace-scoped `mcp-servers` flow, including visible scope/target semantics
+  - [x] Settings Playwright coverage exercises the `hooks-extensions` page and distinguishes immediate operational actions from restart-aware config edits
+  - [x] Settings Playwright coverage verifies restart-status polling survives a page refresh until the operation reaches a terminal state
+  - [x] `make test-e2e-web` passes with the settings scenarios included in the browser lane
+  - [x] `make verify` passes after the final QA fix set
+  - [x] `.compozy/tasks/settings-ui/qa/verification-report.md` captures executed flows, defects found, fixes applied, and rerun evidence
 
 ## Success Criteria
 

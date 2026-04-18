@@ -1,0 +1,49 @@
+# Workflow Memory
+
+Keep only durable, cross-task context here. Do not duplicate facts that are obvious from the repository, PRD documents, or git history.
+
+## Current State
+- `task_01` persistence primitives are present in `internal/config` and verified in this run; later settings tasks can build on them instead of adding new persistence stores.
+
+## Shared Decisions
+- Canonical settings persistence stays file-backed in `internal/config` via semantic write targets instead of exposing absolute paths to higher layers.
+- All config and MCP sidecar writes must validate the merged effective config before disk commit.
+
+## Shared Learnings
+- `internal/config` now exposes reusable write helpers around `WriteTarget` resolution, `EditConfigOverlay`, and MCP sidecar put/delete helpers; task_02 can orchestrate section and collection writes through those primitives.
+- Nested settings overlay writes rely on `EditConfigOverlay` normalizing nested TOML tables correctly; later settings work can safely write subsections like `[skills.marketplace]` without custom fragment handling.
+- MCP sidecar writes preserve unknown top-level JSON keys and untouched server definitions while TOML overlay writes reject unsupported structural mutations instead of whole-file canonicalization.
+- Restart orchestration now persists durable operation records under `HomePaths.RestartsDir`; later settings API/handler tasks should consume `internal/daemon` restart methods instead of reading restart JSON files directly.
+- Replacement-daemon readiness is only valid after fresh daemon discovery state exists; transports should treat persisted `stopping`, `waiting_release`, and `starting` states as in-progress and surface terminal `failed` reasons from the stored record.
+- `internal/api/core` now owns the shared settings parsing, DTO conversion, error mapping, restart trigger/status handling, and observability log-tail SSE plumbing; later transport tasks should register routes and transport policy only, not reimplement handler behavior.
+- `internal/daemon` now wires `internal/settings.Service` plus a restart-controller adapter during boot, and both HTTP/UDS servers accept injected settings dependencies through shared constructor options.
+- HTTP now registers the full `/api/settings/*` namespace plus `/api/extensions`; privileged HTTP mutations are guarded at route middleware based on the configured bind host, while read-only settings routes and restart-status polling remain available on non-loopback binds.
+- UDS now mirrors the full `/api/settings/*` namespace without the HTTP loopback mutation guard, and `internal/api/udsapi` carries unit plus integration parity coverage for settings and extension surfaces, including non-loopback HTTP vs privileged UDS workspace-scoped `mcp-servers` mutations.
+- The daemon-served browser runtime now accepts a configurable bind `host`, which lets settings E2E exercise both loopback-positive flows and ADR-004 non-loopback restriction flows without a separate harness.
+- `web/src/systems/settings` is the canonical frontend domain for every section, collection, restart action, and log-tail URL; section pages must consume it via the public barrel and route-level orchestration should live in `web/src/hooks/routes/use-settings-page.ts` instead of per-route fetch logic.
+- Restart polling state is centralized in `settings-restart-store` (Zustand) and exposed through `useSettingsRestart()`; polling stops as soon as status reaches `ready` or `failed`, and `useSettingsPage().restart` projects the combined banner state for any settings route.
+- Restart polling continuity now persists the active settings restart operation in `sessionStorage`, so a full document refresh during daemon relaunch keeps the banner and polling state alive until the operation reaches `ready` or `failed`.
+- Shared section UI primitives live under `web/src/systems/settings/components/` (`SettingsPageShell`, `SettingsSectionCard`, `SettingsFieldRow`, `SettingsStatusLine`, `SettingsSaveBar`, `SettingsRestartBanner`) and must be reused by every settings page instead of building per-section shells.
+- Route-level orchestration for settings pages belongs in `web/src/hooks/routes/use-settings-<slug>-page.ts` (pattern established by task_10 for general/memory/observability) so the route file stays presentational and passes `compozy-react/max-component-complexity`.
+- Memory "Trigger now" consolidate reuses `useConsolidateMemory` from `@/systems/knowledge` — do not introduce a new settings-owned consolidate adapter.
+
+## Open Risks
+
+## Handoffs
+- `task_02` should consume the semantic target kinds and persistence helpers already in `internal/config` rather than duplicating file-path logic.
+- `task_04` and `task_05` should expose the persisted restart operation through contract/core using the daemon-owned status model rather than inventing a transport-specific restart state machine.
+- `task_06` and `task_07` should reuse the shared `api/core` settings handlers and keep HTTP loopback enforcement or UDS-specific policy in transport wiring only.
+- `task_09`+ can import `SETTINGS_SECTIONS` from `web/src/routes/_app/settings.tsx` (or relocate it into `systems/settings/lib`); per-section pages just need `web/src/routes/_app/settings/<slug>.tsx` files and the shell automatically frames them.
+- task_10..task_14 should build section pages on top of `@/systems/settings` hooks (reads + mutation hooks) and reuse `useSettingsPage` in the shell — route files must stay presentational with no direct `/api/settings/*` calls.
+- task_11+ section pages must reuse `@/systems/settings/components` primitives and follow the `use-settings-<slug>-page.ts` orchestration hook pattern introduced in task_10; do not re-implement page shells, save bars, or restart banners per section.
+- Sections with mixed `applied_now` and `restart_required` fields (skills) must split the save flow into per-card mutations because `internal/settings.ClassifyMutation` rejects payloads that mix behaviors — one `useUpdate*` instance per save slot keeps pending/error state isolated while still invalidating the shared section query.
+- Operational deep links on settings pages are hardcoded per-page (`<Link to="/skills">`, `/automation`, `/network`) because `Link.to` is a typed union; the envelope's `links` array is metadata, not a rendering contract.
+- Adding a new `/settings/*` child route requires mirroring the existing pattern inside `web/src/routeTree.gen.ts` (import + update config + add to every `FileRoutes*` map, `FileRouteTypes`, the module declaration, and `AppSettingsRouteChildren`); the tanstack router vite plugin only regenerates during dev/build.
+- Shared collection UI primitives now live under `web/src/systems/settings/components/`: `SettingsCollectionHeader`, `SettingsSourceBadge`, `SettingsEditorDialog`, `SettingsDeleteDialog`. Collection pages (task_13 mcp-servers, task_14 hooks) should compose these instead of rolling their own lists, modals, or source chips.
+- Collection page hooks follow the tagged-union editor pattern introduced in task_12: `editor` is `{mode:"closed"} | {mode:"create", draft} | {mode:"edit", name, draft, entry}` and the delete state mirrors it. Call `mutation.reset()` on open/close to keep previous errors/warnings from leaking into the next dialog.
+- Scoped collections (task_13 mcp-servers) extend the editor union with a `target: SettingsMCPServerTarget` field and reset editor/delete state on scope change so stale drafts never leak across scopes. Scope chips consume `useWorkspaces()` from `@/systems/workspace` directly — no extra adapter.
+- MCP collection queries must be keyed per (scope, workspace_id) pair via `settingsMCPServersListOptions({scope, workspace_id})`; switching scope creates a separate cache entry and `useSettingsMCPServers` already normalizes that. Later scoped collections (if they appear) should follow the same key shape instead of inventing a parallel invalidation story.
+- Extension operational adapters (`listSettingsExtensions`, `enableSettingsExtension`, `disableSettingsExtension`) live inside `@/systems/settings` because the Hooks & Extensions surface is their only consumer. Their mutations must NOT call `recordMutation` — extension toggles are `action_trigger` and must never surface a restart-required banner. Invalidate both `settingsKeys.extensionsRoot()` and `settingsKeys.section("hooks-extensions")` after every enable/disable to keep the envelope installed summaries fresh.
+- The daemon runtime transport parity surface must report explicit loopback/non-loopback mutation availability; hooks/extensions affordances depend on that status instead of inferring policy from request failures alone.
+- The shadcn `Switch` wraps Base UI which reports disabled via `aria-disabled`; route tests should assert `toHaveAttribute("aria-disabled", "true")` instead of `.toBeDisabled()`.
+- `SettingsHookEntry.declaration.required` is the field the backend uses to gate hook registration — use it to drive enable/disable toggles (not a separate `enabled` flag that doesn't exist in the OpenAPI schema).

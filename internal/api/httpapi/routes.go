@@ -24,6 +24,8 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerDaemonRoutes(api, handlers)
 	registerNetworkRoutes(api, handlers)
 	registerBundleRoutes(api, handlers)
+	registerExtensionRoutes(api, handlers)
+	registerSettingsRoutes(api, handlers)
 	registerWebhookRoutes(api, handlers)
 
 	if engine, ok := router.(*gin.Engine); ok {
@@ -207,6 +209,62 @@ func registerBundleRoutes(api gin.IRouter, handlers *Handlers) {
 	bundles.PATCH("/activations/:id", handlers.UpdateBundleActivation)
 	bundles.DELETE("/activations/:id", handlers.DeleteBundleActivation)
 	bundles.GET("/network/settings", handlers.BundleNetworkSettings)
+}
+
+func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
+	privileged := handlers.privilegedMutationGuard()
+	extensions := api.Group("/extensions")
+	extensions.GET("", handlers.ListExtensions)
+	extensions.POST("", privileged, handlers.InstallExtension)
+	extensions.GET("/:name", handlers.ExtensionStatus)
+	extensions.POST("/:name/enable", privileged, handlers.EnableExtension)
+	extensions.POST("/:name/disable", privileged, handlers.DisableExtension)
+}
+
+func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
+	privileged := handlers.privilegedMutationGuard()
+	settings := api.Group("/settings")
+
+	settings.GET("/general", handlers.GetSettingsGeneral)
+	settings.PATCH("/general", privileged, handlers.UpdateSettingsGeneral)
+	settings.GET("/memory", handlers.GetSettingsMemory)
+	settings.PATCH("/memory", privileged, handlers.UpdateSettingsMemory)
+	settings.GET("/skills", handlers.GetSettingsSkills)
+	settings.PATCH("/skills", privileged, handlers.UpdateSettingsSkills)
+	settings.GET("/automation", handlers.GetSettingsAutomation)
+	settings.PATCH("/automation", privileged, handlers.UpdateSettingsAutomation)
+	settings.GET("/network", handlers.GetSettingsNetwork)
+	settings.PATCH("/network", privileged, handlers.UpdateSettingsNetwork)
+
+	observability := settings.Group("/observability")
+	observability.GET("", handlers.GetSettingsObservability)
+	observability.PATCH("", privileged, handlers.UpdateSettingsObservability)
+	observability.GET("/log-tail", privileged, handlers.StreamSettingsObservabilityLogTail)
+
+	settings.GET("/hooks-extensions", handlers.GetSettingsHooksExtensions)
+	settings.PATCH("/hooks-extensions", privileged, handlers.UpdateSettingsHooksExtensions)
+
+	settings.GET("/providers", handlers.ListSettingsProviders)
+	settings.GET("/providers/:name", handlers.GetSettingsProvider)
+	settings.PUT("/providers/:name", privileged, handlers.PutSettingsProvider)
+	settings.DELETE("/providers/:name", privileged, handlers.DeleteSettingsProvider)
+
+	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
+	settings.PUT("/mcp-servers/:name", privileged, handlers.PutSettingsMCPServer)
+	settings.DELETE("/mcp-servers/:name", privileged, handlers.DeleteSettingsMCPServer)
+
+	settings.GET("/environments", handlers.ListSettingsEnvironments)
+	settings.GET("/environments/:name", handlers.GetSettingsEnvironment)
+	settings.PUT("/environments/:name", privileged, handlers.PutSettingsEnvironment)
+	settings.DELETE("/environments/:name", privileged, handlers.DeleteSettingsEnvironment)
+
+	settings.GET("/hooks", handlers.ListSettingsHooks)
+	settings.PUT("/hooks/:name", privileged, handlers.PutSettingsHook)
+	settings.DELETE("/hooks/:name", privileged, handlers.DeleteSettingsHook)
+
+	actions := settings.Group("/actions")
+	actions.POST("/restart", privileged, handlers.TriggerSettingsRestart)
+	actions.GET("/restart/:operation_id", handlers.GetSettingsRestartStatus)
 }
 
 func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {

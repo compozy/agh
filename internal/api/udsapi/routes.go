@@ -22,6 +22,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerNetworkRoutes(api, handlers)
 	registerBundleRoutes(api, handlers)
 	registerExtensionRoutes(api, handlers)
+	registerSettingsRoutes(api, handlers)
 }
 
 func registerBridgeRoutes(api gin.IRouter, handlers *Handlers) {
@@ -233,4 +234,49 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 		extensions.POST("/:name/enable", handlers.EnableExtension)
 		extensions.POST("/:name/disable", handlers.DisableExtension)
 	}
+}
+
+func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
+	settings := api.Group("/settings")
+
+	settings.GET("/general", handlers.GetSettingsGeneral)
+	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
+	settings.GET("/memory", handlers.GetSettingsMemory)
+	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
+	settings.GET("/skills", handlers.GetSettingsSkills)
+	settings.PATCH("/skills", handlers.UpdateSettingsSkills)
+	settings.GET("/automation", handlers.GetSettingsAutomation)
+	settings.PATCH("/automation", handlers.UpdateSettingsAutomation)
+	settings.GET("/network", handlers.GetSettingsNetwork)
+	settings.PATCH("/network", handlers.UpdateSettingsNetwork)
+
+	observability := settings.Group("/observability")
+	observability.GET("", handlers.GetSettingsObservability)
+	observability.PATCH("", handlers.UpdateSettingsObservability)
+	observability.GET("/log-tail", handlers.StreamSettingsObservabilityLogTail)
+
+	settings.GET("/hooks-extensions", handlers.GetSettingsHooksExtensions)
+	settings.PATCH("/hooks-extensions", handlers.UpdateSettingsHooksExtensions)
+
+	settings.GET("/providers", handlers.ListSettingsProviders)
+	settings.GET("/providers/:name", handlers.GetSettingsProvider)
+	settings.PUT("/providers/:name", handlers.PutSettingsProvider)
+	settings.DELETE("/providers/:name", handlers.DeleteSettingsProvider)
+
+	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
+	settings.PUT("/mcp-servers/:name", handlers.PutSettingsMCPServer)
+	settings.DELETE("/mcp-servers/:name", handlers.DeleteSettingsMCPServer)
+
+	settings.GET("/environments", handlers.ListSettingsEnvironments)
+	settings.GET("/environments/:name", handlers.GetSettingsEnvironment)
+	settings.PUT("/environments/:name", handlers.PutSettingsEnvironment)
+	settings.DELETE("/environments/:name", handlers.DeleteSettingsEnvironment)
+
+	settings.GET("/hooks", handlers.ListSettingsHooks)
+	settings.PUT("/hooks/:name", handlers.PutSettingsHook)
+	settings.DELETE("/hooks/:name", handlers.DeleteSettingsHook)
+
+	actions := settings.Group("/actions")
+	actions.POST("/restart", handlers.TriggerSettingsRestart)
+	actions.GET("/restart/:operation_id", handlers.GetSettingsRestartStatus)
 }

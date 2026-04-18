@@ -56,6 +56,16 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[hooks.HookSource]():                  hookSourceValues(),
 	reflect.TypeFor[memory.Type]():                       memoryTypeValues(),
 	reflect.TypeFor[memory.Scope]():                      memoryScopeValues(),
+	reflect.TypeFor[contract.SettingsScopeKind]():        settingsScopeValues(),
+	reflect.TypeFor[contract.SettingsSectionName]():      settingsSectionValues(),
+	reflect.TypeFor[contract.SettingsCollectionName]():   settingsCollectionValues(),
+	reflect.TypeFor[contract.SettingsWriteTargetKind]():  settingsWriteTargetValues(),
+	reflect.TypeFor[contract.SettingsTargetSelector]():   settingsTargetSelectorValues(),
+	reflect.TypeFor[contract.SettingsMutationBehavior](): settingsMutationBehaviorValues(),
+	reflect.TypeFor[contract.SettingsPermissionMode]():   settingsPermissionModeValues(),
+	reflect.TypeFor[contract.SettingsSourceKind]():       settingsSourceKindValues(),
+	reflect.TypeFor[contract.RestartOperationStatus]():   restartOperationStatusValues(),
+	reflect.TypeFor[contract.SettingsStreamTransport]():  settingsStreamTransportValues(),
 	reflect.TypeFor[resources.ResourceScopeKind]():       resourceScopeKindValues(),
 	reflect.TypeFor[bridgepkg.Scope]():                   bridgeScopeValues(),
 	reflect.TypeFor[bridgepkg.BridgeInstanceSource]():    bridgeInstanceSourceValues(),
@@ -144,6 +154,7 @@ func Document() (*openapi3.T, error) {
 			{Name: "observe"},
 			{Name: "resources"},
 			{Name: "sessions"},
+			{Name: "settings"},
 			{Name: "skills"},
 			{Name: "tasks"},
 			{Name: "workspaces"},
@@ -1028,7 +1039,7 @@ var operationRegistry = []OperationSpec{
 		OperationID: "listExtensions",
 		Summary:     "List installed extensions",
 		Tags:        []string{"extensions"},
-		Transports:  []Transport{TransportUDS},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionsResponse{}},
 			{Status: 503, Description: "Extension service is not configured", Body: contract.ErrorPayload{}},
@@ -1041,11 +1052,12 @@ var operationRegistry = []OperationSpec{
 		OperationID: "installExtension",
 		Summary:     "Install an extension by path and checksum",
 		Tags:        []string{"extensions"},
-		Transports:  []Transport{TransportUDS},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.InstallExtensionRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: "Created", Body: contract.ExtensionResponse{}},
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Extension service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1056,7 +1068,7 @@ var operationRegistry = []OperationSpec{
 		OperationID: "getExtension",
 		Summary:     "Get one installed extension",
 		Tags:        []string{"extensions"},
-		Transports:  []Transport{TransportUDS},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
 		},
@@ -1073,12 +1085,13 @@ var operationRegistry = []OperationSpec{
 		OperationID: "enableExtension",
 		Summary:     "Enable an installed extension",
 		Tags:        []string{"extensions"},
-		Transports:  []Transport{TransportUDS},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionResponse{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Extension not found", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Extension service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
@@ -1090,12 +1103,13 @@ var operationRegistry = []OperationSpec{
 		OperationID: "disableExtension",
 		Summary:     "Disable an installed extension",
 		Tags:        []string{"extensions"},
-		Transports:  []Transport{TransportUDS},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionResponse{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Extension not found", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Extension service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
@@ -1857,6 +1871,482 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
+		Path:        "/api/settings/actions/restart/{operation_id}",
+		OperationID: "getSettingsRestartStatus",
+		Summary:     "Get the persisted status for one daemon restart operation",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("operation_id", "Restart operation id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.RestartActionStatus{}},
+			{Status: 404, Description: "Restart operation not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/settings/actions/restart",
+		OperationID: "triggerSettingsRestart",
+		Summary:     "Trigger a daemon restart using the persisted relaunch helper flow",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 202, Description: "Accepted", Body: contract.RestartActionResponse{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/automation",
+		OperationID: "getSettingsAutomation",
+		Summary:     "Read the automation settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsAutomationResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PATCH",
+		Path:        "/api/settings/automation",
+		OperationID: "updateSettingsAutomation",
+		Summary:     "Update the automation settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.UpdateSettingsAutomationRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/environments",
+		OperationID: "listSettingsEnvironments",
+		Summary:     "List settings-backed execution environments",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsEnvironmentsResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/environments/{name}",
+		OperationID: "getSettingsEnvironment",
+		Summary:     "Read one settings-backed execution environment",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Environment name"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsEnvironmentResponse{}},
+			{Status: 404, Description: "Environment not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PUT",
+		Path:        "/api/settings/environments/{name}",
+		OperationID: "putSettingsEnvironment",
+		Summary:     "Create or replace one settings-backed execution environment",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Environment name"),
+		},
+		RequestBody: contract.PutSettingsEnvironmentRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid environment payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting environment change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "DELETE",
+		Path:        "/api/settings/environments/{name}",
+		OperationID: "deleteSettingsEnvironment",
+		Summary:     "Delete one settings-backed execution environment overlay",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Environment name"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Environment not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/general",
+		OperationID: "getSettingsGeneral",
+		Summary:     "Read the general settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsGeneralResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PATCH",
+		Path:        "/api/settings/general",
+		OperationID: "updateSettingsGeneral",
+		Summary:     "Update the general settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.UpdateSettingsGeneralRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/hooks",
+		OperationID: "listSettingsHooks",
+		Summary:     "List settings-backed hook declarations",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsHooksResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PUT",
+		Path:        "/api/settings/hooks/{name}",
+		OperationID: "putSettingsHook",
+		Summary:     "Create or replace one settings-backed hook declaration",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Hook name"),
+		},
+		RequestBody: contract.PutSettingsHookRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid hook payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting hook change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "DELETE",
+		Path:        "/api/settings/hooks/{name}",
+		OperationID: "deleteSettingsHook",
+		Summary:     "Delete one settings-backed hook declaration",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Hook name"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Hook not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/hooks-extensions",
+		OperationID: "getSettingsHooksExtensions",
+		Summary:     "Read the hooks and extensions settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsHooksExtensionsResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PATCH",
+		Path:        "/api/settings/hooks-extensions",
+		OperationID: "updateSettingsHooksExtensions",
+		Summary:     "Update the hooks and extensions settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.UpdateSettingsHooksExtensionsRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/mcp-servers",
+		OperationID: "listSettingsMCPServers",
+		Summary:     "List settings-backed MCP servers",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			enumQueryParam("scope", "Select the settings scope", settingsScopeValues()),
+			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsMCPServersResponse{}},
+			{Status: 400, Description: "Invalid settings scope", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PUT",
+		Path:        "/api/settings/mcp-servers/{name}",
+		OperationID: "putSettingsMCPServer",
+		Summary:     "Create or replace one settings-backed MCP server",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "MCP server name"),
+			enumQueryParam("scope", "Select the settings scope", settingsScopeValues()),
+			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
+			enumQueryParam("target", "Select the persistence target", settingsTargetSelectorValues()),
+		},
+		RequestBody: contract.PutSettingsMCPServerRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid MCP server payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting MCP server change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "DELETE",
+		Path:        "/api/settings/mcp-servers/{name}",
+		OperationID: "deleteSettingsMCPServer",
+		Summary:     "Delete one settings-backed MCP server",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "MCP server name"),
+			enumQueryParam("scope", "Select the settings scope", settingsScopeValues()),
+			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
+			enumQueryParam("target", "Select the persistence target", settingsTargetSelectorValues()),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid MCP server request", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "MCP server or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting MCP server change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/memory",
+		OperationID: "getSettingsMemory",
+		Summary:     "Read the memory settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsMemoryResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PATCH",
+		Path:        "/api/settings/memory",
+		OperationID: "updateSettingsMemory",
+		Summary:     "Update the memory settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.UpdateSettingsMemoryRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/network",
+		OperationID: "getSettingsNetwork",
+		Summary:     "Read the network settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsNetworkResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PATCH",
+		Path:        "/api/settings/network",
+		OperationID: "updateSettingsNetwork",
+		Summary:     "Update the network settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.UpdateSettingsNetworkRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/observability",
+		OperationID: "getSettingsObservability",
+		Summary:     "Read the observability settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsObservabilityResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PATCH",
+		Path:        "/api/settings/observability",
+		OperationID: "updateSettingsObservability",
+		Summary:     "Update the observability settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.UpdateSettingsObservabilityRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/observability/log-tail",
+		OperationID: "streamSettingsObservabilityLogTail",
+		Summary:     "Stream daemon log output for the observability settings screen",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "SSE stream established"},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/providers",
+		OperationID: "listSettingsProviders",
+		Summary:     "List settings-backed providers",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsProvidersResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/providers/{name}",
+		OperationID: "getSettingsProvider",
+		Summary:     "Read one settings-backed provider",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Provider name"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsProviderResponse{}},
+			{Status: 404, Description: "Provider not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PUT",
+		Path:        "/api/settings/providers/{name}",
+		OperationID: "putSettingsProvider",
+		Summary:     "Create or replace one settings-backed provider overlay",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Provider name"),
+		},
+		RequestBody: contract.PutSettingsProviderRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid provider payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting provider change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "DELETE",
+		Path:        "/api/settings/providers/{name}",
+		OperationID: "deleteSettingsProvider",
+		Summary:     "Delete one settings-backed provider overlay",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Provider name"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Provider not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/settings/skills",
+		OperationID: "getSettingsSkills",
+		Summary:     "Read the skills settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsSkillsResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PATCH",
+		Path:        "/api/settings/skills",
+		OperationID: "updateSettingsSkills",
+		Summary:     "Update the skills settings section",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.UpdateSettingsSkillsRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
 		Path:        "/api/workspaces",
 		OperationID: "listWorkspaces",
 		Summary:     "List registered workspaces",
@@ -2026,6 +2516,94 @@ func resourceScopeKindValues() []string {
 	return []string{
 		string(resources.ResourceScopeKindGlobal),
 		string(resources.ResourceScopeKindWorkspace),
+	}
+}
+
+func settingsScopeValues() []string {
+	return []string{
+		string(contract.SettingsScopeGlobal),
+		string(contract.SettingsScopeWorkspace),
+	}
+}
+
+func settingsSectionValues() []string {
+	return []string{
+		string(contract.SettingsSectionGeneral),
+		string(contract.SettingsSectionMemory),
+		string(contract.SettingsSectionSkills),
+		string(contract.SettingsSectionAutomation),
+		string(contract.SettingsSectionNetwork),
+		string(contract.SettingsSectionObservability),
+		string(contract.SettingsSectionHooksExtensions),
+	}
+}
+
+func settingsCollectionValues() []string {
+	return []string{
+		string(contract.SettingsCollectionProviders),
+		string(contract.SettingsCollectionMCPServers),
+		string(contract.SettingsCollectionEnvironments),
+		string(contract.SettingsCollectionHooks),
+	}
+}
+
+func settingsWriteTargetValues() []string {
+	return []string{
+		string(contract.SettingsWriteTargetGlobalConfig),
+		string(contract.SettingsWriteTargetWorkspaceConfig),
+		string(contract.SettingsWriteTargetGlobalMCPSidecar),
+		string(contract.SettingsWriteTargetWorkspaceMCPSidecar),
+	}
+}
+
+func settingsTargetSelectorValues() []string {
+	return []string{
+		string(contract.SettingsTargetAuto),
+		string(contract.SettingsTargetConfig),
+		string(contract.SettingsTargetSidecar),
+	}
+}
+
+func settingsMutationBehaviorValues() []string {
+	return []string{
+		string(contract.SettingsMutationBehaviorAppliedNow),
+		string(contract.SettingsMutationBehaviorRestartRequired),
+		string(contract.SettingsMutationBehaviorActionTrigger),
+	}
+}
+
+func settingsPermissionModeValues() []string {
+	return []string{
+		string(contract.SettingsPermissionModeDenyAll),
+		string(contract.SettingsPermissionModeApproveReads),
+		string(contract.SettingsPermissionModeApproveAll),
+	}
+}
+
+func settingsSourceKindValues() []string {
+	return []string{
+		string(contract.SettingsSourceBuiltinProvider),
+		string(contract.SettingsSourceGlobalConfig),
+		string(contract.SettingsSourceWorkspaceConfig),
+		string(contract.SettingsSourceGlobalMCPSidecar),
+		string(contract.SettingsSourceWorkspaceMCPSidecar),
+	}
+}
+
+func restartOperationStatusValues() []string {
+	return []string{
+		string(contract.RestartOperationPending),
+		string(contract.RestartOperationStopping),
+		string(contract.RestartOperationWaitingRelease),
+		string(contract.RestartOperationStarting),
+		string(contract.RestartOperationReady),
+		string(contract.RestartOperationFailed),
+	}
+}
+
+func settingsStreamTransportValues() []string {
+	return []string{
+		string(contract.SettingsStreamTransportSSE),
 	}
 }
 

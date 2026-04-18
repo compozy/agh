@@ -1,6 +1,11 @@
 import "@testing-library/jest-dom";
+import { beforeEach } from "vitest";
 
 if (typeof window !== "undefined") {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: (query: string) => ({

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -209,6 +210,82 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 	}
 }
 
+func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
+
+	clients, err := runtimeHarness.TransportClients()
+	if err != nil {
+		t.Fatalf("TransportClients() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	httpListResp := mustHTTPRequest(
+		t,
+		clients.HTTPClient,
+		http.MethodGet,
+		runtimeHarness.HTTPURL("/api/extensions"),
+		nil,
+		nil,
+	)
+	if httpListResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(httpListResp.Body)
+		_ = httpListResp.Body.Close()
+		t.Fatalf("HTTP list extensions status = %d, want %d; body=%s", httpListResp.StatusCode, http.StatusOK, string(body))
+	}
+	var httpList aghcontract.ExtensionsResponse
+	decodeHTTPJSON(t, httpListResp, &httpList)
+
+	var udsList aghcontract.ExtensionsResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/extensions", nil, &udsList); err != nil {
+		t.Fatalf("UDS list extensions error = %v", err)
+	}
+	sortExtensionsByName(httpList.Extensions)
+	sortExtensionsByName(udsList.Extensions)
+	if !extensionsSemanticallyEqual(httpList.Extensions, udsList.Extensions) {
+		t.Fatalf("HTTP extensions = %#v, want UDS parity %#v", httpList.Extensions, udsList.Extensions)
+	}
+	if len(httpList.Extensions) == 0 {
+		return
+	}
+
+	extensionName := httpList.Extensions[0].Name
+
+	httpStatusResp := mustHTTPRequest(
+		t,
+		clients.HTTPClient,
+		http.MethodGet,
+		runtimeHarness.HTTPURL("/api/extensions/"+url.PathEscape(extensionName)),
+		nil,
+		nil,
+	)
+	if httpStatusResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(httpStatusResp.Body)
+		_ = httpStatusResp.Body.Close()
+		t.Fatalf("HTTP extension status = %d, want %d; body=%s", httpStatusResp.StatusCode, http.StatusOK, string(body))
+	}
+	var httpStatus aghcontract.ExtensionResponse
+	decodeHTTPJSON(t, httpStatusResp, &httpStatus)
+
+	var udsStatus aghcontract.ExtensionResponse
+	if err := runtimeHarness.UDSJSON(
+		ctx,
+		http.MethodGet,
+		"/api/extensions/"+url.PathEscape(extensionName),
+		nil,
+		&udsStatus,
+	); err != nil {
+		t.Fatalf("UDS extension status error = %v", err)
+	}
+	if !extensionSemanticallyEqual(httpStatus.Extension, udsStatus.Extension) {
+		t.Fatalf("HTTP extension = %#v, want UDS parity %#v", httpStatus.Extension, udsStatus.Extension)
+	}
+}
+
 func seedTransportWebhookTrigger(
 	t testing.TB,
 	ctx context.Context,
@@ -281,6 +358,88 @@ func waitForHTTPAutomationRun(
 		case <-ticker.C:
 		}
 	}
+}
+
+func sortExtensionsByName(values []aghcontract.ExtensionPayload) {
+	slices.SortFunc(values, func(left, right aghcontract.ExtensionPayload) int {
+		switch {
+		case left.Name < right.Name:
+			return -1
+		case left.Name > right.Name:
+			return 1
+		default:
+			return 0
+		}
+	})
+}
+
+func extensionsSemanticallyEqual(left, right []aghcontract.ExtensionPayload) bool {
+	return slices.EqualFunc(left, right, extensionSemanticallyEqual)
+}
+
+func extensionSemanticallyEqual(left, right aghcontract.ExtensionPayload) bool {
+	left = normalizeExtensionPayload(left)
+	right = normalizeExtensionPayload(right)
+
+	if left.Name != right.Name ||
+		left.Version != right.Version ||
+		left.Type != right.Type ||
+		left.Source != right.Source ||
+		left.Enabled != right.Enabled ||
+		left.State != right.State ||
+		left.PID != right.PID ||
+		left.UptimeSeconds != right.UptimeSeconds ||
+		left.Health != right.Health ||
+		left.HealthMessage != right.HealthMessage ||
+		left.LastError != right.LastError ||
+		left.DaemonRunning != right.DaemonRunning {
+		return false
+	}
+	if !slices.Equal(left.Capabilities, right.Capabilities) {
+		return false
+	}
+	if !slices.Equal(left.Actions, right.Actions) {
+		return false
+	}
+	return extensionBundlesSemanticallyEqual(left.Bundles, right.Bundles)
+}
+
+func normalizeExtensionPayload(value aghcontract.ExtensionPayload) aghcontract.ExtensionPayload {
+	value.Capabilities = normalizeStrings(value.Capabilities)
+	value.Actions = normalizeStrings(value.Actions)
+	value.Bundles = normalizeExtensionBundles(value.Bundles)
+	return value
+}
+
+func normalizeExtensionBundles(values []aghcontract.ExtensionBundleSummaryPayload) []aghcontract.ExtensionBundleSummaryPayload {
+	if len(values) == 0 {
+		return nil
+	}
+
+	normalized := make([]aghcontract.ExtensionBundleSummaryPayload, len(values))
+	for idx, value := range values {
+		value.Profiles = normalizeStrings(value.Profiles)
+		normalized[idx] = value
+	}
+	return normalized
+}
+
+func extensionBundlesSemanticallyEqual(
+	left,
+	right []aghcontract.ExtensionBundleSummaryPayload,
+) bool {
+	return slices.EqualFunc(left, right, func(left, right aghcontract.ExtensionBundleSummaryPayload) bool {
+		return left.Name == right.Name &&
+			left.Description == right.Description &&
+			slices.Equal(left.Profiles, right.Profiles)
+	})
+}
+
+func normalizeStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	return append([]string(nil), values...)
 }
 
 func transportMockFixturePath(t testing.TB, name string) string {

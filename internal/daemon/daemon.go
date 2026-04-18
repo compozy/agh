@@ -118,6 +118,8 @@ type RuntimeDeps struct {
 	AgentCatalog      core.AgentCatalog
 	SkillsRegistry    core.SkillsRegistry
 	DreamTrigger      DreamTrigger
+	Settings          core.SettingsService
+	SettingsRestart   core.SettingsRestartController
 	Extensions        udsapi.ExtensionService
 	Bundles           core.BundleService
 	Resources         core.ResourceService
@@ -289,6 +291,8 @@ type Daemon struct {
 	listProcesses        func(context.Context) ([]processInfo, error)
 	signalProcess        func(int, syscall.Signal) error
 	processAlive         func(int) bool
+	executable           func() (string, error)
+	startDetached        detachedStartFunc
 	signalCh             <-chan os.Signal
 	verifyBoundaries     bool
 	boundaryRoot         string
@@ -835,12 +839,15 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				httpapi.WithAutomation(deps.Automation),
 				httpapi.WithBridgeService(deps.Bridges),
 				httpapi.WithBundleService(deps.Bundles),
+				httpapi.WithSettingsService(deps.Settings),
+				httpapi.WithSettingsRestartController(deps.SettingsRestart),
 				httpapi.WithResourceService(deps.Resources),
 				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
 				httpapi.WithAgentCatalog(deps.AgentCatalog),
 				httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 				httpapi.WithMemoryStore(deps.MemoryStore),
 				httpapi.WithDreamTrigger(deps.DreamTrigger),
+				httpapi.WithExtensionService(deps.Extensions),
 			)
 		}
 	}
@@ -859,6 +866,8 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				udsapi.WithAutomation(deps.Automation),
 				udsapi.WithBridgeService(deps.Bridges),
 				udsapi.WithBundleService(deps.Bundles),
+				udsapi.WithSettingsService(deps.Settings),
+				udsapi.WithSettingsRestartController(deps.SettingsRestart),
 				udsapi.WithResourceService(deps.Resources),
 				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
 				udsapi.WithAgentCatalog(deps.AgentCatalog),
@@ -880,6 +889,12 @@ func (d *Daemon) applySystemDefaults() {
 	}
 	if d.processAlive == nil {
 		d.processAlive = procutil.Alive
+	}
+	if d.executable == nil {
+		d.executable = os.Executable
+	}
+	if d.startDetached == nil {
+		d.startDetached = defaultDetachedStart
 	}
 	if d.getenv == nil {
 		d.getenv = os.Getenv

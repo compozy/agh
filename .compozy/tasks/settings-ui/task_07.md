@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: UDS settings transport and parity coverage
 type: backend
 complexity: high
@@ -37,11 +37,11 @@ This task is foundational — the UDS transport mirrors the HTTP settings contra
 
 ## Subtasks
 
-- [ ] 7.1 Register all settings routes on UDS, including restart and log-tail endpoints
-- [ ] 7.2 Align UDS extension and settings route coverage with the HTTP-visible contract
-- [ ] 7.3 Reuse shared `api/core` handlers without transport-specific payload forks
-- [ ] 7.4 Extend UDS route inventory and transport parity tests for settings
-- [ ] 7.5 Add UDS handler tests for restart and collection mutation flows
+- [x] 7.1 Register all settings routes on UDS, including restart and log-tail endpoints
+- [x] 7.2 Align UDS extension and settings route coverage with the HTTP-visible contract
+- [x] 7.3 Reuse shared `api/core` handlers without transport-specific payload forks
+- [x] 7.4 Extend UDS route inventory and transport parity tests for settings
+- [x] 7.5 Add UDS handler tests for restart and collection mutation flows
 
 ## Implementation Details
 
@@ -78,13 +78,16 @@ See TechSpec sections "API Endpoints", "Transport and security policy", and ADR-
 ## Tests
 
 - Unit tests:
-  - [ ] All required UDS settings routes are registered with the expected verbs and wrappers
-  - [ ] UDS restart actions and status polling return the same payload shapes as HTTP
-  - [ ] UDS collection mutation handlers surface the same validation and conflict behavior as HTTP
+  - [x] All required UDS settings routes are registered with the expected verbs and wrappers
+  - [x] UDS restart actions and status polling return the same payload shapes as HTTP
+  - [x] UDS collection mutation handlers surface the same validation and conflict behavior as HTTP
+  - [x] UDS route plumbing preserves `scope`, `workspace_id`, and `target` query semantics for MCP server operations
+  - [x] UDS settings routes reuse shared `api/core` handlers instead of introducing transport-specific DTO forks
 - Integration tests:
-  - [ ] Transport parity tests verify the full settings route inventory across HTTP and UDS
-  - [ ] UDS settings mutations execute without the HTTP loopback restriction
-  - [ ] UDS extension route coverage stays aligned with the settings surface requirements
+  - [x] Transport parity tests verify the full settings route inventory across HTTP and UDS
+  - [x] UDS settings mutations execute without the HTTP loopback restriction
+  - [x] UDS extension route coverage stays aligned with the settings surface requirements
+  - [x] Workspace-scoped `mcp-servers` reads and writes succeed over UDS with the same response shapes exposed on HTTP
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -905,6 +905,325 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/actions/restart": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Trigger a daemon restart using the persisted relaunch helper flow */
+    post: operations["triggerSettingsRestart"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/actions/restart/{operation_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the persisted status for one daemon restart operation */
+    get: operations["getSettingsRestartStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/automation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the automation settings section */
+    get: operations["getSettingsAutomation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the automation settings section */
+    patch: operations["updateSettingsAutomation"];
+    trace?: never;
+  };
+  "/api/settings/environments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List settings-backed execution environments */
+    get: operations["listSettingsEnvironments"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/environments/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one settings-backed execution environment */
+    get: operations["getSettingsEnvironment"];
+    /** Create or replace one settings-backed execution environment */
+    put: operations["putSettingsEnvironment"];
+    post?: never;
+    /** Delete one settings-backed execution environment overlay */
+    delete: operations["deleteSettingsEnvironment"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/general": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the general settings section */
+    get: operations["getSettingsGeneral"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the general settings section */
+    patch: operations["updateSettingsGeneral"];
+    trace?: never;
+  };
+  "/api/settings/hooks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List settings-backed hook declarations */
+    get: operations["listSettingsHooks"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/hooks-extensions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the hooks and extensions settings section */
+    get: operations["getSettingsHooksExtensions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the hooks and extensions settings section */
+    patch: operations["updateSettingsHooksExtensions"];
+    trace?: never;
+  };
+  "/api/settings/hooks/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Create or replace one settings-backed hook declaration */
+    put: operations["putSettingsHook"];
+    post?: never;
+    /** Delete one settings-backed hook declaration */
+    delete: operations["deleteSettingsHook"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/mcp-servers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List settings-backed MCP servers */
+    get: operations["listSettingsMCPServers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/mcp-servers/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Create or replace one settings-backed MCP server */
+    put: operations["putSettingsMCPServer"];
+    post?: never;
+    /** Delete one settings-backed MCP server */
+    delete: operations["deleteSettingsMCPServer"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/memory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the memory settings section */
+    get: operations["getSettingsMemory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the memory settings section */
+    patch: operations["updateSettingsMemory"];
+    trace?: never;
+  };
+  "/api/settings/network": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the network settings section */
+    get: operations["getSettingsNetwork"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the network settings section */
+    patch: operations["updateSettingsNetwork"];
+    trace?: never;
+  };
+  "/api/settings/observability": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the observability settings section */
+    get: operations["getSettingsObservability"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the observability settings section */
+    patch: operations["updateSettingsObservability"];
+    trace?: never;
+  };
+  "/api/settings/observability/log-tail": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream daemon log output for the observability settings screen */
+    get: operations["streamSettingsObservabilityLogTail"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/providers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List settings-backed providers */
+    get: operations["listSettingsProviders"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/providers/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one settings-backed provider */
+    get: operations["getSettingsProvider"];
+    /** Create or replace one settings-backed provider overlay */
+    put: operations["putSettingsProvider"];
+    post?: never;
+    /** Delete one settings-backed provider overlay */
+    delete: operations["deleteSettingsProvider"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/skills": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the skills settings section */
+    get: operations["getSettingsSkills"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the skills settings section */
+    patch: operations["updateSettingsSkills"];
+    trace?: never;
+  };
   "/api/skills": {
     parameters: {
       query?: never;
@@ -4893,6 +5212,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -5052,6 +5382,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Extension not found */
       404: {
         headers: {
@@ -5134,6 +5475,17 @@ export interface operations {
               uptime_seconds?: number;
               version: string;
             };
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
           };
         };
       };
@@ -8302,6 +8654,3297 @@ export interface operations {
       };
       /** @description Session not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  triggerSettingsRestart: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_session_count: number;
+            operation_id: string;
+            /** @enum {string} */
+            status: "pending" | "stopping" | "waiting_release" | "starting" | "ready" | "failed";
+            status_url: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsRestartStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Restart operation id */
+        operation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_session_count: number;
+            /** Format: date-time */
+            completed_at?: string | null;
+            failure_reason?: string;
+            new_pid?: number;
+            old_pid: number;
+            old_socket_path: string;
+            /** Format: date-time */
+            old_started_at: string;
+            operation_id: string;
+            /** Format: date-time */
+            started_at: string;
+            /** @enum {string} */
+            status: "pending" | "stopping" | "waiting_release" | "starting" | "ready" | "failed";
+            /** Format: date-time */
+            updated_at: string;
+          };
+        };
+      };
+      /** @description Restart operation not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsAutomation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            config: {
+              default_fire_limit: {
+                max: number;
+                window: string;
+              };
+              enabled: boolean;
+              max_concurrent_jobs: number;
+              timezone: string;
+            };
+            links?: {
+              label: string;
+              path: string;
+            }[];
+            runtime: {
+              available: boolean;
+              job_enabled: number;
+              job_total: number;
+              /** Format: date-time */
+              last_synced_at?: string | null;
+              /** Format: date-time */
+              next_fire?: string | null;
+              running: boolean;
+              scheduler_running: boolean;
+              trigger_enabled: number;
+              trigger_total: number;
+            };
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateSettingsAutomation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            default_fire_limit: {
+              max: number;
+              window: string;
+            };
+            enabled: boolean;
+            max_concurrent_jobs: number;
+            timezone: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listSettingsEnvironments: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            /** @enum {string} */
+            collection: "providers" | "mcp-servers" | "environments" | "hooks";
+            environments: {
+              name: string;
+              profile: {
+                backend: string;
+                daytona?: {
+                  api_url?: string;
+                  auto_archive?: string;
+                  auto_stop?: string;
+                  class?: string;
+                  image?: string;
+                  snapshot?: string;
+                  target?: string;
+                } | null;
+                env?: {
+                  [key: string]: string;
+                };
+                network?: {
+                  allow_list?: string[];
+                  allow_outbound?: boolean;
+                  allow_public_ingress?: boolean;
+                  deny_list?: string[];
+                  required?: boolean;
+                } | null;
+                persistence?: string;
+                runtime_root?: string;
+                sync_mode?: string;
+              };
+              source_metadata: {
+                available_targets: (
+                  | "global-config"
+                  | "workspace-config"
+                  | "global-mcp-sidecar"
+                  | "workspace-mcp-sidecar"
+                )[];
+                effective_source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+                shadowed_sources?: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                }[];
+              };
+              workspace_usage_count: number;
+            }[];
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsEnvironment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Environment name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            environment: {
+              name: string;
+              profile: {
+                backend: string;
+                daytona?: {
+                  api_url?: string;
+                  auto_archive?: string;
+                  auto_stop?: string;
+                  class?: string;
+                  image?: string;
+                  snapshot?: string;
+                  target?: string;
+                } | null;
+                env?: {
+                  [key: string]: string;
+                };
+                network?: {
+                  allow_list?: string[];
+                  allow_outbound?: boolean;
+                  allow_public_ingress?: boolean;
+                  deny_list?: string[];
+                  required?: boolean;
+                } | null;
+                persistence?: string;
+                runtime_root?: string;
+                sync_mode?: string;
+              };
+              source_metadata: {
+                available_targets: (
+                  | "global-config"
+                  | "workspace-config"
+                  | "global-mcp-sidecar"
+                  | "workspace-mcp-sidecar"
+                )[];
+                effective_source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+                shadowed_sources?: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                }[];
+              };
+              workspace_usage_count: number;
+            };
+          };
+        };
+      };
+      /** @description Environment not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  putSettingsEnvironment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Environment name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          profile: {
+            backend: string;
+            daytona?: {
+              api_url?: string;
+              auto_archive?: string;
+              auto_stop?: string;
+              class?: string;
+              image?: string;
+              snapshot?: string;
+              target?: string;
+            } | null;
+            env?: {
+              [key: string]: string;
+            };
+            network?: {
+              allow_list?: string[];
+              allow_outbound?: boolean;
+              allow_public_ingress?: boolean;
+              deny_list?: string[];
+              required?: boolean;
+            } | null;
+            persistence?: string;
+            runtime_root?: string;
+            sync_mode?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid environment payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting environment change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteSettingsEnvironment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Environment name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Environment not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsGeneral: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            actions: {
+              restart: {
+                available: boolean;
+                /** @enum {string} */
+                behavior: "applied_now" | "restart_required" | "action_trigger";
+                name: string;
+              };
+            };
+            available_scopes: ("global" | "workspace")[];
+            config: {
+              daemon: {
+                socket: string;
+              };
+              defaults: {
+                agent: string;
+                environment?: string;
+                provider?: string;
+              };
+              http: {
+                host: string;
+                port: number;
+              };
+              limits: {
+                max_concurrent_agents: number;
+                max_sessions: number;
+              };
+              permissions: {
+                /** @enum {string} */
+                mode: "deny-all" | "approve-reads" | "approve-all";
+              };
+              session_timeout: string;
+            };
+            config_paths: {
+              daemon_info: string;
+              global_config: string;
+              global_mcp_sidecar: string;
+              home_dir: string;
+              log_file: string;
+            };
+            runtime: {
+              active_agents: number;
+              active_sessions: number;
+              available: boolean;
+              http_host?: string;
+              http_port?: number;
+              pid?: number;
+              socket?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              status?: string;
+              total_sessions: number;
+              /** Format: int64 */
+              uptime_seconds: number;
+              version?: string;
+            };
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateSettingsGeneral: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            daemon: {
+              socket: string;
+            };
+            defaults: {
+              agent: string;
+              environment?: string;
+              provider?: string;
+            };
+            http: {
+              host: string;
+              port: number;
+            };
+            limits: {
+              max_concurrent_agents: number;
+              max_sessions: number;
+            };
+            permissions: {
+              /** @enum {string} */
+              mode: "deny-all" | "approve-reads" | "approve-all";
+            };
+            session_timeout: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listSettingsHooks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            /** @enum {string} */
+            collection: "providers" | "mcp-servers" | "environments" | "hooks";
+            hooks: {
+              declaration: {
+                args?: string[];
+                command?: string;
+                env?: {
+                  [key: string]: string;
+                };
+                /** @enum {string} */
+                event:
+                  | "session.pre_create"
+                  | "session.post_create"
+                  | "session.pre_resume"
+                  | "session.post_resume"
+                  | "session.pre_stop"
+                  | "session.post_stop"
+                  | "environment.prepare"
+                  | "environment.ready"
+                  | "environment.sync.before"
+                  | "environment.sync.after"
+                  | "environment.stop"
+                  | "input.pre_submit"
+                  | "prompt.post_assemble"
+                  | "event.pre_record"
+                  | "event.post_record"
+                  | "automation.job.pre_fire"
+                  | "automation.job.post_fire"
+                  | "automation.trigger.pre_fire"
+                  | "automation.trigger.post_fire"
+                  | "automation.run.completed"
+                  | "automation.run.failed"
+                  | "agent.pre_start"
+                  | "agent.spawned"
+                  | "agent.crashed"
+                  | "agent.stopped"
+                  | "turn.start"
+                  | "turn.end"
+                  | "message.start"
+                  | "message.delta"
+                  | "message.end"
+                  | "tool.pre_call"
+                  | "tool.post_call"
+                  | "tool.post_error"
+                  | "permission.request"
+                  | "permission.resolved"
+                  | "permission.denied"
+                  | "context.pre_compact"
+                  | "context.post_compact";
+                /** @enum {string} */
+                executor_kind?: "native" | "subprocess" | "wasm";
+                matcher: {
+                  acp_event_type?: string;
+                  agent_name?: string;
+                  agent_type?: string;
+                  compaction_reason?: string;
+                  compaction_strategy?: string;
+                  decision_class?: string;
+                  environment_backend?: string;
+                  environment_id?: string;
+                  environment_profile?: string;
+                  input_class?: string;
+                  message_delta_type?: string;
+                  message_role?: string;
+                  session_type?: string;
+                  sync_direction?: string;
+                  tool_name?: string;
+                  tool_namespace?: string;
+                  tool_read_only?: boolean | null;
+                  turn_id?: string;
+                  workspace_id?: string;
+                  workspace_root?: string;
+                };
+                metadata?: {
+                  [key: string]: string;
+                };
+                /** @enum {string} */
+                mode?: "sync" | "async";
+                name: string;
+                priority?: number;
+                required?: boolean;
+                timeout?: string;
+              };
+              name: string;
+              source_metadata: {
+                available_targets: (
+                  | "global-config"
+                  | "workspace-config"
+                  | "global-mcp-sidecar"
+                  | "workspace-mcp-sidecar"
+                )[];
+                effective_source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+                shadowed_sources?: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                }[];
+              };
+            }[];
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsHooksExtensions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            config: {
+              marketplace: {
+                base_url?: string;
+                registry: string;
+              };
+              resources: {
+                allowed_kinds?: string[];
+                /** @enum {string} */
+                max_scope?: "global" | "workspace";
+                operator_write_rate_limit: {
+                  queue: number;
+                  requests: number;
+                  window: string;
+                };
+                snapshot_rate_limit: {
+                  queue: number;
+                  requests: number;
+                  window: string;
+                };
+              };
+            };
+            hooks?: {
+              declaration: {
+                args?: string[];
+                command?: string;
+                env?: {
+                  [key: string]: string;
+                };
+                /** @enum {string} */
+                event:
+                  | "session.pre_create"
+                  | "session.post_create"
+                  | "session.pre_resume"
+                  | "session.post_resume"
+                  | "session.pre_stop"
+                  | "session.post_stop"
+                  | "environment.prepare"
+                  | "environment.ready"
+                  | "environment.sync.before"
+                  | "environment.sync.after"
+                  | "environment.stop"
+                  | "input.pre_submit"
+                  | "prompt.post_assemble"
+                  | "event.pre_record"
+                  | "event.post_record"
+                  | "automation.job.pre_fire"
+                  | "automation.job.post_fire"
+                  | "automation.trigger.pre_fire"
+                  | "automation.trigger.post_fire"
+                  | "automation.run.completed"
+                  | "automation.run.failed"
+                  | "agent.pre_start"
+                  | "agent.spawned"
+                  | "agent.crashed"
+                  | "agent.stopped"
+                  | "turn.start"
+                  | "turn.end"
+                  | "message.start"
+                  | "message.delta"
+                  | "message.end"
+                  | "tool.pre_call"
+                  | "tool.post_call"
+                  | "tool.post_error"
+                  | "permission.request"
+                  | "permission.resolved"
+                  | "permission.denied"
+                  | "context.pre_compact"
+                  | "context.post_compact";
+                /** @enum {string} */
+                executor_kind?: "native" | "subprocess" | "wasm";
+                matcher: {
+                  acp_event_type?: string;
+                  agent_name?: string;
+                  agent_type?: string;
+                  compaction_reason?: string;
+                  compaction_strategy?: string;
+                  decision_class?: string;
+                  environment_backend?: string;
+                  environment_id?: string;
+                  environment_profile?: string;
+                  input_class?: string;
+                  message_delta_type?: string;
+                  message_role?: string;
+                  session_type?: string;
+                  sync_direction?: string;
+                  tool_name?: string;
+                  tool_namespace?: string;
+                  tool_read_only?: boolean | null;
+                  turn_id?: string;
+                  workspace_id?: string;
+                  workspace_root?: string;
+                };
+                metadata?: {
+                  [key: string]: string;
+                };
+                /** @enum {string} */
+                mode?: "sync" | "async";
+                name: string;
+                priority?: number;
+                required?: boolean;
+                timeout?: string;
+              };
+              name: string;
+              source_metadata: {
+                available_targets: (
+                  | "global-config"
+                  | "workspace-config"
+                  | "global-mcp-sidecar"
+                  | "workspace-mcp-sidecar"
+                )[];
+                effective_source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+                shadowed_sources?: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                }[];
+              };
+            }[];
+            installed?: {
+              enabled: boolean;
+              health?: string;
+              health_message?: string;
+              last_error?: string;
+              name: string;
+              state?: string;
+              version?: string;
+            }[];
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            transport_parity: {
+              extensions_http: boolean;
+              extensions_uds: boolean;
+              known: boolean;
+              settings_http: boolean;
+              settings_uds: boolean;
+            };
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateSettingsHooksExtensions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            marketplace: {
+              base_url?: string;
+              registry: string;
+            };
+            resources: {
+              allowed_kinds?: string[];
+              /** @enum {string} */
+              max_scope?: "global" | "workspace";
+              operator_write_rate_limit: {
+                queue: number;
+                requests: number;
+                window: string;
+              };
+              snapshot_rate_limit: {
+                queue: number;
+                requests: number;
+                window: string;
+              };
+            };
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  putSettingsHook: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Hook name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          declaration: {
+            args?: string[];
+            command?: string;
+            env?: {
+              [key: string]: string;
+            };
+            /** @enum {string} */
+            event:
+              | "session.pre_create"
+              | "session.post_create"
+              | "session.pre_resume"
+              | "session.post_resume"
+              | "session.pre_stop"
+              | "session.post_stop"
+              | "environment.prepare"
+              | "environment.ready"
+              | "environment.sync.before"
+              | "environment.sync.after"
+              | "environment.stop"
+              | "input.pre_submit"
+              | "prompt.post_assemble"
+              | "event.pre_record"
+              | "event.post_record"
+              | "automation.job.pre_fire"
+              | "automation.job.post_fire"
+              | "automation.trigger.pre_fire"
+              | "automation.trigger.post_fire"
+              | "automation.run.completed"
+              | "automation.run.failed"
+              | "agent.pre_start"
+              | "agent.spawned"
+              | "agent.crashed"
+              | "agent.stopped"
+              | "turn.start"
+              | "turn.end"
+              | "message.start"
+              | "message.delta"
+              | "message.end"
+              | "tool.pre_call"
+              | "tool.post_call"
+              | "tool.post_error"
+              | "permission.request"
+              | "permission.resolved"
+              | "permission.denied"
+              | "context.pre_compact"
+              | "context.post_compact";
+            /** @enum {string} */
+            executor_kind?: "native" | "subprocess" | "wasm";
+            matcher: {
+              acp_event_type?: string;
+              agent_name?: string;
+              agent_type?: string;
+              compaction_reason?: string;
+              compaction_strategy?: string;
+              decision_class?: string;
+              environment_backend?: string;
+              environment_id?: string;
+              environment_profile?: string;
+              input_class?: string;
+              message_delta_type?: string;
+              message_role?: string;
+              session_type?: string;
+              sync_direction?: string;
+              tool_name?: string;
+              tool_namespace?: string;
+              tool_read_only?: boolean | null;
+              turn_id?: string;
+              workspace_id?: string;
+              workspace_root?: string;
+            };
+            metadata?: {
+              [key: string]: string;
+            };
+            /** @enum {string} */
+            mode?: "sync" | "async";
+            name: string;
+            priority?: number;
+            required?: boolean;
+            timeout?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid hook payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting hook change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteSettingsHook: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Hook name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Hook not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listSettingsMCPServers: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            /** @enum {string} */
+            collection: "providers" | "mcp-servers" | "environments" | "hooks";
+            mcp_servers: {
+              args?: string[];
+              command: string;
+              env?: {
+                [key: string]: string;
+              };
+              name: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              source_metadata: {
+                available_targets: (
+                  | "global-config"
+                  | "workspace-config"
+                  | "global-mcp-sidecar"
+                  | "workspace-mcp-sidecar"
+                )[];
+                effective_source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+                shadowed_sources?: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                }[];
+              };
+              workspace_id?: string;
+            }[];
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  putSettingsMCPServer: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+        /** @description Select the persistence target */
+        target?: "auto" | "config" | "sidecar";
+      };
+      header?: never;
+      path: {
+        /** @description MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          server: {
+            args?: string[];
+            command: string;
+            env?: {
+              [key: string]: string;
+            };
+            name: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid MCP server payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting MCP server change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteSettingsMCPServer: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+        /** @description Select the persistence target */
+        target?: "auto" | "config" | "sidecar";
+      };
+      header?: never;
+      path: {
+        /** @description MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid MCP server request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting MCP server change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsMemory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            actions: {
+              consolidate: {
+                available: boolean;
+                /** @enum {string} */
+                behavior: "applied_now" | "restart_required" | "action_trigger";
+                name: string;
+              };
+            };
+            available_scopes: ("global" | "workspace")[];
+            config: {
+              dream: {
+                agent: string;
+                check_interval: string;
+                enabled: boolean;
+                /** Format: double */
+                min_hours: number;
+                min_sessions: number;
+              };
+              enabled: boolean;
+              global_dir?: string;
+            };
+            health: {
+              available: boolean;
+              dream_enabled: boolean;
+              file_count: number;
+              /** Format: date-time */
+              last_consolidated_at?: string | null;
+            };
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateSettingsMemory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            dream: {
+              agent: string;
+              check_interval: string;
+              enabled: boolean;
+              /** Format: double */
+              min_hours: number;
+              min_sessions: number;
+            };
+            enabled: boolean;
+            global_dir?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsNetwork: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            config: {
+              default_channel: string;
+              enabled: boolean;
+              greet_interval: number;
+              max_payload: number;
+              max_queue_depth: number;
+              max_replay_age: number;
+              port: number;
+            };
+            links?: {
+              label: string;
+              path: string;
+            }[];
+            runtime: {
+              available: boolean;
+              channels: number;
+              delivery_workers: number;
+              enabled: boolean;
+              listener_host?: string;
+              listener_port?: number;
+              local_peers: number;
+              queued_messages: number;
+              queued_sessions: number;
+              remote_peers: number;
+              status?: string;
+            };
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateSettingsNetwork: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            default_channel: string;
+            enabled: boolean;
+            greet_interval: number;
+            max_payload: number;
+            max_queue_depth: number;
+            max_replay_age: number;
+            port: number;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsObservability: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            config: {
+              enabled: boolean;
+              /** Format: int64 */
+              max_global_bytes: number;
+              retention_days: number;
+              transcripts: {
+                enabled: boolean;
+                /** Format: int64 */
+                max_bytes_per_session: number;
+                segment_bytes: number;
+              };
+            };
+            log_tail: {
+              available: boolean;
+              stream_url?: string;
+              /** @enum {string} */
+              transport?: "sse";
+            };
+            runtime: {
+              active_agents: number;
+              active_sessions: number;
+              available: boolean;
+              /** Format: int64 */
+              global_db_size_bytes: number;
+              /** Format: int64 */
+              session_db_size_bytes: number;
+              status?: string;
+              /** Format: int64 */
+              uptime_seconds: number;
+            };
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateSettingsObservability: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            enabled: boolean;
+            /** Format: int64 */
+            max_global_bytes: number;
+            retention_days: number;
+            transcripts: {
+              enabled: boolean;
+              /** Format: int64 */
+              max_bytes_per_session: number;
+              segment_bytes: number;
+            };
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  streamSettingsObservabilityLogTail: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description SSE stream established */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listSettingsProviders: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            /** @enum {string} */
+            collection: "providers" | "mcp-servers" | "environments" | "hooks";
+            providers: {
+              api_key_env_present: boolean;
+              command_available: boolean;
+              default: boolean;
+              fallback?: {
+                settings: {
+                  api_key_env?: string;
+                  command?: string;
+                  default_model?: string;
+                };
+                source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+              } | null;
+              name: string;
+              settings: {
+                api_key_env?: string;
+                command?: string;
+                default_model?: string;
+              };
+              source_metadata: {
+                available_targets: (
+                  | "global-config"
+                  | "workspace-config"
+                  | "global-mcp-sidecar"
+                  | "workspace-mcp-sidecar"
+                )[];
+                effective_source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+                shadowed_sources?: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                }[];
+              };
+            }[];
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsProvider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Provider name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            provider: {
+              api_key_env_present: boolean;
+              command_available: boolean;
+              default: boolean;
+              fallback?: {
+                settings: {
+                  api_key_env?: string;
+                  command?: string;
+                  default_model?: string;
+                };
+                source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+              } | null;
+              name: string;
+              settings: {
+                api_key_env?: string;
+                command?: string;
+                default_model?: string;
+              };
+              source_metadata: {
+                available_targets: (
+                  | "global-config"
+                  | "workspace-config"
+                  | "global-mcp-sidecar"
+                  | "workspace-mcp-sidecar"
+                )[];
+                effective_source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+                shadowed_sources?: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                }[];
+              };
+            };
+          };
+        };
+      };
+      /** @description Provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  putSettingsProvider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Provider name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          settings: {
+            api_key_env?: string;
+            command?: string;
+            default_model?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid provider payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting provider change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteSettingsProvider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Provider name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsSkills: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            config: {
+              allowed_marketplace_hooks?: string[];
+              allowed_marketplace_mcp?: string[];
+              disabled_skills?: string[];
+              enabled: boolean;
+              marketplace: {
+                base_url?: string;
+                registry: string;
+              };
+              poll_interval: string;
+            };
+            disabled_count: number;
+            discovered_count: number;
+            links?: {
+              label: string;
+              path: string;
+            }[];
+            runtime_available: boolean;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateSettingsSkills: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            allowed_marketplace_hooks?: string[];
+            allowed_marketplace_mcp?: string[];
+            disabled_skills?: string[];
+            enabled: boolean;
+            marketplace: {
+              base_url?: string;
+              registry: string;
+            };
+            poll_interval: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
         headers: {
           [name: string]: unknown;
         };

@@ -65,8 +65,7 @@
         "editor.tabSize": 4
     },
 
-    // TypeScript-Go (tsgo) configuration
-    "typescript.experimental.useTsgo": true,
+    // TypeScript language service configuration
     "typescript.preferences.importModuleSpecifier": "relative",
     "typescript.updateImportsOnFileMove.enabled": "always",
     "javascript.updateImportsOnFileMove.enabled": "always",

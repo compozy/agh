@@ -11,10 +11,12 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
+	settingspkg "github.com/pedronauck/agh/internal/settings"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -52,6 +54,76 @@ func NewMemoryValidationError(err error) error {
 		return nil
 	}
 	return fmt.Errorf("%w: %w", memory.ErrValidation, err)
+}
+
+// ErrSettingsValidation is the sentinel for settings request validation failures.
+var ErrSettingsValidation = errors.New("settings validation error")
+
+// ErrSettingsNotFound is the sentinel for missing settings resources.
+var ErrSettingsNotFound = errors.New("settings not found")
+
+// ErrSettingsConflict is the sentinel for conflicting settings mutations or scope combinations.
+var ErrSettingsConflict = errors.New("settings conflict")
+
+// ErrSettingsForbidden is the sentinel for settings operations rejected by transport policy.
+var ErrSettingsForbidden = errors.New("settings forbidden")
+
+// NewSettingsValidationError wraps a settings validation failure with the shared sentinel.
+func NewSettingsValidationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrSettingsValidation, err)
+}
+
+// NewSettingsNotFoundError wraps a missing settings resource failure with the shared sentinel.
+func NewSettingsNotFoundError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrSettingsNotFound, err)
+}
+
+// NewSettingsConflictError wraps a settings conflict with the shared sentinel.
+func NewSettingsConflictError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrSettingsConflict, err)
+}
+
+// NewSettingsForbiddenError wraps a settings forbidden failure with the shared sentinel.
+func NewSettingsForbiddenError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrSettingsForbidden, err)
+}
+
+// StatusForSettingsError maps settings-domain failures to transport statuses.
+func StatusForSettingsError(err error) int {
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.Is(err, ErrSettingsForbidden),
+		errors.Is(err, settingspkg.ErrForbidden):
+		return http.StatusForbidden
+	case errors.Is(err, ErrSettingsValidation),
+		errors.Is(err, settingspkg.ErrValidation):
+		return http.StatusBadRequest
+	case errors.Is(err, ErrSettingsNotFound),
+		errors.Is(err, settingspkg.ErrNotFound),
+		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
+		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing),
+		errors.Is(err, os.ErrNotExist):
+		return http.StatusNotFound
+	case errors.Is(err, ErrSettingsConflict),
+		errors.Is(err, settingspkg.ErrConflict),
+		errors.Is(err, aghconfig.ErrUnsupportedTOMLMutation):
+		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 // StatusForMemoryError maps memory-domain errors to transport statuses.

@@ -13,10 +13,22 @@ import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSkillsRouteImport } from './routes/_app/skills'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppNetworkRouteImport } from './routes/_app/network'
 import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
 import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
 import { Route as AppAutomationRouteImport } from './routes/_app/automation'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
+import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
+import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
+import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
+import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
+import { Route as AppSettingsMcpServersRouteImport } from './routes/_app/settings/mcp-servers'
+import { Route as AppSettingsHooksExtensionsRouteImport } from './routes/_app/settings/hooks-extensions'
+import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
+import { Route as AppSettingsEnvironmentsRouteImport } from './routes/_app/settings/environments'
+import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 
 const DesignSystemRoute = DesignSystemRouteImport.update({
@@ -36,6 +48,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppSkillsRoute = AppSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
 const AppNetworkRoute = AppNetworkRouteImport.update({
@@ -58,6 +75,63 @@ const AppAutomationRoute = AppAutomationRouteImport.update({
   path: '/automation',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsSkillsRoute = AppSettingsSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsProvidersRoute = AppSettingsProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsObservabilityRoute =
+  AppSettingsObservabilityRouteImport.update({
+    id: '/observability',
+    path: '/observability',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsNetworkRoute = AppSettingsNetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsMemoryRoute = AppSettingsMemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsMcpServersRoute = AppSettingsMcpServersRouteImport.update({
+  id: '/mcp-servers',
+  path: '/mcp-servers',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsHooksExtensionsRoute =
+  AppSettingsHooksExtensionsRouteImport.update({
+    id: '/hooks-extensions',
+    path: '/hooks-extensions',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsEnvironmentsRoute = AppSettingsEnvironmentsRouteImport.update({
+  id: '/environments',
+  path: '/environments',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsAutomationRoute = AppSettingsAutomationRouteImport.update({
+  id: '/automation',
+  path: '/automation',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSessionIdRoute = AppSessionIdRouteImport.update({
   id: '/session/$id',
   path: '/session/$id',
@@ -71,8 +145,20 @@ export interface FileRoutesByFullPath {
   '/bridges': typeof AppBridgesRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/network': typeof AppNetworkRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/skills': typeof AppSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
+  '/settings/automation': typeof AppSettingsAutomationRoute
+  '/settings/environments': typeof AppSettingsEnvironmentsRoute
+  '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
+  '/settings/mcp-servers': typeof AppSettingsMcpServersRoute
+  '/settings/memory': typeof AppSettingsMemoryRoute
+  '/settings/network': typeof AppSettingsNetworkRoute
+  '/settings/observability': typeof AppSettingsObservabilityRoute
+  '/settings/providers': typeof AppSettingsProvidersRoute
+  '/settings/skills': typeof AppSettingsSkillsRoute
+  '/settings/': typeof AppSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
@@ -83,6 +169,17 @@ export interface FileRoutesByTo {
   '/skills': typeof AppSkillsRoute
   '/': typeof AppIndexRoute
   '/session/$id': typeof AppSessionIdRoute
+  '/settings/automation': typeof AppSettingsAutomationRoute
+  '/settings/environments': typeof AppSettingsEnvironmentsRoute
+  '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
+  '/settings/mcp-servers': typeof AppSettingsMcpServersRoute
+  '/settings/memory': typeof AppSettingsMemoryRoute
+  '/settings/network': typeof AppSettingsNetworkRoute
+  '/settings/observability': typeof AppSettingsObservabilityRoute
+  '/settings/providers': typeof AppSettingsProvidersRoute
+  '/settings/skills': typeof AppSettingsSkillsRoute
+  '/settings': typeof AppSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -92,9 +189,21 @@ export interface FileRoutesById {
   '/_app/bridges': typeof AppBridgesRoute
   '/_app/knowledge': typeof AppKnowledgeRoute
   '/_app/network': typeof AppNetworkRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/skills': typeof AppSkillsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/session/$id': typeof AppSessionIdRoute
+  '/_app/settings/automation': typeof AppSettingsAutomationRoute
+  '/_app/settings/environments': typeof AppSettingsEnvironmentsRoute
+  '/_app/settings/general': typeof AppSettingsGeneralRoute
+  '/_app/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
+  '/_app/settings/mcp-servers': typeof AppSettingsMcpServersRoute
+  '/_app/settings/memory': typeof AppSettingsMemoryRoute
+  '/_app/settings/network': typeof AppSettingsNetworkRoute
+  '/_app/settings/observability': typeof AppSettingsObservabilityRoute
+  '/_app/settings/providers': typeof AppSettingsProvidersRoute
+  '/_app/settings/skills': typeof AppSettingsSkillsRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -105,8 +214,20 @@ export interface FileRouteTypes {
     | '/bridges'
     | '/knowledge'
     | '/network'
+    | '/settings'
     | '/skills'
     | '/session/$id'
+    | '/settings/automation'
+    | '/settings/environments'
+    | '/settings/general'
+    | '/settings/hooks-extensions'
+    | '/settings/mcp-servers'
+    | '/settings/memory'
+    | '/settings/network'
+    | '/settings/observability'
+    | '/settings/providers'
+    | '/settings/skills'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/design-system'
@@ -117,6 +238,17 @@ export interface FileRouteTypes {
     | '/skills'
     | '/'
     | '/session/$id'
+    | '/settings/automation'
+    | '/settings/environments'
+    | '/settings/general'
+    | '/settings/hooks-extensions'
+    | '/settings/mcp-servers'
+    | '/settings/memory'
+    | '/settings/network'
+    | '/settings/observability'
+    | '/settings/providers'
+    | '/settings/skills'
+    | '/settings'
   id:
     | '__root__'
     | '/_app'
@@ -125,9 +257,21 @@ export interface FileRouteTypes {
     | '/_app/bridges'
     | '/_app/knowledge'
     | '/_app/network'
+    | '/_app/settings'
     | '/_app/skills'
     | '/_app/'
     | '/_app/session/$id'
+    | '/_app/settings/automation'
+    | '/_app/settings/environments'
+    | '/_app/settings/general'
+    | '/_app/settings/hooks-extensions'
+    | '/_app/settings/mcp-servers'
+    | '/_app/settings/memory'
+    | '/_app/settings/network'
+    | '/_app/settings/observability'
+    | '/_app/settings/providers'
+    | '/_app/settings/skills'
+    | '/_app/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -165,6 +309,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSkillsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/network': {
       id: '/_app/network'
       path: '/network'
@@ -193,6 +344,83 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAutomationRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/skills': {
+      id: '/_app/settings/skills'
+      path: '/skills'
+      fullPath: '/settings/skills'
+      preLoaderRoute: typeof AppSettingsSkillsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/providers': {
+      id: '/_app/settings/providers'
+      path: '/providers'
+      fullPath: '/settings/providers'
+      preLoaderRoute: typeof AppSettingsProvidersRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/observability': {
+      id: '/_app/settings/observability'
+      path: '/observability'
+      fullPath: '/settings/observability'
+      preLoaderRoute: typeof AppSettingsObservabilityRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/network': {
+      id: '/_app/settings/network'
+      path: '/network'
+      fullPath: '/settings/network'
+      preLoaderRoute: typeof AppSettingsNetworkRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/memory': {
+      id: '/_app/settings/memory'
+      path: '/memory'
+      fullPath: '/settings/memory'
+      preLoaderRoute: typeof AppSettingsMemoryRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/mcp-servers': {
+      id: '/_app/settings/mcp-servers'
+      path: '/mcp-servers'
+      fullPath: '/settings/mcp-servers'
+      preLoaderRoute: typeof AppSettingsMcpServersRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/hooks-extensions': {
+      id: '/_app/settings/hooks-extensions'
+      path: '/hooks-extensions'
+      fullPath: '/settings/hooks-extensions'
+      preLoaderRoute: typeof AppSettingsHooksExtensionsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/general': {
+      id: '/_app/settings/general'
+      path: '/general'
+      fullPath: '/settings/general'
+      preLoaderRoute: typeof AppSettingsGeneralRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/environments': {
+      id: '/_app/settings/environments'
+      path: '/environments'
+      fullPath: '/settings/environments'
+      preLoaderRoute: typeof AppSettingsEnvironmentsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/automation': {
+      id: '/_app/settings/automation'
+      path: '/automation'
+      fullPath: '/settings/automation'
+      preLoaderRoute: typeof AppSettingsAutomationRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/session/$id': {
       id: '/_app/session/$id'
       path: '/session/$id'
@@ -203,11 +431,44 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppSettingsRouteChildren {
+  AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
+  AppSettingsEnvironmentsRoute: typeof AppSettingsEnvironmentsRoute
+  AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
+  AppSettingsHooksExtensionsRoute: typeof AppSettingsHooksExtensionsRoute
+  AppSettingsMcpServersRoute: typeof AppSettingsMcpServersRoute
+  AppSettingsMemoryRoute: typeof AppSettingsMemoryRoute
+  AppSettingsNetworkRoute: typeof AppSettingsNetworkRoute
+  AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
+  AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
+  AppSettingsSkillsRoute: typeof AppSettingsSkillsRoute
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsAutomationRoute: AppSettingsAutomationRoute,
+  AppSettingsEnvironmentsRoute: AppSettingsEnvironmentsRoute,
+  AppSettingsGeneralRoute: AppSettingsGeneralRoute,
+  AppSettingsHooksExtensionsRoute: AppSettingsHooksExtensionsRoute,
+  AppSettingsMcpServersRoute: AppSettingsMcpServersRoute,
+  AppSettingsMemoryRoute: AppSettingsMemoryRoute,
+  AppSettingsNetworkRoute: AppSettingsNetworkRoute,
+  AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
+  AppSettingsProvidersRoute: AppSettingsProvidersRoute,
+  AppSettingsSkillsRoute: AppSettingsSkillsRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
 interface AppRouteChildren {
   AppAutomationRoute: typeof AppAutomationRoute
   AppBridgesRoute: typeof AppBridgesRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppNetworkRoute: typeof AppNetworkRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppSkillsRoute: typeof AppSkillsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppSessionIdRoute: typeof AppSessionIdRoute
@@ -218,6 +479,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBridgesRoute: AppBridgesRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppNetworkRoute: AppNetworkRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppSkillsRoute: AppSkillsRoute,
   AppIndexRoute: AppIndexRoute,
   AppSessionIdRoute: AppSessionIdRoute,

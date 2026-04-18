@@ -41,6 +41,8 @@ type BaseHandlerConfig struct {
 	Tasks                        TaskService
 	Bridges                      BridgeService
 	Bundles                      BundleService
+	Settings                     SettingsService
+	SettingsRestart              SettingsRestartController
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
 	SkillsRegistry               SkillsRegistry
@@ -73,6 +75,8 @@ type BaseHandlers struct {
 	Tasks                        TaskService
 	Bridges                      BridgeService
 	Bundles                      BundleService
+	Settings                     SettingsService
+	SettingsRestart              SettingsRestartController
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
 	SkillsRegistry               SkillsRegistry
@@ -145,6 +149,8 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Tasks:                        cfg.Tasks,
 		Bridges:                      cfg.Bridges,
 		Bundles:                      cfg.Bundles,
+		Settings:                     cfg.Settings,
+		SettingsRestart:              cfg.SettingsRestart,
 		Workspaces:                   cfg.Workspaces,
 		AgentCatalog:                 cfg.AgentCatalog,
 		SkillsRegistry:               cfg.SkillsRegistry,

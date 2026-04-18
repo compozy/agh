@@ -29,7 +29,15 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
-	for _, dir := range []string{paths.HomeDir, paths.AgentsDir, paths.SkillsDir, paths.MemoryDir, paths.SessionsDir, paths.LogsDir} {
+	for _, dir := range []string{
+		paths.HomeDir,
+		paths.AgentsDir,
+		paths.SkillsDir,
+		paths.MemoryDir,
+		paths.SessionsDir,
+		paths.RestartsDir,
+		paths.LogsDir,
+	} {
 		info, err := os.Stat(dir)
 		if err != nil {
 			t.Fatalf("Stat(%q) error = %v", dir, err)
@@ -62,6 +70,9 @@ func TestResolveHomePathsFromExpandsTildePaths(t *testing.T) {
 	}
 	if got, want := paths.SkillsDir, filepath.Join(userHome, "agh-test-home", SkillsDirName); got != want {
 		t.Fatalf("ResolveHomePathsFrom() SkillsDir = %q, want %q", got, want)
+	}
+	if got, want := paths.RestartsDir, filepath.Join(userHome, "agh-test-home", RestartsDirName); got != want {
+		t.Fatalf("ResolveHomePathsFrom() RestartsDir = %q, want %q", got, want)
 	}
 	if got, want := paths.NetworkAuditFile, filepath.Join(
 		userHome,

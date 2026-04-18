@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Settings API contract and OpenAPI surface
 type: backend
 complexity: high
@@ -38,11 +38,11 @@ This task is foundational — the DTOs and OpenAPI surface feed every settings p
 
 ## Subtasks
 
-- [ ] 4.1 Add settings DTOs and restart payloads in `internal/api/contract`
-- [ ] 4.2 Add `/api/settings/*`, restart, and log-tail operations to `internal/api/spec`
-- [ ] 4.3 Include HTTP extension surface required by the settings UI in the contract/spec
-- [ ] 4.4 Regenerate checked-in OpenAPI artifacts and generated web types
-- [ ] 4.5 Add or update spec tests that verify route and schema coverage
+- [x] 4.1 Add settings DTOs and restart payloads in `internal/api/contract`
+- [x] 4.2 Add `/api/settings/*`, restart, and log-tail operations to `internal/api/spec`
+- [x] 4.3 Include HTTP extension surface required by the settings UI in the contract/spec
+- [x] 4.4 Regenerate checked-in OpenAPI artifacts and generated web types
+- [x] 4.5 Add or update spec tests that verify route and schema coverage
 
 ## Implementation Details
 
@@ -80,13 +80,18 @@ See TechSpec sections "Core Interfaces", "API Endpoints", "Response behavior", a
 ## Tests
 
 - Unit tests:
-  - [ ] Contract serialization covers `MutationResult`, restart action response, and restart status payloads
-  - [ ] OpenAPI spec includes all required `/api/settings/*` routes and expected verbs
-  - [ ] OpenAPI schemas include `write_target`, source-precedence metadata, and restart polling fields
-  - [ ] Extension routes required by the settings UI are present in the HTTP-visible spec
+  - [x] Contract serialization preserves `MutationResult` field names, omit-empty behavior, and enum values consumed by the web client
+  - [x] `MutationResult` schemas include `write_target`, restart metadata, warnings, and workspace fields with the expected optionality
+  - [x] Restart action response schemas expose `operation_id`, `status`, `status_url`, and `active_session_count`
+  - [x] Restart status schemas expose `old_pid`, `new_pid`, `failure_reason`, and timestamp fields for polling
+  - [x] OpenAPI spec includes all required `/api/settings/*` routes and expected verbs
+  - [x] Extension routes required by the settings UI are present in the HTTP-visible spec
+  - [x] OpenAPI params and enums cover `scope`, `workspace_id`, and `target=auto|config|sidecar` semantics
 - Integration tests:
-  - [ ] Regenerated web types compile against the updated OpenAPI output
-  - [ ] Spec validation or snapshot coverage catches route drift between contract changes and generated artifacts
+  - [x] Regenerated web types compile against the updated OpenAPI output
+  - [x] Regenerated web types expose the same names and optional fields consumed by the settings system without `any` fallbacks
+  - [x] Spec validation or snapshot coverage catches route drift between contract changes and generated artifacts
+  - [x] Re-running generation without source changes is stable and does not produce unexpected diffs in generated files
 - Test coverage target: >=80%
 - All tests must pass
 

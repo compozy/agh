@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, mkdir, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,9 +12,12 @@ import {
   browserAutomationOperatorFlowScenario,
   browserBridgeOperatorFlowScenario,
   browserNetworkOperatorFlowScenario,
+  cleanupBrowserSettingsFixtures,
+  browserSettingsOperatorFlowScenario,
   seedBrowserBridgeOperatorFlow,
   seedBrowserAutomationOperatorFlow,
   seedBrowserNetworkOperatorFlow,
+  seedBrowserSettingsFixtures,
   seedBrowserRuntimeHome,
   type BrowserRuntimeSeedClient,
 } from "./runtime-seed";
@@ -620,5 +623,297 @@ describe("browser runtime seed helpers", () => {
         platform: "telegram",
       },
     });
+  });
+
+  it("creates deterministic settings prerequisites across disabled skills, providers, hooks, and global/workspace MCP scopes", async () => {
+    let disabledSkills: string[] = [];
+    const providers = new Map<string, { name: string }>();
+    const hooks = new Map<string, { name: string }>();
+    const globalServers = new Map<string, { name: string; workspace_id?: string }>();
+    const workspaceServers = new Map<string, { name: string; workspace_id?: string }>();
+
+    const resolveWorkspace = vi.fn(async (rootDir: string) => ({
+      id: "ws_browser",
+      root_dir: rootDir,
+      name: "Browser Workspace",
+    }));
+
+    const requestJSON = vi.fn(async (pathname: string, init?: RequestInit) => {
+      if (pathname === "/api/settings/skills" && (!init || init.method === undefined)) {
+        return {
+          config: {
+            enabled: true,
+            poll_interval: "5m",
+            disabled_skills: disabledSkills,
+            marketplace: {
+              registry: browserSettingsOperatorFlowScenario.skills.policyRegistry,
+            },
+            allowed_marketplace_hooks: [],
+            allowed_marketplace_mcp: [],
+          },
+        };
+      }
+
+      if (pathname === "/api/settings/skills" && init?.method === "PATCH") {
+        disabledSkills = JSON.parse(init.body as string).config.disabled_skills;
+        return {
+          applied: true,
+          behavior: "applied_now",
+          restart_required: false,
+          scope: "global",
+          section: "skills",
+        };
+      }
+
+      if (pathname === "/api/settings/providers") {
+        return { providers: [...providers.values()] };
+      }
+
+      if (pathname.startsWith("/api/settings/providers/") && init?.method === "PUT") {
+        providers.set(decodeURIComponent(pathname.split("/").pop() ?? ""), {
+          name: decodeURIComponent(pathname.split("/").pop() ?? ""),
+        });
+        return {
+          applied: true,
+          behavior: "restart_required",
+          restart_required: true,
+          scope: "global",
+          section: "general",
+        };
+      }
+
+      if (pathname === "/api/settings/hooks") {
+        return { hooks: [...hooks.values()] };
+      }
+
+      if (pathname.startsWith("/api/settings/hooks/") && init?.method === "PUT") {
+        hooks.set(decodeURIComponent(pathname.split("/").pop() ?? ""), {
+          name: decodeURIComponent(pathname.split("/").pop() ?? ""),
+        });
+        return {
+          applied: true,
+          behavior: "restart_required",
+          restart_required: true,
+          scope: "global",
+          section: "hooks-extensions",
+        };
+      }
+
+      if (pathname === "/api/settings/mcp-servers?scope=global") {
+        return { mcp_servers: [...globalServers.values()] };
+      }
+
+      if (pathname === "/api/settings/mcp-servers?scope=workspace&workspace_id=ws_browser") {
+        return { mcp_servers: [...workspaceServers.values()] };
+      }
+
+      if (pathname.includes("/api/settings/mcp-servers/") && init?.method === "PUT") {
+        const url = new URL(`http://agh.test${pathname}`);
+        const name = decodeURIComponent(url.pathname.split("/").pop() ?? "");
+        const scope = url.searchParams.get("scope");
+        if (scope === "workspace") {
+          workspaceServers.set(name, {
+            name,
+            workspace_id: url.searchParams.get("workspace_id") ?? undefined,
+          });
+        } else {
+          globalServers.set(name, { name });
+        }
+        return {
+          applied: true,
+          behavior: "restart_required",
+          restart_required: true,
+          scope: scope === "workspace" ? "workspace" : "global",
+          section: "general",
+          workspace_id: url.searchParams.get("workspace_id") ?? undefined,
+          write_target: scope === "workspace" ? "workspace-config" : "global-mcp-sidecar",
+        };
+      }
+
+      throw new Error(`unexpected request ${pathname} ${init?.method ?? "GET"}`);
+    });
+
+    const workspaceRoot = "/tmp/browser-settings-workspace";
+    const seeded = await seedBrowserSettingsFixtures(
+      {
+        requestJSON: requestJSON as BrowserRuntimeSeedClient["requestJSON"],
+        resolveWorkspace: resolveWorkspace as BrowserRuntimeSeedClient["resolveWorkspace"],
+      },
+      {
+        disabledSkills: [browserSettingsOperatorFlowScenario.skills.disabledSkill],
+        providers: [
+          {
+            name: "browser-provider",
+            settings: {
+              command: "browser-provider",
+              default_model: "gpt-5.4-mini",
+            },
+          },
+        ],
+        hooks: [
+          {
+            name: browserSettingsOperatorFlowScenario.hooksExtensions.hookName,
+            declaration: {
+              name: browserSettingsOperatorFlowScenario.hooksExtensions.hookName,
+              event: "turn.end",
+              command: "/bin/echo",
+              args: ["done"],
+              matcher: {},
+            },
+          },
+        ],
+        mcpServers: [
+          {
+            name: browserSettingsOperatorFlowScenario.mcpServers.global.name,
+            server: {
+              name: browserSettingsOperatorFlowScenario.mcpServers.global.name,
+              command: browserSettingsOperatorFlowScenario.mcpServers.global.command,
+            },
+            scope: "global",
+            target: browserSettingsOperatorFlowScenario.mcpServers.global.target,
+          },
+          {
+            name: browserSettingsOperatorFlowScenario.mcpServers.workspace.name,
+            server: {
+              name: browserSettingsOperatorFlowScenario.mcpServers.workspace.name,
+              command: browserSettingsOperatorFlowScenario.mcpServers.workspace.command,
+            },
+            scope: "workspace",
+            target: browserSettingsOperatorFlowScenario.mcpServers.workspace.target,
+            workspaceRootDir: workspaceRoot,
+          },
+        ],
+      }
+    );
+
+    expect(resolveWorkspace).toHaveBeenCalledWith(workspaceRoot);
+    expect(requestJSON).toHaveBeenCalledWith(
+      "/api/settings/skills",
+      expect.objectContaining({ method: "PATCH" })
+    );
+    expect(requestJSON).toHaveBeenCalledWith(
+      "/api/settings/providers/browser-provider",
+      expect.objectContaining({ method: "PUT" })
+    );
+    expect(requestJSON).toHaveBeenCalledWith(
+      "/api/settings/hooks/browser-turn-end",
+      expect.objectContaining({ method: "PUT" })
+    );
+    expect(requestJSON).toHaveBeenCalledWith(
+      "/api/settings/mcp-servers/browser-global-mcp?scope=global&target=sidecar",
+      expect.objectContaining({ method: "PUT" })
+    );
+    expect(requestJSON).toHaveBeenCalledWith(
+      "/api/settings/mcp-servers/browser-workspace-mcp?scope=workspace&target=config&workspace_id=ws_browser",
+      expect.objectContaining({ method: "PUT" })
+    );
+    expect(seeded).toEqual({
+      createdHookNames: [browserSettingsOperatorFlowScenario.hooksExtensions.hookName],
+      createdMCPServers: [
+        {
+          name: browserSettingsOperatorFlowScenario.mcpServers.global.name,
+          scope: "global",
+          target: "sidecar",
+          workspaceId: undefined,
+        },
+        {
+          name: browserSettingsOperatorFlowScenario.mcpServers.workspace.name,
+          scope: "workspace",
+          target: "config",
+          workspaceId: "ws_browser",
+        },
+      ],
+      createdProviderNames: ["browser-provider"],
+      initialDisabledSkills: [],
+      workspace: {
+        id: "ws_browser",
+        root_dir: workspaceRoot,
+        name: "Browser Workspace",
+      },
+    });
+  });
+
+  it("restores settings fixtures, ignores missing items during cleanup, and removes restart residue", async () => {
+    let disabledSkills = [browserSettingsOperatorFlowScenario.skills.disabledSkill];
+    const deletedPaths: string[] = [];
+    const homeDir = await mkdtemp(path.join(os.tmpdir(), "agh-browser-settings-cleanup-"));
+    const restartsDir = path.join(homeDir, "restarts");
+    await mkdir(path.join(restartsDir, "nested"), { recursive: true });
+    const markerPath = path.join(restartsDir, "nested", "marker.txt");
+    await writeFile(markerPath, "marker\n", "utf8");
+
+    const requestJSON = vi.fn(async (pathname: string, init?: RequestInit) => {
+      if (pathname === "/api/settings/skills" && (!init || init.method === undefined)) {
+        return {
+          config: {
+            enabled: true,
+            poll_interval: "5m",
+            disabled_skills: disabledSkills,
+            marketplace: {
+              registry: browserSettingsOperatorFlowScenario.skills.policyRegistry,
+            },
+            allowed_marketplace_hooks: [],
+            allowed_marketplace_mcp: [],
+          },
+        };
+      }
+
+      if (pathname === "/api/settings/skills" && init?.method === "PATCH") {
+        disabledSkills = JSON.parse(init.body as string).config.disabled_skills;
+        return {
+          applied: true,
+          behavior: "applied_now",
+          restart_required: false,
+          scope: "global",
+          section: "skills",
+        };
+      }
+
+      if (init?.method === "DELETE") {
+        deletedPaths.push(pathname);
+        if (pathname === "/api/settings/providers/missing-provider") {
+          throw new Error(
+            "request /api/settings/providers/missing-provider failed with 404: missing"
+          );
+        }
+        return {
+          applied: true,
+          behavior: "restart_required",
+          restart_required: true,
+          scope: "global",
+          section: "general",
+        };
+      }
+
+      throw new Error(`unexpected request ${pathname} ${init?.method ?? "GET"}`);
+    });
+
+    await cleanupBrowserSettingsFixtures(
+      {
+        requestJSON: requestJSON as BrowserRuntimeSeedClient["requestJSON"],
+        paths: { homeDir },
+      },
+      {
+        createdHookNames: [browserSettingsOperatorFlowScenario.hooksExtensions.hookName],
+        createdMCPServers: [
+          {
+            name: browserSettingsOperatorFlowScenario.mcpServers.workspace.name,
+            scope: "workspace",
+            target: "config",
+            workspaceId: "ws_browser",
+          },
+        ],
+        createdProviderNames: ["missing-provider"],
+        initialDisabledSkills: ["legacy-disabled-skill"],
+      }
+    );
+
+    expect(disabledSkills).toEqual(["legacy-disabled-skill"]);
+    expect(deletedPaths).toEqual([
+      "/api/settings/hooks/browser-turn-end",
+      "/api/settings/mcp-servers/browser-workspace-mcp?scope=workspace&target=config&workspace_id=ws_browser",
+      "/api/settings/providers/missing-provider",
+    ]);
+    await expect(readFile(markerPath, "utf8")).rejects.toThrow();
   });
 });

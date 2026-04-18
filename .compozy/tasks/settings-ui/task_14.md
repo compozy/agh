@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Hooks and Extensions page
 type: frontend
 complexity: high
@@ -39,11 +39,11 @@ Implement the combined `hooks-extensions` settings page that depends on both con
 
 ## Subtasks
 
-- [ ] 14.1 Implement the `hooks-extensions` route with combined config and runtime sections
-- [ ] 14.2 Render hook declarations and extension policy state from the settings section envelope
-- [ ] 14.3 Wire extension operational actions that apply immediately through the shared settings or extension adapters
-- [ ] 14.4 Surface restart-required versus immediate-action behavior clearly in the UI
-- [ ] 14.5 Add tests for combined page rendering, actions, and mutation messaging
+- [x] 14.1 Implement the `hooks-extensions` route with combined config and runtime sections
+- [x] 14.2 Render hook declarations and extension policy state from the settings section envelope
+- [x] 14.3 Wire extension operational actions that apply immediately through the shared settings or extension adapters
+- [x] 14.4 Surface restart-required versus immediate-action behavior clearly in the UI
+- [x] 14.5 Add tests for combined page rendering, actions, and mutation messaging
 
 ## Implementation Details
 
@@ -85,9 +85,12 @@ See TechSpec sections "Data Models", "API Endpoints", "Transport and security po
   - [ ] Extension operational actions show immediate progress/result state without masquerading as config saves
   - [ ] Policy edits surface restart-required messaging distinctly from operational actions
   - [ ] Mutation or transport availability state is rendered correctly when the backend reports restrictions
+  - [ ] Shared controls disable or explain unavailable extension actions based on transport parity or policy metadata
 - Integration tests:
   - [ ] Combined page can load, mutate policy, and trigger extension actions without route-level fetch duplication
   - [ ] Query invalidation and refetch behavior updates both config-backed and runtime-backed portions of the page correctly
+  - [ ] Immediate extension actions update the runtime summary without incorrectly showing a restart-required banner
+  - [ ] Policy saves preserve the extension runtime list and hook declarations after refetch
 - Test coverage target: >=80%
 - All tests must pass
 

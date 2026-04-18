@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Skills, Automation, and Network summary pages
 type: frontend
 complexity: high
@@ -41,11 +41,11 @@ Implement the settings pages that summarize configuration and runtime state for 
 
 ## Subtasks
 
-- [ ] 11.1 Implement the `skills` settings route with disabled-skill and marketplace/policy state
-- [ ] 11.2 Implement the `automation` settings route with engine config and manager summary
-- [ ] 11.3 Implement the `network` settings route with config and runtime status summary
-- [ ] 11.4 Add deep links from these settings pages to the existing operational routes
-- [ ] 11.5 Add tests for save flow, applied-now/restart state, and operational link behavior
+- [x] 11.1 Implement the `skills` settings route with disabled-skill and marketplace/policy state
+- [x] 11.2 Implement the `automation` settings route with engine config and manager summary
+- [x] 11.3 Implement the `network` settings route with config and runtime status summary
+- [x] 11.4 Add deep links from these settings pages to the existing operational routes
+- [x] 11.5 Add tests for save flow, applied-now/restart state, and operational link behavior
 
 ## Implementation Details
 
@@ -84,12 +84,16 @@ See TechSpec sections "Data Models", "Runtime apply matrix", and "Key Decisions"
 
 - Unit tests:
   - [ ] `skills` page surfaces disabled-skill changes and distinguishes `applied_now` from `restart_required`
+  - [ ] `skills` page renders marketplace or policy fields separately from immediate disabled-skill changes
   - [ ] `automation` page renders manager summary and restart-required save results correctly
   - [ ] `network` page renders runtime status summary and restart-required behavior correctly
   - [ ] Deep-link controls point to the expected operational routes
+  - [ ] Shared section banners and warnings render correctly across all three summary pages without leaking page-specific assumptions
 - Integration tests:
   - [ ] Navigating from each summary page to its operational route works inside the app shell
+  - [ ] `skills` disabled-skill saves update visible applied-now state without requiring a full page reload
   - [ ] Saves on these pages invalidate and refetch the matching section queries without mutating unrelated sections
+  - [ ] Returning from operational deep links back into settings preserves the expected active subsection
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -20,6 +20,13 @@ import type {
   BridgeRoute,
   BridgeSummary,
 } from "@/systems/bridges";
+import type {
+  SettingsHookRequest,
+  SettingsMCPServerRequest,
+  SettingsMCPServerTarget,
+  SettingsMutationResult,
+  SettingsSkillsSection,
+} from "@/systems/settings";
 
 const execFileAsync = promisify(execFile);
 
@@ -104,6 +111,58 @@ export interface BrowserBridgeOperatorFlowResult {
   provider: BridgeProvider;
 }
 
+export interface BrowserSettingsProviderSeed {
+  name: string;
+  settings: {
+    api_key_env?: string;
+    command?: string;
+    default_model?: string;
+  };
+}
+
+export interface BrowserSettingsMCPServerSeed {
+  name: string;
+  scope?: "global" | "workspace";
+  server: SettingsMCPServerRequest["server"];
+  target?: SettingsMCPServerTarget;
+  workspaceId?: string;
+  workspaceRootDir?: string;
+}
+
+export interface BrowserSettingsHookSeed {
+  name: string;
+  declaration: SettingsHookRequest["declaration"];
+}
+
+export interface BrowserSettingsFixturesSeed {
+  disabledSkills?: string[];
+  hooks?: BrowserSettingsHookSeed[];
+  installBridgeExtension?: boolean;
+  mcpServers?: BrowserSettingsMCPServerSeed[];
+  providers?: BrowserSettingsProviderSeed[];
+  timeoutMs?: number;
+}
+
+export interface BrowserSettingsFixturesResult {
+  createdHookNames: string[];
+  createdMCPServers: Array<{
+    name: string;
+    scope: "global" | "workspace";
+    target: SettingsMCPServerTarget;
+    workspaceId?: string;
+  }>;
+  createdProviderNames: string[];
+  extension?: {
+    checksum: string;
+    dir: string;
+    markers: BridgeAdapterMarkerPaths;
+    name: string;
+    platform: string;
+  };
+  initialDisabledSkills?: string[];
+  workspace?: WorkspacePayload;
+}
+
 type BrowserBridgeOperatorSeedRuntime = Pick<
   BrowserRuntimeSeedClient,
   "requestJSON" | "requestOperatorJSON"
@@ -114,6 +173,8 @@ type BrowserBridgeOperatorSeedRuntime = Pick<
     };
     seeded?: BrowserRuntimeSeedResult;
   };
+
+type BrowserSettingsSeedRuntime = BrowserBridgeOperatorSeedRuntime;
 
 export interface BrowserBridgeIngressSeed {
   assistantText?: string;
@@ -209,6 +270,7 @@ interface NetworkStatusSeedPayload {
 const NETWORK_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const AUTOMATION_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const BRIDGE_OPERATOR_FLOW_TIMEOUT_MS = 20_000;
+const SETTINGS_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const BROWSER_SEED_POLL_MS = 150;
 const BRIDGE_EXTENSION_NAME = "telegram-reference";
 const BRIDGE_PLATFORM = "telegram";
@@ -279,6 +341,39 @@ export const browserBridgeOperatorFlowScenario = {
     mode: "direct-send",
     peerId: "telegram-peer-321",
     threadId: "654",
+  },
+} as const;
+
+export const browserSettingsOperatorFlowScenario = {
+  general: {
+    primarySessionTimeoutSeconds: 75,
+    fallbackSessionTimeoutSeconds: 90,
+  },
+  hooksExtensions: {
+    extensionName: BRIDGE_EXTENSION_NAME,
+    hookName: "browser-turn-end",
+    policyRegistry: "browser-settings-registry",
+  },
+  mcpServers: {
+    global: {
+      command: "npx",
+      name: "browser-global-mcp",
+      target: "sidecar",
+    },
+    workspace: {
+      command: "uvx",
+      name: "browser-workspace-mcp",
+      target: "config",
+    },
+  },
+  providers: {
+    overlayAPIKeyEnv: "BROWSER_CODEX_API_KEY",
+    overlayCommand: "codex-browser",
+    overlayModel: "gpt-5.4-mini",
+  },
+  skills: {
+    disabledSkill: "browser-disabled-skill",
+    policyRegistry: "browser-marketplace-registry",
   },
 } as const;
 
@@ -590,37 +685,13 @@ export async function seedBrowserBridgeOperatorFlow(
   runtime: BrowserBridgeOperatorSeedRuntime,
   seed: BrowserBridgeOperatorFlowSeed = {}
 ): Promise<BrowserBridgeOperatorFlowResult> {
-  const requestOperatorJSON = async <T>(pathname: string, init?: RequestInit): Promise<T> => {
-    if (runtime.requestOperatorJSON) {
-      return await runtime.requestOperatorJSON<T>(pathname, init);
-    }
-    return await runtime.requestJSON<T>(pathname, init);
-  };
-  const prepareExtension = seed.prepareExtension ?? prepareBrowserBridgeExtension;
   const timeoutMs = seed.timeoutMs ?? BRIDGE_OPERATOR_FLOW_TIMEOUT_MS;
   const displayName =
     seed.displayName?.trim() || browserBridgeOperatorFlowScenario.bridge.initialName;
-  const prepared = await prepareExtension();
-
-  await requestOperatorJSON<{ extension: { name: string } }>("/api/extensions", {
-    method: "POST",
-    body: JSON.stringify({
-      checksum: prepared.checksum,
-      path: prepared.extensionDir,
-    }),
+  const installedExtension = await installBrowserBridgeExtension(runtime, {
+    prepareExtension: seed.prepareExtension,
+    timeoutMs,
   });
-
-  await waitForSeedCondition(
-    async () => {
-      const payload = await requestOperatorJSON<{
-        extension: { enabled: boolean; health?: string; name: string; state: string };
-      }>(`/api/extensions/${encodeURIComponent(BRIDGE_EXTENSION_NAME)}`);
-      const extension = payload.extension;
-      return extension.name === BRIDGE_EXTENSION_NAME && extension.enabled ? extension : null;
-    },
-    `${BRIDGE_EXTENSION_NAME} extension install`,
-    timeoutMs
-  );
 
   const provider = await waitForSeedCondition(
     async () => {
@@ -687,15 +758,368 @@ export async function seedBrowserBridgeOperatorFlow(
   return {
     bridge: bridgeDetail.bridge,
     extension: {
-      checksum: prepared.checksum,
-      dir: prepared.extensionDir,
-      markers: prepared.markers,
-      name: BRIDGE_EXTENSION_NAME,
-      platform: BRIDGE_PLATFORM,
+      ...installedExtension,
     },
     health: bridgeDetail.health,
     provider,
   };
+}
+
+export async function seedBrowserSettingsFixtures(
+  runtime: BrowserSettingsSeedRuntime,
+  seed: BrowserSettingsFixturesSeed = {}
+): Promise<BrowserSettingsFixturesResult> {
+  const timeoutMs = seed.timeoutMs ?? SETTINGS_OPERATOR_FLOW_TIMEOUT_MS;
+  const result: BrowserSettingsFixturesResult = {
+    createdHookNames: [],
+    createdMCPServers: [],
+    createdProviderNames: [],
+  };
+
+  if (seed.disabledSkills !== undefined) {
+    const payload = await runtime.requestJSON<SettingsSkillsSection>("/api/settings/skills");
+    const currentDisabled = normalizeStringList(payload.config.disabled_skills ?? []);
+    const desiredDisabled = normalizeStringList(seed.disabledSkills);
+    result.initialDisabledSkills = currentDisabled;
+
+    if (!sameStringList(currentDisabled, desiredDisabled)) {
+      await runtime.requestJSON<SettingsMutationResult>("/api/settings/skills", {
+        method: "PATCH",
+        body: JSON.stringify({
+          config: {
+            ...payload.config,
+            disabled_skills: desiredDisabled,
+          },
+        }),
+      });
+
+      await waitForSeedCondition(
+        async () => {
+          const current = await runtime.requestJSON<SettingsSkillsSection>("/api/settings/skills");
+          return sameStringList(
+            normalizeStringList(current.config.disabled_skills ?? []),
+            desiredDisabled
+          )
+            ? current.config
+            : null;
+        },
+        "settings disabled skills seed",
+        timeoutMs
+      );
+    }
+  }
+
+  for (const provider of seed.providers ?? []) {
+    const name = provider.name.trim();
+    if (name === "") {
+      throw new Error("settings provider seed requires a non-empty name");
+    }
+
+    await runtime.requestJSON<SettingsMutationResult>(
+      `/api/settings/providers/${encodeURIComponent(name)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          settings: provider.settings,
+        }),
+      }
+    );
+
+    result.createdProviderNames.push(name);
+    await waitForSeedCondition(
+      async () => {
+        const payload = await runtime.requestJSON<{
+          providers: Array<{ name: string }>;
+        }>("/api/settings/providers");
+        return payload.providers.some(entry => entry.name === name) ? payload.providers : null;
+      },
+      `settings provider ${name}`,
+      timeoutMs
+    );
+  }
+
+  let resolvedWorkspace = runtime.seeded?.workspace;
+
+  for (const serverSeed of seed.mcpServers ?? []) {
+    const name = serverSeed.name.trim();
+    if (name === "") {
+      throw new Error("settings MCP server seed requires a non-empty name");
+    }
+
+    const scope = serverSeed.scope ?? "global";
+    const target = serverSeed.target ?? "auto";
+    let workspaceId = serverSeed.workspaceId?.trim();
+
+    if (scope === "workspace") {
+      if (!workspaceId) {
+        const rootDir =
+          serverSeed.workspaceRootDir?.trim() || resolvedWorkspace?.root_dir?.trim() || "";
+        if (rootDir === "") {
+          throw new Error(
+            `workspace MCP server seed for ${name} requires workspaceId, workspaceRootDir, or a seeded workspace`
+          );
+        }
+        if (!runtime.resolveWorkspace) {
+          throw new Error(
+            `workspace MCP server seed for ${name} requires resolveWorkspace support on the runtime`
+          );
+        }
+        resolvedWorkspace = await runtime.resolveWorkspace(rootDir);
+        workspaceId = resolvedWorkspace.id;
+      }
+      if (!resolvedWorkspace || resolvedWorkspace.id !== workspaceId) {
+        resolvedWorkspace = {
+          id: workspaceId,
+          root_dir: serverSeed.workspaceRootDir?.trim() || resolvedWorkspace?.root_dir || "",
+          name: resolvedWorkspace?.name || workspaceId,
+        };
+      }
+      result.workspace = resolvedWorkspace;
+    }
+
+    await runtime.requestJSON<SettingsMutationResult>(
+      buildSettingsMCPServerPath(name, scope, workspaceId, target),
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          server: {
+            ...serverSeed.server,
+            name,
+          },
+        }),
+      }
+    );
+
+    result.createdMCPServers.push({
+      name,
+      scope,
+      target,
+      workspaceId,
+    });
+
+    await waitForSeedCondition(
+      async () => {
+        const payload = await runtime.requestJSON<{
+          mcp_servers: Array<{ name: string; workspace_id?: string }>;
+        }>(buildSettingsMCPServersListPath(scope, workspaceId));
+        return payload.mcp_servers.some(
+          entry =>
+            entry.name === name &&
+            (scope === "global" || (entry.workspace_id ?? "") === workspaceId)
+        )
+          ? payload.mcp_servers
+          : null;
+      },
+      `settings MCP server ${name}`,
+      timeoutMs
+    );
+  }
+
+  for (const hook of seed.hooks ?? []) {
+    const name = hook.name.trim();
+    if (name === "") {
+      throw new Error("settings hook seed requires a non-empty name");
+    }
+
+    await runtime.requestJSON<SettingsMutationResult>(
+      `/api/settings/hooks/${encodeURIComponent(name)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          declaration: {
+            ...hook.declaration,
+            name,
+          },
+        }),
+      }
+    );
+
+    result.createdHookNames.push(name);
+    await waitForSeedCondition(
+      async () => {
+        const payload = await runtime.requestJSON<{
+          hooks: Array<{ name: string }>;
+        }>("/api/settings/hooks");
+        return payload.hooks.some(entry => entry.name === name) ? payload.hooks : null;
+      },
+      `settings hook ${name}`,
+      timeoutMs
+    );
+  }
+
+  if (seed.installBridgeExtension) {
+    result.extension = await installBrowserBridgeExtension(runtime, { timeoutMs });
+  }
+
+  return result;
+}
+
+export async function cleanupBrowserSettingsFixtures(
+  runtime: BrowserSettingsSeedRuntime,
+  seeded: BrowserSettingsFixturesResult
+): Promise<void> {
+  if (seeded.initialDisabledSkills !== undefined) {
+    const payload = await runtime.requestJSON<SettingsSkillsSection>("/api/settings/skills");
+    const desiredDisabled = normalizeStringList(seeded.initialDisabledSkills);
+    if (
+      !sameStringList(normalizeStringList(payload.config.disabled_skills ?? []), desiredDisabled)
+    ) {
+      await runtime.requestJSON<SettingsMutationResult>("/api/settings/skills", {
+        method: "PATCH",
+        body: JSON.stringify({
+          config: {
+            ...payload.config,
+            disabled_skills: desiredDisabled,
+          },
+        }),
+      });
+    }
+  }
+
+  for (const hookName of [...seeded.createdHookNames].reverse()) {
+    await ignoreNotFound(
+      runtime.requestJSON<SettingsMutationResult>(
+        `/api/settings/hooks/${encodeURIComponent(hookName)}`,
+        {
+          method: "DELETE",
+        }
+      )
+    );
+  }
+
+  for (const server of [...seeded.createdMCPServers].reverse()) {
+    await ignoreNotFound(
+      runtime.requestJSON<SettingsMutationResult>(
+        buildSettingsMCPServerPath(server.name, server.scope, server.workspaceId, server.target),
+        {
+          method: "DELETE",
+        }
+      )
+    );
+  }
+
+  for (const providerName of [...seeded.createdProviderNames].reverse()) {
+    await ignoreNotFound(
+      runtime.requestJSON<SettingsMutationResult>(
+        `/api/settings/providers/${encodeURIComponent(providerName)}`,
+        {
+          method: "DELETE",
+        }
+      )
+    );
+  }
+
+  const restartsDir = runtime.paths?.homeDir
+    ? path.join(runtime.paths.homeDir, "restarts")
+    : undefined;
+  if (restartsDir) {
+    await rm(restartsDir, { recursive: true, force: true });
+  }
+}
+
+async function installBrowserBridgeExtension(
+  runtime: BrowserSettingsSeedRuntime,
+  options: {
+    prepareExtension?: () => Promise<{
+      checksum: string;
+      extensionDir: string;
+      markers: BridgeAdapterMarkerPaths;
+    }>;
+    timeoutMs?: number;
+  } = {}
+): Promise<NonNullable<BrowserSettingsFixturesResult["extension"]>> {
+  const requestOperatorJSON = async <T>(pathname: string, init?: RequestInit): Promise<T> => {
+    if (runtime.requestOperatorJSON) {
+      return await runtime.requestOperatorJSON<T>(pathname, init);
+    }
+    return await runtime.requestJSON<T>(pathname, init);
+  };
+  const prepareExtension = options.prepareExtension ?? prepareBrowserBridgeExtension;
+  const timeoutMs = options.timeoutMs ?? BRIDGE_OPERATOR_FLOW_TIMEOUT_MS;
+  const prepared = await prepareExtension();
+
+  await requestOperatorJSON<{ extension: { name: string } }>("/api/extensions", {
+    method: "POST",
+    body: JSON.stringify({
+      checksum: prepared.checksum,
+      path: prepared.extensionDir,
+    }),
+  });
+
+  await waitForSeedCondition(
+    async () => {
+      const payload = await requestOperatorJSON<{
+        extension: { enabled: boolean; name: string };
+      }>(`/api/extensions/${encodeURIComponent(BRIDGE_EXTENSION_NAME)}`);
+      return payload.extension.name === BRIDGE_EXTENSION_NAME && payload.extension.enabled
+        ? payload.extension
+        : null;
+    },
+    `${BRIDGE_EXTENSION_NAME} extension install`,
+    timeoutMs
+  );
+
+  return {
+    checksum: prepared.checksum,
+    dir: prepared.extensionDir,
+    markers: prepared.markers,
+    name: BRIDGE_EXTENSION_NAME,
+    platform: BRIDGE_PLATFORM,
+  };
+}
+
+function buildSettingsMCPServersListPath(
+  scope: "global" | "workspace",
+  workspaceId?: string
+): string {
+  const params = new URLSearchParams({ scope });
+  if (scope === "workspace" && workspaceId) {
+    params.set("workspace_id", workspaceId);
+  }
+  return `/api/settings/mcp-servers?${params.toString()}`;
+}
+
+function buildSettingsMCPServerPath(
+  name: string,
+  scope: "global" | "workspace",
+  workspaceId: string | undefined,
+  target: SettingsMCPServerTarget
+): string {
+  const params = new URLSearchParams({
+    scope,
+    target,
+  });
+  if (scope === "workspace" && workspaceId) {
+    params.set("workspace_id", workspaceId);
+  }
+  return `/api/settings/mcp-servers/${encodeURIComponent(name)}?${params.toString()}`;
+}
+
+function normalizeStringList(values: string[]): string[] {
+  return [...new Set(values.map(value => value.trim()).filter(value => value !== ""))].sort();
+}
+
+function sameStringList(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+async function ignoreNotFound<T>(operation: Promise<T>): Promise<T | undefined> {
+  try {
+    return await operation;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes(" 404:")) {
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 async function resolveBrowserBridgeWorkspace(

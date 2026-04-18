@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Settings entrypoint and route shell
 type: frontend
 complexity: medium
@@ -38,11 +38,11 @@ The shared `/_app/settings/*` shell frames every settings screen, so all 10 Pape
 
 ## Subtasks
 
-- [ ] 8.1 Turn the sidebar Settings control into a real navigational entrypoint
-- [ ] 8.2 Add the shared `/_app/settings/*` parent route and default child route
-- [ ] 8.3 Build the shell layout and section navigation scaffold for later pages
-- [ ] 8.4 Regenerate the route tree and update route-level imports
-- [ ] 8.5 Add route and navigation tests for the new settings entrypoint
+- [x] 8.1 Turn the sidebar Settings control into a real navigational entrypoint
+- [x] 8.2 Add the shared `/_app/settings/*` parent route and default child route
+- [x] 8.3 Build the shell layout and section navigation scaffold for later pages
+- [x] 8.4 Regenerate the route tree and update route-level imports
+- [x] 8.5 Add route and navigation tests for the new settings entrypoint
 
 ## Implementation Details
 
@@ -80,10 +80,14 @@ See TechSpec sections "System Architecture", "Development Sequencing", and ADR-0
 - Unit tests:
   - [ ] Sidebar renders a Settings link that navigates into the settings subtree
   - [ ] Settings shell renders the expected base layout and default section state
+  - [ ] Settings shell highlights the active section in navigation and preserves section metadata for child routes
   - [ ] Route tree generation includes the new settings subtree
+  - [ ] Direct section-route rendering mounts inside the shared settings shell instead of duplicating layout state
 - Integration tests:
   - [ ] Navigating from the sidebar reaches the settings shell without dead links
   - [ ] Refreshing the default settings route resolves the expected index child
+  - [ ] Deep-linking directly to a non-index settings section renders the shell, section navigation, and matching child content
+  - [ ] Browser history between settings subsections stays inside the `_app` shell without dropping shared layout state
 - Test coverage target: >=80%
 - All tests must pass
 

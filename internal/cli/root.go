@@ -46,6 +46,7 @@ type commandDeps struct {
 	runInstallWizard             installWizardRunner
 	newClient                    func(socketPath string) (DaemonClient, error)
 	newDaemon                    func() (daemonRunner, error)
+	runRelaunchHelper            func(context.Context, aghdaemon.RelaunchHelperConfig) error
 	readDaemonInfo               func(path string) (aghdaemon.Info, error)
 	signalProcess                func(pid int, sig syscall.Signal) error
 	processAlive                 func(pid int) bool
@@ -143,6 +144,13 @@ func ExecuteContext(ctx context.Context, args []string, stdout io.Writer, stderr
 }
 
 func (d commandDeps) withDefaults() commandDeps {
+	d = d.withRegistryDefaults()
+	d = d.withRuntimeDefaults()
+	d = d.withTimingDefaults()
+	return d
+}
+
+func (d commandDeps) withRegistryDefaults() commandDeps {
 	if d.loadConfig == nil {
 		d.loadConfig = func() (aghconfig.Config, error) {
 			return aghconfig.Load()
@@ -160,6 +168,10 @@ func (d commandDeps) withDefaults() commandDeps {
 	if d.ensureHome == nil {
 		d.ensureHome = aghconfig.EnsureHomeLayout
 	}
+	return d
+}
+
+func (d commandDeps) withRuntimeDefaults() commandDeps {
 	if d.runInstallWizard == nil {
 		d.runInstallWizard = runInstallWizard
 	}
@@ -170,6 +182,9 @@ func (d commandDeps) withDefaults() commandDeps {
 		d.newDaemon = func() (daemonRunner, error) {
 			return aghdaemon.New()
 		}
+	}
+	if d.runRelaunchHelper == nil {
+		d.runRelaunchHelper = aghdaemon.RunRelaunchHelper
 	}
 	if d.readDaemonInfo == nil {
 		d.readDaemonInfo = aghdaemon.ReadInfo
@@ -189,6 +204,15 @@ func (d commandDeps) withDefaults() commandDeps {
 	if d.getenv == nil {
 		d.getenv = os.Getenv
 	}
+	if d.spawnDetached == nil {
+		d.spawnDetached = func(ctx context.Context, homePaths aghconfig.HomePaths) (daemonProcess, error) {
+			return spawnDetachedDaemonProcess(ctx, homePaths, d.executable)
+		}
+	}
+	return d
+}
+
+func (d commandDeps) withTimingDefaults() commandDeps {
 	if d.now == nil {
 		d.now = func() time.Time {
 			return time.Now().UTC()
@@ -202,11 +226,6 @@ func (d commandDeps) withDefaults() commandDeps {
 	}
 	if d.stopTimeout <= 0 {
 		d.stopTimeout = defaultStopTimeout
-	}
-	if d.spawnDetached == nil {
-		d.spawnDetached = func(ctx context.Context, homePaths aghconfig.HomePaths) (daemonProcess, error) {
-			return spawnDetachedDaemonProcess(ctx, homePaths, d.executable)
-		}
 	}
 	return d
 }

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: HTTP settings transport and loopback mutation policy
 type: backend
 complexity: high
@@ -37,11 +37,11 @@ This task is foundational — the HTTP transport carries every settings read/wri
 
 ## Subtasks
 
-- [ ] 6.1 Register the full HTTP settings route namespace and restart/status endpoints
-- [ ] 6.2 Register HTTP-visible extension routes required by the settings surface
-- [ ] 6.3 Enforce loopback-only gating for mutating settings and extension routes
-- [ ] 6.4 Add HTTP route inventory coverage for settings and extension parity
-- [ ] 6.5 Add handler and integration tests for `403` policy behavior on non-loopback binds
+- [x] 6.1 Register the full HTTP settings route namespace and restart/status endpoints
+- [x] 6.2 Register HTTP-visible extension routes required by the settings surface
+- [x] 6.3 Enforce loopback-only gating for mutating settings and extension routes
+- [x] 6.4 Add HTTP route inventory coverage for settings and extension parity
+- [x] 6.5 Add handler and integration tests for `403` policy behavior on non-loopback binds
 
 ## Implementation Details
 
@@ -78,14 +78,16 @@ See TechSpec sections "API Endpoints", "Transport and security policy", and ADR-
 ## Tests
 
 - Unit tests:
-  - [ ] All required HTTP settings routes are registered with the expected verbs
-  - [ ] Required `/api/extensions` routes are available on HTTP for the settings screen
-  - [ ] Non-loopback HTTP binds return `403` for settings mutations and restart actions
-  - [ ] Read-only settings routes remain available on HTTP regardless of bind host
+  - [x] All required HTTP settings routes are registered with the expected verbs
+  - [x] Required `/api/extensions` routes are available on HTTP for the settings screen
+  - [x] Non-loopback HTTP binds return `403` for settings mutations and restart actions
+  - [x] Read-only settings routes remain available on HTTP regardless of bind host
+  - [x] Restart-status polling remains readable over HTTP even when mutating endpoints are loopback-restricted
 - Integration tests:
-  - [ ] Loopback-bound HTTP server allows settings mutation requests to reach shared handlers
-  - [ ] Non-loopback HTTP server blocks settings and extension mutations while preserving read routes
-  - [ ] HTTP transport parity tests catch route drift relative to UDS
+  - [x] Loopback-bound HTTP server allows section PATCH, collection PUT/DELETE, and restart-trigger requests to reach shared handlers
+  - [x] Non-loopback HTTP server blocks settings and extension mutations while preserving section reads and restart-status polling
+  - [x] HTTP mutation denials preserve the shared error envelope and do not leak transport-specific details
+  - [x] HTTP transport parity tests catch route drift relative to UDS
 - Test coverage target: >=80%
 - All tests must pass
 

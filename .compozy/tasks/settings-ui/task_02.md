@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Settings service orchestration in internal/settings
 type: backend
 complexity: high
@@ -37,12 +37,12 @@ This task is foundational — the settings service assembles every section envel
 
 ## Subtasks
 
-- [ ] 2.1 Create `internal/settings` package structure with service, models, and request/response types
-- [ ] 2.2 Implement section read-model assembly from config, runtime services, and workspace resolution
-- [ ] 2.3 Implement collection list/put/delete orchestration with explicit scope and target semantics
-- [ ] 2.4 Enforce v1 scope rules and source-precedence reporting, especially for `mcp-servers`
-- [ ] 2.5 Encode the runtime-apply matrix and mutation result classification
-- [ ] 2.6 Cover section assembly, mutation classification, and precedence behavior with tests
+- [x] 2.1 Create `internal/settings` package structure with service, models, and request/response types
+- [x] 2.2 Implement section read-model assembly from config, runtime services, and workspace resolution
+- [x] 2.3 Implement collection list/put/delete orchestration with explicit scope and target semantics
+- [x] 2.4 Enforce v1 scope rules and source-precedence reporting, especially for `mcp-servers`
+- [x] 2.5 Encode the runtime-apply matrix and mutation result classification
+- [x] 2.6 Cover section assembly, mutation classification, and precedence behavior with tests
 
 ## Implementation Details
 
@@ -80,15 +80,18 @@ See TechSpec sections "Core Interfaces", "Data Models", "Runtime apply matrix", 
 ## Tests
 
 - Unit tests:
-  - [ ] `GetSection` returns the correct config and runtime envelope for each supported section
-  - [ ] Invalid scope combinations return a descriptive validation error
-  - [ ] `mcp-servers` collection responses include `effective_source`, `shadowed_sources`, and `available_targets`
-  - [ ] `target=auto` chooses the highest-precedence existing source and defaults new MCP servers to sidecar writes
-  - [ ] Runtime-apply classification returns `applied_now`, `restart_required`, or `action_trigger` per the matrix
+  - [x] `GetSection` returns the correct config and runtime envelope for each supported section
+  - [x] Invalid scope combinations return a descriptive validation error
+  - [x] Workspace-scoped MCP reads require a `workspace_id` and reject unsupported section scope combinations
+  - [x] `mcp-servers` collection responses include `effective_source`, `shadowed_sources`, and `available_targets`
+  - [x] `target=auto` chooses the highest-precedence existing source and defaults new MCP servers to sidecar writes
+  - [x] Runtime-apply classification returns `applied_now`, `restart_required`, or `action_trigger` per the matrix
+  - [x] Mixed-runtime-behavior section updates are rejected instead of returning ambiguous mutation metadata
 - Integration tests:
-  - [ ] Provider overlay delete reveals builtin fallback metadata correctly
-  - [ ] Workspace-scoped MCP mutation resolves the workspace root and persists to the intended target
-  - [ ] Settings mutation results expose semantic `write_target` instead of filesystem paths
+  - [x] Provider overlay delete reveals builtin fallback metadata correctly
+  - [x] Workspace-scoped MCP mutation resolves the workspace root and persists to the intended target
+  - [x] Settings mutation results expose semantic `write_target` instead of filesystem paths
+  - [x] Collection mutations persist metadata that matches the effective precedence surfaced on subsequent reads
 - Test coverage target: >=80%
 - All tests must pass
 

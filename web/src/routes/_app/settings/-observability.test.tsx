@@ -1,0 +1,168 @@
+import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const envelope = {
+  section: "observability" as const,
+  scope: "global" as const,
+  available_scopes: ["global"] as const,
+  config: {
+    enabled: true,
+    max_global_bytes: 1024 * 1024 * 1024,
+    retention_days: 7,
+    transcripts: {
+      enabled: true,
+      max_bytes_per_session: 256 * 1024 * 1024,
+      segment_bytes: 1024 * 1024,
+    },
+  },
+  log_tail: {
+    available: true,
+    stream_url: "/api/settings/observability/log-tail" as string | undefined,
+    transport: "sse" as "sse" | undefined,
+  },
+  runtime: {
+    active_agents: 2,
+    active_sessions: 4,
+    available: true,
+    global_db_size_bytes: 180 * 1024 * 1024,
+    session_db_size_bytes: 132 * 1024 * 1024,
+    uptime_seconds: 3600,
+  },
+};
+
+type Envelope = typeof envelope;
+type RestartBanner = {
+  isVisible: boolean;
+  isRestartRequired: boolean;
+  isPolling: boolean;
+  isSuccessful: boolean;
+  isFailed: boolean;
+  operationId: string | null;
+  status: string | null;
+  failureReason?: string;
+  activeSessionCount: number;
+  trigger: ReturnType<typeof vi.fn>;
+  isTriggerPending: boolean;
+  triggerError: unknown;
+  dismiss: ReturnType<typeof vi.fn>;
+};
+
+let pageState: {
+  isLoading: boolean;
+  error: Error | null;
+  envelope: Envelope | null;
+  draft: Envelope["config"] | null;
+  setDraft: ReturnType<typeof vi.fn>;
+  isDirty: boolean;
+  isSaving: boolean;
+  saveError: string | null;
+  warnings: string[] | undefined;
+  lastAppliedLabel: string | null;
+  handleReset: ReturnType<typeof vi.fn>;
+  handleSave: ReturnType<typeof vi.fn>;
+  restart: RestartBanner;
+};
+
+const restartBanner: RestartBanner = {
+  isVisible: false,
+  isRestartRequired: false,
+  isPolling: false,
+  isSuccessful: false,
+  isFailed: false,
+  operationId: null,
+  status: null,
+  failureReason: undefined,
+  activeSessionCount: 0,
+  trigger: vi.fn(),
+  isTriggerPending: false,
+  triggerError: null,
+  dismiss: vi.fn(),
+};
+
+vi.mock("@tanstack/react-router", () => ({
+  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
+    component: opts.component,
+  }),
+}));
+
+vi.mock("@/hooks/routes/use-settings-observability-page", () => ({
+  useSettingsObservabilityPage: () => pageState,
+}));
+
+beforeEach(() => {
+  pageState = {
+    isLoading: false,
+    error: null,
+    envelope,
+    draft: structuredClone(envelope.config),
+    setDraft: vi.fn(),
+    isDirty: false,
+    isSaving: false,
+    saveError: null,
+    warnings: undefined,
+    lastAppliedLabel: null,
+    handleReset: vi.fn(),
+    handleSave: vi.fn(),
+    restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
+  };
+});
+
+import { Route } from "./observability";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ObservabilitySettingsPage = (Route as any).component as () => ReactNode;
+
+describe("ObservabilitySettingsPage", () => {
+  it("renders a loading indicator during the initial fetch", () => {
+    pageState.isLoading = true;
+    pageState.envelope = null;
+    pageState.draft = null;
+    render(<ObservabilitySettingsPage />);
+    expect(screen.getByTestId("settings-page-observability-loading")).toBeInTheDocument();
+  });
+
+  it("renders the error state when the query fails", () => {
+    pageState.error = new Error("observe boom");
+    pageState.envelope = null;
+    pageState.draft = null;
+    render(<ObservabilitySettingsPage />);
+    expect(screen.getByTestId("settings-page-observability-error")).toHaveTextContent(
+      "observe boom"
+    );
+  });
+
+  it("renders config, DB metrics, and log-tail metadata from the envelope", () => {
+    render(<ObservabilitySettingsPage />);
+
+    expect(screen.getByTestId("settings-page-observability-retention-days")).toHaveValue(7);
+    expect(screen.getByTestId("settings-page-observability-storage-summary")).toHaveTextContent(
+      "storage"
+    );
+    expect(screen.getByTestId("settings-page-observability-usage-breakdown")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-observability-log-tail-transport")).toHaveTextContent(
+      "transport: sse"
+    );
+  });
+
+  it("links to the log-tail stream URL when the capability is available", () => {
+    render(<ObservabilitySettingsPage />);
+
+    const link = screen.getByTestId("settings-page-observability-log-tail-link");
+    expect(link).toHaveAttribute("href", "/api/settings/observability/log-tail");
+  });
+
+  it("marks log-tail unavailable when the envelope reports no capability", () => {
+    pageState.envelope = {
+      ...envelope,
+      log_tail: { available: false, stream_url: undefined, transport: undefined },
+    };
+    render(<ObservabilitySettingsPage />);
+
+    const block = screen.getByTestId("settings-page-observability-log-tail");
+    expect(block).toHaveAttribute("data-available", "false");
+    expect(
+      screen.queryByTestId("settings-page-observability-log-tail-link")
+    ).not.toBeInTheDocument();
+  });
+});
