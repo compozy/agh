@@ -11,10 +11,10 @@ type CardTone = "neutral" | "amber" | "green" | "violet" | "danger";
 
 const TONE_CLASSES: Record<CardTone, string> = {
   neutral: "border-[color:var(--color-divider)]",
-  amber: "border-[color:var(--color-warning)]",
-  green: "border-[color:var(--color-success)]",
-  violet: "border-[color:var(--color-info)]",
-  danger: "border-[color:var(--color-danger)]",
+  amber: "border-[color:var(--color-divider)]",
+  green: "border-[color:var(--color-divider)]",
+  violet: "border-[color:var(--color-divider)]",
+  danger: "border-[color:var(--color-divider)]",
 };
 
 const VALUE_TONE_CLASSES: Record<CardTone, string> = {
@@ -138,7 +138,7 @@ function DashboardCard({
   return (
     <section
       className={cn(
-        "flex flex-col gap-3 rounded-2xl border bg-[color:var(--color-surface-elevated)] p-4",
+        "flex flex-col gap-3 rounded-xl border bg-[color:var(--color-surface)] p-4",
         TONE_CLASSES[tone]
       )}
       data-testid={testId}

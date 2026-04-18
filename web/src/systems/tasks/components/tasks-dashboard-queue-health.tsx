@@ -19,7 +19,7 @@ export function TasksDashboardQueueHealth({ dashboard }: TasksDashboardQueueHeal
 
   return (
     <section
-      className="flex flex-col gap-4 rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] p-4"
+      className="flex flex-col gap-4 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
       data-testid="tasks-dashboard-queue-health"
     >
       <div className="flex items-start justify-between gap-3">

@@ -1,7 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, Loader2 } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
+import {
+  Panel,
+  PanelBody,
+  PanelDescription,
+  PanelHeader,
+  PanelTitle,
+  Pill,
+} from "@/components/design-system";
 import { Button } from "@agh/ui";
 
 import {
@@ -83,124 +90,155 @@ export function TasksDetailPreviewPanel({
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[color:var(--color-canvas)]"
       data-testid="tasks-detail-preview-panel"
     >
-      <div className="flex items-start gap-3 border-b border-[color:var(--color-divider)] px-6 py-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-tertiary)]">
-            {record.identifier ? (
-              <span className="font-mono uppercase tracking-[0.12em]">{record.identifier}</span>
-            ) : null}
-            <Pill emphasis="strong" kind="state" tone={taskStatusTone(record.status)}>
-              {taskStatusLabel(record.status)}
-            </Pill>
-            {record.priority ? (
-              <Pill kind="state" tone={taskPriorityTone(record.priority)}>
-                {taskPriorityLabel(record.priority)}
+      <div className="border-b border-[color:var(--color-divider)] px-6 py-5">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-tertiary)]">
+              {record.identifier ? (
+                <span className="font-mono uppercase tracking-[0.12em]">{record.identifier}</span>
+              ) : null}
+              <Pill emphasis="strong" kind="state" tone={taskStatusTone(record.status)}>
+                {taskStatusLabel(record.status)}
               </Pill>
+              {record.priority ? (
+                <Pill kind="state" tone={taskPriorityTone(record.priority)}>
+                  {taskPriorityLabel(record.priority)}
+                </Pill>
+              ) : null}
+              {taskHasApprovalPending(record) ? (
+                <Pill kind="state" tone="amber">
+                  {taskApprovalStateLabel(record.approval_state)}
+                </Pill>
+              ) : null}
+            </div>
+            <h2
+              className="mt-3 text-[1.7rem] font-semibold tracking-[-0.03em] text-[color:var(--color-text-primary)]"
+              data-testid="tasks-detail-preview-title"
+            >
+              {record.title}
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--color-text-secondary)]">
+              Owner {taskOwnerLabel(record.owner)} · Scope {record.scope} · Updated{" "}
+              {formatRelativeTime(record.updated_at)}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Link
+              data-testid="tasks-detail-preview-edit-link"
+              params={{ id: record.id }}
+              to="/tasks/$id/edit"
+            >
+              <Button size="sm" type="button" variant="outline">
+                Edit
+              </Button>
+            </Link>
+            {isDraft && onPublishTask ? (
+              <Button
+                data-testid="tasks-detail-preview-publish"
+                disabled={isPublishPending}
+                onClick={() => onPublishTask(record.id)}
+                size="sm"
+                type="button"
+              >
+                Publish
+              </Button>
             ) : null}
-            {taskHasApprovalPending(record) ? (
-              <Pill kind="state" tone="amber">
-                {taskApprovalStateLabel(record.approval_state)}
-              </Pill>
+            {!isDraft && onEnqueueRun ? (
+              <Button
+                data-testid="tasks-detail-preview-enqueue"
+                onClick={() => onEnqueueRun(record.id)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Enqueue run
+              </Button>
+            ) : null}
+            {onCancelTask &&
+            (record.status === "ready" ||
+              record.status === "in_progress" ||
+              record.status === "blocked") ? (
+              <Button
+                data-testid="tasks-detail-preview-cancel"
+                onClick={() => onCancelTask(record.id)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Cancel
+              </Button>
             ) : null}
           </div>
-          <h2
-            className="mt-2 truncate text-xl font-semibold text-[color:var(--color-text-primary)]"
-            data-testid="tasks-detail-preview-title"
-          >
-            {record.title}
-          </h2>
-          <p className="mt-1 text-xs text-[color:var(--color-text-secondary)]">
-            Owner: {taskOwnerLabel(record.owner)} · Scope: {record.scope} · Updated{" "}
-            {formatRelativeTime(record.updated_at)}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {isDraft && onPublishTask ? (
-            <Button
-              data-testid="tasks-detail-preview-publish"
-              disabled={isPublishPending}
-              onClick={() => onPublishTask(record.id)}
-              size="sm"
-              type="button"
-            >
-              Publish
-            </Button>
-          ) : null}
-          {!isDraft && onEnqueueRun ? (
-            <Button
-              data-testid="tasks-detail-preview-enqueue"
-              onClick={() => onEnqueueRun(record.id)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Enqueue Run
-            </Button>
-          ) : null}
-          {onCancelTask &&
-          (record.status === "ready" ||
-            record.status === "in_progress" ||
-            record.status === "blocked") ? (
-            <Button
-              data-testid="tasks-detail-preview-cancel"
-              onClick={() => onCancelTask(record.id)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Cancel
-            </Button>
-          ) : null}
-          <Link
-            className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)] underline-offset-2 hover:underline"
-            data-testid="tasks-detail-preview-deeplink"
-            params={{ id: record.id }}
-            to="/tasks/$id"
-          >
-            Open detail
-          </Link>
         </div>
       </div>
 
-      <div className="grid gap-4 border-b border-[color:var(--color-divider)] px-6 py-4 md:grid-cols-3">
-        <div data-testid="tasks-detail-preview-counts-children">
-          <p className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-            Children
-          </p>
-          <p className="mt-1 text-lg font-semibold text-[color:var(--color-text-primary)]">
-            {childCount}
-          </p>
-        </div>
-        <div data-testid="tasks-detail-preview-counts-deps">
-          <p className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-            Dependencies
-          </p>
-          <p className="mt-1 text-lg font-semibold text-[color:var(--color-text-primary)]">
-            {dependencyCount}
-          </p>
-        </div>
-        <div data-testid="tasks-detail-preview-counts-runs">
-          <p className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-            Runs
-          </p>
-          <p className="mt-1 text-lg font-semibold text-[color:var(--color-text-primary)]">
-            {runs.length}
-          </p>
-        </div>
+      <div className="grid gap-4 px-6 py-5 md:grid-cols-3">
+        <MetricPanel
+          label="Children"
+          testId="tasks-detail-preview-counts-children"
+          value={childCount}
+        />
+        <MetricPanel
+          label="Dependencies"
+          testId="tasks-detail-preview-counts-deps"
+          value={dependencyCount}
+        />
+        <MetricPanel label="Runs" testId="tasks-detail-preview-counts-runs" value={runs.length} />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 text-sm text-[color:var(--color-text-secondary)]">
-        {detail?.task.description ? (
-          <p className="whitespace-pre-wrap leading-relaxed">{detail.task.description}</p>
-        ) : (
-          <p className="italic text-[color:var(--color-text-tertiary)]">
-            No description provided. Use the deep-link to view timeline, runs, and dependencies.
-          </p>
-        )}
+      <div className="px-6 pb-6">
+        <Panel data-testid="tasks-detail-preview-overview">
+          <PanelHeader>
+            <PanelTitle>Overview</PanelTitle>
+            <PanelDescription>
+              Open the full detail view for timeline, descendant work, and run history.
+            </PanelDescription>
+          </PanelHeader>
+          <PanelBody className="gap-4">
+            {detail?.task.description ? (
+              <p className="whitespace-pre-wrap text-sm leading-6 text-[color:var(--color-text-secondary)]">
+                {detail.task.description}
+              </p>
+            ) : (
+              <p className="text-sm italic text-[color:var(--color-text-tertiary)]">
+                No description provided yet. Open the full detail view to inspect timeline, runs,
+                and dependencies.
+              </p>
+            )}
+
+            <div className="flex items-center justify-between gap-3 border-t border-[color:var(--color-divider)] pt-4">
+              <div className="text-xs text-[color:var(--color-text-secondary)]">
+                Created by {record.created_by?.ref ?? "unknown"} · origin{" "}
+                {record.origin?.kind ?? "unknown"}
+              </div>
+              <Link
+                className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)] underline-offset-2 hover:underline"
+                data-testid="tasks-detail-preview-deeplink"
+                params={{ id: record.id }}
+                to="/tasks/$id"
+              >
+                Open detail
+              </Link>
+            </div>
+          </PanelBody>
+        </Panel>
       </div>
     </section>
+  );
+}
+
+function MetricPanel({ label, testId, value }: { label: string; testId: string; value: number }) {
+  return (
+    <Panel className="gap-3" data-testid={testId}>
+      <p className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+        {label}
+      </p>
+      <p className="text-2xl font-semibold tracking-[-0.03em] text-[color:var(--color-text-primary)]">
+        {value}
+      </p>
+    </Panel>
   );
 }

@@ -2,6 +2,13 @@ import { Globe, ListChecks, Plus, RefreshCcw, Sparkles, UserCheck, Zap } from "l
 import type { ReactNode } from "react";
 
 import { Pill } from "@/components/design-system";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Button } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
@@ -30,70 +37,70 @@ export function TasksEmptyState({
   const headline = workspaceName ? `No tasks yet in ${workspaceName}` : "No tasks yet";
 
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col items-center justify-start overflow-y-auto px-6 py-10"
-      data-testid="tasks-empty-state"
-    >
-      <div className="flex flex-col items-center text-center">
-        <div className="relative mb-4 flex size-16 items-center justify-center rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] text-[color:var(--color-accent)]">
-          <ListChecks className="size-7" />
-          <span className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]">
-            <Plus className="size-3" />
-          </span>
-        </div>
+    <div className="flex min-h-0 flex-1 overflow-y-auto px-6 py-8" data-testid="tasks-empty-state">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <Empty className="border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-8 py-10">
+          <EmptyHeader className="max-w-2xl">
+            <EmptyMedia className="relative flex size-14 items-center justify-center rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] text-[color:var(--color-accent)]">
+              <ListChecks className="size-6" />
+              <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] text-[color:var(--color-text-primary)]">
+                <Plus className="size-3" />
+              </span>
+            </EmptyMedia>
+            <EmptyTitle className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--color-text-primary)]">
+              {headline}
+            </EmptyTitle>
+            <EmptyDescription className="max-w-xl text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+              Tasks are durable contracts of work. Each one can spawn runs across agents, respect
+              dependencies, and live in workspace or global scope. Start from a template and keep
+              the operational context visible as the queue grows.
+            </EmptyDescription>
+          </EmptyHeader>
 
-        <h2 className="text-2xl font-semibold text-[color:var(--color-text-primary)]">
-          {headline}
-        </h2>
-        <p className="mt-3 max-w-md text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
-          Tasks are durable contracts of work. Each task can spawn multiple runs across agents,
-          respect dependencies, and live in global or workspace scope. Start from a template, or
-          define one from scratch.
-        </p>
-
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <Button
-            data-testid="tasks-empty-cta-new"
-            onClick={() => onSelectTemplate("one_shot")}
-            size="lg"
-            type="button"
-          >
-            <Plus className="size-4" />
-            New task
-          </Button>
-          {onCopyCli ? (
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
             <Button
-              data-testid="tasks-empty-cta-cli"
-              onClick={onCopyCli}
+              data-testid="tasks-empty-cta-new"
+              onClick={() => onSelectTemplate("one_shot")}
               size="lg"
               type="button"
-              variant="outline"
             >
-              Copy CLI command
+              <Plus className="size-4" />
+              New task
             </Button>
-          ) : null}
-        </div>
-      </div>
+            {onCopyCli ? (
+              <Button
+                data-testid="tasks-empty-cta-cli"
+                onClick={onCopyCli}
+                size="lg"
+                type="button"
+                variant="outline"
+              >
+                Copy CLI command
+              </Button>
+            ) : null}
+          </div>
+        </Empty>
 
-      <div className="mt-12 w-full max-w-5xl" data-testid="tasks-empty-templates">
-        <div className="flex items-center justify-between">
-          <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-            Start from a template
-          </p>
-          <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-tertiary)]">
-            {TASK_TEMPLATES.length} templates
-          </p>
-        </div>
+        <section data-testid="tasks-empty-templates">
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
+              Start from a template
+            </p>
+            <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-tertiary)]">
+              {TASK_TEMPLATES.length} templates
+            </p>
+          </div>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {TASK_TEMPLATES.map(template => (
-            <TemplateCard
-              key={template.id}
-              onSelect={() => onSelectTemplate(template.id)}
-              template={template}
-            />
-          ))}
-        </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_1fr_1fr]">
+            {TASK_TEMPLATES.map(template => (
+              <TemplateCard
+                key={template.id}
+                onSelect={() => onSelectTemplate(template.id)}
+                template={template}
+              />
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -110,7 +117,7 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
   return (
     <button
       className={cn(
-        "flex h-full min-h-[140px] flex-col gap-2 rounded-2xl border px-4 py-4 text-left transition-colors",
+        "flex h-full min-h-[156px] flex-col gap-3 rounded-xl border px-5 py-5 text-left transition-colors",
         isBlank
           ? "border-dashed border-[color:rgba(58,58,60,0.6)] hover:border-[color:var(--color-text-label)]"
           : "border-[color:var(--color-divider)] bg-[color:var(--color-surface)] hover:border-[color:var(--color-text-label)]"
@@ -127,7 +134,7 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
           {template.label}
         </span>
       </div>
-      <p className="text-xs leading-relaxed text-[color:var(--color-text-secondary)]">
+      <p className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
         {template.description}
       </p>
       {template.badges.length > 0 ? (

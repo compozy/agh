@@ -14,6 +14,25 @@ import (
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
+var taskTableIndexStatements = []string{
+	`CREATE INDEX IF NOT EXISTS idx_tasks_scope ON tasks(scope);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_workspace ON tasks(workspace_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_approval_state ON tasks(approval_state);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner_kind, owner_ref);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_channel ON tasks(network_channel);`,
+}
+
+var taskEventIndexStatements = []string{
+	`CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, timestamp DESC, id DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_events_run ON task_events(run_id, timestamp DESC, id DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_events_type ON task_events(event_type, timestamp DESC, id DESC);`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_task_events_event_seq ON task_events(event_seq);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_events_task_seq ON task_events(task_id, event_seq ASC);`,
+}
+
 var globalSchemaStatements = append([]string{
 	`CREATE TABLE IF NOT EXISTS workspaces (
 		id            TEXT PRIMARY KEY,
@@ -276,14 +295,14 @@ var globalSchemaStatements = append([]string{
 			(approval_policy = 'manual' AND approval_state IN ('pending', 'approved', 'rejected'))
 		)
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_tasks_scope ON tasks(scope);`,
-	`CREATE INDEX IF NOT EXISTS idx_tasks_workspace ON tasks(workspace_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);`,
-	`CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);`,
-	`CREATE INDEX IF NOT EXISTS idx_tasks_approval_state ON tasks(approval_state);`,
-	`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner_kind, owner_ref);`,
-	`CREATE INDEX IF NOT EXISTS idx_tasks_channel ON tasks(network_channel);`,
+	taskTableIndexStatements[0],
+	taskTableIndexStatements[1],
+	taskTableIndexStatements[2],
+	taskTableIndexStatements[3],
+	taskTableIndexStatements[4],
+	taskTableIndexStatements[5],
+	taskTableIndexStatements[6],
+	taskTableIndexStatements[7],
 	`CREATE TABLE IF NOT EXISTS task_runs (
 		id              TEXT PRIMARY KEY,
 		task_id         TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -337,6 +356,7 @@ var globalSchemaStatements = append([]string{
 	`CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on ON task_dependencies(depends_on_task_id, task_id ASC);`,
 	`CREATE TABLE IF NOT EXISTS task_events (
 		id          TEXT PRIMARY KEY,
+		event_seq   INTEGER NOT NULL,
 		task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 		run_id      TEXT REFERENCES task_runs(id) ON DELETE SET NULL,
 		event_type  TEXT NOT NULL,
@@ -355,9 +375,11 @@ var globalSchemaStatements = append([]string{
 		payload_json TEXT,
 		timestamp   TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, timestamp DESC, id DESC);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_events_run ON task_events(run_id, timestamp DESC, id DESC);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_events_type ON task_events(event_type, timestamp DESC, id DESC);`,
+	taskEventIndexStatements[0],
+	taskEventIndexStatements[1],
+	taskEventIndexStatements[2],
+	taskEventIndexStatements[3],
+	taskEventIndexStatements[4],
 	`CREATE TABLE IF NOT EXISTS task_run_idempotency (
 		idempotency_key TEXT NOT NULL,
 		origin_kind     TEXT NOT NULL CHECK (

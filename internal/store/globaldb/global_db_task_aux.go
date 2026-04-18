@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -138,25 +139,25 @@ func (g *GlobalDB) ListTaskTriageStates(
 			err,
 		)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
 
 	states := make([]taskpkg.TriageState, 0)
 	for rows.Next() {
 		record, scanErr := scanTaskTriageStateRecord(rows)
 		if scanErr != nil {
-			return nil, scanErr
+			return nil, joinRowsCloseError(rows, scanErr, "task triage state query")
 		}
 		states = append(states, record)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf(
+		return nil, joinRowsCloseError(rows, fmt.Errorf(
 			"store: iterate task triage states for actor %q/%q: %w",
 			normalizedActor.Kind,
 			normalizedActor.Ref,
 			err,
-		)
+		), "task triage state query")
+	}
+	if err := joinRowsCloseError(rows, nil, "task triage state query"); err != nil {
+		return nil, err
 	}
 
 	return states, nil
@@ -296,20 +297,24 @@ func (g *GlobalDB) ListDependencies(ctx context.Context, taskID string) ([]taskp
 	if err != nil {
 		return nil, fmt.Errorf("store: query task dependencies for %q: %w", trimmedTaskID, err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
 
 	dependencies := make([]taskpkg.Dependency, 0)
 	for rows.Next() {
 		record, scanErr := scanTaskDependencyRecord(rows)
 		if scanErr != nil {
-			return nil, scanErr
+			return nil, joinRowsCloseError(rows, scanErr, "task dependency query")
 		}
 		dependencies = append(dependencies, record)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate task dependencies for %q: %w", trimmedTaskID, err)
+		return nil, joinRowsCloseError(
+			rows,
+			fmt.Errorf("store: iterate task dependencies for %q: %w", trimmedTaskID, err),
+			"task dependency query",
+		)
+	}
+	if err := joinRowsCloseError(rows, nil, "task dependency query"); err != nil {
+		return nil, err
 	}
 
 	return dependencies, nil
@@ -337,20 +342,24 @@ func (g *GlobalDB) ListDependents(ctx context.Context, dependsOnTaskID string) (
 	if err != nil {
 		return nil, fmt.Errorf("store: query task dependents for %q: %w", trimmedDependsOnID, err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
 
 	dependents := make([]taskpkg.Dependency, 0)
 	for rows.Next() {
 		record, scanErr := scanTaskDependencyRecord(rows)
 		if scanErr != nil {
-			return nil, scanErr
+			return nil, joinRowsCloseError(rows, scanErr, "task dependent query")
 		}
 		dependents = append(dependents, record)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate task dependents for %q: %w", trimmedDependsOnID, err)
+		return nil, joinRowsCloseError(
+			rows,
+			fmt.Errorf("store: iterate task dependents for %q: %w", trimmedDependsOnID, err),
+			"task dependent query",
+		)
+	}
+	if err := joinRowsCloseError(rows, nil, "task dependent query"); err != nil {
+		return nil, err
 	}
 
 	return dependents, nil
@@ -398,44 +407,52 @@ func (g *GlobalDB) CreateTaskEvent(ctx context.Context, event taskpkg.Event) err
 	if err != nil {
 		return err
 	}
-	if err := g.ensureTaskExists(ctx, normalized.TaskID); err != nil {
-		return err
-	}
-	if strings.TrimSpace(normalized.RunID) != "" {
-		run, err := g.getTaskRunWithExecutor(ctx, g.db, normalized.RunID)
+
+	return g.withTaskImmediateTransaction(ctx, "create task event", func(exec taskSQLExecutor) error {
+		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
+			return err
+		}
+		if strings.TrimSpace(normalized.RunID) != "" {
+			run, err := g.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(run.TaskID) != normalized.TaskID {
+				return fmt.Errorf(
+					"%w: task_event.run_id %q does not belong to task %q",
+					taskpkg.ErrValidation,
+					normalized.RunID,
+					normalized.TaskID,
+				)
+			}
+		}
+
+		nextSequence, err := nextTaskEventSequenceWithExecutor(ctx, exec)
 		if err != nil {
 			return err
 		}
-		if strings.TrimSpace(run.TaskID) != normalized.TaskID {
-			return fmt.Errorf(
-				"%w: task_event.run_id %q does not belong to task %q",
-				taskpkg.ErrValidation,
-				normalized.RunID,
-				normalized.TaskID,
-			)
+		if _, err := exec.ExecContext(
+			ctx,
+			`INSERT INTO task_events (
+				event_seq, id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			nextSequence,
+			normalized.ID,
+			normalized.TaskID,
+			store.NullableString(normalized.RunID),
+			normalized.EventType,
+			string(normalized.Actor.Kind),
+			normalized.Actor.Ref,
+			string(normalized.Origin.Kind),
+			normalized.Origin.Ref,
+			nullableTaskJSON(normalized.Payload),
+			store.FormatTimestamp(normalized.Timestamp),
+		); err != nil {
+			return fmt.Errorf("store: create task event %q: %w", normalized.ID, err)
 		}
-	}
 
-	if _, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO task_events (
-			id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		normalized.ID,
-		normalized.TaskID,
-		store.NullableString(normalized.RunID),
-		normalized.EventType,
-		string(normalized.Actor.Kind),
-		normalized.Actor.Ref,
-		string(normalized.Origin.Kind),
-		normalized.Origin.Ref,
-		nullableTaskJSON(normalized.Payload),
-		store.FormatTimestamp(normalized.Timestamp),
-	); err != nil {
-		return fmt.Errorf("store: create task event %q: %w", normalized.ID, err)
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // ListTaskEvents returns persisted audit events that match the supplied filters.
@@ -464,20 +481,20 @@ func (g *GlobalDB) ListTaskEvents(ctx context.Context, query taskpkg.EventQuery)
 	if err != nil {
 		return nil, fmt.Errorf("store: query task events: %w", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
 
 	events := make([]taskpkg.Event, 0)
 	for rows.Next() {
 		event, scanErr := scanTaskEventRecord(rows)
 		if scanErr != nil {
-			return nil, scanErr
+			return nil, joinRowsCloseError(rows, scanErr, "task event query")
 		}
 		events = append(events, event)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate task events: %w", err)
+		return nil, joinRowsCloseError(rows, fmt.Errorf("store: iterate task events: %w", err), "task event query")
+	}
+	if err := joinRowsCloseError(rows, nil, "task event query"); err != nil {
+		return nil, err
 	}
 
 	return events, nil
@@ -497,7 +514,7 @@ func (g *GlobalDB) GetTaskEventRecord(ctx context.Context, eventID string) (task
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT
-			rowid, id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
+			event_seq, id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
 		 FROM task_events
 		 WHERE id = ?`,
 		trimmedEventID,
@@ -526,38 +543,221 @@ func (g *GlobalDB) ListTaskEventRecords(
 	}
 
 	sqlQuery := `SELECT
-		rowid, id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
+		event_seq, id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
 		FROM task_events
 		WHERE task_id = ?`
 	args := []any{strings.TrimSpace(query.TaskID)}
 	if query.AfterSequence > 0 {
-		sqlQuery += " AND rowid > ?"
+		sqlQuery += " AND event_seq > ?"
 		args = append(args, query.AfterSequence)
 	}
-	sqlQuery += " ORDER BY rowid ASC"
+	sqlQuery += " ORDER BY event_seq ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query task event records: %w", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
 
 	records := make([]taskpkg.EventRecord, 0)
 	for rows.Next() {
 		record, scanErr := scanTaskEventRecordWithSequence(rows)
 		if scanErr != nil {
-			return nil, scanErr
+			return nil, joinRowsCloseError(rows, scanErr, "task event record query")
 		}
 		records = append(records, record)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate task event records: %w", err)
+		return nil, joinRowsCloseError(
+			rows,
+			fmt.Errorf("store: iterate task event records: %w", err),
+			"task event record query",
+		)
+	}
+	if err := joinRowsCloseError(rows, nil, "task event record query"); err != nil {
+		return nil, err
 	}
 
 	return records, nil
+}
+
+// ReserveQueuedRun atomically allocates one queued run attempt and optional idempotency binding.
+func (g *GlobalDB) ReserveQueuedRun(
+	ctx context.Context,
+	taskID string,
+	runID string,
+	idempotencyKey string,
+	origin taskpkg.Origin,
+	requestedChannel string,
+	queuedAt time.Time,
+) (taskpkg.Task, taskpkg.Run, bool, error) {
+	if err := g.checkReady(ctx, "reserve queued task run"); err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+
+	trimmedTaskID, err := requireTaskValue(taskID, "task id")
+	if err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+	trimmedRunID, err := requireTaskValue(runID, "task run id")
+	if err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+	normalizedOrigin := taskpkg.Origin{
+		Kind: origin.Kind.Normalize(),
+		Ref:  strings.TrimSpace(origin.Ref),
+	}
+	if err := normalizedOrigin.Validate("task_run.origin"); err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+	trimmedKey := strings.TrimSpace(idempotencyKey)
+	normalizedQueuedAt := queuedAt.UTC()
+	if normalizedQueuedAt.IsZero() {
+		normalizedQueuedAt = g.now()
+	}
+
+	var reservedTask taskpkg.Task
+	var reservedRun taskpkg.Run
+	var existing bool
+	if err := g.withTaskImmediateTransaction(ctx, "reserve queued task run", func(exec taskSQLExecutor) error {
+		taskRecord, err := g.getTaskWithExecutor(ctx, exec, trimmedTaskID)
+		if err != nil {
+			return err
+		}
+		if err := validateTaskForQueuedRunReservation(taskRecord); err != nil {
+			return err
+		}
+
+		if trimmedKey != "" {
+			current, err := getTaskRunIdempotencyRecord(ctx, exec, trimmedKey, normalizedOrigin)
+			switch {
+			case err == nil:
+				run, err := g.getTaskRunWithExecutor(ctx, exec, current.RunID)
+				if err != nil {
+					return err
+				}
+				if strings.TrimSpace(run.TaskID) != trimmedTaskID {
+					return fmt.Errorf(
+						"%w: idempotency key %q is already bound to task %q",
+						taskpkg.ErrValidation,
+						trimmedKey,
+						run.TaskID,
+					)
+				}
+				reservedTask = taskRecord
+				reservedRun = run
+				existing = true
+				return nil
+			case !errors.Is(err, taskpkg.ErrTaskRunIdempotencyNotFound):
+				return err
+			}
+		}
+
+		nextAttempt, err := nextTaskRunAttemptWithExecutor(ctx, exec, taskRecord)
+		if err != nil {
+			return err
+		}
+
+		run := taskpkg.Run{
+			ID:             trimmedRunID,
+			TaskID:         taskRecord.ID,
+			Status:         taskpkg.TaskRunStatusQueued,
+			Attempt:        nextAttempt,
+			Origin:         normalizedOrigin,
+			IdempotencyKey: trimmedKey,
+			NetworkChannel: resolveStoredRunChannel(requestedChannel, taskRecord.NetworkChannel),
+			QueuedAt:       normalizedQueuedAt,
+		}
+		normalizedRun, err := g.normalizeTaskRunForCreate(run)
+		if err != nil {
+			return err
+		}
+		if _, err := exec.ExecContext(
+			ctx,
+			`INSERT INTO task_runs (
+				id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
+				idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, result_json
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			normalizedRun.ID,
+			normalizedRun.TaskID,
+			string(normalizedRun.Status),
+			normalizedRun.Attempt,
+			taskActorKindValue(normalizedRun.ClaimedBy),
+			taskActorRefValue(normalizedRun.ClaimedBy),
+			store.NullableString(normalizedRun.SessionID),
+			string(normalizedRun.Origin.Kind),
+			normalizedRun.Origin.Ref,
+			store.NullableString(normalizedRun.IdempotencyKey),
+			store.NullableString(normalizedRun.NetworkChannel),
+			store.FormatTimestamp(normalizedRun.QueuedAt),
+			nullableTaskTimestamp(normalizedRun.ClaimedAt),
+			nullableTaskTimestamp(normalizedRun.StartedAt),
+			nullableTaskTimestamp(normalizedRun.EndedAt),
+			store.NullableString(normalizedRun.Error),
+			nullableTaskJSON(normalizedRun.Result),
+		); err != nil {
+			return fmt.Errorf("store: create task run %q: %w", normalizedRun.ID, err)
+		}
+
+		if trimmedKey != "" {
+			idempotency := taskpkg.RunIdempotency{
+				IdempotencyKey: trimmedKey,
+				RunID:          normalizedRun.ID,
+				Origin:         normalizedOrigin,
+				CreatedAt:      normalizedQueuedAt,
+			}
+			normalizedID, err := g.normalizeTaskRunIdempotencyForCreate(idempotency)
+			if err != nil {
+				return err
+			}
+			result, err := exec.ExecContext(
+				ctx,
+				`INSERT INTO task_run_idempotency (
+					idempotency_key, origin_kind, origin_ref, run_id, created_at
+				) VALUES (?, ?, ?, ?, ?)
+				ON CONFLICT(idempotency_key, origin_kind, origin_ref) DO NOTHING`,
+				normalizedID.IdempotencyKey,
+				string(normalizedID.Origin.Kind),
+				normalizedID.Origin.Ref,
+				normalizedID.RunID,
+				store.FormatTimestamp(normalizedID.CreatedAt),
+			)
+			if err != nil {
+				return fmt.Errorf("store: save task run idempotency %q: %w", normalizedID.IdempotencyKey, err)
+			}
+			rowsAffected, err := result.RowsAffected()
+			if err != nil {
+				return fmt.Errorf(
+					"store: rows affected for task run idempotency %q: %w",
+					normalizedID.IdempotencyKey,
+					err,
+				)
+			}
+			if rowsAffected == 0 {
+				current, err := getTaskRunIdempotencyRecord(ctx, exec, normalizedID.IdempotencyKey, normalizedID.Origin)
+				if err != nil {
+					return err
+				}
+				if current.RunID != normalizedID.RunID {
+					return fmt.Errorf(
+						"%w: idempotency key %q is already bound to run %q",
+						taskpkg.ErrValidation,
+						normalizedID.IdempotencyKey,
+						current.RunID,
+					)
+				}
+			}
+		}
+
+		reservedTask = taskRecord
+		reservedRun = normalizedRun
+		existing = false
+		return nil
+	}); err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+
+	return reservedTask, reservedRun, existing, nil
 }
 
 // GetTaskRunByIdempotencyKey returns the original persisted run bound to one origin-scoped idempotency key.
@@ -797,6 +997,75 @@ func (g *GlobalDB) getTaskRunWithExecutor(
 	return run, nil
 }
 
+func (g *GlobalDB) getTaskWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskID string,
+) (taskpkg.Task, error) {
+	trimmedTaskID, err := requireTaskValue(taskID, "task id")
+	if err != nil {
+		return taskpkg.Task{}, err
+	}
+
+	row := exec.QueryRowContext(
+		ctx,
+		`SELECT
+			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+			priority, max_attempts, status, approval_policy, approval_state,
+			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
+			created_at, updated_at, closed_at, metadata_json
+		 FROM tasks
+		 WHERE id = ?`,
+		trimmedTaskID,
+	)
+
+	record, err := scanTaskRecord(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return taskpkg.Task{}, taskpkg.ErrTaskNotFound
+		}
+		return taskpkg.Task{}, err
+	}
+	return record, nil
+}
+
+func nextTaskEventSequenceWithExecutor(ctx context.Context, exec taskSQLExecutor) (int64, error) {
+	var current int64
+	if err := exec.QueryRowContext(
+		ctx,
+		`SELECT COALESCE(MAX(event_seq), 0) FROM task_events`,
+	).Scan(&current); err != nil {
+		return 0, fmt.Errorf("store: query next task event sequence: %w", err)
+	}
+	return current + 1, nil
+}
+
+func nextTaskRunAttemptWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskRecord taskpkg.Task,
+) (int, error) {
+	var current int
+	if err := exec.QueryRowContext(
+		ctx,
+		`SELECT COALESCE(MAX(attempt), 0) FROM task_runs WHERE task_id = ?`,
+		taskRecord.ID,
+	).Scan(&current); err != nil {
+		return 0, fmt.Errorf("store: query next task run attempt for %q: %w", taskRecord.ID, err)
+	}
+	nextAttempt := current + 1
+	maxAttempts := normalizeStoredTaskMaxAttempts(taskRecord.MaxAttempts)
+	if nextAttempt > maxAttempts {
+		return 0, fmt.Errorf(
+			"%w: task %q exhausted max_attempts=%d",
+			taskpkg.ErrInvalidStatusTransition,
+			taskRecord.ID,
+			maxAttempts,
+		)
+	}
+	return nextAttempt, nil
+}
+
 func (g *GlobalDB) countDependenciesWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -892,6 +1161,45 @@ func getTaskRunIdempotencyRecord(
 		return taskpkg.RunIdempotency{}, err
 	}
 	return record, nil
+}
+
+func joinRowsCloseError(rows *sql.Rows, base error, context string) error {
+	closeErr := rows.Close()
+	switch {
+	case base != nil && closeErr != nil:
+		return errors.Join(base, fmt.Errorf("store: close %s rows: %w", context, closeErr))
+	case base != nil:
+		return base
+	case closeErr != nil:
+		return fmt.Errorf("store: close %s rows: %w", context, closeErr)
+	default:
+		return nil
+	}
+}
+
+func validateTaskForQueuedRunReservation(taskRecord taskpkg.Task) error {
+	switch taskRecord.Status.Normalize() {
+	case taskpkg.TaskStatusDraft:
+		return fmt.Errorf("%w: task %q is draft", taskpkg.ErrInvalidStatusTransition, taskRecord.ID)
+	case taskpkg.TaskStatusCanceled:
+		return fmt.Errorf("%w: task %q is canceled", taskpkg.ErrInvalidStatusTransition, taskRecord.ID)
+	default:
+		return nil
+	}
+}
+
+func normalizeStoredTaskMaxAttempts(maxAttempts int) int {
+	if maxAttempts <= 0 {
+		return taskpkg.DefaultTaskMaxAttempts
+	}
+	return maxAttempts
+}
+
+func resolveStoredRunChannel(requested string, taskChannel string) string {
+	if strings.TrimSpace(requested) != "" {
+		return strings.TrimSpace(requested)
+	}
+	return strings.TrimSpace(taskChannel)
 }
 
 func normalizeTaskTriageLookup(

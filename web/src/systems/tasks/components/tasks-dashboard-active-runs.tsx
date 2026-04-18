@@ -21,7 +21,7 @@ export function TasksDashboardActiveRuns({
 
   return (
     <section
-      className="flex flex-col gap-3 rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] p-4"
+      className="flex flex-col gap-3 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
       data-testid="tasks-dashboard-active-runs"
     >
       <div className="flex items-center justify-between gap-2">

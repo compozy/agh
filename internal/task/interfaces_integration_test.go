@@ -5,6 +5,7 @@ package task_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
@@ -61,6 +62,32 @@ func (fakeStore) ListTaskRuns(context.Context, taskpkg.RunQuery) ([]taskpkg.Run,
 
 func (fakeStore) ListTaskRunsByStatus(context.Context, []taskpkg.RunStatus) ([]taskpkg.Run, error) {
 	return []taskpkg.Run{{ID: "run-1", TaskID: "task-1", Status: taskpkg.TaskRunStatusQueued, Attempt: 1}}, nil
+}
+
+func (fakeStore) ReserveQueuedRun(
+	context.Context,
+	string,
+	string,
+	string,
+	taskpkg.Origin,
+	string,
+	time.Time,
+) (taskpkg.Task, taskpkg.Run, bool, error) {
+	return taskpkg.Task{
+			ID:             "task-1",
+			Scope:          taskpkg.ScopeGlobal,
+			Title:          "bootstrap",
+			Priority:       taskpkg.PriorityMedium,
+			MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+			Status:         taskpkg.TaskStatusReady,
+			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+			ApprovalState:  taskpkg.ApprovalStatePending,
+		}, taskpkg.Run{
+			ID:      "run-1",
+			TaskID:  "task-1",
+			Status:  taskpkg.TaskRunStatusQueued,
+			Attempt: 1,
+		}, false, nil
 }
 
 func (fakeStore) GetTaskTriageState(context.Context, string, taskpkg.ActorIdentity) (taskpkg.TriageState, error) {

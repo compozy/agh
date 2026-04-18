@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -91,6 +92,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 	})
 	assertTableColumns(t, globalDB.db, "task_events", []string{
 		"id",
+		"event_seq",
 		"task_id",
 		"run_id",
 		"event_type",
@@ -137,6 +139,8 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_task_events_task",
 		"idx_task_events_run",
 		"idx_task_events_type",
+		"uq_task_events_event_seq",
+		"idx_task_events_task_seq",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_run_idempotency",
 		"idx_task_run_idempotency_run",
@@ -581,6 +585,103 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	}
 }
 
+func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	taskRecord := taskRecordForTest("task-run-reserve-idempotent")
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"}
+	queuedAt := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+	type reserveResult struct {
+		task     taskpkg.Task
+		run      taskpkg.Run
+		existing bool
+		err      error
+	}
+
+	results := make([]reserveResult, 2)
+	runIDs := []string{"run-reserved-a", "run-reserved-b"}
+	var wg sync.WaitGroup
+	wg.Add(len(results))
+	for idx := range results {
+		go func(i int) {
+			defer wg.Done()
+			taskCopy, runCopy, existing, err := globalDB.ReserveQueuedRun(
+				ctx,
+				taskRecord.ID,
+				runIDs[i],
+				"dup-key",
+				origin,
+				"ops",
+				queuedAt,
+			)
+			results[i] = reserveResult{
+				task:     taskCopy,
+				run:      runCopy,
+				existing: existing,
+				err:      err,
+			}
+		}(idx)
+	}
+	wg.Wait()
+
+	for idx, result := range results {
+		if result.err != nil {
+			t.Fatalf("ReserveQueuedRun(%d) error = %v", idx, result.err)
+		}
+		if got, want := result.task.ID, taskRecord.ID; got != want {
+			t.Fatalf("ReserveQueuedRun(%d) task id = %q, want %q", idx, got, want)
+		}
+		if got, want := result.run.TaskID, taskRecord.ID; got != want {
+			t.Fatalf("ReserveQueuedRun(%d) run task id = %q, want %q", idx, got, want)
+		}
+		if got, want := result.run.IdempotencyKey, "dup-key"; got != want {
+			t.Fatalf("ReserveQueuedRun(%d) idempotency key = %q, want %q", idx, got, want)
+		}
+		if got, want := result.run.Attempt, 1; got != want {
+			t.Fatalf("ReserveQueuedRun(%d) attempt = %d, want %d", idx, got, want)
+		}
+	}
+
+	if results[0].run.ID != results[1].run.ID {
+		t.Fatalf("ReserveQueuedRun() run ids = [%q %q], want same run", results[0].run.ID, results[1].run.ID)
+	}
+
+	existingCount := 0
+	for _, result := range results {
+		if result.existing {
+			existingCount++
+		}
+	}
+	if got, want := existingCount, 1; got != want {
+		t.Fatalf("existing result count = %d, want %d", got, want)
+	}
+
+	runs, err := globalDB.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskRuns() error = %v", err)
+	}
+	if got, want := len(runs), 1; got != want {
+		t.Fatalf("len(ListTaskRuns()) = %d, want %d", got, want)
+	}
+	if got, want := runs[0].ID, results[0].run.ID; got != want {
+		t.Fatalf("stored run id = %q, want %q", got, want)
+	}
+
+	storedRun, err := globalDB.GetTaskRunByIdempotencyKey(ctx, "dup-key", origin)
+	if err != nil {
+		t.Fatalf("GetTaskRunByIdempotencyKey() error = %v", err)
+	}
+	if got, want := storedRun.ID, results[0].run.ID; got != want {
+		t.Fatalf("GetTaskRunByIdempotencyKey() id = %q, want %q", got, want)
+	}
+}
+
 func TestGlobalDBUpdateTaskRunRejectsSessionRebinding(t *testing.T) {
 	t.Parallel()
 
@@ -844,7 +945,7 @@ func TestGlobalDBListTaskTriageStatesFiltersByActorAndOrdersByUpdate(t *testing.
 	}, []string{
 		secondTask.ID,
 		firstTask.ID,
-	}; !equalStringSlices(
+	}; !testutil.EqualStringSlices(
 		got,
 		want,
 	) {
@@ -947,6 +1048,16 @@ func TestOpenGlobalDBMigratesLegacyTaskSchemaAndPreservesRows(t *testing.T) {
 			t.Fatalf("Close() error = %v", err)
 		}
 	})
+	assertIndexesPresent(t, globalDB.db, "tasks",
+		"idx_tasks_scope",
+		"idx_tasks_workspace",
+		"idx_tasks_status",
+		"idx_tasks_priority",
+		"idx_tasks_approval_state",
+		"idx_tasks_parent",
+		"idx_tasks_owner",
+		"idx_tasks_channel",
+	)
 
 	stored, err := globalDB.GetTask(ctx, "legacy-task-1")
 	if err != nil {
@@ -979,6 +1090,143 @@ func TestOpenGlobalDBMigratesLegacyTaskSchemaAndPreservesRows(t *testing.T) {
 		t.Fatalf("GetTask(updated) error = %v", err)
 	}
 	assertTaskEqual(t, updated, stored)
+}
+
+func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	if _, err := legacyDB.ExecContext(ctx, `CREATE TABLE tasks (
+		id TEXT PRIMARY KEY,
+		identifier TEXT,
+		scope TEXT NOT NULL,
+		workspace_id TEXT,
+		parent_task_id TEXT,
+		network_channel TEXT,
+		title TEXT NOT NULL,
+		description TEXT,
+		status TEXT NOT NULL,
+		owner_kind TEXT,
+		owner_ref TEXT,
+		created_by_kind TEXT NOT NULL,
+		created_by_ref TEXT NOT NULL,
+		origin_kind TEXT NOT NULL,
+		origin_ref TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		closed_at TEXT,
+		metadata_json TEXT
+	)`); err != nil {
+		t.Fatalf("create legacy tasks table error = %v", err)
+	}
+	if _, err := legacyDB.ExecContext(ctx, `CREATE TABLE task_events (
+		id TEXT PRIMARY KEY,
+		task_id TEXT NOT NULL,
+		run_id TEXT,
+		event_type TEXT NOT NULL,
+		actor_kind TEXT NOT NULL,
+		actor_ref TEXT NOT NULL,
+		origin_kind TEXT NOT NULL,
+		origin_ref TEXT NOT NULL,
+		payload_json TEXT,
+		timestamp TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy task_events table error = %v", err)
+	}
+	if _, err := legacyDB.ExecContext(ctx, `INSERT INTO tasks (
+		id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description, status,
+		owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
+		created_at, updated_at, closed_at, metadata_json
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"legacy-task-events",
+		nil,
+		string(taskpkg.ScopeGlobal),
+		nil,
+		nil,
+		nil,
+		"Legacy event task",
+		nil,
+		string(taskpkg.TaskStatusReady),
+		nil,
+		nil,
+		string(taskpkg.ActorKindHuman),
+		"user:alice",
+		string(taskpkg.OriginKindCLI),
+		"cli",
+		"2026-04-14T12:00:00.000000000Z",
+		"2026-04-14T12:00:00.000000000Z",
+		nil,
+		nil,
+	); err != nil {
+		t.Fatalf("insert legacy task error = %v", err)
+	}
+	for _, args := range [][]any{
+		{"evt-1", "legacy-task-events", nil, "task.created", string(taskpkg.ActorKindHuman), "user:alice", string(taskpkg.OriginKindCLI), "cli", nil, "2026-04-14T12:00:00.000000000Z"},
+		{"evt-2", "legacy-task-events", nil, "task.updated", string(taskpkg.ActorKindHuman), "user:alice", string(taskpkg.OriginKindCLI), "cli", nil, "2026-04-14T12:05:00.000000000Z"},
+	} {
+		if _, err := legacyDB.ExecContext(ctx, `INSERT INTO task_events (
+			id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, args...); err != nil {
+			t.Fatalf("insert legacy task event error = %v", err)
+		}
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("legacyDB.Close() error = %v", err)
+	}
+
+	globalDB, err := OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	assertTableColumns(t, globalDB.db, "task_events", []string{
+		"id",
+		"task_id",
+		"run_id",
+		"event_type",
+		"actor_kind",
+		"actor_ref",
+		"origin_kind",
+		"origin_ref",
+		"payload_json",
+		"timestamp",
+		"event_seq",
+	})
+	assertIndexesPresent(t, globalDB.db, "task_events",
+		"uq_task_events_event_seq",
+		"idx_task_events_task_seq",
+	)
+
+	record, err := globalDB.GetTaskEventRecord(ctx, "evt-2")
+	if err != nil {
+		t.Fatalf("GetTaskEventRecord() error = %v", err)
+	}
+	if got, want := record.Sequence, int64(2); got != want {
+		t.Fatalf("record.Sequence = %d, want %d", got, want)
+	}
+
+	records, err := globalDB.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{
+		TaskID:        "legacy-task-events",
+		AfterSequence: 0,
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("ListTaskEventRecords() error = %v", err)
+	}
+	if got, want := []int64{records[0].Sequence, records[1].Sequence}, []int64{1, 2}; got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("record sequences = %#v, want %#v", got, want)
+	}
 }
 
 func taskRecordForTest(id string) taskpkg.Task {
@@ -1143,18 +1391,6 @@ func orderedTaskSummaryIDs(summaries []taskpkg.Summary) []string {
 		ids = append(ids, summary.ID)
 	}
 	return ids
-}
-
-func equalStringSlices(left []string, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for idx := range left {
-		if left[idx] != right[idx] {
-			return false
-		}
-	}
-	return true
 }
 
 func sqlNullStringForTest(value string) sql.NullString {

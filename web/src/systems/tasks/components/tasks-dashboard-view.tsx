@@ -1,5 +1,13 @@
 import { AlertCircle, Loader2 } from "lucide-react";
 
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+
 import { formatRelativeTime } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
 import { TasksDashboardActiveRuns } from "./tasks-dashboard-active-runs";
@@ -46,12 +54,25 @@ export function TasksDashboardView({
   if (!dashboard) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10 text-center"
+        className="flex min-h-0 flex-1 items-center justify-center px-6 py-8"
         data-testid="tasks-dashboard-empty"
       >
-        <p className="max-w-md text-sm text-[color:var(--color-text-secondary)]">
-          No dashboard data yet. Create or run tasks to see queue depth, health, and activity.
-        </p>
+        <Empty className="max-w-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-8 py-10">
+          <EmptyHeader className="gap-4">
+            <EmptyMedia className="flex size-12 items-center justify-center rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] text-[color:var(--color-accent)]">
+              <AlertCircle className="size-5" />
+            </EmptyMedia>
+            <div className="space-y-2">
+              <EmptyTitle className="text-base font-semibold text-[color:var(--color-text-primary)]">
+                No dashboard data yet
+              </EmptyTitle>
+              <EmptyDescription className="max-w-md text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+                Create or run tasks to see queue depth, health, freshness, and live work in one
+                place.
+              </EmptyDescription>
+            </div>
+          </EmptyHeader>
+        </Empty>
       </div>
     );
   }

@@ -50,7 +50,7 @@ export function TaskCard({
     <button
       aria-pressed={selected}
       className={cn(
-        "relative block w-full border-b border-[color:rgba(58,58,60,0.45)] px-4 py-3 text-left transition-colors",
+        "relative block w-full border-b border-[color:rgba(58,58,60,0.32)] px-4 py-3.5 text-left transition-colors",
         "hover:bg-[color:var(--color-surface)]",
         selected && "bg-[color:var(--color-surface)]"
       )}
@@ -71,11 +71,11 @@ export function TaskCard({
         </span>
       </div>
 
-      <p className="mt-1 truncate text-sm font-medium text-[color:var(--color-text-primary)]">
+      <p className="mt-1.5 truncate text-[0.96rem] font-medium text-[color:var(--color-text-primary)]">
         {task.title}
       </p>
 
-      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[color:var(--color-text-secondary)]">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[color:var(--color-text-secondary)]">
         <span data-testid={`task-card-owner-${task.id}`}>{ownerLabel}</span>
         {activeRun ? (
           <span data-testid={`task-card-attempt-${task.id}`}>
@@ -109,7 +109,7 @@ export function TaskCard({
         </p>
       ) : null}
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <Pill kind="state" tone={taskStatusTone(task.status)}>
           {taskStatusLabel(task.status)}
         </Pill>
@@ -126,7 +126,7 @@ export function TaskCard({
         {isDraft && onPublish ? (
           <button
             aria-label={`Publish ${task.title}`}
-            className="ml-auto rounded-full border border-[color:var(--color-accent)] px-2.5 py-0.5 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-accent)] transition-colors hover:bg-[color:var(--color-accent-tint)] disabled:opacity-50"
+            className="ml-auto rounded-lg border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] transition-colors hover:border-[color:var(--color-text-label)] hover:text-[color:var(--color-text-primary)] disabled:opacity-50"
             data-testid={`task-card-publish-${task.id}`}
             disabled={isPublishPending}
             onClick={event => {
@@ -149,7 +149,7 @@ export function TaskCard({
         {task.status === "failed" && onRetry ? (
           <button
             aria-label={`Retry ${task.title}`}
-            className="ml-auto rounded-full border border-[color:var(--color-accent)] px-2.5 py-0.5 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-accent)] transition-colors hover:bg-[color:var(--color-accent-tint)]"
+            className="ml-auto rounded-lg border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] transition-colors hover:border-[color:var(--color-text-label)] hover:text-[color:var(--color-text-primary)]"
             data-testid={`task-card-retry-${task.id}`}
             onClick={event => {
               event.stopPropagation();

@@ -1,5 +1,12 @@
 import { AlertCircle, Loader2, Search } from "lucide-react";
 
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Input } from "@agh/ui";
 
 import type { InboxLaneFilter } from "@/hooks/routes/use-tasks-page";
@@ -76,11 +83,11 @@ export function TasksInboxView({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-inbox-view">
       <TasksInboxLaneTabs inbox={inbox} onChange={onLaneChange} value={laneFilter} />
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--color-divider)] px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--color-divider)] px-4 py-3">
         <div className="relative flex-1 min-w-[220px]">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--color-text-tertiary)]" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--color-text-tertiary)]" />
           <Input
-            className="pl-8"
+            className="h-10 border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] pl-9"
             data-testid="tasks-inbox-search"
             onChange={event => onSearchChange(event.target.value)}
             placeholder="Search inbox..."
@@ -127,10 +134,25 @@ export function TasksInboxView({
           </div>
         ) : groups.length === 0 ? (
           <div
-            className="flex min-h-full items-center justify-center py-10 text-center text-sm text-[color:var(--color-text-secondary)]"
+            className="flex min-h-full items-center justify-center py-10"
             data-testid="tasks-inbox-empty"
           >
-            Nothing waiting in the inbox.
+            <Empty className="max-w-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-8 py-10">
+              <EmptyHeader className="gap-4">
+                <EmptyMedia className="flex size-12 items-center justify-center rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] text-[color:var(--color-accent)]">
+                  <Search className="size-5" />
+                </EmptyMedia>
+                <div className="space-y-2">
+                  <EmptyTitle className="text-base font-semibold text-[color:var(--color-text-primary)]">
+                    Nothing is waiting in the inbox
+                  </EmptyTitle>
+                  <EmptyDescription className="max-w-md text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+                    Approval requests, failed runs, blockers, and archived items will appear here as
+                    work progresses.
+                  </EmptyDescription>
+                </div>
+              </EmptyHeader>
+            </Empty>
           </div>
         ) : (
           <div className="flex flex-col gap-6">

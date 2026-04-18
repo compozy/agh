@@ -102,6 +102,11 @@ export function TasksDetailHeader({
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Link params={{ id: record.id }} to="/tasks/$id/edit">
+            <Button data-testid="tasks-detail-edit" size="sm" type="button" variant="outline">
+              Edit
+            </Button>
+          </Link>
           {canCancel && onCancel ? (
             <Button
               data-testid="tasks-detail-cancel"

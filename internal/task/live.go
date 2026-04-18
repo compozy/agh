@@ -27,6 +27,7 @@ type taskStreamSubscriber struct {
 	id        uint64
 	taskID    string
 	deliver   chan StreamEvent
+	done      chan struct{}
 	out       chan StreamEvent
 	closeOnce sync.Once
 }
@@ -36,12 +37,15 @@ func newTaskStreamSubscriber(id uint64, taskID string) *taskStreamSubscriber {
 		id:      id,
 		taskID:  taskID,
 		deliver: make(chan StreamEvent, taskStreamBufferSize),
+		done:    make(chan struct{}),
 		out:     make(chan StreamEvent),
 	}
 }
 
 func (s *taskStreamSubscriber) enqueue(event StreamEvent) bool {
 	select {
+	case <-s.done:
+		return false
 	case s.deliver <- event:
 		return true
 	default:
@@ -51,7 +55,7 @@ func (s *taskStreamSubscriber) enqueue(event StreamEvent) bool {
 
 func (s *taskStreamSubscriber) stop() {
 	s.closeOnce.Do(func() {
-		close(s.deliver)
+		close(s.done)
 	})
 }
 
@@ -632,10 +636,9 @@ func (m *Service) runTaskStreamSubscriber(
 		select {
 		case <-ctx.Done():
 			return
-		case event, ok := <-subscriber.deliver:
-			if !ok {
-				return
-			}
+		case <-subscriber.done:
+			return
+		case event := <-subscriber.deliver:
 			if !emit(event) {
 				return
 			}

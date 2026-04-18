@@ -1270,29 +1270,20 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 		return nil, err
 	}
 
-	taskRecord, existingRun, nextAttempt, err := m.prepareEnqueueRun(ctx, normalizedSpec, actor)
+	_, run, existing, err := m.store.ReserveQueuedRun(
+		ctx,
+		normalizedSpec.TaskID,
+		m.newID("run"),
+		normalizedSpec.IdempotencyKey,
+		actor.Origin,
+		normalizedSpec.NetworkChannel,
+		m.now().UTC(),
+	)
 	if err != nil {
 		return nil, err
 	}
-	if existingRun != nil {
-		return existingRun, nil
-	}
-
-	run := Run{
-		ID:             m.newID("run"),
-		TaskID:         normalizedSpec.TaskID,
-		Status:         TaskRunStatusQueued,
-		Attempt:        nextAttempt,
-		Origin:         actor.Origin,
-		IdempotencyKey: normalizedSpec.IdempotencyKey,
-		NetworkChannel: resolvedRunChannel(normalizedSpec.NetworkChannel, taskRecord.NetworkChannel),
-		QueuedAt:       m.now().UTC(),
-	}
-	if err := m.store.CreateTaskRun(ctx, run); err != nil {
-		return nil, err
-	}
-	if err := m.saveRunIdempotency(ctx, run, actor.Origin); err != nil {
-		return nil, err
+	if existing {
+		return &run, nil
 	}
 
 	reconciledTask, err := m.reconcileTaskCascade(ctx, normalizedSpec.TaskID)
@@ -1312,34 +1303,6 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 	return &run, nil
 }
 
-func (m *Service) prepareEnqueueRun(
-	ctx context.Context,
-	spec EnqueueRun,
-	actor ActorContext,
-) (Task, *Run, int, error) {
-	taskRecord, err := m.store.GetTask(ctx, spec.TaskID)
-	if err != nil {
-		return Task{}, nil, 0, err
-	}
-	if err := validateTaskForEnqueue(taskRecord); err != nil {
-		return Task{}, nil, 0, err
-	}
-
-	existingRun, err := m.lookupIdempotentRun(ctx, spec.IdempotencyKey, actor.Origin, spec.TaskID)
-	if err != nil {
-		return Task{}, nil, 0, err
-	}
-	if existingRun != nil {
-		return taskRecord, existingRun, 0, nil
-	}
-
-	nextAttempt, err := m.nextEnqueueAttempt(ctx, taskRecord)
-	if err != nil {
-		return Task{}, nil, 0, err
-	}
-	return taskRecord, nil, nextAttempt, nil
-}
-
 func validateTaskForEnqueue(taskRecord Task) error {
 	switch taskRecord.Status.Normalize() {
 	case TaskStatusDraft:
@@ -1349,24 +1312,6 @@ func validateTaskForEnqueue(taskRecord Task) error {
 	default:
 		return nil
 	}
-}
-
-func (m *Service) nextEnqueueAttempt(ctx context.Context, taskRecord Task) (int, error) {
-	existingRuns, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: taskRecord.ID})
-	if err != nil {
-		return 0, err
-	}
-	nextAttempt := nextRunAttempt(existingRuns)
-	maxAttempts := normalizeTaskMaxAttemptsOrDefault(taskRecord.MaxAttempts)
-	if nextAttempt > maxAttempts {
-		return 0, fmt.Errorf(
-			"%w: task %q exhausted max_attempts=%d",
-			ErrInvalidStatusTransition,
-			taskRecord.ID,
-			maxAttempts,
-		)
-	}
-	return nextAttempt, nil
 }
 
 // ClaimRun transitions one queued run into the claimed state.
@@ -2234,42 +2179,6 @@ func (m *Service) reconcileDependentTasks(ctx context.Context, taskID string, vi
 	}
 
 	return nil
-}
-
-func (m *Service) lookupIdempotentRun(
-	ctx context.Context,
-	key string,
-	origin Origin,
-	taskID string,
-) (*Run, error) {
-	trimmedKey := strings.TrimSpace(key)
-	if trimmedKey == "" {
-		return nil, nil
-	}
-
-	run, err := m.store.GetTaskRunByIdempotencyKey(ctx, trimmedKey, origin)
-	if err != nil {
-		if errors.Is(err, ErrTaskRunIdempotencyNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if strings.TrimSpace(run.TaskID) != strings.TrimSpace(taskID) {
-		return nil, fmt.Errorf("%w: idempotency key %q already maps to task %q", ErrValidation, trimmedKey, run.TaskID)
-	}
-	return &run, nil
-}
-
-func (m *Service) saveRunIdempotency(ctx context.Context, run Run, origin Origin) error {
-	if strings.TrimSpace(run.IdempotencyKey) == "" {
-		return nil
-	}
-	return m.store.SaveTaskRunIdempotency(ctx, RunIdempotency{
-		IdempotencyKey: run.IdempotencyKey,
-		RunID:          run.ID,
-		Origin:         origin,
-		CreatedAt:      m.now().UTC(),
-	})
 }
 
 func (m *Service) loadRunWithTask(ctx context.Context, runID string) (Run, Task, error) {

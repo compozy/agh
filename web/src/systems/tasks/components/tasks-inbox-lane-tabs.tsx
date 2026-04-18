@@ -75,9 +75,9 @@ function LaneTab({ label, count, unread, active, onSelect, testId }: LaneTabProp
     <button
       aria-selected={active}
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 font-mono text-[0.64rem] uppercase tracking-[0.14em] transition-colors",
+        "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono text-[0.64rem] uppercase tracking-[0.14em] transition-colors",
         active
-          ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)]"
+          ? "border-[color:var(--color-divider)] bg-[color:var(--color-surface)] text-[color:var(--color-text-primary)]"
           : "border-transparent text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-divider)] hover:text-[color:var(--color-text-primary)]"
       )}
       data-testid={testId}
@@ -87,7 +87,7 @@ function LaneTab({ label, count, unread, active, onSelect, testId }: LaneTabProp
     >
       <span>{label}</span>
       <span
-        className="rounded-full bg-[color:var(--color-surface)] px-1.5 py-0.5 text-[0.58rem] font-semibold text-[color:var(--color-text-primary)]"
+        className="rounded-md bg-[color:var(--color-surface)] px-1.5 py-0.5 text-[0.58rem] font-semibold text-[color:var(--color-text-primary)]"
         data-testid={`${testId}-count`}
       >
         {count}

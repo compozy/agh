@@ -60,7 +60,7 @@ export function TasksInboxItem({
     <article
       aria-label={`${taskInboxLaneLabel(lane)} item for ${task.title}`}
       className={cn(
-        "flex flex-col gap-2 rounded-2xl border bg-[color:var(--color-surface)] px-4 py-3 transition-colors",
+        "flex flex-col gap-2 rounded-xl border bg-[color:var(--color-surface)] px-4 py-3 transition-colors",
         unread
           ? "border-[color:var(--color-divider)]"
           : "border-[color:var(--color-divider)] opacity-90"
@@ -216,7 +216,7 @@ export function TasksInboxItem({
             />
           ) : null}
           <Link
-            className="inline-flex items-center rounded-full border border-[color:var(--color-divider)] px-2.5 py-0.5 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"
+            className="inline-flex items-center rounded-lg border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"
             data-testid={`tasks-inbox-item-open-${taskId}`}
             params={{ id: taskId }}
             to="/tasks/$id"
@@ -250,7 +250,7 @@ function ActionButton({ label, icon, onClick, pending, testId, tone }: ActionBut
     <button
       aria-label={label}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-[0.6rem] uppercase tracking-[0.12em] transition-colors disabled:opacity-50",
+        "inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 font-mono text-[0.6rem] uppercase tracking-[0.12em] transition-colors disabled:opacity-50",
         toneClass
       )}
       data-testid={testId}

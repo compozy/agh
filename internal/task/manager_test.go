@@ -458,6 +458,84 @@ func (s *inMemoryManagerStore) CountActiveSessionBindings(_ context.Context, ses
 	return count, nil
 }
 
+func (s *inMemoryManagerStore) ReserveQueuedRun(
+	_ context.Context,
+	taskID string,
+	runID string,
+	runIdempotencyKey string,
+	origin Origin,
+	requestedChannel string,
+	queuedAt time.Time,
+) (Task, Run, bool, error) {
+	taskRecord, ok := s.tasks[strings.TrimSpace(taskID)]
+	if !ok {
+		return Task{}, Run{}, false, ErrTaskNotFound
+	}
+	taskRecord = cloneTask(taskRecord)
+	if err := validateTaskForEnqueue(taskRecord); err != nil {
+		return Task{}, Run{}, false, err
+	}
+
+	trimmedKey := strings.TrimSpace(runIdempotencyKey)
+	if trimmedKey != "" {
+		if record, ok := s.idempotencyByKey[idempotencyKey(origin, trimmedKey)]; ok {
+			existingRun, err := s.GetTaskRun(context.Background(), record.RunID)
+			if err != nil {
+				return Task{}, Run{}, false, err
+			}
+			if existingRun.TaskID != taskRecord.ID {
+				return Task{}, Run{}, false, fmtTestError(
+					"%w: idempotency key %q is already bound to task %q",
+					ErrValidation,
+					trimmedKey,
+					existingRun.TaskID,
+				)
+			}
+			return taskRecord, existingRun, true, nil
+		}
+	}
+
+	existingRuns, err := s.ListTaskRuns(context.Background(), RunQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		return Task{}, Run{}, false, err
+	}
+	nextAttempt := nextRunAttempt(existingRuns)
+	maxAttempts := normalizeTaskMaxAttemptsOrDefault(taskRecord.MaxAttempts)
+	if nextAttempt > maxAttempts {
+		return Task{}, Run{}, false, fmtTestError(
+			"%w: task %q exhausted max_attempts=%d",
+			ErrInvalidStatusTransition,
+			taskRecord.ID,
+			maxAttempts,
+		)
+	}
+
+	run := Run{
+		ID:             strings.TrimSpace(runID),
+		TaskID:         taskRecord.ID,
+		Status:         TaskRunStatusQueued,
+		Attempt:        nextAttempt,
+		Origin:         origin,
+		IdempotencyKey: trimmedKey,
+		NetworkChannel: resolvedRunChannel(requestedChannel, taskRecord.NetworkChannel),
+		QueuedAt:       queuedAt.UTC(),
+	}
+	if err := s.CreateTaskRun(context.Background(), run); err != nil {
+		return Task{}, Run{}, false, err
+	}
+	if trimmedKey != "" {
+		if err := s.SaveTaskRunIdempotency(context.Background(), RunIdempotency{
+			IdempotencyKey: trimmedKey,
+			RunID:          run.ID,
+			Origin:         origin,
+			CreatedAt:      queuedAt.UTC(),
+		}); err != nil {
+			return Task{}, Run{}, false, err
+		}
+	}
+	return taskRecord, run, false, nil
+}
+
 func (s *inMemoryManagerStore) CreateTaskEvent(_ context.Context, event Event) error {
 	if _, ok := s.tasks[event.TaskID]; !ok {
 		return ErrTaskNotFound

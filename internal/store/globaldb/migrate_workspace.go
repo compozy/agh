@@ -124,10 +124,15 @@ func migrateWorkspaceColumns(ctx context.Context, db *sql.DB) error {
 
 func migrateTaskTables(ctx context.Context, db *sql.DB) error {
 	spec, needsRebuild, err := taskTableMigrationSpecForExistingSchema(ctx, db)
-	if err != nil || !needsRebuild {
+	if err != nil {
 		return err
 	}
-	return rebuildTaskTable(ctx, db, spec)
+	if needsRebuild {
+		if err := rebuildTaskTable(ctx, db, spec); err != nil {
+			return err
+		}
+	}
+	return migrateTaskEventSequenceColumn(ctx, db)
 }
 
 type taskTableMigrationSpec struct {
@@ -225,12 +230,40 @@ func rebuildTaskTable(ctx context.Context, db *sql.DB, spec taskTableMigrationSp
 }
 
 func taskTableMigrationStatements(spec taskTableMigrationSpec) []string {
-	return []string{
+	statements := []string{
 		taskTableCreateStatement(),
 		taskTableCopyStatement(spec),
 		`DROP TABLE tasks`,
 		`ALTER TABLE tasks_new RENAME TO tasks`,
 	}
+	statements = append(statements, taskTableIndexStatements...)
+	return statements
+}
+
+func migrateTaskEventSequenceColumn(ctx context.Context, db *sql.DB) error {
+	exists, err := tableExists(ctx, db, "task_events")
+	if err != nil || !exists {
+		return err
+	}
+
+	columns, err := tableColumns(ctx, db, "task_events")
+	if err != nil {
+		return err
+	}
+	if _, ok := columns["event_seq"]; !ok {
+		if _, err := db.ExecContext(ctx, `ALTER TABLE task_events ADD COLUMN event_seq INTEGER`); err != nil {
+			return fmt.Errorf("store: add task_events.event_seq column: %w", err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE task_events SET event_seq = rowid WHERE event_seq IS NULL`); err != nil {
+		return fmt.Errorf("store: backfill task_events.event_seq: %w", err)
+	}
+	for _, stmt := range taskEventIndexStatements[3:] {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: ensure task event sequence index: %w", err)
+		}
+	}
+	return nil
 }
 
 func taskTableCreateStatement() string {

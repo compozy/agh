@@ -17,23 +17,24 @@ import {
   useTaskInbox,
   useTasks,
 } from "@/systems/tasks";
-import {
-  DEFAULT_TASK_TEMPLATE_ID,
-  applyTemplateToCreatePayload,
-  getTaskTemplate,
-} from "@/systems/tasks/lib/task-templates";
+import { DEFAULT_TASK_TEMPLATE_ID, getTaskTemplate } from "@/systems/tasks/lib/task-templates";
 import type { TaskTemplateId } from "@/systems/tasks/lib/task-templates";
+import {
+  applyTemplateDefaultsToTaskEditorDraft,
+  buildCreateTaskRequest,
+  createTaskEditorDraft,
+  EMPTY_TASK_EDITOR_DRAFT,
+  type TaskEditorDraft,
+} from "@/systems/tasks/lib/task-editor";
 import { getKanbanColumns, groupTasksForKanban } from "@/systems/tasks/lib/task-grouping";
 import type { KanbanColumnGroup } from "@/systems/tasks/lib/task-grouping";
 import type {
-  CreateTaskRequest,
   TaskDashboardFilter,
   TaskInboxFilter,
   TaskInboxLane,
   TaskListFilter,
   TaskListItem,
   TaskOwnerKind,
-  TaskPriority,
   TaskScope,
   TaskStatus,
   TaskViewMode,
@@ -45,35 +46,10 @@ type InboxLaneFilter = "all" | TaskInboxLane;
 
 interface UseTasksPageOptions {
   initialMode?: TaskViewMode;
+  forceListData?: boolean;
 }
 
-export interface CreateTaskDraftInput {
-  title: string;
-  description: string;
-  scope: TaskScope;
-  priority: TaskPriority;
-  ownerKind: TaskOwnerKind | "";
-  ownerRef: string;
-  parentTaskId: string;
-  maxAttempts: number | null;
-  approvalPolicy: "none" | "manual";
-  networkChannel: string;
-  identifier: string;
-}
-
-const EMPTY_DRAFT: CreateTaskDraftInput = {
-  title: "",
-  description: "",
-  scope: "workspace",
-  priority: "medium",
-  ownerKind: "",
-  ownerRef: "",
-  parentTaskId: "",
-  maxAttempts: null,
-  approvalPolicy: "none",
-  networkChannel: "",
-  identifier: "",
-};
+export type CreateTaskDraftInput = TaskEditorDraft;
 
 function useTasksPage(options: UseTasksPageOptions = {}) {
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
@@ -86,7 +62,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [includeDrafts, setIncludeDrafts] = useState(true);
-  const [createDraft, setCreateDraft] = useState<CreateTaskDraftInput>(EMPTY_DRAFT);
+  const [createDraft, setCreateDraft] = useState<CreateTaskDraftInput>(EMPTY_TASK_EDITOR_DRAFT);
   const [createTemplateId, setCreateTemplateId] =
     useState<TaskTemplateId>(DEFAULT_TASK_TEMPLATE_ID);
   const [inboxLaneFilter, setInboxLaneFilter] = useState<InboxLaneFilter>("all");
@@ -130,7 +106,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     [deferredInboxQuery, inboxLaneFilter, inboxUnreadOnly, scopeFilter, scopedWorkspace]
   );
 
-  const isListTab = mode === "list" || mode === "kanban";
+  const isListTab = mode === "list" || mode === "kanban" || options.forceListData === true;
   const tasksQuery = useTasks(listFilters, { enabled: isListTab });
   const dashboardQuery = useTaskDashboard(dashboardFilters, { enabled: mode === "dashboard" });
   const inboxQuery = useTaskInbox(inboxFilters, { enabled: mode === "inbox" });
@@ -216,19 +192,8 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
 
   const handleOpenCreateModal = useCallback(
     (templateId: TaskTemplateId = DEFAULT_TASK_TEMPLATE_ID) => {
-      const template = getTaskTemplate(templateId);
       setCreateTemplateId(templateId);
-      setCreateDraft({
-        ...EMPTY_DRAFT,
-        scope: activeWorkspaceId ? "workspace" : "global",
-        priority: template.defaults.priority ?? "medium",
-        maxAttempts:
-          typeof template.defaults.max_attempts === "number"
-            ? template.defaults.max_attempts
-            : null,
-        approvalPolicy: template.defaults.approval_policy ?? "none",
-        networkChannel: template.defaults.network_channel ?? "",
-      });
+      setCreateDraft(createTaskEditorDraft(templateId, activeWorkspaceId));
       setCreateModalOpen(true);
     },
     [activeWorkspaceId]
@@ -238,18 +203,8 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const handleToggleIncludeDrafts = useCallback((next: boolean) => setIncludeDrafts(next), []);
 
   const handleTemplateChange = useCallback((templateId: TaskTemplateId) => {
-    const template = getTaskTemplate(templateId);
     setCreateTemplateId(templateId);
-    setCreateDraft(current => ({
-      ...current,
-      priority: template.defaults.priority ?? current.priority,
-      maxAttempts:
-        typeof template.defaults.max_attempts === "number"
-          ? template.defaults.max_attempts
-          : current.maxAttempts,
-      approvalPolicy: template.defaults.approval_policy ?? current.approvalPolicy,
-      networkChannel: template.defaults.network_channel ?? current.networkChannel,
-    }));
+    setCreateDraft(current => applyTemplateDefaultsToTaskEditorDraft(current, templateId));
   }, []);
 
   const submitCreateTask = useCallback(
@@ -265,30 +220,11 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
         return null;
       }
 
-      const ownerKind = draft.ownerKind || undefined;
-      const ownerRef = draft.ownerRef.trim();
-      const owner =
-        ownerKind && ownerRef
-          ? { kind: ownerKind, ref: ownerRef }
-          : ownerKind === undefined && ownerRef === ""
-            ? undefined
-            : null;
-
-      const basePayload: CreateTaskRequest = {
-        title: trimmedTitle,
-        description: draft.description.trim() || undefined,
-        scope: draft.scope,
-        workspace: draft.scope === "workspace" ? (activeWorkspaceId ?? undefined) : undefined,
-        priority: draft.priority,
-        max_attempts: draft.maxAttempts ?? undefined,
-        draft: asDraft || createTemplateId === "recurring",
-        owner,
-        approval_policy: draft.approvalPolicy === "manual" ? "manual" : undefined,
-        network_channel: draft.networkChannel.trim() || undefined,
-        identifier: draft.identifier.trim() || undefined,
-      };
-
-      const payload = applyTemplateToCreatePayload(basePayload, createTemplateId);
+      const payload = buildCreateTaskRequest(draft, {
+        activeWorkspaceId,
+        asDraft,
+        templateId: createTemplateId,
+      });
 
       try {
         const created = await createMutation.mutateAsync(payload);
@@ -308,7 +244,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
           payload.draft ? `Saved draft "${trimmedTitle}".` : `Created task "${trimmedTitle}".`
         );
 
-        setCreateDraft(EMPTY_DRAFT);
+        setCreateDraft(EMPTY_TASK_EDITOR_DRAFT);
         setCreateModalOpen(false);
         if (created.id) {
           setSelectedTaskId(created.id);

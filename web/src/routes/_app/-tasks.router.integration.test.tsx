@@ -48,6 +48,25 @@ function buildTestRouter(initialUrl: string) {
     },
   });
 
+  const taskCreateRoute = createRoute({
+    getParentRoute: () => tasksRoute,
+    path: "new",
+    component: () => <div data-testid="tasks-create-route">new task</div>,
+  });
+
+  const taskEditRoute = createRoute({
+    getParentRoute: () => taskDetailRoute,
+    path: "edit",
+    component: () => {
+      const params = taskDetailRoute.useParams();
+      return (
+        <div data-testid="tasks-edit-route">
+          <span data-testid="tasks-edit-id">{params.id}</span>
+        </div>
+      );
+    },
+  });
+
   const taskRunDetailRoute = createRoute({
     getParentRoute: () => taskDetailRoute,
     path: "runs/$runId",
@@ -64,7 +83,10 @@ function buildTestRouter(initialUrl: string) {
 
   const routeTree = rootRoute.addChildren([
     appRoute.addChildren([
-      tasksRoute.addChildren([taskDetailRoute.addChildren([taskRunDetailRoute])]),
+      tasksRoute.addChildren([
+        taskCreateRoute,
+        taskDetailRoute.addChildren([taskEditRoute, taskRunDetailRoute]),
+      ]),
     ]),
   ]);
 
@@ -102,14 +124,37 @@ describe("tasks router registration (integration)", () => {
     expect(screen.getByTestId("tasks-run-detail-run-id")).toHaveTextContent("run_001");
   });
 
-  it("keeps the tasks shell mounted while navigating between base, detail, and run-detail routes", async () => {
+  it("resolves /tasks/new inside the shared tasks shell", async () => {
+    const router = buildTestRouter("/tasks/new");
+    render(<RouterProvider router={router} />);
+    await waitFor(() => expect(screen.getByTestId("tasks-shell")).toBeInTheDocument());
+    expect(screen.getByTestId("tasks-create-route")).toBeInTheDocument();
+  });
+
+  it("resolves /tasks/$id/edit inside the shared tasks shell", async () => {
+    const router = buildTestRouter("/tasks/task_abc/edit");
+    render(<RouterProvider router={router} />);
+    await waitFor(() => expect(screen.getByTestId("tasks-shell")).toBeInTheDocument());
+    expect(screen.getByTestId("tasks-edit-route")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-edit-id")).toHaveTextContent("task_abc");
+  });
+
+  it("keeps the tasks shell mounted while navigating between base, create, detail, edit, and run-detail routes", async () => {
     const router = buildTestRouter("/tasks");
     render(<RouterProvider router={router} />);
     await waitFor(() => expect(screen.getByTestId("tasks-shell")).toBeInTheDocument());
     const baseShell = screen.getByTestId("tasks-shell");
 
+    await router.history.push("/tasks/new");
+    await waitFor(() => expect(screen.getByTestId("tasks-create-route")).toBeInTheDocument());
+    expect(screen.getByTestId("tasks-shell")).toBe(baseShell);
+
     await router.navigate({ to: "/tasks/$id", params: { id: "task_abc" } });
     await waitFor(() => expect(screen.getByTestId("tasks-detail")).toBeInTheDocument());
+    expect(screen.getByTestId("tasks-shell")).toBe(baseShell);
+
+    await router.history.push("/tasks/task_abc/edit");
+    await waitFor(() => expect(screen.getByTestId("tasks-edit-route")).toBeInTheDocument());
     expect(screen.getByTestId("tasks-shell")).toBe(baseShell);
 
     await router.navigate({

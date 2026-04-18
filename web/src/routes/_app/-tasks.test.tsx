@@ -3,7 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-let childMatches: Array<{ id: string }> = [];
+let childMatches: Array<{ id: string; params?: { id?: string } }> = [];
+const navigateMock = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => {
@@ -15,6 +16,7 @@ vi.mock("@tanstack/react-router", () => ({
     component: opts.component,
   }),
   useChildMatches: () => childMatches,
+  useNavigate: () => navigateMock,
 }));
 
 const listTasksMock = vi.fn();
@@ -92,6 +94,7 @@ function renderTasksRoute() {
 describe("TasksRoute", () => {
   beforeEach(() => {
     childMatches = [];
+    navigateMock.mockReset();
     listTasksMock.mockReset();
     listTasksMock.mockResolvedValue([]);
     getTaskDashboardMock.mockReset();
@@ -161,11 +164,11 @@ describe("TasksRoute", () => {
   });
 
   it("renders the outlet inside the shell when a child route is active", () => {
-    childMatches = [{ id: "/_app/tasks/$id" }];
+    childMatches = [{ id: "/_app/tasks/$id", params: { id: "task_abc" } }];
     renderTasksRoute();
     expect(screen.getByTestId("tasks-outlet")).toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-empty-state")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-mode-pills")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-mode-pills")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-list-panel")).toBeInTheDocument();
   });
 
   it("switches to the dashboard view and renders the cards + queue/health sections", async () => {
@@ -191,7 +194,7 @@ describe("TasksRoute", () => {
     await waitFor(() => expect(getTaskInboxMock).toHaveBeenCalled());
 
     expect(await screen.findByTestId("tasks-inbox-view")).toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-open-create")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-open-create")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-mode-inbox-unread")).toHaveTextContent("1");
     expect(screen.getByTestId("tasks-inbox-group-approvals")).toBeInTheDocument();
 
@@ -215,5 +218,29 @@ describe("TasksRoute", () => {
         expect.any(AbortSignal)
       );
     });
+  });
+
+  it("navigates to the route-based editor when the create action is clicked", async () => {
+    listTasksMock.mockResolvedValue([
+      {
+        id: "task_abc",
+        title: "Create API contract",
+        status: "draft",
+        scope: "workspace",
+        updated_at: "2026-04-17T10:00:00Z",
+        created_at: "2026-04-17T09:00:00Z",
+        created_by: { kind: "human", ref: "pedro@" },
+        origin: { kind: "web", ref: "agh-web" },
+      },
+    ]);
+
+    renderTasksRoute();
+    await waitFor(() => expect(screen.getByTestId("tasks-open-create")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("tasks-open-create"));
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ search: expect.any(Function), to: "/tasks/new" })
+    );
   });
 });

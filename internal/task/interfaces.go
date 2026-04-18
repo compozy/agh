@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"time"
 )
 
 // Manager is the task-domain authority for task and run lifecycle operations.
@@ -62,6 +63,15 @@ type RunStore interface {
 	ListTaskRuns(ctx context.Context, query RunQuery) ([]Run, error)
 	ListTaskRunsByStatus(ctx context.Context, statuses []RunStatus) ([]Run, error)
 	CountActiveSessionBindings(ctx context.Context, sessionID string) (int, error)
+	ReserveQueuedRun(
+		ctx context.Context,
+		taskID string,
+		runID string,
+		idempotencyKey string,
+		origin Origin,
+		requestedChannel string,
+		queuedAt time.Time,
+	) (Task, Run, bool, error)
 }
 
 // EventStore is the persistence surface for immutable task audit events.
