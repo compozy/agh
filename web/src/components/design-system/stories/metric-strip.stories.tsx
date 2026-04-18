@@ -23,7 +23,6 @@ const meta: Meta<typeof MetricStrip> = {
       </StoryFrame>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

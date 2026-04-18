@@ -20,7 +20,6 @@ const meta: Meta<typeof PageContent> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

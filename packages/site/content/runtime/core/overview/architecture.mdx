@@ -3,8 +3,6 @@ title: Architecture
 description: How AGH is structured internally — the daemon composition root, package boundaries, data flow, and the principles that keep the system extensible.
 ---
 
-# Architecture
-
 AGH follows a **pragmatic flat architecture** with strict dependency boundaries. A single `daemon` package acts as the composition root, wiring together independent packages that never import each other. This design keeps the system easy to reason about while enabling incremental extension — new capabilities arrive as new packages, not as modifications to existing ones.
 
 ## System overview

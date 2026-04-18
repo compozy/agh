@@ -50,3 +50,42 @@ func TestShouldEnsureWebBundle(t *testing.T) {
 		})
 	}
 }
+
+func TestWithRaceEnabledEnv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("sets cgo for race commands without mutating the input", func(t *testing.T) {
+		t.Parallel()
+
+		overrides := map[string]string{
+			"CI":          "true",
+			"CGO_ENABLED": "0",
+		}
+
+		got := withRaceEnabledEnv(overrides)
+
+		if got["CGO_ENABLED"] != "1" {
+			t.Fatalf("withRaceEnabledEnv() CGO_ENABLED = %q, want %q", got["CGO_ENABLED"], "1")
+		}
+		if got["CI"] != "true" {
+			t.Fatalf("withRaceEnabledEnv() CI = %q, want %q", got["CI"], "true")
+		}
+		if overrides["CGO_ENABLED"] != "0" {
+			t.Fatalf("withRaceEnabledEnv() mutated input CGO_ENABLED to %q", overrides["CGO_ENABLED"])
+		}
+
+		got["EXTRA"] = "value"
+		if _, ok := overrides["EXTRA"]; ok {
+			t.Fatal("withRaceEnabledEnv() reused the input map")
+		}
+	})
+
+	t.Run("works with nil input", func(t *testing.T) {
+		t.Parallel()
+
+		got := withRaceEnabledEnv(nil)
+		if got["CGO_ENABLED"] != "1" {
+			t.Fatalf("withRaceEnabledEnv(nil) CGO_ENABLED = %q, want %q", got["CGO_ENABLED"], "1")
+		}
+	})
+}

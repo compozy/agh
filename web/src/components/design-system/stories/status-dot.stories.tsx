@@ -23,7 +23,6 @@ const meta: Meta<typeof StatusDot> = {
       </StoryFrame>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

@@ -14,7 +14,6 @@ const meta: Meta<typeof DesignSystemShowcase> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

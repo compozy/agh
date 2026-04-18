@@ -15,4 +15,11 @@ describe("site global styles", () => {
   it("does not globally suppress box-shadow-based focus rings", () => {
     expect(globalCSS).not.toContain("box-shadow: none !important;");
   });
+
+  it("limits inline code chrome to textual content instead of fenced code blocks", () => {
+    expect(globalCSS).toContain(
+      ".site-doc-body :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {"
+    );
+    expect(globalCSS).not.toContain(".site-doc-body :not(pre) > code {");
+  });
 });

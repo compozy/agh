@@ -15,7 +15,6 @@ const meta: Meta<typeof TextureCanvas> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

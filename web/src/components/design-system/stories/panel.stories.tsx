@@ -24,7 +24,6 @@ const meta: Meta<typeof Panel> = {
       </StoryFrame>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

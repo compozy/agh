@@ -83,7 +83,8 @@ func Test() error {
 	if err := ensureWebBundle(); err != nil {
 		return err
 	}
-	return sh.RunV("go", "run", "gotest.tools/gotestsum@latest",
+	return runRaceEnabledGoCommand(nil,
+		"run", "gotest.tools/gotestsum@latest",
 		"--format", "pkgname", "--", "-race", "-parallel=4", "./...")
 }
 
@@ -92,7 +93,8 @@ func TestIntegration() error {
 	if err := ensureWebBundle(); err != nil {
 		return err
 	}
-	return sh.RunV("go", "run", "gotest.tools/gotestsum@latest",
+	return runRaceEnabledGoCommand(nil,
+		"run", "gotest.tools/gotestsum@latest",
 		"--format", "pkgname", "--", "-race", "-parallel=4", "-tags", "integration", "./...")
 }
 
@@ -489,7 +491,7 @@ func runIntegrationSuite(suite e2elane.GoSuite, env map[string]string) error {
 		args = append(args, "-run", suite.Run)
 	}
 	args = append(args, suite.Packages...)
-	return runCommandInDirWithEnv(".", env, "go", args...)
+	return runRaceEnabledGoCommand(env, args...)
 }
 
 func runCommandInDir(dir string, name string, args ...string) error {
@@ -524,6 +526,19 @@ func mergeCommandEnv(overrides map[string]string) []string {
 			env = append(env, prefix+value)
 		}
 	}
+	return env
+}
+
+func runRaceEnabledGoCommand(env map[string]string, args ...string) error {
+	return runCommandInDirWithEnv(".", withRaceEnabledEnv(env), "go", args...)
+}
+
+func withRaceEnabledEnv(overrides map[string]string) map[string]string {
+	env := make(map[string]string, len(overrides)+1)
+	for key, value := range overrides {
+		env[key] = value
+	}
+	env["CGO_ENABLED"] = "1"
 	return env
 }
 
