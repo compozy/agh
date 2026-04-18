@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -30,6 +31,7 @@ type queuedRunReservationInput struct {
 	idempotencyKey   string
 	origin           taskpkg.Origin
 	requestedChannel string
+	metadata         json.RawMessage
 	queuedAt         time.Time
 }
 
@@ -598,6 +600,7 @@ func (g *GlobalDB) ReserveQueuedRun(
 	idempotencyKey string,
 	origin taskpkg.Origin,
 	requestedChannel string,
+	metadata json.RawMessage,
 	queuedAt time.Time,
 ) (taskpkg.Task, taskpkg.Run, bool, error) {
 	if err := g.checkReady(ctx, "reserve queued task run"); err != nil {
@@ -610,6 +613,7 @@ func (g *GlobalDB) ReserveQueuedRun(
 		idempotencyKey,
 		origin,
 		requestedChannel,
+		metadata,
 		queuedAt,
 	)
 	if err != nil {
@@ -641,6 +645,7 @@ func (g *GlobalDB) normalizeQueuedRunReservationInput(
 	idempotencyKey string,
 	origin taskpkg.Origin,
 	requestedChannel string,
+	metadata json.RawMessage,
 	queuedAt time.Time,
 ) (queuedRunReservationInput, error) {
 	trimmedTaskID, err := requireTaskValue(taskID, "task id")
@@ -659,6 +664,10 @@ func (g *GlobalDB) normalizeQueuedRunReservationInput(
 		return queuedRunReservationInput{}, err
 	}
 	trimmedKey := strings.TrimSpace(idempotencyKey)
+	normalizedMetadata := normalizeTaskJSON(metadata)
+	if err := taskpkg.ValidateMetadataSize(normalizedMetadata, "enqueue_run.metadata"); err != nil {
+		return queuedRunReservationInput{}, err
+	}
 	normalizedQueuedAt := queuedAt.UTC()
 	if normalizedQueuedAt.IsZero() {
 		normalizedQueuedAt = g.now()
@@ -669,6 +678,7 @@ func (g *GlobalDB) normalizeQueuedRunReservationInput(
 		idempotencyKey:   trimmedKey,
 		origin:           normalizedOrigin,
 		requestedChannel: strings.TrimSpace(requestedChannel),
+		metadata:         normalizedMetadata,
 		queuedAt:         normalizedQueuedAt,
 	}, nil
 }
@@ -760,6 +770,7 @@ func (g *GlobalDB) createQueuedRunWithExecutor(
 		Origin:         input.origin,
 		IdempotencyKey: input.idempotencyKey,
 		NetworkChannel: resolveStoredRunChannel(input.requestedChannel, taskRecord.NetworkChannel),
+		Metadata:       input.metadata,
 		QueuedAt:       input.queuedAt,
 	}
 	normalizedRun, err := g.normalizeTaskRunForCreate(run)
@@ -780,8 +791,8 @@ func insertQueuedTaskRun(ctx context.Context, exec taskSQLExecutor, run taskpkg.
 		ctx,
 		`INSERT INTO task_runs (
 			id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
-			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, result_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, metadata_json, result_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID,
 		run.TaskID,
 		string(run.Status),
@@ -798,6 +809,7 @@ func insertQueuedTaskRun(ctx context.Context, exec taskSQLExecutor, run taskpkg.
 		nullableTaskTimestamp(run.StartedAt),
 		nullableTaskTimestamp(run.EndedAt),
 		store.NullableString(run.Error),
+		nullableTaskJSON(run.Metadata),
 		nullableTaskJSON(run.Result),
 	); err != nil {
 		return fmt.Errorf("store: create task run %q: %w", run.ID, err)
@@ -887,7 +899,7 @@ func (g *GlobalDB) GetTaskRunByIdempotencyKey(
 		`SELECT
 			tr.id, tr.task_id, tr.status, tr.attempt, tr.claimed_by_kind, tr.claimed_by_ref, tr.session_id,
 			tr.origin_kind, tr.origin_ref, tr.idempotency_key, tr.network_channel, tr.queued_at, tr.claimed_at,
-			tr.started_at, tr.ended_at, tr.error, tr.result_json
+			tr.started_at, tr.ended_at, tr.error, tr.metadata_json, tr.result_json
 		 FROM task_run_idempotency tri
 		 JOIN task_runs tr ON tr.id = tri.run_id
 		 WHERE tri.idempotency_key = ? AND tri.origin_kind = ? AND tri.origin_ref = ?`,
@@ -1088,7 +1100,7 @@ func (g *GlobalDB) getTaskRunWithExecutor(
 		ctx,
 		`SELECT
 			id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
-			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, result_json
+			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, metadata_json, result_json
 		 FROM task_runs
 		 WHERE id = ?`,
 		trimmedRunID,

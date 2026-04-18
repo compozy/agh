@@ -454,6 +454,9 @@ func (r Run) Validate() error {
 			TaskRunStatusQueued,
 		)
 	}
+	if err := ValidateMetadataSize(r.Metadata, "task_run.metadata"); err != nil {
+		return err
+	}
 	if err := ValidateResultSize(r.Result, "task_run.result"); err != nil {
 		return err
 	}
@@ -609,6 +612,9 @@ func (r AddDependency) Validate(path string) error {
 func (r EnqueueRun) Validate(path string) error {
 	if strings.TrimSpace(r.TaskID) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "task_id"))
+	}
+	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
+		return err
 	}
 	return nil
 }

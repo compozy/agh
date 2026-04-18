@@ -4059,6 +4059,7 @@ func (r *recordingRegistry) ReserveQueuedRun(
 	string,
 	taskpkg.Origin,
 	string,
+	json.RawMessage,
 	time.Time,
 ) (taskpkg.Task, taskpkg.Run, bool, error) {
 	return taskpkg.Task{}, taskpkg.Run{}, false, taskpkg.ErrTaskNotFound

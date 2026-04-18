@@ -4,6 +4,7 @@ package task_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -71,6 +72,7 @@ func (fakeStore) ReserveQueuedRun(
 	string,
 	taskpkg.Origin,
 	string,
+	json.RawMessage,
 	time.Time,
 ) (taskpkg.Task, taskpkg.Run, bool, error) {
 	return taskpkg.Task{

@@ -2267,6 +2267,7 @@ export interface TaskRun {
   started_at?: ISODateTime;
   ended_at?: ISODateTime;
   error?: string;
+  metadata?: JSONValue;
   result?: JSONValue;
 }
 

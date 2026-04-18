@@ -1277,6 +1277,7 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 		normalizedSpec.IdempotencyKey,
 		actor.Origin,
 		normalizedSpec.NetworkChannel,
+		normalizedSpec.Metadata,
 		m.now().UTC(),
 	)
 	if err != nil {
@@ -1801,6 +1802,7 @@ func normalizeEnqueueRunSpec(spec EnqueueRun) (EnqueueRun, error) {
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	if err := normalized.Validate("enqueue_run"); err != nil {
 		return EnqueueRun{}, err
 	}

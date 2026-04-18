@@ -302,8 +302,8 @@ func (g *GlobalDB) CreateTaskRun(ctx context.Context, run taskpkg.Run) error {
 		ctx,
 		`INSERT INTO task_runs (
 			id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
-			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, result_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, metadata_json, result_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		normalized.TaskID,
 		string(normalized.Status),
@@ -320,6 +320,7 @@ func (g *GlobalDB) CreateTaskRun(ctx context.Context, run taskpkg.Run) error {
 		nullableTaskTimestamp(normalized.StartedAt),
 		nullableTaskTimestamp(normalized.EndedAt),
 		store.NullableString(normalized.Error),
+		nullableTaskJSON(normalized.Metadata),
 		nullableTaskJSON(normalized.Result),
 	)
 	if err != nil {
@@ -362,7 +363,7 @@ func (g *GlobalDB) UpdateTaskRun(ctx context.Context, run taskpkg.Run) error {
 		     claimed_by_ref = ?, session_id = ?, origin_kind = ?,
 		     origin_ref = ?, idempotency_key = ?, network_channel = ?,
 		     queued_at = ?, claimed_at = ?, started_at = ?, ended_at = ?,
-		     error = ?, result_json = ?
+		     error = ?, metadata_json = ?, result_json = ?
 		 WHERE id = ?`,
 		normalized.TaskID,
 		string(normalized.Status),
@@ -379,6 +380,7 @@ func (g *GlobalDB) UpdateTaskRun(ctx context.Context, run taskpkg.Run) error {
 		nullableTaskTimestamp(normalized.StartedAt),
 		nullableTaskTimestamp(normalized.EndedAt),
 		store.NullableString(normalized.Error),
+		nullableTaskJSON(normalized.Metadata),
 		nullableTaskJSON(normalized.Result),
 		normalized.ID,
 	)
@@ -404,7 +406,7 @@ func (g *GlobalDB) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, erro
 		ctx,
 		`SELECT
 			id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
-			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, result_json
+			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, metadata_json, result_json
 		 FROM task_runs
 		 WHERE id = ?`,
 		trimmedID,
@@ -432,7 +434,7 @@ func (g *GlobalDB) ListTaskRuns(ctx context.Context, query taskpkg.RunQuery) ([]
 	normalized := normalizeTaskRunQuery(query)
 	sqlQuery := `SELECT
 		id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
-		idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, result_json
+		idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, metadata_json, result_json
 		FROM task_runs`
 	where, args := store.BuildClauses(
 		store.StringClause("task_id", normalized.TaskID),
@@ -495,7 +497,7 @@ func (g *GlobalDB) ListTaskRunsByStatus(
 		fmt.Sprintf(
 			`SELECT
 				id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
-				idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, result_json
+				idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, metadata_json, result_json
 			 FROM task_runs
 			 WHERE status IN (%s)
 			 ORDER BY queued_at ASC, id ASC`,
@@ -749,6 +751,7 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		startedAtRaw   sql.NullString
 		endedAtRaw     sql.NullString
 		runErr         sql.NullString
+		metadataJSON   sql.NullString
 		resultJSON     sql.NullString
 	)
 	if err := scanner.Scan(
@@ -768,6 +771,7 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&startedAtRaw,
 		&endedAtRaw,
 		&runErr,
+		&metadataJSON,
 		&resultJSON,
 	); err != nil {
 		return taskpkg.Run{}, fmt.Errorf("store: scan task run: %w", err)
@@ -785,6 +789,9 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		runErr,
 	)
 	if err := assignTaskRunTimestamps(&run, queuedAtRaw, claimedAtRaw, startedAtRaw, endedAtRaw); err != nil {
+		return taskpkg.Run{}, err
+	}
+	if err := assignTaskMetadata(&run.Metadata, metadataJSON, "task_run.metadata_json"); err != nil {
 		return taskpkg.Run{}, err
 	}
 	if err := assignTaskMetadata(&run.Result, resultJSON, "task_run.result_json"); err != nil {
@@ -1004,6 +1011,7 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.Error = strings.TrimSpace(normalized.Error)
+	normalized.Metadata = normalizeTaskJSON(normalized.Metadata)
 	normalized.Result = normalizeTaskJSON(normalized.Result)
 	if !normalized.QueuedAt.IsZero() {
 		normalized.QueuedAt = normalized.QueuedAt.UTC()

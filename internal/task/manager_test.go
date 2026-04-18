@@ -465,6 +465,7 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 	runIdempotencyKey string,
 	origin Origin,
 	requestedChannel string,
+	metadata json.RawMessage,
 	queuedAt time.Time,
 ) (Task, Run, bool, error) {
 	taskRecord, ok := s.tasks[strings.TrimSpace(taskID)]
@@ -518,6 +519,7 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		Origin:         origin,
 		IdempotencyKey: trimmedKey,
 		NetworkChannel: resolvedRunChannel(requestedChannel, taskRecord.NetworkChannel),
+		Metadata:       normalizeRawJSON(metadata),
 		QueuedAt:       queuedAt.UTC(),
 	}
 	if err := s.CreateTaskRun(context.Background(), run); err != nil {
@@ -3063,6 +3065,66 @@ func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {
 	}
 }
 
+func TestManagerEnqueueRunPreservesMetadataAcrossIdempotentDuplicates(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor, err := DeriveAutomationActorContext("rule:harness-detached", "daemon.harness.detached")
+	if err != nil {
+		t.Fatalf("DeriveAutomationActorContext() error = %v", err)
+	}
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Detached metadata task",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	metadata := json.RawMessage(
+		`{"schema":"agh.harness.detached.v1","owner_session_id":"sess-owner","wake_target":{"session_id":"sess-wake"}}`,
+	)
+	firstRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{
+		TaskID:         taskRecord.ID,
+		IdempotencyKey: "detached-metadata-1",
+		Metadata:       metadata,
+	}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(first) error = %v", err)
+	}
+	if got, want := string(firstRun.Metadata), string(metadata); got != want {
+		t.Fatalf("firstRun.Metadata = %s, want %s", got, want)
+	}
+
+	storedRun, err := store.GetTaskRun(context.Background(), firstRun.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	if got, want := string(storedRun.Metadata), string(metadata); got != want {
+		t.Fatalf("storedRun.Metadata = %s, want %s", got, want)
+	}
+
+	duplicateRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{
+		TaskID:         taskRecord.ID,
+		IdempotencyKey: "detached-metadata-1",
+		Metadata:       metadata,
+	}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(duplicate) error = %v", err)
+	}
+	if got, want := duplicateRun.ID, firstRun.ID; got != want {
+		t.Fatalf("duplicateRun.ID = %q, want %q", got, want)
+	}
+	if got, want := string(duplicateRun.Metadata), string(metadata); got != want {
+		t.Fatalf("duplicateRun.Metadata = %s, want %s", got, want)
+	}
+	if got, want := len(store.runs), 1; got != want {
+		t.Fatalf("len(store.runs) = %d, want %d", got, want)
+	}
+}
+
 func TestManagerNetworkPeerEnqueueRunUsesOriginScopedIdempotency(t *testing.T) {
 	t.Parallel()
 
@@ -4185,6 +4247,7 @@ func cloneTaskRun(record Run) Run {
 		claimedBy := *record.ClaimedBy
 		cloned.ClaimedBy = &claimedBy
 	}
+	cloned.Metadata = cloneRawJSON(record.Metadata)
 	cloned.Result = cloneRawJSON(record.Result)
 	return cloned
 }

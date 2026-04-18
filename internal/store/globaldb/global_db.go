@@ -332,6 +332,7 @@ var globalSchemaStatements = append([]string{
 		started_at      TEXT,
 		ended_at        TEXT,
 		error           TEXT,
+		metadata_json   TEXT,
 		result_json     TEXT,
 		CHECK (
 			(claimed_by_kind IS NULL AND claimed_by_ref IS NULL) OR

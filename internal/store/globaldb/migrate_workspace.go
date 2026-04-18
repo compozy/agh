@@ -132,7 +132,30 @@ func migrateTaskTables(ctx context.Context, db *sql.DB) error {
 			return err
 		}
 	}
+	if err := migrateTaskRunMetadataColumn(ctx, db); err != nil {
+		return err
+	}
 	return migrateTaskEventSequenceColumn(ctx, db)
+}
+
+func migrateTaskRunMetadataColumn(ctx context.Context, db *sql.DB) error {
+	exists, err := tableExists(ctx, db, "task_runs")
+	if err != nil || !exists {
+		return err
+	}
+
+	columns, err := tableColumns(ctx, db, "task_runs")
+	if err != nil {
+		return err
+	}
+	if _, ok := columns["metadata_json"]; ok {
+		return nil
+	}
+
+	if _, err := db.ExecContext(ctx, `ALTER TABLE task_runs ADD COLUMN metadata_json TEXT`); err != nil {
+		return fmt.Errorf("store: add task_runs.metadata_json column: %w", err)
+	}
+	return nil
 }
 
 type taskTableMigrationSpec struct {

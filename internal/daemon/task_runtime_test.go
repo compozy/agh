@@ -2,13 +2,18 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing.T) {
@@ -444,6 +449,692 @@ func TestTaskRuntimeHelpers(t *testing.T) {
 	}
 }
 
+func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotency(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{}
+	runtime, resolver, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
+	sessions.infos = []*session.Info{
+		{
+			ID:          "sess-owner",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+		{
+			ID:          "sess-wake",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+	}
+
+	req := detachedHarnessSubmitRequest{
+		SubmissionKey:  "detached-work-1",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "Workspace detached audit",
+		Description:    "Review the queued harness work.",
+		NetworkChannel: "builders",
+		TurnSource:     session.TurnSourceNetwork,
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	}
+
+	first, err := runtime.submitDetachedHarnessWork(context.Background(), req)
+	if err != nil {
+		t.Fatalf("submitDetachedHarnessWork(first) error = %v", err)
+	}
+	if first == nil {
+		t.Fatal("submitDetachedHarnessWork(first) = nil, want submission")
+	}
+	if first.ExistingTask {
+		t.Fatal("submitDetachedHarnessWork(first).ExistingTask = true, want false")
+	}
+	if first.ExistingRun {
+		t.Fatal("submitDetachedHarnessWork(first).ExistingRun = true, want false")
+	}
+
+	second, err := runtime.submitDetachedHarnessWork(context.Background(), req)
+	if err != nil {
+		t.Fatalf("submitDetachedHarnessWork(duplicate) error = %v", err)
+	}
+	if second == nil {
+		t.Fatal("submitDetachedHarnessWork(duplicate) = nil, want submission")
+	}
+	if !second.ExistingTask || !second.ExistingRun {
+		t.Fatalf("duplicate submission flags = task:%v run:%v, want both true", second.ExistingTask, second.ExistingRun)
+	}
+	if got, want := second.Task.ID, first.Task.ID; got != want {
+		t.Fatalf("duplicate task id = %q, want %q", got, want)
+	}
+	if got, want := second.Run.ID, first.Run.ID; got != want {
+		t.Fatalf("duplicate run id = %q, want %q", got, want)
+	}
+
+	actor, err := detachedHarnessActorContext("sess-owner")
+	if err != nil {
+		t.Fatalf("detachedHarnessActorContext() error = %v", err)
+	}
+	storedTask, err := runtime.store.GetTask(context.Background(), first.Task.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got, want := storedTask.Scope, taskpkg.ScopeWorkspace; got != want {
+		t.Fatalf("storedTask.Scope = %q, want %q", got, want)
+	}
+	if got, want := storedTask.WorkspaceID, workspace.ID; got != want {
+		t.Fatalf("storedTask.WorkspaceID = %q, want %q", got, want)
+	}
+	if storedTask.Owner == nil {
+		t.Fatal("storedTask.Owner = nil, want owner session")
+	}
+	if got, want := storedTask.Owner.Kind, taskpkg.OwnerKindAgentSession; got != want {
+		t.Fatalf("storedTask.Owner.Kind = %q, want %q", got, want)
+	}
+	if got, want := storedTask.Owner.Ref, "sess-owner"; got != want {
+		t.Fatalf("storedTask.Owner.Ref = %q, want %q", got, want)
+	}
+	if got, want := storedTask.CreatedBy, actor.Actor; got != want {
+		t.Fatalf("storedTask.CreatedBy = %#v, want %#v", got, want)
+	}
+	if got, want := storedTask.Origin, actor.Origin; got != want {
+		t.Fatalf("storedTask.Origin = %#v, want %#v", got, want)
+	}
+
+	taskMetadata, err := decodeDetachedHarnessTaskMetadata(storedTask.Metadata)
+	if err != nil {
+		t.Fatalf("decodeDetachedHarnessTaskMetadata() error = %v", err)
+	}
+	if got, want := taskMetadata, (detachedHarnessTaskMetadata{
+		Schema:               harnessDetachedMetadataSchema,
+		Kind:                 harnessDetachedTaskMetadataKey,
+		SubmissionKey:        "detached-work-1",
+		Summary:              "Workspace detached audit",
+		SubmissionTurnSource: string(session.TurnSourceNetwork),
+		OwnerSessionID:       "sess-owner",
+		OwnerSessionType:     string(session.SessionTypeSystem),
+		OwnerWorkspaceID:     workspace.ID,
+		OwnerChannel:         "builders",
+		WakeTarget: detachedHarnessWakeTarget{
+			SessionID:   "sess-wake",
+			SessionType: string(session.SessionTypeSystem),
+			WorkspaceID: workspace.ID,
+			Channel:     "builders",
+		},
+	}); got != want {
+		t.Fatalf("task metadata = %#v, want %#v", got, want)
+	}
+
+	storedRun, err := runtime.store.GetTaskRun(context.Background(), first.Run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	if got, want := storedRun.TaskID, storedTask.ID; got != want {
+		t.Fatalf("storedRun.TaskID = %q, want %q", got, want)
+	}
+	if got, want := storedRun.Status, taskpkg.TaskRunStatusQueued; got != want {
+		t.Fatalf("storedRun.Status = %q, want %q", got, want)
+	}
+	if got, want := storedRun.Origin, actor.Origin; got != want {
+		t.Fatalf("storedRun.Origin = %#v, want %#v", got, want)
+	}
+	if got, want := storedRun.IdempotencyKey, "detached-work-1"; got != want {
+		t.Fatalf("storedRun.IdempotencyKey = %q, want %q", got, want)
+	}
+
+	runMetadata, err := decodeDetachedHarnessRunMetadata(storedRun.Metadata)
+	if err != nil {
+		t.Fatalf("decodeDetachedHarnessRunMetadata() error = %v", err)
+	}
+	if got, want := runMetadata, (detachedHarnessRunMetadata{
+		Schema:               harnessDetachedMetadataSchema,
+		Kind:                 harnessDetachedRunMetadataKey,
+		SubmissionKey:        "detached-work-1",
+		Summary:              "Workspace detached audit",
+		SubmissionTurnSource: string(session.TurnSourceNetwork),
+		OwnerSessionID:       "sess-owner",
+		OwnerSessionType:     string(session.SessionTypeSystem),
+		OwnerWorkspaceID:     workspace.ID,
+		OwnerChannel:         "builders",
+		WakeTarget: detachedHarnessWakeTarget{
+			SessionID:   "sess-wake",
+			SessionType: string(session.SessionTypeSystem),
+			WorkspaceID: workspace.ID,
+			Channel:     "builders",
+		},
+	}); got != want {
+		t.Fatalf("run metadata = %#v, want %#v", got, want)
+	}
+
+	readActor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task inspect")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	view, err := runtime.manager.GetTask(context.Background(), storedTask.ID, readActor)
+	if err != nil {
+		t.Fatalf("manager.GetTask() error = %v", err)
+	}
+	if got, want := len(view.Runs), 1; got != want {
+		t.Fatalf("len(view.Runs) = %d, want %d", got, want)
+	}
+	runs, err := runtime.manager.ListTaskRuns(context.Background(), storedTask.ID, taskpkg.RunQuery{}, readActor)
+	if err != nil {
+		t.Fatalf("manager.ListTaskRuns() error = %v", err)
+	}
+	if got, want := len(runs), 1; got != want {
+		t.Fatalf("len(runs) = %d, want %d", got, want)
+	}
+}
+
+func TestTaskRuntimeDetachedHarnessSubmissionValidationErrors(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{
+				ID:          "sess-owner",
+				Type:        session.SessionTypeSystem,
+				State:       session.StateActive,
+				WorkspaceID: "ws-owner",
+				Workspace:   "/tmp/ws-owner",
+				Channel:     "builders",
+			},
+			{
+				ID:          "sess-other-workspace",
+				Type:        session.SessionTypeSystem,
+				State:       session.StateActive,
+				WorkspaceID: "ws-other",
+				Workspace:   "/tmp/ws-other",
+				Channel:     "builders",
+			},
+		},
+	}
+	runtime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+
+	testCases := []struct {
+		name string
+		req  detachedHarnessSubmitRequest
+	}{
+		{
+			name: "Should reject blank wake target session id",
+			req: detachedHarnessSubmitRequest{
+				SubmissionKey:  "detached-invalid-blank-wake",
+				OwnerSessionID: "sess-owner",
+				Scope:          taskpkg.ScopeGlobal,
+				WakeTarget:     detachedHarnessWakeTargetInput{},
+			},
+		},
+		{
+			name: "Should reject unsupported scope",
+			req: detachedHarnessSubmitRequest{
+				SubmissionKey:  "detached-invalid-scope",
+				OwnerSessionID: "sess-owner",
+				Scope:          taskpkg.Scope("invalid"),
+				WakeTarget: detachedHarnessWakeTargetInput{
+					SessionID: "sess-owner",
+				},
+			},
+		},
+		{
+			name: "Should reject workspace mismatch between owner and wake target",
+			req: detachedHarnessSubmitRequest{
+				SubmissionKey:  "detached-invalid-workspace",
+				OwnerSessionID: "sess-owner",
+				Scope:          taskpkg.ScopeWorkspace,
+				WakeTarget: detachedHarnessWakeTargetInput{
+					SessionID: "sess-other-workspace",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if _, err := runtime.submitDetachedHarnessWork(
+				context.Background(),
+				tc.req,
+			); !errors.Is(
+				err,
+				taskpkg.ErrValidation,
+			) {
+				t.Fatalf("submitDetachedHarnessWork() error = %v, want %v", err, taskpkg.ErrValidation)
+			}
+		})
+	}
+}
+
+func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{}
+	runtime, resolver, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
+	sessions.infos = []*session.Info{
+		{
+			ID:          "sess-owner",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+		{
+			ID:          "sess-wake",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+		{
+			ID:          "sess-runtime",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+	}
+
+	submission, err := runtime.submitDetachedHarnessWork(context.Background(), detachedHarnessSubmitRequest{
+		SubmissionKey:  "detached-recovery-1",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "Recover detached harness run",
+		NetworkChannel: "builders",
+		TurnSource:     session.TurnSourceSynthetic,
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+	if err != nil {
+		t.Fatalf("submitDetachedHarnessWork() error = %v", err)
+	}
+
+	actor, err := detachedHarnessActorContext("sess-owner")
+	if err != nil {
+		t.Fatalf("detachedHarnessActorContext() error = %v", err)
+	}
+	claimed, err := runtime.manager.ClaimRun(context.Background(), submission.Run.ID, taskpkg.ClaimRun{
+		IdempotencyKey: "claim-detached-recovery-1",
+	}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+	starting, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-runtime", actor)
+	if err != nil {
+		t.Fatalf("AttachRunSession() error = %v", err)
+	}
+	if got, want := starting.Status, taskpkg.TaskRunStatusStarting; got != want {
+		t.Fatalf("starting.Status = %q, want %q", got, want)
+	}
+
+	bootActor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+	stats, err := recoverTaskRunsOnBoot(context.Background(), runtime.manager, runtime.store, sessions, bootActor)
+	if err != nil {
+		t.Fatalf("recoverTaskRunsOnBoot() error = %v", err)
+	}
+	if got, want := stats.markedRunning, 1; got != want {
+		t.Fatalf("stats.markedRunning = %d, want %d", got, want)
+	}
+
+	recovered, err := runtime.store.GetTaskRun(context.Background(), submission.Run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(recovered) error = %v", err)
+	}
+	if got, want := recovered.Status, taskpkg.TaskRunStatusRunning; got != want {
+		t.Fatalf("recovered.Status = %q, want %q", got, want)
+	}
+	metadata, err := decodeDetachedHarnessRunMetadata(recovered.Metadata)
+	if err != nil {
+		t.Fatalf("decodeDetachedHarnessRunMetadata(recovered) error = %v", err)
+	}
+	if got, want := metadata.SubmissionKey, "detached-recovery-1"; got != want {
+		t.Fatalf("recovered metadata submission key = %q, want %q", got, want)
+	}
+	if got, want := metadata.OwnerSessionID, "sess-owner"; got != want {
+		t.Fatalf("recovered metadata owner session id = %q, want %q", got, want)
+	}
+	if got, want := metadata.WakeTarget.SessionID, "sess-wake"; got != want {
+		t.Fatalf("recovered metadata wake target session id = %q, want %q", got, want)
+	}
+}
+
+func TestDetachedHarnessWorkBridgeHelperValidation(t *testing.T) {
+	t.Parallel()
+
+	if _, err := newHarnessDetachedWorkBridge(nil, openDaemonTestGlobalDB(t), &fakeSessionManager{}); err == nil {
+		t.Fatal("newHarnessDetachedWorkBridge(nil tasks) error = nil, want validation error")
+	}
+	if _, err := newHarnessDetachedWorkBridge(&taskpkg.Service{}, nil, &fakeSessionManager{}); err == nil {
+		t.Fatal("newHarnessDetachedWorkBridge(nil store) error = nil, want validation error")
+	}
+	if _, err := newHarnessDetachedWorkBridge(&taskpkg.Service{}, openDaemonTestGlobalDB(t), nil); err == nil {
+		t.Fatal("newHarnessDetachedWorkBridge(nil sessions) error = nil, want validation error")
+	}
+
+	if _, err := decodeDetachedHarnessTaskMetadata(
+		json.RawMessage(`{"schema":"bad","kind":"other"}`),
+	); !errors.Is(
+		err,
+		taskpkg.ErrValidation,
+	) {
+		t.Fatalf("decodeDetachedHarnessTaskMetadata(wrong schema) error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+	if _, err := decodeDetachedHarnessTaskMetadata(json.RawMessage(`{`)); !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf("decodeDetachedHarnessTaskMetadata(invalid json) error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+	if _, err := decodeDetachedHarnessRunMetadata(
+		json.RawMessage(`{"schema":"bad","kind":"other"}`),
+	); !errors.Is(
+		err,
+		taskpkg.ErrValidation,
+	) {
+		t.Fatalf("decodeDetachedHarnessRunMetadata(wrong schema) error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+	if _, err := decodeDetachedHarnessRunMetadata(json.RawMessage(`{`)); !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf("decodeDetachedHarnessRunMetadata(invalid json) error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+
+	if got, want := detachedHarnessSummary("   "), defaultDetachedHarnessSummary; got != want {
+		t.Fatalf("detachedHarnessSummary(blank) = %q, want %q", got, want)
+	}
+	if got, want := detachedHarnessChannel("", " owners "), "owners"; got != want {
+		t.Fatalf("detachedHarnessChannel(owner fallback) = %q, want %q", got, want)
+	}
+	if got, want := normalizeDetachedHarnessTurnSource(
+		session.TurnSource("unexpected"),
+	), session.TurnSourceUser; got != want {
+		t.Fatalf("normalizeDetachedHarnessTurnSource(unexpected) = %q, want %q", got, want)
+	}
+}
+
+func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{}
+	runtime, resolver, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
+	sessions.infos = []*session.Info{
+		{
+			ID:          "sess-owner",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+		{
+			ID:          "sess-wake",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+	}
+
+	baseReq := detachedHarnessSubmitRequest{
+		SubmissionKey:  "detached-mismatch",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "Original detached work",
+		NetworkChannel: "builders",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	}
+	if _, err := runtime.submitDetachedHarnessWork(context.Background(), baseReq); err != nil {
+		t.Fatalf("submitDetachedHarnessWork(base) error = %v", err)
+	}
+
+	if _, err := runtime.submitDetachedHarnessWork(context.Background(), detachedHarnessSubmitRequest{
+		SubmissionKey:  "detached-mismatch",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "Changed detached work",
+		NetworkChannel: "builders",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	}); !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf("submitDetachedHarnessWork(run mismatch) error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+
+	actor, err := detachedHarnessActorContext("sess-owner")
+	if err != nil {
+		t.Fatalf("detachedHarnessActorContext() error = %v", err)
+	}
+	conflictMetadata, err := marshalDetachedHarnessMetadata(detachedHarnessTaskMetadata{
+		Schema:               harnessDetachedMetadataSchema,
+		Kind:                 harnessDetachedTaskMetadataKey,
+		SubmissionKey:        "detached-conflict",
+		Summary:              "Conflicting stored task",
+		SubmissionTurnSource: string(session.TurnSourceUser),
+		OwnerSessionID:       "sess-owner",
+		OwnerSessionType:     string(session.SessionTypeSystem),
+		OwnerWorkspaceID:     workspace.ID,
+		OwnerChannel:         "builders",
+		WakeTarget: detachedHarnessWakeTarget{
+			SessionID:   "sess-wake",
+			SessionType: string(session.SessionTypeSystem),
+			WorkspaceID: workspace.ID,
+			Channel:     "builders",
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshalDetachedHarnessMetadata() error = %v", err)
+	}
+	conflictingTask := taskpkg.Task{
+		ID:             detachedHarnessTaskID("sess-owner", "detached-conflict"),
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Title:          "Conflicting stored task",
+		Status:         taskpkg.TaskStatusPending,
+		MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+		ApprovalPolicy: taskpkg.ApprovalPolicyNone,
+		ApprovalState:  taskpkg.ApprovalStateNotRequired,
+		Owner: &taskpkg.Ownership{
+			Kind: taskpkg.OwnerKindAgentSession,
+			Ref:  "sess-owner",
+		},
+		CreatedBy: actor.Actor,
+		Origin:    actor.Origin,
+		CreatedAt: time.Date(2026, 4, 18, 10, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 18, 10, 0, 0, 0, time.UTC),
+		Metadata:  conflictMetadata,
+	}
+	if err := runtime.store.CreateTask(context.Background(), conflictingTask); err != nil {
+		t.Fatalf("CreateTask(conflictingTask) error = %v", err)
+	}
+
+	if _, err := runtime.submitDetachedHarnessWork(context.Background(), detachedHarnessSubmitRequest{
+		SubmissionKey:  "detached-conflict",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "Expected detached work",
+		NetworkChannel: "builders",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	}); !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf("submitDetachedHarnessWork(task mismatch) error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+
+	if _, err := runtime.submitDetachedHarnessWork(context.Background(), detachedHarnessSubmitRequest{
+		SubmissionKey:  "missing-session",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "Missing wake target",
+		NetworkChannel: "builders",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-missing",
+		},
+	}); !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf("submitDetachedHarnessWork(missing session) error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+}
+
+func TestTaskRuntimeSubmitDetachedHarnessWorkGuards(t *testing.T) {
+	t.Parallel()
+
+	var nilRuntime *taskRuntime
+	if _, err := nilRuntime.submitDetachedHarnessWork(
+		context.Background(),
+		detachedHarnessSubmitRequest{},
+	); err == nil {
+		t.Fatal("nil runtime submit error = nil, want validation error")
+	}
+
+	runtime := &taskRuntime{}
+	if _, err := runtime.submitDetachedHarnessWork(context.Background(), detachedHarnessSubmitRequest{}); err == nil {
+		t.Fatal("runtime without detached bridge error = nil, want validation error")
+	}
+
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-owner", Type: session.SessionTypeSystem, State: session.StateActive},
+			{ID: "sess-wake", Type: session.SessionTypeSystem, State: session.StateActive},
+		},
+	}
+	readyRuntime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+	if _, err := readyRuntime.submitDetachedHarnessWork(nilTaskRuntimeContext(), detachedHarnessSubmitRequest{
+		SubmissionKey:  "detached-guard",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeGlobal,
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	}); err == nil {
+		t.Fatal("submitDetachedHarnessWork(nil ctx) error = nil, want validation error")
+	}
+}
+
+func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
+	t.Parallel()
+
+	req := normalizedDetachedHarnessSubmitRequest{
+		TaskID:           detachedHarnessTaskID("sess-owner", "validator"),
+		SubmissionKey:    "validator",
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      "ws-1",
+		Summary:          "Validator task",
+		Description:      "Ensure helper coverage",
+		NetworkChannel:   "builders",
+		TurnSource:       session.TurnSourceSynthetic,
+		OwnerSessionID:   "sess-owner",
+		OwnerSessionType: string(session.SessionTypeSystem),
+		OwnerWorkspaceID: "ws-1",
+		OwnerChannel:     "builders",
+		WakeTarget: detachedHarnessWakeTarget{
+			SessionID:   "sess-wake",
+			SessionType: string(session.SessionTypeSystem),
+			WorkspaceID: "ws-1",
+			Channel:     "builders",
+		},
+	}
+	actor, err := detachedHarnessActorContext(req.OwnerSessionID)
+	if err != nil {
+		t.Fatalf("detachedHarnessActorContext() error = %v", err)
+	}
+	taskMetadata := buildDetachedHarnessTaskMetadata(req)
+	taskMetadataJSON, err := marshalDetachedHarnessMetadata(taskMetadata)
+	if err != nil {
+		t.Fatalf("marshalDetachedHarnessMetadata(task) error = %v", err)
+	}
+	runMetadata := buildDetachedHarnessRunMetadata(req)
+	runMetadataJSON, err := marshalDetachedHarnessMetadata(runMetadata)
+	if err != nil {
+		t.Fatalf("marshalDetachedHarnessMetadata(run) error = %v", err)
+	}
+
+	matchingTask := taskpkg.Task{
+		ID:             req.TaskID,
+		Scope:          req.Scope,
+		WorkspaceID:    req.WorkspaceID,
+		NetworkChannel: req.NetworkChannel,
+		Title:          req.Summary,
+		Description:    req.Description,
+		Status:         taskpkg.TaskStatusPending,
+		MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+		ApprovalPolicy: taskpkg.ApprovalPolicyNone,
+		ApprovalState:  taskpkg.ApprovalStateNotRequired,
+		Owner: &taskpkg.Ownership{
+			Kind: taskpkg.OwnerKindAgentSession,
+			Ref:  req.OwnerSessionID,
+		},
+		CreatedBy: actor.Actor,
+		Origin:    actor.Origin,
+		CreatedAt: time.Date(2026, 4, 18, 11, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 18, 11, 0, 0, 0, time.UTC),
+		Metadata:  taskMetadataJSON,
+	}
+	if err := validateDetachedHarnessTaskMatch(matchingTask, req, actor, taskMetadata); err != nil {
+		t.Fatalf("validateDetachedHarnessTaskMatch(match) error = %v", err)
+	}
+
+	missingOwnerTask := matchingTask
+	missingOwnerTask.Owner = nil
+	if err := validateDetachedHarnessTaskMatch(
+		missingOwnerTask,
+		req,
+		actor,
+		taskMetadata,
+	); !errors.Is(
+		err,
+		taskpkg.ErrValidation,
+	) {
+		t.Fatalf("validateDetachedHarnessTaskMatch(missing owner) error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+
+	matchingRun := taskpkg.Run{
+		ID:             "run-validator",
+		TaskID:         req.TaskID,
+		Status:         taskpkg.TaskRunStatusQueued,
+		Attempt:        1,
+		Origin:         actor.Origin,
+		IdempotencyKey: req.SubmissionKey,
+		NetworkChannel: req.NetworkChannel,
+		Metadata:       runMetadataJSON,
+		QueuedAt:       time.Date(2026, 4, 18, 11, 5, 0, 0, time.UTC),
+	}
+	if err := validateDetachedHarnessRunMatch(matchingRun, req, actor.Origin, runMetadata); err != nil {
+		t.Fatalf("validateDetachedHarnessRunMatch(match) error = %v", err)
+	}
+
+	wrongOriginRun := matchingRun
+	wrongOriginRun.Origin = taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"}
+	if err := validateDetachedHarnessRunMatch(
+		wrongOriginRun,
+		req,
+		actor.Origin,
+		runMetadata,
+	); !errors.Is(
+		err,
+		taskpkg.ErrValidation,
+	) {
+		t.Fatalf("validateDetachedHarnessRunMatch(wrong origin) error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+}
+
 type taskBridgeStopOnlySessionManager struct {
 	stopCalls []fakeStopWithCauseCall
 }
@@ -468,4 +1159,53 @@ func (m *taskBridgeStopOnlySessionManager) StopWithCause(
 
 func nilTaskRuntimeContext() context.Context {
 	return nil
+}
+
+func newDetachedHarnessTaskRuntimeForTest(
+	t *testing.T,
+	sessions *fakeSessionManager,
+) (*taskRuntime, workspacepkg.RuntimeResolver, aghconfig.HomePaths) {
+	t.Helper()
+
+	if sessions == nil {
+		sessions = &fakeSessionManager{}
+	}
+
+	db := openDaemonTestGlobalDB(t)
+	homePaths := testHomePaths(t)
+	resolver, err := workspacepkg.NewResolver(
+		db,
+		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithLogger(discardLogger()),
+		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
+			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		}),
+	)
+	if err != nil {
+		t.Fatalf("workspace.NewResolver() error = %v", err)
+	}
+
+	sessionBridge, err := newTaskSessionBridge(sessions, homePaths.HomeDir, discardLogger())
+	if err != nil {
+		t.Fatalf("newTaskSessionBridge() error = %v", err)
+	}
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(db),
+		taskpkg.WithSessionExecutor(sessionBridge),
+		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
+		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
+	)
+	if err != nil {
+		t.Fatalf("task.NewManager() error = %v", err)
+	}
+	detached, err := newHarnessDetachedWorkBridge(manager, db, sessions)
+	if err != nil {
+		t.Fatalf("newHarnessDetachedWorkBridge() error = %v", err)
+	}
+
+	return &taskRuntime{
+		manager:  manager,
+		store:    db,
+		detached: detached,
+	}, resolver, homePaths
 }

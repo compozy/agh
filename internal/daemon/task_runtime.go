@@ -27,8 +27,9 @@ type taskStore interface {
 }
 
 type taskRuntime struct {
-	manager *taskpkg.Service
-	store   taskStore
+	manager  *taskpkg.Service
+	store    taskStore
+	detached *harnessDetachedWorkBridge
 }
 
 type taskBridgeSessionManager interface {
@@ -230,10 +231,15 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	if err != nil {
 		return fmt.Errorf("daemon: create task manager: %w", err)
 	}
+	detached, err := newHarnessDetachedWorkBridge(manager, store, state.sessions)
+	if err != nil {
+		return fmt.Errorf("daemon: create detached harness bridge: %w", err)
+	}
 
 	state.tasks = &taskRuntime{
-		manager: manager,
-		store:   store,
+		manager:  manager,
+		store:    store,
+		detached: detached,
 	}
 	state.deps.Tasks = manager
 
@@ -255,6 +261,19 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		)
 	}
 	return nil
+}
+
+func (r *taskRuntime) submitDetachedHarnessWork(
+	ctx context.Context,
+	req detachedHarnessSubmitRequest,
+) (*detachedHarnessSubmission, error) {
+	if r == nil {
+		return nil, errors.New("daemon: task runtime is required")
+	}
+	if r.detached == nil {
+		return nil, errors.New("daemon: detached harness bridge is required")
+	}
+	return r.detached.submit(ctx, req)
 }
 
 func recoverTaskRunsOnBoot(
