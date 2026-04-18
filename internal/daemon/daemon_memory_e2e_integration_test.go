@@ -72,154 +72,172 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		memory.ScopeWorkspace,
 	)
 
-	var cliSearch []memory.SearchResult
-	if err := harness.CLI.RunJSONInDir(
-		ctx,
-		harness.WorkspaceRoot,
-		&cliSearch,
-		"memory",
-		"search",
-		"auth sessions",
-		"-o",
-		"json",
-	); err != nil {
-		t.Fatalf("CLI memory search error = %v", err)
-	}
-	if !containsSearchResult(cliSearch, "auth.md", memory.ScopeWorkspace) {
-		t.Fatalf("CLI search results = %#v, want workspace auth.md hit", cliSearch)
-	}
-	if containsSearchResult(cliSearch, "legacy-only.md", memory.ScopeWorkspace) {
-		t.Fatalf("CLI search results = %#v, want legacy path ignored", cliSearch)
-	}
+	t.Run("Should return matching CLI and HTTP search results while ignoring legacy paths", func(t *testing.T) {
+		var cliSearch []memory.SearchResult
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&cliSearch,
+			"memory",
+			"search",
+			"auth sessions",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI memory search error = %v", err)
+		}
+		if !containsSearchResult(cliSearch, "auth.md", memory.ScopeWorkspace) {
+			t.Fatalf("CLI search results = %#v, want workspace auth.md hit", cliSearch)
+		}
+		if containsSearchResult(cliSearch, "legacy-only.md", memory.ScopeWorkspace) {
+			t.Fatalf("CLI search results = %#v, want legacy path ignored", cliSearch)
+		}
 
-	var httpSearch []memory.SearchResult
-	if err := harness.HTTPJSON(ctx, http.MethodGet, memorySearchPath("auth sessions", harness.WorkspaceRoot), nil, &httpSearch); err != nil {
-		t.Fatalf("HTTP memory search error = %v", err)
-	}
-	if !containsSearchResult(httpSearch, "auth.md", memory.ScopeWorkspace) {
-		t.Fatalf("HTTP search results = %#v, want workspace auth.md hit", httpSearch)
-	}
-	if len(cliSearch) == 0 || len(httpSearch) == 0 {
-		t.Fatalf("search results = cli:%#v http:%#v, want non-empty parity", cliSearch, httpSearch)
-	}
-	if got, want := httpSearch[0].Filename, cliSearch[0].Filename; got != want {
-		t.Fatalf("HTTP top search filename = %q, want %q", got, want)
-	}
-	if got, want := httpSearch[0].Scope, cliSearch[0].Scope; got != want {
-		t.Fatalf("HTTP top search scope = %q, want %q", got, want)
-	}
+		var httpSearch []memory.SearchResult
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodGet,
+			memorySearchPath("auth sessions", harness.WorkspaceRoot),
+			nil,
+			&httpSearch,
+		); err != nil {
+			t.Fatalf("HTTP memory search error = %v", err)
+		}
+		if !containsSearchResult(httpSearch, "auth.md", memory.ScopeWorkspace) {
+			t.Fatalf("HTTP search results = %#v, want workspace auth.md hit", httpSearch)
+		}
+		if len(cliSearch) == 0 || len(httpSearch) == 0 {
+			t.Fatalf("search results = cli:%#v http:%#v, want non-empty parity", cliSearch, httpSearch)
+		}
+		if got, want := httpSearch[0].Filename, cliSearch[0].Filename; got != want {
+			t.Fatalf("HTTP top search filename = %q, want %q", got, want)
+		}
+		if got, want := httpSearch[0].Scope, cliSearch[0].Scope; got != want {
+			t.Fatalf("HTTP top search scope = %q, want %q", got, want)
+		}
 
-	var cliLegacy []memory.SearchResult
-	if err := harness.CLI.RunJSONInDir(
-		ctx,
-		harness.WorkspaceRoot,
-		&cliLegacy,
-		"memory",
-		"search",
-		"legacy decoy",
-		"-o",
-		"json",
-	); err != nil {
-		t.Fatalf("CLI legacy search error = %v", err)
-	}
-	if len(cliLegacy) != 0 {
-		t.Fatalf("CLI legacy search results = %#v, want empty result set", cliLegacy)
-	}
+		var cliLegacy []memory.SearchResult
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&cliLegacy,
+			"memory",
+			"search",
+			"legacy decoy",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI legacy search error = %v", err)
+		}
+		if len(cliLegacy) != 0 {
+			t.Fatalf("CLI legacy search results = %#v, want empty result set", cliLegacy)
+		}
 
-	var httpLegacy []memory.SearchResult
-	if err := harness.HTTPJSON(ctx, http.MethodGet, memorySearchPath("legacy decoy", harness.WorkspaceRoot), nil, &httpLegacy); err != nil {
-		t.Fatalf("HTTP legacy search error = %v", err)
-	}
-	if len(httpLegacy) != 0 {
-		t.Fatalf("HTTP legacy search results = %#v, want empty result set", httpLegacy)
-	}
+		var httpLegacy []memory.SearchResult
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodGet,
+			memorySearchPath("legacy decoy", harness.WorkspaceRoot),
+			nil,
+			&httpLegacy,
+		); err != nil {
+			t.Fatalf("HTTP legacy search error = %v", err)
+		}
+		if len(httpLegacy) != 0 {
+			t.Fatalf("HTTP legacy search results = %#v, want empty result set", httpLegacy)
+		}
+	})
 
-	var cliReindex memory.ReindexResult
-	if err := harness.CLI.RunJSONInDir(
-		ctx,
-		harness.WorkspaceRoot,
-		&cliReindex,
-		"memory",
-		"reindex",
-		"-o",
-		"json",
-	); err != nil {
-		t.Fatalf("CLI memory reindex error = %v", err)
-	}
-	if got, want := cliReindex.IndexedFiles, 3; got != want {
-		t.Fatalf("CLI reindex indexed_files = %d, want %d", got, want)
-	}
+	t.Run("Should reindex through CLI and HTTP with matching counts", func(t *testing.T) {
+		var cliReindex memory.ReindexResult
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&cliReindex,
+			"memory",
+			"reindex",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI memory reindex error = %v", err)
+		}
+		if got, want := cliReindex.IndexedFiles, 3; got != want {
+			t.Fatalf("CLI reindex indexed_files = %d, want %d", got, want)
+		}
 
-	var httpReindex memory.ReindexResult
-	if err := harness.HTTPJSON(
-		ctx,
-		http.MethodPost,
-		"/api/memory/reindex",
-		aghcontract.MemoryReindexRequest{Workspace: harness.WorkspaceRoot},
-		&httpReindex,
-	); err != nil {
-		t.Fatalf("HTTP memory reindex error = %v", err)
-	}
-	if got, want := httpReindex.IndexedFiles, 3; got != want {
-		t.Fatalf("HTTP reindex indexed_files = %d, want %d", got, want)
-	}
+		var httpReindex memory.ReindexResult
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			"/api/memory/reindex",
+			aghcontract.MemoryReindexRequest{Workspace: harness.WorkspaceRoot},
+			&httpReindex,
+		); err != nil {
+			t.Fatalf("HTTP memory reindex error = %v", err)
+		}
+		if got, want := httpReindex.IndexedFiles, 3; got != want {
+			t.Fatalf("HTTP reindex indexed_files = %d, want %d", got, want)
+		}
+	})
 
-	var health aghcontract.HealthResponse
-	if err := harness.HTTPJSON(
-		ctx,
-		http.MethodGet,
-		"/api/observe/health?workspace="+url.QueryEscape(harness.WorkspaceRoot),
-		nil,
-		&health,
-	); err != nil {
-		t.Fatalf("HTTP observe health error = %v", err)
-	}
-	if got, want := health.Memory.GlobalFiles, 1; got != want {
-		t.Fatalf("health.Memory.GlobalFiles = %d, want %d", got, want)
-	}
-	if got, want := health.Memory.WorkspaceFiles, 2; got != want {
-		t.Fatalf("health.Memory.WorkspaceFiles = %d, want %d", got, want)
-	}
-	if got, want := health.Memory.IndexedFiles, 3; got != want {
-		t.Fatalf("health.Memory.IndexedFiles = %d, want %d", got, want)
-	}
-	if got := health.Memory.OrphanedFiles; got != 0 {
-		t.Fatalf("health.Memory.OrphanedFiles = %d, want 0", got)
-	}
-	if health.Memory.LastReindex == nil {
-		t.Fatalf("health.Memory.LastReindex = nil, want non-nil")
-	}
+	t.Run("Should surface memory health and observe events", func(t *testing.T) {
+		var health aghcontract.HealthResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodGet,
+			"/api/observe/health?workspace="+url.QueryEscape(harness.WorkspaceRoot),
+			nil,
+			&health,
+		); err != nil {
+			t.Fatalf("HTTP observe health error = %v", err)
+		}
+		if got, want := health.Memory.GlobalFiles, 1; got != want {
+			t.Fatalf("health.Memory.GlobalFiles = %d, want %d", got, want)
+		}
+		if got, want := health.Memory.WorkspaceFiles, 2; got != want {
+			t.Fatalf("health.Memory.WorkspaceFiles = %d, want %d", got, want)
+		}
+		if got, want := health.Memory.IndexedFiles, 3; got != want {
+			t.Fatalf("health.Memory.IndexedFiles = %d, want %d", got, want)
+		}
+		if got := health.Memory.OrphanedFiles; got != 0 {
+			t.Fatalf("health.Memory.OrphanedFiles = %d, want 0", got)
+		}
+		if health.Memory.LastReindex == nil {
+			t.Fatalf("health.Memory.LastReindex = nil, want non-nil")
+		}
 
-	var reindexEvents aghcontract.ObserveEventsResponse
-	if err := harness.UDSJSON(
-		ctx,
-		http.MethodGet,
-		"/api/observe/events?type=memory.reindex&limit=10",
-		nil,
-		&reindexEvents,
-	); err != nil {
-		t.Fatalf("UDS observe reindex events error = %v", err)
-	}
-	if !containsObserveEventSummary(reindexEvents.Events, "memory.reindex", "indexed=3") {
-		t.Fatalf("reindex observe events = %#v, want indexed=3 summary", reindexEvents.Events)
-	}
+		var reindexEvents aghcontract.ObserveEventsResponse
+		if err := harness.UDSJSON(
+			ctx,
+			http.MethodGet,
+			"/api/observe/events?type=memory.reindex&limit=10",
+			nil,
+			&reindexEvents,
+		); err != nil {
+			t.Fatalf("UDS observe reindex events error = %v", err)
+		}
+		if !containsObserveEventSummary(reindexEvents.Events, "memory.reindex", "indexed=3") {
+			t.Fatalf("reindex observe events = %#v, want indexed=3 summary", reindexEvents.Events)
+		}
 
-	var searchEvents aghcontract.ObserveEventsResponse
-	if err := harness.UDSJSON(
-		ctx,
-		http.MethodGet,
-		"/api/observe/events?type=memory.search&limit=10",
-		nil,
-		&searchEvents,
-	); err != nil {
-		t.Fatalf("UDS observe search events error = %v", err)
-	}
-	if !containsObserveEventSummary(searchEvents.Events, "memory.search", `auth sessions`) {
-		t.Fatalf("search observe events = %#v, want auth search summary", searchEvents.Events)
-	}
-	if !containsObserveEventSummary(searchEvents.Events, "memory.search", `legacy decoy`) {
-		t.Fatalf("search observe events = %#v, want legacy search summary", searchEvents.Events)
-	}
+		var searchEvents aghcontract.ObserveEventsResponse
+		if err := harness.UDSJSON(
+			ctx,
+			http.MethodGet,
+			"/api/observe/events?type=memory.search&limit=10",
+			nil,
+			&searchEvents,
+		); err != nil {
+			t.Fatalf("UDS observe search events error = %v", err)
+		}
+		if !containsObserveEventSummary(searchEvents.Events, "memory.search", `auth sessions`) {
+			t.Fatalf("search observe events = %#v, want auth search summary", searchEvents.Events)
+		}
+		if !containsObserveEventSummary(searchEvents.Events, "memory.search", `legacy decoy`) {
+			t.Fatalf("search observe events = %#v, want legacy search summary", searchEvents.Events)
+		}
+	})
 }
 
 func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessage(t *testing.T) {
@@ -271,54 +289,61 @@ func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessa
 		t.Fatalf("SessionEvents() error = %v", err)
 	}
 	events := decodeAgentEvents(t, eventsResp.Events)
-	if !containsAgentEvent(events, aghcontract.AgentEventPayload{
-		Type: "agent_message",
-		Text: "qa-memory acknowledged",
-	}) {
-		t.Fatalf("session events = %#v, want recall fixture assistant response", events)
-	}
-	userEvent, ok := firstAgentEventByType(events, "user_message")
-	if !ok {
-		t.Fatalf("session events = %#v, want stored user_message event", events)
-	}
-	if got, want := userEvent.Text, "remember me"; got != want {
-		t.Fatalf("stored user_message text = %q, want %q", got, want)
-	}
-	if strings.Contains(userEvent.Text, "Relevant durable memory for this turn:") {
-		t.Fatalf("stored user_message text = %q, want no injected recall block", userEvent.Text)
-	}
-
 	diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 	if err != nil {
 		t.Fatalf("ReadDiagnostics(%q) error = %v", registration.DiagnosticsPath, err)
 	}
-	if got, want := len(diagnostics), 1; got != want {
-		t.Fatalf("len(diagnostics) = %d, want %d; diagnostics=%#v", got, want, diagnostics)
-	}
-	prompt := diagnostics[0].Prompt
-	if !strings.Contains(prompt, "Relevant durable memory for this turn:") {
-		t.Fatalf("mock prompt = %q, want recall preamble", prompt)
-	}
-	if !strings.Contains(prompt, "- Auth [workspace]") {
-		t.Fatalf("mock prompt = %q, want workspace recall heading", prompt)
-	}
-	if !strings.Contains(prompt, "auth migration uses sessions") {
-		t.Fatalf("mock prompt = %q, want recalled auth snippet", prompt)
-	}
-	if !strings.Contains(prompt, "\n\nUser message:\nremember me") {
-		t.Fatalf("mock prompt = %q, want raw user message suffix", prompt)
-	}
-	if strings.Contains(prompt, "missing.md") {
-		t.Fatalf("mock prompt = %q, want stale MEMORY.md entry ignored", prompt)
-	}
 
-	indexBytes, err := os.ReadFile(indexPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", indexPath, err)
-	}
-	if got := string(indexBytes); got != staleIndex {
-		t.Fatalf("workspace MEMORY.md = %q, want unchanged stale index", got)
-	}
+	t.Run("Should persist the original user message without injected recall", func(t *testing.T) {
+		if !containsAgentEvent(events, aghcontract.AgentEventPayload{
+			Type: "agent_message",
+			Text: "qa-memory acknowledged",
+		}) {
+			t.Fatalf("session events = %#v, want recall fixture assistant response", events)
+		}
+		userEvent, ok := firstAgentEventByType(events, "user_message")
+		if !ok {
+			t.Fatalf("session events = %#v, want stored user_message event", events)
+		}
+		if got, want := userEvent.Text, "remember me"; got != want {
+			t.Fatalf("stored user_message text = %q, want %q", got, want)
+		}
+		if strings.Contains(userEvent.Text, "Relevant durable memory for this turn:") {
+			t.Fatalf("stored user_message text = %q, want no injected recall block", userEvent.Text)
+		}
+	})
+
+	t.Run("Should dispatch recalled context to the agent prompt", func(t *testing.T) {
+		if got, want := len(diagnostics), 1; got != want {
+			t.Fatalf("len(diagnostics) = %d, want %d; diagnostics=%#v", got, want, diagnostics)
+		}
+		prompt := diagnostics[0].Prompt
+		if !strings.Contains(prompt, "Relevant durable memory for this turn:") {
+			t.Fatalf("mock prompt = %q, want recall preamble", prompt)
+		}
+		if !strings.Contains(prompt, "- Auth [workspace]") {
+			t.Fatalf("mock prompt = %q, want workspace recall heading", prompt)
+		}
+		if !strings.Contains(prompt, "auth migration uses sessions") {
+			t.Fatalf("mock prompt = %q, want recalled auth snippet", prompt)
+		}
+		if !strings.Contains(prompt, "\n\nUser message:\nremember me") {
+			t.Fatalf("mock prompt = %q, want raw user message suffix", prompt)
+		}
+		if strings.Contains(prompt, "missing.md") {
+			t.Fatalf("mock prompt = %q, want stale MEMORY.md entry ignored", prompt)
+		}
+	})
+
+	t.Run("Should leave the stale index file unchanged on disk", func(t *testing.T) {
+		indexBytes, err := os.ReadFile(indexPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", indexPath, err)
+		}
+		if got := string(indexBytes); got != staleIndex {
+			t.Fatalf("workspace MEMORY.md = %q, want unchanged stale index", got)
+		}
+	})
 }
 
 type cliMemoryMutationRecord struct {
@@ -393,18 +418,6 @@ func writeMemoryViaUDS(
 	if !response.OK {
 		t.Fatalf("UDS memory write %q = %#v, want ok=true", filename, response)
 	}
-}
-
-func memoryDocument(name string, description string, memoryType memory.Type, body string) string {
-	return strings.TrimSpace(strings.Join([]string{
-		"---",
-		"name: " + name,
-		"description: " + description,
-		"type: " + string(memoryType),
-		"---",
-		"",
-		body,
-	}, "\n")) + "\n"
 }
 
 func memorySearchPath(query string, workspace string) string {

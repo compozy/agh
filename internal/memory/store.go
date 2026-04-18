@@ -43,6 +43,8 @@ type Store struct {
 	catalog       *catalog
 }
 
+var _ Backend = (*Store)(nil)
+
 // NewStore constructs a Store for the provided global memory directory.
 func NewStore(globalDir string, opts ...StoreOption) *Store {
 	store := &Store{
@@ -85,6 +87,11 @@ func (s *Store) ForWorkspace(workspaceRoot string) *Store {
 // List is the backend-aligned alias for Scan.
 func (s *Store) List(scope Scope) ([]Header, error) {
 	return s.Scan(scope)
+}
+
+// LoadPromptIndex is the backend-aligned alias for LoadIndex.
+func (s *Store) LoadPromptIndex(scope Scope) (content string, truncated bool, err error) {
+	return s.LoadIndex(scope)
 }
 
 // EnsureDirs creates the configured memory directories when missing.
@@ -158,16 +165,8 @@ func (s *Store) Write(scope Scope, filename string, content []byte) error {
 	if err := fileutil.AtomicWriteFile(path, content, filePerm); err != nil {
 		return fmt.Errorf("memory: write %q: %w", path, err)
 	}
-	if err := s.syncScope(context.Background(), scope.Normalize()); err != nil {
-		return err
-	}
-	if err := s.logCatalogEvent(
-		context.Background(),
-		"memory.write",
-		fmt.Sprintf("scope=%s filename=%s", scope.Normalize(), filepath.Base(path)),
-	); err != nil {
-		s.warn("memory: record write event failed", "scope", scope, "filename", filepath.Base(path), "error", err)
-	}
+	s.syncScopeAfterMutation(scope.Normalize(), filepath.Base(path), "write")
+	s.logMutationEvent("write", scope.Normalize(), filepath.Base(path))
 
 	return nil
 }
@@ -184,16 +183,8 @@ func (s *Store) Delete(scope Scope, filename string) error {
 	if filepath.Base(path) == indexFilename {
 		return nil
 	}
-	if err := s.syncScope(context.Background(), scope.Normalize()); err != nil {
-		return err
-	}
-	if err := s.logCatalogEvent(
-		context.Background(),
-		"memory.delete",
-		fmt.Sprintf("scope=%s filename=%s", scope.Normalize(), filepath.Base(path)),
-	); err != nil {
-		s.warn("memory: record delete event failed", "scope", scope, "filename", filepath.Base(path), "error", err)
-	}
+	s.syncScopeAfterMutation(scope.Normalize(), filepath.Base(path), "delete")
+	s.logMutationEvent("delete", scope.Normalize(), filepath.Base(path))
 
 	return nil
 }
@@ -761,6 +752,34 @@ func (s *Store) logCatalogEvent(ctx context.Context, eventType string, summary s
 	return s.catalog.logEvent(ctx, eventType, summary)
 }
 
+func (s *Store) syncScopeAfterMutation(scope Scope, filename string, action string) {
+	if err := s.syncScope(context.Background(), scope.Normalize()); err != nil {
+		s.warn(
+			"memory: sync derived state failed after mutation",
+			"action", strings.TrimSpace(action),
+			"scope", scope.Normalize(),
+			"filename", strings.TrimSpace(filename),
+			"error", err,
+		)
+	}
+}
+
+func (s *Store) logMutationEvent(action string, scope Scope, filename string) {
+	if err := s.logCatalogEvent(
+		context.Background(),
+		"memory."+strings.TrimSpace(action),
+		fmt.Sprintf("scope=%s filename=%s", scope.Normalize(), strings.TrimSpace(filename)),
+	); err != nil {
+		s.warn(
+			"memory: record mutation event failed",
+			"action", strings.TrimSpace(action),
+			"scope", scope.Normalize(),
+			"filename", strings.TrimSpace(filename),
+			"error", err,
+		)
+	}
+}
+
 func truncateIndex(content string, maxLines int, maxBytes int) (string, bool) {
 	if content == "" {
 		return "", false
@@ -854,30 +873,7 @@ func renderIndexLine(header Header) string {
 }
 
 func indexMatchesHeaders(content string, headers []Header) bool {
-	if len(headers) == 0 {
-		return strings.TrimSpace(content) == ""
-	}
-	targets := make(map[string]struct{}, len(headers))
-	for _, header := range headers {
-		targets[header.Filename] = struct{}{}
-	}
-
-	seen := make(map[string]struct{}, len(headers))
-	for line := range strings.SplitSeq(content, "\n") {
-		target, ok := firstMarkdownLinkTarget(line)
-		if !ok {
-			continue
-		}
-		if _, exists := targets[target]; !exists {
-			return false
-		}
-		if _, exists := seen[target]; exists {
-			return false
-		}
-		seen[target] = struct{}{}
-	}
-
-	return len(seen) == len(targets)
+	return strings.TrimSpace(content) == strings.TrimSpace(renderIndex(headers))
 }
 
 func shouldSkipFile(name string) bool {

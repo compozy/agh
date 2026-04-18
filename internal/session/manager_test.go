@@ -900,6 +900,29 @@ func TestPromptAugmenterPreservesStoredUserMessageAndAugmentsDriverDispatch(t *t
 	}
 }
 
+func TestPromptAugmenterPropagatesCancellationAndSkipsDriverDispatch(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptInputAugmenter(func(
+		_ context.Context,
+		_ *Session,
+		_ string,
+	) (string, error) {
+		return "", context.Canceled
+	}))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "remember me"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Prompt() error = %v, want context.Canceled", err)
+	}
+	if got := len(h.driver.promptCalls); got != 0 {
+		t.Fatalf("len(driver.promptCalls) = %d, want 0 after canceled augmentation", got)
+	}
+}
+
 func TestPromptWithOptsTracksTurnSourceAndClearsAfterPrompt(t *testing.T) {
 	t.Parallel()
 

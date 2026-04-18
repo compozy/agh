@@ -531,7 +531,15 @@ func buildCatalogMatchQuery(query string) (string, error) {
 	if len(terms) == 0 {
 		return "", wrapValidationError("search query", query, errors.New("query is required"))
 	}
-	return strings.Join(terms, " "), nil
+	quoted := make([]string, 0, len(terms))
+	for _, term := range terms {
+		quoted = append(quoted, quoteCatalogMatchTerm(term))
+	}
+	return strings.Join(quoted, " AND "), nil
+}
+
+func quoteCatalogMatchTerm(term string) string {
+	return `"` + strings.ReplaceAll(strings.TrimSpace(term), `"`, `""`) + `"`
 }
 
 func tokenizeSearchQuery(query string) []string {

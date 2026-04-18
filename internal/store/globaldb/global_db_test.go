@@ -1325,6 +1325,30 @@ func TestGlobalDBListEventSummariesIncludesMemoryOperations(t *testing.T) {
 	if got, want := sessionOnly[0].Type, "agent_message"; got != want {
 		t.Fatalf("sessionOnly[0].Type = %q, want %q", got, want)
 	}
+
+	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
+		SessionID: "sess-summary",
+		Type:      "tool_call",
+		AgentName: "coder",
+		Summary:   "tool executed",
+		Timestamp: time.Date(2026, 4, 3, 14, 2, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("WriteEventSummary(second event) error = %v", err)
+	}
+
+	limited, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{Limit: 2})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(limit) error = %v", err)
+	}
+	if got, want := len(limited), 2; got != want {
+		t.Fatalf("len(limited) = %d, want %d", got, want)
+	}
+	if got, want := limited[0].Type, "memory.write"; got != want {
+		t.Fatalf("limited[0].Type = %q, want %q", got, want)
+	}
+	if got, want := limited[1].Type, "tool_call"; got != want {
+		t.Fatalf("limited[1].Type = %q, want %q", got, want)
+	}
 }
 
 func TestGlobalDBUpdateTokenStatsAggregation(t *testing.T) {

@@ -830,9 +830,14 @@ func (c *CLIClient) RunInDir(ctx context.Context, workdir string, args ...string
 	// #nosec G204 -- test helper intentionally shells out to the current agh test binary.
 	cmd := execabs.CommandContext(ctx, c.binaryPath, args...)
 	cmd.Env = append([]string(nil), c.env...)
-	cmd.Dir = strings.TrimSpace(workdir)
-	if cmd.Dir == "" {
+	trimmedDir := strings.TrimSpace(workdir)
+	switch {
+	case trimmedDir == "":
 		cmd.Dir = c.workdir
+	case filepath.IsAbs(trimmedDir):
+		cmd.Dir = trimmedDir
+	default:
+		cmd.Dir = filepath.Join(c.workdir, trimmedDir)
 	}
 
 	var stdout bytes.Buffer

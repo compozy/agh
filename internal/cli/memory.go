@@ -167,21 +167,21 @@ func newMemorySearchCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "search <query>",
+		Use:   "search <terms...>",
 		Short: "Search durable memory",
 		Example: `  # Search global and current-workspace memories
   agh memory search auth rewrite
 
   # Search only workspace-scoped memories
   agh memory search release plan --scope workspace --limit 5`,
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
 
-			query := strings.TrimSpace(args[0])
+			query := strings.TrimSpace(strings.Join(args, " "))
 			if query == "" {
 				return errors.New("memory query is required")
 			}

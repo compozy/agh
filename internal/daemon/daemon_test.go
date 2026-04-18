@@ -3146,33 +3146,31 @@ func writeDaemonMemoryIndex(t *testing.T, globalDir string, workspace string) {
 	writeDaemonFile(
 		t,
 		filepath.Join(globalDir, "global.md"),
-		`---
-name: Global
-description: global note
-type: user
----
-
-global note
-`,
+		memoryDocument("Global", "global note", memory.MemoryTypeUser, "global note"),
 	)
 	writeDaemonFile(t, filepath.Join(globalDir, "MEMORY.md"), "- [Global](global.md) - global note")
 	writeDaemonFile(
 		t,
 		filepath.Join(workspace, aghconfig.DirName, "memory", "workspace.md"),
-		`---
-name: Workspace
-description: workspace note
-type: project
----
-
-workspace note
-`,
+		memoryDocument("Workspace", "workspace note", memory.MemoryTypeProject, "workspace note"),
 	)
 	writeDaemonFile(
 		t,
 		filepath.Join(workspace, aghconfig.DirName, "memory", "MEMORY.md"),
 		"- [Workspace](workspace.md) - workspace note",
 	)
+}
+
+func memoryDocument(name string, description string, memoryType memory.Type, body string) string {
+	return strings.TrimSpace(strings.Join([]string{
+		"---",
+		"name: " + name,
+		"description: " + description,
+		"type: " + string(memoryType),
+		"---",
+		"",
+		body,
+	}, "\n")) + "\n"
 }
 
 func writeDaemonSkill(t *testing.T, root string, name string, description string) {

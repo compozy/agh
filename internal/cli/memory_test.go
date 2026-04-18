@@ -106,7 +106,7 @@ func TestMemorySearchAndReindexCommands(t *testing.T) {
 		},
 	})
 
-	searchOut, _, err := executeRootCommand(t, deps, "memory", "search", "auth rewrite")
+	searchOut, _, err := executeRootCommand(t, deps, "memory", "search", "auth", "rewrite")
 	if err != nil {
 		t.Fatalf("memory search error = %v", err)
 	}
