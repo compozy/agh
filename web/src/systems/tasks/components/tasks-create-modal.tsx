@@ -9,8 +9,8 @@ import {
   DialogTitle,
   Input,
   Pill,
+  Textarea,
 } from "@agh/ui";
-import { Textarea } from "@/components/ui/textarea";
 
 import type { CreateTaskDraftInput } from "@/hooks/routes/use-tasks-page";
 import type { TaskOwnerKind, TaskPriority, TaskScope } from "../types";

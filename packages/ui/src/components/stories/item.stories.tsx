@@ -1,8 +1,9 @@
 import { Fragment } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CpuIcon, DatabaseIcon, EyeIcon, MoreHorizontalIcon, ZapIcon } from "lucide-react";
-import { Badge, Button } from "@agh/ui";
 
+import { Badge } from "../badge";
+import { Button } from "../button";
 import {
   Item,
   ItemActions,
@@ -12,10 +13,10 @@ import {
   ItemMedia,
   ItemSeparator,
   ItemTitle,
-} from "@/components/ui/item";
+} from "../item";
 
 const meta: Meta<typeof Item> = {
-  title: "components/ui/Item",
+  title: "ui/Item",
   component: Item,
   parameters: {
     layout: "centered",
@@ -26,6 +27,7 @@ const meta: Meta<typeof Item> = {
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
