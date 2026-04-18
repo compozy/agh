@@ -74,10 +74,11 @@ export const OpenByDefault: Story = {
       <CardContent>
         <Collapsible defaultOpen>
           <CollapsibleTrigger
+            className="group/collapsible-trigger"
             render={
               <Button variant="ghost" size="sm" className="gap-1.5">
                 Hide timeline
-                <ChevronDownIcon className="size-4 transition-transform data-[panel-open]:rotate-180" />
+                <ChevronDownIcon className="size-4 transition-transform group-data-[panel-open]/collapsible-trigger:rotate-180" />
               </Button>
             }
           />

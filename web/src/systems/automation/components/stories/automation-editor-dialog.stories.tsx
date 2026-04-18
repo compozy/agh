@@ -1,10 +1,8 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { useAutomationPage } from "@/hooks/routes/use-automation-page";
 import { createAutomationJobDraft } from "@/systems/automation";
-
-import { AutomationEditorDialog } from "../automation-editor-dialog";
+import { AutomationEditorDialog } from "@/systems/automation/components/automation-editor-dialog";
 
 const meta: Meta<typeof AutomationEditorDialog> = {
   title: "systems/automation/AutomationEditorDialog",
@@ -18,13 +16,17 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function AutomationEditorDialogHarness() {
-  const page = useAutomationPage();
-  const activeWorkspaceId = page.editorDialogProps.activeWorkspaceId;
-  const [draft, setDraft] = useState(() => createAutomationJobDraft(activeWorkspaceId));
+  const activeWorkspaceId = "ws_storybook";
+  const [draft, setDraft] = useState(() => ({
+    ...createAutomationJobDraft(activeWorkspaceId),
+    name: "nightly-docs",
+    agent_name: "reviewer",
+    prompt: "Review open stories and summarize risks.",
+  }));
 
   return (
     <AutomationEditorDialog
-      {...page.editorDialogProps}
+      activeWorkspaceId={activeWorkspaceId}
       editor={{
         draft,
         isPending: false,

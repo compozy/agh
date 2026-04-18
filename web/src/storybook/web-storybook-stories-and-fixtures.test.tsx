@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { uiMessageFixtures } from "@/systems/session/mocks";
+import {
+  multiHunkEditToolMessageFixture,
+  sessionFixtures,
+  uiMessageFixtures,
+} from "@/systems/session/mocks";
 import { workspaceDetailFixture, workspaceFixtures } from "@/systems/workspace/mocks";
 
 describe("storybook story and fixture regressions", () => {
@@ -10,15 +14,17 @@ describe("storybook story and fixture regressions", () => {
 
   it("loads the edited story modules", async () => {
     const modules = await Promise.all([
+      import("@/components/ui/stories/collapsible.stories"),
       import("@/systems/knowledge/components/stories/knowledge-detail-panel.stories"),
       import("@/systems/knowledge/components/stories/knowledge-list-panel.stories"),
       import("@/systems/network/components/stories/network-channels-list-panel.stories"),
+      import("@/systems/automation/components/stories/automation-editor-dialog.stories"),
       import("@/systems/session/components/stories/copy-button.stories"),
       import("@/systems/session/components/tool-renderers/stories/read-content.stories"),
       import("@/systems/session/components/tool-renderers/stories/search-content.stories"),
     ]);
 
-    expect(modules).toHaveLength(6);
+    expect(modules).toHaveLength(8);
 
     for (const module of modules) {
       expect(module.default).toBeDefined();
@@ -27,6 +33,7 @@ describe("storybook story and fixture regressions", () => {
 
   it("keeps the scoped story and fixture source aligned with the review fixes", async () => {
     const sources = await Promise.all([
+      readFile(fromWeb("src/components/ui/stories/collapsible.stories.tsx"), "utf8"),
       readFile(
         fromWeb("src/systems/knowledge/components/stories/knowledge-detail-panel.stories.tsx"),
         "utf8"
@@ -37,6 +44,10 @@ describe("storybook story and fixture regressions", () => {
       ),
       readFile(
         fromWeb("src/systems/network/components/stories/network-channels-list-panel.stories.tsx"),
+        "utf8"
+      ),
+      readFile(
+        fromWeb("src/systems/automation/components/stories/automation-editor-dialog.stories.tsx"),
         "utf8"
       ),
       readFile(fromWeb("src/systems/session/components/stories/copy-button.stories.tsx"), "utf8"),
@@ -53,9 +64,11 @@ describe("storybook story and fixture regressions", () => {
     ]);
 
     const [
+      collapsibleStory,
       knowledgeDetailStory,
       knowledgeListStory,
       networkChannelsStory,
+      automationEditorDialogStory,
       copyButtonStory,
       readContentStory,
       searchContentStory,
@@ -63,6 +76,8 @@ describe("storybook story and fixture regressions", () => {
       workspaceFixturesSource,
     ] = sources;
 
+    expect(collapsibleStory).toContain("group-data-[panel-open]/collapsible-trigger:rotate-180");
+    expect(collapsibleStory).not.toContain("data-[panel-open]:rotate-180");
     expect(knowledgeDetailStory).toContain(
       'import { KnowledgeDetailPanel } from "@/systems/knowledge/components/knowledge-detail-panel";'
     );
@@ -74,6 +89,11 @@ describe("storybook story and fixture regressions", () => {
     );
     expect(networkChannelsStory).toContain('import type { ComponentProps } from "react";');
     expect(networkChannelsStory).not.toContain("React.ComponentProps");
+    expect(automationEditorDialogStory).toContain(
+      'import { AutomationEditorDialog } from "@/systems/automation/components/automation-editor-dialog";'
+    );
+    expect(automationEditorDialogStory).not.toContain("useAutomationPage");
+    expect(automationEditorDialogStory).not.toContain("page.editorDialogProps");
     expect(copyButtonStory).toContain(
       'import { CopyButton } from "@/systems/session/components/copy-button";'
     );
@@ -98,6 +118,9 @@ describe("storybook story and fixture regressions", () => {
 
   it("keeps UI message fixture ids unique and workspace paths neutral", () => {
     const ids = uiMessageFixtures.map(message => message.id);
+    const sessionPaths = sessionFixtures
+      .map(session => session.workspace_path)
+      .filter((value): value is string => typeof value === "string");
     const skillDirs =
       workspaceDetailFixture.skills?.flatMap(skill =>
         typeof skill === "object" &&
@@ -116,9 +139,20 @@ describe("storybook story and fixture regressions", () => {
 
     expect(new Set(ids).size).toBe(ids.length);
 
-    for (const path of workspacePaths) {
+    for (const path of [...workspacePaths, ...sessionPaths]) {
       expect(path).not.toMatch(/^\/Users\//);
       expect(path).not.toContain("/pedro/");
     }
+  });
+
+  it("keeps the multi-hunk edit fixture truthful", () => {
+    const oldString = String(multiHunkEditToolMessageFixture.toolInput?.old_string ?? "");
+    const newString = String(multiHunkEditToolMessageFixture.toolInput?.new_string ?? "");
+
+    expect(oldString).not.toEqual(newString);
+    expect(oldString).toContain("export const Default = {};");
+    expect(newString).toContain("export const Default = { args: { state: 'default' } };");
+    expect(oldString).toContain("export const Streaming = {};");
+    expect(newString).toContain("export const Streaming = { args: { state: 'streaming' } };");
   });
 });
