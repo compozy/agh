@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Synthetic prompt submission and session-event persistence model
 type: backend
 complexity: high
@@ -31,11 +31,11 @@ Create the dedicated synthetic-turn path for harness-driven prompt submission an
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Extend the turn-origin vocabulary and prompt submission path to support synthetic turns
-- [ ] 4.2 Add a dedicated persisted event type and payload for synthetic prompt input
-- [ ] 4.3 Thread synthetic metadata through the canonical prompt request normalization path
-- [ ] 4.4 Define queue and ordering behavior for synthetic turns when a session is already busy
-- [ ] 4.5 Add tests covering validation, persistence, and ordering semantics
+- [x] 4.1 Extend the turn-origin vocabulary and prompt submission path to support synthetic turns
+- [x] 4.2 Add a dedicated persisted event type and payload for synthetic prompt input
+- [x] 4.3 Thread synthetic metadata through the canonical prompt request normalization path
+- [x] 4.4 Define queue and ordering behavior for synthetic turns when a session is already busy
+- [x] 4.5 Add tests covering validation, persistence, and ordering semantics
 
 ## Implementation Details
 
@@ -77,15 +77,15 @@ See TechSpec "Workstream 4: Synthetic Reentry Model" and ADR-001/ADR-003. This t
 
 ## Tests
 - Unit tests:
-  - [ ] Synthetic prompt requests normalize successfully only through the daemon-owned submission path and reject ordinary user-facing callers
-  - [ ] Synthetic prompt input persists with the dedicated event type and payload envelope instead of `user_message`
-  - [ ] Invalid synthetic payloads, missing wake-up metadata, or unsupported synthetic origins fail validation clearly
-  - [ ] Synthetic turns carry task-run id, wake-up reason, and summary metadata when provided by the caller
-  - [ ] Session-busy queue rules preserve the synthetic turn until it can execute instead of dropping it silently
+  - [x] Synthetic prompt requests normalize successfully only through the daemon-owned submission path and reject ordinary user-facing callers
+  - [x] Synthetic prompt input persists with the dedicated event type and payload envelope instead of `user_message`
+  - [x] Invalid synthetic payloads, missing wake-up metadata, or unsupported synthetic origins fail validation clearly
+  - [x] Synthetic turns carry task-run id, wake-up reason, and summary metadata when provided by the caller
+  - [x] Session-busy queue rules preserve the synthetic turn until it can execute instead of dropping it silently
 - Integration tests:
-  - [ ] A synthetic prompt can be recorded and dispatched through the normal manager pipeline without breaking ordinary user and network prompt paths
-  - [ ] Busy-session queue behavior preserves ordering when a synthetic wake-up is submitted behind an active user or network turn
-  - [ ] Persisted event history for mixed user plus synthetic turns remains queryable through the standard session event APIs
+  - [x] A synthetic prompt can be recorded and dispatched through the normal manager pipeline without breaking ordinary user and network prompt paths
+  - [x] Busy-session queue behavior preserves ordering when a synthetic wake-up is submitted behind an active user or network turn
+  - [x] Persisted event history for mixed user plus synthetic turns remains queryable through the standard session event APIs
 - Test coverage target: >=80%
 - All tests must pass
 

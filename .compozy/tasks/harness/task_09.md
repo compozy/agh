@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Harness QA plan and regression artifacts
 type: docs
 complexity: high
@@ -32,11 +32,11 @@ Generate the reusable QA planning artifacts for the harness architecture before 
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/harness`
-- [ ] 9.2 Write the feature-level harness QA plan with scope, risks, environments, and entry/exit criteria
-- [ ] 9.3 Generate runtime-oriented manual test cases with explicit expected results and edge conditions
-- [ ] 9.4 Build regression-suite definitions and identify the P0/P1 flows that `/qa-execution` must run first
-- [ ] 9.5 Validate artifact completeness, traceability, and handoff readiness for `task_10`
+- [x] 9.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/harness`
+- [x] 9.2 Write the feature-level harness QA plan with scope, risks, environments, and entry/exit criteria
+- [x] 9.3 Generate runtime-oriented manual test cases with explicit expected results and edge conditions
+- [x] 9.4 Build regression-suite definitions and identify the P0/P1 flows that `/qa-execution` must run first
+- [x] 9.5 Validate artifact completeness, traceability, and handoff readiness for `task_10`
 
 ## Implementation Details
 
@@ -78,14 +78,14 @@ See TechSpec "Workstream 6: Storage, Observability, and Verification" and the ve
 
 ## Tests
 - Unit tests:
-  - [ ] `harness-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, and risk assessment
-  - [ ] Manual test cases exist for startup selection, augmentation, synthetic turns, transcript trust, detached completion, and event-summary visibility
-  - [ ] Regression-suite documents identify smoke, targeted, and full coverage plus execution order for P0/P1 flows
-  - [ ] Each P0/P1 case names the exact harness task or TechSpec workstream it proves
+  - [x] `harness-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, and risk assessment
+  - [x] Manual test cases exist for startup selection, augmentation, synthetic turns, transcript trust, detached completion, and event-summary visibility
+  - [x] Regression-suite documents identify smoke, targeted, and full coverage plus execution order for P0/P1 flows
+  - [x] Each P0/P1 case names the exact harness task or TechSpec workstream it proves
 - Integration tests:
-  - [ ] All generated artifacts land under `.compozy/tasks/harness/qa/` and can be consumed directly by `/qa-execution`
-  - [ ] Test cases trace back to the relevant harness tasks or TechSpec workstreams clearly enough to seed execution
-  - [ ] Any bug report created during planning references the originating test case or runtime discrepancy clearly
+  - [x] All generated artifacts land under `.compozy/tasks/harness/qa/` and can be consumed directly by `/qa-execution`
+  - [x] Test cases trace back to the relevant harness tasks or TechSpec workstreams clearly enough to seed execution
+  - [x] Any bug report created during planning references the originating test case or runtime discrepancy clearly
 - Test coverage target: >=80%
 - All tests must pass
 

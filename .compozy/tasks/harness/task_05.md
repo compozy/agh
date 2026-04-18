@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Transcript, hooks, and extension host support for synthetic turns
 type: backend
 complexity: high
@@ -31,11 +31,11 @@ Propagate the new synthetic turn model through the transcript assembler, hook in
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Extend transcript assembly to render synthetic runtime-originated input distinctly
-- [ ] 5.2 Add a synthetic hook input class and update hook dispatch classification
-- [ ] 5.3 Update extension-host prompt submission and seed-event discovery for non-user initiating events
-- [ ] 5.4 Verify mixed-turn ordering and tool/result continuity with synthetic events present
-- [ ] 5.5 Add targeted regression tests across transcript, hooks, and extension host surfaces
+- [x] 5.1 Extend transcript assembly to render synthetic runtime-originated input distinctly
+- [x] 5.2 Add a synthetic hook input class and update hook dispatch classification
+- [x] 5.3 Update extension-host prompt submission and seed-event discovery for non-user initiating events
+- [x] 5.4 Verify mixed-turn ordering and tool/result continuity with synthetic events present
+- [x] 5.5 Add targeted regression tests across transcript, hooks, and extension host surfaces
 
 ## Implementation Details
 
@@ -77,15 +77,15 @@ See TechSpec "Workstream 4: Synthetic Reentry Model", "Hooks and Transcript", an
 
 ## Tests
 - Unit tests:
-  - [ ] Transcript output renders synthetic prompt input as daemon-originated content instead of a normal user role or message
-  - [ ] Hook dispatch maps synthetic turns to the dedicated synthetic input class without altering existing user or network classifications
-  - [ ] Extension-host turn-id discovery succeeds when the first persisted event for a turn is synthetic rather than `user_message`
-  - [ ] Mixed user, network, and synthetic turns preserve stable ordering in the transcript assembler
-  - [ ] Tool-call and tool-result pairing remains correct when a synthetic turn appears before or after tool activity in the same transcript window
+  - [x] Transcript output renders synthetic prompt input as daemon-originated content instead of a normal user role or message
+  - [x] Hook dispatch maps synthetic turns to the dedicated synthetic input class without altering existing user or network classifications
+  - [x] Extension-host turn-id discovery succeeds when the first persisted event for a turn is synthetic rather than `user_message`
+  - [x] Mixed user, network, and synthetic turns preserve stable ordering in the transcript assembler
+  - [x] Tool-call and tool-result pairing remains correct when a synthetic turn appears before or after tool activity in the same transcript window
 - Integration tests:
-  - [ ] Session transcript APIs return consistent replay output when synthetic events exist alongside user and network events in the same session
-  - [ ] Extension prompt submission still produces valid seed events and a valid `turnID` after synthetic-path changes
-  - [ ] HTTP and UDS transcript consumers observe the same ordering and role semantics for synthetic events
+  - [x] Session transcript APIs return consistent replay output when synthetic events exist alongside user and network events in the same session
+  - [x] Extension prompt submission still produces valid seed events and a valid `turnID` after synthetic-path changes
+  - [x] HTTP and UDS transcript consumers observe the same ordering and role semantics for synthetic events
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Detached harness work on task runtime metadata and submission paths
 type: backend
 complexity: high
@@ -31,11 +31,11 @@ Map detached harness execution onto the existing task runtime and `task_runs` su
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Define the harness metadata and origin contract carried on detached task records and runs
-- [ ] 6.2 Add daemon-owned submission paths that enqueue detached harness work on the task runtime
-- [ ] 6.3 Thread owner-session, workspace, and wake-up targeting metadata through persisted task/run records
-- [ ] 6.4 Reuse task-runtime idempotency and recovery semantics for detached harness work
-- [ ] 6.5 Add unit and integration coverage for submission, persistence, and recovery behavior
+- [x] 6.1 Define the harness metadata and origin contract carried on detached task records and runs
+- [x] 6.2 Add daemon-owned submission paths that enqueue detached harness work on the task runtime
+- [x] 6.3 Thread owner-session, workspace, and wake-up targeting metadata through persisted task/run records
+- [x] 6.4 Reuse task-runtime idempotency and recovery semantics for detached harness work
+- [x] 6.5 Add unit and integration coverage for submission, persistence, and recovery behavior
 
 ## Implementation Details
 
@@ -78,15 +78,15 @@ See TechSpec "Workstream 5: Detached Async Runtime on Task Infrastructure" and A
 
 ## Tests
 - Unit tests:
-  - [ ] Detached harness submission creates `task` and `task_run` records with the expected daemon or harness origin and metadata payload
-  - [ ] Idempotent detached submissions reuse task-runtime deduplication semantics and do not create duplicate runs
-  - [ ] Owner-session, workspace binding, and wake-up targeting metadata are persisted and retrievable through the store
-  - [ ] Unsupported detached-work scopes, missing target session ids, or invalid metadata fail validation cleanly
-  - [ ] Boot-recovery metadata survives store round-trips without losing harness-specific fields
+  - [x] Detached harness submission creates `task` and `task_run` records with the expected daemon or harness origin and metadata payload
+  - [x] Idempotent detached submissions reuse task-runtime deduplication semantics and do not create duplicate runs
+  - [x] Owner-session, workspace binding, and wake-up targeting metadata are persisted and retrievable through the store
+  - [x] Unsupported detached-work scopes, missing target session ids, or invalid metadata fail validation cleanly
+  - [x] Boot-recovery metadata survives store round-trips without losing harness-specific fields
 - Integration tests:
-  - [ ] Detached harness work survives task-runtime boot recovery using the existing reconciliation rules instead of a harness-only path
-  - [ ] Detached harness runs can be listed and inspected through the normal task-runtime persistence and query paths
-  - [ ] Detached harness submission can create workspace-scoped and global-scoped runs using the same daemon bridge without semantic drift
+  - [x] Detached harness work survives task-runtime boot recovery using the existing reconciliation rules instead of a harness-only path
+  - [x] Detached harness runs can be listed and inspected through the normal task-runtime persistence and query paths
+  - [x] Detached harness submission can create workspace-scoped and global-scoped runs using the same daemon bridge without semantic drift
 - Test coverage target: >=80%
 - All tests must pass
 

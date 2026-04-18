@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Harness context resolver and turn-origin foundations
 type: backend
 complexity: high
@@ -30,11 +30,11 @@ Introduce the daemon-owned foundation that resolves harness behavior from durabl
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Introduce the core runtime types for resolved harness context and policy
-- [ ] 1.2 Add the daemon-owned resolver entrypoint and keep call ownership out of `internal/session`
-- [ ] 1.3 Thread the resolved policy into the startup and prompt pipeline seams without changing user-facing config
-- [ ] 1.4 Define the valid matrix for session type, channel state, and turn origin combinations
-- [ ] 1.5 Add unit and integration coverage for deterministic resolution behavior
+- [x] 1.1 Introduce the core runtime types for resolved harness context and policy
+- [x] 1.2 Add the daemon-owned resolver entrypoint and keep call ownership out of `internal/session`
+- [x] 1.3 Thread the resolved policy into the startup and prompt pipeline seams without changing user-facing config
+- [x] 1.4 Define the valid matrix for session type, channel state, and turn origin combinations
+- [x] 1.5 Add unit and integration coverage for deterministic resolution behavior
 
 ## Implementation Details
 
@@ -74,15 +74,15 @@ See TechSpec "Workstream 1: Harness Context Resolution" and ADR-001. The main ou
 
 ## Tests
 - Unit tests:
-  - [ ] `SessionTypeUser` plus `TurnOriginUser` resolves the baseline policy with no network or synthetic overlays enabled
-  - [ ] `SessionTypeUser` plus bound channel plus `TurnOriginNetwork` resolves network-aware sections and augmenters without mutating the durable session axis
-  - [ ] `SessionTypeSystem` plus `TurnOriginSynthetic` resolves a distinct synthetic-capable policy only when internal runtime metadata is present
-  - [ ] Empty, unknown, or mismatched turn-origin inputs fail validation with descriptive errors instead of silently defaulting
-  - [ ] Derived diagnostic labels or profile-like tags remain stable for identical input tuples across repeated resolver calls
+  - [x] `SessionTypeUser` plus `TurnOriginUser` resolves the baseline policy with no network or synthetic overlays enabled
+  - [x] `SessionTypeUser` plus bound channel plus `TurnOriginNetwork` resolves network-aware sections and augmenters without mutating the durable session axis
+  - [x] `SessionTypeSystem` plus `TurnOriginSynthetic` resolves a distinct synthetic-capable policy only when internal runtime metadata is present
+  - [x] Empty, unknown, or mismatched turn-origin inputs fail validation with descriptive errors instead of silently defaulting
+  - [x] Derived diagnostic labels or profile-like tags remain stable for identical input tuples across repeated resolver calls
 - Integration tests:
-  - [ ] Session startup and `PromptWithOpts` consume the same resolved policy for one session without diverging section or augmenter decisions
-  - [ ] `PromptNetwork` drives the resolver through the network path and produces the expected network-aware runtime behavior end to end
-  - [ ] Resolver output remains stable across session resume or boot-time metadata reconstruction for the same session/turn tuple
+  - [x] Session startup and `PromptWithOpts` consume the same resolved policy for one session without diverging section or augmenter decisions
+  - [x] `PromptNetwork` drives the resolver through the network path and produces the expected network-aware runtime behavior end to end
+  - [x] Resolver output remains stable across session resume or boot-time metadata reconstruction for the same session/turn tuple
 - Test coverage target: >=80%
 - All tests must pass
 

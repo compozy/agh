@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Harness observability, event summaries, and integration hardening
 type: backend
 complexity: high
@@ -34,11 +34,11 @@ Finish the harness architecture by making its lifecycle visible and auditable th
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add harness lifecycle event-summary emission for the major runtime decisions and outcomes
-- [ ] 8.2 Extend observe/query read-side behavior so harness events are inspectable and stable
-- [ ] 8.3 Add storage and summary coverage for synthetic reentry and detached completion outcomes
-- [ ] 8.4 Harden integration tests across startup, augmentation, transcript, detached completion, and reentry
-- [ ] 8.5 Ensure verification gates for the full harness slice are explicit and repeatable
+- [x] 8.1 Add harness lifecycle event-summary emission for the major runtime decisions and outcomes
+- [x] 8.2 Extend observe/query read-side behavior so harness events are inspectable and stable
+- [x] 8.3 Add storage and summary coverage for synthetic reentry and detached completion outcomes
+- [x] 8.4 Harden integration tests across startup, augmentation, transcript, detached completion, and reentry
+- [x] 8.5 Ensure verification gates for the full harness slice are explicit and repeatable
 
 ## Implementation Details
 
@@ -83,15 +83,15 @@ See TechSpec "Workstream 6: Storage, Observability, and Verification" plus the "
 
 ## Tests
 - Unit tests:
-  - [ ] Context resolution and startup section selection emit the expected harness-specific event-summary entries
-  - [ ] Augmenter warning and failure paths surface structured harness observability without corrupting dispatch
-  - [ ] Synthetic reentry and silent completion produce distinct summary types or messages that are queryable later
-  - [ ] Event-summary ordering, truncation, and query filtering remain stable after the new harness event types are introduced
-  - [ ] Observer and globaldb summary writers preserve session id, agent name, and timestamp semantics for harness events
+  - [x] Context resolution and startup section selection emit the expected harness-specific event-summary entries
+  - [x] Augmenter warning and failure paths surface structured harness observability without corrupting dispatch
+  - [x] Synthetic reentry and silent completion produce distinct summary types or messages that are queryable later
+  - [x] Event-summary ordering, truncation, and query filtering remain stable after the new harness event types are introduced
+  - [x] Observer and globaldb summary writers preserve session id, agent name, and timestamp semantics for harness events
 - Integration tests:
-  - [ ] End-to-end detached completion plus synthetic reentry flow is visible through observer and query surfaces with the expected ordering
-  - [ ] HTTP and UDS transport parity surfaces expose equivalent harness-summary visibility after the runtime flow executes
-  - [ ] Combined startup, prompt, transcript, detached completion, and reentry scenarios remain green under the hardened integration lane
+  - [x] End-to-end detached completion plus synthetic reentry flow is visible through observer and query surfaces with the expected ordering
+  - [x] HTTP and UDS transport parity surfaces expose equivalent harness-summary visibility after the runtime flow executes
+  - [x] Combined startup, prompt, transcript, detached completion, and reentry scenarios remain green under the hardened integration lane
 - Test coverage target: >=80%
 - All tests must pass
 
