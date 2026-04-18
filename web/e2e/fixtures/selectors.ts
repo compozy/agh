@@ -187,6 +187,197 @@ export interface BridgeOperatorSelectors {
   workspaceUseGlobal: Locator;
 }
 
+export const settingsShellTestIds = {
+  navSettings: "nav-settings",
+  shell: "settings-shell",
+  shellOutlet: "settings-shell-outlet",
+  sectionNav: "settings-section-nav",
+} as const;
+
+export const settingsGeneralTestIds = {
+  page: "settings-page-general",
+  pageHeader: "settings-page-general-header",
+  restartAction: "settings-page-general-restart-action",
+  saveBar: "settings-page-general-save-bar",
+  saveButton: "settings-page-general-save",
+  resetButton: "settings-page-general-reset",
+  sessionTimeoutInput: "settings-page-general-session-timeout-input",
+  restartBanner: "settings-page-general-restart-banner",
+  restartBannerMessage: "settings-page-general-restart-banner-message",
+  restartBannerOp: "settings-page-general-restart-banner-op",
+  restartBannerTrigger: "settings-page-general-restart-banner-trigger",
+} as const;
+
+export const settingsSkillsTestIds = {
+  page: "settings-page-skills",
+  pageHeader: "settings-page-skills-header",
+  disabledList: "settings-page-skills-disabled-list",
+  disabledApplied: "settings-page-skills-disabled-applied",
+  disabledSave: "settings-page-skills-disabled-save",
+  policyApplied: "settings-page-skills-policy-applied",
+  policySave: "settings-page-skills-policy-save",
+  policyRegistryInput: "settings-page-skills-marketplace-registry-input",
+  policyBaseURLInput: "settings-page-skills-marketplace-base-url-input",
+  operationalLink: "settings-page-skills-link-skills",
+  restartBanner: "settings-page-skills-restart-banner",
+} as const;
+
+export const settingsProvidersTestIds = {
+  page: "settings-page-providers",
+  list: "settings-page-providers-list",
+  create: "settings-page-providers-create",
+  actionResult: "settings-page-providers-action-result",
+  actionResultDismiss: "settings-page-providers-action-result-dismiss",
+  editor: "settings-providers-editor",
+  editorNameInput: "settings-providers-editor-name-input",
+  editorCommandInput: "settings-providers-editor-command-input",
+  editorModelInput: "settings-providers-editor-model-input",
+  editorSave: "settings-providers-editor-save",
+  deleteDialog: "settings-providers-delete",
+  deleteConfirm: "settings-providers-delete-confirm",
+  restartBanner: "settings-page-providers-restart-banner",
+} as const;
+
+export const settingsMCPServersTestIds = {
+  page: "settings-page-mcp-servers",
+  list: "settings-page-mcp-servers-list",
+  create: "settings-page-mcp-servers-create",
+  actionResult: "settings-page-mcp-servers-action-result",
+  actionResultDismiss: "settings-page-mcp-servers-action-result-dismiss",
+  scopeGlobal: "settings-page-mcp-servers-scope-global",
+  scopeLabel: "settings-page-mcp-servers-scope-label",
+  editor: "settings-mcp-servers-editor",
+  editorNameInput: "settings-mcp-servers-editor-name-input",
+  editorCommandInput: "settings-mcp-servers-editor-command-input",
+  editorTargetInput: "settings-mcp-servers-editor-target-input",
+  editorSave: "settings-mcp-servers-editor-save",
+  deleteDialog: "settings-mcp-servers-delete",
+  deleteConfirm: "settings-mcp-servers-delete-confirm",
+  restartBanner: "settings-page-mcp-servers-restart-banner",
+} as const;
+
+export const settingsHooksExtensionsTestIds = {
+  page: "settings-page-hooks-extensions",
+  hooksList: "settings-page-hooks-extensions-hooks-list",
+  extensionsList: "settings-page-hooks-extensions-extensions-list",
+  transportParity: "settings-page-hooks-extensions-transport-parity",
+  actionResult: "settings-page-hooks-extensions-action-result",
+  actionResultDismiss: "settings-page-hooks-extensions-action-result-dismiss",
+  policyControls: "settings-page-hooks-extensions-policy-controls",
+  policyRegistryInput: "settings-page-hooks-extensions-policy-registry-input",
+  policyBaseURLInput: "settings-page-hooks-extensions-policy-base-url-input",
+  policySave: "settings-page-hooks-extensions-policy-save",
+  restartBanner: "settings-page-hooks-extensions-restart-banner",
+} as const;
+
+export interface SettingsShellSelectors {
+  navSettings: Locator;
+  shell: Locator;
+  shellOutlet: Locator;
+  sectionItems: Locator;
+  sectionNav: Locator;
+  sectionLink(slug: string): Locator;
+  sectionActive(slug: string): Locator;
+}
+
+export interface SettingsGeneralSelectors {
+  page: Locator;
+  pageHeader: Locator;
+  resetButton: Locator;
+  restartAction: Locator;
+  restartBanner: Locator;
+  restartBannerMessage: Locator;
+  restartBannerOp: Locator;
+  restartBannerTrigger: Locator;
+  saveBar: Locator;
+  saveButton: Locator;
+  sessionTimeoutInput: Locator;
+}
+
+export interface SettingsSkillsSelectors {
+  page: Locator;
+  pageHeader: Locator;
+  disabledList: Locator;
+  disabledApplied: Locator;
+  disabledSave: Locator;
+  disabledToggle(name: string): Locator;
+  operationalLink: Locator;
+  policyApplied: Locator;
+  policyBaseURLInput: Locator;
+  policyRegistryInput: Locator;
+  policySave: Locator;
+  restartBanner: Locator;
+}
+
+export interface SettingsProvidersSelectors {
+  actionResult: Locator;
+  actionResultDismiss: Locator;
+  create: Locator;
+  deleteConfirm: Locator;
+  deleteDialog: Locator;
+  deleteRow(name: string): Locator;
+  editRow(name: string): Locator;
+  editor: Locator;
+  editorCommandInput: Locator;
+  editorModelInput: Locator;
+  editorNameInput: Locator;
+  editorSave: Locator;
+  list: Locator;
+  page: Locator;
+  restartBanner: Locator;
+  row(name: string): Locator;
+  rowCommand(name: string): Locator;
+  rowSource(name: string): Locator;
+}
+
+export interface SettingsMCPServersSelectors {
+  actionResult: Locator;
+  actionResultDismiss: Locator;
+  create: Locator;
+  deleteConfirm: Locator;
+  deleteDialog: Locator;
+  deleteRow(name: string): Locator;
+  editRow(name: string): Locator;
+  editor: Locator;
+  editorCommandInput: Locator;
+  editorNameInput: Locator;
+  editorSave: Locator;
+  editorTargetInput: Locator;
+  list: Locator;
+  page: Locator;
+  restartBanner: Locator;
+  row(name: string): Locator;
+  rowSource(name: string): Locator;
+  scopeGlobal: Locator;
+  scopeLabel: Locator;
+  scopeWorkspace(workspaceId: string): Locator;
+}
+
+export interface SettingsHooksExtensionsSelectors {
+  actionResult: Locator;
+  actionResultDismiss: Locator;
+  extensionsList: Locator;
+  extensionToggle(name: string): Locator;
+  hooksList: Locator;
+  hookToggle(name: string): Locator;
+  page: Locator;
+  policyBaseURLInput: Locator;
+  policyControls: Locator;
+  policyRegistryInput: Locator;
+  policySave: Locator;
+  restartBanner: Locator;
+  transportParity: Locator;
+}
+
+export interface SettingsOperatorSelectors {
+  shell: SettingsShellSelectors;
+  general: SettingsGeneralSelectors;
+  hooksExtensions: SettingsHooksExtensionsSelectors;
+  mcpServers: SettingsMCPServersSelectors;
+  providers: SettingsProvidersSelectors;
+  skills: SettingsSkillsSelectors;
+}
+
 export function sessionLifecycleSelectors(
   page: Pick<Page, "getByTestId">
 ): SessionLifecycleSelectors {
@@ -303,5 +494,111 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
     testDeliveryThreadInput: page.getByTestId(bridgeOperatorTestIds.testDeliveryThreadInput),
     workspaceOnboarding: page.getByTestId(bridgeOperatorTestIds.workspaceOnboarding),
     workspaceUseGlobal: page.getByTestId(bridgeOperatorTestIds.workspaceUseGlobal),
+  };
+}
+
+export function settingsOperatorSelectors(
+  page: Pick<Page, "getByTestId" | "locator">
+): SettingsOperatorSelectors {
+  return {
+    shell: {
+      navSettings: page.getByTestId(settingsShellTestIds.navSettings),
+      shell: page.getByTestId(settingsShellTestIds.shell),
+      shellOutlet: page.getByTestId(settingsShellTestIds.shellOutlet),
+      sectionNav: page.getByTestId(settingsShellTestIds.sectionNav),
+      sectionItems: page.locator(
+        '[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]'
+      ),
+      sectionLink: (slug: string) => page.getByTestId(`settings-section-${slug}`),
+      sectionActive: (slug: string) => page.getByTestId(`settings-section-active-${slug}`),
+    },
+    general: {
+      page: page.getByTestId(settingsGeneralTestIds.page),
+      pageHeader: page.getByTestId(settingsGeneralTestIds.pageHeader),
+      restartAction: page.getByTestId(settingsGeneralTestIds.restartAction),
+      restartBanner: page.getByTestId(settingsGeneralTestIds.restartBanner),
+      restartBannerMessage: page.getByTestId(settingsGeneralTestIds.restartBannerMessage),
+      restartBannerOp: page.getByTestId(settingsGeneralTestIds.restartBannerOp),
+      restartBannerTrigger: page.getByTestId(settingsGeneralTestIds.restartBannerTrigger),
+      saveBar: page.getByTestId(settingsGeneralTestIds.saveBar),
+      saveButton: page.getByTestId(settingsGeneralTestIds.saveButton),
+      resetButton: page.getByTestId(settingsGeneralTestIds.resetButton),
+      sessionTimeoutInput: page.getByTestId(settingsGeneralTestIds.sessionTimeoutInput),
+    },
+    skills: {
+      page: page.getByTestId(settingsSkillsTestIds.page),
+      pageHeader: page.getByTestId(settingsSkillsTestIds.pageHeader),
+      disabledList: page.getByTestId(settingsSkillsTestIds.disabledList),
+      disabledApplied: page.getByTestId(settingsSkillsTestIds.disabledApplied),
+      disabledSave: page.getByTestId(settingsSkillsTestIds.disabledSave),
+      disabledToggle: (name: string) =>
+        page.getByTestId(`settings-page-skills-disabled-toggle-${name}`),
+      operationalLink: page.getByTestId(settingsSkillsTestIds.operationalLink),
+      policyApplied: page.getByTestId(settingsSkillsTestIds.policyApplied),
+      policyRegistryInput: page.getByTestId(settingsSkillsTestIds.policyRegistryInput),
+      policyBaseURLInput: page.getByTestId(settingsSkillsTestIds.policyBaseURLInput),
+      policySave: page.getByTestId(settingsSkillsTestIds.policySave),
+      restartBanner: page.getByTestId(settingsSkillsTestIds.restartBanner),
+    },
+    providers: {
+      page: page.getByTestId(settingsProvidersTestIds.page),
+      list: page.getByTestId(settingsProvidersTestIds.list),
+      create: page.getByTestId(settingsProvidersTestIds.create),
+      actionResult: page.getByTestId(settingsProvidersTestIds.actionResult),
+      actionResultDismiss: page.getByTestId(settingsProvidersTestIds.actionResultDismiss),
+      editor: page.getByTestId(settingsProvidersTestIds.editor),
+      editorNameInput: page.getByTestId(settingsProvidersTestIds.editorNameInput),
+      editorCommandInput: page.getByTestId(settingsProvidersTestIds.editorCommandInput),
+      editorModelInput: page.getByTestId(settingsProvidersTestIds.editorModelInput),
+      editorSave: page.getByTestId(settingsProvidersTestIds.editorSave),
+      deleteDialog: page.getByTestId(settingsProvidersTestIds.deleteDialog),
+      deleteConfirm: page.getByTestId(settingsProvidersTestIds.deleteConfirm),
+      restartBanner: page.getByTestId(settingsProvidersTestIds.restartBanner),
+      row: (name: string) => page.getByTestId(`settings-page-providers-row-${name}`),
+      rowCommand: (name: string) => page.getByTestId(`settings-page-providers-row-${name}-command`),
+      rowSource: (name: string) => page.getByTestId(`settings-page-providers-row-${name}-source`),
+      editRow: (name: string) => page.getByTestId(`settings-page-providers-row-${name}-edit`),
+      deleteRow: (name: string) => page.getByTestId(`settings-page-providers-row-${name}-delete`),
+    },
+    mcpServers: {
+      page: page.getByTestId(settingsMCPServersTestIds.page),
+      list: page.getByTestId(settingsMCPServersTestIds.list),
+      create: page.getByTestId(settingsMCPServersTestIds.create),
+      actionResult: page.getByTestId(settingsMCPServersTestIds.actionResult),
+      actionResultDismiss: page.getByTestId(settingsMCPServersTestIds.actionResultDismiss),
+      scopeGlobal: page.getByTestId(settingsMCPServersTestIds.scopeGlobal),
+      scopeLabel: page.getByTestId(settingsMCPServersTestIds.scopeLabel),
+      editor: page.getByTestId(settingsMCPServersTestIds.editor),
+      editorNameInput: page.getByTestId(settingsMCPServersTestIds.editorNameInput),
+      editorCommandInput: page.getByTestId(settingsMCPServersTestIds.editorCommandInput),
+      editorTargetInput: page.getByTestId(settingsMCPServersTestIds.editorTargetInput),
+      editorSave: page.getByTestId(settingsMCPServersTestIds.editorSave),
+      deleteDialog: page.getByTestId(settingsMCPServersTestIds.deleteDialog),
+      deleteConfirm: page.getByTestId(settingsMCPServersTestIds.deleteConfirm),
+      restartBanner: page.getByTestId(settingsMCPServersTestIds.restartBanner),
+      row: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}`),
+      rowSource: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-source`),
+      editRow: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-edit`),
+      deleteRow: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-delete`),
+      scopeWorkspace: (workspaceId: string) =>
+        page.getByTestId(`settings-page-mcp-servers-scope-workspace-${workspaceId}`),
+    },
+    hooksExtensions: {
+      page: page.getByTestId(settingsHooksExtensionsTestIds.page),
+      hooksList: page.getByTestId(settingsHooksExtensionsTestIds.hooksList),
+      extensionsList: page.getByTestId(settingsHooksExtensionsTestIds.extensionsList),
+      transportParity: page.getByTestId(settingsHooksExtensionsTestIds.transportParity),
+      actionResult: page.getByTestId(settingsHooksExtensionsTestIds.actionResult),
+      actionResultDismiss: page.getByTestId(settingsHooksExtensionsTestIds.actionResultDismiss),
+      policyControls: page.getByTestId(settingsHooksExtensionsTestIds.policyControls),
+      policyRegistryInput: page.getByTestId(settingsHooksExtensionsTestIds.policyRegistryInput),
+      policyBaseURLInput: page.getByTestId(settingsHooksExtensionsTestIds.policyBaseURLInput),
+      policySave: page.getByTestId(settingsHooksExtensionsTestIds.policySave),
+      restartBanner: page.getByTestId(settingsHooksExtensionsTestIds.restartBanner),
+      hookToggle: (name: string) =>
+        page.getByTestId(`settings-page-hooks-extensions-hooks-row-${name}-toggle`),
+      extensionToggle: (name: string) =>
+        page.getByTestId(`settings-page-hooks-extensions-extensions-item-${name}-toggle`),
+    },
   };
 }

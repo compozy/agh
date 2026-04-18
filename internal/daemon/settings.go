@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -277,7 +278,23 @@ func (s *settingsRuntimeSurface) InstalledExtensions(
 func (s *settingsRuntimeSurface) TransportParityStatus(
 	context.Context,
 ) (settingspkg.TransportParityStatus, error) {
-	return settingspkg.TransportParityStatus{}, nil
+	httpMutationsAllowed := settingsHTTPMutationsAllowed(s.config.HTTP.Host)
+	return settingspkg.TransportParityStatus{
+		Known:          true,
+		SettingsHTTP:   httpMutationsAllowed,
+		SettingsUDS:    true,
+		ExtensionsHTTP: httpMutationsAllowed,
+		ExtensionsUDS:  true,
+	}, nil
+}
+
+func settingsHTTPMutationsAllowed(host string) bool {
+	normalized := strings.Trim(strings.TrimSpace(host), "[]")
+	if strings.EqualFold(normalized, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(normalized)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (s *settingsRuntimeSurface) currentInfo() Info {

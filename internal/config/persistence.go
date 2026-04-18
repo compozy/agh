@@ -436,55 +436,58 @@ func newEmptyTree() (*tomltree.Tree, error) {
 }
 
 func newTreeFromMap(values map[string]any) (*tomltree.Tree, error) {
-	tree, err := newEmptyTree()
+	normalized, err := normalizeTreeValue(values)
 	if err != nil {
 		return nil, err
 	}
 
-	keys := sortedStringKeys(values)
-	for _, key := range keys {
-		if err := setTreeKey(tree, key, values[key]); err != nil {
-			return nil, err
-		}
+	tree, err := tomltree.TreeFromMap(normalized)
+	if err != nil {
+		return nil, fmt.Errorf("config: create TOML tree: %w", err)
 	}
 	return tree, nil
 }
 
-func setTreeKey(tree *tomltree.Tree, key string, value any) error {
+func normalizeTreeValue(values map[string]any) (map[string]any, error) {
+	normalized := make(map[string]any, len(values))
+	for _, key := range sortedStringKeys(values) {
+		value, err := normalizeTreeEntry(key, values[key])
+		if err != nil {
+			return nil, err
+		}
+		normalized[key] = value
+	}
+	return normalized, nil
+}
+
+func normalizeTreeEntry(key string, value any) (any, error) {
 	switch typed := value.(type) {
 	case map[string]any:
-		subtree, err := newTreeFromMap(typed)
-		if err != nil {
-			return err
-		}
-		rawPubTree(tree).Values()[key] = subtree
-		return nil
+		return normalizeTreeValue(typed)
 	case map[string]string:
-		return setTreeKey(tree, key, stringMapToAny(typed))
+		return normalizeTreeValue(stringMapToAny(typed))
 	case []map[string]any:
-		items := make([]*tomltree.Tree, 0, len(typed))
+		items := make([]map[string]any, 0, len(typed))
 		for idx := range typed {
-			subtree, err := newTreeFromMap(typed[idx])
+			normalized, err := normalizeTreeValue(typed[idx])
 			if err != nil {
-				return fmt.Errorf("array-table item %d: %w", idx, err)
+				return nil, fmt.Errorf("key %q array-table item %d: %w", key, idx, err)
 			}
-			items = append(items, subtree)
+			items = append(items, normalized)
 		}
-		rawPubTree(tree).Values()[key] = items
-		return nil
+		return items, nil
 	case []map[string]string:
 		items := make([]map[string]any, 0, len(typed))
 		for _, item := range typed {
 			items = append(items, stringMapToAny(item))
 		}
-		return setTreeKey(tree, key, items)
+		return normalizeTreeEntry(key, items)
 	default:
 		normalized, err := normalizeTOMLValue(typed)
 		if err != nil {
-			return fmt.Errorf("key %q: %w", key, err)
+			return nil, fmt.Errorf("key %q: %w", key, err)
 		}
-		tree.SetPath([]string{key}, normalized)
-		return nil
+		return normalized, nil
 	}
 }
 
@@ -529,10 +532,6 @@ func normalizeTOMLValue(value any) (any, error) {
 		}
 		return nil, fmt.Errorf("unsupported TOML value type %T", value)
 	}
-}
-
-func rawPubTree(tree *tomltree.Tree) *tomltree.PubTree {
-	return tree
 }
 
 func normalizeIntegerValue(value any) (any, bool) {
@@ -977,7 +976,7 @@ func (d *overlayDocument) tableInsertOffset(path []string) (int, error) {
 			switch next.kind {
 			case tomlast.KeyValue, tomlast.Comment:
 				if pathsEqual(next.containerPath, path) {
-					offset = rangeEnd(next.raw)
+					offset = lineEndOffset(d.source, next.raw)
 					continue
 				}
 				return offset, nil
@@ -1012,7 +1011,7 @@ func (d *overlayDocument) tableBlock(path []string) (overlayBlock, bool, error) 
 			case tomlast.KeyValue, tomlast.Comment:
 				if pathsEqual(next.containerPath, path) {
 					block.endIdx = nextIdx
-					block.end = rangeEnd(next.raw)
+					block.end = lineEndOffset(d.source, next.raw)
 					continue
 				}
 				return block, true, nil
@@ -1062,7 +1061,7 @@ func (d *overlayDocument) arrayTableBlocks(path []string) []overlayBlock {
 				break
 			}
 			block.endIdx = nextIdx
-			block.end = rangeEnd(next.raw)
+			block.end = lineEndOffset(d.source, next.raw)
 		}
 
 		blocks = append(blocks, block)
@@ -1141,6 +1140,11 @@ func lineReplacementOffsets(source []byte, target tomlast.Range) (int, int) {
 	return start, end
 }
 
+func lineEndOffset(source []byte, target tomlast.Range) int {
+	_, end := lineReplacementOffsets(source, target)
+	return end
+}
+
 func renderKeyValueLine(path []string, value any) (string, error) {
 	tree, err := newEmptyTree()
 	if err != nil {
@@ -1159,15 +1163,34 @@ func renderKeyValueLine(path []string, value any) (string, error) {
 }
 
 func renderTableFragment(path []string, values map[string]any) (string, error) {
-	root, err := nestedPathValue(path, values)
+	cleanPath, err := normalizeMutationPath(path)
 	if err != nil {
 		return "", err
 	}
-	rendered, err := renderTreeFragment(root)
+	body, err := renderTreeFragment(values)
 	if err != nil {
 		return "", err
 	}
-	return ensureTrailingNewline(strings.TrimRight(rendered, "\n")), nil
+
+	lines := []string{"[" + strings.Join(cleanPath, ".") + "]"}
+	for line := range strings.SplitSeq(strings.TrimRight(body, "\n"), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(trimmed, "[[") && strings.HasSuffix(trimmed, "]]"):
+			nested := strings.TrimSuffix(strings.TrimPrefix(trimmed, "[["), "]]")
+			lines = append(lines, "[["+strings.Join(append(clonePath(cleanPath), nested), ".")+"]]")
+		case strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]"):
+			nested := strings.TrimSuffix(strings.TrimPrefix(trimmed, "["), "]")
+			lines = append(lines, "["+strings.Join(append(clonePath(cleanPath), nested), ".")+"]")
+		default:
+			lines = append(lines, trimmed)
+		}
+	}
+
+	return ensureTrailingNewline(strings.Join(lines, "\n")), nil
 }
 
 func renderArrayTableFragment(path []string, values map[string]any) (string, error) {
@@ -1200,26 +1223,6 @@ func renderArrayTableFragment(path []string, values map[string]any) (string, err
 	}
 
 	return ensureTrailingNewline(strings.Join(lines, "\n")), nil
-}
-
-func nestedPathValue(path []string, value any) (map[string]any, error) {
-	if len(path) == 0 {
-		mapValue, ok := value.(map[string]any)
-		if !ok {
-			return nil, errors.New("config: root TOML fragment must be a table")
-		}
-		return mapValue, nil
-	}
-
-	root := map[string]any{}
-	current := root
-	for _, segment := range path[:len(path)-1] {
-		next := map[string]any{}
-		current[segment] = next
-		current = next
-	}
-	current[path[len(path)-1]] = value
-	return root, nil
 }
 
 func renderTreeFragment(values map[string]any) (string, error) {

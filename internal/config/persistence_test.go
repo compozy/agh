@@ -179,6 +179,98 @@ defaults = "legacy"
 	}
 }
 
+func TestEditConfigOverlayCreatesNestedSkillsSection(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	if err != nil {
+		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[daemon]
+socket = "/tmp/agh.sock"
+
+[http]
+host = "127.0.0.1"
+port = 4317
+`)
+
+	initial, err := os.ReadFile(homePaths.ConfigFile)
+	if err != nil {
+		t.Fatalf("ReadFile(initial config) error = %v", err)
+	}
+
+	editor, err := newOverlayEditor(homePaths.ConfigFile, initial)
+	if err != nil {
+		t.Fatalf("newOverlayEditor() error = %v", err)
+	}
+
+	updates := []struct {
+		path  []string
+		value any
+	}{
+		{path: []string{"skills", "enabled"}, value: true},
+		{path: []string{"skills", "disabled_skills"}, value: []string{"agh-session-guide"}},
+		{path: []string{"skills", "poll_interval"}, value: "3s"},
+		{path: []string{"skills", "marketplace", "registry"}, value: "clawhub"},
+		{path: []string{"skills", "marketplace", "base_url"}, value: "https://skills.example"},
+	}
+	for _, update := range updates {
+		if err := editor.SetValue(update.path, update.value); err != nil {
+			rendered, _ := editor.Bytes()
+			t.Fatalf("editor.SetValue(%v) error = %v\n%s", update.path, err, rendered)
+		}
+	}
+
+	rendered, err := editor.Bytes()
+	if err != nil {
+		t.Fatalf("editor.Bytes() error = %v", err)
+	}
+	if _, err := loadConfigOverlayBytes(rendered, homePaths.ConfigFile); err != nil {
+		t.Fatalf("loadConfigOverlayBytes(rendered) error = %v\n%s", err, rendered)
+	}
+
+	_, err = EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+		for _, update := range updates {
+			if err := editor.SetValue(update.path, update.value); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("EditConfigOverlay() error = %v", err)
+	}
+
+	contents, err := os.ReadFile(homePaths.ConfigFile)
+	if err != nil {
+		t.Fatalf("ReadFile(config) error = %v", err)
+	}
+	if _, err := loadConfigOverlayBytes(contents, homePaths.ConfigFile); err != nil {
+		t.Fatalf("loadConfigOverlayBytes() error = %v\n%s", err, contents)
+	}
+
+	text := string(contents)
+	for _, want := range []string{
+		"[skills]",
+		"enabled = true",
+		`disabled_skills = ["agh-session-guide"]`,
+		`poll_interval = "3s"`,
+		"[skills.marketplace]",
+		`registry = "clawhub"`,
+		`base_url = "https://skills.example"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("config contents missing %q\n%s", want, text)
+		}
+	}
+}
+
 func TestResolveWriteTargets(t *testing.T) {
 	t.Parallel()
 

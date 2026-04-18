@@ -42,6 +42,7 @@ export interface RuntimePaths {
 export interface BrowserRuntimeOptions {
   artifactRootDir: string;
   env?: NodeJS.ProcessEnv;
+  host?: string;
   networkEnabled?: boolean;
   readyTimeoutMs?: number;
   seed?: BrowserRuntimeSeed;
@@ -64,10 +65,13 @@ export interface BrowserRuntime {
 export {
   browserAutomationOperatorFlowScenario,
   browserBridgeOperatorFlowScenario,
+  browserSettingsOperatorFlowScenario,
   applyBrowserRuntimeSeed,
+  cleanupBrowserSettingsFixtures,
   browserNetworkOperatorFlowScenario,
   seedBrowserBridgeOperatorFlow,
   seedBrowserAutomationOperatorFlow,
+  seedBrowserSettingsFixtures,
   triggerBrowserBridgeIngress,
   seedBrowserNetworkOperatorFlow,
   type BrowserAutomationOperatorFlowResult,
@@ -78,6 +82,11 @@ export {
   type BrowserBridgeOperatorFlowSeed,
   type BrowserNetworkOperatorFlowResult,
   type BrowserNetworkOperatorFlowSeed,
+  type BrowserSettingsFixturesResult,
+  type BrowserSettingsFixturesSeed,
+  type BrowserSettingsHookSeed,
+  type BrowserSettingsMCPServerSeed,
+  type BrowserSettingsProviderSeed,
   type BridgeAdapterMarkerPaths,
   seedBrowserRuntimeHome,
   type BrowserRuntimeSeed,
@@ -123,6 +132,7 @@ export async function createBrowserRuntime(
   const binaryPath = await ensureDaemonBinary(repoRoot);
   const paths = await createRuntimePaths();
   const httpPort = await reserveFreePort();
+  const boundHost = options.host ?? DEFAULT_HOST;
   await seedBrowserRuntimeHome(
     {
       homeDir: paths.homeDir,
@@ -133,7 +143,7 @@ export async function createBrowserRuntime(
   await writeFile(
     paths.configFile,
     renderRuntimeConfig({
-      host: DEFAULT_HOST,
+      host: boundHost,
       networkEnabled: options.networkEnabled,
       port: httpPort,
       socketPath: paths.daemonSocket,

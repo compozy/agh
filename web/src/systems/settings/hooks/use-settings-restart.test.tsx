@@ -10,7 +10,11 @@ vi.mock("../adapters/settings-api", () => ({
 
 import { getSettingsRestartStatus, triggerSettingsRestart } from "../adapters/settings-api";
 import { initialSettingsRestartState } from "../stores/settings-restart-store";
-import { useSettingsRestartStore } from "../stores/use-settings-restart-store";
+import {
+  resetSettingsRestartStore,
+  settingsRestartStorageKey,
+  useSettingsRestartStore,
+} from "../stores/use-settings-restart-store";
 import { useSettingsRestart } from "./use-settings-restart";
 
 function createWrapper() {
@@ -26,13 +30,7 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
 });
 
 afterEach(() => {
@@ -169,6 +167,57 @@ describe("useSettingsRestart", () => {
     });
 
     expect(result.current.isRestartRequired).toBe(true);
+  });
+
+  it("rehydrates a pending restart so polling survives a page refresh", async () => {
+    window.sessionStorage.setItem(
+      settingsRestartStorageKey,
+      JSON.stringify({
+        state: {
+          operationId: "op_refresh",
+          status: "waiting_release",
+          activeSessionCount: 2,
+          failureReason: undefined,
+          lastMutation: {
+            section: "general",
+            restartRequired: true,
+            warnings: [],
+            completedAt: "2026-04-17T10:05:00Z",
+          },
+        } satisfies typeof initialSettingsRestartState,
+        version: 0,
+      })
+    );
+
+    vi.mocked(getSettingsRestartStatus).mockResolvedValue({
+      operation_id: "op_refresh",
+      status: "waiting_release",
+      old_pid: 1000,
+      old_socket_path: "/tmp/agh.sock",
+      old_started_at: "2026-04-17T10:00:00Z",
+      active_session_count: 2,
+      started_at: "2026-04-17T10:05:00Z",
+      updated_at: "2026-04-17T10:05:03Z",
+    });
+
+    await act(async () => {
+      await useSettingsRestartStore.persist.rehydrate();
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.operationId).toBe("op_refresh");
+    });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("waiting_release");
+    });
+
+    expect(result.current.isRestartRequired).toBe(true);
+    expect(result.current.isPolling).toBe(true);
+    expect(result.current.activeSessionCount).toBe(2);
   });
 
   it("dismisses the operation state but preserves the last mutation record", () => {

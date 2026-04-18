@@ -10,6 +10,13 @@ import {
   bridgeOperatorTestIds,
   networkOperatorSelectors,
   networkOperatorTestIds,
+  settingsGeneralTestIds,
+  settingsHooksExtensionsTestIds,
+  settingsMCPServersTestIds,
+  settingsOperatorSelectors,
+  settingsProvidersTestIds,
+  settingsShellTestIds,
+  settingsSkillsTestIds,
   sessionLifecycleSelectors,
   sessionLifecycleTestIds,
 } from "./selectors";
@@ -140,5 +147,100 @@ describe("bridge operator selectors", () => {
     expect(selectors.secretEnvInput("bot_token")).toBe("locator:bridge-secret-env-input-bot_token");
     expect(selectors.saveSecret("bot_token")).toBe("locator:save-bridge-secret-bot_token");
     expect(selectors.route("sess_bridge_01")).toBe("locator:bridge-route-sess_bridge_01");
+  });
+});
+
+describe("settings operator selectors", () => {
+  it("maps shell, restart-aware sections, collection rows, and hooks/extensions toggles to stable test IDs", () => {
+    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const locator = vi.fn((selector: string) => `locator:${selector}` as unknown as Locator);
+    const selectors = settingsOperatorSelectors({
+      getByTestId,
+      locator,
+    });
+
+    expect(selectors.shell.navSettings).toBe(`locator:${settingsShellTestIds.navSettings}`);
+    expect(selectors.shell.shell).toBe(`locator:${settingsShellTestIds.shell}`);
+    expect(selectors.shell.sectionNav).toBe(`locator:${settingsShellTestIds.sectionNav}`);
+    expect(selectors.shell.sectionLink("general")).toBe("locator:settings-section-general");
+    expect(selectors.shell.sectionActive("network")).toBe(
+      "locator:settings-section-active-network"
+    );
+
+    expect(selectors.general.page).toBe(`locator:${settingsGeneralTestIds.page}`);
+    expect(selectors.general.saveButton).toBe(`locator:${settingsGeneralTestIds.saveButton}`);
+    expect(selectors.general.restartBannerOp).toBe(
+      `locator:${settingsGeneralTestIds.restartBannerOp}`
+    );
+    expect(selectors.general.sessionTimeoutInput).toBe(
+      `locator:${settingsGeneralTestIds.sessionTimeoutInput}`
+    );
+
+    expect(selectors.skills.page).toBe(`locator:${settingsSkillsTestIds.page}`);
+    expect(selectors.skills.disabledList).toBe(`locator:${settingsSkillsTestIds.disabledList}`);
+    expect(selectors.skills.disabledToggle("browser-disabled-skill")).toBe(
+      "locator:settings-page-skills-disabled-toggle-browser-disabled-skill"
+    );
+    expect(selectors.skills.policyRegistryInput).toBe(
+      `locator:${settingsSkillsTestIds.policyRegistryInput}`
+    );
+    expect(selectors.skills.policyBaseURLInput).toBe(
+      `locator:${settingsSkillsTestIds.policyBaseURLInput}`
+    );
+    expect(selectors.skills.policyApplied).toBe(`locator:${settingsSkillsTestIds.policyApplied}`);
+
+    expect(selectors.providers.page).toBe(`locator:${settingsProvidersTestIds.page}`);
+    expect(selectors.providers.create).toBe(`locator:${settingsProvidersTestIds.create}`);
+    expect(selectors.providers.row("codex")).toBe("locator:settings-page-providers-row-codex");
+    expect(selectors.providers.rowCommand("codex")).toBe(
+      "locator:settings-page-providers-row-codex-command"
+    );
+    expect(selectors.providers.rowSource("codex")).toBe(
+      "locator:settings-page-providers-row-codex-source"
+    );
+    expect(selectors.providers.editRow("codex")).toBe(
+      "locator:settings-page-providers-row-codex-edit"
+    );
+    expect(selectors.providers.deleteRow("codex")).toBe(
+      "locator:settings-page-providers-row-codex-delete"
+    );
+
+    expect(selectors.mcpServers.page).toBe(`locator:${settingsMCPServersTestIds.page}`);
+    expect(selectors.mcpServers.create).toBe(`locator:${settingsMCPServersTestIds.create}`);
+    expect(selectors.mcpServers.scopeGlobal).toBe(
+      `locator:${settingsMCPServersTestIds.scopeGlobal}`
+    );
+    expect(selectors.mcpServers.scopeWorkspace("ws_browser")).toBe(
+      "locator:settings-page-mcp-servers-scope-workspace-ws_browser"
+    );
+    expect(selectors.mcpServers.row("browser-global-mcp")).toBe(
+      "locator:settings-page-mcp-servers-row-browser-global-mcp"
+    );
+    expect(selectors.mcpServers.rowSource("browser-global-mcp")).toBe(
+      "locator:settings-page-mcp-servers-row-browser-global-mcp-source"
+    );
+    expect(selectors.mcpServers.editRow("browser-global-mcp")).toBe(
+      "locator:settings-page-mcp-servers-row-browser-global-mcp-edit"
+    );
+    expect(selectors.mcpServers.deleteRow("browser-global-mcp")).toBe(
+      "locator:settings-page-mcp-servers-row-browser-global-mcp-delete"
+    );
+
+    expect(selectors.hooksExtensions.page).toBe(`locator:${settingsHooksExtensionsTestIds.page}`);
+    expect(selectors.hooksExtensions.transportParity).toBe(
+      `locator:${settingsHooksExtensionsTestIds.transportParity}`
+    );
+    expect(selectors.hooksExtensions.policyControls).toBe(
+      `locator:${settingsHooksExtensionsTestIds.policyControls}`
+    );
+    expect(selectors.hooksExtensions.policyBaseURLInput).toBe(
+      `locator:${settingsHooksExtensionsTestIds.policyBaseURLInput}`
+    );
+    expect(selectors.hooksExtensions.hookToggle("browser-turn-end")).toBe(
+      "locator:settings-page-hooks-extensions-hooks-row-browser-turn-end-toggle"
+    );
+    expect(selectors.hooksExtensions.extensionToggle("telegram-reference")).toBe(
+      "locator:settings-page-hooks-extensions-extensions-item-telegram-reference-toggle"
+    );
   });
 });
