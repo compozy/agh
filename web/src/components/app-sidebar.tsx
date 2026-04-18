@@ -6,123 +6,201 @@ import {
   ListChecks,
   Loader2,
   Network,
-  PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   Search,
   Settings,
   Terminal,
   Waypoints,
   Wrench,
+  type LucideIcon,
 } from "lucide-react";
-import { type ReactNode } from "react";
+
+import {
+  cn,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  ConnectionIndicator,
+  type ConnectionStatus,
+  Kbd,
+  Sidebar,
+  StatusDot,
+  type StatusDotTone,
+} from "@agh/ui";
 
 import { useSessionsByAgent } from "@/hooks/use-sessions-by-agent";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger, Kbd } from "@agh/ui";
-import { cn } from "@/lib/utils";
 import { AgentIcon, type AgentPayload } from "@/systems/agent";
-import { ConnectionStatus } from "@/systems/daemon";
-import type { SessionPayload, SessionState as SessionStateType } from "@/systems/session";
+import type { SessionPayload, SessionState } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
-interface IconRailProps {
+interface RailSlotProps {
   workspaces: WorkspacePayload[] | undefined;
   activeWorkspaceId: string | null;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
 }
 
-function IconRail({
+function RailSlot({
   workspaces,
   activeWorkspaceId,
   onSelectWorkspace,
   onAddWorkspace,
-}: IconRailProps) {
+}: RailSlotProps) {
   return (
-    <div
-      className="flex w-10 shrink-0 flex-col items-center border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface)] py-2"
-      data-testid="icon-rail"
-    >
-      <button
-        className="mb-3 flex size-8 items-center justify-center rounded-lg bg-[color:var(--color-accent)] text-white"
-        aria-label="AGH Home"
+    <div data-testid="icon-rail" className="flex flex-1 flex-col items-center gap-1.5">
+      <span
+        aria-label="AGH home"
         data-testid="app-logo"
-        type="button"
+        className="mb-1 inline-flex size-7 items-center justify-center rounded-md bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]"
       >
-        <Terminal className="size-4" />
-      </button>
-
-      <div className="flex flex-1 flex-col items-center gap-2 overflow-y-auto">
-        {workspaces?.map(workspace => {
-          const isActive = workspace.id === activeWorkspaceId;
-          const letter = workspace.name.charAt(0).toUpperCase();
-
-          return (
-            <button
-              key={workspace.id}
-              onClick={() => onSelectWorkspace(workspace.id)}
-              className={cn(
-                "flex size-8 items-center justify-center rounded-full border-2 border-transparent bg-[color:var(--color-surface-elevated)] text-xs font-medium text-[color:var(--color-text-primary)] transition-colors",
-                isActive && "border-[color:var(--color-accent)]"
-              )}
-              aria-label={`Workspace: ${workspace.name}`}
-              data-testid={`workspace-avatar-${workspace.id}`}
-              title={workspace.name}
-              type="button"
-            >
-              {letter}
-            </button>
-          );
-        })}
-      </div>
-
+        <Terminal aria-hidden="true" className="size-3.5" />
+      </span>
+      {workspaces?.map(workspace => {
+        const isActive = workspace.id === activeWorkspaceId;
+        const letter = workspace.name.charAt(0).toUpperCase() || "·";
+        return (
+          <button
+            key={workspace.id}
+            type="button"
+            onClick={() => onSelectWorkspace(workspace.id)}
+            data-testid={`workspace-avatar-${workspace.id}`}
+            data-active={isActive}
+            title={workspace.name}
+            aria-label={`Workspace: ${workspace.name}`}
+            aria-pressed={isActive}
+            className={cn(
+              "inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-[color:var(--color-surface-elevated)] font-mono text-[11px] font-medium text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
+              isActive &&
+                "border-[color:var(--color-accent)] text-[color:var(--color-text-primary)]"
+            )}
+          >
+            {letter}
+          </button>
+        );
+      })}
       <button
-        onClick={onAddWorkspace}
-        className="mt-2 flex size-8 items-center justify-center rounded-full text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-secondary)]"
-        aria-label="Add workspace"
-        data-testid="add-workspace-btn"
         type="button"
+        onClick={onAddWorkspace}
+        data-testid="add-workspace-btn"
+        aria-label="Add workspace"
+        className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-[color:var(--color-divider)] text-[color:var(--color-text-tertiary)] transition-colors hover:border-[color:var(--color-accent)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
       >
-        <Plus className="size-4" />
+        <Plus aria-hidden="true" className="size-3" />
       </button>
     </div>
   );
 }
 
-function SidebarSessionItem({ session }: { session: SessionPayload }) {
+interface HeaderSlotProps {
+  activeWorkspace: WorkspacePayload | undefined;
+}
+
+function HeaderSlot({ activeWorkspace }: HeaderSlotProps) {
+  return (
+    <>
+      <div className="flex flex-1 items-center gap-2 truncate">
+        <span
+          data-testid="sidebar-wordmark"
+          className="font-wordmark text-[15px] font-semibold tracking-tight text-[color:var(--color-text-primary)]"
+        >
+          agh
+        </span>
+        <span
+          data-testid="sidebar-alpha-chip"
+          className="inline-flex h-[18px] items-center rounded-[4px] border border-[color:var(--color-divider)] px-1.5 font-mono text-[9px] font-medium uppercase tracking-[0.14em] text-[color:var(--color-text-label)]"
+        >
+          Alpha
+        </span>
+        <span className="truncate text-[13px] text-[color:var(--color-text-tertiary)]">
+          {activeWorkspace?.name ?? ""}
+        </span>
+      </div>
+      <button
+        type="button"
+        aria-label="Search"
+        className="inline-flex size-6 items-center justify-center rounded-md text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+      >
+        <Search aria-hidden="true" className="size-3.5" />
+      </button>
+    </>
+  );
+}
+
+const SESSION_STATE_TONE: Record<SessionState, { tone: StatusDotTone; pulse: boolean }> = {
+  active: { tone: "success", pulse: false },
+  starting: { tone: "warning", pulse: true },
+  stopping: { tone: "neutral", pulse: true },
+  stopped: { tone: "neutral", pulse: false },
+};
+
+interface NavItemProps {
+  to: string;
+  icon: LucideIcon;
+  label: string;
+  fuzzy?: boolean;
+}
+
+function NavItem({ to, icon: Icon, label, fuzzy }: NavItemProps) {
   const matchRoute = useMatchRoute();
-  const isActive = !!matchRoute({ to: "/session/$id", params: { id: session.id } });
+  const isActive = Boolean(matchRoute({ to, fuzzy }));
+  const testKey = label.toLowerCase();
+
+  return (
+    <Link
+      to={to}
+      data-testid={`nav-${testKey}`}
+      data-active={isActive}
+      className={cn(
+        "relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]",
+        isActive &&
+          "bg-[color:var(--color-surface-elevated)] font-medium text-[color:var(--color-text-primary)]"
+      )}
+    >
+      {isActive && (
+        <span
+          aria-hidden="true"
+          data-testid={`nav-active-${testKey}`}
+          className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+        />
+      )}
+      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      <span className="truncate">{label}</span>
+    </Link>
+  );
+}
+
+interface SidebarSessionItemProps {
+  session: SessionPayload;
+}
+
+function SidebarSessionItem({ session }: SidebarSessionItemProps) {
+  const matchRoute = useMatchRoute();
+  const isActive = Boolean(matchRoute({ to: "/session/$id", params: { id: session.id } }));
   const displayTitle = session.name || session.id.slice(0, 8);
+  const { tone, pulse } = SESSION_STATE_TONE[session.state];
 
   return (
     <Link
       to="/session/$id"
       params={{ id: session.id }}
+      data-testid={`session-row-${session.id}`}
+      data-active={isActive}
       className={cn(
-        "relative flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-        "text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]",
+        "relative flex items-center gap-2 rounded-md px-2 py-1 text-[12px] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]",
         isActive &&
-          "bg-[color:var(--color-hover)] font-medium text-[color:var(--color-text-primary)]"
+          "bg-[color:var(--color-surface-elevated)] font-medium text-[color:var(--color-text-primary)]"
       )}
     >
       {isActive && (
-        <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]" />
+        <span
+          aria-hidden="true"
+          className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+        />
       )}
-      <SessionStateDot state={session.state} />
+      <StatusDot tone={tone} pulse={pulse} size="sm" />
       <span className="truncate">{displayTitle}</span>
     </Link>
   );
-}
-
-function SessionStateDot({ state }: { state: SessionStateType }) {
-  const colorMap: Record<SessionStateType, string> = {
-    active: "bg-[color:var(--color-success)]",
-    starting: "bg-[color:var(--color-warning)] animate-pulse",
-    stopping: "bg-[color:var(--color-text-tertiary)] animate-pulse",
-    stopped: "bg-[color:var(--color-text-tertiary)]",
-  };
-
-  return <span className={cn("size-1.5 shrink-0 rounded-full", colorMap[state])} />;
 }
 
 interface AgentItemProps {
@@ -137,35 +215,41 @@ function AgentItem({ agent, sessions, onNewSession, newSessionDisabled }: AgentI
 
   return (
     <Collapsible defaultOpen={count > 0} className="group/agent">
-      <div className="flex items-center gap-1 px-2 py-1">
-        <CollapsibleTrigger className="flex flex-1 items-center gap-2 rounded-md py-0.5 text-left text-xs font-medium text-[color:var(--color-text-primary)] hover:text-[color:var(--color-text-primary)]">
+      <div className="relative flex items-center">
+        <CollapsibleTrigger
+          data-testid={`agent-trigger-${agent.name}`}
+          className="flex min-h-7 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-[13px] text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+        >
+          <ChevronRight
+            aria-hidden="true"
+            className="size-3 shrink-0 text-[color:var(--color-text-tertiary)] transition-transform group-data-[panel-open]/agent:rotate-90"
+          />
           <AgentIcon
             provider={agent.provider}
-            className="size-3.5 text-[color:var(--color-text-tertiary)]"
+            className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]"
           />
           <span className="truncate">{agent.name}</span>
-          <span className="ml-auto font-mono text-[0.6rem] text-[color:var(--color-text-tertiary)]">
+          <span className="ml-auto font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
             {count}
           </span>
-          <ChevronRight className="size-3 text-[color:var(--color-text-tertiary)] transition-transform group-data-[state=open]/agent:rotate-90" />
         </CollapsibleTrigger>
         <button
+          type="button"
           onClick={() => onNewSession(agent.name)}
           disabled={newSessionDisabled}
-          className="flex size-5 items-center justify-center rounded text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-secondary)] disabled:opacity-40"
           aria-label={`New session for ${agent.name}`}
           data-testid={`new-session-${agent.name}`}
-          type="button"
+          className="ml-1 inline-flex size-5 items-center justify-center rounded text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] disabled:pointer-events-none disabled:opacity-40"
         >
-          <Plus className="size-3" />
+          <Plus aria-hidden="true" className="size-3" />
         </button>
       </div>
       <CollapsibleContent>
-        <div className="ml-4 flex flex-col gap-0.5 pb-1">
+        <div className="ml-[18px] flex flex-col gap-0.5 border-l border-[color:var(--color-divider)] pl-2 pt-0.5">
           {sessions && sessions.length > 0 ? (
             sessions.map(session => <SidebarSessionItem key={session.id} session={session} />)
           ) : (
-            <span className="px-2 py-1 text-[0.68rem] text-[color:var(--color-text-tertiary)]">
+            <span className="px-2 py-1 text-[11px] text-[color:var(--color-text-tertiary)]">
               No sessions
             </span>
           )}
@@ -198,8 +282,11 @@ function AgentList({
 
   if (agentsLoading) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 text-xs text-[color:var(--color-text-tertiary)]">
-        <Loader2 className="size-3 animate-spin" />
+      <div
+        data-testid="agents-loading"
+        className="flex items-center gap-2 px-3 py-2 text-[12px] text-[color:var(--color-text-tertiary)]"
+      >
+        <Loader2 aria-hidden="true" className="size-3 animate-spin" />
         <span>Loading agents...</span>
       </div>
     );
@@ -207,8 +294,11 @@ function AgentList({
 
   if (agentsError || !agents || agents.length === 0) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 text-xs text-[color:var(--color-text-tertiary)]">
-        <Bot className="size-3" />
+      <div
+        data-testid="agents-empty"
+        className="flex items-center gap-2 px-3 py-2 text-[12px] text-[color:var(--color-text-tertiary)]"
+      >
+        <Bot aria-hidden="true" className="size-3" />
         <span>Run `agh install` to bootstrap AGH</span>
       </div>
     );
@@ -229,73 +319,17 @@ function AgentList({
   );
 }
 
-interface NavItemProps {
-  to: string;
-  icon: ReactNode;
-  label: string;
-  fuzzy?: boolean;
-}
+const WORKSPACE_NAV_ITEMS: NavItemProps[] = [
+  { to: "/tasks", icon: ListChecks, label: "Tasks", fuzzy: true },
+  { to: "/automation", icon: Bot, label: "Automation" },
+  { to: "/bridges", icon: Waypoints, label: "Bridges" },
+  { to: "/network", icon: Network, label: "Network" },
+  { to: "/knowledge", icon: Book, label: "Knowledge" },
+  { to: "/skills", icon: Wrench, label: "Skills" },
+];
 
-function NavItem({ to, icon, label, fuzzy }: NavItemProps) {
-  const matchRoute = useMatchRoute();
-  const isActive = !!matchRoute({ to, fuzzy });
-
-  return (
-    <Link
-      to={to}
-      className={cn(
-        "relative flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-        "text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]",
-        isActive &&
-          "bg-[color:var(--color-hover)] font-medium text-[color:var(--color-text-primary)]"
-      )}
-      data-testid={`nav-${label.toLowerCase()}`}
-    >
-      {isActive && (
-        <span
-          className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
-          data-testid={`nav-active-${label.toLowerCase()}`}
-        />
-      )}
-      {icon}
-      <span>{label}</span>
-    </Link>
-  );
-}
-
-function SettingsNavItem() {
-  const matchRoute = useMatchRoute();
-  const isActive = !!matchRoute({ to: "/settings", fuzzy: true });
-
-  return (
-    <Link
-      to="/settings"
-      data-testid="nav-settings"
-      className={cn(
-        "relative mt-1.5 flex w-full items-center gap-2 rounded-md px-0 py-1 text-xs transition-colors",
-        "text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]",
-        isActive && "font-medium text-[color:var(--color-text-primary)]"
-      )}
-    >
-      {isActive && (
-        <span
-          className="absolute left-[-12px] top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
-          data-testid="nav-active-settings"
-        />
-      )}
-      <Settings className="size-3.5" />
-      <span>Settings</span>
-    </Link>
-  );
-}
-
-interface SidebarPanelProps {
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
-  activeWorkspace: WorkspacePayload | undefined;
+interface NavSlotProps {
   activeWorkspaceId: string | null;
-  health: { version: string } | undefined;
-  connectionStatus: "connected" | "disconnected" | "reconnecting";
   agents: AgentPayload[] | undefined;
   agentsLoading: boolean;
   agentsError: boolean;
@@ -304,138 +338,120 @@ interface SidebarPanelProps {
   isCreatingSession: boolean;
 }
 
-function SidebarPanel({
-  collapsed,
-  onToggleCollapsed,
-  activeWorkspace,
+function NavSlot({
   activeWorkspaceId,
-  health,
-  connectionStatus,
   agents,
   agentsLoading,
   agentsError,
   sessions,
   onNewSession,
   isCreatingSession,
-}: SidebarPanelProps) {
+}: NavSlotProps) {
   return (
-    <div
-      className={cn(
-        "flex flex-col overflow-hidden bg-[color:var(--color-surface)] transition-[width] duration-200",
-        collapsed ? "w-0" : "w-[220px]"
-      )}
-      data-testid="sidebar-panel"
-    >
-      <div className="flex min-w-[220px] flex-1 flex-col">
-        <div className="flex items-center gap-2 border-b border-[color:var(--color-divider)] px-3 py-2.5">
-          <span className="flex-1 truncate text-sm font-semibold text-[color:var(--color-text-primary)]">
-            {activeWorkspace?.name ?? "AGH"}
-          </span>
-          <button
-            className="flex size-6 items-center justify-center rounded text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-secondary)]"
-            aria-label="Search"
-            type="button"
-          >
-            <Search className="size-3.5" />
-          </button>
-          <button
-            onClick={onToggleCollapsed}
-            className="flex size-6 items-center justify-center rounded text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-secondary)]"
-            aria-label="Collapse sidebar"
-            data-testid="collapse-toggle"
-            type="button"
-          >
-            <PanelLeftClose className="size-3.5" />
-          </button>
-        </div>
+    <div data-testid="sidebar-nav" className="flex flex-col gap-1 px-2 py-3">
+      <div className="flex items-center gap-2 rounded-md bg-[color:var(--color-canvas-deep)] px-2 py-1.5 text-[12px] text-[color:var(--color-text-tertiary)]">
+        <Search aria-hidden="true" className="size-3" />
+        <span className="flex-1">Search…</span>
+        <Kbd className="text-[10px]">⌘K</Kbd>
+      </div>
 
-        <div className="px-3 py-2">
-          <div className="flex items-center gap-2 rounded-md bg-[color:var(--color-canvas)] px-2.5 py-1.5 text-xs text-[color:var(--color-text-tertiary)]">
-            <Search className="size-3" />
-            <span className="flex-1">Search...</span>
-            <Kbd className="text-[0.55rem]">⌘K</Kbd>
-          </div>
-        </div>
+      <SectionLabel>Agents</SectionLabel>
+      <AgentList
+        activeWorkspaceId={activeWorkspaceId}
+        agents={agents}
+        agentsLoading={agentsLoading}
+        agentsError={agentsError}
+        sessions={sessions}
+        onNewSession={onNewSession}
+        isCreatingSession={isCreatingSession}
+      />
 
-        <div className="flex-1 overflow-y-auto px-1">
-          <div className="px-2 pb-1 pt-2">
-            <span className="font-mono text-[0.6rem] uppercase tracking-[0.22em] text-[color:var(--color-text-label)]">
-              Agents
-            </span>
-          </div>
-          <AgentList
-            activeWorkspaceId={activeWorkspaceId}
-            agents={agents}
-            agentsLoading={agentsLoading}
-            agentsError={agentsError}
-            sessions={sessions}
-            onNewSession={onNewSession}
-            isCreatingSession={isCreatingSession}
+      <SectionLabel className="mt-3">Workspace</SectionLabel>
+      <div className="flex flex-col gap-0.5">
+        {WORKSPACE_NAV_ITEMS.map(item => (
+          <NavItem
+            key={item.to}
+            to={item.to}
+            icon={item.icon}
+            label={item.label}
+            fuzzy={item.fuzzy}
           />
-
-          <div className="mt-3 px-2 pb-1">
-            <span className="font-mono text-[0.6rem] uppercase tracking-[0.22em] text-[color:var(--color-text-label)]">
-              Workspace
-            </span>
-          </div>
-          <div className="flex flex-col gap-0.5 px-1">
-            <NavItem to="/tasks" icon={<ListChecks className="size-3.5" />} label="Tasks" fuzzy />
-            <NavItem to="/automation" icon={<Bot className="size-3.5" />} label="Automation" />
-            <NavItem to="/bridges" icon={<Waypoints className="size-3.5" />} label="Bridges" />
-            <NavItem to="/network" icon={<Network className="size-3.5" />} label="Network" />
-            <NavItem to="/knowledge" icon={<Book className="size-3.5" />} label="Knowledge" />
-            <NavItem to="/skills" icon={<Wrench className="size-3.5" />} label="Skills" />
-          </div>
-        </div>
-
-        <div className="border-t border-[color:var(--color-divider)] px-3 py-2">
-          <div className="flex items-center gap-2" data-testid="sidebar-footer">
-            <ConnectionStatus status={connectionStatus} />
-            {health && (
-              <span className="font-mono text-[0.55rem] text-[color:var(--color-text-tertiary)]">
-                v{health.version}
-              </span>
-            )}
-          </div>
-          <SettingsNavItem />
-        </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function ExpandButton({
-  collapsed,
-  onToggleCollapsed,
-}: {
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
-}) {
-  if (!collapsed) return null;
+function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span
+      data-testid="sidebar-section-label"
+      className={cn(
+        "px-2 pt-2 pb-1 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-text-label)]",
+        className
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+interface FooterSlotProps {
+  connectionStatus: ConnectionStatus;
+  health: { version: string } | undefined;
+}
+
+function FooterSlot({ connectionStatus, health }: FooterSlotProps) {
+  const matchRoute = useMatchRoute();
+  const settingsActive = Boolean(matchRoute({ to: "/settings", fuzzy: true }));
 
   return (
-    <button
-      onClick={onToggleCollapsed}
-      className="absolute left-10 top-2 z-10 flex size-6 items-center justify-center rounded bg-[color:var(--color-surface)] text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-secondary)]"
-      aria-label="Expand sidebar"
-      data-testid="expand-toggle"
-      type="button"
-    >
-      <PanelLeftOpen className="size-3.5" />
-    </button>
+    <div data-testid="sidebar-footer" className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <ConnectionIndicator status={connectionStatus} />
+        {health && (
+          <span
+            data-testid="sidebar-version"
+            className="ml-auto font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
+          >
+            v{health.version}
+          </span>
+        )}
+      </div>
+      <Link
+        to="/settings"
+        data-testid="nav-settings"
+        data-active={settingsActive}
+        className={cn(
+          "relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]",
+          settingsActive &&
+            "bg-[color:var(--color-surface-elevated)] font-medium text-[color:var(--color-text-primary)]"
+        )}
+      >
+        {settingsActive && (
+          <span
+            aria-hidden="true"
+            data-testid="nav-active-settings"
+            className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          />
+        )}
+        <Settings aria-hidden="true" className="size-3.5 shrink-0" />
+        <span>Settings</span>
+      </Link>
+    </div>
   );
 }
 
 export interface AppSidebarProps {
   collapsed: boolean;
-  onToggleCollapsed: () => void;
+  onCollapseChange: (next: boolean) => void;
   workspaces: WorkspacePayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
   activeWorkspaceId: string | null;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
   health: { version: string } | undefined;
-  connectionStatus: "connected" | "disconnected" | "reconnecting";
+  connectionStatus: ConnectionStatus;
   agents: AgentPayload[] | undefined;
   agentsLoading: boolean;
   agentsError: boolean;
@@ -446,7 +462,7 @@ export interface AppSidebarProps {
 
 function AppSidebar({
   collapsed,
-  onToggleCollapsed,
+  onCollapseChange,
   workspaces,
   activeWorkspace,
   activeWorkspaceId,
@@ -462,32 +478,33 @@ function AppSidebar({
   isCreatingSession,
 }: AppSidebarProps) {
   return (
-    <aside
-      className="relative flex h-screen shrink-0 border-r border-[color:var(--color-divider)]"
+    <Sidebar
       data-testid="app-sidebar"
-    >
-      <IconRail
-        workspaces={workspaces}
-        activeWorkspaceId={activeWorkspaceId}
-        onSelectWorkspace={onSelectWorkspace}
-        onAddWorkspace={onAddWorkspace}
-      />
-      <SidebarPanel
-        collapsed={collapsed}
-        onToggleCollapsed={onToggleCollapsed}
-        activeWorkspace={activeWorkspace}
-        activeWorkspaceId={activeWorkspaceId}
-        health={health}
-        connectionStatus={connectionStatus}
-        agents={agents}
-        agentsLoading={agentsLoading}
-        agentsError={agentsError}
-        sessions={sessions}
-        onNewSession={onNewSession}
-        isCreatingSession={isCreatingSession}
-      />
-      <ExpandButton collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
-    </aside>
+      collapsed={collapsed}
+      onCollapse={onCollapseChange}
+      panelWidth={240}
+      rail={
+        <RailSlot
+          workspaces={workspaces}
+          activeWorkspaceId={activeWorkspaceId}
+          onSelectWorkspace={onSelectWorkspace}
+          onAddWorkspace={onAddWorkspace}
+        />
+      }
+      header={<HeaderSlot activeWorkspace={activeWorkspace} />}
+      nav={
+        <NavSlot
+          activeWorkspaceId={activeWorkspaceId}
+          agents={agents}
+          agentsLoading={agentsLoading}
+          agentsError={agentsError}
+          sessions={sessions}
+          onNewSession={onNewSession}
+          isCreatingSession={isCreatingSession}
+        />
+      }
+      footer={<FooterSlot connectionStatus={connectionStatus} health={health} />}
+    />
   );
 }
 

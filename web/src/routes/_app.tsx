@@ -19,7 +19,7 @@ function AppLayout() {
     <div className="flex h-screen overflow-hidden bg-background">
       <AppSidebar
         collapsed={page.collapsed}
-        onToggleCollapsed={page.toggleCollapsed}
+        onCollapseChange={page.setCollapsed}
         workspaces={page.areWorkspacesLoading || page.workspacesError ? undefined : page.workspaces}
         activeWorkspace={page.activeWorkspace}
         activeWorkspaceId={page.activeWorkspaceId}

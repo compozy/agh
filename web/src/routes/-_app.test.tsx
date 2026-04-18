@@ -33,8 +33,13 @@ vi.mock("@/components/app-sidebar", () => ({
 }));
 
 vi.mock("@/stores/sidebar-store", () => ({
-  useSidebarStore: (selector: (state: { collapsed: boolean; toggle: () => void }) => unknown) =>
-    selector({ collapsed: false, toggle: vi.fn() }),
+  useSidebarStore: (
+    selector: (state: {
+      collapsed: boolean;
+      toggle: () => void;
+      setCollapsed: (next: boolean) => void;
+    }) => unknown
+  ) => selector({ collapsed: false, toggle: vi.fn(), setCollapsed: vi.fn() }),
 }));
 
 vi.mock("@/systems/daemon", () => ({
