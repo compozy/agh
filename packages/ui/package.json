@@ -6,6 +6,7 @@
     "exports": {
         "./tokens.css": "./src/tokens.css",
         "./utils": "./src/lib/utils.ts",
+        "./testing/visual": "./src/testing/visual-story-index.ts",
         ".": "./src/index.ts"
     },
     "scripts": {

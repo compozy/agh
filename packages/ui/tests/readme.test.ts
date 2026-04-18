@@ -134,6 +134,7 @@ describe("packages/ui README", () => {
         "### Reviewing a failing snapshot",
         "### Per-platform baselines + CI",
         "### CI gate expectations",
+        "### Web-side harness (\`web/\`)",
         "## Anti-patterns",
         "## Quick reference",
       ]

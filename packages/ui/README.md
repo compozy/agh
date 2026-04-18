@@ -211,6 +211,47 @@ Playwright drops `*-actual.png`, `*-expected.png`, and `*-diff.png` next to the 
 - `bun run --cwd packages/ui test:visual` — zero baseline drift (or intentional drift committed alongside the change).
 - Snapshot count must not decrease without a matching primitive deletion in the same PR.
 
+### Web-side harness (`web/`)
+
+`@agh/ui` re-exports its visual helpers via the `./testing/visual` subpath
+(`packages/ui/src/testing/visual-story-index.ts`) so the `web/` package can
+drive its own parallel visual suite. Config lives at
+[`web/playwright.visual.config.ts`](../../web/playwright.visual.config.ts); the
+spec lives at
+[`web/tests/visual/stories.spec.ts`](../../web/tests/visual/stories.spec.ts).
+
+- **Scope.** Every `web/src/**/*.stories.tsx` gets a baseline — primitive
+  compositions, route stories under `web/src/routes/_app/stories/`, domain
+  stories under `web/src/systems/<domain>/components/stories/`, and the
+  `/design-system` showcase story under
+  `web/src/components/stories/design-system-showcase.stories.tsx`.
+- **Baselines drift during Phase 3–6.** The Phase 2 baselines capture the
+  app-shell + pre-migration page interiors. Each domain task (Phase 3–6)
+  rewrites its components and commits the updated PNGs in the **same PR** as
+  the redesign diff, alongside a before/after in the PR body.
+- **Port 6008** to avoid clashing with `packages/ui` on port 6007 when both
+  visual suites run locally in parallel.
+- **Separate Playwright config.** `web/playwright.config.ts` still drives the
+  existing daemon-backed e2e suite under `web/e2e/`. Visual runs explicitly
+  pass `--config playwright.visual.config.ts` so the two lanes never collide.
+- **CI job `web-visual`.** Runs on `ubuntu-22.04` when `web/**` or
+  `packages/ui/**` change. The first CI run needs `--update-snapshots`
+  dispatched from a one-off workflow PR to seed the linux baselines, same as
+  the `ui-visual` job.
+
+Local commands:
+
+```sh
+# First-time (chromium install)
+bun run --cwd web test:visual:install
+
+# Build storybook + run the full snapshot suite
+bun run --cwd web test:visual
+
+# Intentional drift — reviewed in the PR body with before/after
+bun run --cwd web test:visual:update
+```
+
 ## Anti-patterns
 
 These all fail review. They exist because they have all been tried.
