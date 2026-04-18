@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Inputs</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        align-items: center;
+        gap: 14px;
+      }
+      .tag {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #636366;
+      }
+      .inp {
+        font-family: "Inter", sans-serif;
+        font-size: 13px;
+        color: #e5e5e7;
+        background: rgba(44, 44, 46, 0.3);
+        border: 1px solid #3c3a39;
+        border-radius: 8px;
+        padding: 0 10px;
+        height: 32px;
+        width: 100%;
+        outline: none;
+      }
+      .inp:focus {
+        border-color: #e8572a;
+        box-shadow: 0 0 0 3px rgba(232, 87, 42, 0.25);
+      }
+      .inp::placeholder {
+        color: #636366;
+      }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(28, 28, 30, 0.92);
+        border: 1px solid #3c3a39;
+        border-radius: 9999px;
+        padding: 0 10px;
+        height: 34px;
+        width: 260px;
+        color: #8e8e93;
+        font-family: "Inter", sans-serif;
+        font-size: 13px;
+      }
+      .kbd {
+        font-family: "Inter", sans-serif;
+        font-size: 11px;
+        font-weight: 500;
+        color: #8e8e93;
+        background: #2e2c2b;
+        border-radius: 3px;
+        padding: 2px 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <span class="tag">Input · rest</span><input class="inp" placeholder="agent name" />
+    </div>
+    <div class="row">
+      <span class="tag">Input · focus</span><input class="inp" value="reviewer" autofocus />
+    </div>
+    <div class="row">
+      <span class="tag">Search · header</span>
+      <div class="search">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.3-4.3" />
+        </svg>
+        <span style="flex: 1">Search docs</span>
+        <span class="kbd">⌘K</span>
+      </div>
+    </div>
+  </body>
+</html>

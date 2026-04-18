@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
 
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
+import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 import { KnowledgeDetailPanel } from "@/systems/knowledge/components/knowledge-detail-panel";
 
@@ -42,9 +43,9 @@ export const Default: Story = {
 export const Empty: Story = {
   args: {},
   parameters: {
-    msw: {
-      handlers: [http.get("/api/memory", () => HttpResponse.json([]))],
-    },
+    ...storybookMswParameters({
+      knowledge: [http.get("/api/memory", () => HttpResponse.json([]))],
+    }),
   },
   render: () => <KnowledgeDetailPanelFromPage />,
 };

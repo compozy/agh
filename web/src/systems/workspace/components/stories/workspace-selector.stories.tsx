@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Skeleton } from "@agh/ui";
 import { http, HttpResponse } from "msw";
 
+import { storybookMswParameters } from "@/storybook/msw";
 import { CenteredSurface } from "@/storybook/story-layout";
 import { useWorkspaces } from "@/systems/workspace";
 
@@ -53,9 +54,9 @@ export const Default: Story = {
 
 export const Empty: Story = {
   parameters: {
-    msw: {
-      handlers: [http.get("/api/workspaces", () => HttpResponse.json({ workspaces: [] }))],
-    },
+    ...storybookMswParameters({
+      workspace: [http.get("/api/workspaces", () => HttpResponse.json({ workspaces: [] }))],
+    }),
   },
   render: () => <WorkspaceSelectorFromQuery />,
 };

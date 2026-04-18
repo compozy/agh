@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Radii</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 14px;
+      }
+      .cell {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+      }
+      .box {
+        width: 76px;
+        height: 76px;
+        background: #1e1c1b;
+        border: 1px solid #3c3a39;
+      }
+      .tag {
+        font-family: var(--font-mono);
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #636366;
+        text-align: center;
+      }
+      .hex {
+        color: #8e8e93;
+        font-family: var(--font-mono);
+        font-size: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid">
+      <div class="cell">
+        <div class="box" style="border-radius: 5px"></div>
+        <div class="tag">Chip · 5px</div>
+      </div>
+      <div class="cell">
+        <div class="box" style="border-radius: 6px"></div>
+        <div class="tag">Badge · 6px</div>
+      </div>
+      <div class="cell">
+        <div class="box" style="border-radius: 8px"></div>
+        <div class="tag">Base · 8px</div>
+      </div>
+      <div class="cell">
+        <div class="box" style="border-radius: 10px"></div>
+        <div class="tag">Icon well · 10px</div>
+      </div>
+      <div class="cell">
+        <div class="box" style="border-radius: 12px"></div>
+        <div class="tag">Card/diagram · 12px</div>
+      </div>
+      <div class="cell">
+        <div class="box" style="border-radius: 9999px"></div>
+        <div class="tag">Pill · full</div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Docs Heading</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+      }
+      .eyebrow {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: #636366;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .eyebrow .accent {
+        color: #e8572a;
+      }
+      .eyebrow .rule {
+        width: 28px;
+        height: 1px;
+        background: #3c3a39;
+      }
+      .h1 {
+        font-family: "Inter", sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.05em;
+        line-height: 0.94;
+        color: #e5e5e7;
+        font-size: 48px;
+        margin: 14px 0 10px;
+      }
+      .lead {
+        font-family: "Inter", sans-serif;
+        font-size: 16px;
+        line-height: 1.7;
+        color: #8e8e93;
+        max-width: 62ch;
+        margin: 0;
+      }
+      .meta {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #636366;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="eyebrow">
+      <span class="accent">AGH Runtime</span><span class="rule"></span><span>Sessions</span>
+    </div>
+    <h1 class="h1">What is AGH</h1>
+    <p class="lead">
+      AGH is a local-first control plane for running real agent CLIs as durable work.
+    </p>
+    <div class="meta">Inter · 600 · −0.05em · 48/44</div>
+  </body>
+</html>

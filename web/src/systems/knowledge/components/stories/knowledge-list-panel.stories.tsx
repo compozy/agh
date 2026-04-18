@@ -3,6 +3,7 @@ import { Skeleton } from "@agh/ui";
 import { delay, http, HttpResponse } from "msw";
 
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
+import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 import { KnowledgeListPanel } from "@/systems/knowledge/components/knowledge-list-panel";
 
@@ -60,14 +61,14 @@ export const Default: Story = {
 export const Loading: Story = {
   args: {},
   parameters: {
-    msw: {
-      handlers: [
+    ...storybookMswParameters({
+      knowledge: [
         http.get("/api/memory", async () => {
           await delay("infinite");
           return HttpResponse.json([]);
         }),
       ],
-    },
+    }),
   },
   render: () => <KnowledgeListPanelFromPage />,
 };

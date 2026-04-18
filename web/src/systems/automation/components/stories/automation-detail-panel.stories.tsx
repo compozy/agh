@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
 
 import { useAutomationPage } from "@/hooks/routes/use-automation-page";
+import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 
 import { AutomationDetailPanel } from "../automation-detail-panel";
@@ -33,8 +34,8 @@ export const Default: Story = {
 
 export const Error: Story = {
   parameters: {
-    msw: {
-      handlers: [
+    ...storybookMswParameters({
+      automation: [
         http.get("/api/automation/jobs/:id", ({ params }) =>
           HttpResponse.json(
             { error: `Failed to load automation job ${String(params.id)}` },
@@ -42,7 +43,7 @@ export const Error: Story = {
           )
         ),
       ],
-    },
+    }),
   },
   render: () => <AutomationDetailPanelFromPage />,
 };
