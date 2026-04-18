@@ -60,6 +60,11 @@ type StreamEvent struct {
 	Timeline TimelineItem `json:"timeline"`
 }
 
+// EventObserver receives immutable task events after durable persistence.
+type EventObserver interface {
+	OnTaskEvent(ctx context.Context, record EventRecord)
+}
+
 // TreeView is the manager-owned live snapshot for one task tree.
 type TreeView struct {
 	Root        TreeNode   `json:"root"`

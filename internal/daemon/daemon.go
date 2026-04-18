@@ -335,6 +335,7 @@ type Daemon struct {
 }
 
 type shutdownTargets struct {
+	tasks             *taskRuntime
 	sessions          SessionManager
 	network           networkRuntime
 	hooks             hookRuntime
@@ -967,6 +968,7 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 	defer d.mu.Unlock()
 
 	targets := shutdownTargets{
+		tasks:             d.tasks,
 		sessions:          d.sessions,
 		network:           d.network,
 		hooks:             d.hooks,
@@ -1041,6 +1043,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	}
 	if err := d.stopSessions(ctx, targets.sessions); err != nil {
 		*errs = append(*errs, err)
+	}
+	if targets.tasks != nil {
+		targets.tasks.shutdown()
 	}
 }
 

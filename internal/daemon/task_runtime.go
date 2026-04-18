@@ -30,6 +30,7 @@ type taskRuntime struct {
 	manager  *taskpkg.Service
 	store    taskStore
 	detached *harnessDetachedWorkBridge
+	reentry  *harnessReentryBridge
 }
 
 type taskBridgeSessionManager interface {
@@ -222,9 +223,22 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	if err != nil {
 		return err
 	}
+	reentrySessions, ok := state.sessions.(harnessReentrySessionManager)
+	if !ok {
+		return errors.New("daemon: session manager does not support synthetic reentry bridge")
+	}
+	reentryStore, ok := state.registry.(harnessReentryStore)
+	if !ok {
+		return errors.New("daemon: global registry does not support harness reentry summaries")
+	}
+	reentry, err := newHarnessReentryBridge(ctx, state.harnessResolver, reentryStore, reentrySessions, state.logger)
+	if err != nil {
+		return fmt.Errorf("daemon: create harness reentry bridge: %w", err)
+	}
 	manager, err := taskpkg.NewManager(
 		taskpkg.WithStore(store),
 		taskpkg.WithSessionExecutor(bridge),
+		taskpkg.WithEventObserver(reentry),
 		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
 	)
@@ -240,6 +254,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		manager:  manager,
 		store:    store,
 		detached: detached,
+		reentry:  reentry,
 	}
 	state.deps.Tasks = manager
 
@@ -260,6 +275,9 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 			"failed_runs", stats.failed,
 		)
 	}
+	if err := reentry.recover(ctx); err != nil {
+		return fmt.Errorf("daemon: recover detached harness reentry bridge: %w", err)
+	}
 	return nil
 }
 
@@ -274,6 +292,13 @@ func (r *taskRuntime) submitDetachedHarnessWork(
 		return nil, errors.New("daemon: detached harness bridge is required")
 	}
 	return r.detached.submit(ctx, req)
+}
+
+func (r *taskRuntime) shutdown() {
+	if r == nil || r.reentry == nil {
+		return
+	}
+	r.reentry.shutdown()
 }
 
 func recoverTaskRunsOnBoot(

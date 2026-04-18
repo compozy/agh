@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -1135,6 +1139,605 @@ func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
 	}
 }
 
+func TestHarnessReentryBridgeEmitsSyntheticWakeAndObservability(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+			{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+		},
+	}
+	runtime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+
+	submission := submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+		SubmissionKey:  "reentry-emitted",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeGlobal,
+		Summary:        "Bridge emitted wake",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+	completeDetachedHarnessRunForTest(t, runtime, submission.Run.ID, "sess-owner")
+
+	metadata := waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeEmitted)
+	if got, want := metadata.Reentry.Reason, harnessReentryReasonCompleted; got != want {
+		t.Fatalf("reentry reason = %q, want %q", got, want)
+	}
+	if got, want := sessions.syntheticPromptCount(), 1; got != want {
+		t.Fatalf("synthetic prompt count = %d, want %d", got, want)
+	}
+
+	events, err := sessions.Events(
+		testutil.Context(t),
+		"sess-wake",
+		store.EventQuery{Type: acp.EventTypeSyntheticReentry},
+	)
+	if err != nil {
+		t.Fatalf("Events(synthetic) error = %v", err)
+	}
+	if got, want := len(events), 1; got != want {
+		t.Fatalf("len(synthetic events) = %d, want %d", got, want)
+	}
+
+	types := waitForEventSummaryTypes(
+		t,
+		runtime,
+		"sess-wake",
+		harnessSummaryDetachedCompleted,
+		harnessSummarySyntheticReentryEmitted,
+	)
+	if !slices.Contains(types, harnessSummaryDetachedCompleted) {
+		t.Fatalf("event summary types = %#v, want %q", types, harnessSummaryDetachedCompleted)
+	}
+	if !slices.Contains(types, harnessSummarySyntheticReentryEmitted) {
+		t.Fatalf("event summary types = %#v, want %q", types, harnessSummarySyntheticReentryEmitted)
+	}
+}
+
+func TestHarnessReentryBridgeSilentPolicyRecordsDropSummary(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+			{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeUser, State: session.StateActive},
+		},
+	}
+	runtime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+
+	submission := submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+		SubmissionKey:  "reentry-silent",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeGlobal,
+		Summary:        "Bridge silent completion",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+	completeDetachedHarnessRunForTest(t, runtime, submission.Run.ID, "sess-owner")
+
+	metadata := waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeSilent)
+	if got, want := metadata.Reentry.Reason, harnessReentryReasonPolicySilent; got != want {
+		t.Fatalf("reentry reason = %q, want %q", got, want)
+	}
+	if got := sessions.syntheticPromptCount(); got != 0 {
+		t.Fatalf("synthetic prompt count = %d, want 0 for silent completion", got)
+	}
+
+	types := waitForEventSummaryTypes(
+		t,
+		runtime,
+		"sess-wake",
+		harnessSummaryDetachedCompleted,
+		harnessSummarySyntheticReentryDropped,
+	)
+	if !slices.Contains(types, harnessSummaryDetachedCompleted) {
+		t.Fatalf("event summary types = %#v, want %q", types, harnessSummaryDetachedCompleted)
+	}
+	if !slices.Contains(types, harnessSummarySyntheticReentryDropped) {
+		t.Fatalf("event summary types = %#v, want %q", types, harnessSummarySyntheticReentryDropped)
+	}
+}
+
+func TestHarnessReentryBridgeMissingAndStoppedTargetsDropWithoutWake(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		mutate     func(*fakeSessionManager)
+		wantReason string
+	}{
+		{
+			name: "Should drop when the target session disappears before completion",
+			mutate: func(sessions *fakeSessionManager) {
+				sessions.mu.Lock()
+				defer sessions.mu.Unlock()
+				sessions.infos = []*session.Info{
+					{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+				}
+			},
+			wantReason: harnessReentryReasonTargetMissing,
+		},
+		{
+			name: "Should drop when the target session is stopped before completion",
+			mutate: func(sessions *fakeSessionManager) {
+				sessions.mu.Lock()
+				defer sessions.mu.Unlock()
+				sessions.infos = []*session.Info{
+					{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+					{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateStopped},
+				}
+			},
+			wantReason: inactiveTargetReason(session.StateStopped),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sessions := &fakeSessionManager{
+				infos: []*session.Info{
+					{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+					{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+				},
+			}
+			runtime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+			submission := submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+				SubmissionKey:  strings.ReplaceAll(strings.ToLower(tc.name), " ", "-"),
+				OwnerSessionID: "sess-owner",
+				Scope:          taskpkg.ScopeGlobal,
+				Summary:        "Bridge unavailable target",
+				WakeTarget: detachedHarnessWakeTargetInput{
+					SessionID: "sess-wake",
+				},
+			})
+
+			tc.mutate(sessions)
+			completeDetachedHarnessRunForTest(t, runtime, submission.Run.ID, "sess-owner")
+
+			metadata := waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeDropped)
+			if got, want := metadata.Reentry.Reason, tc.wantReason; got != want {
+				t.Fatalf("reentry reason = %q, want %q", got, want)
+			}
+			if got := sessions.syntheticPromptCount(); got != 0 {
+				t.Fatalf("synthetic prompt count = %d, want 0 when the target is unavailable", got)
+			}
+		})
+	}
+}
+
+func TestHarnessReentryBridgeDuplicateTerminalNotificationsStayIdempotent(t *testing.T) {
+	t.Parallel()
+
+	releaseFirst := make(chan struct{})
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+			{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+		},
+	}
+	runtime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+
+	var firstRunID string
+	sessions.syntheticPromptHook = func(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error) {
+		info, err := sessions.Status(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		sessions.recordSyntheticEvent(id, info, opts)
+		ch := make(chan acp.AgentEvent)
+		if opts.Metadata.TaskRunID == firstRunID {
+			go func() {
+				<-releaseFirst
+				close(ch)
+			}()
+			return ch, nil
+		}
+		close(ch)
+		return ch, nil
+	}
+
+	submission := submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+		SubmissionKey:  "reentry-duplicate",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeGlobal,
+		Summary:        "Bridge duplicate terminal event",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+	firstRunID = submission.Run.ID
+	completion := completeDetachedHarnessRunForTest(t, runtime, submission.Run.ID, "sess-owner")
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
+		return sessions.syntheticPromptCount() == 1
+	})
+
+	if err := runtime.reentry.processTerminalRun(submission.Task.ID, completion.ID, 999, time.Now().UTC()); err != nil {
+		t.Fatalf("processTerminalRun(duplicate) error = %v", err)
+	}
+	if got, want := sessions.syntheticPromptCount(), 1; got != want {
+		t.Fatalf("synthetic prompt count after duplicate = %d, want %d", got, want)
+	}
+
+	close(releaseFirst)
+	waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeEmitted)
+}
+
+func TestHarnessReentryBridgePreservesSyntheticWakeFIFO(t *testing.T) {
+	t.Parallel()
+
+	releaseFirst := make(chan struct{})
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+			{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+		},
+	}
+	runtime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+
+	var firstRunID string
+	sessions.syntheticPromptHook = func(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error) {
+		info, err := sessions.Status(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		sessions.recordSyntheticEvent(id, info, opts)
+		ch := make(chan acp.AgentEvent)
+		if opts.Metadata.TaskRunID == firstRunID {
+			go func() {
+				<-releaseFirst
+				close(ch)
+			}()
+			return ch, nil
+		}
+		close(ch)
+		return ch, nil
+	}
+
+	first := submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+		SubmissionKey:  "reentry-fifo-first",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeGlobal,
+		Summary:        "First detached wake",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+	second := submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+		SubmissionKey:  "reentry-fifo-second",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeGlobal,
+		Summary:        "Second detached wake",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+	firstRunID = first.Run.ID
+
+	completeDetachedHarnessRunForTest(t, runtime, first.Run.ID, "sess-owner")
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
+		return sessions.syntheticPromptCount() == 1
+	})
+	completeDetachedHarnessRunForTest(t, runtime, second.Run.ID, "sess-owner")
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
+		return sessions.syntheticPromptCount() == 2
+	})
+
+	sessions.mu.Lock()
+	if got, want := sessions.syntheticPromptCalls[0].opts.Metadata.TaskRunID, first.Run.ID; got != want {
+		sessions.mu.Unlock()
+		t.Fatalf("first synthetic wake run id = %q, want %q", got, want)
+	}
+	if got, want := sessions.syntheticPromptCalls[1].opts.Metadata.TaskRunID, second.Run.ID; got != want {
+		sessions.mu.Unlock()
+		t.Fatalf("second synthetic wake run id = %q, want %q", got, want)
+	}
+	sessions.mu.Unlock()
+
+	close(releaseFirst)
+	waitForDetachedHarnessReentryState(t, runtime, first.Run.ID, harnessReentryOutcomeEmitted)
+	waitForDetachedHarnessReentryState(t, runtime, second.Run.ID, harnessReentryOutcomeEmitted)
+}
+
+func TestHarnessReentryBridgeHelperCoverage(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		MemoryPromptSectionEnabled: true,
+		SkillsPromptSectionEnabled: true,
+		SyntheticTurnsEnabled:      true,
+		DetachedTaskRuntimeEnabled: true,
+	})
+	db := openDaemonTestGlobalDB(t)
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+		},
+	}
+
+	if _, err := newHarnessReentryBridge(nil, resolver, db, sessions, discardLogger()); err == nil {
+		t.Fatal("newHarnessReentryBridge(nil ctx) error = nil, want validation error")
+	}
+	if _, err := newHarnessReentryBridge(context.Background(), nil, db, sessions, discardLogger()); err == nil {
+		t.Fatal("newHarnessReentryBridge(nil resolver) error = nil, want validation error")
+	}
+	if _, err := newHarnessReentryBridge(context.Background(), resolver, nil, sessions, discardLogger()); err == nil {
+		t.Fatal("newHarnessReentryBridge(nil store) error = nil, want validation error")
+	}
+	if _, err := newHarnessReentryBridge(context.Background(), resolver, db, nil, discardLogger()); err == nil {
+		t.Fatal("newHarnessReentryBridge(nil sessions) error = nil, want validation error")
+	}
+
+	bridge, err := newHarnessReentryBridge(context.Background(), resolver, db, sessions, discardLogger())
+	if err != nil {
+		t.Fatalf("newHarnessReentryBridge() error = %v", err)
+	}
+	bridge.OnTaskEvent(context.Background(), taskpkg.EventRecord{})
+	bridge.shutdown()
+	bridge.shutdown()
+
+	var nilBridge *harnessReentryBridge
+	nilBridge.shutdown()
+	if err := nilBridge.recover(context.Background()); err == nil {
+		t.Fatal("nil bridge recover error = nil, want validation error")
+	}
+	if err := bridge.recover(nilTaskRuntimeContext()); err == nil {
+		t.Fatal("recover(nil ctx) error = nil, want validation error")
+	}
+
+	left := harnessSyntheticWake{
+		runID:         "run-a",
+		completedAt:   time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
+		completionSeq: 1,
+	}
+	right := harnessSyntheticWake{
+		runID:         "run-b",
+		completedAt:   time.Date(2026, 4, 18, 12, 1, 0, 0, time.UTC),
+		completionSeq: 2,
+	}
+	if got := compareSyntheticWake(left, right); got >= 0 {
+		t.Fatalf("compareSyntheticWake(time) = %d, want negative", got)
+	}
+	right.completedAt = left.completedAt
+	if got := compareSyntheticWake(left, right); got >= 0 {
+		t.Fatalf("compareSyntheticWake(sequence) = %d, want negative", got)
+	}
+	right.completionSeq = left.completionSeq
+	if got := compareSyntheticWake(left, right); got >= 0 {
+		t.Fatalf("compareSyntheticWake(run id) = %d, want negative", got)
+	}
+
+	failedReason, failedTrigger := syntheticReasonForTerminalRun(taskpkg.TaskRunStatusFailed)
+	if failedReason != harnessReentryReasonFailed || failedTrigger != "task.run_failed" {
+		t.Fatalf("syntheticReasonForTerminalRun(failed) = %q/%q", failedReason, failedTrigger)
+	}
+	canceledReason, canceledTrigger := syntheticReasonForTerminalRun(taskpkg.TaskRunStatusCanceled)
+	if canceledReason != harnessReentryReasonCanceled || canceledTrigger != "task.run_canceled" {
+		t.Fatalf("syntheticReasonForTerminalRun(canceled) = %q/%q", canceledReason, canceledTrigger)
+	}
+	completedReason, completedTrigger := syntheticReasonForTerminalRun(taskpkg.TaskRunStatusCompleted)
+	if completedReason != harnessReentryReasonCompleted || completedTrigger != "task.run_completed" {
+		t.Fatalf("syntheticReasonForTerminalRun(completed) = %q/%q", completedReason, completedTrigger)
+	}
+
+	taskRecord := taskpkg.Task{ID: "task-1"}
+	if got := buildDetachedHarnessSyntheticMessage(taskRecord, taskpkg.Run{
+		ID:     "run-complete",
+		Status: taskpkg.TaskRunStatusCompleted,
+	}, "summary"); !strings.Contains(got, "completed") {
+		t.Fatalf("completed synthetic message = %q, want completion text", got)
+	}
+	if got := buildDetachedHarnessSyntheticMessage(taskRecord, taskpkg.Run{
+		ID:     "run-failed",
+		Status: taskpkg.TaskRunStatusFailed,
+		Error:  "boom",
+	}, "summary"); !strings.Contains(got, "failed") || !strings.Contains(got, "boom") {
+		t.Fatalf("failed synthetic message = %q, want failure text", got)
+	}
+	if got := buildDetachedHarnessSyntheticMessage(taskRecord, taskpkg.Run{
+		ID:     "run-canceled",
+		Status: taskpkg.TaskRunStatusCanceled,
+	}, "summary"); !strings.Contains(got, "canceled") {
+		t.Fatalf("canceled synthetic message = %q, want canceled text", got)
+	}
+
+	if isDetachedHarnessTerminalRun(taskpkg.TaskRunStatusRunning) {
+		t.Fatal("isDetachedHarnessTerminalRun(running) = true, want false")
+	}
+	if got, want := inactiveTargetReason(""), harnessReentryReasonTargetInactivePrefix; got != want {
+		t.Fatalf("inactiveTargetReason(blank) = %q, want %q", got, want)
+	}
+	if got, want := inactiveTargetReason(session.StateStopped), "target_inactive:stopped"; got != want {
+		t.Fatalf("inactiveTargetReason(stopped) = %q, want %q", got, want)
+	}
+	if got, want := classifySyntheticPromptError(
+		session.ErrSessionNotFound,
+	), harnessReentryReasonTargetMissing; got != want {
+		t.Fatalf("classifySyntheticPromptError(not found) = %q, want %q", got, want)
+	}
+	if got, want := classifySyntheticPromptError(
+		session.ErrSessionNotActive,
+	), harnessReentryReasonTargetInactivePrefix; got != want {
+		t.Fatalf("classifySyntheticPromptError(not active) = %q, want %q", got, want)
+	}
+	if got, want := classifySyntheticPromptError(errors.New("boom")), harnessReentryReasonDispatchFailed; got != want {
+		t.Fatalf("classifySyntheticPromptError(generic) = %q, want %q", got, want)
+	}
+
+	if found, err := bridge.syntheticEventExists("", ""); err != nil || found {
+		t.Fatalf("syntheticEventExists(blank) = %v, %v, want false, nil", found, err)
+	}
+}
+
+func TestHarnessReentryBridgeDropsWhenSyntheticDispatchFails(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+			{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+		},
+	}
+	runtime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+	sessions.syntheticPromptHook = func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error) {
+		return nil, errors.New("dispatch failed")
+	}
+
+	submission := submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+		SubmissionKey:  "reentry-dispatch-failed",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeGlobal,
+		Summary:        "Bridge dispatch failure",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+
+	completeDetachedHarnessRunForTest(t, runtime, submission.Run.ID, "sess-owner")
+	metadata := waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeDropped)
+	if got, want := metadata.Reentry.Reason, harnessReentryReasonDispatchFailed; got != want {
+		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
+	}
+	waitForEventSummaryTypes(
+		t,
+		runtime,
+		"sess-wake",
+		harnessSummaryDetachedCompleted,
+		harnessSummarySyntheticReentryDropped,
+	)
+}
+
+func TestHarnessReentryBridgeDropsWhenSyntheticPromptChannelHasNoEvent(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+			{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+		},
+	}
+	runtime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+	sessions.syntheticPromptHook = func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error) {
+		ch := make(chan acp.AgentEvent)
+		close(ch)
+		return ch, nil
+	}
+
+	submission := submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+		SubmissionKey:  "reentry-event-missing",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeGlobal,
+		Summary:        "Bridge missing synthetic event",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+
+	completeDetachedHarnessRunForTest(t, runtime, submission.Run.ID, "sess-owner")
+	metadata := waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeDropped)
+	if got, want := metadata.Reentry.Reason, harnessReentryReasonEventMissing; got != want {
+		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
+	}
+}
+
+func TestHarnessReentryBridgeDropsWhenSyntheticPromptReturnsErrorEvent(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+			{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+		},
+	}
+	runtime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+	sessions.syntheticPromptHook = func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error) {
+		ch := make(chan acp.AgentEvent, 1)
+		ch <- acp.AgentEvent{Type: acp.EventTypeError}
+		close(ch)
+		return ch, nil
+	}
+
+	submission := submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+		SubmissionKey:  "reentry-dispatch-error-event",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeGlobal,
+		Summary:        "Bridge synthetic error event",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+
+	completeDetachedHarnessRunForTest(t, runtime, submission.Run.ID, "sess-owner")
+	metadata := waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeDropped)
+	if got, want := metadata.Reentry.Reason, harnessReentryReasonDispatchFailed; got != want {
+		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
+	}
+}
+
+func TestHarnessReentryBridgeDispatchWakeUsesRecordedSyntheticEvent(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+			{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+		},
+	}
+	runtime, _, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+
+	submission := submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+		SubmissionKey:  "reentry-existing-synthetic-event",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeGlobal,
+		Summary:        "Bridge dispatch existing event",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+
+	completeDetachedHarnessRunForTest(t, runtime, submission.Run.ID, "sess-owner")
+	waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeEmitted)
+
+	run, err := runtime.store.GetTaskRun(testutil.Context(t), submission.Run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	metadata, ok, err := maybeDecodeDetachedHarnessRunMetadata(run.Metadata)
+	if err != nil {
+		t.Fatalf("maybeDecodeDetachedHarnessRunMetadata() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("detached harness metadata = missing, want metadata")
+	}
+	metadata.Reentry = nil
+	run.Metadata, err = marshalDetachedHarnessMetadata(metadata)
+	if err != nil {
+		t.Fatalf("marshalDetachedHarnessMetadata() error = %v", err)
+	}
+	if err := runtime.store.UpdateTaskRun(testutil.Context(t), run); err != nil {
+		t.Fatalf("UpdateTaskRun() error = %v", err)
+	}
+
+	runtime.reentry.dispatchWake(harnessSyntheticWake{
+		taskID:          submission.Task.ID,
+		runID:           submission.Run.ID,
+		targetSessionID: "sess-wake",
+		targetAgentName: "coder",
+		reason:          harnessReentryReasonCompleted,
+	})
+
+	metadata = waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeEmitted)
+	if got, want := metadata.Reentry.Reason, harnessReentryReasonAlreadyRecorded; got != want {
+		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
+	}
+	if got, want := sessions.syntheticPromptCount(), 1; got != want {
+		t.Fatalf("synthetic prompt count = %d, want %d", got, want)
+	}
+}
+
 type taskBridgeStopOnlySessionManager struct {
 	stopCalls []fakeStopWithCauseCall
 }
@@ -1161,6 +1764,134 @@ func nilTaskRuntimeContext() context.Context {
 	return nil
 }
 
+func submitDetachedHarnessWorkForTest(
+	t *testing.T,
+	runtime *taskRuntime,
+	req detachedHarnessSubmitRequest,
+) *detachedHarnessSubmission {
+	t.Helper()
+
+	submission, err := runtime.submitDetachedHarnessWork(testutil.Context(t), req)
+	if err != nil {
+		t.Fatalf("submitDetachedHarnessWork() error = %v", err)
+	}
+	return submission
+}
+
+func completeDetachedHarnessRunForTest(
+	t *testing.T,
+	runtime *taskRuntime,
+	runID string,
+	ownerSessionID string,
+) taskpkg.Run {
+	t.Helper()
+
+	actor, err := detachedHarnessActorContext(ownerSessionID)
+	if err != nil {
+		t.Fatalf("detachedHarnessActorContext() error = %v", err)
+	}
+	claimed, err := runtime.manager.ClaimRun(testutil.Context(t), runID, taskpkg.ClaimRun{
+		IdempotencyKey: "claim-" + runID,
+	}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+	started, err := runtime.manager.StartRun(testutil.Context(t), claimed.ID, taskpkg.StartRun{
+		IdempotencyKey: "start-" + runID,
+	}, actor)
+	if err != nil {
+		t.Fatalf("StartRun() error = %v", err)
+	}
+	completed, err := runtime.manager.CompleteRun(testutil.Context(t), started.ID, taskpkg.RunResult{
+		Value: json.RawMessage(`{"ok":true}`),
+	}, actor)
+	if err != nil {
+		t.Fatalf("CompleteRun() error = %v", err)
+	}
+	return *completed
+}
+
+func waitForDetachedHarnessReentryState(
+	t *testing.T,
+	runtime *taskRuntime,
+	runID string,
+	wantOutcome string,
+) detachedHarnessRunMetadata {
+	t.Helper()
+
+	var got detachedHarnessRunMetadata
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
+		run, err := runtime.store.GetTaskRun(testutil.Context(t), runID)
+		if err != nil {
+			return false
+		}
+		metadata, ok, decodeErr := maybeDecodeDetachedHarnessRunMetadata(run.Metadata)
+		if decodeErr != nil || !ok || metadata.Reentry == nil {
+			return false
+		}
+		got = metadata
+		return metadata.Reentry.Outcome == wantOutcome
+	})
+	return got
+}
+
+func eventSummaryTypesForRunSession(t *testing.T, runtime *taskRuntime, sessionID string) []string {
+	t.Helper()
+
+	summaryStore, ok := runtime.store.(interface {
+		ListEventSummaries(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
+	})
+	if !ok {
+		t.Fatal("runtime.store does not expose event summaries")
+	}
+	summaries, err := summaryStore.ListEventSummaries(
+		testutil.Context(t),
+		store.EventSummaryQuery{SessionID: sessionID},
+	)
+	if err != nil {
+		t.Fatalf("ListEventSummaries() error = %v", err)
+	}
+	types := make([]string, 0, len(summaries))
+	for _, summary := range summaries {
+		types = append(types, summary.Type)
+	}
+	return types
+}
+
+func waitForEventSummaryTypes(
+	t *testing.T,
+	runtime *taskRuntime,
+	sessionID string,
+	wantTypes ...string,
+) []string {
+	t.Helper()
+
+	var got []string
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
+		got = eventSummaryTypesForRunSession(t, runtime, sessionID)
+		for _, want := range wantTypes {
+			if !slices.Contains(got, want) {
+				return false
+			}
+		}
+		return true
+	})
+	return got
+}
+
+func waitForTaskRuntimeCondition(t *testing.T, timeout time.Duration, check func() bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if check() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for task runtime condition")
+}
+
 func newDetachedHarnessTaskRuntimeForTest(
 	t *testing.T,
 	sessions *fakeSessionManager,
@@ -1184,14 +1915,70 @@ func newDetachedHarnessTaskRuntimeForTest(
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
+	registeredWorkspaces := make(map[string]struct{})
+	for _, info := range sessions.infos {
+		if info == nil {
+			continue
+		}
+		workspaceID := strings.TrimSpace(info.WorkspaceID)
+		if workspaceID == "" {
+			workspaceID = "global"
+		}
+		if _, ok := registeredWorkspaces[workspaceID]; !ok {
+			if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+				ID:        workspaceID,
+				Name:      workspaceID,
+				RootDir:   filepath.Join(t.TempDir(), workspaceID),
+				CreatedAt: time.Now().UTC(),
+				UpdatedAt: time.Now().UTC(),
+			}); err != nil {
+				t.Fatalf("InsertWorkspace(%q) error = %v", workspaceID, err)
+			}
+			registeredWorkspaces[workspaceID] = struct{}{}
+		}
+		agentName := strings.TrimSpace(info.AgentName)
+		if agentName == "" {
+			agentName = "daemon-test-agent"
+		}
+		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
+			ID:          info.ID,
+			Name:        info.Name,
+			AgentName:   agentName,
+			WorkspaceID: workspaceID,
+			Channel:     strings.TrimSpace(info.Channel),
+			SessionType: string(info.Type),
+			State:       string(info.State),
+			CreatedAt:   time.Now().UTC(),
+			UpdatedAt:   time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
+		}
+	}
 
 	sessionBridge, err := newTaskSessionBridge(sessions, homePaths.HomeDir, discardLogger())
 	if err != nil {
 		t.Fatalf("newTaskSessionBridge() error = %v", err)
 	}
+	harnessResolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		MemoryPromptSectionEnabled: true,
+		SkillsPromptSectionEnabled: true,
+		SyntheticTurnsEnabled:      true,
+		DetachedTaskRuntimeEnabled: true,
+	})
+	reentry, err := newHarnessReentryBridge(
+		testutil.Context(t),
+		harnessResolver,
+		db,
+		sessions,
+		discardLogger(),
+	)
+	if err != nil {
+		t.Fatalf("newHarnessReentryBridge() error = %v", err)
+	}
 	manager, err := taskpkg.NewManager(
 		taskpkg.WithStore(db),
 		taskpkg.WithSessionExecutor(sessionBridge),
+		taskpkg.WithEventObserver(reentry),
 		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
 	)
@@ -1207,5 +1994,6 @@ func newDetachedHarnessTaskRuntimeForTest(
 		manager:  manager,
 		store:    db,
 		detached: detached,
+		reentry:  reentry,
 	}, resolver, homePaths
 }

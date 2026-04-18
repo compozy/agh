@@ -3356,17 +3356,21 @@ func freeTCPPort(t *testing.T) int {
 }
 
 type fakeSessionManager struct {
-	mu               sync.Mutex
-	infos            []*session.Info
-	onStop           func(string)
-	stopErr          func(string) error
-	stopWithCauseErr func(string, session.StopCause, string) error
-	requestStopErr   func(string, session.StopCause, string) error
-	createCalls      []session.CreateOpts
-	promptCalls      []struct {
+	mu                sync.Mutex
+	infos             []*session.Info
+	sessionEvents     map[string][]store.SessionEvent
+	nextEventSequence int64
+	onStop            func(string)
+	stopErr           func(string) error
+	stopWithCauseErr  func(string, session.StopCause, string) error
+	requestStopErr    func(string, session.StopCause, string) error
+	createCalls       []session.CreateOpts
+	promptCalls       []struct {
 		id  string
 		msg string
 	}
+	syntheticPromptCalls     []fakeSyntheticPromptCall
+	syntheticPromptHook      func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 	promptStarted            chan struct{}
 	promptRelease            <-chan struct{}
 	promptCtxCancelled       chan struct{}
@@ -3375,6 +3379,11 @@ type fakeSessionManager struct {
 	requestStopCalls         []fakeStopWithCauseCall
 	waitFinalizationsRelease <-chan struct{}
 	waitFinalizationsCalls   int
+}
+
+type fakeSyntheticPromptCall struct {
+	id   string
+	opts session.SyntheticPromptOpts
 }
 
 type fakeStopWithCauseCall struct {
@@ -3424,8 +3433,29 @@ func (f *fakeSessionManager) Status(_ context.Context, id string) (*session.Info
 	return nil, session.ErrSessionNotFound
 }
 
-func (f *fakeSessionManager) Events(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
-	return nil, nil
+func (f *fakeSessionManager) Events(
+	_ context.Context,
+	id string,
+	query store.EventQuery,
+) ([]store.SessionEvent, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	events := append([]store.SessionEvent(nil), f.sessionEvents[id]...)
+	filtered := make([]store.SessionEvent, 0, len(events))
+	for _, event := range events {
+		if query.AfterSequence > 0 && event.Sequence <= query.AfterSequence {
+			continue
+		}
+		if query.Type != "" && event.Type != query.Type {
+			continue
+		}
+		filtered = append(filtered, event)
+	}
+	if query.Limit > 0 && len(filtered) > query.Limit {
+		filtered = filtered[len(filtered)-query.Limit:]
+	}
+	return filtered, nil
 }
 
 func (f *fakeSessionManager) History(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
@@ -3560,8 +3590,80 @@ func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) 
 	return ch, nil
 }
 
+func (f *fakeSessionManager) PromptSynthetic(
+	ctx context.Context,
+	id string,
+	opts session.SyntheticPromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	info, err := f.Status(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if info == nil || info.State != session.StateActive {
+		return nil, session.ErrSessionNotActive
+	}
+
+	f.mu.Lock()
+	f.syntheticPromptCalls = append(f.syntheticPromptCalls, fakeSyntheticPromptCall{id: id, opts: opts})
+	hook := f.syntheticPromptHook
+	f.mu.Unlock()
+
+	if hook != nil {
+		return hook(ctx, id, opts)
+	}
+
+	f.recordSyntheticEvent(id, info, opts)
+	ch := make(chan acp.AgentEvent)
+	close(ch)
+	return ch, nil
+}
+
 func (f *fakeSessionManager) ApprovePermission(context.Context, string, acp.ApproveRequest) error {
 	return nil
+}
+
+func (f *fakeSessionManager) recordSyntheticEvent(
+	sessionID string,
+	info *session.Info,
+	opts session.SyntheticPromptOpts,
+) {
+	if info == nil {
+		return
+	}
+
+	payload, err := json.Marshal(acp.AgentEvent{
+		Type:      acp.EventTypeSyntheticReentry,
+		TurnID:    fmt.Sprintf("turn-synthetic-%d", time.Now().UnixNano()),
+		Timestamp: time.Now().UTC(),
+		Text:      strings.TrimSpace(opts.Message),
+		Synthetic: &opts.Metadata,
+	})
+	if err != nil {
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sessionEvents == nil {
+		f.sessionEvents = make(map[string][]store.SessionEvent)
+	}
+	f.nextEventSequence++
+	f.sessionEvents[sessionID] = append(f.sessionEvents[sessionID], store.SessionEvent{
+		ID:        fmt.Sprintf("evt-%d", f.nextEventSequence),
+		SessionID: sessionID,
+		Sequence:  f.nextEventSequence,
+		TurnID:    fmt.Sprintf("turn-synthetic-%d", f.nextEventSequence),
+		Type:      acp.EventTypeSyntheticReentry,
+		AgentName: info.AgentName,
+		Content:   string(payload),
+		Timestamp: time.Now().UTC(),
+	})
+}
+
+func (f *fakeSessionManager) syntheticPromptCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.syntheticPromptCalls)
 }
 
 func (f *fakeSessionManager) createCount() int {

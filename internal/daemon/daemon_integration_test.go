@@ -394,6 +394,316 @@ func TestBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 	}
 }
 
+func TestDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	sessions := &fakeSessionManager{}
+	daemonInstance := bootDetachedHarnessIntegrationDaemon(t, homePaths, &cfg, sessions)
+	t.Cleanup(func() {
+		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+	sessions.infos = []*session.Info{
+		{
+			ID:          "sess-owner",
+			AgentName:   "coder",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+		{
+			ID:          "sess-wake",
+			AgentName:   "coder",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+	}
+	seedDetachedHarnessSessionIndex(t, homePaths, sessions.infos)
+
+	submission := submitDetachedHarnessWorkForTest(t, daemonInstance.tasks, detachedHarnessSubmitRequest{
+		SubmissionKey:  "integration-reentry-live",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "Live detached completion",
+		NetworkChannel: "builders",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+
+	completeDetachedHarnessRunForTest(t, daemonInstance.tasks, submission.Run.ID, "sess-owner")
+	metadata := waitForDetachedHarnessReentryState(t, daemonInstance.tasks, submission.Run.ID, harnessReentryOutcomeEmitted)
+	if got, want := metadata.Reentry.Reason, harnessReentryReasonCompleted; got != want {
+		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
+	}
+
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
+		return sessions.syntheticPromptCount() == 1
+	})
+	types := waitForEventSummaryTypes(
+		t,
+		daemonInstance.tasks,
+		"sess-wake",
+		harnessSummaryDetachedCompleted,
+		harnessSummarySyntheticReentryEmitted,
+	)
+	if slices.Contains(types, harnessSummarySyntheticReentryDropped) {
+		t.Fatalf("event summary types = %#v, want no drop summary", types)
+	}
+
+	sessions.mu.Lock()
+	if got, want := len(sessions.syntheticPromptCalls), 1; got != want {
+		sessions.mu.Unlock()
+		t.Fatalf("len(syntheticPromptCalls) = %d, want %d", got, want)
+	}
+	call := sessions.syntheticPromptCalls[0]
+	events := append([]store.SessionEvent(nil), sessions.sessionEvents["sess-wake"]...)
+	sessions.mu.Unlock()
+
+	if got, want := call.id, "sess-wake"; got != want {
+		t.Fatalf("synthetic prompt target = %q, want %q", got, want)
+	}
+	if got, want := call.opts.Metadata.TaskID, submission.Task.ID; got != want {
+		t.Fatalf("synthetic prompt task id = %q, want %q", got, want)
+	}
+	if got, want := call.opts.Metadata.TaskRunID, submission.Run.ID; got != want {
+		t.Fatalf("synthetic prompt run id = %q, want %q", got, want)
+	}
+	if got, want := len(events), 1; got != want {
+		t.Fatalf("len(synthetic session events) = %d, want %d", got, want)
+	}
+	if got, want := events[0].Type, acp.EventTypeSyntheticReentry; got != want {
+		t.Fatalf("session event type = %q, want %q", got, want)
+	}
+
+	var payload struct {
+		Synthetic *acp.PromptSyntheticMeta `json:"synthetic,omitempty"`
+	}
+	if err := json.Unmarshal([]byte(events[0].Content), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(session event) error = %v", err)
+	}
+	if payload.Synthetic == nil {
+		t.Fatal("session event synthetic payload = nil, want metadata")
+	}
+	if got, want := payload.Synthetic.TaskRunID, submission.Run.ID; got != want {
+		t.Fatalf("session event synthetic run id = %q, want %q", got, want)
+	}
+}
+
+func TestDetachedHarnessCompletionWakePreservesFIFOAcrossRuns(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	sessions := &fakeSessionManager{}
+	daemonInstance := bootDetachedHarnessIntegrationDaemon(t, homePaths, &cfg, sessions)
+	t.Cleanup(func() {
+		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+	sessions.infos = []*session.Info{
+		{
+			ID:          "sess-owner",
+			AgentName:   "coder",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+		{
+			ID:          "sess-wake",
+			AgentName:   "coder",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+	}
+	seedDetachedHarnessSessionIndex(t, homePaths, sessions.infos)
+
+	first := submitDetachedHarnessWorkForTest(t, daemonInstance.tasks, detachedHarnessSubmitRequest{
+		SubmissionKey:  "integration-reentry-fifo-1",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "First FIFO completion",
+		NetworkChannel: "builders",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+	second := submitDetachedHarnessWorkForTest(t, daemonInstance.tasks, detachedHarnessSubmitRequest{
+		SubmissionKey:  "integration-reentry-fifo-2",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "Second FIFO completion",
+		NetworkChannel: "builders",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+
+	completeDetachedHarnessRunForTest(t, daemonInstance.tasks, first.Run.ID, "sess-owner")
+	time.Sleep(20 * time.Millisecond)
+	completeDetachedHarnessRunForTest(t, daemonInstance.tasks, second.Run.ID, "sess-owner")
+
+	waitForDetachedHarnessReentryState(t, daemonInstance.tasks, first.Run.ID, harnessReentryOutcomeEmitted)
+	waitForDetachedHarnessReentryState(t, daemonInstance.tasks, second.Run.ID, harnessReentryOutcomeEmitted)
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
+		return sessions.syntheticPromptCount() == 2
+	})
+
+	sessions.mu.Lock()
+	calls := append([]fakeSyntheticPromptCall(nil), sessions.syntheticPromptCalls...)
+	sessions.mu.Unlock()
+
+	if got, want := len(calls), 2; got != want {
+		t.Fatalf("len(syntheticPromptCalls) = %d, want %d", got, want)
+	}
+	if got, want := calls[0].opts.Metadata.TaskRunID, first.Run.ID; got != want {
+		t.Fatalf("first synthetic wake run id = %q, want %q", got, want)
+	}
+	if got, want := calls[1].opts.Metadata.TaskRunID, second.Run.ID; got != want {
+		t.Fatalf("second synthetic wake run id = %q, want %q", got, want)
+	}
+}
+
+func TestBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+
+	sessionsOne := &fakeSessionManager{}
+	firstDaemon := bootDetachedHarnessIntegrationDaemon(t, homePaths, &cfg, sessionsOne)
+	workspace := resolveDaemonWorkspace(t, firstDaemon.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+	sessionsOne.infos = []*session.Info{
+		{
+			ID:          "sess-owner",
+			AgentName:   "coder",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+		{
+			ID:          "sess-wake",
+			AgentName:   "coder",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			WorkspaceID: workspace.ID,
+			Workspace:   workspace.RootDir,
+			Channel:     "builders",
+		},
+	}
+	seedDetachedHarnessSessionIndex(t, homePaths, sessionsOne.infos)
+
+	submission := submitDetachedHarnessWorkForTest(t, firstDaemon.tasks, detachedHarnessSubmitRequest{
+		SubmissionKey:  "integration-reentry-recovery",
+		OwnerSessionID: "sess-owner",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspace.ID,
+		Summary:        "Recovery dedupe completion",
+		NetworkChannel: "builders",
+		WakeTarget: detachedHarnessWakeTargetInput{
+			SessionID: "sess-wake",
+		},
+	})
+
+	completeDetachedHarnessRunForTest(t, firstDaemon.tasks, submission.Run.ID, "sess-owner")
+	waitForDetachedHarnessReentryState(t, firstDaemon.tasks, submission.Run.ID, harnessReentryOutcomeEmitted)
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
+		return sessionsOne.syntheticPromptCount() == 1
+	})
+
+	run, err := firstDaemon.tasks.store.GetTaskRun(testutil.Context(t), submission.Run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	runMetadata, ok, err := maybeDecodeDetachedHarnessRunMetadata(run.Metadata)
+	if err != nil {
+		t.Fatalf("maybeDecodeDetachedHarnessRunMetadata() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("task run metadata = non-detached, want detached harness metadata")
+	}
+	runMetadata.Reentry = nil
+	run.Metadata, err = marshalDetachedHarnessMetadata(runMetadata)
+	if err != nil {
+		t.Fatalf("marshalDetachedHarnessMetadata() error = %v", err)
+	}
+	if err := firstDaemon.tasks.store.UpdateTaskRun(testutil.Context(t), run); err != nil {
+		t.Fatalf("UpdateTaskRun() error = %v", err)
+	}
+
+	sessionsOne.mu.Lock()
+	recoveredEvents := cloneFakeSessionEvents(sessionsOne.sessionEvents)
+	nextSequence := sessionsOne.nextEventSequence
+	sessionsOne.mu.Unlock()
+
+	if err := firstDaemon.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown(first daemon) error = %v", err)
+	}
+
+	sessionsTwo := &fakeSessionManager{
+		infos: []*session.Info{
+			{
+				ID:          "sess-owner",
+				AgentName:   "coder",
+				Type:        session.SessionTypeSystem,
+				State:       session.StateActive,
+				WorkspaceID: workspace.ID,
+				Workspace:   workspace.RootDir,
+				Channel:     "builders",
+			},
+			{
+				ID:          "sess-wake",
+				AgentName:   "coder",
+				Type:        session.SessionTypeSystem,
+				State:       session.StateActive,
+				WorkspaceID: workspace.ID,
+				Workspace:   workspace.RootDir,
+				Channel:     "builders",
+			},
+		},
+		sessionEvents:     recoveredEvents,
+		nextEventSequence: nextSequence,
+	}
+	secondDaemon := bootDetachedHarnessIntegrationDaemon(t, homePaths, &cfg, sessionsTwo)
+	t.Cleanup(func() {
+		if err := secondDaemon.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown(second daemon) error = %v", err)
+		}
+	})
+
+	metadata := waitForDetachedHarnessReentryState(t, secondDaemon.tasks, submission.Run.ID, harnessReentryOutcomeEmitted)
+	if got, want := metadata.Reentry.Reason, harnessReentryReasonAlreadyRecorded; got != want {
+		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
+	}
+	if got := sessionsTwo.syntheticPromptCount(); got != 0 {
+		t.Fatalf("synthetic prompt count after recovery = %d, want 0", got)
+	}
+
+	sessionsTwo.mu.Lock()
+	events := append([]store.SessionEvent(nil), sessionsTwo.sessionEvents["sess-wake"]...)
+	sessionsTwo.mu.Unlock()
+	if got, want := len(events), 1; got != want {
+		t.Fatalf("len(recovered synthetic session events) = %d, want %d", got, want)
+	}
+}
+
 func TestBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
@@ -2893,6 +3203,103 @@ func bootDetachedHarnessIntegrationDaemon(
 		t.Fatalf("boot() error = %v", err)
 	}
 	return daemonInstance
+}
+
+func seedDetachedHarnessSessionIndex(
+	t *testing.T,
+	homePaths aghconfig.HomePaths,
+	infos []*session.Info,
+) {
+	t.Helper()
+
+	db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	defer func() {
+		if err := db.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("GlobalDB.Close() error = %v", err)
+		}
+	}()
+
+	insertedWorkspaces := make(map[string]struct{})
+	for _, info := range infos {
+		if info == nil {
+			continue
+		}
+
+		workspaceID := strings.TrimSpace(info.WorkspaceID)
+		if workspaceID == "" {
+			workspaceID = "global"
+		}
+		if _, ok := insertedWorkspaces[workspaceID]; !ok {
+			if err := ensureDetachedHarnessWorkspaceIndex(t, db, homePaths, workspaceID, strings.TrimSpace(info.Workspace)); err != nil {
+				t.Fatalf("ensureDetachedHarnessWorkspaceIndex(%q) error = %v", workspaceID, err)
+			}
+			insertedWorkspaces[workspaceID] = struct{}{}
+		}
+
+		agentName := strings.TrimSpace(info.AgentName)
+		if agentName == "" {
+			agentName = "daemon-test-agent"
+		}
+		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
+			ID:          info.ID,
+			Name:        info.Name,
+			AgentName:   agentName,
+			WorkspaceID: workspaceID,
+			Channel:     strings.TrimSpace(info.Channel),
+			SessionType: string(info.Type),
+			State:       string(info.State),
+			CreatedAt:   time.Now().UTC(),
+			UpdatedAt:   time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
+		}
+	}
+}
+
+func ensureDetachedHarnessWorkspaceIndex(
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	homePaths aghconfig.HomePaths,
+	workspaceID string,
+	workspaceRoot string,
+) error {
+	t.Helper()
+
+	if _, err := db.GetWorkspace(testutil.Context(t), workspaceID); err == nil {
+		return nil
+	} else if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+		return err
+	}
+
+	rootDir := strings.TrimSpace(workspaceRoot)
+	if rootDir == "" {
+		rootDir = filepath.Join(homePaths.HomeDir, workspaceID)
+	}
+	if err := os.MkdirAll(rootDir, 0o755); err != nil {
+		return err
+	}
+	return db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID:        workspaceID,
+		Name:      workspaceID,
+		RootDir:   rootDir,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	})
+}
+
+func cloneFakeSessionEvents(source map[string][]store.SessionEvent) map[string][]store.SessionEvent {
+	if len(source) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string][]store.SessionEvent, len(source))
+	for sessionID, events := range source {
+		cloned[sessionID] = append([]store.SessionEvent(nil), events...)
+	}
+	return cloned
 }
 
 func TestDaemonSessionStopACPHelperProcess(t *testing.T) {

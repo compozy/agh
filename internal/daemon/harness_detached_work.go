@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -57,6 +58,13 @@ type detachedHarnessRunMetadata struct {
 	OwnerWorkspaceID     string                    `json:"owner_workspace_id,omitempty"`
 	OwnerChannel         string                    `json:"owner_channel,omitempty"`
 	WakeTarget           detachedHarnessWakeTarget `json:"wake_target"`
+	Reentry              *detachedHarnessReentry   `json:"reentry,omitempty"`
+}
+
+type detachedHarnessReentry struct {
+	Outcome     string    `json:"outcome,omitempty"`
+	Reason      string    `json:"reason,omitempty"`
+	ProcessedAt time.Time `json:"processed_at"`
 }
 
 type detachedHarnessSubmitRequest struct {
@@ -420,6 +428,7 @@ func buildDetachedHarnessRunMetadata(req normalizedDetachedHarnessSubmitRequest)
 		OwnerWorkspaceID:     req.OwnerWorkspaceID,
 		OwnerChannel:         req.OwnerChannel,
 		WakeTarget:           req.WakeTarget,
+		Reentry:              nil,
 	}
 }
 
@@ -552,6 +561,31 @@ func decodeDetachedHarnessRunMetadata(raw json.RawMessage) (detachedHarnessRunMe
 		)
 	}
 	return metadata, nil
+}
+
+func maybeDecodeDetachedHarnessRunMetadata(raw json.RawMessage) (detachedHarnessRunMetadata, bool, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
+		return detachedHarnessRunMetadata{}, false, nil
+	}
+
+	var probe struct {
+		Schema string `json:"schema"`
+		Kind   string `json:"kind"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return detachedHarnessRunMetadata{}, false, nil
+	}
+	if strings.TrimSpace(probe.Schema) != harnessDetachedMetadataSchema ||
+		strings.TrimSpace(probe.Kind) != harnessDetachedRunMetadataKey {
+		return detachedHarnessRunMetadata{}, false, nil
+	}
+
+	metadata, err := decodeDetachedHarnessRunMetadata(raw)
+	if err != nil {
+		return detachedHarnessRunMetadata{}, false, err
+	}
+	return metadata, true, nil
 }
 
 func detachedHarnessActorContext(ownerSessionID string) (taskpkg.ActorContext, error) {
