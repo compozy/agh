@@ -26,51 +26,25 @@ vi.mock("@tanstack/react-router", () => ({
   },
 }));
 
-vi.mock("@agh/ui", () => ({
-  Badge: ({
-    children,
-    className,
-    ...props
-  }: {
-    children: React.ReactNode;
-    className?: string;
-    variant?: string;
-  }) => (
-    <span data-testid="badge" className={className} {...props}>
-      {children}
-    </span>
-  ),
-}));
-
-vi.mock("@/components/ui/sidebar", () => ({
-  SidebarMenuSubButton: ({
-    children,
-    isActive,
-    render: renderProp,
-    ...props
-  }: {
-    children: React.ReactNode;
-    isActive?: boolean;
-    size?: string;
-    render?: React.ReactElement;
-    className?: string;
-  }) => {
-    const Tag = renderProp?.type ?? "a";
-    const tagProps = renderProp?.props ?? {};
-    return (
-      <Tag data-testid="sidebar-sub-button" data-active={isActive} {...tagProps} {...props}>
+vi.mock("@agh/ui", async importActual => {
+  const actual = await importActual<typeof import("@agh/ui")>();
+  return {
+    ...actual,
+    Badge: ({
+      children,
+      className,
+      ...props
+    }: {
+      children: React.ReactNode;
+      className?: string;
+      variant?: string;
+    }) => (
+      <span data-testid="badge" className={className} {...props}>
         {children}
-      </Tag>
-    );
-  },
-  SidebarMenuSubItem: ({ children }: { children: React.ReactNode }) => (
-    <li data-testid="sidebar-sub-item">{children}</li>
-  ),
-}));
-
-vi.mock("@/lib/utils", () => ({
-  cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
-}));
+      </span>
+    ),
+  };
+});
 
 import { SessionSidebarItem } from "./session-sidebar-item";
 

@@ -1,12 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import {
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-} from "@/components/ui/sidebar";
 import { SidebarSurface } from "@/storybook/story-layout";
 import { primaryAgentFixture } from "@/systems/agent/mocks";
 
@@ -38,17 +31,30 @@ function AgentSidebarGroupFrame({ children }: { children?: React.ReactNode }) {
 export const Default: Story = {
   render: () => (
     <AgentSidebarGroupFrame>
-      <SidebarMenuItem>
-        <SidebarMenuButton size="sm">Create release notes</SidebarMenuButton>
-      </SidebarMenuItem>
-      <SidebarMenuSub>
-        <SidebarMenuSubItem>
-          <SidebarMenuSubButton size="sm">Storybook rollout</SidebarMenuSubButton>
-        </SidebarMenuSubItem>
-        <SidebarMenuSubItem>
-          <SidebarMenuSubButton size="sm">Review lane</SidebarMenuSubButton>
-        </SidebarMenuSubItem>
-      </SidebarMenuSub>
+      <li>
+        <button
+          type="button"
+          className="w-full rounded-md px-2 py-1 text-left text-xs text-muted-foreground hover:bg-[color:var(--color-hover)] hover:text-foreground"
+        >
+          Create release notes
+        </button>
+      </li>
+      <li>
+        <button
+          type="button"
+          className="w-full rounded-md px-2 py-1 text-left text-xs text-muted-foreground hover:bg-[color:var(--color-hover)] hover:text-foreground"
+        >
+          Storybook rollout
+        </button>
+      </li>
+      <li>
+        <button
+          type="button"
+          className="w-full rounded-md px-2 py-1 text-left text-xs text-muted-foreground hover:bg-[color:var(--color-hover)] hover:text-foreground"
+        >
+          Review lane
+        </button>
+      </li>
     </AgentSidebarGroupFrame>
   ),
 };

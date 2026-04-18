@@ -146,3 +146,10 @@ export {
   AccordionTrigger,
 } from "./components/accordion";
 export { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./components/collapsible";
+export {
+  Sidebar,
+  SIDEBAR_PANEL_WIDTH_DEFAULT,
+  SIDEBAR_RAIL_WIDTH,
+  type SidebarProps,
+} from "./components/sidebar";
+export { SplitPane, SPLIT_LIST_WIDTH_DEFAULT, type SplitPaneProps } from "./components/split-pane";

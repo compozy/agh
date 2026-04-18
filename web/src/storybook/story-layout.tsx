@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
-import { Sidebar, SidebarContent, SidebarProvider } from "@/components/ui/sidebar";
+import { Sidebar } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 
 interface StoryFrameProps {
@@ -45,11 +46,9 @@ export function PanelSurface({ children, className }: StoryFrameProps) {
 export function SidebarSurface({ children, className }: StoryFrameProps) {
   return (
     <StorySurface className={cn("max-w-sm p-0", className)}>
-      <SidebarProvider>
-        <Sidebar className="h-[420px] border-r border-[color:var(--color-divider)]">
-          <SidebarContent>{children}</SidebarContent>
-        </Sidebar>
-      </SidebarProvider>
+      <div className="h-[420px]">
+        <Sidebar nav={children} />
+      </div>
     </StorySurface>
   );
 }
