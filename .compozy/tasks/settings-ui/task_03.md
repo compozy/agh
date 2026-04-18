@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon relaunch helper and restart operation store
 type: backend
 complexity: high
@@ -40,12 +40,12 @@ The restart action surface lives on the `General` settings page; every restart-r
 
 ## Subtasks
 
-- [ ] 3.1 Extract reusable detached launch behavior from the CLI start path
-- [ ] 3.2 Add restart-operation state persistence and lifecycle transitions under `~/.agh/restarts/`
-- [ ] 3.3 Implement the `agh daemon relaunch` helper flow and operation context handoff
-- [ ] 3.4 Wait for lock and `daemon.json` release before replacement-daemon launch
-- [ ] 3.5 Mark the replacement daemon `ready` only after successful boot and fresh discovery state
-- [ ] 3.6 Cover success, helper failure, and replacement-boot failure paths with tests
+- [x] 3.1 Extract reusable detached launch behavior from the CLI start path
+- [x] 3.2 Add restart-operation state persistence and lifecycle transitions under `~/.agh/restarts/`
+- [x] 3.3 Implement the `agh daemon relaunch` helper flow and operation context handoff
+- [x] 3.4 Wait for lock and `daemon.json` release before replacement-daemon launch
+- [x] 3.5 Mark the replacement daemon `ready` only after successful boot and fresh discovery state
+- [x] 3.6 Cover success, helper failure, and replacement-boot failure paths with tests
 
 ## Implementation Details
 
@@ -81,18 +81,18 @@ See TechSpec sections "API Endpoints", "Integration Points", "Development Sequen
 ## Tests
 
 - Unit tests:
-  - [ ] Restart operation records serialize and reload with the expected state transitions
-  - [ ] Restart operation state transitions reject illegal regressions or double-terminal updates
-  - [ ] Helper startup failure is persisted as a terminal failed operation
-  - [ ] Release waiting logic does not mark replacement start until lock and daemon info are released
-  - [ ] Replacement daemon readiness requires fresh discovery state before marking `ready`
-  - [ ] Restart status reads preserve `old_pid`, `active_session_count`, timestamps, and only set `new_pid` after replacement boot succeeds
+  - [x] Restart operation records serialize and reload with the expected state transitions
+  - [x] Restart operation state transitions reject illegal regressions or double-terminal updates
+  - [x] Helper startup failure is persisted as a terminal failed operation
+  - [x] Release waiting logic does not mark replacement start until lock and daemon info are released
+  - [x] Replacement daemon readiness requires fresh discovery state before marking `ready`
+  - [x] Restart status reads preserve `old_pid`, `active_session_count`, timestamps, and only set `new_pid` after replacement boot succeeds
 - Integration tests:
-  - [ ] Restart operation file is written before the current daemon begins shutdown
-  - [ ] Persisted restart operation captures the pre-restart PID and active session count used by the helper flow
-  - [ ] Successful relaunch produces a new PID, releases the old daemon lock, and records a `ready` persisted operation state
-  - [ ] Helper startup failure remains queryable through restart-status polling after the original daemon exits
-  - [ ] Replacement boot failure remains visible through the persisted restart record after reconnect
+  - [x] Restart operation file is written before the current daemon begins shutdown
+  - [x] Persisted restart operation captures the pre-restart PID and active session count used by the helper flow
+  - [x] Successful relaunch produces a new PID, releases the old daemon lock, and records a `ready` persisted operation state
+  - [x] Helper startup failure remains queryable through restart-status polling after the original daemon exits
+  - [x] Replacement boot failure remains visible through the persisted restart record after reconnect
 - Test coverage target: >=80%
 - All tests must pass
 
