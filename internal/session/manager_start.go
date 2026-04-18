@@ -235,12 +235,19 @@ func (m *Manager) prepareSessionStartRuntime(
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
 
-	startupPrompt, err := m.startupPrompt(ctx, spec.startupSessionContext(updatedAt), agentDef, &spec.workspace)
+	startupCtx := spec.startupPromptContext()
+	startupPrompt, err := m.startupPrompt(
+		ctx,
+		spec.startupSessionContext(updatedAt),
+		startupCtx,
+		agentDef,
+		&spec.workspace,
+	)
 	if err != nil {
 		return sessionStartRuntime{}, err
 	}
 	if m.startupOverlay != nil {
-		startupPrompt, err = m.startupOverlay.Apply(ctx, spec.startupPromptContext(), startupPrompt)
+		startupPrompt, err = m.startupOverlay.Apply(ctx, startupCtx, startupPrompt)
 		if err != nil {
 			return sessionStartRuntime{}, fmt.Errorf("session: apply startup prompt overlay: %w", err)
 		}

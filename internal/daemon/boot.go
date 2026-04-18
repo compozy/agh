@@ -284,10 +284,6 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
 	}
 
-	state.promptAssembler = NewComposedAssembler(
-		WithPrependPromptProviders(prependProviders...),
-		WithAppendPromptProviders(appendProviders...),
-	)
 	state.harnessResolver = NewHarnessContextResolver(HarnessRuntimeSignals{
 		MemoryPromptSectionEnabled: state.memoryStore != nil,
 		SkillsPromptSectionEnabled: state.skillsRegistry != nil,
@@ -295,7 +291,12 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		SyntheticTurnsEnabled:      true,
 		DetachedTaskRuntimeEnabled: true,
 	})
-	state.startupOverlay = newHarnessStartupPromptOverlay(state.harnessResolver)
+	state.promptAssembler = NewComposedAssembler(
+		WithSectionSelector(NewSectionSelector(state.harnessResolver)),
+		WithPromptSectionDescriptors(
+			defaultStartupPromptSectionDescriptorsFromProviders(prependProviders, appendProviders)...,
+		),
+	)
 	state.promptAugmenter = newHarnessPromptInputAugmenter(
 		state.harnessResolver,
 		memory.NewRecallAugmenter(state.memoryStore),

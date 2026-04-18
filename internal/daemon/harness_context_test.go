@@ -9,7 +9,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/skills/bundled"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestHarnessContextResolverMatrix(t *testing.T) {
@@ -289,38 +289,142 @@ func TestHarnessContextResolverDiagnosticLabelsAreStable(t *testing.T) {
 	}
 }
 
-func TestHarnessStartupPromptOverlayAppendsBundledNetworkSkill(t *testing.T) {
+func TestSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testing.T) {
 	t.Parallel()
 
-	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{})
-	overlay := newHarnessStartupPromptOverlay(resolver)
+	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		MemoryPromptSectionEnabled: true,
+		SkillsPromptSectionEnabled: true,
+	})
+	selector := NewSectionSelector(resolver)
+	descriptors := defaultStartupPromptSectionDescriptors(
+		promptSectionProviderFunc(
+			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "memory", nil },
+		),
+		promptSectionProviderFunc(
+			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "skills", nil },
+		),
+	)
+	descriptors = append(descriptors, descriptors[len(descriptors)-1])
 
-	got, err := overlay.Apply(context.Background(), session.StartupPromptContext{
+	selected, resolved, err := selector.Select(session.StartupPromptContext{
 		SessionType: session.SessionTypeUser,
 		Channel:     "builders",
-	}, "Base prompt.")
+	}, descriptors)
 	if err != nil {
-		t.Fatalf("Apply() error = %v", err)
+		t.Fatalf("Select(channel-bound) error = %v", err)
 	}
 
-	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
-	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+	wantNames := []string{
+		string(HarnessPromptSectionMemory),
+		string(HarnessPromptSectionSkills),
+		string(HarnessPromptSectionNetwork),
 	}
-	if !strings.Contains(got, networkSkill) {
-		t.Fatalf("overlay prompt = %q, want bundled network skill content", got)
+	gotNames := make([]string, 0, len(selected))
+	for _, descriptor := range selected {
+		gotNames = append(gotNames, descriptor.Name)
 	}
-	if strings.Count(got, networkSkill) != 1 {
-		t.Fatalf("overlay network skill occurrences = %d, want 1", strings.Count(got, networkSkill))
+	if !slices.Equal(gotNames, wantNames) {
+		t.Fatalf("selected section names = %#v, want %#v", gotNames, wantNames)
+	}
+	if !containsHarnessSection(resolved.Policy.IncludeSections, HarnessPromptSectionNetwork) {
+		t.Fatalf("resolved IncludeSections = %#v, want network section", resolved.Policy.IncludeSections)
 	}
 
-	plain, err := overlay.Apply(context.Background(), session.StartupPromptContext{
+	plain, _, err := selector.Select(session.StartupPromptContext{
 		SessionType: session.SessionTypeUser,
-	}, " Base prompt. ")
+	}, descriptors)
 	if err != nil {
-		t.Fatalf("Apply(no channel) error = %v", err)
+		t.Fatalf("Select(no channel) error = %v", err)
 	}
-	if plain != "Base prompt." {
-		t.Fatalf("Apply(no channel) = %q, want %q", plain, "Base prompt.")
+
+	gotNames = gotNames[:0]
+	for _, descriptor := range plain {
+		gotNames = append(gotNames, descriptor.Name)
+	}
+	if !slices.Equal(gotNames, wantNames[:2]) {
+		t.Fatalf("selected names without channel = %#v, want %#v", gotNames, wantNames[:2])
+	}
+}
+
+func TestHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		MemoryPromptSectionEnabled: true,
+		DurableMemoryAugmenter:     true,
+	})
+
+	resolved, err := resolver.ResolvePrompt(&session.Info{
+		Type:    session.SessionTypeUser,
+		Channel: "builders",
+	}, session.TurnSourceUser, acp.PromptMeta{})
+	if err != nil {
+		t.Fatalf("ResolvePrompt() error = %v", err)
+	}
+
+	if resolved.Policy.TurnOrigin != TurnOriginUser {
+		t.Fatalf("TurnOrigin = %q, want %q", resolved.Policy.TurnOrigin, TurnOriginUser)
+	}
+	if !containsHarnessSection(resolved.Policy.IncludeSections, HarnessPromptSectionNetwork) {
+		t.Fatalf("IncludeSections = %#v, want network section", resolved.Policy.IncludeSections)
+	}
+	if !slices.Equal(resolved.Policy.EnableAugmenters, []HarnessAugmenter{HarnessAugmenterDurableMemory}) {
+		t.Fatalf("EnableAugmenters = %#v, want durable memory", resolved.Policy.EnableAugmenters)
+	}
+}
+
+func TestHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		DurableMemoryAugmenter: true,
+	})
+
+	calls := 0
+	augmenter := newHarnessPromptInputAugmenter(
+		resolver,
+		func(_ context.Context, _ *session.Session, message string) (string, error) {
+			calls++
+			return message + "\n\nmemory block", nil
+		},
+	)
+
+	got, err := augmenter(
+		context.Background(),
+		&session.Session{Type: session.SessionTypeUser},
+		"Base prompt.",
+	)
+	if err != nil {
+		t.Fatalf("Augment() error = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("augmenter calls = %d, want 1", calls)
+	}
+	if !strings.Contains(got, "memory block") {
+		t.Fatalf("Augment() = %q, want durable memory content", got)
+	}
+}
+
+func TestSectionSelectorValidationHelpers(t *testing.T) {
+	t.Parallel()
+
+	if got := NewSectionSelector(nil); got != nil {
+		t.Fatalf("NewSectionSelector(nil) = %#v, want nil", got)
+	}
+
+	err := validatePromptSectionDescriptors([]PromptSectionDescriptor{{
+		Position: PromptSectionPositionPrepend,
+	}})
+	if err == nil || !strings.Contains(err.Error(), "name is required") {
+		t.Fatalf("validatePromptSectionDescriptors(missing name) error = %v, want missing-name error", err)
+	}
+
+	err = validatePromptSectionDescriptors([]PromptSectionDescriptor{{
+		Name:     "invalid",
+		Position: PromptSectionPosition("sideways"),
+	}})
+	if err == nil || !strings.Contains(err.Error(), `invalid startup prompt section position "sideways"`) {
+		t.Fatalf("validatePromptSectionDescriptors(invalid position) error = %v, want invalid-position error", err)
 	}
 }

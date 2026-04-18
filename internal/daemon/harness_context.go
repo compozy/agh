@@ -4,15 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/skills/bundled"
 )
-
-const bundledNetworkSkillName = "agh-network"
 
 // TurnOrigin identifies the resolved harness origin for one turn.
 type TurnOrigin string
@@ -577,42 +573,6 @@ func boolTag(value bool) string {
 	return "false"
 }
 
-type harnessStartupPromptOverlay struct {
-	resolver *HarnessContextResolver
-}
-
-func newHarnessStartupPromptOverlay(resolver *HarnessContextResolver) session.StartupPromptOverlay {
-	if resolver == nil {
-		return nil
-	}
-	return &harnessStartupPromptOverlay{resolver: resolver}
-}
-
-func (o *harnessStartupPromptOverlay) Apply(
-	_ context.Context,
-	startup session.StartupPromptContext,
-	prompt string,
-) (string, error) {
-	if o == nil || o.resolver == nil {
-		return strings.TrimSpace(prompt), nil
-	}
-
-	resolved, err := o.resolver.ResolveStartup(startup)
-	if err != nil {
-		return "", err
-	}
-
-	if !containsHarnessSection(resolved.Policy.IncludeSections, HarnessPromptSectionNetwork) {
-		return strings.TrimSpace(prompt), nil
-	}
-
-	content, err := bundled.LoadContent(bundledNetworkSkillName)
-	if err != nil {
-		return "", fmt.Errorf("daemon: load bundled network skill: %w", err)
-	}
-	return joinHarnessPromptSections(prompt, content), nil
-}
-
 type harnessPromptInputAugmenter struct {
 	resolver   *HarnessContextResolver
 	augmenters map[HarnessAugmenter]session.PromptInputAugmenter
@@ -670,20 +630,4 @@ func (a *harnessPromptInputAugmenter) Augment(
 	}
 
 	return out, nil
-}
-
-func containsHarnessSection(sections []HarnessPromptSection, target HarnessPromptSection) bool {
-	return slices.Contains(sections, target)
-}
-
-func joinHarnessPromptSections(sections ...string) string {
-	out := make([]string, 0, len(sections))
-	for _, section := range sections {
-		trimmed := strings.TrimSpace(section)
-		if trimmed == "" {
-			continue
-		}
-		out = append(out, trimmed)
-	}
-	return strings.Join(out, "\n\n")
 }

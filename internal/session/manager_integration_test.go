@@ -127,9 +127,9 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 
 func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
 	h := newHarness(t)
-	networkSkill, err := bundled.LoadContent(networkSkillName)
+	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
 	}
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{

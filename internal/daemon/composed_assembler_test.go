@@ -5,11 +5,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/skills/bundled"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -206,6 +208,188 @@ func TestComposedAssemblerRegressionMatchesMemoryAssembler(t *testing.T) {
 	}
 }
 
+func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		MemoryPromptSectionEnabled: true,
+		SkillsPromptSectionEnabled: true,
+	})
+	assembler := NewComposedAssembler(
+		WithSectionSelector(NewSectionSelector(resolver)),
+		WithPromptSectionDescriptors(
+			PromptSectionDescriptor{
+				Name:     string(HarnessPromptSectionNetwork),
+				Position: PromptSectionPositionAppend,
+				Order:    200,
+				Provider: staticPromptProvider("network block"),
+				Predicate: policyIncludesSection(
+					HarnessPromptSectionNetwork,
+				),
+			},
+			PromptSectionDescriptor{
+				Name:     string(HarnessPromptSectionSkills),
+				Position: PromptSectionPositionAppend,
+				Order:    100,
+				Provider: staticPromptProvider("skills block"),
+				Predicate: policyIncludesSection(
+					HarnessPromptSectionSkills,
+				),
+			},
+			PromptSectionDescriptor{
+				Name:     string(HarnessPromptSectionMemory),
+				Position: PromptSectionPositionPrepend,
+				Order:    100,
+				Provider: staticPromptProvider("memory block"),
+				Predicate: policyIncludesSection(
+					HarnessPromptSectionMemory,
+				),
+			},
+		),
+	)
+
+	got := assembleStartupPrompt(
+		t,
+		assembler,
+		session.StartupPromptContext{
+			SessionType: session.SessionTypeUser,
+			Channel:     "builders",
+		},
+		testPromptAgent("Base prompt."),
+		t.TempDir(),
+	)
+
+	want := "memory block\n\nBase prompt.\n\nskills block\n\nnetwork block"
+	if got != want {
+		t.Fatalf("AssembleStartup() = %q, want %q", got, want)
+	}
+}
+
+func TestComposedAssemblerAppliesBudgetPolicies(t *testing.T) {
+	t.Parallel()
+
+	assembler := NewComposedAssembler(
+		WithPromptSectionDescriptors(
+			PromptSectionDescriptor{
+				Name:           "trimmed",
+				Position:       PromptSectionPositionPrepend,
+				Order:          10,
+				Budget:         5,
+				BudgetBehavior: PromptSectionBudgetBehaviorTrim,
+				Provider:       staticPromptProvider("123456789"),
+			},
+			PromptSectionDescriptor{
+				Name:           "omitted",
+				Position:       PromptSectionPositionAppend,
+				Order:          20,
+				Budget:         4,
+				BudgetBehavior: PromptSectionBudgetBehaviorOmit,
+				Provider:       staticPromptProvider("abcdef"),
+			},
+			PromptSectionDescriptor{
+				Name:     "empty",
+				Position: PromptSectionPositionAppend,
+				Order:    30,
+				Provider: staticPromptProvider("   \n\t"),
+			},
+		),
+	)
+
+	got := assemblePrompt(t, assembler, testPromptAgent("Base prompt."), t.TempDir())
+	want := "12345\n\nBase prompt."
+	if got != want {
+		t.Fatalf("Assemble() = %q, want %q", got, want)
+	}
+}
+
+func TestComposedAssemblerDeduplicatesEligibleSectionNames(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		MemoryPromptSectionEnabled: true,
+		SkillsPromptSectionEnabled: true,
+	})
+	assembler := NewComposedAssembler(
+		WithSectionSelector(NewSectionSelector(resolver)),
+		WithPromptSectionDescriptors(
+			PromptSectionDescriptor{
+				Name:     string(HarnessPromptSectionMemory),
+				Position: PromptSectionPositionPrepend,
+				Order:    100,
+				Provider: staticPromptProvider("memory block"),
+				Predicate: policyIncludesSection(
+					HarnessPromptSectionMemory,
+				),
+			},
+			PromptSectionDescriptor{
+				Name:     string(HarnessPromptSectionNetwork),
+				Position: PromptSectionPositionAppend,
+				Order:    200,
+				Provider: staticPromptProvider("network block"),
+				Predicate: policyIncludesSection(
+					HarnessPromptSectionNetwork,
+				),
+			},
+			PromptSectionDescriptor{
+				Name:     string(HarnessPromptSectionNetwork),
+				Position: PromptSectionPositionAppend,
+				Order:    210,
+				Provider: staticPromptProvider("network block duplicate"),
+				Predicate: policyIncludesSection(
+					HarnessPromptSectionNetwork,
+				),
+			},
+		),
+	)
+
+	got := assembleStartupPrompt(
+		t,
+		assembler,
+		session.StartupPromptContext{
+			SessionType: session.SessionTypeUser,
+			Channel:     "builders",
+		},
+		testPromptAgent("Base prompt."),
+		t.TempDir(),
+	)
+
+	if strings.Count(got, "network block") != 1 {
+		t.Fatalf("network block occurrences = %d, want 1", strings.Count(got, "network block"))
+	}
+	if strings.Contains(got, "network block duplicate") {
+		t.Fatalf("assembled prompt unexpectedly contains duplicate network block: %q", got)
+	}
+}
+
+func TestComposedAssemblerAssembleStartupLoadsBundledNetworkSectionDescriptor(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{})
+	assembler := NewComposedAssembler(
+		WithSectionSelector(NewSectionSelector(resolver)),
+		WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil)...),
+	)
+
+	got := assembleStartupPrompt(
+		t,
+		assembler,
+		session.StartupPromptContext{
+			SessionType: session.SessionTypeUser,
+			Channel:     "builders",
+		},
+		testPromptAgent("Base prompt."),
+		t.TempDir(),
+	)
+
+	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+	}
+	if !strings.Contains(got, networkSkill) {
+		t.Fatalf("AssembleStartup() = %q, want bundled network skill content", got)
+	}
+}
+
 type recordingPromptProvider struct {
 	section    string
 	err        error
@@ -295,6 +479,23 @@ func assemblePrompt(t *testing.T, assembler *ComposedAssembler, agent aghconfig.
 	got, err := assembler.Assemble(context.Background(), agent, &resolvedWorkspace)
 	if err != nil {
 		t.Fatalf("Assemble() error = %v", err)
+	}
+	return got
+}
+
+func assembleStartupPrompt(
+	t *testing.T,
+	assembler *ComposedAssembler,
+	startup session.StartupPromptContext,
+	agent aghconfig.AgentDef,
+	workspace string,
+) string {
+	t.Helper()
+
+	resolvedWorkspace := testResolvedWorkspace(workspace)
+	got, err := assembler.AssembleStartup(context.Background(), startup, agent, &resolvedWorkspace)
+	if err != nil {
+		t.Fatalf("AssembleStartup() error = %v", err)
 	}
 	return got
 }

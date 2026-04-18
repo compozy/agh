@@ -2435,8 +2435,11 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			if capturedDeps.PromptAssembler == nil {
 				t.Fatal("boot() did not inject the composed prompt assembler")
 			}
-			if capturedDeps.StartupPromptOverlay == nil {
-				t.Fatal("boot() did not inject the startup prompt overlay")
+			if _, ok := capturedDeps.PromptAssembler.(session.StartupPromptAssembler); !ok {
+				t.Fatal("boot() did not inject a startup-aware prompt assembler")
+			}
+			if capturedDeps.StartupPromptOverlay != nil {
+				t.Fatal("boot() unexpectedly injected the deprecated startup prompt overlay")
 			}
 			if capturedDeps.PromptInputAugmenter == nil {
 				t.Fatal("boot() did not inject the prompt input augmenter")

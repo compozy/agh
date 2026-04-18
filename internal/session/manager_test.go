@@ -1724,21 +1724,30 @@ func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testi
 	t.Parallel()
 
 	h := newHarness(t)
-	networkSkill, err := bundled.LoadContent(networkSkillName)
+	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
 	}
 
 	h.manager = newManagerWithHarness(
 		t,
 		h,
 		WithPromptAssembler(
-			promptAssemblerFunc(
-				func(_ context.Context, agent aghconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error) {
+			startupPromptAssemblerFunc(
+				func(
+					_ context.Context,
+					startup StartupPromptContext,
+					agent aghconfig.AgentDef,
+					workspace *workspacepkg.ResolvedWorkspace,
+				) (string, error) {
 					if got, want := workspace.RootDir, h.workspace; got != want {
 						t.Fatalf("assembler workspace = %q, want %q", got, want)
 					}
-					return agent.Prompt + "\n\nmemory block", nil
+					prompt := agent.Prompt + "\n\nmemory block"
+					if strings.TrimSpace(startup.Channel) == "" {
+						return prompt, nil
+					}
+					return prompt + "\n\n" + networkSkill, nil
 				},
 			),
 		),
@@ -1791,9 +1800,9 @@ func TestCreateWithoutChannelDoesNotAppendBundledNetworkSkill(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t, WithPromptAssembler(nil))
-	networkSkill, err := bundled.LoadContent(networkSkillName)
+	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
 	}
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
@@ -1818,10 +1827,10 @@ func TestCreateWithoutChannelDoesNotAppendBundledNetworkSkill(t *testing.T) {
 func TestResumeWithChannelReinjectsBundledNetworkSkillOnce(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t, WithPromptAssembler(nil))
-	networkSkill, err := bundled.LoadContent(networkSkillName)
+	h := newHarness(t)
+	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
 	}
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
@@ -2129,10 +2138,18 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithHomePaths(h.homePaths),
 		WithDriver(h.driver),
 		WithNotifier(h.notifier),
-		WithStartupPromptOverlay(
-			startupPromptOverlayFunc(
-				func(_ context.Context, startup StartupPromptContext, prompt string) (string, error) {
-					return appendBundledNetworkSkill(prompt, startup.Channel)
+		WithPromptAssembler(
+			startupPromptAssemblerFunc(
+				func(_ context.Context, startup StartupPromptContext, agent aghconfig.AgentDef, _ *workspacepkg.ResolvedWorkspace) (string, error) {
+					prompt := strings.TrimSpace(agent.Prompt)
+					if strings.TrimSpace(startup.Channel) == "" {
+						return prompt, nil
+					}
+					networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
+					if err != nil {
+						return "", err
+					}
+					return prompt + "\n\n" + strings.TrimSpace(networkSkill), nil
 				},
 			),
 		),
@@ -2279,6 +2296,35 @@ func (fn promptAssemblerFunc) Assemble(
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	return fn(ctx, agent, workspace)
+}
+
+const testBundledNetworkSkillName = "agh-network"
+
+type startupPromptAssemblerFunc func(
+	context.Context,
+	StartupPromptContext,
+	aghconfig.AgentDef,
+	*workspacepkg.ResolvedWorkspace,
+) (string, error)
+
+func (fn startupPromptAssemblerFunc) Assemble(
+	ctx context.Context,
+	agent aghconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	return fn(ctx, StartupPromptContext{
+		AgentName:   strings.TrimSpace(agent.Name),
+		SessionType: SessionTypeUser,
+	}, agent, workspace)
+}
+
+func (fn startupPromptAssemblerFunc) AssembleStartup(
+	ctx context.Context,
+	startup StartupPromptContext,
+	agent aghconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	return fn(ctx, startup, agent, workspace)
 }
 
 type startupPromptOverlayFunc func(context.Context, StartupPromptContext, string) (string, error)

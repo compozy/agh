@@ -39,8 +39,11 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if daemonInstance.harnessResolver == nil {
 		t.Fatal("boot() did not retain the harness resolver")
 	}
-	if capturedDeps.StartupPromptOverlay == nil {
-		t.Fatal("boot() did not inject the startup prompt overlay")
+	if _, ok := capturedDeps.PromptAssembler.(session.StartupPromptAssembler); !ok {
+		t.Fatal("boot() did not inject a startup-aware prompt assembler")
+	}
+	if capturedDeps.StartupPromptOverlay != nil {
+		t.Fatal("boot() unexpectedly injected a startup prompt overlay")
 	}
 	if capturedDeps.PromptInputAugmenter == nil {
 		t.Fatal("boot() did not inject the prompt input augmenter")
@@ -86,6 +89,14 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
 		t.Fatalf("network skill occurrences = %d, want 1", got)
 	}
+	assertPromptContainsInOrder(
+		t,
+		driver.startCalls[0].SystemPrompt,
+		"# Persistent Memory",
+		"You are a coding assistant.",
+		"<available-skills>",
+		networkSkill,
+	)
 
 	userResolved, err := daemonInstance.harnessResolver.ResolvePrompt(created.Info(), session.TurnSourceUser, acp.PromptMeta{})
 	if err != nil {
@@ -202,6 +213,51 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	}
 }
 
+func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	workspaceRoot := homePaths.HomeDir + "/workspace"
+	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
+	writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspaceRoot)
+
+	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
+	t.Cleanup(func() {
+		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	driver := newHarnessIntegrationDriver()
+	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
+
+	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+		AgentName: resolvedWorkspace.Agents[0].Name,
+		Name:      "interactive",
+		Workspace: resolvedWorkspace.ID,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = manager.Stop(testutil.Context(t), created.ID)
+	})
+
+	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+	}
+	if strings.Contains(driver.startCalls[0].SystemPrompt, networkSkill) {
+		t.Fatalf("start system prompt unexpectedly contains bundled network skill")
+	}
+	assertPromptContainsInOrder(
+		t,
+		driver.startCalls[0].SystemPrompt,
+		"# Persistent Memory",
+		"You are a coding assistant.",
+		"<available-skills>",
+	)
+}
+
 func bootHarnessPolicyDaemon(
 	t *testing.T,
 	homePaths aghconfig.HomePaths,
@@ -258,7 +314,6 @@ func newHarnessIntegrationManager(
 		session.WithLogger(discardLogger()),
 		session.WithEnvironmentRegistry(deps.EnvironmentRegistry),
 		session.WithPromptAssembler(deps.PromptAssembler),
-		session.WithStartupPromptOverlay(deps.StartupPromptOverlay),
 		session.WithPromptInputAugmenter(deps.PromptInputAugmenter),
 		session.WithSkillRegistry(deps.SkillRegistry),
 		session.WithMCPResolver(deps.MCPResolver),
