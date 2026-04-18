@@ -101,10 +101,15 @@ describe("AppSidebar", () => {
   });
 
   describe("Header", () => {
-    it("renders the wordmark and ALPHA chip", () => {
+    it("surfaces the active workspace name", () => {
       renderSidebar(makeProps());
-      expect(screen.getByTestId("sidebar-wordmark")).toHaveTextContent("agh");
-      expect(screen.getByTestId("sidebar-alpha-chip")).toHaveTextContent(/alpha/i);
+      expect(screen.getByTestId("sidebar-workspace-name")).toHaveTextContent("alpha");
+    });
+
+    it("no longer carries the wordmark (now owned by the global app shell)", () => {
+      renderSidebar(makeProps());
+      expect(screen.queryByTestId("sidebar-wordmark")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("sidebar-alpha-chip")).not.toBeInTheDocument();
     });
   });
 

@@ -13,6 +13,8 @@ const workspaceFixture = {
 
 let mockHasWorkspaces = true;
 let mockActiveWorkspaceId: string | null = "ws_alpha";
+let mockPathname = "/tasks";
+const reducedMotionMock = vi.fn<() => boolean>().mockReturnValue(false);
 
 const mockSetActiveWorkspaceId = vi.fn();
 const mockCreateSessionMutate = vi.fn();
@@ -22,6 +24,46 @@ vi.mock("@tanstack/react-router", () => ({
     component: opts.component,
   }),
   Outlet: () => <div data-testid="outlet" />,
+  useLocation: <T,>(opts?: { select?: (location: { pathname: string }) => T }) => {
+    const location = { pathname: mockPathname };
+    return opts?.select ? opts.select(location) : location;
+  },
+}));
+
+vi.mock("motion/react", () => ({
+  AnimatePresence: ({
+    mode,
+    initial,
+    children,
+  }: {
+    mode?: string;
+    initial?: boolean;
+    children: ReactNode;
+  }) => (
+    <div
+      data-testid="animate-presence"
+      data-mode={mode}
+      data-initial={initial === undefined ? "true" : String(initial)}
+    >
+      {children}
+    </div>
+  ),
+  motion: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    div: ({ children, transition, initial, animate, exit, ...rest }: any) => (
+      <div
+        data-motion-duration={transition?.duration}
+        data-motion-ease={transition?.ease}
+        data-motion-initial={JSON.stringify(initial ?? null)}
+        data-motion-animate={JSON.stringify(animate ?? null)}
+        data-motion-exit={JSON.stringify(exit ?? null)}
+        {...rest}
+      >
+        {children}
+      </div>
+    ),
+  },
+  useReducedMotionConfig: () => reducedMotionMock(),
 }));
 
 vi.mock("@/components/app-sidebar", () => ({
@@ -108,7 +150,7 @@ vi.mock("@/systems/workspace", () => ({
     ) : null,
 }));
 
-import { Route } from "./_app";
+import { Route, resolveRouteTransitionDuration, ROUTE_FADE_DURATION } from "./_app";
 
 describe("AppLayout", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -117,20 +159,57 @@ describe("AppLayout", () => {
   beforeEach(() => {
     mockHasWorkspaces = true;
     mockActiveWorkspaceId = workspaceFixture.id;
+    mockPathname = "/tasks";
+    reducedMotionMock.mockReset();
+    reducedMotionMock.mockReturnValue(false);
     mockSetActiveWorkspaceId.mockReset();
     mockCreateSessionMutate.mockReset();
   });
 
-  it("renders sidebar and outlet", () => {
+  it("renders sidebar, content column, and outlet wrapped in the route motion shell", () => {
     render(<AppLayout />);
     expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
-    expect(screen.getByTestId("outlet")).toBeInTheDocument();
+    expect(screen.getByTestId("app-content")).toBeInTheDocument();
+    const presence = screen.getByTestId("animate-presence");
+    expect(presence).toHaveAttribute("data-mode", "wait");
+    expect(presence).toContainElement(screen.getByTestId("app-route-motion"));
+    expect(screen.getByTestId("app-route-motion")).toContainElement(screen.getByTestId("outlet"));
   });
 
-  it("renders outlet", () => {
+  it("keys the motion shell by location pathname so a route swap replaces it", () => {
+    mockPathname = "/tasks";
+    const first = render(<AppLayout />);
+    expect(first.getByTestId("app-route-motion")).toHaveAttribute("data-route-key", "/tasks");
+    first.unmount();
+
+    mockPathname = "/session/abc";
+    const second = render(<AppLayout />);
+    expect(second.getByTestId("app-route-motion")).toHaveAttribute(
+      "data-route-key",
+      "/session/abc"
+    );
+  });
+
+  it("uses the 200ms ease-out fade under default motion preferences", () => {
     render(<AppLayout />);
-    const outlet = screen.getByTestId("outlet");
-    expect(outlet).toBeInTheDocument();
+    const motionEl = screen.getByTestId("app-route-motion");
+    expect(motionEl.dataset.motionDuration).toBe(String(ROUTE_FADE_DURATION));
+    expect(motionEl.dataset.motionEase).toBe("easeOut");
+    expect(JSON.parse(motionEl.dataset.motionInitial ?? "null")).toEqual({ opacity: 0 });
+    expect(JSON.parse(motionEl.dataset.motionAnimate ?? "null")).toEqual({ opacity: 1 });
+    expect(JSON.parse(motionEl.dataset.motionExit ?? "null")).toEqual({ opacity: 0 });
+  });
+
+  it("collapses route transitions to duration 0 under prefers-reduced-motion: reduce", () => {
+    reducedMotionMock.mockReturnValue(true);
+    render(<AppLayout />);
+    const motionEl = screen.getByTestId("app-route-motion");
+    expect(motionEl.dataset.motionDuration).toBe("0");
+  });
+
+  it("exposes resolveRouteTransitionDuration so consumers can test the gating logic", () => {
+    expect(resolveRouteTransitionDuration(false)).toBe(ROUTE_FADE_DURATION);
+    expect(resolveRouteTransitionDuration(true)).toBe(0);
   });
 
   it("renders onboarding instead of the shell when no workspaces exist", () => {
@@ -141,6 +220,7 @@ describe("AppLayout", () => {
 
     expect(screen.getByTestId("workspace-onboarding")).toBeInTheDocument();
     expect(screen.queryByTestId("app-sidebar")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("animate-presence")).not.toBeInTheDocument();
   });
 
   it("propagates resolved workspace ids from onboarding", () => {

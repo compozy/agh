@@ -98,23 +98,12 @@ interface HeaderSlotProps {
 function HeaderSlot({ activeWorkspace }: HeaderSlotProps) {
   return (
     <>
-      <div className="flex flex-1 items-center gap-2 truncate">
-        <span
-          data-testid="sidebar-wordmark"
-          className="font-wordmark text-[15px] font-semibold tracking-tight text-[color:var(--color-text-primary)]"
-        >
-          agh
-        </span>
-        <span
-          data-testid="sidebar-alpha-chip"
-          className="inline-flex h-[18px] items-center rounded-[4px] border border-[color:var(--color-divider)] px-1.5 font-mono text-[9px] font-medium uppercase tracking-[0.14em] text-[color:var(--color-text-label)]"
-        >
-          Alpha
-        </span>
-        <span className="truncate text-[13px] text-[color:var(--color-text-tertiary)]">
-          {activeWorkspace?.name ?? ""}
-        </span>
-      </div>
+      <span
+        data-testid="sidebar-workspace-name"
+        className="flex-1 truncate text-[13px] font-medium text-[color:var(--color-text-primary)]"
+      >
+        {activeWorkspace?.name ?? ""}
+      </span>
       <button
         type="button"
         aria-label="Search"

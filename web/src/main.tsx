@@ -2,6 +2,8 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 
+import { UIProvider } from "@agh/ui";
+
 import { routeTree } from "./routeTree.gen";
 
 import * as TanStackQueryProvider from "./integrations/tanstack-query/root-provider";
@@ -31,9 +33,11 @@ if (rootElement && !rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <StrictMode>
-      <TanStackQueryProvider.Provider {...TanStackQueryProviderContext}>
-        <RouterProvider router={router} />
-      </TanStackQueryProvider.Provider>
+      <UIProvider reducedMotion="user">
+        <TanStackQueryProvider.Provider {...TanStackQueryProviderContext}>
+          <RouterProvider router={router} />
+        </TanStackQueryProvider.Provider>
+      </UIProvider>
     </StrictMode>
   );
 }
