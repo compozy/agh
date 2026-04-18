@@ -19,7 +19,7 @@
 | 11 | Host API parity for task read and aggregate surfaces | completed | medium | task_07 |
 | 12 | Tasks entrypoint and route shell | completed | medium | task_09, task_10 |
 | 13 | web/src/systems/tasks scaffold | completed | high | task_12 |
-| 14 | List, kanban, empty-state, and create modal | pending | high | task_13 |
+| 14 | List, kanban, empty-state, and create modal | completed | high | task_13 |
 | 15 | Detail timeline and run detail routes | pending | high | task_13 |
 | 16 | Dashboard and inbox routes | pending | high | task_13 |
 | 17 | Multi-agent live route and live-state polish | pending | high | task_15 |

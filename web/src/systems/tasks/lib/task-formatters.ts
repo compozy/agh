@@ -2,6 +2,7 @@ import type {
   TaskApprovalState,
   TaskInboxLane,
   TaskListItem,
+  TaskOwnerKind,
   TaskPriority,
   TaskRunStatus,
   TaskStatus,
@@ -163,6 +164,79 @@ export function matchesTaskQuery(
   const identifier = task.identifier?.toLowerCase() ?? "";
 
   return title.includes(normalized) || identifier.includes(normalized);
+}
+
+const TASK_OWNER_KIND_LABELS: Record<TaskOwnerKind, string> = {
+  human: "Human",
+  agent_session: "Agent",
+  automation: "Automation",
+  extension: "Extension",
+  network_peer: "Peer",
+  pool: "Pool",
+};
+
+export function taskOwnerKindLabel(kind?: TaskOwnerKind | null): string {
+  if (!kind) {
+    return "Unassigned";
+  }
+
+  return TASK_OWNER_KIND_LABELS[kind] ?? kind;
+}
+
+export function taskOwnerLabel(
+  owner?: Pick<NonNullable<TaskListItem["owner"]>, "kind" | "ref"> | null
+): string {
+  if (!owner) {
+    return "Unassigned";
+  }
+
+  return owner.ref || taskOwnerKindLabel(owner.kind);
+}
+
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+export function formatRelativeTime(value?: string | null, now: Date = new Date()): string {
+  if (!value) {
+    return "—";
+  }
+
+  const ts = Date.parse(value);
+  if (Number.isNaN(ts)) {
+    return "—";
+  }
+
+  const delta = Math.max(0, now.getTime() - ts);
+  if (delta < MINUTE) {
+    return "now";
+  }
+
+  if (delta < HOUR) {
+    const minutes = Math.floor(delta / MINUTE);
+    return `${minutes}m`;
+  }
+
+  if (delta < DAY) {
+    const hours = Math.floor(delta / HOUR);
+    return `${hours}h`;
+  }
+
+  const days = Math.floor(delta / DAY);
+  return `${days}d`;
+}
+
+export function formatAttemptLabel(current?: number | null, total?: number | null): string | null {
+  if (typeof current !== "number") {
+    return null;
+  }
+
+  if (typeof total === "number" && total > 0) {
+    return `attempt ${current} of ${total}`;
+  }
+
+  return `attempt ${current}`;
 }
 
 export function countTasksByStatus(tasks: TaskListItem[]): Record<TaskStatus, number> {

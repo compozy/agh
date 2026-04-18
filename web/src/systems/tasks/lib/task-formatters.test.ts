@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { TaskListItem } from "../types";
 import {
   countTasksByStatus,
+  formatAttemptLabel,
+  formatRelativeTime,
   matchesTaskQuery,
   taskApprovalStateLabel,
   taskHasApprovalPending,
@@ -10,6 +12,8 @@ import {
   taskIsBlocked,
   taskIsDraft,
   taskLaneTone,
+  taskOwnerKindLabel,
+  taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
   taskRunStatusTone,
@@ -116,6 +120,28 @@ describe("task predicates and counts", () => {
     expect(matchesTaskQuery(task, "review")).toBe(true);
     expect(matchesTaskQuery(task, "TASK-42")).toBe(true);
     expect(matchesTaskQuery(task, "missing")).toBe(false);
+  });
+
+  it("formats owner labels with kind fallbacks", () => {
+    expect(taskOwnerKindLabel("agent_session")).toBe("Agent");
+    expect(taskOwnerKindLabel("network_peer")).toBe("Peer");
+    expect(taskOwnerKindLabel(null)).toBe("Unassigned");
+    expect(taskOwnerLabel(null)).toBe("Unassigned");
+    expect(taskOwnerLabel({ kind: "agent_session", ref: "Coder" })).toBe("Coder");
+    expect(taskOwnerLabel({ kind: "agent_session", ref: "" })).toBe("Agent");
+  });
+
+  it("formats relative time and attempt labels", () => {
+    const now = new Date("2026-04-11T10:00:00Z");
+    expect(formatRelativeTime("2026-04-11T09:59:30Z", now)).toBe("now");
+    expect(formatRelativeTime("2026-04-11T09:30:00Z", now)).toBe("30m");
+    expect(formatRelativeTime("2026-04-11T08:00:00Z", now)).toBe("2h");
+    expect(formatRelativeTime("2026-04-09T10:00:00Z", now)).toBe("2d");
+    expect(formatRelativeTime(null)).toBe("—");
+
+    expect(formatAttemptLabel(2, 3)).toBe("attempt 2 of 3");
+    expect(formatAttemptLabel(1)).toBe("attempt 1");
+    expect(formatAttemptLabel(null)).toBeNull();
   });
 
   it("counts tasks by status", () => {

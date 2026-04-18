@@ -1,0 +1,103 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import { TaskCard } from "./task-card";
+import type { TaskListItem } from "../types";
+
+function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
+  return {
+    id: "task_001",
+    title: "Summarize feedback",
+    identifier: "TASK-1",
+    status: "in_progress",
+    scope: "workspace",
+    origin: { kind: "web", ref: "op" },
+    created_at: "2026-04-11T09:00:00Z",
+    updated_at: "2026-04-11T09:00:00Z",
+    created_by: { kind: "human", ref: "op" },
+    owner: { kind: "agent_session", ref: "Coder" },
+    priority: "high",
+    child_count: 2,
+    dependency_count: 1,
+    active_run: {
+      id: "run_001",
+      task_id: "task_001",
+      attempt: 2,
+      max_attempts: 3,
+      status: "running",
+      queued_at: "2026-04-11T09:00:00Z",
+    },
+    ...overrides,
+  } as TaskListItem;
+}
+
+describe("TaskCard", () => {
+  it("renders enriched task data including identifier, status, owner, attempt and counts", () => {
+    render(<TaskCard task={buildTask()} />);
+
+    expect(screen.getByTestId("task-card-task_001")).toBeInTheDocument();
+    expect(screen.getByText("TASK-1")).toBeInTheDocument();
+    expect(screen.getByText("Summarize feedback")).toBeInTheDocument();
+    expect(screen.getByTestId("task-card-owner-task_001")).toHaveTextContent("Coder");
+    expect(screen.getByTestId("task-card-attempt-task_001")).toHaveTextContent("attempt 2 of 3");
+    expect(screen.getByTestId("task-card-children-task_001")).toHaveTextContent("2 children");
+    expect(screen.getByTestId("task-card-deps-task_001")).toHaveTextContent("1 dep");
+    expect(screen.getByText("In Progress")).toBeInTheDocument();
+    expect(screen.getByText("High")).toBeInTheDocument();
+  });
+
+  it("invokes onSelect when the card is clicked and reflects selection state", () => {
+    const onSelect = vi.fn();
+    render(<TaskCard onSelect={onSelect} selected task={buildTask()} />);
+
+    const card = screen.getByTestId("task-card-task_001");
+    expect(card).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(card);
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the publish button for draft tasks and forwards the action without selecting", () => {
+    const onPublish = vi.fn();
+    const onSelect = vi.fn();
+    render(
+      <TaskCard
+        onPublish={onPublish}
+        onSelect={onSelect}
+        task={buildTask({ status: "draft", draft: true, active_run: null })}
+      />
+    );
+
+    const publish = screen.getByTestId("task-card-publish-task_001");
+    fireEvent.click(publish);
+    expect(onPublish).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("surfaces the failed-run error and a retry control for failed tasks", () => {
+    const onRetry = vi.fn();
+    render(
+      <TaskCard
+        onRetry={onRetry}
+        task={buildTask({
+          status: "failed",
+          active_run: {
+            id: "run_002",
+            task_id: "task_001",
+            attempt: 3,
+            max_attempts: 3,
+            status: "failed",
+            queued_at: "2026-04-11T09:00:00Z",
+            error: "rate-limited by upstream",
+          },
+        })}
+      />
+    );
+
+    expect(screen.getByTestId("task-card-error-task_001")).toHaveTextContent(
+      "rate-limited by upstream"
+    );
+
+    fireEvent.click(screen.getByTestId("task-card-retry-task_001"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});

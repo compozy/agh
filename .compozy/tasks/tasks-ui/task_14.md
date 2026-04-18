@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: List, kanban, empty-state, and create modal
 type: frontend
 complexity: high
@@ -32,11 +32,11 @@ Implement the main browsing and creation surfaces for the Tasks area: split-view
 </requirements>
 
 ## Subtasks
-- [ ] 14.1 Build the base tasks page orchestration for list and kanban mode switching
-- [ ] 14.2 Implement split-view list panels and enriched task-card rendering
-- [ ] 14.3 Implement kanban grouping, card actions, and empty-column behavior
-- [ ] 14.4 Implement the empty state and create modal flows, including draft-aware create behavior
-- [ ] 14.5 Add route and component tests for loading, error, empty, draft, and populated states
+- [x] 14.1 Build the base tasks page orchestration for list and kanban mode switching
+- [x] 14.2 Implement split-view list panels and enriched task-card rendering
+- [x] 14.3 Implement kanban grouping, card actions, and empty-column behavior
+- [x] 14.4 Implement the empty state and create modal flows, including draft-aware create behavior
+- [x] 14.5 Add route and component tests for loading, error, empty, draft, and populated states
 
 ## Implementation Details
 
