@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -173,9 +174,10 @@ func TestStreamObserveEventsPollsForNewEvents(t *testing.T) {
 func TestStreamObserveEventsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
+	var doneOnce sync.Once
 	observer := stubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
-			close(done)
+			doneOnce.Do(func() { close(done) })
 			return []store.EventSummary{{
 				ID:        "sum-harness",
 				SessionID: "sess-harness",

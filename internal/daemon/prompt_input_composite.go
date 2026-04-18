@@ -168,7 +168,12 @@ func (c *promptInputComposite) Augment(
 		return message, nil
 	}
 
-	resolved, err := c.resolver.ResolvePrompt(info, sess.CurrentTurnSource(), acp.PromptMeta{})
+	source := sess.CurrentTurnSource()
+	if source == session.TurnSourceSynthetic {
+		return message, nil
+	}
+
+	resolved, err := c.resolver.ResolvePrompt(info, source, sess.CurrentPromptMeta())
 	if err != nil {
 		return "", fmt.Errorf("daemon: resolve prompt augmentation policy: %w", err)
 	}

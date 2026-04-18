@@ -3501,13 +3501,17 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		return task
 	}
 
-	enqueueRun := func(taskID string, idempotencyKey string) apicontract.TaskRunPayload {
+	enqueueRun := func(taskID string, idempotencyKey string, metadata map[string]any) apicontract.TaskRunPayload {
 		t.Helper()
 
-		result, err := env.call(t, "ext-runs", "tasks/runs/enqueue", map[string]any{
+		params := map[string]any{
 			"task_id":         taskID,
 			"idempotency_key": idempotencyKey,
-		})
+		}
+		if metadata != nil {
+			params["metadata"] = metadata
+		}
+		result, err := env.call(t, "ext-runs", "tasks/runs/enqueue", params)
 		if err != nil {
 			t.Fatalf("Handle(tasks/runs/enqueue %q) error = %v", taskID, err)
 		}
@@ -3532,7 +3536,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	}
 
 	completedTask := createTask("Completed run task")
-	completedQueued := enqueueRun(completedTask.ID, "enqueue-complete")
+	completedQueued := enqueueRun(completedTask.ID, "enqueue-complete", nil)
 	completedClaimed := claimRun(completedQueued.ID, "claim-complete")
 	if got, want := completedClaimed.Status, taskpkg.TaskRunStatusClaimed; got != want {
 		t.Fatalf("tasks/runs/claim status = %q, want %q", got, want)
@@ -3588,7 +3592,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	}
 
 	failedTask := createTask("Failed run task")
-	failedQueued := enqueueRun(failedTask.ID, "enqueue-fail")
+	failedQueued := enqueueRun(failedTask.ID, "enqueue-fail", nil)
 	_ = claimRun(failedQueued.ID, "claim-fail")
 	_, err = env.call(t, "ext-runs", "tasks/runs/start", map[string]any{
 		"id":              failedQueued.ID,
@@ -3618,7 +3622,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	}
 
 	cancelledTask := createTask("Canceled run task")
-	cancelledQueued := enqueueRun(cancelledTask.ID, "enqueue-cancel")
+	cancelledQueued := enqueueRun(cancelledTask.ID, "enqueue-cancel", nil)
 	_ = claimRun(cancelledQueued.ID, "claim-cancel")
 	cancelRunResult, err := env.call(t, "ext-runs", "tasks/runs/cancel", map[string]any{
 		"id":     cancelledQueued.ID,
@@ -3657,6 +3661,34 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	}
 	if got, want := filtered[0].SessionID, boundSession.ID; got != want {
 		t.Fatalf("tasks/runs[0].session_id = %q, want %q", got, want)
+	}
+
+	storedRun, err := env.registry.GetTaskRun(testutil.Context(t), completedQueued.ID)
+	if err != nil {
+		t.Fatalf("registry.GetTaskRun(%q) error = %v", completedQueued.ID, err)
+	}
+	storedRun.Metadata = json.RawMessage(`{"phase":"extension"}`)
+	if err := env.registry.UpdateTaskRun(testutil.Context(t), storedRun); err != nil {
+		t.Fatalf("registry.UpdateTaskRun(%q) error = %v", completedQueued.ID, err)
+	}
+
+	runsWithMetadataResult, err := env.call(t, "ext-runs", "tasks/runs", map[string]any{
+		"id":         completedTask.ID,
+		"status":     taskpkg.TaskRunStatusCompleted,
+		"session_id": boundSession.ID,
+		"limit":      1,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/runs metadata list) error = %v", err)
+	}
+
+	var runsWithMetadata []apicontract.TaskRunPayload
+	decodeResult(t, runsWithMetadataResult, &runsWithMetadata)
+	if got, want := len(runsWithMetadata), 1; got != want {
+		t.Fatalf("len(tasks/runs metadata list) = %d, want %d", got, want)
+	}
+	if got := string(runsWithMetadata[0].Metadata); !strings.Contains(got, `"phase":"extension"`) {
+		t.Fatalf("tasks/runs metadata = %s, want extension marker", got)
 	}
 }
 

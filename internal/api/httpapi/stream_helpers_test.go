@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -183,9 +184,12 @@ func TestStreamObserveEventsPollsForNewEvents(t *testing.T) {
 func TestStreamObserveEventsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
+	var doneOnce sync.Once
+	var capturedQuery store.EventSummaryQuery
 	observer := stubObserver{
-		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
-			close(done)
+		QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
+			capturedQuery = query
+			doneOnce.Do(func() { close(done) })
 			return []store.EventSummary{{
 				ID:        "sum-harness",
 				SessionID: "sess-harness",
@@ -223,6 +227,9 @@ func TestStreamObserveEventsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	}
 	if got, want := payload.SessionID, "sess-harness"; got != want {
 		t.Fatalf("payload.SessionID = %q, want %q", got, want)
+	}
+	if got, want := capturedQuery.SessionID, "sess-harness"; got != want {
+		t.Fatalf("observer query session_id = %q, want %q", got, want)
 	}
 	if !bytes.Contains(records[0].Data, []byte("sections=memory|skills|network")) {
 		t.Fatalf("payload = %s, want harness summary content", string(records[0].Data))

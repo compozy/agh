@@ -417,7 +417,7 @@ func (r *HarnessContextResolver) normalizeSyntheticHarnessTurnContext(
 	if err != nil {
 		return HarnessTurnContext{}, err
 	}
-	meta.TurnSource = string(TurnOriginSynthetic)
+	meta.TurnSource = acp.PromptTurnSourceSynthetic
 	return HarnessTurnContext{
 		Origin:     TurnOriginSynthetic,
 		PromptMeta: meta,

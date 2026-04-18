@@ -512,6 +512,7 @@ func validateDetachedHarnessRunMatch(
 	if err != nil {
 		return err
 	}
+	current.Reentry = nil
 	if current != expected {
 		return fmt.Errorf(
 			"%w: detached harness run %q metadata does not match submission %q",

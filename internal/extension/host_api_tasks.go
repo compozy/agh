@@ -985,6 +985,7 @@ func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {
 		StartedAt:      optionalTime(run.StartedAt),
 		EndedAt:        optionalTime(run.EndedAt),
 		Error:          run.Error,
+		Metadata:       cloneRawMessage(run.Metadata),
 		Result:         cloneRawMessage(run.Result),
 	}
 }

@@ -88,6 +88,12 @@ type harnessWakeQueue struct {
 	items       []harnessSyntheticWake
 }
 
+type recoveredDetachedHarnessRun struct {
+	run           taskpkg.Run
+	completionSeq int64
+	completedAt   time.Time
+}
+
 type harnessReentryBridge struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -98,6 +104,7 @@ type harnessReentryBridge struct {
 	logger   *slog.Logger
 
 	events chan taskpkg.EventRecord
+	rescan chan struct{}
 
 	processingMu sync.Mutex
 	processing   map[string]struct{}
@@ -142,6 +149,7 @@ func newHarnessReentryBridge(
 		sessions:   sessions,
 		logger:     logger,
 		events:     make(chan taskpkg.EventRecord, 256),
+		rescan:     make(chan struct{}, 1),
 		processing: make(map[string]struct{}),
 		queues:     make(map[string]*harnessWakeQueue),
 	}
@@ -165,7 +173,17 @@ func (b *harnessReentryBridge) OnTaskEvent(_ context.Context, record taskpkg.Eve
 	case <-b.ctx.Done():
 		return
 	case b.events <- record:
+		return
+	default:
 	}
+
+	b.logger.Warn(
+		"daemon: detached harness reentry queue saturated; scheduling recovery rescan",
+		"task_id", record.Event.TaskID,
+		"run_id", record.Event.RunID,
+		"event_type", record.Event.EventType,
+	)
+	b.requestRescan()
 }
 
 func (b *harnessReentryBridge) run() {
@@ -175,11 +193,19 @@ func (b *harnessReentryBridge) run() {
 			return
 		case record := <-b.events:
 			b.processTaskEvent(record)
+		case <-b.rescan:
+			if err := b.recoverPendingRuns(b.operationContext()); err != nil {
+				b.logger.Error("daemon: recover detached harness runs after queue saturation", "error", err)
+			}
 		}
 	}
 }
 
 func (b *harnessReentryBridge) recover(ctx context.Context) error {
+	return b.recoverPendingRuns(ctx)
+}
+
+func (b *harnessReentryBridge) recoverPendingRuns(ctx context.Context) error {
 	if b == nil {
 		return errors.New("daemon: harness reentry bridge is required")
 	}
@@ -187,43 +213,71 @@ func (b *harnessReentryBridge) recover(ctx context.Context) error {
 		return errors.New("daemon: harness reentry recovery context is required")
 	}
 
+	recovered, err := b.loadRecoveredDetachedHarnessRuns(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range recovered {
+		if err := b.processTerminalRun(
+			item.run.TaskID,
+			item.run.ID,
+			item.completionSeq,
+			item.completedAt,
+		); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *harnessReentryBridge) loadRecoveredDetachedHarnessRuns(
+	ctx context.Context,
+) ([]recoveredDetachedHarnessRun, error) {
 	runs, err := b.store.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{
 		taskpkg.TaskRunStatusCompleted,
 		taskpkg.TaskRunStatusFailed,
 		taskpkg.TaskRunStatusCanceled,
 	})
 	if err != nil {
-		return fmt.Errorf("daemon: list detached terminal runs for reentry recovery: %w", err)
+		return nil, fmt.Errorf("daemon: list detached terminal runs for reentry recovery: %w", err)
 	}
 
-	sort.SliceStable(runs, func(i, j int) bool {
-		if !runs[i].EndedAt.Equal(runs[j].EndedAt) {
-			return runs[i].EndedAt.Before(runs[j].EndedAt)
-		}
-		return runs[i].ID < runs[j].ID
-	})
-
+	recovered := make([]recoveredDetachedHarnessRun, 0, len(runs))
 	for _, run := range runs {
 		metadata, ok, err := maybeDecodeDetachedHarnessRunMetadata(run.Metadata)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !ok || detachedHarnessReentryProcessed(metadata.Reentry) {
 			continue
 		}
 		sequence, timestamp, lookupErr := b.latestDetachedTerminalSequence(ctx, run.TaskID, run.ID)
 		if lookupErr != nil {
-			return lookupErr
+			return nil, lookupErr
 		}
 		if timestamp.IsZero() {
 			timestamp = run.EndedAt
 		}
-		if err := b.processTerminalRun(run.TaskID, run.ID, sequence, timestamp); err != nil {
-			return err
-		}
+		recovered = append(recovered, recoveredDetachedHarnessRun{
+			run:           run,
+			completionSeq: sequence,
+			completedAt:   timestamp,
+		})
 	}
 
-	return nil
+	sort.SliceStable(recovered, func(i, j int) bool {
+		if !recovered[i].completedAt.Equal(recovered[j].completedAt) {
+			return recovered[i].completedAt.Before(recovered[j].completedAt)
+		}
+		if recovered[i].completionSeq != recovered[j].completionSeq {
+			return recovered[i].completionSeq < recovered[j].completionSeq
+		}
+		return recovered[i].run.ID < recovered[j].run.ID
+	})
+
+	return recovered, nil
 }
 
 func (b *harnessReentryBridge) latestDetachedTerminalSequence(
@@ -283,7 +337,8 @@ func (b *harnessReentryBridge) processTerminalRun(
 		return errors.New("daemon: harness reentry bridge is required")
 	}
 
-	run, err := b.store.GetTaskRun(b.ctx, strings.TrimSpace(runID))
+	opCtx := b.operationContext()
+	run, err := b.store.GetTaskRun(opCtx, strings.TrimSpace(runID))
 	if err != nil {
 		return err
 	}
@@ -305,7 +360,7 @@ func (b *harnessReentryBridge) processTerminalRun(
 		return nil
 	}
 
-	task, err := b.store.GetTask(b.ctx, strings.TrimSpace(taskID))
+	task, err := b.store.GetTask(opCtx, strings.TrimSpace(taskID))
 	if err != nil {
 		b.releaseProcessing(run.ID)
 		return err
@@ -432,7 +487,7 @@ func (b *harnessReentryBridge) resolveWakeTargetSnapshot(
 		Missing:     true,
 	}
 
-	info, err := b.sessions.Status(b.ctx, target.SessionID)
+	info, err := b.sessions.Status(b.operationContext(), target.SessionID)
 	switch {
 	case err == nil && info != nil:
 		target.AgentName = strings.TrimSpace(info.AgentName)
@@ -462,7 +517,7 @@ func (b *harnessReentryBridge) resolveSummaryAgentName(
 		return agentName
 	}
 	if ownerID := strings.TrimSpace(metadata.OwnerSessionID); ownerID != "" {
-		info, err := b.sessions.Status(b.ctx, ownerID)
+		info, err := b.sessions.Status(b.operationContext(), ownerID)
 		if err == nil && info != nil && strings.TrimSpace(info.AgentName) != "" {
 			return strings.TrimSpace(info.AgentName)
 		}
@@ -669,9 +724,19 @@ func (b *harnessReentryBridge) awaitSyntheticWake(
 	events <-chan acp.AgentEvent,
 ) {
 	sawError := false
-	for event := range events {
-		if event.Type == acp.EventTypeError {
+Loop:
+	for {
+		select {
+		case <-b.ctx.Done():
 			sawError = true
+			break Loop
+		case event, ok := <-events:
+			if !ok {
+				break Loop
+			}
+			if event.Type == acp.EventTypeError {
+				sawError = true
+			}
 		}
 	}
 
@@ -686,7 +751,7 @@ func (b *harnessReentryBridge) awaitSyntheticWake(
 		)
 		return
 	}
-	if sawError {
+	if sawError || err != nil {
 		b.finalizeRunOutcome(
 			item.runID,
 			item.targetSessionID,
@@ -711,7 +776,11 @@ func (b *harnessReentryBridge) syntheticEventExists(sessionID string, runID stri
 		return false, nil
 	}
 
-	events, err := b.sessions.Events(b.ctx, sessionID, store.EventQuery{Type: acp.EventTypeSyntheticReentry})
+	events, err := b.sessions.Events(
+		b.operationContext(),
+		sessionID,
+		store.EventQuery{Type: acp.EventTypeSyntheticReentry},
+	)
 	if err != nil {
 		if errors.Is(err, session.ErrSessionNotFound) {
 			return false, nil
@@ -744,7 +813,8 @@ func (b *harnessReentryBridge) finalizeRunOutcome(
 ) {
 	defer b.releaseProcessing(runID)
 
-	run, err := b.store.GetTaskRun(b.ctx, runID)
+	opCtx := b.operationContext()
+	run, err := b.store.GetTaskRun(opCtx, runID)
 	if err != nil {
 		b.logger.Error("daemon: load detached harness run for finalization", "run_id", runID, "error", err)
 		return
@@ -771,7 +841,7 @@ func (b *harnessReentryBridge) finalizeRunOutcome(
 	}
 
 	run.Metadata = raw
-	if err := b.store.UpdateTaskRun(b.ctx, run); err != nil {
+	if err := b.store.UpdateTaskRun(opCtx, run); err != nil {
 		b.logger.Error("daemon: persist detached harness finalization", "run_id", runID, "error", err)
 		return
 	}
@@ -814,7 +884,7 @@ func (b *harnessReentryBridge) writeEventSummary(
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()
 	}
-	if err := b.store.WriteEventSummary(b.ctx, store.EventSummary{
+	if err := b.store.WriteEventSummary(b.operationContext(), store.EventSummary{
 		SessionID: targetSessionID,
 		Type:      strings.TrimSpace(eventType),
 		AgentName: targetAgentName,
@@ -827,6 +897,26 @@ func (b *harnessReentryBridge) writeEventSummary(
 			"event_type", eventType,
 			"error", err,
 		)
+	}
+}
+
+func (b *harnessReentryBridge) operationContext() context.Context {
+	if b == nil || b.ctx == nil {
+		return context.Background()
+	}
+	return context.WithoutCancel(b.ctx)
+}
+
+func (b *harnessReentryBridge) requestRescan() {
+	if b == nil {
+		return
+	}
+
+	select {
+	case <-b.ctx.Done():
+		return
+	case b.rescan <- struct{}{}:
+	default:
 	}
 }
 

@@ -93,6 +93,7 @@ type Session struct {
 	promptSetupCount         int
 	promptSetupDone          chan struct{}
 	currentTurnSource        TurnSource
+	currentPromptMeta        acp.PromptMeta
 }
 
 // Info returns a consistent snapshot of the current session state.
@@ -210,6 +211,17 @@ func (s *Session) CurrentTurnSource() TurnSource {
 	return s.currentTurnSource
 }
 
+// CurrentPromptMeta reports the normalized metadata for the currently active prompt turn.
+func (s *Session) CurrentPromptMeta() acp.PromptMeta {
+	if s == nil {
+		return acp.PromptMeta{}
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentPromptMeta.Normalize()
+}
+
 // IsPrompting reports whether the session currently has prompt setup or turn
 // execution in flight.
 func (s *Session) IsPrompting() bool {
@@ -232,6 +244,16 @@ func (s *Session) setCurrentTurnSource(source TurnSource) {
 	s.currentTurnSource = normalizeTurnSource(source)
 }
 
+func (s *Session) setCurrentPromptMeta(meta acp.PromptMeta) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentPromptMeta = meta.Normalize()
+}
+
 func (s *Session) clearCurrentTurnSource() {
 	if s == nil {
 		return
@@ -240,6 +262,16 @@ func (s *Session) clearCurrentTurnSource() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentTurnSource = ""
+}
+
+func (s *Session) clearCurrentPromptMeta() {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentPromptMeta = acp.PromptMeta{}
 }
 
 func (s *Session) updateFromProcess(proc *AgentProcess, now time.Time) {

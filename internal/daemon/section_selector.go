@@ -35,16 +35,16 @@ func (s *SectionSelector) Select(
 	descriptors []PromptSectionDescriptor,
 ) ([]PromptSectionDescriptor, ResolvedHarnessContext, error) {
 	normalized := normalizeAndSortPromptSectionDescriptors(descriptors)
-	if s == nil || s.resolver == nil {
-		return normalized, ResolvedHarnessContext{}, nil
-	}
-
-	resolved, err := s.resolver.ResolveStartup(startup)
-	if err != nil {
-		return nil, ResolvedHarnessContext{}, err
+	resolved := ResolvedHarnessContext{}
+	if s != nil && s.resolver != nil {
+		var err error
+		resolved, err = s.resolver.ResolveStartup(startup)
+		if err != nil {
+			return nil, ResolvedHarnessContext{}, err
+		}
 	}
 	var timestamp time.Time
-	if s.recorder != nil {
+	if s != nil && s.recorder != nil && s.resolver != nil {
 		timestamp = s.recorder.timestamp(time.Time{})
 		s.recorder.RecordStartupContextResolved(startup, resolved, timestamp)
 	}
@@ -56,7 +56,7 @@ func (s *SectionSelector) Select(
 		if descriptor.Provider == nil {
 			continue
 		}
-		if descriptor.Predicate != nil && !descriptor.Predicate(resolved.Policy) {
+		if s != nil && s.resolver != nil && descriptor.Predicate != nil && !descriptor.Predicate(resolved.Policy) {
 			continue
 		}
 		if _, exists := seen[descriptor.Name]; exists {
@@ -65,7 +65,7 @@ func (s *SectionSelector) Select(
 		seen[descriptor.Name] = struct{}{}
 		selected = append(selected, descriptor)
 	}
-	if s.recorder != nil {
+	if s != nil && s.recorder != nil && s.resolver != nil {
 		s.recorder.RecordStartupSectionSelected(startup, resolved, selected, timestamp)
 	}
 

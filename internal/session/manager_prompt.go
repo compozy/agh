@@ -92,10 +92,12 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	}
 	defer session.finishPromptSetup()
 	session.setCurrentTurnSource(turnState.turnSource)
+	session.setCurrentPromptMeta(req.meta)
 	clearTurnSource := true
 	defer func() {
 		if clearTurnSource {
 			session.clearCurrentTurnSource()
+			session.clearCurrentPromptMeta()
 		}
 	}()
 
@@ -323,6 +325,7 @@ func (m *Manager) pumpPrompt(
 		m.dispatchTurnEnd(ctx, turnState, time.Time{})
 		if session != nil {
 			session.clearCurrentTurnSource()
+			session.clearCurrentPromptMeta()
 			m.startNextQueuedSyntheticPrompt(session.ID)
 		}
 		notifier := m.currentTurnEndNotifier()

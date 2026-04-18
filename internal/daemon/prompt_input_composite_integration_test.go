@@ -30,7 +30,7 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 	})
 
 	suffixAugmenter := HarnessAugmenter("suffix")
-	compositeResolver := promptInputCompositeOverlayResolver{
+	compositeResolver := &promptInputCompositeOverlayResolver{
 		base: daemonInstance.harnessResolver,
 		extra: map[TurnOrigin][]HarnessAugmenter{
 			TurnOriginUser:    {suffixAugmenter},
@@ -109,6 +109,42 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 	if got := driver.promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
 		t.Fatalf("network prompt turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)
 	}
+	if got, want := len(compositeResolver.seenMeta), 2; got != want {
+		t.Fatalf("len(resolver seen meta) after network prompt = %d, want %d", got, want)
+	}
+	if got := compositeResolver.seenMeta[1].Network; got == nil {
+		t.Fatal("resolver network prompt meta = nil, want forwarded network metadata")
+	} else {
+		if got.MessageID != "msg-1" {
+			t.Fatalf("resolver network message_id = %q, want %q", got.MessageID, "msg-1")
+		}
+		if got.Channel != "builders" {
+			t.Fatalf("resolver network channel = %q, want %q", got.Channel, "builders")
+		}
+	}
+
+	syntheticEvents, err := manager.PromptSynthetic(testutil.Context(t), created.ID, session.SyntheticPromptOpts{
+		Message: "daemon wake-up",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskRunID: "run-1",
+			Reason:    "task_run_completed",
+			Summary:   "background work finished",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PromptSynthetic() error = %v", err)
+	}
+	drainHarnessIntegrationEvents(syntheticEvents)
+
+	if got := driver.promptCalls[2].Message; got != "daemon wake-up" {
+		t.Fatalf("synthetic prompt message = %q, want canonical synthetic dispatch", got)
+	}
+	if got := driver.promptCalls[2].Meta.TurnSource; got != acp.PromptTurnSourceSynthetic {
+		t.Fatalf("synthetic prompt turn source = %q, want %q", got, acp.PromptTurnSourceSynthetic)
+	}
+	if got, want := len(compositeResolver.seenMeta), 2; got != want {
+		t.Fatalf("len(resolver seen meta) after synthetic prompt = %d, want %d", got, want)
+	}
 
 	storedMessages := loadStoredPromptMessages(t, created)
 	if got, want := len(storedMessages), 2; got != want {
@@ -130,15 +166,17 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 }
 
 type promptInputCompositeOverlayResolver struct {
-	base  promptInputAugmenterResolver
-	extra map[TurnOrigin][]HarnessAugmenter
+	base     promptInputAugmenterResolver
+	extra    map[TurnOrigin][]HarnessAugmenter
+	seenMeta []acp.PromptMeta
 }
 
-func (r promptInputCompositeOverlayResolver) ResolvePrompt(
+func (r *promptInputCompositeOverlayResolver) ResolvePrompt(
 	info *session.Info,
 	source session.TurnSource,
 	meta acp.PromptMeta,
 ) (ResolvedHarnessContext, error) {
+	r.seenMeta = append(r.seenMeta, meta.Normalize())
 	resolved, err := r.base.ResolvePrompt(info, source, meta)
 	if err != nil {
 		return ResolvedHarnessContext{}, err
@@ -147,7 +185,10 @@ func (r promptInputCompositeOverlayResolver) ResolvePrompt(
 	if len(additional) == 0 {
 		return resolved, nil
 	}
-	resolved.Policy.EnableAugmenters = append(resolved.Policy.EnableAugmenters, additional...)
+	resolved.Policy.EnableAugmenters = append(
+		append([]HarnessAugmenter(nil), resolved.Policy.EnableAugmenters...),
+		additional...,
+	)
 	return resolved, nil
 }
 

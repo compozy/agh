@@ -642,7 +642,9 @@ func TestDetachedHarnessCompletionWakePreservesFIFOAcrossRuns(t *testing.T) {
 	})
 
 	completeDetachedHarnessRunForTest(t, daemonInstance.tasks, first.Run.ID, "sess-owner")
-	time.Sleep(20 * time.Millisecond)
+	waitForTaskRuntimeCondition(t, 2*time.Second, func() bool {
+		return sessions.syntheticPromptCount() == 1
+	})
 	completeDetachedHarnessRunForTest(t, daemonInstance.tasks, second.Run.ID, "sess-owner")
 
 	waitForDetachedHarnessReentryState(t, daemonInstance.tasks, first.Run.ID, harnessReentryOutcomeEmitted)

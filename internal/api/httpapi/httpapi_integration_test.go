@@ -198,13 +198,20 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
 
-	userEvents, userErr := runtime.manager.Prompt(context.Background(), sessionID, "hello")
-	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, userEvents, userErr))
+	const promptTimeout = 5 * time.Second
 
-	networkEvents, networkErr := runtime.manager.PromptNetwork(context.Background(), sessionID, "network hello")
-	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, networkEvents, networkErr))
+	userCtx, cancelUser := context.WithTimeout(context.Background(), promptTimeout)
+	userEvents, userErr := runtime.manager.Prompt(userCtx, sessionID, "hello")
+	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, userEvents, userErr), promptTimeout)
+	cancelUser()
 
-	syntheticEvents, syntheticErr := runtime.manager.PromptSynthetic(context.Background(), sessionID, session.SyntheticPromptOpts{
+	networkCtx, cancelNetwork := context.WithTimeout(context.Background(), promptTimeout)
+	networkEvents, networkErr := runtime.manager.PromptNetwork(networkCtx, sessionID, "network hello")
+	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, networkEvents, networkErr), promptTimeout)
+	cancelNetwork()
+
+	syntheticCtx, cancelSynthetic := context.WithTimeout(context.Background(), promptTimeout)
+	syntheticEvents, syntheticErr := runtime.manager.PromptSynthetic(syntheticCtx, sessionID, session.SyntheticPromptOpts{
 		Message: "daemon wake-up",
 		Metadata: acp.PromptSyntheticMeta{
 			TaskRunID: "run-1",
@@ -212,7 +219,8 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 			Summary:   "background work finished",
 		},
 	})
-	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, syntheticEvents, syntheticErr))
+	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, syntheticEvents, syntheticErr), promptTimeout)
+	cancelSynthetic()
 
 	resp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/transcript"), nil, nil)
 	if resp.StatusCode != http.StatusOK {
@@ -2421,12 +2429,28 @@ func mustIntegrationPrompt(t *testing.T, events <-chan acp.AgentEvent, err error
 	return events
 }
 
-func collectIntegrationPromptEvents(t *testing.T, events <-chan acp.AgentEvent) []acp.AgentEvent {
+func collectIntegrationPromptEvents(
+	t *testing.T,
+	events <-chan acp.AgentEvent,
+	timeout time.Duration,
+) []acp.AgentEvent {
 	t.Helper()
 
 	collected := make([]acp.AgentEvent, 0, 4)
-	for event := range events {
-		collected = append(collected, event)
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+Loop:
+	for {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				break Loop
+			}
+			collected = append(collected, event)
+		case <-timer.C:
+			t.Fatalf("timed out waiting for prompt events after %v", timeout)
+		}
 	}
 	if len(collected) == 0 {
 		t.Fatal("prompt events = 0, want completed prompt stream")
