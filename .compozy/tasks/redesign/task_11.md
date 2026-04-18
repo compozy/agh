@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Wire Playwright visual snapshot harness for @agh/ui
 type: infra
 complexity: high
@@ -50,10 +50,10 @@ Set up Playwright as the visual-regression gate for every story under `packages/
 
 ## Subtasks
 
-- [ ] 11.1 Add Playwright config for packages/ui (or extend existing config).
-- [ ] 11.2 Write a test that iterates over Storybook story URLs and calls `toHaveScreenshot`.
-- [ ] 11.3 Generate initial baselines for all primitive stories.
-- [ ] 11.4 Add `pnpm test:visual` script and a GitHub Actions job wiring.
+- [x] 11.1 Add Playwright config for packages/ui (or extend existing config).
+- [x] 11.2 Write a test that iterates over Storybook story URLs and calls `toHaveScreenshot`.
+- [x] 11.3 Generate initial baselines for all primitive stories.
+- [x] 11.4 Add `pnpm test:visual` script and a GitHub Actions job wiring.
 - [ ] 11.5 Document the `--update` workflow in `packages/ui/README.md` (task 12 consumer).
 
 ## Implementation Details
@@ -69,6 +69,9 @@ Storybook 10 exposes a `stories.json` or `index.json` endpoint at `/index.json` 
 - `packages/ui/package.json` — add script + dev deps.
 - `.github/workflows/*` — add visual snapshot CI job.
 - `packages/ui/.storybook/main.ts` — for story URL discovery.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md` — source of truth for what each primitive snapshot should visually convey.
+  - `docs/design/design-system/preview/*.html` — each preview card is the per-primitive baseline reference; one Playwright snapshot per card is the mental model for coverage.
 
 ### Dependent Files
 
@@ -90,12 +93,12 @@ Storybook 10 exposes a `stories.json` or `index.json` endpoint at `/index.json` 
 ## Tests
 
 - Unit tests:
-  - [ ] Story URL enumeration helper returns all story IDs from a mock `index.json`.
-  - [ ] Snapshot filename convention matches story ID + viewport.
+  - [x] Story URL enumeration helper returns all story IDs from a mock `index.json`.
+  - [x] Snapshot filename convention matches story ID + viewport.
 - Integration tests:
-  - [ ] Running `pnpm test:visual` against the baseline produces zero diffs.
-  - [ ] Modifying one primitive's padding by 2px causes at least one snapshot test to fail.
-  - [ ] `prefers-reduced-motion: reduce` forced at context prevents animated stories from being non-deterministic.
+  - [x] Running `pnpm test:visual` against the baseline produces zero diffs.
+  - [x] Modifying one primitive's padding by 2px causes at least one snapshot test to fail.
+  - [x] `prefers-reduced-motion: reduce` forced at context prevents animated stories from being non-deterministic.
 - Test coverage target: >=80%
 - All tests must pass
 
