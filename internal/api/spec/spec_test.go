@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/pedronauck/agh/internal/api/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/hooks"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -339,7 +340,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldRegisterTaskAndTaskRunOperations",
+			name: "ShouldRegisterExpandedTaskAndObserveOperations",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
@@ -351,18 +352,30 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/tasks", method: "POST"},
 					{path: "/api/tasks/{id}", method: "GET"},
 					{path: "/api/tasks/{id}", method: "PATCH"},
+					{path: "/api/tasks/{id}/publish", method: "POST"},
 					{path: "/api/tasks/{id}/cancel", method: "POST"},
 					{path: "/api/tasks/{id}/children", method: "POST"},
 					{path: "/api/tasks/{id}/dependencies", method: "POST"},
 					{path: "/api/tasks/{id}/dependencies/{depends_on_id}", method: "DELETE"},
 					{path: "/api/tasks/{id}/runs", method: "GET"},
 					{path: "/api/tasks/{id}/runs", method: "POST"},
+					{path: "/api/task-runs/{id}", method: "GET"},
 					{path: "/api/task-runs/{id}/claim", method: "POST"},
 					{path: "/api/task-runs/{id}/start", method: "POST"},
 					{path: "/api/task-runs/{id}/attach-session", method: "POST"},
 					{path: "/api/task-runs/{id}/complete", method: "POST"},
 					{path: "/api/task-runs/{id}/fail", method: "POST"},
 					{path: "/api/task-runs/{id}/cancel", method: "POST"},
+					{path: "/api/tasks/{id}/timeline", method: "GET"},
+					{path: "/api/tasks/{id}/stream", method: "GET"},
+					{path: "/api/tasks/{id}/tree", method: "GET"},
+					{path: "/api/tasks/{id}/approve", method: "POST"},
+					{path: "/api/tasks/{id}/reject", method: "POST"},
+					{path: "/api/tasks/{id}/triage/read", method: "POST"},
+					{path: "/api/tasks/{id}/triage/archive", method: "POST"},
+					{path: "/api/tasks/{id}/triage/dismiss", method: "POST"},
+					{path: "/api/observe/tasks/dashboard", method: "GET"},
+					{path: "/api/observe/tasks/inbox", method: "GET"},
 				}
 
 				for _, operation := range operations {
@@ -389,16 +402,24 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"workspace",
 					"network_channel",
 					"description",
+					"priority",
+					"max_attempts",
+					"draft",
+					"approval_policy",
 					"owner",
 					"metadata",
 				)
 				assertEnumValues(t, propertySchema(t, createTaskSchema, "scope"), "global", "workspace")
+				assertEnumValues(t, propertySchema(t, createTaskSchema, "priority"), "low", "medium", "high", "urgent")
+				assertEnumValues(t, propertySchema(t, createTaskSchema, "approval_policy"), "none", "manual")
 
 				createTaskResponse := jsonResponseSchema(t, createTask, 201)
 				assertRequired(t, createTaskResponse, "task")
 				taskSchema := propertySchema(t, createTaskResponse, "task")
 				assertEnumValues(t, propertySchema(t, taskSchema, "scope"), "global", "workspace")
+				assertEnumValues(t, propertySchema(t, taskSchema, "priority"), "low", "medium", "high", "urgent")
 				assertEnumValues(t, propertySchema(t, taskSchema, "status"),
+					string(taskpkg.TaskStatusDraft),
 					string(taskpkg.TaskStatusPending),
 					string(taskpkg.TaskStatusBlocked),
 					string(taskpkg.TaskStatusReady),
@@ -406,6 +427,15 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					string(taskpkg.TaskStatusCompleted),
 					string(taskpkg.TaskStatusFailed),
 					string(taskpkg.TaskStatusCanceled),
+				)
+				assertEnumValues(t, propertySchema(t, taskSchema, "approval_policy"), "none", "manual")
+				assertEnumValues(
+					t,
+					propertySchema(t, taskSchema, "approval_state"),
+					"not_required",
+					"pending",
+					"approved",
+					"rejected",
 				)
 				assertEnumValues(t, propertySchema(t, propertySchema(t, taskSchema, "owner"), "kind"),
 					string(taskpkg.OwnerKindHuman),
@@ -435,14 +465,65 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					string(taskpkg.OriginKindDaemon),
 				)
 
+				listTasks := operationFor(t, doc, "/api/tasks", "GET")
+				assertParameter(t, listTasks, "priority", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTasks, "include_drafts", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTasks, "approval_state", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTasks, "query", openapi3.ParameterInQuery, false)
+
+				getTask := operationFor(t, doc, "/api/tasks/{id}", "GET")
+				getTaskSchema := jsonResponseSchema(t, getTask, 200)
+				assertRequired(t, getTaskSchema, "task")
+				detailSchema := propertySchema(t, getTaskSchema, "task")
+				assertRequired(t, detailSchema, "summary", "task")
+				assertNotRequired(
+					t,
+					detailSchema,
+					"children",
+					"dependencies",
+					"dependency_references",
+					"runs",
+					"events",
+				)
+
+				summarySchema := propertySchema(t, detailSchema, "summary")
+				assertRequired(
+					t,
+					summarySchema,
+					"id",
+					"scope",
+					"title",
+					"status",
+					"created_by",
+					"origin",
+					"created_at",
+					"updated_at",
+				)
+				assertNotRequired(
+					t,
+					summarySchema,
+					"priority",
+					"max_attempts",
+					"approval_policy",
+					"approval_state",
+					"draft",
+					"dependencies",
+					"active_run",
+					"last_activity_at",
+				)
+
 				listTaskRuns := operationFor(t, doc, "/api/tasks/{id}/runs", "GET")
 				assertParameter(t, listTaskRuns, "status", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTaskRuns, "session_id", openapi3.ParameterInQuery, false)
 
-				claimRun := operationFor(t, doc, "/api/task-runs/{id}/claim", "POST")
-				claimRunSchema := jsonResponseSchema(t, claimRun, 200)
-				assertRequired(t, claimRunSchema, "run")
-				runSchema := propertySchema(t, claimRunSchema, "run")
+				getRun := operationFor(t, doc, "/api/task-runs/{id}", "GET")
+				getRunSchema := jsonResponseSchema(t, getRun, 200)
+				assertRequired(t, getRunSchema, "run")
+				runDetailSchema := propertySchema(t, getRunSchema, "run")
+				assertRequired(t, runDetailSchema, "run", "task", "summary")
+				assertNotRequired(t, runDetailSchema, "session")
+
+				runSchema := propertySchema(t, runDetailSchema, "run")
 				assertEnumValues(t, propertySchema(t, runSchema, "status"),
 					string(taskpkg.TaskRunStatusQueued),
 					string(taskpkg.TaskRunStatusClaimed),
@@ -477,6 +558,116 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				attachRun := operationFor(t, doc, "/api/task-runs/{id}/attach-session", "POST")
 				attachRunSchema := jsonRequestSchema(t, attachRun)
 				assertRequired(t, attachRunSchema, "session_id")
+
+				publishTask := operationFor(t, doc, "/api/tasks/{id}/publish", "POST")
+				assertParameter(t, publishTask, "id", openapi3.ParameterInPath, true)
+				assertResponseStatus(t, publishTask, 409)
+				assertResponseStatus(t, publishTask, 422)
+			},
+		},
+		{
+			name: "ShouldDescribeTaskLiveAndObserveSchemas",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				timeline := operationFor(t, doc, "/api/tasks/{id}/timeline", "GET")
+				assertParameter(t, timeline, "id", openapi3.ParameterInPath, true)
+				assertParameter(t, timeline, "after_sequence", openapi3.ParameterInQuery, false)
+				assertParameter(t, timeline, "limit", openapi3.ParameterInQuery, false)
+				timelineSchema := jsonResponseSchema(t, timeline, 200)
+				assertRequired(t, timelineSchema, "timeline")
+
+				timelineItems := propertySchema(t, timelineSchema, "timeline")
+				if timelineItems.Items == nil || timelineItems.Items.Value == nil {
+					t.Fatal("expected timeline to define an items schema")
+				}
+				timelineItemSchema := timelineItems.Items.Value
+				assertRequired(
+					t,
+					timelineItemSchema,
+					"sequence",
+					"event_id",
+					"task",
+					"event_type",
+					"actor",
+					"origin",
+					"timestamp",
+				)
+				assertNotRequired(t, timelineItemSchema, "run", "payload")
+
+				stream := operationFor(t, doc, "/api/tasks/{id}/stream", "GET")
+				assertParameter(t, stream, "id", openapi3.ParameterInPath, true)
+				assertParameter(t, stream, "after_sequence", openapi3.ParameterInQuery, false)
+				streamSchema := responseSchema(t, stream, 200, "text/event-stream")
+				assertRequired(t, streamSchema, "sequence", "type", "timeline")
+				assertResponseStatus(t, stream, 422)
+
+				tree := operationFor(t, doc, "/api/tasks/{id}/tree", "GET")
+				treeSchema := jsonResponseSchema(t, tree, 200)
+				assertRequired(t, treeSchema, "tree")
+				treePayload := propertySchema(t, treeSchema, "tree")
+				assertRequired(t, treePayload, "root")
+				assertNotRequired(t, treePayload, "descendants")
+
+				approve := operationFor(t, doc, "/api/tasks/{id}/approve", "POST")
+				assertResponseStatus(t, approve, 409)
+				assertResponseStatus(t, approve, 422)
+
+				dashboard := operationFor(t, doc, "/api/observe/tasks/dashboard", "GET")
+				assertTagsContain(t, dashboard, "observe", "tasks")
+				assertParameter(t, dashboard, "scope", openapi3.ParameterInQuery, false)
+				assertParameter(t, dashboard, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, dashboard, "owner_kind", openapi3.ParameterInQuery, false)
+				assertParameter(t, dashboard, "owner_ref", openapi3.ParameterInQuery, false)
+				assertParameter(t, dashboard, "network_channel", openapi3.ParameterInQuery, false)
+				assertParameter(t, dashboard, "origin_kind", openapi3.ParameterInQuery, false)
+				dashboardSchema := jsonResponseSchema(t, dashboard, 200)
+				assertRequired(t, dashboardSchema, "dashboard")
+				assertObjectPropertyKeys(
+					t,
+					propertySchema(t, dashboardSchema, "dashboard"),
+					"totals",
+					"cards",
+					"queue",
+					"health",
+					"active_runs",
+					"freshness",
+				)
+
+				inbox := operationFor(t, doc, "/api/observe/tasks/inbox", "GET")
+				assertTagsContain(t, inbox, "observe", "tasks")
+				assertParameter(t, inbox, "lane", openapi3.ParameterInQuery, false)
+				assertParameter(t, inbox, "unread", openapi3.ParameterInQuery, false)
+				assertParameter(t, inbox, "query", openapi3.ParameterInQuery, false)
+				inboxSchema := jsonResponseSchema(t, inbox, 200)
+				assertRequired(t, inboxSchema, "inbox")
+
+				inboxPayload := propertySchema(t, inboxSchema, "inbox")
+				assertRequired(t, inboxPayload, "total", "unread_total", "archived_total")
+				assertNotRequired(t, inboxPayload, "groups")
+				groupsSchema := propertySchema(t, inboxPayload, "groups")
+				if groupsSchema.Items == nil || groupsSchema.Items.Value == nil {
+					t.Fatal("expected groups to define an items schema")
+				}
+				groupSchema := groupsSchema.Items.Value
+				assertRequired(t, groupSchema, "lane", "count", "unread_count")
+				assertNotRequired(t, groupSchema, "items")
+				assertEnumValues(
+					t,
+					propertySchema(t, groupSchema, "lane"),
+					"my_work",
+					"approvals",
+					"failed_runs",
+					"blocked",
+					"archived",
+				)
+
+				triage := operationFor(t, doc, "/api/tasks/{id}/triage/archive", "POST")
+				triageSchema := jsonResponseSchema(t, triage, 200)
+				assertRequired(t, triageSchema, "triage")
+				triagePayload := propertySchema(t, triageSchema, "triage")
+				assertRequired(t, triagePayload, "task_id", "actor", "read", "archived", "dismissed", "updated_at")
+				assertNotRequired(t, triagePayload, "last_seen_activity_at")
 			},
 		},
 	}
@@ -531,11 +722,15 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 	}{
 		{name: "TaskScope", typ: taskpkg.ScopeGlobal},
 		{name: "TaskStatus", typ: taskpkg.TaskStatusReady},
+		{name: "TaskPriority", typ: taskpkg.PriorityHigh},
+		{name: "TaskApprovalPolicy", typ: taskpkg.ApprovalPolicyManual},
+		{name: "TaskApprovalState", typ: taskpkg.ApprovalStateApproved},
 		{name: "TaskRunStatus", typ: taskpkg.TaskRunStatusQueued},
 		{name: "TaskActorKind", typ: taskpkg.ActorKindHuman},
 		{name: "TaskOwnerKind", typ: taskpkg.OwnerKindPool},
 		{name: "TaskOriginKind", typ: taskpkg.OriginKindHTTP},
 		{name: "TaskDependencyKind", typ: taskpkg.DependencyKindBlocks},
+		{name: "TaskInboxLane", typ: contract.TaskInboxLaneApprovals},
 		{name: "HookSkillSource", typ: hooks.HookSkillSourceBundled},
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},
 		{name: "ToolSource", typ: tools.ToolSource(0)},
@@ -589,6 +784,7 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 			name: "task status values",
 			got:  taskStatusValues(),
 			want: []string{
+				string(taskpkg.TaskStatusDraft),
 				string(taskpkg.TaskStatusPending),
 				string(taskpkg.TaskStatusBlocked),
 				string(taskpkg.TaskStatusReady),
@@ -597,6 +793,21 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 				string(taskpkg.TaskStatusFailed),
 				string(taskpkg.TaskStatusCanceled),
 			},
+		},
+		{
+			name: "task priority values",
+			got:  taskPriorityValues(),
+			want: []string{"low", "medium", "high", "urgent"},
+		},
+		{
+			name: "task approval policy values",
+			got:  taskApprovalPolicyValues(),
+			want: []string{"none", "manual"},
+		},
+		{
+			name: "task approval state values",
+			got:  taskApprovalStateValues(),
+			want: []string{"not_required", "pending", "approved", "rejected"},
 		},
 		{
 			name: "task run status values",
@@ -641,6 +852,11 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 			got:  taskDependencyKindValues(),
 			want: []string{"blocks"},
 		},
+		{
+			name: "task inbox lane values",
+			got:  taskInboxLaneValues(),
+			want: []string{"my_work", "approvals", "failed_runs", "blocked", "archived"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -667,6 +883,26 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 	})
 }
 
+func TestOperationsRemainUniqueWithExpandedTaskSurface(t *testing.T) {
+	t.Parallel()
+
+	seenRouteMethods := make(map[string]struct{}, len(Operations()))
+	seenOperationIDs := make(map[string]struct{}, len(Operations()))
+
+	for _, operation := range Operations() {
+		routeMethodKey := operation.Method + " " + operation.Path
+		if _, ok := seenRouteMethods[routeMethodKey]; ok {
+			t.Fatalf("duplicate route+method %q", routeMethodKey)
+		}
+		seenRouteMethods[routeMethodKey] = struct{}{}
+
+		if _, ok := seenOperationIDs[operation.OperationID]; ok {
+			t.Fatalf("duplicate operation id %q", operation.OperationID)
+		}
+		seenOperationIDs[operation.OperationID] = struct{}{}
+	}
+}
+
 func operationFor(t *testing.T, doc *openapi3.T, path string, method string) *openapi3.Operation {
 	t.Helper()
 
@@ -684,13 +920,19 @@ func operationFor(t *testing.T, doc *openapi3.T, path string, method string) *op
 func jsonResponseSchema(t *testing.T, operation *openapi3.Operation, status int) *openapi3.Schema {
 	t.Helper()
 
+	return responseSchema(t, operation, status, "application/json")
+}
+
+func responseSchema(t *testing.T, operation *openapi3.Operation, status int, contentType string) *openapi3.Schema {
+	t.Helper()
+
 	responseRef := operation.Responses.Status(status)
 	if responseRef == nil || responseRef.Value == nil {
 		t.Fatalf("missing %d response", status)
 	}
-	mediaType := responseRef.Value.Content.Get("application/json")
+	mediaType := responseRef.Value.Content.Get(contentType)
 	if mediaType == nil || mediaType.Schema == nil || mediaType.Schema.Value == nil {
-		t.Fatalf("missing application/json schema for %d response", status)
+		t.Fatalf("missing %s schema for %d response", contentType, status)
 	}
 	return mediaType.Schema.Value
 }
@@ -733,6 +975,24 @@ func assertParameter(t *testing.T, operation *openapi3.Operation, name string, i
 		}
 	}
 	t.Fatalf("missing parameter %q in %s", name, in)
+}
+
+func assertResponseStatus(t *testing.T, operation *openapi3.Operation, status int) {
+	t.Helper()
+
+	if ref := operation.Responses.Status(status); ref == nil || ref.Value == nil {
+		t.Fatalf("missing %d response", status)
+	}
+}
+
+func assertTagsContain(t *testing.T, operation *openapi3.Operation, tags ...string) {
+	t.Helper()
+
+	for _, tag := range tags {
+		if !contains(operation.Tags, tag) {
+			t.Fatalf("expected tags %v to contain %q", operation.Tags, tag)
+		}
+	}
 }
 
 func assertRequired(t *testing.T, schema *openapi3.Schema, names ...string) {
@@ -796,6 +1056,16 @@ func assertSchemaHasAdditionalProperties(t *testing.T, schema *openapi3.Schema, 
 	}
 	if got := *schema.AdditionalProperties.Has; got != want {
 		t.Fatalf("expected additionalProperties=%v, got %v", want, got)
+	}
+}
+
+func assertObjectPropertyKeys(t *testing.T, schema *openapi3.Schema, names ...string) {
+	t.Helper()
+
+	for _, name := range names {
+		if _, ok := schema.Properties[name]; !ok {
+			t.Fatalf("expected property %q in schema, got %v", name, schema.Properties)
+		}
 	}
 }
 

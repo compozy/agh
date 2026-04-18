@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/store"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 // PrepareSSE configures a Gin response for SSE streaming.
@@ -46,6 +48,15 @@ func WriteSSE(writer FlushWriter, msg SSEMessage) error {
 	}
 
 	return writeSSERaw(writer, msg.ID, payload, msg.Name)
+}
+
+// WriteTaskStreamEvent writes one task-native live event through the shared SSE helper path.
+func WriteTaskStreamEvent(writer FlushWriter, event taskpkg.StreamEvent) error {
+	return WriteSSE(writer, SSEMessage{
+		ID:   strconv.FormatInt(event.Sequence, 10),
+		Name: event.Type,
+		Data: TaskStreamEventPayloadFromEvent(event),
+	})
 }
 
 func (h *BaseHandlers) writeSSEBestEffort(writer FlushWriter, msg SSEMessage) {

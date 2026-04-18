@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Enriched task reads and draft publication
 type: backend
 complexity: high
@@ -31,10 +31,10 @@ Expand the task manager’s list and detail reads so the UI can render split vie
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Extend task query and view types for enriched list and detail summaries
-- [ ] 3.2 Add manager/store support for search, activity ordering, and blocker-friendly dependency reads
-- [ ] 3.3 Implement explicit draft publication behavior in the task manager
-- [ ] 3.4 Add tests for enriched list cards, detail joins, search, and publication transitions
+- [x] 3.1 Extend task query and view types for enriched list and detail summaries
+- [x] 3.2 Add manager/store support for search, activity ordering, and blocker-friendly dependency reads
+- [x] 3.3 Implement explicit draft publication behavior in the task manager
+- [x] 3.4 Add tests for enriched list cards, detail joins, search, and publication transitions
 
 ## Implementation Details
 
@@ -67,14 +67,16 @@ See TechSpec sections "Core Interfaces", "Data Models", and the analysis docs fo
 
 ## Tests
 - Unit tests:
-  - [ ] Enriched list items include child/dependency counts, last activity, and active-run summary when present
-  - [ ] Dependency reads surface blocker references with enough information for UI labels
-  - [ ] Search by title and identifier returns the expected task set and ordering
-  - [ ] Publishing a draft task transitions it into `ready` or `blocked` based on its dependencies
+  - [x] Enriched list items include `priority`, `max_attempts`, child/dependency counts, last activity, and active-run chips for mixed task states
+  - [x] Enriched detail reads surface blocker references with identifier, title, status, and owner context so the UI can label dependencies without extra fetches
+  - [x] Search by title and identifier matches case-insensitively and preserves stable activity-based ordering for equally relevant results
+  - [x] Combined list filters such as `workspace`, `status`, `parent_task_id`, and text query produce the expected task set without dropping enriched fields
+  - [x] Publishing a draft task transitions it into `ready` or `blocked` based on dependency state and rejects publication for already-published tasks
 - Integration tests:
-  - [ ] Real-store list queries return enriched summaries without requiring per-task follow-up reads
-  - [ ] `GetTask` returns child, dependency, run, and event data aligned with the enriched detail contract
-  - [ ] Publishing a persisted draft task survives reload and returns the reconciled task state
+  - [x] Real-store list queries return enriched summaries, active-run metadata, and latest-activity values without requiring per-task follow-up reads
+  - [x] `GetTask` returns children, dependency references, run summaries, and recent event context aligned with the enriched detail contract
+  - [x] Store-backed search respects text query together with persisted workspace/status filters and returns the expected ordering after reload
+  - [x] Publishing a persisted draft task survives reload and subsequent list/detail reads return the reconciled task state consistently
 - Test coverage target: >=80%
 - All tests must pass
 

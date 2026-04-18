@@ -42,7 +42,9 @@ export type HostAPIMethod =
   | "tasks"
   | "tasks/cancel"
   | "tasks/create"
+  | "tasks/dashboard"
   | "tasks/get"
+  | "tasks/inbox"
   | "tasks/runs"
   | "tasks/runs/attach_session"
   | "tasks/runs/cancel"
@@ -50,7 +52,10 @@ export type HostAPIMethod =
   | "tasks/runs/complete"
   | "tasks/runs/enqueue"
   | "tasks/runs/fail"
+  | "tasks/runs/get"
   | "tasks/runs/start"
+  | "tasks/timeline"
+  | "tasks/tree"
   | "tasks/update";
 
 export interface AcceptedCapabilities {
@@ -1958,6 +1963,12 @@ export interface SkillsListParams {
   workspace?: string;
 }
 
+export type Priority = string;
+
+export type ApprovalPolicy = string;
+
+export type ApprovalState = string;
+
 export type ActorKind = string;
 
 export interface ActorIdentity {
@@ -1979,7 +1990,12 @@ export interface Task {
   network_channel?: string;
   title: string;
   description?: string;
+  priority?: Priority;
+  max_attempts?: number;
   status: Status;
+  approval_policy?: ApprovalPolicy;
+  approval_state?: ApprovalState;
+  draft?: boolean;
   owner?: Ownership;
   created_by: ActorIdentity;
   origin: Origin;
@@ -2003,8 +2019,203 @@ export interface TaskCreateParams {
   network_channel?: string;
   title: string;
   description?: string;
+  priority?: Priority;
+  max_attempts?: number;
+  draft?: boolean;
+  approval_policy?: ApprovalPolicy;
   owner?: Ownership;
   metadata?: JSONValue;
+}
+
+export interface TaskDashboardTotalsPayload {
+  tasks_total: number;
+  runs_total: number;
+  draft_tasks: number;
+  pending_tasks: number;
+  ready_tasks: number;
+  in_progress_tasks: number;
+  blocked_tasks: number;
+  completed_tasks: number;
+  failed_tasks: number;
+  canceled_tasks: number;
+  awaiting_approval_tasks: number;
+  dependency_blocked_tasks: number;
+  queued_runs: number;
+  claimed_runs: number;
+  starting_runs: number;
+  running_runs: number;
+  completed_runs: number;
+  failed_runs: number;
+  canceled_runs: number;
+  active_runs: number;
+}
+
+export interface TaskDashboardInProgressCardPayload {
+  tasks: number;
+  active_runs: number;
+  running_runs: number;
+  starting_runs: number;
+  claimed_runs: number;
+  queued_runs: number;
+  health_status: string;
+}
+
+export interface TaskDashboardBlockedCardPayload {
+  tasks: number;
+  awaiting_approval: number;
+  awaiting_dependencies: number;
+  health_status: string;
+}
+
+export interface TaskDashboardFailedCardPayload {
+  tasks: number;
+  failed_runs: number;
+  forced_stops: number;
+  health_status: string;
+}
+
+export interface TaskLatencyMetricPayload {
+  samples: number;
+  average_ms: number;
+  maximum_ms: number;
+}
+
+export interface TaskDashboardLatencyCardPayload {
+  claim_latency_ms: TaskLatencyMetricPayload;
+  start_latency_ms: TaskLatencyMetricPayload;
+}
+
+export interface TaskDashboardCardsPayload {
+  in_progress: TaskDashboardInProgressCardPayload;
+  blocked: TaskDashboardBlockedCardPayload;
+  failed: TaskDashboardFailedCardPayload;
+  latency: TaskDashboardLatencyCardPayload;
+}
+
+export interface TaskDashboardStatusBreakdownPayload {
+  status: Status;
+  count: number;
+  share_percent: number;
+}
+
+export interface TaskDashboardQueueDepthPayload {
+  network_channel?: string;
+  count: number;
+  oldest_queued_at: ISODateTime;
+  oldest_queue_age_ms: number;
+}
+
+export interface TaskDashboardQueuePayload {
+  total: number;
+  depth?: TaskDashboardQueueDepthPayload[];
+  oldest_queued_at: ISODateTime;
+  oldest_queue_age_ms: number;
+  backlog_warning: boolean;
+  backlog_status: string;
+  backlog_threshold_ms: number;
+}
+
+export interface TaskDashboardHealthPayload {
+  status: string;
+  stuck_runs: number;
+  active_orphan_runs: number;
+  queue_backlog: boolean;
+}
+
+export interface TaskDashboardActiveRunPayload {
+  task_id: string;
+  task_identifier?: string;
+  task_title: string;
+  task_status: Status;
+  task_priority?: Priority;
+  task_owner?: Ownership;
+  scope: Scope;
+  workspace_id?: string;
+  run_id: string;
+  run_status: RunStatus;
+  attempt: number;
+  max_attempts: number;
+  session_id?: string;
+  network_channel?: string;
+  last_activity_at: ISODateTime;
+  age_ms: number;
+  health_status: string;
+  stuck: boolean;
+  error?: string;
+}
+
+export interface TaskDashboardActiveRunsPayload {
+  total: number;
+  running: number;
+  starting: number;
+  claimed: number;
+  queued: number;
+  items?: TaskDashboardActiveRunPayload[];
+}
+
+export interface TaskDashboardFreshnessPayload {
+  observed_at: ISODateTime;
+  latest_activity_at: ISODateTime;
+  age_ms: number;
+  stale_after_ms: number;
+  has_live_work: boolean;
+  status: string;
+  stale: boolean;
+}
+
+export interface TaskDashboard {
+  totals: TaskDashboardTotalsPayload;
+  cards: TaskDashboardCardsPayload;
+  status_breakdown?: TaskDashboardStatusBreakdownPayload[];
+  queue: TaskDashboardQueuePayload;
+  health: TaskDashboardHealthPayload;
+  active_runs: TaskDashboardActiveRunsPayload;
+  freshness: TaskDashboardFreshnessPayload;
+}
+
+export interface TaskDashboardParams {
+  scope?: Scope;
+  workspace?: string;
+  owner_kind?: OwnerKind;
+  owner_ref?: string;
+  network_channel?: string;
+  origin_kind?: OriginKind;
+}
+
+export type DependencyKind = string;
+
+export interface TaskReferencePayload {
+  id: string;
+  identifier?: string;
+  title: string;
+  status: Status;
+  priority?: Priority;
+  owner?: Ownership;
+  scope: Scope;
+  workspace_id?: string;
+}
+
+export interface TaskDependencyReferencePayload {
+  task_id: string;
+  depends_on_task_id: string;
+  kind: DependencyKind;
+  created_at: ISODateTime;
+  depends_on: TaskReferencePayload;
+}
+
+export interface TaskRunSummaryPayload {
+  id: string;
+  task_id: string;
+  status: RunStatus;
+  attempt: number;
+  max_attempts: number;
+  session_id?: string;
+  claimed_by?: ActorIdentity;
+  queued_at: ISODateTime;
+  claimed_at?: ISODateTime;
+  started_at?: ISODateTime;
+  ended_at?: ISODateTime;
+  error?: string;
 }
 
 export interface TaskSummary {
@@ -2015,16 +2226,24 @@ export interface TaskSummary {
   parent_task_id?: string;
   network_channel?: string;
   title: string;
+  priority?: Priority;
+  max_attempts?: number;
   status: Status;
+  approval_policy?: ApprovalPolicy;
+  approval_state?: ApprovalState;
+  draft?: boolean;
   owner?: Ownership;
   created_by: ActorIdentity;
   origin: Origin;
   created_at: ISODateTime;
   updated_at: ISODateTime;
   closed_at?: ISODateTime;
+  child_count?: number;
+  dependency_count?: number;
+  dependencies?: TaskDependencyReferencePayload[];
+  active_run?: TaskRunSummaryPayload;
+  last_activity_at?: ISODateTime;
 }
-
-export type DependencyKind = string;
 
 export interface TaskDependencyPayload {
   task_id: string;
@@ -2063,11 +2282,61 @@ export interface TaskEventPayload {
 }
 
 export interface TaskDetail {
+  summary: TaskSummary;
   task: Task;
   children?: TaskSummary[];
   dependencies?: TaskDependencyPayload[];
+  dependency_references?: TaskDependencyReferencePayload[];
   runs?: TaskRun[];
   events?: TaskEventPayload[];
+}
+
+export type TaskInboxLane = string;
+
+export interface TaskTriageStatePayload {
+  task_id: string;
+  actor: ActorIdentity;
+  read: boolean;
+  archived: boolean;
+  dismissed: boolean;
+  last_seen_activity_at?: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+export interface TaskInboxItemPayload {
+  task: TaskReferencePayload;
+  lane: TaskInboxLane;
+  approval_policy?: ApprovalPolicy;
+  approval_state?: ApprovalState;
+  blocking_reason?: string;
+  latest_activity_at: ISODateTime;
+  run?: TaskRunSummaryPayload;
+  triage: TaskTriageStatePayload;
+}
+
+export interface TaskInboxLaneGroupPayload {
+  lane: TaskInboxLane;
+  count: number;
+  unread_count: number;
+  items?: TaskInboxItemPayload[];
+}
+
+export interface TaskInbox {
+  total: number;
+  unread_total: number;
+  archived_total: number;
+  groups?: TaskInboxLaneGroupPayload[];
+}
+
+export interface TaskInboxParams {
+  scope?: Scope;
+  workspace?: string;
+  owner_kind?: OwnerKind;
+  owner_ref?: string;
+  lane?: TaskInboxLane;
+  unread?: boolean;
+  query?: string;
+  limit?: number;
 }
 
 export interface TaskRunAttachSessionParams {
@@ -2091,6 +2360,36 @@ export interface TaskRunCompleteParams {
   result?: JSONValue;
 }
 
+export interface TaskRunSessionPayload {
+  session_id: string;
+  workspace_id?: string;
+  agent_name?: string;
+  name?: string;
+  channel?: string;
+  state?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+export interface TaskRunOperationalSummaryPayload {
+  last_activity_at: ISODateTime;
+  last_event_type?: string;
+  tool_call_count?: number;
+  turn_count?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  total_cost?: number;
+  cost_currency?: string;
+}
+
+export interface TaskRunDetail {
+  run: TaskRun;
+  task: TaskReferencePayload;
+  session?: TaskRunSessionPayload;
+  summary: TaskRunOperationalSummaryPayload;
+}
+
 export interface TaskRunEnqueueParams {
   task_id: string;
   idempotency_key?: string;
@@ -2101,6 +2400,10 @@ export interface TaskRunFailParams {
   id: string;
   error: string;
   metadata?: JSONValue;
+}
+
+export interface TaskRunGetParams {
+  id: string;
 }
 
 export interface TaskRunStartParams {
@@ -2119,10 +2422,49 @@ export interface TaskTargetParams {
   id: string;
 }
 
+export interface TaskTimelineItem {
+  sequence: number;
+  event_id: string;
+  task: TaskReferencePayload;
+  run?: TaskRunSummaryPayload;
+  event_type: string;
+  actor: ActorIdentity;
+  origin: Origin;
+  payload?: JSONValue;
+  timestamp: ISODateTime;
+}
+
+export interface TaskTimelineParams {
+  id: string;
+  after_sequence?: number;
+  limit?: number;
+}
+
+export interface TaskTreeNodePayload {
+  task: TaskReferencePayload;
+  parent_task_id?: string;
+  depth: number;
+  child_count?: number;
+  active_run?: TaskRunSummaryPayload;
+  last_activity_at: ISODateTime;
+}
+
+export interface TaskTree {
+  root: TaskTreeNodePayload;
+  descendants?: TaskTreeNodePayload[];
+}
+
+export interface TaskTreeParams {
+  id: string;
+}
+
 export interface TaskUpdateParams {
   id: string;
   title?: string;
   description?: string;
+  priority?: Priority;
+  max_attempts?: number;
+  approval_policy?: ApprovalPolicy;
   metadata?: JSONValue;
   network_channel?: string;
   owner?: Ownership;
@@ -2133,10 +2475,14 @@ export interface TasksParams {
   scope?: Scope;
   workspace?: string;
   status?: Status;
+  priority?: Priority;
+  include_drafts?: boolean;
+  approval_state?: ApprovalState;
   owner_kind?: OwnerKind;
   owner_ref?: string;
   parent_task_id?: string;
   network_channel?: string;
+  query?: string;
   limit?: number;
 }
 
@@ -2560,6 +2906,22 @@ export interface HostAPIMethodMap {
     params: TaskTargetParams;
     result: TaskDetail;
   };
+  "tasks/timeline": {
+    params: TaskTimelineParams;
+    result: TaskTimelineItem[];
+  };
+  "tasks/tree": {
+    params: TaskTreeParams;
+    result: TaskTree;
+  };
+  "tasks/dashboard": {
+    params: TaskDashboardParams | undefined;
+    result: TaskDashboard;
+  };
+  "tasks/inbox": {
+    params: TaskInboxParams | undefined;
+    result: TaskInbox;
+  };
   "tasks/create": {
     params: TaskCreateParams;
     result: Task;
@@ -2575,6 +2937,10 @@ export interface HostAPIMethodMap {
   "tasks/runs": {
     params: TaskRunsParams;
     result: TaskRun[];
+  };
+  "tasks/runs/get": {
+    params: TaskRunGetParams;
+    result: TaskRunDetail;
   };
   "tasks/runs/enqueue": {
     params: TaskRunEnqueueParams;

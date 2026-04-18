@@ -10,6 +10,7 @@ import {
   ArtifactCollector,
   type BrowserRouteState,
   isLikelyViteDevHTML,
+  mirrorBrowserScreenshotForQA,
   persistBrowserArtifacts,
   resolveBrowserArtifactPath,
 } from "./artifacts";
@@ -119,5 +120,22 @@ describe("artifact collector", () => {
         '<!doctype html><html><head><script type="module" src="/assets/index-abc123.js"></script></head></html>'
       )
     ).toBe(false);
+  });
+
+  it("mirrors named screenshots into the task QA artifact root", async () => {
+    const qaOutputRoot = await mkdtemp(path.join(os.tmpdir(), "agh-qa-output-root-"));
+    const sourceDir = await mkdtemp(path.join(os.tmpdir(), "agh-qa-source-"));
+    const sourcePath = path.join(sourceDir, "dashboard-capture.png");
+
+    await writeFile(sourcePath, "dashboard");
+
+    const mirroredPath = await mirrorBrowserScreenshotForQA(
+      sourcePath,
+      qaOutputRoot,
+      "tasks-dashboard"
+    );
+
+    expect(mirroredPath).toBe(path.join(qaOutputRoot, "qa", "screenshots", "tasks-dashboard.png"));
+    expect(await readFile(mirroredPath, "utf8")).toBe("dashboard");
   });
 });

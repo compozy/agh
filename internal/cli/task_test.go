@@ -727,7 +727,7 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 	t.Parallel()
 
 	detail := sampleTaskDetailRecord()
-	detailToon, err := taskDetailBundle(detail).toon()
+	detailToon, err := taskDetailBundle(&detail).toon()
 	if err != nil {
 		t.Fatalf("taskDetailBundle().toon() error = %v", err)
 	}

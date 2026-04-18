@@ -1,0 +1,78 @@
+import { AlertCircle, Loader2 } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+
+import { useTaskRunPage } from "@/hooks/routes/use-task-run-page";
+import {
+  TaskRunActivityPanel,
+  TaskRunDetailHeader,
+  TaskRunDetailSessionLink,
+  TaskRunIdentityPanel,
+  TaskRunProgressPanel,
+} from "@/systems/tasks";
+
+export const Route = createFileRoute("/_app/tasks/$id/runs/$runId")({
+  component: TaskRunDetailRoute,
+});
+
+function TaskRunDetailRoute() {
+  const { id, runId } = Route.useParams();
+  const page = useTaskRunPage(id, runId);
+
+  if (page.runLoading) {
+    return (
+      <div
+        className="flex flex-1 items-center justify-center"
+        data-testid="tasks-run-detail-loading"
+      >
+        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+      </div>
+    );
+  }
+
+  if (page.notFound || (!page.run && page.fatalError)) {
+    return (
+      <div
+        className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+        data-testid="tasks-run-detail-not-found"
+      >
+        <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
+        <p className="text-sm text-[color:var(--color-text-secondary)]">
+          {page.fatalError?.message ?? `Run ${runId} not found.`}
+        </p>
+      </div>
+    );
+  }
+
+  const run = page.run;
+  if (!run) {
+    return (
+      <div
+        className="flex flex-1 items-center justify-center"
+        data-testid="tasks-run-detail-placeholder"
+      >
+        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-run-detail-content">
+      <TaskRunDetailHeader
+        isCancelPending={page.isCancelPending}
+        onCancelRun={page.handleCancelRun}
+        run={run}
+      />
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto px-6 py-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-4" data-testid="tasks-run-detail-main">
+          <TaskRunDetailSessionLink run={run} />
+          <TaskRunActivityPanel run={run} />
+        </div>
+        <aside className="flex flex-col gap-4" data-testid="tasks-run-detail-side">
+          <TaskRunIdentityPanel run={run} />
+          <TaskRunProgressPanel run={run} />
+        </aside>
+      </div>
+    </div>
+  );
+}

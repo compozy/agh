@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -133,6 +135,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/observe/events",
 		"GET /api/observe/events/stream",
 		"GET /api/observe/health",
+		"GET /api/observe/tasks/dashboard",
+		"GET /api/observe/tasks/inbox",
 		"GET /api/resources",
 		"GET /api/resources/:kind",
 		"GET /api/resources/:kind/:id",
@@ -160,8 +164,12 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/skills",
 		"GET /api/skills/:name",
 		"GET /api/skills/:name/content",
+		"GET /api/task-runs/:id",
 		"GET /api/tasks",
 		"GET /api/tasks/:id",
+		"GET /api/tasks/:id/stream",
+		"GET /api/tasks/:id/timeline",
+		"GET /api/tasks/:id/tree",
 		"GET /api/tasks/:id/runs",
 		"GET /api/workspaces",
 		"GET /api/workspaces/:id",
@@ -209,10 +217,16 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/task-runs/:id/fail",
 		"POST /api/task-runs/:id/start",
 		"POST /api/tasks",
+		"POST /api/tasks/:id/approve",
 		"POST /api/tasks/:id/cancel",
 		"POST /api/tasks/:id/children",
 		"POST /api/tasks/:id/dependencies",
+		"POST /api/tasks/:id/publish",
+		"POST /api/tasks/:id/reject",
 		"POST /api/tasks/:id/runs",
+		"POST /api/tasks/:id/triage/archive",
+		"POST /api/tasks/:id/triage/dismiss",
+		"POST /api/tasks/:id/triage/read",
 		"POST /api/workspaces",
 		"POST /api/workspaces/resolve",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
@@ -456,6 +470,45 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 	}
 }
 
+func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+
+	expectedHandlers := map[string]string{
+		"GET /api/observe/tasks/dashboard":   "TaskDashboard",
+		"GET /api/observe/tasks/inbox":       "TaskInbox",
+		"GET /api/task-runs/:id":             "GetTaskRun",
+		"GET /api/tasks/:id/stream":          "StreamTask",
+		"GET /api/tasks/:id/timeline":        "TaskTimeline",
+		"GET /api/tasks/:id/tree":            "TaskTree",
+		"POST /api/tasks/:id/approve":        "ApproveTask",
+		"POST /api/tasks/:id/publish":        "PublishTask",
+		"POST /api/tasks/:id/reject":         "RejectTask",
+		"POST /api/tasks/:id/triage/archive": "ArchiveTask",
+		"POST /api/tasks/:id/triage/dismiss": "DismissTask",
+		"POST /api/tasks/:id/triage/read":    "MarkTaskRead",
+	}
+
+	routes := engine.Routes()
+	for key, handlerName := range expectedHandlers {
+		var matched *gin.RouteInfo
+		for i := range routes {
+			route := routes[i]
+			if route.Method+" "+route.Path == key {
+				matched = &route
+				break
+			}
+		}
+		if matched == nil {
+			t.Fatalf("route %q not registered", key)
+		}
+		if !strings.Contains(matched.Handler, handlerName) {
+			t.Fatalf("route %q handler = %q, want substring %q", key, matched.Handler, handlerName)
+		}
+	}
+}
 func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{

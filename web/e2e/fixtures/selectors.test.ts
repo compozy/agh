@@ -19,6 +19,8 @@ import {
   settingsSkillsTestIds,
   sessionLifecycleSelectors,
   sessionLifecycleTestIds,
+  tasksOperatorSelectors,
+  tasksOperatorTestIds,
 } from "./selectors";
 
 describe("session lifecycle selectors", () => {
@@ -149,7 +151,6 @@ describe("bridge operator selectors", () => {
     expect(selectors.route("sess_bridge_01")).toBe("locator:bridge-route-sess_bridge_01");
   });
 });
-
 describe("settings operator selectors", () => {
   it("maps shell, restart-aware sections, collection rows, and hooks/extensions toggles to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
@@ -241,6 +242,78 @@ describe("settings operator selectors", () => {
     );
     expect(selectors.hooksExtensions.extensionToggle("telegram-reference")).toBe(
       "locator:settings-page-hooks-extensions-extensions-item-telegram-reference-toggle"
+    );
+  });
+});
+
+describe("tasks operator selectors", () => {
+  it("maps the tasks shell, modal, detail, aggregate, and inbox surfaces to stable test IDs", () => {
+    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const selectors = tasksOperatorSelectors({
+      getByTestId,
+    });
+
+    expect(selectors.navTasks).toBe(`locator:${tasksOperatorTestIds.navTasks}`);
+    expect(selectors.modeList).toBe(`locator:${tasksOperatorTestIds.modeList}`);
+    expect(selectors.modeDashboard).toBe(`locator:${tasksOperatorTestIds.modeDashboard}`);
+    expect(selectors.modeInbox).toBe(`locator:${tasksOperatorTestIds.modeInbox}`);
+    expect(selectors.openCreate).toBe(`locator:${tasksOperatorTestIds.openCreate}`);
+    expect(selectors.createModal).toBe(`locator:${tasksOperatorTestIds.createModal}`);
+    expect(selectors.createTitle).toBe(`locator:${tasksOperatorTestIds.createTitle}`);
+    expect(selectors.createDescription).toBe(`locator:${tasksOperatorTestIds.createDescription}`);
+    expect(selectors.createSaveDraft).toBe(`locator:${tasksOperatorTestIds.createSaveDraft}`);
+    expect(selectors.createSubmit).toBe(`locator:${tasksOperatorTestIds.createSubmit}`);
+    expect(selectors.createTemplate("one_shot")).toBe(
+      "locator:tasks-create-modal-template-one_shot"
+    );
+    expect(selectors.createPriority("high")).toBe("locator:tasks-create-modal-priority-high");
+    expect(selectors.taskCard("task_browser_01")).toBe("locator:task-card-task_browser_01");
+    expect(selectors.taskCardPublish("task_browser_01")).toBe(
+      "locator:task-card-publish-task_browser_01"
+    );
+    expect(selectors.detailPreviewPanel).toBe(`locator:${tasksOperatorTestIds.detailPreviewPanel}`);
+    expect(selectors.detailPreviewPublish).toBe(
+      `locator:${tasksOperatorTestIds.detailPreviewPublish}`
+    );
+    expect(selectors.detailPreviewDeeplink).toBe(
+      `locator:${tasksOperatorTestIds.detailPreviewDeeplink}`
+    );
+    expect(selectors.detailContent).toBe(`locator:${tasksOperatorTestIds.detailContent}`);
+    expect(selectors.detailBreadcrumbTasks).toBe(
+      `locator:${tasksOperatorTestIds.detailBreadcrumbTasks}`
+    );
+    expect(selectors.detailTabRuns).toBe(`locator:${tasksOperatorTestIds.detailTabRuns}`);
+    expect(selectors.detailTabAgents).toBe(`locator:${tasksOperatorTestIds.detailTabAgents}`);
+    expect(selectors.detailTab("timeline")).toBe("locator:tasks-detail-tab-timeline");
+    expect(selectors.detailRunsLink("run_browser_01")).toBe(
+      "locator:tasks-detail-runs-link-run_browser_01"
+    );
+    expect(selectors.dashboardView).toBe(`locator:${tasksOperatorTestIds.dashboardView}`);
+    expect(selectors.dashboardActiveRun("run_browser_01")).toBe(
+      "locator:tasks-dashboard-active-run-run_browser_01"
+    );
+    expect(selectors.dashboardActiveRunLink("run_browser_01")).toBe(
+      "locator:tasks-dashboard-active-run-link-run_browser_01"
+    );
+    expect(selectors.inboxView).toBe(`locator:${tasksOperatorTestIds.inboxView}`);
+    expect(selectors.inboxLane("approvals")).toBe("locator:tasks-inbox-lane-approvals");
+    expect(selectors.inboxItem("task_browser_approval")).toBe(
+      "locator:tasks-inbox-item-task_browser_approval"
+    );
+    expect(selectors.inboxApprove("task_browser_approval")).toBe(
+      "locator:tasks-inbox-item-approve-task_browser_approval"
+    );
+    expect(selectors.inboxOpenTask("task_browser_approval")).toBe(
+      "locator:tasks-inbox-item-open-task_browser_approval"
+    );
+    expect(selectors.runDetailContent).toBe(`locator:${tasksOperatorTestIds.runDetailContent}`);
+    expect(selectors.runSessionDrilldown).toBe(
+      `locator:${tasksOperatorTestIds.runSessionDrilldown}`
+    );
+    expect(selectors.multiAgentEmpty).toBe(`locator:${tasksOperatorTestIds.multiAgentEmpty}`);
+    expect(selectors.multiAgentNoActive).toBe(`locator:${tasksOperatorTestIds.multiAgentNoActive}`);
+    expect(selectors.multiAgentDisconnected).toBe(
+      `locator:${tasksOperatorTestIds.multiAgentDisconnected}`
     );
   });
 });

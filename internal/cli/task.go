@@ -187,7 +187,7 @@ func newTaskGetCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, taskDetailBundle(taskDetail))
+			return writeCommandOutput(cmd, taskDetailBundle(&taskDetail))
 		},
 	}
 }
@@ -449,7 +449,7 @@ func newTaskDependencyAddCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, taskDetailBundle(updated))
+			return writeCommandOutput(cmd, taskDetailBundle(&updated))
 		},
 	}
 	cmd.Flags().StringVar(&dependsOnID, "depends-on", "", "Dependency task ID")
@@ -473,7 +473,7 @@ func newTaskDependencyRemoveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, taskDetailBundle(updated))
+			return writeCommandOutput(cmd, taskDetailBundle(&updated))
 		},
 	}
 }
@@ -1133,7 +1133,7 @@ func taskSummaryListBundle(items []TaskSummaryRecord) outputBundle {
 	)
 }
 
-func taskDetailBundle(detail TaskDetailRecord) outputBundle {
+func taskDetailBundle(detail *TaskDetailRecord) outputBundle {
 	return outputBundle{
 		jsonValue: detail,
 		human:     func() (string, error) { return renderTaskDetailHuman(detail) },
@@ -1141,7 +1141,7 @@ func taskDetailBundle(detail TaskDetailRecord) outputBundle {
 	}
 }
 
-func renderTaskDetailHuman(detail TaskDetailRecord) (string, error) {
+func renderTaskDetailHuman(detail *TaskDetailRecord) (string, error) {
 	taskBlock, err := taskBundle(detail.Task).human()
 	if err != nil {
 		return "", err
@@ -1182,7 +1182,7 @@ func renderTaskDetailHuman(detail TaskDetailRecord) (string, error) {
 	), nil
 }
 
-func renderTaskDetailToon(detail TaskDetailRecord) (string, error) {
+func renderTaskDetailToon(detail *TaskDetailRecord) (string, error) {
 	taskBlock, err := taskBundle(detail.Task).toon()
 	if err != nil {
 		return "", err

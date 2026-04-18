@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pedronauck/agh/internal/store"
@@ -15,6 +16,9 @@ import (
 const (
 	taskEventCreated           = "task.created"
 	taskEventUpdated           = "task.updated"
+	taskEventPublished         = "task.published"
+	taskEventApproved          = "task.approved"
+	taskEventRejected          = "task.rejected"
 	taskEventCanceled          = "task.canceled"
 	taskEventChildCreated      = "task.child_created"
 	taskEventDependencyAdded   = "task.dependency_added"
@@ -38,6 +42,7 @@ type Option func(*managerOptions)
 type managerOptions struct {
 	store             Store
 	sessions          SessionExecutor
+	runtimeViews      RuntimeViewReader
 	channelValidator  func(string) error
 	now               func() time.Time
 	newID             func(prefix string) string
@@ -49,10 +54,14 @@ type managerOptions struct {
 type Service struct {
 	store             Store
 	sessions          SessionExecutor
+	runtimeViews      RuntimeViewReader
 	channelValidator  func(string) error
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
+	liveMu            sync.Mutex
+	liveSubscribers   map[uint64]*taskStreamSubscriber
+	nextSubscriberID  uint64
 }
 
 var _ Manager = (*Service)(nil)
@@ -69,6 +78,13 @@ func WithStore(store Store) Option {
 func WithSessionExecutor(sessions SessionExecutor) Option {
 	return func(opts *managerOptions) {
 		opts.sessions = sessions
+	}
+}
+
+// WithRuntimeViewReader injects optional session telemetry enrichment for task live reads.
+func WithRuntimeViewReader(reader RuntimeViewReader) Option {
+	return func(opts *managerOptions) {
+		opts.runtimeViews = reader
 	}
 }
 
@@ -132,10 +148,12 @@ func NewManager(opts ...Option) (*Service, error) {
 	return &Service{
 		store:             options.store,
 		sessions:          options.sessions,
+		runtimeViews:      options.runtimeViews,
 		channelValidator:  options.channelValidator,
 		now:               options.now,
 		newID:             options.newID,
 		cancelGracePeriod: options.cancelGracePeriod,
+		liveSubscribers:   make(map[uint64]*taskStreamSubscriber),
 	}, nil
 }
 
@@ -167,7 +185,11 @@ func (m *Service) CreateTask(ctx context.Context, spec CreateTask, actor ActorCo
 		NetworkChannel: normalizedSpec.NetworkChannel,
 		Title:          normalizedSpec.Title,
 		Description:    normalizedSpec.Description,
-		Status:         TaskStatusReady,
+		Priority:       normalizedSpec.Priority,
+		MaxAttempts:    createTaskMaxAttempts(normalizedSpec),
+		Status:         createdTaskStatus(normalizedSpec),
+		ApprovalPolicy: normalizedSpec.ApprovalPolicy,
+		ApprovalState:  defaultApprovalStateForPolicy(normalizedSpec.ApprovalPolicy),
 		Owner:          cloneOwnership(normalizedSpec.Owner),
 		CreatedBy:      actor.Actor,
 		Origin:         actor.Origin,
@@ -269,7 +291,7 @@ func (m *Service) UpdateTask(ctx context.Context, id string, patch Patch, actor 
 		return nil, err
 	}
 
-	canonicalStatus, err := m.canonicalTaskStatus(ctx, current, dependencies, runs)
+	canonicalStatus, err := m.canonicalTaskStatus(ctx, updated, dependencies, runs)
 	if err != nil {
 		return nil, err
 	}
@@ -338,6 +360,19 @@ func applyTaskPatch(current Task, patch Patch) (Task, []string) {
 		updated.Description = *patch.Description
 		changedFields = append(changedFields, TaskFieldDescription)
 	}
+	if patch.Priority != nil && updated.Priority != *patch.Priority {
+		updated.Priority = *patch.Priority
+		changedFields = append(changedFields, TaskFieldPriority)
+	}
+	if patch.MaxAttempts != nil && updated.MaxAttempts != *patch.MaxAttempts {
+		updated.MaxAttempts = *patch.MaxAttempts
+		changedFields = append(changedFields, TaskFieldMaxAttempts)
+	}
+	if patch.ApprovalPolicy != nil && updated.ApprovalPolicy != *patch.ApprovalPolicy {
+		updated.ApprovalPolicy = *patch.ApprovalPolicy
+		updated.ApprovalState = defaultApprovalStateForPolicy(*patch.ApprovalPolicy)
+		changedFields = append(changedFields, TaskFieldApprovalPolicy)
+	}
 	if patch.Metadata != nil && !sameRawJSON(updated.Metadata, *patch.Metadata) {
 		updated.Metadata = cloneRawJSON(*patch.Metadata)
 		changedFields = append(changedFields, TaskFieldMetadata)
@@ -356,6 +391,240 @@ func applyTaskPatch(current Task, patch Patch) (Task, []string) {
 	}
 
 	return updated, changedFields
+}
+
+func createTaskMaxAttempts(spec CreateTask) int {
+	if spec.MaxAttempts == nil {
+		return DefaultTaskMaxAttempts
+	}
+	return normalizeTaskMaxAttemptsOrDefault(*spec.MaxAttempts)
+}
+
+func createdTaskStatus(spec CreateTask) Status {
+	if spec.Draft {
+		return TaskStatusDraft
+	}
+	if approvalStateBlocksExecution(
+		normalizeApprovalPolicyOrDefault(spec.ApprovalPolicy),
+		defaultApprovalStateForPolicy(spec.ApprovalPolicy),
+	) {
+		return TaskStatusBlocked
+	}
+	return TaskStatusReady
+}
+
+// PublishTask transitions one durable draft into manager-owned runnable reconciliation.
+func (m *Service) PublishTask(ctx context.Context, id string, actor ActorContext) (*Task, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return nil, err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+
+	record, err := m.store.GetTask(ctx, trimmedID)
+	if err != nil {
+		return nil, err
+	}
+	if record.Status.Normalize() != TaskStatusDraft {
+		return nil, fmt.Errorf(
+			"%w: task %q cannot publish from %q",
+			ErrInvalidStatusTransition,
+			record.ID,
+			record.Status,
+		)
+	}
+
+	record.Status = TaskStatusPending
+	record.UpdatedAt = m.now().UTC()
+	record.ClosedAt = time.Time{}
+	if err := m.store.UpdateTask(ctx, record); err != nil {
+		return nil, err
+	}
+
+	reconciled, err := m.reconcileTaskCascade(ctx, record.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.recordTaskEvent(ctx, reconciled.ID, "", taskEventPublished, actor, publishedTaskPayload{
+		PreviousStatus: TaskStatusDraft,
+		Status:         reconciled.Status,
+		ApprovalState:  reconciled.ApprovalState,
+	}); err != nil {
+		return nil, err
+	}
+
+	return &reconciled, nil
+}
+
+// ApproveTask records one approval decision for a manual-approval task that is
+// currently awaiting a decision and reconciles the resulting task status.
+func (m *Service) ApproveTask(ctx context.Context, id string, actor ActorContext) (*Task, error) {
+	return m.transitionTaskApproval(ctx, id, ApprovalStateApproved, taskEventApproved, actor)
+}
+
+// RejectTask records one rejection decision for a manual-approval task that is
+// currently awaiting a decision and reconciles the resulting task status.
+func (m *Service) RejectTask(ctx context.Context, id string, actor ActorContext) (*Task, error) {
+	return m.transitionTaskApproval(ctx, id, ApprovalStateRejected, taskEventRejected, actor)
+}
+
+func (m *Service) transitionTaskApproval(
+	ctx context.Context,
+	id string,
+	target ApprovalState,
+	eventType string,
+	actor ActorContext,
+) (*Task, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return nil, err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+
+	record, err := m.store.GetTask(ctx, trimmedID)
+	if err != nil {
+		return nil, err
+	}
+
+	previousApprovalState := normalizeApprovalStateOrDefault(record.ApprovalPolicy, record.ApprovalState)
+	if !taskApprovalDecisionAllowed(record, target) {
+		return nil, fmt.Errorf(
+			"%w: task %q cannot transition approval from %q to %q",
+			ErrInvalidStatusTransition,
+			record.ID,
+			previousApprovalState,
+			target.Normalize(),
+		)
+	}
+
+	record.ApprovalState = target.Normalize()
+	record.UpdatedAt = m.now().UTC()
+	record.ClosedAt = time.Time{}
+	if err := m.store.UpdateTask(ctx, record); err != nil {
+		return nil, err
+	}
+
+	reconciled, err := m.reconcileTaskCascade(ctx, record.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.recordTaskEvent(ctx, reconciled.ID, "", eventType, actor, approvalDecisionTaskPayload{
+		PreviousApprovalState: previousApprovalState,
+		ApprovalState:         reconciled.ApprovalState,
+		Status:                reconciled.Status,
+	}); err != nil {
+		return nil, err
+	}
+
+	return &reconciled, nil
+}
+
+func taskApprovalDecisionAllowed(record Task, target ApprovalState) bool {
+	normalizedPolicy := normalizeApprovalPolicyOrDefault(record.ApprovalPolicy)
+	if normalizedPolicy != ApprovalPolicyManual {
+		return false
+	}
+	switch target.Normalize() {
+	case ApprovalStateApproved, ApprovalStateRejected:
+	default:
+		return false
+	}
+	return normalizeApprovalStateOrDefault(normalizedPolicy, record.ApprovalState) == ApprovalStatePending
+}
+
+// MarkTaskRead persists the current actor-scoped triage state as read for the
+// task's latest known activity snapshot.
+func (m *Service) MarkTaskRead(ctx context.Context, id string, actor ActorContext) (TriageState, error) {
+	return m.mutateTaskTriage(ctx, id, actor, func(state *TriageState, latestActivity time.Time) {
+		state.Read = true
+		state.Dismissed = false
+		state.LastSeenActivityAt = latestActivity
+	})
+}
+
+// ArchiveTask persists the current actor-scoped triage state as archived for
+// the task's latest known activity snapshot.
+func (m *Service) ArchiveTask(ctx context.Context, id string, actor ActorContext) (TriageState, error) {
+	return m.mutateTaskTriage(ctx, id, actor, func(state *TriageState, latestActivity time.Time) {
+		state.Read = true
+		state.Archived = true
+		state.Dismissed = false
+		state.LastSeenActivityAt = latestActivity
+	})
+}
+
+// DismissTask persists the current actor-scoped triage state as dismissed for
+// the task's latest known activity snapshot.
+func (m *Service) DismissTask(ctx context.Context, id string, actor ActorContext) (TriageState, error) {
+	return m.mutateTaskTriage(ctx, id, actor, func(state *TriageState, latestActivity time.Time) {
+		state.Read = true
+		state.Dismissed = true
+		state.LastSeenActivityAt = latestActivity
+	})
+}
+
+func (m *Service) mutateTaskTriage(
+	ctx context.Context,
+	id string,
+	actor ActorContext,
+	mutate func(state *TriageState, latestActivity time.Time),
+) (TriageState, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return TriageState{}, err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return TriageState{}, fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+
+	record, err := m.store.GetTask(ctx, trimmedID)
+	if err != nil {
+		return TriageState{}, err
+	}
+	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: trimmedID})
+	if err != nil {
+		return TriageState{}, err
+	}
+	events, err := m.store.ListTaskEvents(ctx, EventQuery{TaskID: trimmedID, Limit: 1})
+	if err != nil {
+		return TriageState{}, err
+	}
+
+	state, err := m.loadTaskTriageState(ctx, trimmedID, actor.Actor)
+	if err != nil {
+		return TriageState{}, err
+	}
+	mutate(&state, latestTaskActivityAt(record, runs, events))
+	state.TaskID = trimmedID
+	state.Actor = actor.Actor
+	state.UpdatedAt = m.now().UTC()
+	if err := m.store.UpsertTaskTriageState(ctx, state); err != nil {
+		return TriageState{}, err
+	}
+
+	return state, nil
+}
+
+func (m *Service) loadTaskTriageState(
+	ctx context.Context,
+	taskID string,
+	actor ActorIdentity,
+) (TriageState, error) {
+	state, err := m.store.GetTaskTriageState(ctx, taskID, actor)
+	if err == nil {
+		return state, nil
+	}
+	if errors.Is(err, ErrTaskTriageStateNotFound) {
+		return TriageState{TaskID: taskID, Actor: actor}, nil
+	}
+	return TriageState{}, err
 }
 
 func (m *Service) loadCancellationTree(ctx context.Context, taskID string) ([]Task, Task, error) {
@@ -759,7 +1028,7 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 		return nil, err
 	}
 
-	children, err := m.store.ListTasks(ctx, Query{ParentTaskID: trimmedID})
+	children, err := m.listTaskSummaries(ctx, Query{ParentTaskID: trimmedID})
 	if err != nil {
 		return nil, err
 	}
@@ -776,17 +1045,25 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 		return nil, err
 	}
 
-	view := &View{
-		Task:         record,
-		Children:     children,
-		Dependencies: dependencies,
-		Runs:         runs,
-		Events:       events,
-	}
-	view.Task.Status, err = m.canonicalTaskStatus(ctx, record, dependencies, runs)
+	summary, err := m.enrichTaskSummaryFromState(ctx, record, len(children), dependencies, runs, events)
 	if err != nil {
 		return nil, err
 	}
+	dependencyReferences, err := m.buildDependencyReferences(ctx, dependencies)
+	if err != nil {
+		return nil, err
+	}
+
+	view := &View{
+		Summary:              summary,
+		Task:                 record,
+		Children:             children,
+		Dependencies:         dependencies,
+		DependencyReferences: dependencyReferences,
+		Runs:                 runs,
+		Events:               events,
+	}
+	view.Task.Status = summary.Status
 	return view, nil
 }
 
@@ -822,7 +1099,92 @@ func (m *Service) ListTasks(ctx context.Context, query Query, actor ActorContext
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
-	return m.store.ListTasks(ctx, query)
+	return m.listTaskSummaries(ctx, query)
+}
+
+func (m *Service) listTaskSummaries(ctx context.Context, query Query) ([]Summary, error) {
+	summaries, err := m.store.ListTasks(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	enriched := make([]Summary, 0, len(summaries))
+	for _, summary := range summaries {
+		item, err := m.enrichTaskSummary(ctx, summary)
+		if err != nil {
+			return nil, err
+		}
+		enriched = append(enriched, item)
+	}
+	return enriched, nil
+}
+
+func (m *Service) enrichTaskSummary(ctx context.Context, summary Summary) (Summary, error) {
+	childCount, err := m.store.CountDirectChildren(ctx, summary.ID)
+	if err != nil {
+		return Summary{}, err
+	}
+	dependencies, err := m.store.ListDependencies(ctx, summary.ID)
+	if err != nil {
+		return Summary{}, err
+	}
+	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: summary.ID})
+	if err != nil {
+		return Summary{}, err
+	}
+	events, err := m.store.ListTaskEvents(ctx, EventQuery{TaskID: summary.ID, Limit: 1})
+	if err != nil {
+		return Summary{}, err
+	}
+	return m.enrichTaskSummaryFromState(ctx, taskRecordFromSummary(summary), childCount, dependencies, runs, events)
+}
+
+func (m *Service) enrichTaskSummaryFromState(
+	ctx context.Context,
+	record Task,
+	childCount int,
+	dependencies []Dependency,
+	runs []Run,
+	events []Event,
+) (Summary, error) {
+	status, err := m.canonicalTaskStatus(ctx, record, dependencies, runs)
+	if err != nil {
+		return Summary{}, err
+	}
+
+	summary := summaryFromTaskRecord(record)
+	summary.Status = status
+	summary.Draft = status == TaskStatusDraft
+	summary.ChildCount = childCount
+	summary.DependencyCount = len(dependencies)
+	summary.ActiveRun = activeRunSummary(runs, record.MaxAttempts)
+	summary.LastActivityAt = latestTaskActivityAt(record, runs, events)
+	summary.Dependencies, err = m.buildDependencyReferences(ctx, dependencies)
+	if err != nil {
+		return Summary{}, err
+	}
+	return summary, nil
+}
+
+func (m *Service) buildDependencyReferences(
+	ctx context.Context,
+	dependencies []Dependency,
+) ([]DependencyReference, error) {
+	refs := make([]DependencyReference, 0, len(dependencies))
+	for _, dependency := range dependencies {
+		dependsOn, err := m.taskReference(ctx, dependency.DependsOnTaskID)
+		if err != nil {
+			return nil, err
+		}
+		refs = append(refs, DependencyReference{
+			TaskID:          dependency.TaskID,
+			DependsOnTaskID: dependency.DependsOnTaskID,
+			Kind:            dependency.Kind,
+			CreatedAt:       dependency.CreatedAt,
+			DependsOn:       dependsOn,
+		})
+	}
+	return refs, nil
 }
 
 // AddDependency adds one dependency edge through the manager, reconciles the
@@ -908,44 +1270,20 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 		return nil, err
 	}
 
-	taskRecord, err := m.store.GetTask(ctx, normalizedSpec.TaskID)
-	if err != nil {
-		return nil, err
-	}
-	if taskRecord.Status.Normalize() == TaskStatusCanceled {
-		return nil, fmt.Errorf("%w: task %q is canceled", ErrInvalidStatusTransition, taskRecord.ID)
-	}
-
-	if existing, err := m.lookupIdempotentRun(
+	_, run, existing, err := m.store.ReserveQueuedRun(
 		ctx,
+		normalizedSpec.TaskID,
+		m.newID("run"),
 		normalizedSpec.IdempotencyKey,
 		actor.Origin,
-		normalizedSpec.TaskID,
-	); err != nil {
-		return nil, err
-	} else if existing != nil {
-		return existing, nil
-	}
-
-	existingRuns, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: normalizedSpec.TaskID})
+		normalizedSpec.NetworkChannel,
+		m.now().UTC(),
+	)
 	if err != nil {
 		return nil, err
 	}
-	run := Run{
-		ID:             m.newID("run"),
-		TaskID:         normalizedSpec.TaskID,
-		Status:         TaskRunStatusQueued,
-		Attempt:        nextRunAttempt(existingRuns),
-		Origin:         actor.Origin,
-		IdempotencyKey: normalizedSpec.IdempotencyKey,
-		NetworkChannel: resolvedRunChannel(normalizedSpec.NetworkChannel, taskRecord.NetworkChannel),
-		QueuedAt:       m.now().UTC(),
-	}
-	if err := m.store.CreateTaskRun(ctx, run); err != nil {
-		return nil, err
-	}
-	if err := m.saveRunIdempotency(ctx, run, actor.Origin); err != nil {
-		return nil, err
+	if existing {
+		return &run, nil
 	}
 
 	reconciledTask, err := m.reconcileTaskCascade(ctx, normalizedSpec.TaskID)
@@ -963,6 +1301,17 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 	}
 
 	return &run, nil
+}
+
+func validateTaskForEnqueue(taskRecord Task) error {
+	switch taskRecord.Status.Normalize() {
+	case TaskStatusDraft:
+		return fmt.Errorf("%w: task %q is draft", ErrInvalidStatusTransition, taskRecord.ID)
+	case TaskStatusCanceled:
+		return fmt.Errorf("%w: task %q is canceled", ErrInvalidStatusTransition, taskRecord.ID)
+	default:
+		return nil
+	}
 }
 
 // ClaimRun transitions one queued run into the claimed state.
@@ -1371,6 +1720,12 @@ func normalizeCreateTaskSpec(spec CreateTask) (CreateTask, error) {
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.Title = strings.TrimSpace(normalized.Title)
 	normalized.Description = strings.TrimSpace(normalized.Description)
+	normalized.Priority = normalizePriorityOrDefault(normalized.Priority)
+	if normalized.MaxAttempts != nil {
+		maxAttempts := *normalized.MaxAttempts
+		normalized.MaxAttempts = &maxAttempts
+	}
+	normalized.ApprovalPolicy = normalizeApprovalPolicyOrDefault(normalized.ApprovalPolicy)
 	if normalized.Owner != nil {
 		normalized.Owner = normalizeOwnership(normalized.Owner)
 	}
@@ -1390,6 +1745,18 @@ func normalizeTaskPatch(patch Patch) (Patch, error) {
 	if normalized.Description != nil {
 		description := strings.TrimSpace(*normalized.Description)
 		normalized.Description = &description
+	}
+	if normalized.Priority != nil {
+		priority := normalized.Priority.Normalize()
+		normalized.Priority = &priority
+	}
+	if normalized.MaxAttempts != nil {
+		maxAttempts := *normalized.MaxAttempts
+		normalized.MaxAttempts = &maxAttempts
+	}
+	if normalized.ApprovalPolicy != nil {
+		approvalPolicy := normalized.ApprovalPolicy.Normalize()
+		normalized.ApprovalPolicy = &approvalPolicy
 	}
 	if normalized.Metadata != nil {
 		metadata := normalizeRawJSON(*normalized.Metadata)
@@ -1639,7 +2006,13 @@ func (m *Service) canonicalTaskStatus(
 	if err != nil {
 		return "", err
 	}
-	return taskStatusFromSnapshot(record.Status, unresolvedDependencies, runs), nil
+	return taskStatusFromPolicySnapshot(
+		record.Status,
+		unresolvedDependencies,
+		taskApprovalBlocked(record),
+		taskAttemptsExhausted(record, runs),
+		runs,
+	), nil
 }
 
 func hasOpenRun(runs []Run) bool {
@@ -1670,11 +2043,22 @@ func isTerminalRunStatus(status RunStatus) bool {
 }
 
 func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, runs []Run) Status {
+	return taskStatusFromPolicySnapshot(currentStatus, unresolvedDependencies, false, false, runs)
+}
+
+func taskStatusFromPolicySnapshot(
+	currentStatus Status,
+	unresolvedDependencies bool,
+	approvalBlocked bool,
+	attemptsExhausted bool,
+	runs []Run,
+) Status {
 	status := currentStatus.Normalize()
-	if status == TaskStatusCanceled {
+	if status == TaskStatusCanceled || status == TaskStatusDraft {
 		return status
 	}
 
+	runnableBlocked := unresolvedDependencies || approvalBlocked
 	hasQueuedOrClaimed := false
 	var latestTerminal Run
 	hasLatestTerminal := false
@@ -1694,7 +2078,7 @@ func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, r
 	}
 
 	if hasQueuedOrClaimed {
-		if unresolvedDependencies {
+		if runnableBlocked {
 			return TaskStatusBlocked
 		}
 		return TaskStatusReady
@@ -1705,7 +2089,13 @@ func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, r
 		case TaskRunStatusCompleted:
 			return TaskStatusCompleted
 		case TaskRunStatusFailed:
-			return TaskStatusFailed
+			if attemptsExhausted {
+				return TaskStatusFailed
+			}
+			if runnableBlocked {
+				return TaskStatusBlocked
+			}
+			return TaskStatusReady
 		case TaskRunStatusCanceled:
 			return TaskStatusCanceled
 		}
@@ -1714,10 +2104,26 @@ func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, r
 	if isTerminalTaskStatus(status) {
 		return status
 	}
-	if unresolvedDependencies {
+	if runnableBlocked {
 		return TaskStatusBlocked
 	}
 	return TaskStatusReady
+}
+
+func taskApprovalBlocked(record Task) bool {
+	return approvalStateBlocksExecution(record.ApprovalPolicy, record.ApprovalState)
+}
+
+func approvalStateBlocksExecution(policy ApprovalPolicy, state ApprovalState) bool {
+	normalizedPolicy := normalizeApprovalPolicyOrDefault(policy)
+	if normalizedPolicy != ApprovalPolicyManual {
+		return false
+	}
+	return normalizeApprovalStateOrDefault(normalizedPolicy, state) != ApprovalStateApproved
+}
+
+func taskAttemptsExhausted(record Task, runs []Run) bool {
+	return nextRunAttempt(runs) > normalizeTaskMaxAttemptsOrDefault(record.MaxAttempts)
 }
 
 func runComesAfter(left Run, right Run) bool {
@@ -1775,42 +2181,6 @@ func (m *Service) reconcileDependentTasks(ctx context.Context, taskID string, vi
 	return nil
 }
 
-func (m *Service) lookupIdempotentRun(
-	ctx context.Context,
-	key string,
-	origin Origin,
-	taskID string,
-) (*Run, error) {
-	trimmedKey := strings.TrimSpace(key)
-	if trimmedKey == "" {
-		return nil, nil
-	}
-
-	run, err := m.store.GetTaskRunByIdempotencyKey(ctx, trimmedKey, origin)
-	if err != nil {
-		if errors.Is(err, ErrTaskRunIdempotencyNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if strings.TrimSpace(run.TaskID) != strings.TrimSpace(taskID) {
-		return nil, fmt.Errorf("%w: idempotency key %q already maps to task %q", ErrValidation, trimmedKey, run.TaskID)
-	}
-	return &run, nil
-}
-
-func (m *Service) saveRunIdempotency(ctx context.Context, run Run, origin Origin) error {
-	if strings.TrimSpace(run.IdempotencyKey) == "" {
-		return nil
-	}
-	return m.store.SaveTaskRunIdempotency(ctx, RunIdempotency{
-		IdempotencyKey: run.IdempotencyKey,
-		RunID:          run.ID,
-		Origin:         origin,
-		CreatedAt:      m.now().UTC(),
-	})
-}
-
 func (m *Service) loadRunWithTask(ctx context.Context, runID string) (Run, Task, error) {
 	trimmedRunID := strings.TrimSpace(runID)
 	if trimmedRunID == "" {
@@ -1845,6 +2215,8 @@ func (m *Service) ensureTaskExecutable(ctx context.Context, record Task) error {
 	switch status.Normalize() {
 	case TaskStatusBlocked:
 		return fmt.Errorf("%w: task %q is blocked", ErrInvalidStatusTransition, record.ID)
+	case TaskStatusDraft:
+		return fmt.Errorf("%w: task %q is draft", ErrInvalidStatusTransition, record.ID)
 	case TaskStatusCanceled:
 		return fmt.Errorf("%w: task %q is canceled", ErrInvalidStatusTransition, record.ID)
 	default:
@@ -2173,7 +2545,7 @@ func (m *Service) recordTaskEvent(
 	if err != nil {
 		return err
 	}
-	return m.store.CreateTaskEvent(ctx, Event{
+	event := Event{
 		ID:        m.newID("evt"),
 		TaskID:    strings.TrimSpace(taskID),
 		RunID:     strings.TrimSpace(runID),
@@ -2182,7 +2554,13 @@ func (m *Service) recordTaskEvent(
 		Origin:    actor.Origin,
 		Payload:   rawPayload,
 		Timestamp: m.now().UTC(),
-	})
+	}
+	if err := m.store.CreateTaskEvent(ctx, event); err != nil {
+		return err
+	}
+
+	m.emitTaskLiveEventBestEffort(ctx, event.ID)
+	return nil
 }
 
 func marshalTaskEventPayload(payload any) (json.RawMessage, error) {
@@ -2194,6 +2572,177 @@ func marshalTaskEventPayload(payload any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("task: marshal task event payload: %w", err)
 	}
 	return json.RawMessage(raw), nil
+}
+
+func summaryFromTaskRecord(record Task) Summary {
+	return Summary{
+		ID:             record.ID,
+		Identifier:     record.Identifier,
+		Scope:          record.Scope,
+		WorkspaceID:    record.WorkspaceID,
+		ParentTaskID:   record.ParentTaskID,
+		NetworkChannel: record.NetworkChannel,
+		Title:          record.Title,
+		Priority:       record.Priority,
+		MaxAttempts:    record.MaxAttempts,
+		Status:         record.Status,
+		ApprovalPolicy: record.ApprovalPolicy,
+		ApprovalState:  record.ApprovalState,
+		Draft:          record.Status.Normalize() == TaskStatusDraft,
+		Owner:          cloneOwnership(record.Owner),
+		CreatedBy:      record.CreatedBy,
+		Origin:         record.Origin,
+		CreatedAt:      record.CreatedAt,
+		UpdatedAt:      record.UpdatedAt,
+		ClosedAt:       record.ClosedAt,
+		LastActivityAt: record.UpdatedAt,
+	}
+}
+
+func taskRecordFromSummary(summary Summary) Task {
+	return Task{
+		ID:             summary.ID,
+		Identifier:     summary.Identifier,
+		Scope:          summary.Scope,
+		WorkspaceID:    summary.WorkspaceID,
+		ParentTaskID:   summary.ParentTaskID,
+		NetworkChannel: summary.NetworkChannel,
+		Title:          summary.Title,
+		Priority:       summary.Priority,
+		MaxAttempts:    summary.MaxAttempts,
+		Status:         summary.Status,
+		ApprovalPolicy: summary.ApprovalPolicy,
+		ApprovalState:  summary.ApprovalState,
+		Owner:          cloneOwnership(summary.Owner),
+		CreatedBy:      summary.CreatedBy,
+		Origin:         summary.Origin,
+		CreatedAt:      summary.CreatedAt,
+		UpdatedAt:      summary.UpdatedAt,
+		ClosedAt:       summary.ClosedAt,
+	}
+}
+
+func (m *Service) taskReference(ctx context.Context, taskID string) (Reference, error) {
+	record, err := m.store.GetTask(ctx, taskID)
+	if err != nil {
+		return Reference{}, err
+	}
+	dependencies, err := m.store.ListDependencies(ctx, record.ID)
+	if err != nil {
+		return Reference{}, err
+	}
+	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
+	if err != nil {
+		return Reference{}, err
+	}
+	status, err := m.canonicalTaskStatus(ctx, record, dependencies, runs)
+	if err != nil {
+		return Reference{}, err
+	}
+	return taskReferenceFromTask(record, status), nil
+}
+
+func taskReferenceFromTask(record Task, status Status) Reference {
+	return Reference{
+		ID:          record.ID,
+		Identifier:  record.Identifier,
+		Title:       record.Title,
+		Status:      status,
+		Priority:    record.Priority,
+		Owner:       cloneOwnership(record.Owner),
+		Scope:       record.Scope,
+		WorkspaceID: record.WorkspaceID,
+	}
+}
+
+func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
+	var current *Run
+	for idx := range runs {
+		run := runs[idx]
+		if isTerminalRunStatus(run.Status) {
+			continue
+		}
+		if current == nil || prefersActiveRun(run, *current) {
+			candidate := run
+			current = &candidate
+		}
+	}
+	if current == nil {
+		return nil
+	}
+	return &RunSummary{
+		ID:          current.ID,
+		TaskID:      current.TaskID,
+		Status:      current.Status,
+		Attempt:     current.Attempt,
+		MaxAttempts: maxAttempts,
+		SessionID:   current.SessionID,
+		ClaimedBy:   cloneActorIdentity(current.ClaimedBy),
+		QueuedAt:    current.QueuedAt,
+		ClaimedAt:   current.ClaimedAt,
+		StartedAt:   current.StartedAt,
+		EndedAt:     current.EndedAt,
+		Error:       current.Error,
+	}
+}
+
+func prefersActiveRun(candidate Run, current Run) bool {
+	candidateRank := activeRunRank(candidate.Status)
+	currentRank := activeRunRank(current.Status)
+	if candidateRank != currentRank {
+		return candidateRank > currentRank
+	}
+
+	candidateAt := latestRunActivityAt(candidate)
+	currentAt := latestRunActivityAt(current)
+	if !candidateAt.Equal(currentAt) {
+		return candidateAt.After(currentAt)
+	}
+	return candidate.ID > current.ID
+}
+
+func activeRunRank(status RunStatus) int {
+	switch status.Normalize() {
+	case TaskRunStatusRunning:
+		return 4
+	case TaskRunStatusStarting:
+		return 3
+	case TaskRunStatusClaimed:
+		return 2
+	case TaskRunStatusQueued:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func latestTaskActivityAt(record Task, runs []Run, events []Event) time.Time {
+	latest := record.UpdatedAt
+	if latest.IsZero() || (!record.CreatedAt.IsZero() && record.CreatedAt.After(latest)) {
+		latest = record.CreatedAt
+	}
+	for _, run := range runs {
+		runAt := latestRunActivityAt(run)
+		if runAt.After(latest) {
+			latest = runAt
+		}
+	}
+	for _, event := range events {
+		if event.Timestamp.After(latest) {
+			latest = event.Timestamp
+		}
+	}
+	return latest
+}
+
+func latestRunActivityAt(run Run) time.Time {
+	latest := run.QueuedAt
+	for _, candidate := range []time.Time{run.ClaimedAt, run.StartedAt, run.EndedAt} {
+		if candidate.After(latest) {
+			latest = candidate
+		}
+	}
+	return latest
 }
 
 func normalizeOwnership(owner *Ownership) *Ownership {
@@ -2214,6 +2763,14 @@ func cloneOwnership(owner *Ownership) *Ownership {
 		return nil
 	}
 	cloned := *owner
+	return &cloned
+}
+
+func cloneActorIdentity(actor *ActorIdentity) *ActorIdentity {
+	if actor == nil {
+		return nil
+	}
+	cloned := *actor
 	return &cloned
 }
 
@@ -2265,6 +2822,18 @@ type createdTaskPayload struct {
 type updatedTaskPayload struct {
 	ChangedFields []string `json:"changed_fields"`
 	Status        Status   `json:"status"`
+}
+
+type publishedTaskPayload struct {
+	PreviousStatus Status        `json:"previous_status"`
+	Status         Status        `json:"status"`
+	ApprovalState  ApprovalState `json:"approval_state"`
+}
+
+type approvalDecisionTaskPayload struct {
+	PreviousApprovalState ApprovalState `json:"previous_approval_state"`
+	ApprovalState         ApprovalState `json:"approval_state"`
+	Status                Status        `json:"status"`
 }
 
 type childCreatedTaskPayload struct {

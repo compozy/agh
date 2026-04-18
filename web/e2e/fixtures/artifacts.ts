@@ -107,6 +107,24 @@ export function resolveBrowserArtifactPath(rootDir: string, relativePath: string
   return targetPath;
 }
 
+export async function mirrorBrowserScreenshotForQA(
+  sourcePath: string,
+  qaOutputRootDir: string,
+  screenshotName?: string
+): Promise<string> {
+  const resolvedOutputRoot = path.resolve(qaOutputRootDir);
+  const screenshotsDir = path.join(resolvedOutputRoot, "qa", "screenshots");
+  const targetName = sanitizeArtifactName(
+    screenshotName ?? path.basename(sourcePath, path.extname(sourcePath))
+  );
+  const targetPath = path.join(screenshotsDir, `${targetName}.png`);
+
+  await mkdir(screenshotsDir, { recursive: true });
+  await copyFile(sourcePath, targetPath);
+
+  return targetPath;
+}
+
 export class ArtifactCollector {
   readonly rootDir: string;
   readonly manifestPath: string;
@@ -231,4 +249,13 @@ export async function persistBrowserArtifacts(
     await collector.captureJSON("browser_route_state", bundle.routeState);
   }
   return collector.writeManifest();
+}
+
+function sanitizeArtifactName(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed === "") {
+    return "artifact";
+  }
+
+  return trimmed.replace(/[^a-z0-9._-]+/g, "-");
 }

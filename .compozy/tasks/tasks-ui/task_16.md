@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Dashboard and inbox routes
 type: frontend
 complexity: high
@@ -31,10 +31,10 @@ Implement the aggregate operator views for Tasks: dashboard and inbox. This task
 </requirements>
 
 ## Subtasks
-- [ ] 16.1 Extend the tasks page orchestration for dashboard and inbox modes
-- [ ] 16.2 Implement dashboard cards, summaries, queue/health sections, and recent activity panels
-- [ ] 16.3 Implement inbox lanes, task cards, and approval/triage actions
-- [ ] 16.4 Add route and component tests for aggregate loading, action, and empty-state behavior
+- [x] 16.1 Extend the tasks page orchestration for dashboard and inbox modes
+- [x] 16.2 Implement dashboard cards, summaries, queue/health sections, and recent activity panels
+- [x] 16.3 Implement inbox lanes, task cards, and approval/triage actions
+- [x] 16.4 Add route and component tests for aggregate loading, action, and empty-state behavior
 
 ## Implementation Details
 
@@ -68,14 +68,16 @@ See TechSpec sections "Monitoring and Observability", "Testing Approach", and th
 
 ## Tests
 - Unit tests:
-  - [ ] Dashboard cards render queue depth, health, totals, and recent activity from the aggregate read model
-  - [ ] Inbox lanes render the expected grouping, counts, and action affordances
-  - [ ] Approval and triage actions invalidate and refresh inbox data correctly
-  - [ ] Aggregate loading, error, and empty states render without layout instability
+  - [ ] Dashboard cards render queue depth, health, totals, recent activity, and warning states from the aggregate read model
+  - [ ] Inbox lanes render the expected grouping, counts, ordering, and action affordances for approvals, blocked items, failed runs, and archived work
+  - [ ] Aggregate mode and lane filters map search params into the expected dashboard or inbox queries
+  - [ ] Approval and triage actions invalidate and refresh inbox data correctly without stale badge or count state
+  - [ ] Aggregate loading, error, and empty states render without layout instability or list-view assumptions leaking in
 - Integration tests:
-  - [ ] The tasks route can switch into dashboard and inbox modes without leaking list/kanban assumptions
-  - [ ] Inbox actions update lane state coherently after approval, archive, dismiss, or mark-read flows
+  - [ ] The tasks route can switch into dashboard and inbox modes without leaking list or kanban assumptions into aggregate layouts
+  - [ ] Inbox actions update lane state, unread counts, and visible item placement coherently after approval, archive, dismiss, or mark-read flows
   - [ ] Dashboard and inbox hooks integrate correctly with the route orchestrator and generated task types
+  - [ ] Aggregate mode selection and filter state survive navigation or refresh without resetting to list defaults unexpectedly
 - Test coverage target: >=80%
 - All tests must pass
 

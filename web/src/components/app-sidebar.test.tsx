@@ -9,11 +9,13 @@ const onToggleCollapsed = vi.fn();
 const onNewSession = vi.fn();
 const onAddWorkspace = vi.fn();
 let matchedRoute: Record<string, boolean> = {};
+let matchedRouteFuzzy: Record<string, boolean> = {};
 
 vi.mock("lucide-react", () => ({
   Book: () => <span data-testid="icon-book">book</span>,
   Bot: () => <span>bot</span>,
   ChevronRight: () => <span>chevron</span>,
+  ListChecks: () => <span data-testid="icon-list-checks">list-checks</span>,
   Loader2: () => <span>loader</span>,
   Network: () => <span data-testid="icon-network">network</span>,
   PanelLeftClose: () => <span>panel-close</span>,
@@ -40,7 +42,12 @@ vi.mock("@tanstack/react-router", () => ({
       {children}
     </a>
   ),
-  useMatchRoute: () => (opts: { to: string }) => matchedRoute[opts.to] ?? false,
+  useMatchRoute: () => (opts: { to: string; fuzzy?: boolean }) => {
+    if (opts.fuzzy) {
+      return matchedRouteFuzzy[opts.to] ?? matchedRoute[opts.to] ?? false;
+    }
+    return matchedRoute[opts.to] ?? false;
+  },
 }));
 
 vi.mock("@/components/ui/collapsible", () => ({
@@ -123,6 +130,7 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
 describe("AppSidebar", () => {
   beforeEach(() => {
     matchedRoute = {};
+    matchedRouteFuzzy = {};
     onSelectWorkspace.mockReset();
     onToggleCollapsed.mockReset();
     onNewSession.mockReset();
@@ -251,6 +259,11 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("app-sidebar").className).toContain("border-r");
     });
 
+    it("renders Tasks nav item linking to /tasks", () => {
+      render(<AppSidebar {...makeProps()} />);
+      expect(screen.getByTestId("nav-tasks")).toHaveAttribute("href", "/tasks");
+    });
+
     it("renders Knowledge nav item linking to /knowledge", () => {
       render(<AppSidebar {...makeProps()} />);
       expect(screen.getByTestId("nav-knowledge")).toHaveAttribute("href", "/knowledge");
@@ -329,6 +342,26 @@ describe("AppSidebar", () => {
       expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
     });
 
+    it("shows active indicator on active Tasks nav at the base path", () => {
+      matchedRouteFuzzy["/tasks"] = true;
+      render(<AppSidebar {...makeProps()} />);
+      const indicator = screen.getByTestId("nav-active-tasks");
+      expect(indicator.className).toContain("w-[3px]");
+      expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
+    });
+
+    it("keeps Tasks nav active for task detail and run detail deep links (fuzzy match)", () => {
+      matchedRouteFuzzy["/tasks"] = true;
+      render(<AppSidebar {...makeProps()} />);
+      expect(screen.getByTestId("nav-active-tasks")).toBeInTheDocument();
+    });
+
+    it("does not activate Tasks nav without a /tasks match", () => {
+      matchedRoute["/automation"] = true;
+      render(<AppSidebar {...makeProps()} />);
+      expect(screen.queryByTestId("nav-active-tasks")).not.toBeInTheDocument();
+    });
+
     it("does not show active indicator when nav is not active", () => {
       render(<AppSidebar {...makeProps()} />);
       expect(screen.queryByTestId("nav-active-automation")).not.toBeInTheDocument();
@@ -337,6 +370,7 @@ describe("AppSidebar", () => {
       expect(screen.queryByTestId("nav-active-knowledge")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-skills")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-settings")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("nav-active-tasks")).not.toBeInTheDocument();
     });
   });
 

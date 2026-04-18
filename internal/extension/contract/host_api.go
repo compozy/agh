@@ -51,10 +51,15 @@ const (
 	HostAPIMethodAutomationRuns              = extensionprotocol.HostAPIMethodAutomationRuns
 	HostAPIMethodTasks                       = extensionprotocol.HostAPIMethodTasks
 	HostAPIMethodTasksGet                    = extensionprotocol.HostAPIMethodTasksGet
+	HostAPIMethodTasksTimeline               = extensionprotocol.HostAPIMethodTasksTimeline
+	HostAPIMethodTasksTree                   = extensionprotocol.HostAPIMethodTasksTree
+	HostAPIMethodTasksDashboard              = extensionprotocol.HostAPIMethodTasksDashboard
+	HostAPIMethodTasksInbox                  = extensionprotocol.HostAPIMethodTasksInbox
 	HostAPIMethodTasksCreate                 = extensionprotocol.HostAPIMethodTasksCreate
 	HostAPIMethodTasksUpdate                 = extensionprotocol.HostAPIMethodTasksUpdate
 	HostAPIMethodTasksCancel                 = extensionprotocol.HostAPIMethodTasksCancel
 	HostAPIMethodTasksRuns                   = extensionprotocol.HostAPIMethodTasksRuns
+	HostAPIMethodTasksRunsGet                = extensionprotocol.HostAPIMethodTasksRunsGet
 	HostAPIMethodTasksRunsEnqueue            = extensionprotocol.HostAPIMethodTasksRunsEnqueue
 	HostAPIMethodTasksRunsClaim              = extensionprotocol.HostAPIMethodTasksRunsClaim
 	HostAPIMethodTasksRunsStart              = extensionprotocol.HostAPIMethodTasksRunsStart
@@ -259,6 +264,21 @@ type TaskTargetParams struct {
 	ID string `json:"id"`
 }
 
+// TaskTimelineParams queries one task timeline by task id.
+type TaskTimelineParams struct {
+	ID string `json:"id"`
+	apicontract.TaskTimelineQuery
+}
+
+// TaskTreeParams queries one task tree by task id.
+type TaskTreeParams = TaskTargetParams
+
+// TaskDashboardParams filters observer-backed task dashboard reads.
+type TaskDashboardParams = apicontract.TaskDashboardQuery
+
+// TaskInboxParams filters observer-backed task inbox reads.
+type TaskInboxParams = apicontract.TaskInboxQuery
+
 // TaskCreateParams creates one task.
 type TaskCreateParams = apicontract.CreateTaskRequest
 
@@ -278,6 +298,11 @@ type TaskCancelParams struct {
 type TaskRunsParams struct {
 	ID string `json:"id"`
 	apicontract.TaskRunListQuery
+}
+
+// TaskRunGetParams identifies one task run by id for richer detail reads.
+type TaskRunGetParams struct {
+	ID string `json:"id"`
 }
 
 // TaskRunEnqueueParams enqueues one run for a task.
@@ -650,6 +675,28 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Result: NamedType{Name: "TaskDetail", Value: apicontract.TaskDetailPayload{}},
 	},
 	{
+		Method: HostAPIMethodTasksTimeline,
+		Params: NamedType{Name: "TaskTimelineParams", Value: TaskTimelineParams{}},
+		Result: NamedType{Name: "TaskTimelineItem", Value: []apicontract.TaskTimelineItemPayload{}},
+	},
+	{
+		Method: HostAPIMethodTasksTree,
+		Params: NamedType{Name: "TaskTreeParams", Value: TaskTreeParams{}},
+		Result: NamedType{Name: "TaskTree", Value: apicontract.TaskTreePayload{}},
+	},
+	{
+		Method:         HostAPIMethodTasksDashboard,
+		Params:         NamedType{Name: "TaskDashboardParams", Value: TaskDashboardParams{}},
+		Result:         NamedType{Name: "TaskDashboard", Value: apicontract.TaskDashboardPayload{}},
+		OptionalParams: true,
+	},
+	{
+		Method:         HostAPIMethodTasksInbox,
+		Params:         NamedType{Name: "TaskInboxParams", Value: TaskInboxParams{}},
+		Result:         NamedType{Name: "TaskInbox", Value: apicontract.TaskInboxPayload{}},
+		OptionalParams: true,
+	},
+	{
 		Method: HostAPIMethodTasksCreate,
 		Params: NamedType{Name: "TaskCreateParams", Value: TaskCreateParams{}},
 		Result: NamedType{Name: "Task", Value: apicontract.TaskPayload{}},
@@ -668,6 +715,11 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Method: HostAPIMethodTasksRuns,
 		Params: NamedType{Name: "TaskRunsParams", Value: TaskRunsParams{}},
 		Result: NamedType{Name: "TaskRun", Value: []apicontract.TaskRunPayload{}},
+	},
+	{
+		Method: HostAPIMethodTasksRunsGet,
+		Params: NamedType{Name: "TaskRunGetParams", Value: TaskRunGetParams{}},
+		Result: NamedType{Name: "TaskRunDetail", Value: apicontract.TaskRunDetailPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksRunsEnqueue,

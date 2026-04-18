@@ -58,6 +58,12 @@ type Observer interface {
 	QueryHookEvents(ctx context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
 	QueryBridgeHealth(ctx context.Context) ([]observe.BridgeInstanceHealth, error)
 	Health(ctx context.Context) (observe.Health, error)
+	QueryTaskDashboard(ctx context.Context, query observe.TaskDashboardQuery) (observe.TaskDashboardView, error)
+	QueryTaskInbox(
+		ctx context.Context,
+		query observe.TaskInboxQuery,
+		actor taskpkg.ActorIdentity,
+	) (observe.TaskInboxView, error)
 }
 
 // BridgeService is the daemon-owned bridge runtime surface exposed by API transports.
@@ -186,75 +192,7 @@ type AutomationManager interface {
 
 // TaskService exposes task-domain state and lifecycle surfaces to the API layer.
 type TaskService interface {
-	CreateTask(ctx context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error)
-	CreateChildTask(
-		ctx context.Context,
-		parentTaskID string,
-		spec taskpkg.CreateTask,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Task, error)
-	UpdateTask(
-		ctx context.Context,
-		id string,
-		patch taskpkg.Patch,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Task, error)
-	CancelTask(
-		ctx context.Context,
-		id string,
-		req taskpkg.CancelTask,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Task, error)
-
-	AddDependency(ctx context.Context, spec taskpkg.AddDependency, actor taskpkg.ActorContext) error
-	RemoveDependency(ctx context.Context, taskID string, dependsOnID string, actor taskpkg.ActorContext) error
-
-	EnqueueRun(ctx context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.Run, error)
-	ClaimRun(
-		ctx context.Context,
-		runID string,
-		claim taskpkg.ClaimRun,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Run, error)
-	StartRun(
-		ctx context.Context,
-		runID string,
-		req taskpkg.StartRun,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Run, error)
-	AttachRunSession(
-		ctx context.Context,
-		runID string,
-		sessionID string,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Run, error)
-	CompleteRun(
-		ctx context.Context,
-		runID string,
-		result taskpkg.RunResult,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Run, error)
-	FailRun(
-		ctx context.Context,
-		runID string,
-		failure taskpkg.RunFailure,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Run, error)
-	CancelRun(
-		ctx context.Context,
-		runID string,
-		req taskpkg.CancelRun,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Run, error)
-
-	GetTask(ctx context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error)
-	ListTaskRuns(
-		ctx context.Context,
-		taskID string,
-		query taskpkg.RunQuery,
-		actor taskpkg.ActorContext,
-	) ([]taskpkg.Run, error)
-	ListTasks(ctx context.Context, query taskpkg.Query, actor taskpkg.ActorContext) ([]taskpkg.Summary, error)
+	taskpkg.Manager
 }
 
 // SkillsRegistry exposes the skill catalog to the API layer.

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: HTTP task transport and route wiring
 type: backend
 complexity: medium
@@ -31,10 +31,10 @@ Expose the new task surface over the daemon’s HTTP API and keep it aligned wit
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Register the new HTTP task, task-run, and observe-task routes
-- [ ] 9.2 Verify HTTP route grouping and handler binding stay aligned with the shared task surface
-- [ ] 9.3 Extend HTTP integration coverage for point reads, aggregates, mutations, and stream paths
-- [ ] 9.4 Extend parity checks so HTTP route registration stays in sync with the shared handler surface
+- [x] 9.1 Register the new HTTP task, task-run, and observe-task routes
+- [x] 9.2 Verify HTTP route grouping and handler binding stay aligned with the shared task surface
+- [x] 9.3 Extend HTTP integration coverage for point reads, aggregates, mutations, and stream paths
+- [x] 9.4 Extend parity checks so HTTP route registration stays in sync with the shared handler surface
 
 ## Implementation Details
 
@@ -64,12 +64,15 @@ See TechSpec section "API Endpoints" and ADR-003/ADR-004. HTTP should be a thin 
 
 ## Tests
 - Unit tests:
-  - [ ] HTTP route registration includes the new task, task-run, and observe-task endpoints
-  - [ ] Stream routes are registered with the expected path family and handler binding
+  - [x] HTTP route registration includes the new task, task-run, approval, triage, and observe-task endpoints
+  - [x] Stream routes are registered with the expected path family, HTTP method, and handler binding
+  - [x] Route groups keep actor or workspace middleware aligned with the shared task handlers for point reads and aggregate reads
+  - [x] Route registration rejects duplicate or conflicting task path definitions that would cause drift from the documented surface
 - Integration tests:
-  - [ ] HTTP integration tests cover enriched list/detail reads, publish, dashboard, inbox, and run-detail routes
-  - [ ] HTTP integration tests cover task-live routes such as timeline, tree, and stream path availability
-  - [ ] HTTP parity tests fail if the registered route surface drifts from the shared handler contract
+  - [x] HTTP integration tests cover enriched list/detail reads, publish, dashboard, inbox, and run-detail routes against real handler wiring
+  - [x] HTTP integration tests cover approval and triage mutations with the expected success and domain-error status codes
+  - [x] HTTP integration tests cover task-live routes such as timeline, tree, and stream availability including SSE content type
+  - [x] HTTP parity tests fail if the registered route surface drifts from the shared handler contract or documented endpoint family
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -3736,6 +3736,21 @@ func (f *fakeObserver) QueryBridgeHealth(context.Context) ([]observe.BridgeInsta
 	return nil, nil
 }
 
+func (f *fakeObserver) QueryTaskDashboard(
+	context.Context,
+	observe.TaskDashboardQuery,
+) (observe.TaskDashboardView, error) {
+	return observe.TaskDashboardView{}, nil
+}
+
+func (f *fakeObserver) QueryTaskInbox(
+	context.Context,
+	observe.TaskInboxQuery,
+	taskpkg.ActorIdentity,
+) (observe.TaskInboxView, error) {
+	return observe.TaskInboxView{}, nil
+}
+
 func (f *fakeObserver) Health(context.Context) (observe.Health, error) {
 	return observe.Health{Status: "ok"}, nil
 }
@@ -3982,6 +3997,25 @@ func (r *recordingRegistry) ListTaskRunsByStatus(context.Context, []taskpkg.RunS
 	return nil, nil
 }
 
+func (r *recordingRegistry) GetTaskTriageState(
+	context.Context,
+	string,
+	taskpkg.ActorIdentity,
+) (taskpkg.TriageState, error) {
+	return taskpkg.TriageState{}, taskpkg.ErrTaskTriageStateNotFound
+}
+
+func (r *recordingRegistry) UpsertTaskTriageState(context.Context, taskpkg.TriageState) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListTaskTriageStates(
+	context.Context,
+	taskpkg.ActorIdentity,
+) ([]taskpkg.TriageState, error) {
+	return nil, nil
+}
+
 func (r *recordingRegistry) CountActiveSessionBindings(context.Context, string) (int, error) {
 	return 0, nil
 }
@@ -3991,6 +4025,17 @@ func (r *recordingRegistry) CreateTaskEvent(context.Context, taskpkg.Event) erro
 }
 
 func (r *recordingRegistry) ListTaskEvents(context.Context, taskpkg.EventQuery) ([]taskpkg.Event, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) GetTaskEventRecord(context.Context, string) (taskpkg.EventRecord, error) {
+	return taskpkg.EventRecord{}, taskpkg.ErrTaskEventNotFound
+}
+
+func (r *recordingRegistry) ListTaskEventRecords(
+	context.Context,
+	taskpkg.EventRecordQuery,
+) ([]taskpkg.EventRecord, error) {
 	return nil, nil
 }
 

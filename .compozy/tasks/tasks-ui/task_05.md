@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Observer-backed dashboard read models
 type: backend
 complexity: medium
@@ -31,10 +31,10 @@ Build the aggregate dashboard view for tasks on top of the existing observer lay
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Define the observer-backed dashboard view type and aggregation boundaries
-- [ ] 5.2 Reuse summary, metrics, and health queries to assemble dashboard-ready output
-- [ ] 5.3 Add queue-depth and active-run shaping suitable for the Paper cards
-- [ ] 5.4 Add observer tests for totals, freshness, and edge-case aggregation
+- [x] 5.1 Define the observer-backed dashboard view type and aggregation boundaries
+- [x] 5.2 Reuse summary, metrics, and health queries to assemble dashboard-ready output
+- [x] 5.3 Add queue-depth and active-run shaping suitable for the Paper cards
+- [x] 5.4 Add observer tests for totals, freshness, and edge-case aggregation
 
 ## Implementation Details
 
@@ -65,12 +65,16 @@ See TechSpec sections "Data Models", "Observer-backed read-model endpoints", and
 
 ## Tests
 - Unit tests:
-  - [ ] Dashboard totals and card values are derived consistently from summary and metrics buckets
-  - [ ] Queue-depth and oldest-queue calculations surface the expected values and warning states
-  - [ ] Dashboard shaping handles zero-data and partially populated states cleanly
+  - [x] Dashboard totals and card values are derived consistently from summary and metrics buckets across ready, running, blocked, failed, and completed task mixes
+  - [x] Queue-depth, oldest-queue age, and backlog-warning calculations surface the expected values for both normal and degraded states
+  - [x] Active-run cards pick the correct recent runs and expose stable status or health summaries when multiple runs are in flight
+  - [x] Dashboard shaping handles zero-data, partially populated, and stale-projection states without leaking raw observer internals
+  - [x] Scope or workspace filtering preserves totals consistency and does not cross-contaminate aggregate buckets
 - Integration tests:
-  - [ ] Observer integration tests return dashboard payloads aligned with persisted task/run state
-  - [ ] Active-run summaries and health status remain correct when tasks span multiple statuses and channels
+  - [x] Observer integration tests return dashboard payloads aligned with persisted task and run state across multiple status buckets
+  - [x] Queue depth, health warnings, and oldest-item metrics remain correct after persisted task transitions and observer refreshes
+  - [x] Active-run summaries stay correct when tasks span multiple statuses, owners, and network channels in real stored data
+  - [x] Dashboard reads are satisfied from the aggregate endpoint without requiring client-side joins across lower-level observer outputs
 - Test coverage target: >=80%
 - All tests must pass
 

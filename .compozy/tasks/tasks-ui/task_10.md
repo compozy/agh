@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: UDS task transport and parity coverage
 type: backend
 complexity: medium
@@ -31,9 +31,9 @@ Mirror the expanded task surface over the daemon’s UDS transport and keep it b
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Register the new UDS task, task-run, and observe-task routes
-- [ ] 10.2 Extend UDS integration tests for point reads, aggregates, and mutations
-- [ ] 10.3 Extend transport parity checks so UDS and HTTP stay synchronized
+- [x] 10.1 Register the new UDS task, task-run, and observe-task routes
+- [x] 10.2 Extend UDS integration tests for point reads, aggregates, and mutations
+- [x] 10.3 Extend transport parity checks so UDS and HTTP stay synchronized
 
 ## Implementation Details
 
@@ -62,12 +62,14 @@ See TechSpec section "API Endpoints" and ADR-003/ADR-004. UDS exists so local CL
 
 ## Tests
 - Unit tests:
-  - [ ] UDS route registration includes the new task, task-run, and observe-task endpoints
-  - [ ] Handler registration expectations stay aligned with the shared task surface
+  - [x] UDS route registration includes the new task, task-run, approval, triage, and observe-task endpoints
+  - [x] Handler registration expectations stay aligned with the shared task surface for reads, mutations, and aggregate views
+  - [x] UDS route metadata keeps method or operation naming stable enough for parity assertions against HTTP
 - Integration tests:
-  - [ ] UDS integration tests cover enriched list/detail reads, publish, dashboard, inbox, and run-detail routes
-  - [ ] UDS integration tests cover task-live routes such as timeline, tree, and stream path availability
-  - [ ] Transport parity tests confirm UDS and HTTP expose the same expanded task route family
+  - [x] UDS integration tests cover enriched list/detail reads, publish, dashboard, inbox, and run-detail routes against real handler wiring
+  - [x] UDS integration tests cover approval and triage mutations with the same payload and status semantics expected by HTTP
+  - [x] UDS integration tests cover task-live routes such as timeline, tree, and stream-path availability for the expanded task surface
+  - [x] Transport parity tests confirm UDS and HTTP expose the same expanded task route family without missing or extra endpoints
 - Test coverage target: >=80%
 - All tests must pass
 

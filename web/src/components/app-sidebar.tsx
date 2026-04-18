@@ -3,6 +3,7 @@ import {
   Book,
   Bot,
   ChevronRight,
+  ListChecks,
   Loader2,
   Network,
   PanelLeftClose,
@@ -233,11 +234,12 @@ interface NavItemProps {
   to: string;
   icon: ReactNode;
   label: string;
+  fuzzy?: boolean;
 }
 
-function NavItem({ to, icon, label }: NavItemProps) {
+function NavItem({ to, icon, label, fuzzy }: NavItemProps) {
   const matchRoute = useMatchRoute();
-  const isActive = !!matchRoute({ to });
+  const isActive = !!matchRoute({ to, fuzzy });
 
   return (
     <Link
@@ -378,6 +380,7 @@ function SidebarPanel({
             </span>
           </div>
           <div className="flex flex-col gap-0.5 px-1">
+            <NavItem to="/tasks" icon={<ListChecks className="size-3.5" />} label="Tasks" fuzzy />
             <NavItem to="/automation" icon={<Bot className="size-3.5" />} label="Automation" />
             <NavItem to="/bridges" icon={<Waypoints className="size-3.5" />} label="Bridges" />
             <NavItem to="/network" icon={<Network className="size-3.5" />} label="Network" />

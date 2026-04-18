@@ -42,11 +42,15 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[automationpkg.RunStatus]():           automationRunStatusValues(),
 	reflect.TypeFor[taskpkg.Scope]():                     taskScopeValues(),
 	reflect.TypeFor[taskpkg.Status]():                    taskStatusValues(),
+	reflect.TypeFor[taskpkg.Priority]():                  taskPriorityValues(),
+	reflect.TypeFor[taskpkg.ApprovalPolicy]():            taskApprovalPolicyValues(),
+	reflect.TypeFor[taskpkg.ApprovalState]():             taskApprovalStateValues(),
 	reflect.TypeFor[taskpkg.RunStatus]():                 taskRunStatusValues(),
 	reflect.TypeFor[taskpkg.ActorKind]():                 taskActorKindValues(),
 	reflect.TypeFor[taskpkg.OwnerKind]():                 taskOwnerKindValues(),
 	reflect.TypeFor[taskpkg.OriginKind]():                taskOriginKindValues(),
 	reflect.TypeFor[taskpkg.DependencyKind]():            taskDependencyKindValues(),
+	reflect.TypeFor[contract.TaskInboxLane]():            taskInboxLaneValues(),
 	reflect.TypeFor[hooks.HookEvent]():                   hookEventValues(),
 	reflect.TypeFor[hooks.HookEventFamily]():             hookEventFamilyValues(),
 	reflect.TypeFor[hooks.HookMode]():                    hookModeValues(),
@@ -115,6 +119,7 @@ type ResponseSpec struct {
 	Status      int
 	Description string
 	Body        any
+	ContentType string
 }
 
 // OperationSpec describes one canonical REST operation.
@@ -1386,7 +1391,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("id", "Session id"),
 			dateTimeQueryParam("since", "Only events emitted since this timestamp"),
 			intQueryParam("limit", "Maximum number of records to return"),
-			int64QueryParam("after_sequence", "Only return events after this sequence number", false),
+			afterSequenceQueryParam("Only return events after this sequence number"),
 			queryParam("type", "Event type", false),
 			queryParam("agent_name", "Agent name", false),
 			queryParam("turn_id", "Turn id", false),
@@ -1409,7 +1414,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("id", "Session id"),
 			dateTimeQueryParam("since", "Only events emitted since this timestamp"),
 			intQueryParam("limit", "Maximum number of records to return"),
-			int64QueryParam("after_sequence", "Only return events after this sequence number", false),
+			afterSequenceQueryParam("Only return events after this sequence number"),
 			queryParam("type", "Event type", false),
 			queryParam("agent_name", "Agent name", false),
 			queryParam("turn_id", "Turn id", false),
@@ -1459,23 +1464,27 @@ var operationRegistry = []OperationSpec{
 		Method:      "GET",
 		Path:        "/api/tasks",
 		OperationID: "listTasks",
-		Summary:     "List tasks",
+		Summary:     "List enriched tasks",
 		Tags:        []string{"tasks"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			enumQueryParam("scope", "Filter by task scope", taskScopeValues()),
 			queryParam("workspace", "Filter by workspace path, name, or ID", false),
 			enumQueryParam("status", "Filter by task status", taskStatusValues()),
+			enumQueryParam("priority", "Filter by task priority", taskPriorityValues()),
+			boolQueryParam("include_drafts", "Include draft tasks in list results", false),
+			enumQueryParam("approval_state", "Filter by task approval state", taskApprovalStateValues()),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
 			queryParam("parent_task_id", "Filter by parent task ID", false),
 			queryParam("network_channel", "Filter by network channel", false),
+			queryParam("query", "Filter by task title or identifier", false),
 			intQueryParam("limit", "Maximum number of records to return"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TasksResponse{}},
-			{Status: 400, Description: "Invalid task filter", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task filter", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1490,9 +1499,10 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.CreateTaskRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: "Created", Body: contract.TaskResponse{}},
-			{Status: 400, Description: "Invalid task request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task conflict", Body: contract.ErrorPayload{}},
 			{Status: 413, Description: "Payload too large", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1509,8 +1519,8 @@ var operationRegistry = []OperationSpec{
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskDetailResponse{}},
-			{Status: 400, Description: "Invalid task id", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task id", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1528,9 +1538,28 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.UpdateTaskRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskResponse{}},
-			{Status: 400, Description: "Invalid task update", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task update conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task update", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/tasks/{id}/publish",
+		OperationID: "publishTask",
+		Summary:     "Publish one draft task",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskResponse{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task publish conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task publish request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1548,9 +1577,9 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.CancelTaskRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskResponse{}},
-			{Status: 400, Description: "Invalid task cancel request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task cancel conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task cancel request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1568,9 +1597,10 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.CreateTaskChildRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: "Created", Body: contract.TaskResponse{}},
-			{Status: 400, Description: "Invalid child task request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Child task conflict", Body: contract.ErrorPayload{}},
 			{Status: 413, Description: "Payload too large", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid child task request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1588,9 +1618,9 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.AddTaskDependencyRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskDetailResponse{}},
-			{Status: 400, Description: "Invalid dependency request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Dependency conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid dependency request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1608,8 +1638,8 @@ var operationRegistry = []OperationSpec{
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskDetailResponse{}},
-			{Status: 400, Description: "Invalid dependency request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task or dependency not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid dependency request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1629,8 +1659,8 @@ var operationRegistry = []OperationSpec{
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskRunsResponse{}},
-			{Status: 400, Description: "Invalid task-run filter", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task-run filter", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1648,9 +1678,27 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.EnqueueTaskRunRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: "Created", Body: contract.TaskRunResponse{}},
-			{Status: 400, Description: "Invalid task-run enqueue request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task-run enqueue conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task-run enqueue request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/task-runs/{id}",
+		OperationID: "getTaskRun",
+		Summary:     "Get one task run detail",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task run id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskRunDetailResponse{}},
+			{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task-run id", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1668,9 +1716,9 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.ClaimTaskRunRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
-			{Status: 400, Description: "Invalid task-run claim request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task-run claim conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task-run claim request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1688,9 +1736,9 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.StartTaskRunRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
-			{Status: 400, Description: "Invalid task-run start request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task-run start conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task-run start request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1708,9 +1756,9 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.AttachTaskRunSessionRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
-			{Status: 400, Description: "Invalid attach-session request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task run or session not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Attach-session conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid attach-session request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1728,9 +1776,9 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.CompleteTaskRunRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
-			{Status: 400, Description: "Invalid task-run completion request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task-run completion conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task-run completion request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1748,9 +1796,9 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.FailTaskRunRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
-			{Status: 400, Description: "Invalid task-run failure request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task-run failure conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task-run failure request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -1768,10 +1816,212 @@ var operationRegistry = []OperationSpec{
 		RequestBody: contract.CancelTaskRunRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
-			{Status: 400, Description: "Invalid task-run cancel request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task-run cancel conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task-run cancel request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/tasks/{id}/timeline",
+		OperationID: "getTaskTimeline",
+		Summary:     "Get one task timeline",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+			afterSequenceQueryParam("Return only events after the supplied sequence"),
+			intQueryParam("limit", "Maximum number of timeline items to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskTimelineResponse{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid timeline query", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/tasks/{id}/stream",
+		OperationID: "streamTask",
+		Summary:     "Stream task-native live events for one task",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+			afterSequenceQueryParam("Replay events after the supplied task stream sequence"),
+		},
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Task event stream",
+				Body:        contract.TaskStreamEventPayload{},
+				ContentType: "text/event-stream",
+			},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task stream query", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/tasks/{id}/tree",
+		OperationID: "getTaskTree",
+		Summary:     "Get one task tree live view",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskTreeResponse{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task id", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/tasks/{id}/approve",
+		OperationID: "approveTask",
+		Summary:     "Approve one approval-gated task",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskResponse{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task approval conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task approval request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/tasks/{id}/reject",
+		OperationID: "rejectTask",
+		Summary:     "Reject one approval-gated task",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskResponse{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task rejection conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task rejection request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/tasks/{id}/triage/read",
+		OperationID: "markTaskRead",
+		Summary:     "Mark one task inbox item as read",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskTriageStateResponse{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task triage request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/tasks/{id}/triage/archive",
+		OperationID: "archiveTask",
+		Summary:     "Archive one task inbox item",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskTriageStateResponse{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task triage request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/tasks/{id}/triage/dismiss",
+		OperationID: "dismissTask",
+		Summary:     "Dismiss one task inbox item",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskTriageStateResponse{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task triage request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/observe/tasks/dashboard",
+		OperationID: "getTaskDashboard",
+		Summary:     "Get the observer-backed task dashboard",
+		Tags:        []string{"observe", "tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			enumQueryParam("scope", "Filter by task scope", taskScopeValues()),
+			queryParam("workspace", "Filter by workspace path, name, or ID", false),
+			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
+			queryParam("owner_ref", "Filter by owner reference", false),
+			queryParam("network_channel", "Filter by network channel", false),
+			enumQueryParam("origin_kind", "Filter by task origin kind", taskOriginKindValues()),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskDashboardResponse{}},
+			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task dashboard query", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Observe service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/observe/tasks/inbox",
+		OperationID: "getTaskInbox",
+		Summary:     "Get the observer-backed task inbox",
+		Tags:        []string{"observe", "tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			enumQueryParam("scope", "Filter by task scope", taskScopeValues()),
+			queryParam("workspace", "Filter by workspace path, name, or ID", false),
+			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
+			queryParam("owner_ref", "Filter by owner reference", false),
+			enumQueryParam("lane", "Filter by inbox lane", taskInboxLaneValues()),
+			boolQueryParam("unread", "Return only unread inbox items", false),
+			queryParam("query", "Filter by task title or identifier", false),
+			intQueryParam("limit", "Maximum number of inbox items to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskInboxResponse{}},
+			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task inbox query", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Observe service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
 	},
@@ -2504,7 +2754,13 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 			if err != nil {
 				return nil, fmt.Errorf("response %d schema: %w", response.Status, err)
 			}
-			resp.WithContent(openapi3.NewContentWithJSONSchemaRef(schemaRef))
+			contentType := response.ContentType
+			if contentType == "" {
+				contentType = "application/json"
+			}
+			resp.WithContent(openapi3.Content{
+				contentType: &openapi3.MediaType{Schema: schemaRef},
+			})
 		}
 		operation.AddResponse(response.Status, resp)
 	}
@@ -2841,12 +3097,12 @@ func intQueryParam(name string, description string) ParameterSpec {
 	}
 }
 
-func int64QueryParam(name string, description string, required bool) ParameterSpec {
+func afterSequenceQueryParam(description string) ParameterSpec {
 	return ParameterSpec{
-		Name:        name,
+		Name:        "after_sequence",
 		In:          openapi3.ParameterInQuery,
 		Description: description,
-		Required:    required,
+		Required:    false,
 		Kind:        "integer",
 		Format:      "int64",
 	}
@@ -2911,6 +3167,7 @@ func taskScopeValues() []string {
 
 func taskStatusValues() []string {
 	return []string{
+		string(taskpkg.TaskStatusDraft),
 		string(taskpkg.TaskStatusPending),
 		string(taskpkg.TaskStatusBlocked),
 		string(taskpkg.TaskStatusReady),
@@ -2918,6 +3175,31 @@ func taskStatusValues() []string {
 		string(taskpkg.TaskStatusCompleted),
 		string(taskpkg.TaskStatusFailed),
 		string(taskpkg.TaskStatusCanceled),
+	}
+}
+
+func taskPriorityValues() []string {
+	return []string{
+		string(taskpkg.PriorityLow),
+		string(taskpkg.PriorityMedium),
+		string(taskpkg.PriorityHigh),
+		string(taskpkg.PriorityUrgent),
+	}
+}
+
+func taskApprovalPolicyValues() []string {
+	return []string{
+		string(taskpkg.ApprovalPolicyNone),
+		string(taskpkg.ApprovalPolicyManual),
+	}
+}
+
+func taskApprovalStateValues() []string {
+	return []string{
+		string(taskpkg.ApprovalStateNotRequired),
+		string(taskpkg.ApprovalStatePending),
+		string(taskpkg.ApprovalStateApproved),
+		string(taskpkg.ApprovalStateRejected),
 	}
 }
 
@@ -2972,6 +3254,16 @@ func taskOriginKindValues() []string {
 func taskDependencyKindValues() []string {
 	return []string{
 		string(taskpkg.DependencyKindBlocks),
+	}
+}
+
+func taskInboxLaneValues() []string {
+	return []string{
+		string(contract.TaskInboxLaneMyWork),
+		string(contract.TaskInboxLaneApprovals),
+		string(contract.TaskInboxLaneFailedRuns),
+		string(contract.TaskInboxLaneBlocked),
+		string(contract.TaskInboxLaneArchived),
 	}
 }
 

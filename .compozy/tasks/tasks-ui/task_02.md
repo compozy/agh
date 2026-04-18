@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Persistent task fields and lifecycle reconciliation
 type: backend
 complexity: critical
@@ -32,11 +32,11 @@ Persist the expanded task semantics and teach the task manager how they change l
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Extend durable task storage and schema handling for the new task fields
-- [ ] 2.2 Add durable triage-state persistence keyed by task and actor
-- [ ] 2.3 Update manager create/update/reconcile flows for draft and approval-aware transitions
-- [ ] 2.4 Enforce task-level attempt exhaustion and retry policy in lifecycle handling
-- [ ] 2.5 Add storage and manager tests for durable round-trips and transition matrices
+- [x] 2.1 Extend durable task storage and schema handling for the new task fields
+- [x] 2.2 Add durable triage-state persistence keyed by task and actor
+- [x] 2.3 Update manager create/update/reconcile flows for draft and approval-aware transitions
+- [x] 2.4 Enforce task-level attempt exhaustion and retry policy in lifecycle handling
+- [x] 2.5 Add storage and manager tests for durable round-trips and transition matrices
 
 ## Implementation Details
 
@@ -69,14 +69,14 @@ See TechSpec sections "Persistent storage changes", "Data Models", and ADR-002/A
 
 ## Tests
 - Unit tests:
-  - [ ] Draft tasks stay non-runnable until explicit publication
-  - [ ] Publishing a task yields `ready` or `blocked` based on current dependencies
-  - [ ] Approval-gated tasks cannot progress into runnable execution without the expected approval state
-  - [ ] Attempt exhaustion updates task/run state consistently after the configured limit is reached
+  - [x] Draft tasks stay non-runnable until explicit publication
+  - [x] Publishing a task yields `ready` or `blocked` based on current dependencies
+  - [x] Approval-gated tasks cannot progress into runnable execution without the expected approval state
+  - [x] Attempt exhaustion updates task/run state consistently after the configured limit is reached
 - Integration tests:
-  - [ ] GlobalDB round-trips persist the new task fields and triage state without loss
-  - [ ] Manager integration tests verify draft creation, publication, retries, and approval-aware transitions against the real store
-  - [ ] Actor-scoped triage mutations survive reload and remain isolated per actor reference
+  - [x] GlobalDB round-trips persist the new task fields and triage state without loss
+  - [x] Manager integration tests verify draft creation, publication, retries, and approval-aware transitions against the real store
+  - [x] Actor-scoped triage mutations survive reload and remain isolated per actor reference
 - Test coverage target: >=80%
 - All tests must pass
 

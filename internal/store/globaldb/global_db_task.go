@@ -17,6 +17,35 @@ import (
 var _ taskpkg.RecordStore = (*GlobalDB)(nil)
 var _ taskpkg.RunStore = (*GlobalDB)(nil)
 
+const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
+	SELECT MAX(activity_at)
+	FROM (
+		SELECT tasks.updated_at AS activity_at
+		UNION ALL
+		SELECT tasks.created_at AS activity_at
+		UNION ALL
+		SELECT tr.queued_at AS activity_at
+		FROM task_runs tr
+		WHERE tr.task_id = tasks.id
+		UNION ALL
+		SELECT tr.claimed_at AS activity_at
+		FROM task_runs tr
+		WHERE tr.task_id = tasks.id AND tr.claimed_at IS NOT NULL
+		UNION ALL
+		SELECT tr.started_at AS activity_at
+		FROM task_runs tr
+		WHERE tr.task_id = tasks.id AND tr.started_at IS NOT NULL
+		UNION ALL
+		SELECT tr.ended_at AS activity_at
+		FROM task_runs tr
+		WHERE tr.task_id = tasks.id AND tr.ended_at IS NOT NULL
+		UNION ALL
+		SELECT te.timestamp AS activity_at
+		FROM task_events te
+		WHERE te.task_id = tasks.id
+	)
+), tasks.updated_at) DESC, updated_at DESC, created_at DESC, id DESC`
+
 // CreateTask inserts one durable task record.
 func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 	if err := g.checkReady(ctx, "create task"); err != nil {
@@ -34,10 +63,11 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 	_, err = g.db.ExecContext(
 		ctx,
 		`INSERT INTO tasks (
-			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description, status,
+			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+			priority, max_attempts, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 			created_at, updated_at, closed_at, metadata_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		store.NullableString(normalized.Identifier),
 		string(normalized.Scope),
@@ -46,7 +76,11 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 		store.NullableString(normalized.NetworkChannel),
 		normalized.Title,
 		store.NullableString(normalized.Description),
+		string(normalized.Priority),
+		normalized.MaxAttempts,
 		string(normalized.Status),
+		string(normalized.ApprovalPolicy),
+		string(normalized.ApprovalState),
 		taskOwnerKindValue(normalized.Owner),
 		taskOwnerRefValue(normalized.Owner),
 		string(normalized.CreatedBy.Kind),
@@ -89,7 +123,8 @@ func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task) error {
 		ctx,
 		`UPDATE tasks
 		 SET identifier = ?, scope = ?, workspace_id = ?, parent_task_id = ?,
-		     network_channel = ?, title = ?, description = ?, status = ?,
+		     network_channel = ?, title = ?, description = ?, priority = ?,
+		     max_attempts = ?, status = ?, approval_policy = ?, approval_state = ?,
 		     owner_kind = ?, owner_ref = ?, created_by_kind = ?,
 		     created_by_ref = ?, origin_kind = ?, origin_ref = ?,
 		     created_at = ?, updated_at = ?, closed_at = ?, metadata_json = ?
@@ -101,7 +136,11 @@ func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task) error {
 		store.NullableString(normalized.NetworkChannel),
 		normalized.Title,
 		store.NullableString(normalized.Description),
+		string(normalized.Priority),
+		normalized.MaxAttempts,
 		string(normalized.Status),
+		string(normalized.ApprovalPolicy),
+		string(normalized.ApprovalState),
 		taskOwnerKindValue(normalized.Owner),
 		taskOwnerRefValue(normalized.Owner),
 		string(normalized.CreatedBy.Kind),
@@ -135,7 +174,8 @@ func (g *GlobalDB) GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT
-			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description, status,
+			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+			priority, max_attempts, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 			created_at, updated_at, closed_at, metadata_json
 			 FROM tasks
@@ -164,7 +204,8 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 
 	normalized := normalizeTaskQuery(query)
 	sqlQuery := `SELECT
-		id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description, status,
+		id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+		priority, max_attempts, status, approval_policy, approval_state,
 		owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 		created_at, updated_at, closed_at, metadata_json
 		FROM tasks`
@@ -172,13 +213,16 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 		store.StringClause("scope", string(normalized.Scope)),
 		store.StringClause("workspace_id", normalized.WorkspaceID),
 		store.StringClause("status", string(normalized.Status)),
+		store.StringClause("priority", string(normalized.Priority)),
+		store.StringClause("approval_state", string(normalized.ApprovalState)),
 		store.StringClause("owner_kind", string(normalized.OwnerKind)),
 		store.StringClause("owner_ref", normalized.OwnerRef),
 		store.StringClause("parent_task_id", normalized.ParentTaskID),
 		store.StringClause("network_channel", normalized.NetworkChannel),
 	)
+	where, args = appendTaskSearchClause(where, args, normalized.Search)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY updated_at DESC, created_at DESC, id DESC"
+	sqlQuery += taskListOrderByActivitySQL
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
@@ -203,6 +247,18 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 	}
 
 	return summaries, nil
+}
+
+func appendTaskSearchClause(where []string, args []any, search string) ([]string, []any) {
+	trimmedSearch := strings.TrimSpace(search)
+	if trimmedSearch == "" {
+		return where, args
+	}
+
+	likePattern := "%" + strings.ToLower(trimmedSearch) + "%"
+	where = append(where, "(LOWER(title) LIKE ? OR LOWER(COALESCE(identifier, '')) LIKE ?)")
+	args = append(args, likePattern, likePattern)
+	return where, args
 }
 
 // CountDirectChildren reports how many persisted tasks reference the supplied parent id.
@@ -604,7 +660,11 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 		parentTaskID   sql.NullString
 		networkChannel sql.NullString
 		description    sql.NullString
+		priority       string
+		maxAttempts    int
 		status         string
+		approvalPolicy string
+		approvalState  string
 		ownerKind      sql.NullString
 		ownerRef       sql.NullString
 		createdByKind  string
@@ -623,7 +683,11 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 		&networkChannel,
 		&record.Title,
 		&description,
+		&priority,
+		&maxAttempts,
 		&status,
+		&approvalPolicy,
+		&approvalState,
 		&ownerKind,
 		&ownerRef,
 		&createdByKind,
@@ -646,7 +710,11 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 		parentTaskID,
 		networkChannel,
 		description,
+		priority,
+		maxAttempts,
 		status,
+		approvalPolicy,
+		approvalState,
 		ownerKind,
 		ownerRef,
 		createdByKind,
@@ -738,7 +806,11 @@ func assignScannedTaskRecord(
 	parentTaskID sql.NullString,
 	networkChannel sql.NullString,
 	description sql.NullString,
+	priority string,
+	maxAttempts int,
 	status string,
+	approvalPolicy string,
+	approvalState string,
 	ownerKind sql.NullString,
 	ownerRef sql.NullString,
 	createdByKind string,
@@ -750,7 +822,11 @@ func assignScannedTaskRecord(
 	record.ParentTaskID = taskNullStringValue(parentTaskID)
 	record.NetworkChannel = taskNullStringValue(networkChannel)
 	record.Description = taskNullStringValue(description)
+	record.Priority = taskpkg.Priority(strings.TrimSpace(priority))
+	record.MaxAttempts = maxAttempts
 	record.Status = taskpkg.Status(strings.TrimSpace(status))
+	record.ApprovalPolicy = taskpkg.ApprovalPolicy(strings.TrimSpace(approvalPolicy))
+	record.ApprovalState = taskpkg.ApprovalState(strings.TrimSpace(approvalState))
 	record.CreatedBy.Kind = taskpkg.ActorKind(strings.TrimSpace(createdByKind))
 	record.Origin.Kind = taskpkg.OriginKind(strings.TrimSpace(originKind))
 	if ownerKind.Valid || ownerRef.Valid {
@@ -881,6 +957,24 @@ func normalizeTaskRecord(record taskpkg.Task) taskpkg.Task {
 		}
 	}
 	normalized.Metadata = normalizeTaskJSON(normalized.Metadata)
+	normalized.Priority = taskpkg.DefaultPriority
+	if record.Priority.Normalize() != "" {
+		normalized.Priority = record.Priority.Normalize()
+	}
+	normalized.MaxAttempts = taskpkg.DefaultTaskMaxAttempts
+	if record.MaxAttempts != 0 {
+		normalized.MaxAttempts = record.MaxAttempts
+	}
+	normalized.ApprovalPolicy = taskpkg.DefaultApprovalPolicy
+	if record.ApprovalPolicy.Normalize() != "" {
+		normalized.ApprovalPolicy = record.ApprovalPolicy.Normalize()
+	}
+	normalized.ApprovalState = taskpkg.ApprovalStateNotRequired
+	if record.ApprovalState.Normalize() != "" {
+		normalized.ApprovalState = record.ApprovalState.Normalize()
+	} else if normalized.ApprovalPolicy == taskpkg.ApprovalPolicyManual {
+		normalized.ApprovalState = taskpkg.ApprovalStatePending
+	}
 	if !normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = normalized.CreatedAt.UTC()
 	}
@@ -931,10 +1025,13 @@ func normalizeTaskQuery(query taskpkg.Query) taskpkg.Query {
 	normalized.Scope = normalized.Scope.Normalize()
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.Status = normalized.Status.Normalize()
+	normalized.Priority = normalized.Priority.Normalize()
+	normalized.ApprovalState = normalized.ApprovalState.Normalize()
 	normalized.OwnerKind = normalized.OwnerKind.Normalize()
 	normalized.OwnerRef = strings.TrimSpace(normalized.OwnerRef)
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.Search = strings.TrimSpace(normalized.Search)
 	return normalized
 }
 
@@ -955,13 +1052,19 @@ func taskSummaryFromRecord(record taskpkg.Task) taskpkg.Summary {
 		ParentTaskID:   record.ParentTaskID,
 		NetworkChannel: record.NetworkChannel,
 		Title:          record.Title,
+		Priority:       record.Priority,
+		MaxAttempts:    record.MaxAttempts,
 		Status:         record.Status,
+		ApprovalPolicy: record.ApprovalPolicy,
+		ApprovalState:  record.ApprovalState,
+		Draft:          record.Status.Normalize() == taskpkg.TaskStatusDraft,
 		Owner:          record.Owner,
 		CreatedBy:      record.CreatedBy,
 		Origin:         record.Origin,
 		CreatedAt:      record.CreatedAt,
 		UpdatedAt:      record.UpdatedAt,
 		ClosedAt:       record.ClosedAt,
+		LastActivityAt: record.UpdatedAt,
 	}
 }
 

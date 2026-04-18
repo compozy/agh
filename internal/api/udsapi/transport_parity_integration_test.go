@@ -13,11 +13,15 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	aghcontract "github.com/pedronauck/agh/internal/api/contract"
+	apispec "github.com/pedronauck/agh/internal/api/spec"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
@@ -466,6 +470,23 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	}
 }
 
+func TestUDSTransportTaskSurfaceMatchesHTTPAndDocumentedSpecOperations(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	udsEngine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+
+	udsRoutes := taskRoutesFromEngine(udsEngine.Routes())
+	httpRoutes := documentedTaskRoutesForTransport(apispec.TransportHTTP)
+	if !slices.Equal(udsRoutes, httpRoutes) {
+		t.Fatalf("UDS task routes = %v, want documented HTTP task routes %v", udsRoutes, httpRoutes)
+	}
+
+	specRoutes := documentedTaskRoutesForTransport(apispec.TransportUDS)
+	if !slices.Equal(udsRoutes, specRoutes) {
+		t.Fatalf("UDS task routes = %v, want documented task routes %v", udsRoutes, specRoutes)
+	}
+}
 func waitForUDSAutomationRun(
 	t testing.TB,
 	ctx context.Context,
@@ -531,6 +552,48 @@ func seedTransportWebhookTrigger(
 		t.Fatalf("FormatWebhookEndpoint() error = %v", err)
 	}
 	return state.Triggers[0], endpoint
+}
+
+func taskRoutesFromEngine(routes gin.RoutesInfo) []string {
+	filtered := make([]string, 0)
+	for _, route := range routes {
+		if isDocumentedTaskRoute(route.Path) {
+			filtered = append(filtered, route.Method+" "+route.Path)
+		}
+	}
+	sort.Strings(filtered)
+	return filtered
+}
+
+func documentedTaskRoutesForTransport(transport apispec.Transport) []string {
+	routes := make([]string, 0)
+	for _, operation := range apispec.Operations() {
+		if !slices.Contains(operation.Transports, transport) {
+			continue
+		}
+		if !isDocumentedTaskRoute(operation.Path) {
+			continue
+		}
+		routes = append(routes, operation.Method+" "+normalizeSpecRoutePath(operation.Path))
+	}
+	sort.Strings(routes)
+	return routes
+}
+
+func isDocumentedTaskRoute(path string) bool {
+	return strings.HasPrefix(path, "/api/tasks") ||
+		strings.HasPrefix(path, "/api/task-runs") ||
+		strings.HasPrefix(path, "/api/observe/tasks")
+}
+
+func normalizeSpecRoutePath(path string) string {
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") && len(part) > 2 {
+			parts[i] = ":" + part[1:len(part)-1]
+		}
+	}
+	return strings.Join(parts, "/")
 }
 
 func waitForHTTPAutomationRun(

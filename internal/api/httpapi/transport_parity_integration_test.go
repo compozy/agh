@@ -11,10 +11,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	aghcontract "github.com/pedronauck/agh/internal/api/contract"
+	apispec "github.com/pedronauck/agh/internal/api/spec"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
@@ -286,6 +289,35 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	}
 }
 
+func TestHTTPTransportTaskSurfaceMatchesDocumentedSpecOperations(t *testing.T) {
+	t.Parallel()
+
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
+
+	got := make([]string, 0)
+	for _, route := range engine.Routes() {
+		if isDocumentedHTTPTaskRoute(route.Path) {
+			got = append(got, route.Method+" "+route.Path)
+		}
+	}
+	sort.Strings(got)
+
+	want := make([]string, 0)
+	for _, operation := range apispec.Operations() {
+		if !slices.Contains(operation.Transports, apispec.TransportHTTP) {
+			continue
+		}
+		if !isDocumentedHTTPTaskRoute(operation.Path) {
+			continue
+		}
+		want = append(want, operation.Method+" "+normalizeSpecRoutePath(operation.Path))
+	}
+	sort.Strings(want)
+
+	if !slices.Equal(got, want) {
+		t.Fatalf("HTTP task routes = %v, want documented task routes %v", got, want)
+	}
+}
 func seedTransportWebhookTrigger(
 	t testing.TB,
 	ctx context.Context,
@@ -476,4 +508,20 @@ func httpSessionEventsContainType(events []aghcontract.SessionEventPayload, want
 		}
 	}
 	return false
+}
+
+func isDocumentedHTTPTaskRoute(path string) bool {
+	return strings.HasPrefix(path, "/api/tasks") ||
+		strings.HasPrefix(path, "/api/task-runs") ||
+		strings.HasPrefix(path, "/api/observe/tasks")
+}
+
+func normalizeSpecRoutePath(path string) string {
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") && len(part) > 2 {
+			parts[i] = ":" + part[1:len(part)-1]
+		}
+	}
+	return strings.Join(parts, "/")
 }

@@ -7,6 +7,10 @@ const (
 	MaxPayloadBytes = 64 * 1024
 	// MaxResultBytes caps persisted run results at 64 KiB.
 	MaxResultBytes = 64 * 1024
+	// DefaultTaskMaxAttempts is the canonical retry budget used when callers omit an explicit value.
+	DefaultTaskMaxAttempts = 3
+	// MaxTaskMaxAttempts caps task-level attempt policy at ten tries.
+	MaxTaskMaxAttempts = 10
 	// MaxHierarchyDepth caps parent/child nesting at eight levels.
 	MaxHierarchyDepth = 8
 	// MaxDependencyCount caps dependency edges per task at thirty-two.
@@ -30,6 +34,12 @@ const (
 	TaskFieldTitle = "title"
 	// TaskFieldDescription identifies the mutable task description field.
 	TaskFieldDescription = "description"
+	// TaskFieldPriority identifies the mutable task priority field.
+	TaskFieldPriority = "priority"
+	// TaskFieldMaxAttempts identifies the mutable task attempt-policy field.
+	TaskFieldMaxAttempts = "max_attempts"
+	// TaskFieldApprovalPolicy identifies the mutable approval-policy field.
+	TaskFieldApprovalPolicy = "approval_policy"
 	// TaskFieldMetadata identifies the mutable task metadata field.
 	TaskFieldMetadata = "metadata"
 	// TaskFieldNetworkChannel identifies the mutable network channel field.
@@ -54,6 +64,9 @@ func MutableTaskFields() []string {
 	return []string{
 		TaskFieldTitle,
 		TaskFieldDescription,
+		TaskFieldPriority,
+		TaskFieldMaxAttempts,
+		TaskFieldApprovalPolicy,
 		TaskFieldMetadata,
 		TaskFieldNetworkChannel,
 		TaskFieldOwner,
@@ -73,7 +86,14 @@ func IsImmutableTaskField(field string) bool {
 // IsMutableTaskField reports whether the supplied field name is directly mutable on a task.
 func IsMutableTaskField(field string) bool {
 	switch field {
-	case TaskFieldTitle, TaskFieldDescription, TaskFieldMetadata, TaskFieldNetworkChannel, TaskFieldOwner:
+	case TaskFieldTitle,
+		TaskFieldDescription,
+		TaskFieldPriority,
+		TaskFieldMaxAttempts,
+		TaskFieldApprovalPolicy,
+		TaskFieldMetadata,
+		TaskFieldNetworkChannel,
+		TaskFieldOwner:
 		return true
 	default:
 		return false

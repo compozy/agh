@@ -81,9 +81,12 @@ func findTaskRunPayload(
 }
 
 func findTaskRunInDetail(
-	detail aghcontract.TaskDetailPayload,
+	detail *aghcontract.TaskDetailPayload,
 	runID string,
 ) (aghcontract.TaskRunPayload, bool) {
+	if detail == nil {
+		return aghcontract.TaskRunPayload{}, false
+	}
 	return findTaskRunPayload(detail.Runs, runID)
 }
 
@@ -112,6 +115,18 @@ func TestRequireDelegatedTaskAutomationRun(t *testing.T) {
 	if err := requireDelegatedTaskAutomationRun(run); err != nil {
 		t.Fatalf("requireDelegatedTaskAutomationRun() error = %v", err)
 	}
+}
+
+func TestFindTaskRunInDetailReturnsMissingForNilDetail(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return missing for nil detail", func(t *testing.T) {
+		t.Parallel()
+
+		if _, ok := findTaskRunInDetail(nil, "task-run-1"); ok {
+			t.Fatal("findTaskRunInDetail(nil) = present, want missing")
+		}
+	})
 }
 
 func TestClassifyAutomationRunLinkageRejectsMixedSurfaces(t *testing.T) {
@@ -145,7 +160,7 @@ func TestFindTaskRunHelpers(t *testing.T) {
 		t.Fatalf("run.SessionID = %q, want %q", got, want)
 	}
 
-	detailRun, ok := findTaskRunInDetail(aghcontract.TaskDetailPayload{Runs: runs}, "task-run-1")
+	detailRun, ok := findTaskRunInDetail(&aghcontract.TaskDetailPayload{Runs: runs}, "task-run-1")
 	if !ok {
 		t.Fatal("findTaskRunInDetail() = missing, want present")
 	}

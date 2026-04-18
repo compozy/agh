@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Inbox triage and approval read models
 type: backend
 complexity: high
@@ -32,10 +32,10 @@ Build the task inbox as a real backend capability instead of a client-side group
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Define the inbox item and lane model over durable task, run, and triage state
-- [ ] 6.2 Implement actor-scoped triage mutations for read, archive, and dismiss flows
-- [ ] 6.3 Implement approval and rejection command behavior for approval-backed tasks
-- [ ] 6.4 Add tests for lane assignment, actor isolation, and approval/triage mutations
+- [x] 6.1 Define the inbox item and lane model over durable task, run, and triage state
+- [x] 6.2 Implement actor-scoped triage mutations for read, archive, and dismiss flows
+- [x] 6.3 Implement approval and rejection command behavior for approval-backed tasks
+- [x] 6.4 Add tests for lane assignment, actor isolation, and approval/triage mutations
 
 ## Implementation Details
 
@@ -67,14 +67,16 @@ See TechSpec sections "Data Models", "API Endpoints", "Known Risks", and ADR-004
 
 ## Tests
 - Unit tests:
-  - [ ] Inbox items are assigned to the correct lanes for approval, blocked, failed, archived, and assigned work states
-  - [ ] Mark-read, archive, and dismiss mutations update actor-scoped triage state without leaking to other actors
-  - [ ] Approval and rejection flows update approval state and runnable status consistently
-  - [ ] Failed-run and blocked-task lane shaping includes the expected reason metadata
+  - [x] Inbox items are assigned to the correct lanes for approvals, my work, blocked, failed runs, and archived states for mixed task inputs
+  - [x] Mark-read, archive, and dismiss mutations update actor-scoped triage state, unread counts, and lane membership without leaking to other actors
+  - [x] Approval and rejection flows update approval state, runnable status, and lane transitions consistently for approval-backed tasks
+  - [x] Failed-run and blocked-task lane shaping includes the expected reason metadata, latest activity, and linked run references
+  - [x] Inbox filters such as lane, unread-only, and text query return the expected item set and grouped counts
 - Integration tests:
-  - [ ] Persisted actor triage state survives reload and remains scoped to the originating actor context
-  - [ ] Approval-backed tasks move between inbox lanes correctly after approve/reject actions
-  - [ ] Inbox queries surface the expected unread/archive counts against real stored task state
+  - [x] Persisted actor triage state survives reload and remains scoped to the originating actor context across read, archive, and dismiss mutations
+  - [x] Approval-backed tasks move between inbox lanes correctly after approve or reject actions against real stored task state
+  - [x] Archive, dismiss, and mark-read mutations update unread or archived counts on subsequent inbox queries without phantom duplicates
+  - [x] Inbox queries surface the expected grouped lanes, unread counts, and actor-scoped visibility against real stored task state
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"time"
 )
 
 // Manager is the task-domain authority for task and run lifecycle operations.
@@ -9,7 +10,13 @@ type Manager interface {
 	CreateTask(ctx context.Context, spec CreateTask, actor ActorContext) (*Task, error)
 	CreateChildTask(ctx context.Context, parentTaskID string, spec CreateTask, actor ActorContext) (*Task, error)
 	UpdateTask(ctx context.Context, id string, patch Patch, actor ActorContext) (*Task, error)
+	PublishTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
+	ApproveTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
+	RejectTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
 	CancelTask(ctx context.Context, id string, req CancelTask, actor ActorContext) (*Task, error)
+	MarkTaskRead(ctx context.Context, id string, actor ActorContext) (TriageState, error)
+	ArchiveTask(ctx context.Context, id string, actor ActorContext) (TriageState, error)
+	DismissTask(ctx context.Context, id string, actor ActorContext) (TriageState, error)
 
 	AddDependency(ctx context.Context, spec AddDependency, actor ActorContext) error
 	RemoveDependency(ctx context.Context, taskID string, dependsOnID string, actor ActorContext) error
@@ -25,6 +32,8 @@ type Manager interface {
 	GetTask(ctx context.Context, id string, actor ActorContext) (*View, error)
 	ListTaskRuns(ctx context.Context, taskID string, query RunQuery, actor ActorContext) ([]Run, error)
 	ListTasks(ctx context.Context, query Query, actor ActorContext) ([]Summary, error)
+
+	LiveService
 }
 
 // RecordStore is the persistence surface for durable task records.
@@ -54,6 +63,15 @@ type RunStore interface {
 	ListTaskRuns(ctx context.Context, query RunQuery) ([]Run, error)
 	ListTaskRunsByStatus(ctx context.Context, statuses []RunStatus) ([]Run, error)
 	CountActiveSessionBindings(ctx context.Context, sessionID string) (int, error)
+	ReserveQueuedRun(
+		ctx context.Context,
+		taskID string,
+		runID string,
+		idempotencyKey string,
+		origin Origin,
+		requestedChannel string,
+		queuedAt time.Time,
+	) (Task, Run, bool, error)
 }
 
 // EventStore is the persistence surface for immutable task audit events.
@@ -62,10 +80,22 @@ type EventStore interface {
 	ListTaskEvents(ctx context.Context, query EventQuery) ([]Event, error)
 }
 
+// EventSequenceStore is the persistence surface for stable task event sequencing used by live reads.
+type EventSequenceStore interface {
+	GetTaskEventRecord(ctx context.Context, eventID string) (EventRecord, error)
+	ListTaskEventRecords(ctx context.Context, query EventRecordQuery) ([]EventRecord, error)
+}
+
 // IdempotencyStore is the persistence surface for non-human run idempotency tracking.
 type IdempotencyStore interface {
 	GetTaskRunByIdempotencyKey(ctx context.Context, key string, origin Origin) (Run, error)
 	SaveTaskRunIdempotency(ctx context.Context, record RunIdempotency) error
+}
+
+// TriageStore is the persistence surface for durable actor-scoped task triage state.
+type TriageStore interface {
+	GetTaskTriageState(ctx context.Context, taskID string, actor ActorIdentity) (TriageState, error)
+	UpsertTaskTriageState(ctx context.Context, state TriageState) error
 }
 
 // Store composes the task-domain persistence surfaces consumed by the manager.
@@ -74,7 +104,9 @@ type Store interface {
 	DependencyStore
 	RunStore
 	EventStore
+	EventSequenceStore
 	IdempotencyStore
+	TriageStore
 }
 
 // SessionExecutor is the injected runtime bridge used to start, attach, and stop task sessions.

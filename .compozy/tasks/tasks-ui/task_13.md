@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: web/src/systems/tasks scaffold
 type: frontend
 complexity: high
@@ -31,11 +31,11 @@ Build the tasks domain scaffold in `web/src/systems/tasks/` so every later scree
 </requirements>
 
 ## Subtasks
-- [ ] 13.1 Create the tasks system barrel, domain types, and adapter error surface
-- [ ] 13.2 Add query keys/options for list, detail, timeline, tree, run detail, dashboard, and inbox
-- [ ] 13.3 Add shared task hooks for reads, mutations, and live subscriptions
-- [ ] 13.4 Add route hooks for the base tasks page, task detail page, and run-detail page
-- [ ] 13.5 Add adapter, query, and hook tests for the scaffold
+- [x] 13.1 Create the tasks system barrel, domain types, and adapter error surface
+- [x] 13.2 Add query keys/options for list, detail, timeline, tree, run detail, dashboard, and inbox
+- [x] 13.3 Add shared task hooks for reads, mutations, and live subscriptions
+- [x] 13.4 Add route hooks for the base tasks page, task detail page, and run-detail page
+- [x] 13.5 Add adapter, query, and hook tests for the scaffold
 
 ## Implementation Details
 
@@ -76,13 +76,17 @@ See TechSpec sections "Core Interfaces", "System Architecture", and "Testing App
 
 ## Tests
 - Unit tests:
-  - [ ] Tasks adapter methods call the expected generated endpoints and normalize error handling
-  - [ ] Query keys and query options remain stable for list, detail, live, dashboard, and inbox reads
-  - [ ] Route hooks derive URL state, selected IDs, and basic panel state correctly
-  - [ ] Mutation hooks invalidate the expected task queries after create, publish, approval, and triage actions
+  - [ ] Tasks adapter methods call the expected generated endpoints and normalize transport or contract errors consistently
+  - [ ] Query keys and query options remain stable for list, detail, timeline, tree, run-detail, dashboard, and inbox reads
+  - [ ] Query options propagate filters, identifiers, and live-read parameters into the generated client without manual shape conversion
+  - [ ] Route hooks derive URL state, selected IDs, active mode, and panel state correctly from search params and route params
+  - [ ] Mutation hooks invalidate the expected task queries after create, publish, approval, archive, dismiss, and mark-read actions
+  - [ ] Shared formatters or type helpers normalize status, lane, and badge data without leaking raw transport enums into components
 - Integration tests:
   - [ ] Route hooks and shared task hooks compose correctly with mocked data across base, detail, and run-detail routes
-  - [ ] Generated OpenAPI types align with the tasks adapter signatures without manual type escapes
+  - [ ] Query invalidation refreshes dependent task surfaces coherently after create, publish, and inbox-action mutations
+  - [ ] Generated OpenAPI types align with the tasks adapter signatures without manual type escapes or `any` fallbacks
+  - [ ] The tasks system public barrel exports remain sufficient for route consumers without deep-import drift
 - Test coverage target: >=80%
 - All tests must pass
 

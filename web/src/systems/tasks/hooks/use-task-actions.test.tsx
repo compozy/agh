@@ -1,0 +1,236 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  useApproveTask,
+  useArchiveTask,
+  useCancelTask,
+  useCancelTaskRun,
+  useCreateTask,
+  useDismissTask,
+  useEnqueueTaskRun,
+  useFailTaskRun,
+  useMarkTaskRead,
+  usePublishTask,
+  useRejectTask,
+  useUpdateTask,
+} from "@/systems/tasks";
+
+vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
+  createTask: vi.fn(),
+  updateTask: vi.fn(),
+  publishTask: vi.fn(),
+  cancelTask: vi.fn(),
+  approveTask: vi.fn(),
+  rejectTask: vi.fn(),
+  createChildTask: vi.fn(),
+  addTaskDependency: vi.fn(),
+  removeTaskDependency: vi.fn(),
+  enqueueTaskRun: vi.fn(),
+  attachTaskRunSession: vi.fn(),
+  cancelTaskRun: vi.fn(),
+  claimTaskRun: vi.fn(),
+  completeTaskRun: vi.fn(),
+  failTaskRun: vi.fn(),
+  startTaskRun: vi.fn(),
+  markTaskRead: vi.fn(),
+  archiveTask: vi.fn(),
+  dismissTask: vi.fn(),
+}));
+
+import {
+  approveTask,
+  archiveTask,
+  cancelTask,
+  cancelTaskRun,
+  createTask,
+  dismissTask,
+  enqueueTaskRun,
+  failTaskRun,
+  markTaskRead,
+  publishTask,
+  rejectTask,
+  updateTask,
+} from "@/systems/tasks/adapters/tasks-api";
+
+const taskFixture = { id: "task_001", title: "Review", status: "ready" };
+const runFixture = { id: "run_001", task_id: "task_001", status: "queued" };
+const triageFixture = { task_id: "task_001", read: true };
+
+function createWrapper(queryClient: QueryClient) {
+  return ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client: queryClient }, children);
+}
+
+function buildClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("task mutation hooks", () => {
+  it("invalidates task, aggregate, and dependent queries after creating a task", async () => {
+    vi.mocked(createTask).mockResolvedValue(taskFixture as never);
+
+    const queryClient = buildClient();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useCreateTask(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({ title: "Review", scope: "workspace" });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(createTask).toHaveBeenCalledWith(expect.objectContaining({ title: "Review" }));
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "list"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "dashboard"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "inbox"] });
+  });
+
+  it("invalidates task detail when updating a task", async () => {
+    vi.mocked(updateTask).mockResolvedValue(taskFixture as never);
+
+    const queryClient = buildClient();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useUpdateTask(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({ id: "task_001", data: { title: "Next" } });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(updateTask).toHaveBeenCalledWith("task_001", { title: "Next" });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
+  });
+
+  it("invalidates task surfaces after publish, cancel, approve, reject", async () => {
+    vi.mocked(publishTask).mockResolvedValue(taskFixture as never);
+    vi.mocked(cancelTask).mockResolvedValue(taskFixture as never);
+    vi.mocked(approveTask).mockResolvedValue(taskFixture as never);
+    vi.mocked(rejectTask).mockResolvedValue(taskFixture as never);
+
+    const queryClient = buildClient();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const publishHook = renderHook(() => usePublishTask(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const cancelHook = renderHook(() => useCancelTask(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const approveHook = renderHook(() => useApproveTask(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const rejectHook = renderHook(() => useRejectTask(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      publishHook.result.current.mutate({ id: "task_001" });
+      cancelHook.result.current.mutate({ id: "task_001" });
+      approveHook.result.current.mutate({ id: "task_001" });
+      rejectHook.result.current.mutate({ id: "task_001" });
+    });
+
+    await waitFor(() => {
+      expect(publishHook.result.current.isSuccess).toBe(true);
+      expect(cancelHook.result.current.isSuccess).toBe(true);
+      expect(approveHook.result.current.isSuccess).toBe(true);
+      expect(rejectHook.result.current.isSuccess).toBe(true);
+    });
+
+    expect(cancelTask).toHaveBeenCalledWith("task_001", {});
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "dashboard"] });
+  });
+
+  it("invalidates run and task surfaces when running task-run commands", async () => {
+    vi.mocked(enqueueTaskRun).mockResolvedValue(runFixture as never);
+    vi.mocked(cancelTaskRun).mockResolvedValue(runFixture as never);
+    vi.mocked(failTaskRun).mockResolvedValue(runFixture as never);
+
+    const queryClient = buildClient();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const enqueueHook = renderHook(() => useEnqueueTaskRun(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const cancelRunHook = renderHook(() => useCancelTaskRun(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const failRunHook = renderHook(() => useFailTaskRun(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      enqueueHook.result.current.mutate({ id: "task_001" });
+      cancelRunHook.result.current.mutate({ runId: "run_001" });
+      failRunHook.result.current.mutate({ runId: "run_001", data: { error: "boom" } });
+    });
+
+    await waitFor(() => {
+      expect(enqueueHook.result.current.isSuccess).toBe(true);
+      expect(cancelRunHook.result.current.isSuccess).toBe(true);
+      expect(failRunHook.result.current.isSuccess).toBe(true);
+    });
+
+    expect(enqueueTaskRun).toHaveBeenCalledWith("task_001", {});
+    expect(cancelTaskRun).toHaveBeenCalledWith("run_001", {});
+    expect(failTaskRun).toHaveBeenCalledWith("run_001", { error: "boom" });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "run-detail", "run_001"] });
+  });
+
+  it("invalidates triage, list, detail, and inbox queries on triage actions", async () => {
+    vi.mocked(markTaskRead).mockResolvedValue(triageFixture as never);
+    vi.mocked(archiveTask).mockResolvedValue(triageFixture as never);
+    vi.mocked(dismissTask).mockResolvedValue(triageFixture as never);
+
+    const queryClient = buildClient();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const readHook = renderHook(() => useMarkTaskRead(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const archiveHook = renderHook(() => useArchiveTask(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const dismissHook = renderHook(() => useDismissTask(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      readHook.result.current.mutate({ id: "task_001" });
+      archiveHook.result.current.mutate({ id: "task_001" });
+      dismissHook.result.current.mutate({ id: "task_001" });
+    });
+
+    await waitFor(() => {
+      expect(readHook.result.current.isSuccess).toBe(true);
+      expect(archiveHook.result.current.isSuccess).toBe(true);
+      expect(dismissHook.result.current.isSuccess).toBe(true);
+    });
+
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "triage"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "list"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "inbox"] });
+  });
+});

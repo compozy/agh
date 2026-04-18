@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Tasks entrypoint and route shell
 type: frontend
 complexity: medium
@@ -32,10 +32,10 @@ Create the first-class Tasks area in the main app shell by wiring sidebar naviga
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Turn the Tasks area into a real sidebar navigation target
-- [ ] 12.2 Add the base tasks route and deep-link route files for detail and run detail
-- [ ] 12.3 Add the shared page shell/frame that later task screens can render inside
-- [ ] 12.4 Regenerate the route tree and add route-level tests for the new tasks entrypoint
+- [x] 12.1 Turn the Tasks area into a real sidebar navigation target
+- [x] 12.2 Add the base tasks route and deep-link route files for detail and run detail
+- [x] 12.3 Add the shared page shell/frame that later task screens can render inside
+- [x] 12.4 Regenerate the route tree and add route-level tests for the new tasks entrypoint
 
 ## Implementation Details
 
@@ -67,12 +67,16 @@ See TechSpec sections "System Architecture", "Impact Analysis", and ADR-001. Fol
 
 ## Tests
 - Unit tests:
-  - [ ] Sidebar renders a Tasks navigation target with the expected active-state behavior
-  - [ ] The new tasks route family is present in the generated route tree
-  - [ ] Base route components render the shared page shell without screen-specific fetch assumptions
+  - [ ] Sidebar renders a Tasks navigation target with the expected active-state behavior for base, detail, and run-detail routes
+  - [ ] The new tasks route family is present in the generated route tree with stable path and param definitions
+  - [ ] Base route components render the shared page shell without screen-specific fetch assumptions or data-shape leakage
+  - [ ] Route-shell defaults for initial mode, selected task, and search-param handling remain stable when the feature first mounts
+  - [ ] Loading and empty-shell placeholders render correctly before screen-specific queries resolve
 - Integration tests:
-  - [ ] Navigating from the sidebar reaches the tasks area successfully
-  - [ ] Direct navigation to task detail and run-detail route patterns resolves the expected route components
+  - [ ] Navigating from the sidebar reaches the tasks area successfully and keeps the app shell active-state logic correct
+  - [ ] Direct navigation to task-detail and run-detail route patterns resolves the expected route components inside the shared tasks shell
+  - [ ] Generated route-tree or router build checks succeed after adding the full tasks route family
+  - [ ] Moving between base, detail, and run-detail routes preserves shared shell state instead of remounting into route-specific forks
 - Test coverage target: >=80%
 - All tests must pass
 

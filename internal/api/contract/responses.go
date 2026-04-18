@@ -89,6 +89,16 @@ type TaskDetailResponse struct {
 	Task TaskDetailPayload `json:"task"`
 }
 
+// TaskTimelineResponse wraps the shared task timeline payload.
+type TaskTimelineResponse struct {
+	Timeline []TaskTimelineItemPayload `json:"timeline"`
+}
+
+// TaskTreeResponse wraps the shared task-tree payload.
+type TaskTreeResponse struct {
+	Tree TaskTreePayload `json:"tree"`
+}
+
 // TaskRunsResponse wraps the shared task-run list payload.
 type TaskRunsResponse struct {
 	Runs []TaskRunPayload `json:"runs"`
@@ -97,6 +107,26 @@ type TaskRunsResponse struct {
 // TaskRunResponse wraps one shared task-run payload.
 type TaskRunResponse struct {
 	Run TaskRunPayload `json:"run"`
+}
+
+// TaskRunDetailResponse wraps one shared task-run detail payload.
+type TaskRunDetailResponse struct {
+	Run TaskRunDetailPayload `json:"run"`
+}
+
+// TaskDashboardResponse wraps the shared task dashboard payload.
+type TaskDashboardResponse struct {
+	Dashboard TaskDashboardPayload `json:"dashboard"`
+}
+
+// TaskInboxResponse wraps the shared task inbox payload.
+type TaskInboxResponse struct {
+	Inbox TaskInboxPayload `json:"inbox"`
+}
+
+// TaskTriageStateResponse wraps the shared task triage-state payload.
+type TaskTriageStateResponse struct {
+	Triage TaskTriageStatePayload `json:"triage"`
 }
 
 // WebhookDeliveryResponse wraps the shared webhook delivery result payload.

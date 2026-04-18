@@ -5,6 +5,7 @@ package task_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
@@ -18,7 +19,15 @@ func (fakeStore) UpdateTask(context.Context, taskpkg.Task) error { return nil }
 func (fakeStore) GetTask(context.Context, string) (taskpkg.Task, error) { return taskpkg.Task{}, nil }
 
 func (fakeStore) ListTasks(context.Context, taskpkg.Query) ([]taskpkg.Summary, error) {
-	return []taskpkg.Summary{{ID: "task-1", Title: "bootstrap", Scope: taskpkg.ScopeGlobal}}, nil
+	return []taskpkg.Summary{{
+		ID:             "task-1",
+		Title:          "bootstrap",
+		Scope:          taskpkg.ScopeGlobal,
+		Priority:       taskpkg.PriorityMedium,
+		MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+		ApprovalState:  taskpkg.ApprovalStatePending,
+	}}, nil
 }
 
 func (fakeStore) CountDirectChildren(context.Context, string) (int, error) { return 0, nil }
@@ -55,12 +64,61 @@ func (fakeStore) ListTaskRunsByStatus(context.Context, []taskpkg.RunStatus) ([]t
 	return []taskpkg.Run{{ID: "run-1", TaskID: "task-1", Status: taskpkg.TaskRunStatusQueued, Attempt: 1}}, nil
 }
 
+func (fakeStore) ReserveQueuedRun(
+	context.Context,
+	string,
+	string,
+	string,
+	taskpkg.Origin,
+	string,
+	time.Time,
+) (taskpkg.Task, taskpkg.Run, bool, error) {
+	return taskpkg.Task{
+			ID:             "task-1",
+			Scope:          taskpkg.ScopeGlobal,
+			Title:          "bootstrap",
+			Priority:       taskpkg.PriorityMedium,
+			MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+			Status:         taskpkg.TaskStatusReady,
+			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+			ApprovalState:  taskpkg.ApprovalStatePending,
+		}, taskpkg.Run{
+			ID:      "run-1",
+			TaskID:  "task-1",
+			Status:  taskpkg.TaskRunStatusQueued,
+			Attempt: 1,
+		}, false, nil
+}
+
+func (fakeStore) GetTaskTriageState(context.Context, string, taskpkg.ActorIdentity) (taskpkg.TriageState, error) {
+	return taskpkg.TriageState{}, taskpkg.ErrTaskTriageStateNotFound
+}
+
+func (fakeStore) UpsertTaskTriageState(context.Context, taskpkg.TriageState) error { return nil }
+
 func (fakeStore) CountActiveSessionBindings(context.Context, string) (int, error) { return 0, nil }
 
 func (fakeStore) CreateTaskEvent(context.Context, taskpkg.Event) error { return nil }
 
 func (fakeStore) ListTaskEvents(context.Context, taskpkg.EventQuery) ([]taskpkg.Event, error) {
 	return []taskpkg.Event{{ID: "evt-1", TaskID: "task-1", EventType: "task.created"}}, nil
+}
+
+func (fakeStore) GetTaskEventRecord(context.Context, string) (taskpkg.EventRecord, error) {
+	return taskpkg.EventRecord{
+		Sequence: 1,
+		Event:    taskpkg.Event{ID: "evt-1", TaskID: "task-1", EventType: "task.created"},
+	}, nil
+}
+
+func (fakeStore) ListTaskEventRecords(
+	context.Context,
+	taskpkg.EventRecordQuery,
+) ([]taskpkg.EventRecord, error) {
+	return []taskpkg.EventRecord{{
+		Sequence: 1,
+		Event:    taskpkg.Event{ID: "evt-1", TaskID: "task-1", EventType: "task.created"},
+	}}, nil
 }
 
 func (fakeStore) GetTaskRunByIdempotencyKey(context.Context, string, taskpkg.Origin) (taskpkg.Run, error) {
@@ -95,7 +153,11 @@ type fakeCoordinator struct {
 }
 
 func (c fakeCoordinator) compose(ctx context.Context) error {
-	if _, err := c.store.ListTasks(ctx, taskpkg.Query{Limit: 1}); err != nil {
+	if _, err := c.store.ListTasks(ctx, taskpkg.Query{
+		Limit:         1,
+		Priority:      taskpkg.PriorityMedium,
+		ApprovalState: taskpkg.ApprovalStatePending,
+	}); err != nil {
 		return err
 	}
 	if err := c.sessions.RequestTaskStop(ctx, "sess-1", taskpkg.StopReasonCancellation); err != nil {

@@ -1108,6 +1108,283 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	draft := createIntegrationTask(t, runtime, []byte(`{
+		"scope":"global",
+		"title":"Draft live task routes",
+		"draft":true
+	}`))
+	if draft.Status != taskpkg.TaskStatusDraft {
+		t.Fatalf("draft status = %q, want %q", draft.Status, taskpkg.TaskStatusDraft)
+	}
+
+	publishResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+draft.ID+"/publish", nil, nil)
+	if publishResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(publishResp.Body)
+		_ = publishResp.Body.Close()
+		t.Fatalf("publish task status = %d, want %d; body=%s", publishResp.StatusCode, http.StatusOK, string(body))
+	}
+	var published contract.TaskResponse
+	decodeHTTPJSON(t, publishResp, &published)
+	if published.Task.Status != taskpkg.TaskStatusReady {
+		t.Fatalf("published status = %q, want %q", published.Task.Status, taskpkg.TaskStatusReady)
+	}
+
+	run := enqueueIntegrationTaskRun(t, runtime, draft.ID, `{"idempotency_key":"enqueue-live-1","network_channel":"builders"}`)
+	claimIntegrationTaskRun(t, runtime, run.ID, `{"idempotency_key":"claim-live-1"}`)
+
+	startResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/task-runs/"+run.ID+"/start", []byte(`{"idempotency_key":"start-live-1"}`), nil)
+	if startResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(startResp.Body)
+		_ = startResp.Body.Close()
+		t.Fatalf("start run status = %d, want %d; body=%s", startResp.StatusCode, http.StatusOK, string(body))
+	}
+	var started contract.TaskRunResponse
+	decodeHTTPJSON(t, startResp, &started)
+	if started.Run.Status != taskpkg.TaskRunStatusRunning {
+		t.Fatalf("started run status = %q, want %q", started.Run.Status, taskpkg.TaskRunStatusRunning)
+	}
+
+	runDetailResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/task-runs/"+run.ID, nil, nil)
+	if runDetailResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(runDetailResp.Body)
+		_ = runDetailResp.Body.Close()
+		t.Fatalf("run detail status = %d, want %d; body=%s", runDetailResp.StatusCode, http.StatusOK, string(body))
+	}
+	var runDetail contract.TaskRunDetailResponse
+	decodeHTTPJSON(t, runDetailResp, &runDetail)
+	if runDetail.Run.Run.ID != run.ID {
+		t.Fatalf("run detail run id = %q, want %q", runDetail.Run.Run.ID, run.ID)
+	}
+	if runDetail.Run.Task.ID != draft.ID {
+		t.Fatalf("run detail task id = %q, want %q", runDetail.Run.Task.ID, draft.ID)
+	}
+
+	timelineResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks/"+draft.ID+"/timeline?limit=20", nil, nil)
+	if timelineResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(timelineResp.Body)
+		_ = timelineResp.Body.Close()
+		t.Fatalf("timeline status = %d, want %d; body=%s", timelineResp.StatusCode, http.StatusOK, string(body))
+	}
+	var timeline contract.TaskTimelineResponse
+	decodeHTTPJSON(t, timelineResp, &timeline)
+	if len(timeline.Timeline) == 0 {
+		t.Fatal("timeline = empty, want task activity")
+	}
+	foundRunTimeline := false
+	for _, item := range timeline.Timeline {
+		if item.Task.ID != draft.ID {
+			t.Fatalf("timeline task id = %q, want %q", item.Task.ID, draft.ID)
+		}
+		if item.Run != nil && item.Run.ID == run.ID {
+			foundRunTimeline = true
+		}
+	}
+	if !foundRunTimeline {
+		t.Fatalf("timeline = %#v, want run %q in at least one item", timeline.Timeline, run.ID)
+	}
+
+	treeResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks/"+draft.ID+"/tree", nil, nil)
+	if treeResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(treeResp.Body)
+		_ = treeResp.Body.Close()
+		t.Fatalf("tree status = %d, want %d; body=%s", treeResp.StatusCode, http.StatusOK, string(body))
+	}
+	var tree contract.TaskTreeResponse
+	decodeHTTPJSON(t, treeResp, &tree)
+	if tree.Tree.Root.Task.ID != draft.ID {
+		t.Fatalf("tree root id = %q, want %q", tree.Tree.Root.Task.ID, draft.ID)
+	}
+
+	streamResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks/"+draft.ID+"/stream?after_sequence=0", nil, nil)
+	if streamResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(streamResp.Body)
+		_ = streamResp.Body.Close()
+		t.Fatalf("task stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
+	}
+	if got := streamResp.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
+		t.Fatalf("task stream content-type = %q, want text/event-stream", got)
+	}
+	records := collectLiveSSE(t, streamResp.Body, 1, 2*time.Second)
+	_ = streamResp.Body.Close()
+	if len(records) == 0 {
+		t.Fatal("task stream records = 0, want at least one SSE event")
+	}
+	if records[0].Event == "" {
+		t.Fatalf("task stream first record = %#v, want named SSE event", records[0])
+	}
+	var streamPayload contract.TaskStreamEventPayload
+	if err := json.Unmarshal(records[0].Data, &streamPayload); err != nil {
+		t.Fatalf("json.Unmarshal(task stream event) error = %v; record=%#v", err, records[0])
+	}
+	if streamPayload.Timeline.Task.ID != draft.ID {
+		t.Fatalf("task stream timeline task id = %q, want %q", streamPayload.Timeline.Task.ID, draft.ID)
+	}
+}
+
+func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+
+	approvalTask := createIntegrationTask(t, runtime, []byte(`{
+		"scope":"global",
+		"title":"Needs approval",
+		"approval_policy":"manual"
+	}`))
+	if approvalTask.ApprovalState != taskpkg.ApprovalStatePending {
+		t.Fatalf("approval task approval_state = %q, want %q", approvalTask.ApprovalState, taskpkg.ApprovalStatePending)
+	}
+
+	rejectTask := createIntegrationTask(t, runtime, []byte(`{
+		"scope":"global",
+		"title":"Reject me",
+		"approval_policy":"manual"
+	}`))
+	triageTask := createIntegrationTask(t, runtime, []byte(`{
+		"scope":"global",
+		"title":"Archive me"
+	}`))
+	dismissTask := createIntegrationTask(t, runtime, []byte(`{
+		"scope":"global",
+		"title":"Dismiss me"
+	}`))
+
+	dashboardResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/observe/tasks/dashboard", nil, nil)
+	if dashboardResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(dashboardResp.Body)
+		_ = dashboardResp.Body.Close()
+		t.Fatalf("dashboard status = %d, want %d; body=%s", dashboardResp.StatusCode, http.StatusOK, string(body))
+	}
+	var dashboard contract.TaskDashboardResponse
+	decodeHTTPJSON(t, dashboardResp, &dashboard)
+	if dashboard.Dashboard.Totals.TasksTotal < 4 {
+		t.Fatalf("dashboard tasks_total = %d, want at least 4", dashboard.Dashboard.Totals.TasksTotal)
+	}
+	if dashboard.Dashboard.Totals.AwaitingApprovalTasks < 2 {
+		t.Fatalf(
+			"dashboard awaiting_approval_tasks = %d, want at least 2",
+			dashboard.Dashboard.Totals.AwaitingApprovalTasks,
+		)
+	}
+
+	inboxResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/observe/tasks/inbox?lane=approvals&limit=10", nil, nil)
+	if inboxResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(inboxResp.Body)
+		_ = inboxResp.Body.Close()
+		t.Fatalf("inbox approvals status = %d, want %d; body=%s", inboxResp.StatusCode, http.StatusOK, string(body))
+	}
+	var inbox contract.TaskInboxResponse
+	decodeHTTPJSON(t, inboxResp, &inbox)
+	approvalsGroup := requireUDSInboxGroup(t, inbox.Inbox.Groups, contract.TaskInboxLaneApprovals)
+	if approvalsGroup.Count < 2 {
+		t.Fatalf("approvals count = %d, want at least 2", approvalsGroup.Count)
+	}
+	if !udsInboxGroupHasTask(approvalsGroup, approvalTask.ID) || !udsInboxGroupHasTask(approvalsGroup, rejectTask.ID) {
+		t.Fatalf("approvals group items = %#v, want approval and reject tasks", approvalsGroup.Items)
+	}
+
+	approveResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+approvalTask.ID+"/approve", nil, nil)
+	if approveResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(approveResp.Body)
+		_ = approveResp.Body.Close()
+		t.Fatalf("approve status = %d, want %d; body=%s", approveResp.StatusCode, http.StatusOK, string(body))
+	}
+	var approved contract.TaskResponse
+	decodeHTTPJSON(t, approveResp, &approved)
+	if approved.Task.ApprovalState != taskpkg.ApprovalStateApproved {
+		t.Fatalf("approved approval_state = %q, want %q", approved.Task.ApprovalState, taskpkg.ApprovalStateApproved)
+	}
+
+	approveAgainResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+approvalTask.ID+"/approve", nil, nil)
+	if approveAgainResp.StatusCode != http.StatusConflict {
+		body, _ := io.ReadAll(approveAgainResp.Body)
+		_ = approveAgainResp.Body.Close()
+		t.Fatalf("approve again status = %d, want %d; body=%s", approveAgainResp.StatusCode, http.StatusConflict, string(body))
+	}
+	_ = approveAgainResp.Body.Close()
+
+	rejectResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+rejectTask.ID+"/reject", nil, nil)
+	if rejectResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(rejectResp.Body)
+		_ = rejectResp.Body.Close()
+		t.Fatalf("reject status = %d, want %d; body=%s", rejectResp.StatusCode, http.StatusOK, string(body))
+	}
+	var rejected contract.TaskResponse
+	decodeHTTPJSON(t, rejectResp, &rejected)
+	if rejected.Task.ApprovalState != taskpkg.ApprovalStateRejected {
+		t.Fatalf("rejected approval_state = %q, want %q", rejected.Task.ApprovalState, taskpkg.ApprovalStateRejected)
+	}
+
+	readResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+triageTask.ID+"/triage/read", nil, nil)
+	if readResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(readResp.Body)
+		_ = readResp.Body.Close()
+		t.Fatalf("triage read status = %d, want %d; body=%s", readResp.StatusCode, http.StatusOK, string(body))
+	}
+	var readState contract.TaskTriageStateResponse
+	decodeHTTPJSON(t, readResp, &readState)
+	if !readState.Triage.Read {
+		t.Fatalf("triage read payload = %#v, want read=true", readState.Triage)
+	}
+
+	archiveResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+triageTask.ID+"/triage/archive", nil, nil)
+	if archiveResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(archiveResp.Body)
+		_ = archiveResp.Body.Close()
+		t.Fatalf("triage archive status = %d, want %d; body=%s", archiveResp.StatusCode, http.StatusOK, string(body))
+	}
+	var archived contract.TaskTriageStateResponse
+	decodeHTTPJSON(t, archiveResp, &archived)
+	if !archived.Triage.Archived {
+		t.Fatalf("triage archive payload = %#v, want archived=true", archived.Triage)
+	}
+
+	dismissResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+dismissTask.ID+"/triage/dismiss", nil, nil)
+	if dismissResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(dismissResp.Body)
+		_ = dismissResp.Body.Close()
+		t.Fatalf("triage dismiss status = %d, want %d; body=%s", dismissResp.StatusCode, http.StatusOK, string(body))
+	}
+	var dismissed contract.TaskTriageStateResponse
+	decodeHTTPJSON(t, dismissResp, &dismissed)
+	if !dismissed.Triage.Dismissed {
+		t.Fatalf("triage dismiss payload = %#v, want dismissed=true", dismissed.Triage)
+	}
+
+	readMissingResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/task-missing/triage/read", nil, nil)
+	if readMissingResp.StatusCode != http.StatusNotFound {
+		body, _ := io.ReadAll(readMissingResp.Body)
+		_ = readMissingResp.Body.Close()
+		t.Fatalf("triage read missing status = %d, want %d; body=%s", readMissingResp.StatusCode, http.StatusNotFound, string(body))
+	}
+	_ = readMissingResp.Body.Close()
+
+	inboxAfterResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/observe/tasks/inbox?lane=approvals&limit=10", nil, nil)
+	if inboxAfterResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(inboxAfterResp.Body)
+		_ = inboxAfterResp.Body.Close()
+		t.Fatalf("inbox approvals after actions status = %d, want %d; body=%s", inboxAfterResp.StatusCode, http.StatusOK, string(body))
+	}
+	var inboxAfter contract.TaskInboxResponse
+	decodeHTTPJSON(t, inboxAfterResp, &inboxAfter)
+	if got := requireUDSInboxGroup(t, inboxAfter.Inbox.Groups, contract.TaskInboxLaneApprovals).Count; got != 0 {
+		t.Fatalf("approvals count after approve/reject = %d, want 0", got)
+	}
+
+	archivedInboxResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/observe/tasks/inbox?lane=archived&limit=10", nil, nil)
+	if archivedInboxResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(archivedInboxResp.Body)
+		_ = archivedInboxResp.Body.Close()
+		t.Fatalf("inbox archived status = %d, want %d; body=%s", archivedInboxResp.StatusCode, http.StatusOK, string(body))
+	}
+	var archivedInbox contract.TaskInboxResponse
+	decodeHTTPJSON(t, archivedInboxResp, &archivedInbox)
+	if !udsInboxGroupHasTask(requireUDSInboxGroup(t, archivedInbox.Inbox.Groups, contract.TaskInboxLaneArchived), triageTask.ID) {
+		t.Fatalf("archived inbox groups = %#v, want task %q", archivedInbox.Inbox.Groups, triageTask.ID)
+	}
+}
+
 type integrationRuntime struct {
 	client         *http.Client
 	server         *Server
@@ -1954,6 +2231,31 @@ func claimIntegrationTaskRun(t *testing.T, runtime integrationRuntime, runID str
 	var claimed contract.TaskRunResponse
 	decodeHTTPJSON(t, resp, &claimed)
 	return claimed.Run
+}
+
+func requireUDSInboxGroup(
+	t *testing.T,
+	groups []contract.TaskInboxLaneGroupPayload,
+	lane contract.TaskInboxLane,
+) contract.TaskInboxLaneGroupPayload {
+	t.Helper()
+
+	for _, group := range groups {
+		if group.Lane == lane {
+			return group
+		}
+	}
+	t.Fatalf("task inbox lane %q not found in %#v", lane, groups)
+	return contract.TaskInboxLaneGroupPayload{}
+}
+
+func udsInboxGroupHasTask(group contract.TaskInboxLaneGroupPayload, taskID string) bool {
+	for _, item := range group.Items {
+		if item.Task.ID == taskID {
+			return true
+		}
+	}
+	return false
 }
 
 func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, message string) {

@@ -112,6 +112,12 @@ type hostAPISessionManager interface {
 type hostAPIObserver interface {
 	Health(ctx context.Context) (observepkg.Health, error)
 	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
+	QueryTaskDashboard(ctx context.Context, query observepkg.TaskDashboardQuery) (observepkg.TaskDashboardView, error)
+	QueryTaskInbox(
+		ctx context.Context,
+		query observepkg.TaskInboxQuery,
+		actor taskpkg.ActorIdentity,
+	) (observepkg.TaskInboxView, error)
 }
 
 // HostAPIAutomationManager is the automation surface exposed to the extension Host API.
@@ -147,6 +153,14 @@ type HostAPIAutomationManager interface {
 type hostAPITaskManager interface {
 	ListTasks(ctx context.Context, query taskpkg.Query, actor taskpkg.ActorContext) ([]taskpkg.Summary, error)
 	GetTask(ctx context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error)
+	Timeline(
+		ctx context.Context,
+		taskID string,
+		query taskpkg.TimelineQuery,
+		actor taskpkg.ActorContext,
+	) ([]taskpkg.TimelineItem, error)
+	Tree(ctx context.Context, taskID string, actor taskpkg.ActorContext) (*taskpkg.TreeView, error)
+	RunDetail(ctx context.Context, runID string, actor taskpkg.ActorContext) (*taskpkg.RunDetailView, error)
 	ListTaskRuns(
 		ctx context.Context,
 		taskID string,
@@ -394,56 +408,61 @@ func normalizeHostAPIHandlerDefaults(handler *HostAPIHandler) {
 
 func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc {
 	return map[string]hostAPIMethodFunc{
-		"automation/jobs":                handler.handleAutomationJobs,
-		"automation/jobs/get":            handler.handleAutomationJobsGet,
-		"automation/jobs/create":         handler.handleAutomationJobsCreate,
-		"automation/jobs/update":         handler.handleAutomationJobsUpdate,
-		"automation/jobs/delete":         handler.handleAutomationJobsDelete,
-		"automation/jobs/trigger":        handler.handleAutomationJobsTrigger,
-		"automation/jobs/runs":           handler.handleAutomationJobsRuns,
-		"automation/triggers":            handler.handleAutomationTriggers,
-		"automation/triggers/get":        handler.handleAutomationTriggersGet,
-		"automation/triggers/create":     handler.handleAutomationTriggersCreate,
-		"automation/triggers/update":     handler.handleAutomationTriggersUpdate,
-		"automation/triggers/delete":     handler.handleAutomationTriggersDelete,
-		"automation/triggers/runs":       handler.handleAutomationTriggersRuns,
-		"automation/triggers/fire":       handler.handleAutomationTriggersFire,
-		"automation/runs":                handler.handleAutomationRuns,
-		"tasks":                          handler.handleTasks,
-		"tasks/get":                      handler.handleTasksGet,
-		"tasks/create":                   handler.handleTasksCreate,
-		"tasks/update":                   handler.handleTasksUpdate,
-		"tasks/cancel":                   handler.handleTasksCancel,
-		"tasks/runs":                     handler.handleTasksRuns,
-		"tasks/runs/enqueue":             handler.handleTasksRunsEnqueue,
-		"tasks/runs/claim":               handler.handleTasksRunsClaim,
-		"tasks/runs/start":               handler.handleTasksRunsStart,
-		"tasks/runs/attach_session":      handler.handleTasksRunsAttachSession,
-		"tasks/runs/complete":            handler.handleTasksRunsComplete,
-		"tasks/runs/fail":                handler.handleTasksRunsFail,
-		"tasks/runs/cancel":              handler.handleTasksRunsCancel,
-		"resources/list":                 handler.handleResourcesList,
-		"resources/get":                  handler.handleResourcesGet,
-		"resources/snapshot":             handler.handleResourcesSnapshot,
-		"bridges/instances/list":         handler.handleBridgesInstancesList,
-		"bridges/instances/get":          handler.handleBridgesInstancesGet,
-		"bridges/instances/report_state": handler.handleBridgesInstancesReportState,
-		"bridges/messages/ingest":        handler.handleBridgesMessagesIngest,
-		"environment/exec":               handler.handleEnvironmentExec,
-		"environment/info":               handler.handleEnvironmentInfo,
-		"environment/list":               handler.handleEnvironmentList,
-		"memory/forget":                  handler.handleMemoryForget,
-		"memory/recall":                  handler.handleMemoryRecall,
-		"memory/store":                   handler.handleMemoryStore,
-		"observe/events":                 handler.handleObserveEvents,
-		"observe/health":                 handler.handleObserveHealth,
-		"sessions/create":                handler.handleSessionsCreate,
-		"sessions/events":                handler.handleSessionsEvents,
-		"sessions/list":                  handler.handleSessionsList,
-		"sessions/prompt":                handler.handleSessionsPrompt,
-		"sessions/status":                handler.handleSessionsStatus,
-		"sessions/stop":                  handler.handleSessionsStop,
-		"skills/list":                    handler.handleSkillsList,
+		"automation/jobs":                                             handler.handleAutomationJobs,
+		"automation/jobs/get":                                         handler.handleAutomationJobsGet,
+		"automation/jobs/create":                                      handler.handleAutomationJobsCreate,
+		"automation/jobs/update":                                      handler.handleAutomationJobsUpdate,
+		"automation/jobs/delete":                                      handler.handleAutomationJobsDelete,
+		"automation/jobs/trigger":                                     handler.handleAutomationJobsTrigger,
+		"automation/jobs/runs":                                        handler.handleAutomationJobsRuns,
+		"automation/triggers":                                         handler.handleAutomationTriggers,
+		"automation/triggers/get":                                     handler.handleAutomationTriggersGet,
+		"automation/triggers/create":                                  handler.handleAutomationTriggersCreate,
+		"automation/triggers/update":                                  handler.handleAutomationTriggersUpdate,
+		"automation/triggers/delete":                                  handler.handleAutomationTriggersDelete,
+		"automation/triggers/runs":                                    handler.handleAutomationTriggersRuns,
+		"automation/triggers/fire":                                    handler.handleAutomationTriggersFire,
+		"automation/runs":                                             handler.handleAutomationRuns,
+		string(extensioncontract.HostAPIMethodTasks):                  handler.handleTasks,
+		string(extensioncontract.HostAPIMethodTasksGet):               handler.handleTasksGet,
+		string(extensioncontract.HostAPIMethodTasksTimeline):          handler.handleTasksTimeline,
+		string(extensioncontract.HostAPIMethodTasksTree):              handler.handleTasksTree,
+		string(extensioncontract.HostAPIMethodTasksDashboard):         handler.handleTasksDashboard,
+		string(extensioncontract.HostAPIMethodTasksInbox):             handler.handleTasksInbox,
+		string(extensioncontract.HostAPIMethodTasksCreate):            handler.handleTasksCreate,
+		string(extensioncontract.HostAPIMethodTasksUpdate):            handler.handleTasksUpdate,
+		string(extensioncontract.HostAPIMethodTasksCancel):            handler.handleTasksCancel,
+		string(extensioncontract.HostAPIMethodTasksRuns):              handler.handleTasksRuns,
+		string(extensioncontract.HostAPIMethodTasksRunsGet):           handler.handleTasksRunsGet,
+		string(extensioncontract.HostAPIMethodTasksRunsEnqueue):       handler.handleTasksRunsEnqueue,
+		string(extensioncontract.HostAPIMethodTasksRunsClaim):         handler.handleTasksRunsClaim,
+		string(extensioncontract.HostAPIMethodTasksRunsStart):         handler.handleTasksRunsStart,
+		string(extensioncontract.HostAPIMethodTasksRunsAttachSession): handler.handleTasksRunsAttachSession,
+		string(extensioncontract.HostAPIMethodTasksRunsComplete):      handler.handleTasksRunsComplete,
+		string(extensioncontract.HostAPIMethodTasksRunsFail):          handler.handleTasksRunsFail,
+		string(extensioncontract.HostAPIMethodTasksRunsCancel):        handler.handleTasksRunsCancel,
+		"resources/list":                                              handler.handleResourcesList,
+		"resources/get":                                               handler.handleResourcesGet,
+		"resources/snapshot":                                          handler.handleResourcesSnapshot,
+		"bridges/instances/list":                                      handler.handleBridgesInstancesList,
+		"bridges/instances/get":                                       handler.handleBridgesInstancesGet,
+		"bridges/instances/report_state":                              handler.handleBridgesInstancesReportState,
+		"bridges/messages/ingest":                                     handler.handleBridgesMessagesIngest,
+		"environment/exec":                                            handler.handleEnvironmentExec,
+		"environment/info":                                            handler.handleEnvironmentInfo,
+		"environment/list":                                            handler.handleEnvironmentList,
+		"memory/forget":                                               handler.handleMemoryForget,
+		"memory/recall":                                               handler.handleMemoryRecall,
+		"memory/store":                                                handler.handleMemoryStore,
+		"observe/events":                                              handler.handleObserveEvents,
+		"observe/health":                                              handler.handleObserveHealth,
+		"sessions/create":                                             handler.handleSessionsCreate,
+		"sessions/events":                                             handler.handleSessionsEvents,
+		"sessions/list":                                               handler.handleSessionsList,
+		"sessions/prompt":                                             handler.handleSessionsPrompt,
+		"sessions/status":                                             handler.handleSessionsStatus,
+		"sessions/stop":                                               handler.handleSessionsStop,
+		"skills/list":                                                 handler.handleSkillsList,
 	}
 }
 
@@ -620,6 +639,14 @@ type hostAPITasksParams = extensioncontract.TasksParams
 
 type hostAPITaskTargetParams = extensioncontract.TaskTargetParams
 
+type hostAPITaskTimelineParams = extensioncontract.TaskTimelineParams
+
+type hostAPITaskTreeParams = extensioncontract.TaskTreeParams
+
+type hostAPITaskDashboardParams = extensioncontract.TaskDashboardParams
+
+type hostAPITaskInboxParams = extensioncontract.TaskInboxParams
+
 type hostAPITaskCreateParams = extensioncontract.TaskCreateParams
 
 type hostAPITaskUpdateParams = extensioncontract.TaskUpdateParams
@@ -627,6 +654,8 @@ type hostAPITaskUpdateParams = extensioncontract.TaskUpdateParams
 type hostAPITaskCancelParams = extensioncontract.TaskCancelParams
 
 type hostAPITaskRunsParams = extensioncontract.TaskRunsParams
+
+type hostAPITaskRunGetParams = extensioncontract.TaskRunGetParams
 
 type hostAPITaskRunEnqueueParams = extensioncontract.TaskRunEnqueueParams
 

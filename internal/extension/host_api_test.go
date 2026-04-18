@@ -2601,6 +2601,17 @@ func TestHostAPIHandlerAutomationGetterAndMethodHandlers(t *testing.T) {
 	if _, ok := handlers[string(protocol.HostAPIMethodAutomationJobs)]; !ok {
 		t.Fatal("MethodHandlers() missing automation/jobs handler")
 	}
+	for _, method := range []protocol.HostAPIMethod{
+		protocol.HostAPIMethodTasksTimeline,
+		protocol.HostAPIMethodTasksTree,
+		protocol.HostAPIMethodTasksDashboard,
+		protocol.HostAPIMethodTasksInbox,
+		protocol.HostAPIMethodTasksRunsGet,
+	} {
+		if _, ok := handlers[string(method)]; !ok {
+			t.Fatalf("MethodHandlers() missing %s handler", method)
+		}
+	}
 
 	env.checker.Register("ext-automation", SourceUser, &Manifest{
 		Actions: ActionsConfig{Requires: []string{"automation/jobs"}},
@@ -2749,6 +2760,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	env.grant("ext-reader", []string{"tasks", "tasks/get"}, []string{"task.read"})
 
 	actor := mustExtensionTaskActorContext(t, "seed-writer")
+	maxAttempts := 3
 	parent, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
@@ -2764,9 +2776,12 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	child, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: env.workspaceID,
-		Title:       "Filtered child",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    env.workspaceID,
+		Title:          "Filtered child",
+		Priority:       taskpkg.PriorityHigh,
+		MaxAttempts:    &maxAttempts,
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
 		Owner: &taskpkg.Ownership{
 			Kind: taskpkg.OwnerKindExtension,
 			Ref:  "ops",
@@ -2775,6 +2790,20 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.CreateChildTask(filtered) error = %v", err)
+	}
+
+	if _, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: env.workspaceID,
+		Title:       "Draft child",
+		Draft:       true,
+		Owner: &taskpkg.Ownership{
+			Kind: taskpkg.OwnerKindExtension,
+			Ref:  "ops",
+		},
+		NetworkChannel: "tasks_ops",
+	}, actor); err != nil {
+		t.Fatalf("tasks.CreateChildTask(draft) error = %v", err)
 	}
 
 	if _, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
@@ -2817,11 +2846,14 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	listResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
 		"scope":           taskpkg.ScopeWorkspace,
 		"workspace":       env.workspaceID,
+		"priority":        taskpkg.PriorityHigh,
+		"approval_state":  taskpkg.ApprovalStatePending,
 		"owner_kind":      taskpkg.OwnerKindExtension,
 		"owner_ref":       "ops",
 		"parent_task_id":  parent.ID,
 		"network_channel": "tasks_ops",
-		"limit":           1,
+		"query":           "Filtered",
+		"limit":           10,
 	})
 	if err != nil {
 		t.Fatalf("Handle(tasks) error = %v", err)
@@ -2841,6 +2873,58 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	if got, want := listed[0].Owner.Ref, "ops"; got != want {
 		t.Fatalf("tasks[0].Owner.Ref = %q, want %q", got, want)
 	}
+	if got, want := listed[0].Priority, taskpkg.PriorityHigh; got != want {
+		t.Fatalf("tasks[0].Priority = %q, want %q", got, want)
+	}
+	if got, want := listed[0].MaxAttempts, maxAttempts; got != want {
+		t.Fatalf("tasks[0].MaxAttempts = %d, want %d", got, want)
+	}
+	if got, want := listed[0].ApprovalPolicy, taskpkg.ApprovalPolicyManual; got != want {
+		t.Fatalf("tasks[0].ApprovalPolicy = %q, want %q", got, want)
+	}
+	if got, want := listed[0].ApprovalState, taskpkg.ApprovalStatePending; got != want {
+		t.Fatalf("tasks[0].ApprovalState = %q, want %q", got, want)
+	}
+	if listed[0].Draft {
+		t.Fatal("tasks[0].Draft = true, want filtered non-draft task")
+	}
+	if got, want := listed[0].DependencyCount, 1; got != want {
+		t.Fatalf("tasks[0].DependencyCount = %d, want %d", got, want)
+	}
+	if got, want := len(listed[0].Dependencies), 1; got != want {
+		t.Fatalf("len(tasks[0].Dependencies) = %d, want %d", got, want)
+	}
+	if listed[0].ActiveRun == nil {
+		t.Fatal("tasks[0].ActiveRun = nil, want active run summary")
+	}
+	if listed[0].LastActivityAt == nil {
+		t.Fatal("tasks[0].LastActivityAt = nil, want latest activity timestamp")
+	}
+
+	withDraftsResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
+		"scope":           taskpkg.ScopeWorkspace,
+		"workspace":       env.workspaceID,
+		"owner_kind":      taskpkg.OwnerKindExtension,
+		"owner_ref":       "ops",
+		"parent_task_id":  parent.ID,
+		"network_channel": "tasks_ops",
+		"include_drafts":  true,
+		"limit":           10,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks include_drafts) error = %v", err)
+	}
+
+	var withDrafts []apicontract.TaskSummaryPayload
+	decodeResult(t, withDraftsResult, &withDrafts)
+	if got, want := len(withDrafts), 2; got != want {
+		t.Fatalf("len(tasks include_drafts) = %d, want %d", got, want)
+	}
+	if !slices.ContainsFunc(withDrafts, func(item apicontract.TaskSummaryPayload) bool {
+		return item.Draft && item.Status == taskpkg.TaskStatusDraft
+	}) {
+		t.Fatal("tasks include_drafts missing draft payload")
+	}
 
 	getResult, err := env.call(t, "ext-reader", "tasks/get", map[string]any{"id": child.ID})
 	if err != nil {
@@ -2849,8 +2933,23 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 
 	var detail apicontract.TaskDetailPayload
 	decodeResult(t, getResult, &detail)
+	if got, want := detail.Summary.ID, child.ID; got != want {
+		t.Fatalf("tasks/get.summary.id = %q, want %q", got, want)
+	}
 	if got, want := detail.Task.ID, child.ID; got != want {
 		t.Fatalf("tasks/get.task.id = %q, want %q", got, want)
+	}
+	if got, want := detail.Task.Priority, taskpkg.PriorityHigh; got != want {
+		t.Fatalf("tasks/get.task.priority = %q, want %q", got, want)
+	}
+	if got, want := detail.Task.MaxAttempts, maxAttempts; got != want {
+		t.Fatalf("tasks/get.task.max_attempts = %d, want %d", got, want)
+	}
+	if got, want := detail.Task.ApprovalPolicy, taskpkg.ApprovalPolicyManual; got != want {
+		t.Fatalf("tasks/get.task.approval_policy = %q, want %q", got, want)
+	}
+	if got, want := detail.Task.ApprovalState, taskpkg.ApprovalStatePending; got != want {
+		t.Fatalf("tasks/get.task.approval_state = %q, want %q", got, want)
 	}
 	if got, want := len(detail.Dependencies), 1; got != want {
 		t.Fatalf("len(tasks/get.dependencies) = %d, want %d", got, want)
@@ -2858,14 +2957,197 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	if got, want := detail.Dependencies[0].DependsOnTaskID, blocker.ID; got != want {
 		t.Fatalf("tasks/get.dependencies[0].depends_on_task_id = %q, want %q", got, want)
 	}
+	if got, want := len(detail.DependencyReferences), 1; got != want {
+		t.Fatalf("len(tasks/get.dependency_references) = %d, want %d", got, want)
+	}
+	if got, want := detail.DependencyReferences[0].DependsOn.ID, blocker.ID; got != want {
+		t.Fatalf("tasks/get.dependency_references[0].depends_on.id = %q, want %q", got, want)
+	}
 	if got, want := len(detail.Runs), 1; got != want {
 		t.Fatalf("len(tasks/get.runs) = %d, want %d", got, want)
 	}
 	if got, want := detail.Runs[0].ID, run.ID; got != want {
 		t.Fatalf("tasks/get.runs[0].id = %q, want %q", got, want)
 	}
+	if detail.Summary.ActiveRun == nil {
+		t.Fatal("tasks/get.summary.active_run = nil, want run summary")
+	}
 	if len(detail.Events) == 0 {
 		t.Fatal("tasks/get.events = 0, want audit events")
+	}
+}
+
+func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant(
+		"ext-reader",
+		[]string{
+			"tasks/runs/get",
+			"tasks/timeline",
+			"tasks/tree",
+			"tasks/dashboard",
+			"tasks/inbox",
+		},
+		[]string{"task.read"},
+	)
+
+	actor := mustExtensionTaskActorContext(t, "seed-writer")
+	root, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: env.workspaceID,
+		Title:       "Root task",
+	}, actor)
+	if err != nil {
+		t.Fatalf("tasks.CreateTask(root) error = %v", err)
+	}
+
+	child, err := env.tasks.CreateChildTask(testutil.Context(t), root.ID, taskpkg.CreateTask{
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: env.workspaceID,
+		Title:       "Child task",
+		Priority:    taskpkg.PriorityUrgent,
+		Owner: &taskpkg.Ownership{
+			Kind: taskpkg.OwnerKindExtension,
+			Ref:  "ext-reader",
+		},
+		NetworkChannel: "builders",
+	}, actor)
+	if err != nil {
+		t.Fatalf("tasks.CreateChildTask(child) error = %v", err)
+	}
+
+	approvalTask, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    env.workspaceID,
+		Title:          "Approval needed",
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+		Owner: &taskpkg.Ownership{
+			Kind: taskpkg.OwnerKindExtension,
+			Ref:  "ext-reader",
+		},
+	}, actor)
+	if err != nil {
+		t.Fatalf("tasks.CreateTask(approval) error = %v", err)
+	}
+
+	queued, err := env.tasks.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
+		TaskID:         child.ID,
+		IdempotencyKey: "host-api-read-run",
+		NetworkChannel: "builders",
+	}, actor)
+	if err != nil {
+		t.Fatalf("tasks.EnqueueRun() error = %v", err)
+	}
+	if _, err := env.tasks.ClaimRun(testutil.Context(t), queued.ID, taskpkg.ClaimRun{
+		IdempotencyKey: "host-api-read-claim",
+	}, actor); err != nil {
+		t.Fatalf("tasks.ClaimRun() error = %v", err)
+	}
+	started, err := env.tasks.StartRun(testutil.Context(t), queued.ID, taskpkg.StartRun{
+		IdempotencyKey: "host-api-read-start",
+	}, actor)
+	if err != nil {
+		t.Fatalf("tasks.StartRun() error = %v", err)
+	}
+
+	runDetailResult, err := env.call(t, "ext-reader", "tasks/runs/get", map[string]any{"id": started.ID})
+	if err != nil {
+		t.Fatalf("Handle(tasks/runs/get) error = %v", err)
+	}
+
+	var runDetail apicontract.TaskRunDetailPayload
+	decodeResult(t, runDetailResult, &runDetail)
+	if got, want := runDetail.Run.ID, started.ID; got != want {
+		t.Fatalf("tasks/runs/get.run.id = %q, want %q", got, want)
+	}
+	if got, want := runDetail.Task.ID, child.ID; got != want {
+		t.Fatalf("tasks/runs/get.task.id = %q, want %q", got, want)
+	}
+	if runDetail.Session == nil {
+		t.Fatal("tasks/runs/get.session = nil, want attached session")
+	}
+	if got, want := runDetail.Session.SessionID, started.SessionID; got != want {
+		t.Fatalf("tasks/runs/get.session.session_id = %q, want %q", got, want)
+	}
+
+	timelineResult, err := env.call(t, "ext-reader", "tasks/timeline", map[string]any{
+		"id":    child.ID,
+		"limit": 10,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/timeline) error = %v", err)
+	}
+
+	var timeline []apicontract.TaskTimelineItemPayload
+	decodeResult(t, timelineResult, &timeline)
+	if len(timeline) == 0 {
+		t.Fatal("tasks/timeline len = 0, want task events")
+	}
+	if !slices.ContainsFunc(timeline, func(item apicontract.TaskTimelineItemPayload) bool {
+		return item.Task.ID == child.ID && item.Run != nil && item.Run.ID == started.ID
+	}) {
+		t.Fatal("tasks/timeline missing run-linked event for started run")
+	}
+
+	treeResult, err := env.call(t, "ext-reader", "tasks/tree", map[string]any{"id": root.ID})
+	if err != nil {
+		t.Fatalf("Handle(tasks/tree) error = %v", err)
+	}
+
+	var tree apicontract.TaskTreePayload
+	decodeResult(t, treeResult, &tree)
+	if got, want := tree.Root.Task.ID, root.ID; got != want {
+		t.Fatalf("tasks/tree.root.task.id = %q, want %q", got, want)
+	}
+	if !slices.ContainsFunc(tree.Descendants, func(node apicontract.TaskTreeNodePayload) bool {
+		return node.Task.ID == child.ID && node.ActiveRun != nil && node.ActiveRun.ID == started.ID
+	}) {
+		t.Fatal("tasks/tree missing child node with active run")
+	}
+
+	dashboardResult, err := env.call(t, "ext-reader", "tasks/dashboard", map[string]any{
+		"scope":     taskpkg.ScopeWorkspace,
+		"workspace": env.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/dashboard) error = %v", err)
+	}
+
+	var dashboard apicontract.TaskDashboardPayload
+	decodeResult(t, dashboardResult, &dashboard)
+	if dashboard.Totals.ActiveRuns < 1 {
+		t.Fatalf("tasks/dashboard active_runs = %d, want >= 1", dashboard.Totals.ActiveRuns)
+	}
+	if !slices.ContainsFunc(dashboard.ActiveRuns.Items, func(item apicontract.TaskDashboardActiveRunPayload) bool {
+		return item.RunID == started.ID && item.TaskID == child.ID
+	}) {
+		t.Fatal("tasks/dashboard active runs missing started run")
+	}
+
+	inboxResult, err := env.call(t, "ext-reader", "tasks/inbox", map[string]any{
+		"scope":     taskpkg.ScopeWorkspace,
+		"workspace": env.workspaceID,
+		"lane":      apicontract.TaskInboxLaneApprovals,
+		"limit":     10,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/inbox) error = %v", err)
+	}
+
+	var inbox apicontract.TaskInboxPayload
+	decodeResult(t, inboxResult, &inbox)
+	if inbox.Total < 1 || len(inbox.Groups) == 0 {
+		t.Fatalf("tasks/inbox = %#v, want approval group", inbox)
+	}
+	if got, want := inbox.Groups[0].Lane, apicontract.TaskInboxLaneApprovals; got != want {
+		t.Fatalf("tasks/inbox.groups[0].lane = %q, want %q", got, want)
+	}
+	if !slices.ContainsFunc(inbox.Groups[0].Items, func(item apicontract.TaskInboxItemPayload) bool {
+		return item.Task.ID == approvalTask.ID && item.ApprovalState == taskpkg.ApprovalStatePending
+	}) {
+		t.Fatal("tasks/inbox approvals lane missing approval task")
 	}
 }
 
@@ -2880,6 +3162,9 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 		"workspace":       env.workspaceID,
 		"title":           "Original title",
 		"description":     "Original description",
+		"priority":        taskpkg.PriorityLow,
+		"max_attempts":    2,
+		"approval_policy": taskpkg.ApprovalPolicyManual,
 		"network_channel": "tasks_initial",
 		"owner": map[string]any{
 			"kind": taskpkg.OwnerKindPool,
@@ -2898,6 +3183,9 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 		"id":              created.ID,
 		"title":           " Updated title ",
 		"description":     " Updated description ",
+		"priority":        taskpkg.PriorityHigh,
+		"max_attempts":    5,
+		"approval_policy": taskpkg.ApprovalPolicyNone,
 		"network_channel": "tasks_updated",
 		"owner": map[string]any{
 			"kind": taskpkg.OwnerKindExtension,
@@ -2916,6 +3204,15 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 	}
 	if got, want := updated.Description, "Updated description"; got != want {
 		t.Fatalf("tasks/update description = %q, want %q", got, want)
+	}
+	if got, want := updated.Priority, taskpkg.PriorityHigh; got != want {
+		t.Fatalf("tasks/update priority = %q, want %q", got, want)
+	}
+	if got, want := updated.MaxAttempts, 5; got != want {
+		t.Fatalf("tasks/update max_attempts = %d, want %d", got, want)
+	}
+	if got, want := updated.ApprovalPolicy, taskpkg.ApprovalPolicyNone; got != want {
+		t.Fatalf("tasks/update approval_policy = %q, want %q", got, want)
 	}
 	if got, want := updated.NetworkChannel, "tasks_updated"; got != want {
 		t.Fatalf("tasks/update network_channel = %q, want %q", got, want)
@@ -3179,7 +3476,14 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 
 		checker := &CapabilityChecker{}
 		checker.Register("ext-tasks", SourceUser, &Manifest{
-			Actions: ActionsConfig{Requires: []string{"tasks", "tasks/get", "tasks/runs"}},
+			Actions: ActionsConfig{Requires: []string{
+				"tasks",
+				"tasks/get",
+				"tasks/timeline",
+				"tasks/tree",
+				"tasks/runs",
+				"tasks/runs/get",
+			}},
 			Security: SecurityConfig{
 				Capabilities: []string{"task.read"},
 			},
@@ -3201,7 +3505,10 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 		}{
 			{name: "ShouldRejectList", method: "tasks", params: map[string]any{}},
 			{name: "ShouldRejectGet", method: "tasks/get", params: map[string]any{"id": "task-1"}},
+			{name: "ShouldRejectTimeline", method: "tasks/timeline", params: map[string]any{"id": "task-1"}},
+			{name: "ShouldRejectTree", method: "tasks/tree", params: map[string]any{"id": "task-1"}},
 			{name: "ShouldRejectRuns", method: "tasks/runs", params: map[string]any{"id": "task-1"}},
+			{name: "ShouldRejectRunGet", method: "tasks/runs/get", params: map[string]any{"id": "run-1"}},
 		}
 
 		for _, tt := range tests {
@@ -3219,13 +3526,47 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 		}
 	})
 
+	t.Run("ShouldRejectWhenTaskObserverIsMissing", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		env.useSessionsWithoutObserver(t)
+		env.grant("ext-tasks", []string{"tasks/dashboard", "tasks/inbox"}, []string{"task.read"})
+
+		tests := []struct {
+			name   string
+			method string
+			params map[string]any
+		}{
+			{name: "ShouldRejectDashboard", method: "tasks/dashboard", params: map[string]any{}},
+			{name: "ShouldRejectInbox", method: "tasks/inbox", params: map[string]any{}},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := env.call(t, "ext-tasks", tt.method, tt.params)
+				assertErrorContains(t, err, "task observer is not configured")
+			})
+		}
+	})
+
 	t.Run("ShouldRejectInvalidTaskMethodInputs", func(t *testing.T) {
 		t.Parallel()
 
 		env := newHostAPITestEnv(t)
 		env.grant(
 			"ext-tasks",
-			[]string{"tasks", "tasks/create", "tasks/update", "tasks/runs/attach_session"},
+			[]string{
+				"tasks",
+				"tasks/timeline",
+				"tasks/dashboard",
+				"tasks/inbox",
+				"tasks/create",
+				"tasks/update",
+				"tasks/runs/attach_session",
+			},
 			[]string{"task.read", "task.write"},
 		)
 
@@ -3291,6 +3632,27 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 				wantCode: HostAPIInvalidParamsCode,
 				wantText: "session_id is required",
 			},
+			{
+				name:     "ShouldRejectInvalidTimelineAfterSequence",
+				method:   "tasks/timeline",
+				params:   map[string]any{"id": "task-1", "after_sequence": -1},
+				wantCode: HostAPIInvalidParamsCode,
+				wantText: "task_timeline_query.after_sequence",
+			},
+			{
+				name:     "ShouldRejectInvalidDashboardChannel",
+				method:   "tasks/dashboard",
+				params:   map[string]any{"network_channel": "not valid"},
+				wantCode: HostAPIInvalidParamsCode,
+				wantText: "task_dashboard_query.network_channel",
+			},
+			{
+				name:     "ShouldRejectInvalidInboxLane",
+				method:   "tasks/inbox",
+				params:   map[string]any{"lane": "bogus"},
+				wantCode: HostAPIInvalidParamsCode,
+				wantText: "task_inbox_query.lane",
+			},
 		}
 
 		for _, tt := range tests {
@@ -3313,9 +3675,12 @@ func TestHostAPIHandlerTaskMethodsRequireIdentifiers(t *testing.T) {
 		"ext-ids",
 		[]string{
 			"tasks/get",
+			"tasks/timeline",
+			"tasks/tree",
 			"tasks/update",
 			"tasks/cancel",
 			"tasks/runs",
+			"tasks/runs/get",
 			"tasks/runs/enqueue",
 			"tasks/runs/claim",
 			"tasks/runs/start",
@@ -3334,6 +3699,18 @@ func TestHostAPIHandlerTaskMethodsRequireIdentifiers(t *testing.T) {
 	}{
 		{name: "ShouldRequireTaskIDForGet", method: "tasks/get", params: map[string]any{}, wantText: "id is required"},
 		{
+			name:     "ShouldRequireTaskIDForTimeline",
+			method:   "tasks/timeline",
+			params:   map[string]any{},
+			wantText: "id is required",
+		},
+		{
+			name:     "ShouldRequireTaskIDForTree",
+			method:   "tasks/tree",
+			params:   map[string]any{},
+			wantText: "id is required",
+		},
+		{
 			name:     "ShouldRequireTaskIDForUpdate",
 			method:   "tasks/update",
 			params:   map[string]any{"title": "rename"},
@@ -3348,6 +3725,12 @@ func TestHostAPIHandlerTaskMethodsRequireIdentifiers(t *testing.T) {
 		{
 			name:     "ShouldRequireTaskIDForRunsList",
 			method:   "tasks/runs",
+			params:   map[string]any{},
+			wantText: "id is required",
+		},
+		{
+			name:     "ShouldRequireRunIDForRunGet",
+			method:   "tasks/runs/get",
 			params:   map[string]any{},
 			wantText: "id is required",
 		},
@@ -3408,9 +3791,12 @@ func TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords(t *testing.T) 
 		"ext-missing",
 		[]string{
 			"tasks/get",
+			"tasks/timeline",
+			"tasks/tree",
 			"tasks/update",
 			"tasks/cancel",
 			"tasks/runs",
+			"tasks/runs/get",
 			"tasks/runs/claim",
 			"tasks/runs/start",
 			"tasks/runs/attach_session",
@@ -3434,6 +3820,18 @@ func TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords(t *testing.T) 
 			wantText: "task not found",
 		},
 		{
+			name:     "ShouldReturnTaskNotFoundForTimeline",
+			method:   "tasks/timeline",
+			params:   map[string]any{"id": "task-missing"},
+			wantText: "task not found",
+		},
+		{
+			name:     "ShouldReturnTaskNotFoundForTree",
+			method:   "tasks/tree",
+			params:   map[string]any{"id": "task-missing"},
+			wantText: "task not found",
+		},
+		{
 			name:     "ShouldReturnTaskNotFoundForUpdate",
 			method:   "tasks/update",
 			params:   map[string]any{"id": "task-missing", "title": "rename"},
@@ -3450,6 +3848,12 @@ func TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords(t *testing.T) 
 			method:   "tasks/runs",
 			params:   map[string]any{"id": "task-missing"},
 			wantText: "task not found",
+		},
+		{
+			name:     "ShouldReturnRunNotFoundForGetRun",
+			method:   "tasks/runs/get",
+			params:   map[string]any{"id": "run-missing"},
+			wantText: "task run not found",
 		},
 		{
 			name:     "ShouldReturnRunNotFoundForClaim",
@@ -3605,6 +4009,9 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 	_, err = (&HostAPIHandler{}).taskManager()
 	assertErrorContains(t, err, "task manager is not configured")
 
+	_, err = (&HostAPIHandler{}).taskObserver()
+	assertErrorContains(t, err, "task observer is not configured")
+
 	t.Run("ShouldWrapTaskManagerResolutionError", func(t *testing.T) {
 		t.Parallel()
 
@@ -3651,6 +4058,26 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 		t.Fatalf("taskDetailPayloadFromView(nil).Task.ID = %q, want empty", zeroDetail.Task.ID)
 	}
 
+	zeroRunDetail := taskRunDetailPayloadFromView(nil)
+	if zeroRunDetail.Run.ID != "" {
+		t.Fatalf("taskRunDetailPayloadFromView(nil).Run.ID = %q, want empty", zeroRunDetail.Run.ID)
+	}
+
+	zeroTree := taskTreePayloadFromView(nil)
+	if zeroTree.Root.Task.ID != "" {
+		t.Fatalf("taskTreePayloadFromView(nil).Root.Task.ID = %q, want empty", zeroTree.Root.Task.ID)
+	}
+
+	zeroDashboard := taskDashboardPayloadFromView(nil)
+	if zeroDashboard.Totals.TasksTotal != 0 {
+		t.Fatalf("taskDashboardPayloadFromView(zero).Totals.TasksTotal = %d, want 0", zeroDashboard.Totals.TasksTotal)
+	}
+
+	zeroInbox := taskInboxPayloadFromView(observepkg.TaskInboxView{})
+	if zeroInbox.Total != 0 || len(zeroInbox.Groups) != 0 {
+		t.Fatalf("taskInboxPayloadFromView(zero) = %#v, want zero payload", zeroInbox)
+	}
+
 	filtered := filterTaskRuns([]taskpkg.Run{
 		{ID: "run-1", Status: taskpkg.TaskRunStatusRunning, SessionID: "sess-1"},
 		{ID: "run-2", Status: taskpkg.TaskRunStatusCompleted, SessionID: "sess-2"},
@@ -3665,6 +4092,17 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 	}
 	if got, want := filtered[0].ID, "run-3"; got != want {
 		t.Fatalf("filterTaskRuns()[0].ID = %q, want %q", got, want)
+	}
+
+	filteredTasks := filterTaskListDrafts([]taskpkg.Summary{
+		{ID: "task-1", Draft: false, Status: taskpkg.TaskStatusReady},
+		{ID: "task-2", Draft: true, Status: taskpkg.TaskStatusDraft},
+	}, apicontract.TaskListQuery{Limit: 10})
+	if got, want := len(filteredTasks), 1; got != want {
+		t.Fatalf("len(filterTaskListDrafts default) = %d, want %d", got, want)
+	}
+	if got, want := filteredTasks[0].ID, "task-1"; got != want {
+		t.Fatalf("filterTaskListDrafts()[0].ID = %q, want %q", got, want)
 	}
 }
 
