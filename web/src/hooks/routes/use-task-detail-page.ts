@@ -10,9 +10,33 @@ import {
   useTaskTimeline,
   useTaskTree,
 } from "@/systems/tasks";
-import type { TaskRunsFilter, TaskTimelineFilter } from "@/systems/tasks";
+import type {
+  TaskRunsFilter,
+  TaskTimelineFilter,
+  TaskTreeNode,
+  TaskTreeView,
+} from "@/systems/tasks";
 
-type TaskDetailPanel = "overview" | "timeline" | "runs" | "children" | "dependencies";
+type TaskDetailPanel = "overview" | "timeline" | "runs" | "children" | "dependencies" | "agents";
+
+type MultiAgentLiveState = "loading" | "disconnected" | "no-descendants" | "no-active" | "ready";
+
+interface MultiAgentAgent {
+  node: TaskTreeNode;
+  isRoot: boolean;
+  isPrimary: boolean;
+  isLive: boolean;
+  label: string;
+}
+
+interface MultiAgentView {
+  nodes: MultiAgentAgent[];
+  liveCount: number;
+  descendantCount: number;
+  activeDescendants: number;
+  hasActiveRoot: boolean;
+  state: MultiAgentLiveState;
+}
 
 interface UseTaskDetailPageOptions {
   initialPanel?: TaskDetailPanel;
@@ -65,18 +89,12 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const tree = treeQuery.data ?? null;
 
   const activeRun = useMemo(() => detail?.summary?.active_run ?? null, [detail]);
-  const isLive = useMemo(() => {
-    if (!activeRun) {
-      return false;
-    }
+  const isLive = useMemo(() => isRunActive(activeRun?.status ?? null), [activeRun]);
 
-    return (
-      activeRun.status === "running" ||
-      activeRun.status === "claimed" ||
-      activeRun.status === "starting" ||
-      activeRun.status === "queued"
-    );
-  }, [activeRun]);
+  const multiAgent = useMemo<MultiAgentView>(
+    () => deriveMultiAgentView(tree, treeQuery.isLoading, Boolean(treeQuery.error), isLive),
+    [isLive, tree, treeQuery.error, treeQuery.isLoading]
+  );
 
   const fatalError = useMemo(() => {
     if (!hasTaskId) {
@@ -157,6 +175,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     isLive,
     isPublishPending: publishMutation.isPending,
     isTimelineSaturated,
+    multiAgent,
     notFound: detailQuery.isError && detailQuery.error?.message?.includes("not found"),
     panel,
     runs,
@@ -173,5 +192,100 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   };
 }
 
+function isRunActive(status?: string | null): boolean {
+  return (
+    status === "running" || status === "claimed" || status === "starting" || status === "queued"
+  );
+}
+
+function deriveMultiAgentView(
+  tree: TaskTreeView | null,
+  isLoading: boolean,
+  hasError: boolean,
+  rootIsLive: boolean
+): MultiAgentView {
+  if (!tree) {
+    if (isLoading) {
+      return buildEmptyMultiAgentView("loading");
+    }
+
+    if (hasError) {
+      return buildEmptyMultiAgentView("disconnected");
+    }
+
+    return buildEmptyMultiAgentView("no-descendants");
+  }
+
+  const descendants = tree.descendants ?? [];
+  const rootNode: MultiAgentAgent = {
+    node: tree.root,
+    isRoot: true,
+    isPrimary: true,
+    isLive: rootIsLive || isRunActive(tree.root.active_run?.status ?? null),
+    label: agentLabel(tree.root),
+  };
+
+  const descendantNodes: MultiAgentAgent[] = descendants.map(node => ({
+    node,
+    isRoot: false,
+    isPrimary: false,
+    isLive: isRunActive(node.active_run?.status ?? null),
+    label: agentLabel(node),
+  }));
+
+  const nodes = [rootNode, ...descendantNodes];
+  const liveCount = nodes.reduce((total, item) => total + (item.isLive ? 1 : 0), 0);
+  const activeDescendants = descendantNodes.reduce(
+    (total, item) => total + (item.isLive ? 1 : 0),
+    0
+  );
+
+  let state: MultiAgentLiveState = "ready";
+  if (descendants.length === 0 && !rootNode.isLive) {
+    state = "no-descendants";
+  } else if (liveCount === 0) {
+    state = "no-active";
+  }
+
+  return {
+    nodes,
+    liveCount,
+    descendantCount: descendants.length,
+    activeDescendants,
+    hasActiveRoot: rootNode.isLive,
+    state,
+  };
+}
+
+function buildEmptyMultiAgentView(state: MultiAgentLiveState): MultiAgentView {
+  return {
+    nodes: [],
+    liveCount: 0,
+    descendantCount: 0,
+    activeDescendants: 0,
+    hasActiveRoot: false,
+    state,
+  };
+}
+
+function agentLabel(node: TaskTreeNode): string {
+  const owner = node.task.owner;
+  if (owner?.ref) {
+    return owner.ref;
+  }
+
+  if (owner?.kind) {
+    return owner.kind;
+  }
+
+  return node.task.identifier ?? node.task.id;
+}
+
 export { useTaskDetailPage };
-export type { TaskDetailPanel, UseTaskDetailPageOptions };
+export type {
+  MultiAgentAgent,
+  MultiAgentLiveState,
+  MultiAgentView,
+  TaskDetailPanel,
+  UseTaskDetailPageOptions,
+};

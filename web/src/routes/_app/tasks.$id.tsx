@@ -9,6 +9,7 @@ import {
   TasksDetailOverviewPanel,
   TasksDetailRunsPanel,
   TasksDetailTabs,
+  TasksMultiAgentPanel,
   TasksTimelinePanel,
 } from "@/systems/tasks";
 import type { TasksDetailTabItem } from "@/systems/tasks/components/tasks-detail-tabs";
@@ -69,6 +70,12 @@ function TaskDetailRoute() {
     { id: "overview", label: "Overview" },
     { id: "runs", label: "Runs", count: page.runs.length },
     { id: "timeline", label: "Events", live: page.isLive },
+    {
+      id: "agents",
+      label: "Agents",
+      count: page.multiAgent.descendantCount,
+      live: page.multiAgent.liveCount > 0,
+    },
     { id: "children", label: "Children", count: children.length },
     { id: "dependencies", label: "Dependencies", count: dependencies.length },
   ];
@@ -105,6 +112,22 @@ function TaskDetailRoute() {
             isLoading={page.timelineLoading}
             items={page.timeline}
             onLoadMore={page.handleTimelineLoadMore}
+          />
+        ) : null}
+        {page.panel === "agents" ? (
+          <TasksMultiAgentPanel
+            activeDescendants={page.multiAgent.activeDescendants}
+            agents={page.multiAgent.nodes}
+            canLoadMoreTimeline={page.isTimelineSaturated}
+            descendantCount={page.multiAgent.descendantCount}
+            errorMessage={page.treeError?.message ?? null}
+            liveCount={page.multiAgent.liveCount}
+            onLoadMoreTimeline={page.handleTimelineLoadMore}
+            state={page.multiAgent.state}
+            timeline={page.timeline}
+            timelineErrorMessage={page.timelineError?.message ?? null}
+            timelineLive={page.multiAgent.liveCount > 0}
+            timelineLoading={page.timelineLoading}
           />
         ) : null}
         {page.panel === "children" ? (

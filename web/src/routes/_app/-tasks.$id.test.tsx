@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,6 +18,56 @@ vi.mock("@tanstack/react-router", () => ({
   Outlet: () => <div data-testid="tasks-detail-outlet" />,
   useChildMatches: () => childMatches,
 }));
+
+const treeWithDescendantFixture = {
+  root: {
+    depth: 0,
+    task: {
+      id: "task_abc",
+      identifier: "TASK-38",
+      title: "Triage",
+      status: "in_progress",
+      scope: "workspace",
+      owner: { kind: "agent_session", ref: "Researcher" },
+    },
+    active_run: {
+      id: "run_root",
+      attempt: 1,
+      max_attempts: 3,
+      queued_at: "2026-04-17T10:00:00Z",
+      status: "running",
+      task_id: "task_abc",
+      session_id: "sess_root",
+    },
+    child_count: 1,
+    last_activity_at: "2026-04-17T10:01:00Z",
+  },
+  descendants: [
+    {
+      depth: 1,
+      parent_task_id: "task_abc",
+      task: {
+        id: "task_child",
+        identifier: "TASK-39",
+        status: "in_progress",
+        scope: "workspace",
+        title: "Reproduce",
+        owner: { kind: "agent_session", ref: "Coder" },
+      },
+      active_run: {
+        id: "run_child",
+        attempt: 1,
+        max_attempts: 2,
+        queued_at: "2026-04-17T10:00:10Z",
+        status: "running",
+        task_id: "task_child",
+        session_id: "sess_child",
+      },
+      child_count: 0,
+      last_activity_at: "2026-04-17T10:01:00Z",
+    },
+  ],
+};
 
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   listTasks: vi.fn().mockResolvedValue([]),
@@ -49,7 +99,7 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   dismissTask: vi.fn(),
 }));
 
-import { getTask } from "@/systems/tasks/adapters/tasks-api";
+import { getTask, getTaskTree } from "@/systems/tasks/adapters/tasks-api";
 
 import { Route } from "./tasks.$id";
 
@@ -132,5 +182,36 @@ describe("TaskDetailRoute", () => {
     vi.mocked(getTask).mockRejectedValue(new Error("Task not found: task_abc"));
     renderRoute();
     await waitFor(() => expect(screen.getByTestId("tasks-detail-not-found")).toBeInTheDocument());
+  });
+
+  it("renders the multi-agent live panel when the agents tab is activated", async () => {
+    vi.mocked(getTaskTree).mockResolvedValue(treeWithDescendantFixture as never);
+
+    renderRoute();
+    await waitFor(() => expect(screen.getByTestId("tasks-detail-tab-agents")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("tasks-detail-tab-agents"));
+
+    await waitFor(() => expect(screen.getByTestId("tasks-multi-agent-panel")).toBeInTheDocument());
+    expect(screen.getByTestId("tasks-multi-agent-agent-task_abc")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-multi-agent-agent-task_child")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-multi-agent-live-count")).toHaveTextContent("2 agents live");
+    expect(screen.getByTestId("tasks-multi-agent-timeline-live")).toBeInTheDocument();
+  });
+
+  it("falls back to the disconnected state when the tree read fails", async () => {
+    vi.mocked(getTaskTree).mockRejectedValue(new Error("Tree stream disconnected"));
+
+    renderRoute();
+    await waitFor(() => expect(screen.getByTestId("tasks-detail-tab-agents")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("tasks-detail-tab-agents"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("tasks-multi-agent-disconnected")).toBeInTheDocument()
+    );
+    expect(screen.getByTestId("tasks-multi-agent-disconnected")).toHaveTextContent(
+      "Tree stream disconnected"
+    );
   });
 });

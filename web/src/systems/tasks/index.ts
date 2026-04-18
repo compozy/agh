@@ -207,6 +207,9 @@ export type {
 export { TaskRunDetailSessionLink } from "./components/task-run-detail-session-link";
 export type { TaskRunDetailSessionLinkProps } from "./components/task-run-detail-session-link";
 
+export { TasksMultiAgentPanel } from "./components/tasks-multi-agent-panel";
+export type { TasksMultiAgentPanelProps } from "./components/tasks-multi-agent-panel";
+
 // Dashboard + Inbox aggregate components
 export { TasksDashboardCards } from "./components/tasks-dashboard-cards";
 export type { TasksDashboardCardsProps } from "./components/tasks-dashboard-cards";
