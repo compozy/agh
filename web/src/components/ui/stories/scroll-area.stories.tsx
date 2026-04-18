@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Card, CardContent, CardHeader, CardTitle, Separator } from "@agh/ui";
 
-import { ScrollArea, ScrollBar } from "../scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 const meta: Meta<typeof ScrollArea> = {
   title: "components/ui/ScrollArea",

@@ -12,7 +12,7 @@ import {
   ItemMedia,
   ItemSeparator,
   ItemTitle,
-} from "../item";
+} from "@/components/ui/item";
 
 const meta: Meta<typeof Item> = {
   title: "components/ui/Item",

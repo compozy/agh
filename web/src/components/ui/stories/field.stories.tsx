@@ -9,7 +9,7 @@ import {
   FieldLabel,
   FieldLegend,
   FieldSet,
-} from "../field";
+} from "@/components/ui/field";
 
 const meta: Meta<typeof Field> = {
   title: "components/ui/Field",

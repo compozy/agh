@@ -8,7 +8,7 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-} from "../combobox";
+} from "@/components/ui/combobox";
 
 const meta: Meta<typeof Combobox> = {
   title: "components/ui/Combobox",

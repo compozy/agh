@@ -3,8 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { createBridgeUpdateDraft } from "@/systems/bridges";
 import { bridgeDetailFixture, bridgeProvidersFixture } from "@/systems/bridges/mocks";
-
-import { BridgeEditDialog } from "../bridge-edit-dialog";
+import { BridgeEditDialog } from "@/systems/bridges/components/bridge-edit-dialog";
 
 const meta: Meta<typeof BridgeEditDialog> = {
   title: "systems/bridges/BridgeEditDialog",
@@ -42,10 +41,12 @@ function BridgeEditDialogHarness({
 }
 
 export const Default: Story = {
+  args: {},
   render: () => <BridgeEditDialogHarness />,
 };
 
 export const Error: Story = {
+  args: {},
   render: () => (
     <BridgeEditDialogHarness
       initialDraft={{

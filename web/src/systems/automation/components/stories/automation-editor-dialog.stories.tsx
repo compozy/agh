@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { useAutomationPage } from "@/hooks/routes/use-automation-page";
+import { createAutomationJobDraft } from "@/systems/automation";
 
 import { AutomationEditorDialog } from "../automation-editor-dialog";
 
@@ -18,20 +19,26 @@ type Story = StoryObj<typeof meta>;
 
 function AutomationEditorDialogHarness() {
   const page = useAutomationPage();
-  const openedRef = useRef(false);
+  const activeWorkspaceId = page.editorDialogProps.activeWorkspaceId;
+  const [draft, setDraft] = useState(() => createAutomationJobDraft(activeWorkspaceId));
 
-  useEffect(() => {
-    if (openedRef.current) {
-      return;
-    }
-
-    openedRef.current = true;
-    page.handleCreate();
-  }, [page]);
-
-  return <AutomationEditorDialog {...page.editorDialogProps} />;
+  return (
+    <AutomationEditorDialog
+      {...page.editorDialogProps}
+      editor={{
+        draft,
+        isPending: false,
+        kind: "jobs",
+        mode: "create",
+        onCancel: () => undefined,
+        onChange: setDraft,
+        onSubmit: () => undefined,
+      }}
+    />
+  );
 }
 
 export const Default: Story = {
+  args: {},
   render: () => <AutomationEditorDialogHarness />,
 };

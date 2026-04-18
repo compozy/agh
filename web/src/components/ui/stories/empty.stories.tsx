@@ -9,7 +9,7 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "../empty";
+} from "@/components/ui/empty";
 
 const meta: Meta<typeof Empty> = {
   title: "components/ui/Empty",

@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from "../dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 
 const meta: Meta<typeof DropdownMenu> = {
   title: "components/ui/DropdownMenu",

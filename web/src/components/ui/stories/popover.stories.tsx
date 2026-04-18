@@ -8,7 +8,7 @@ import {
   PopoverHeader,
   PopoverTitle,
   PopoverTrigger,
-} from "../popover";
+} from "@/components/ui/popover";
 
 const meta: Meta<typeof Popover> = {
   title: "components/ui/Popover",

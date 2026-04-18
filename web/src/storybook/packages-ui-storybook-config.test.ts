@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const packagesUiMain = (await import("../../../packages/ui/.storybook/main")).default;
 const packagesUiPreviewModule = await import("../../../packages/ui/.storybook/preview");
 const packagesUiPreview = packagesUiPreviewModule.default;
 
-const packagesUiPreviewPath = join(__dirname, "../../../packages/ui/.storybook/preview.ts");
+const packagesUiPreviewPath = resolve(process.cwd(), "../packages/ui/.storybook/preview.ts");
 const packagesUiPreviewSource = readFileSync(packagesUiPreviewPath, "utf8");
 
 describe("packages/ui Storybook config", () => {

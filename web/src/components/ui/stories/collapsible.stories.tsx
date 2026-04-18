@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@agh/ui";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const meta: Meta<typeof Collapsible> = {
   title: "components/ui/Collapsible",

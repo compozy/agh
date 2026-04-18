@@ -18,7 +18,7 @@ import {
   CommandList,
   CommandSeparator,
   CommandShortcut,
-} from "../command";
+} from "@/components/ui/command";
 
 const meta: Meta<typeof Command> = {
   title: "components/ui/Command",

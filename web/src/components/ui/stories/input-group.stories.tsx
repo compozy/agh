@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CommandIcon, MailIcon, SearchIcon } from "lucide-react";
 import { Kbd, Label } from "@agh/ui";
 
-import { Field, FieldDescription, FieldError, FieldLabel } from "../field";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import {
   InputGroup,
   InputGroupAddon,
@@ -10,7 +10,7 @@ import {
   InputGroupInput,
   InputGroupText,
   InputGroupTextarea,
-} from "../input-group";
+} from "@/components/ui/input-group";
 
 const meta: Meta<typeof InputGroup> = {
   title: "components/ui/InputGroup",
