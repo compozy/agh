@@ -29,6 +29,7 @@ const (
 	RoleAssistant  Role = "assistant"
 	RoleToolCall   Role = "tool_call"
 	RoleToolResult Role = "tool_result"
+	RoleSystem     Role = "system"
 )
 
 // ToolResult is the canonical renderable tool output shape for replay.
@@ -150,7 +151,9 @@ func processTranscriptEvent(
 
 	switch parsed.Type {
 	case acp.EventTypeUserMessage:
-		appendUserTranscriptMessage(messages, assistant, parsed)
+		appendInputTranscriptMessage(messages, assistant, parsed, RoleUser)
+	case acp.EventTypeSyntheticReentry:
+		appendInputTranscriptMessage(messages, assistant, parsed, RoleSystem)
 	case acp.EventTypeAgentMessage:
 		appendAssistantTranscriptContent(assistant, parsed, false)
 	case acp.EventTypeThought:
@@ -175,14 +178,14 @@ func flushAssistantOnTurnChange(messages *[]Message, assistant *assistantBuffer,
 	}
 }
 
-func appendUserTranscriptMessage(messages *[]Message, assistant *assistantBuffer, parsed event) {
+func appendInputTranscriptMessage(messages *[]Message, assistant *assistantBuffer, parsed event, role Role) {
 	flushAssistantBuffer(messages, assistant)
 	if strings.TrimSpace(parsed.Text) == "" {
 		return
 	}
 	*messages = append(*messages, Message{
 		ID:        parsed.ID,
-		Role:      RoleUser,
+		Role:      role,
 		Content:   parsed.Text,
 		Timestamp: parsed.Timestamp,
 	})
@@ -232,18 +235,16 @@ func flushAssistantBuffer(messages *[]Message, assistant *assistantBuffer) {
 }
 
 func applyToolCall(messages *[]Message, toolStates map[string]*toolLifecycle, parsed event) {
-	toolID := strings.TrimSpace(parsed.ToolCallID)
-	if toolID == "" {
-		toolID = parsed.ID
-	}
-	if toolID == "" {
+	toolKey := toolLifecycleKey(parsed)
+	if toolKey == "" {
 		return
 	}
+	messageID := toolMessageID(parsed)
 
-	lifecycle, ok := toolStates[toolID]
+	lifecycle, ok := toolStates[toolKey]
 	if !ok {
 		lifecycle = &toolLifecycle{callIndex: -1, resultIndex: -1}
-		toolStates[toolID] = lifecycle
+		toolStates[toolKey] = lifecycle
 	}
 
 	if lifecycle.callIndex >= 0 {
@@ -253,7 +254,7 @@ func applyToolCall(messages *[]Message, toolStates map[string]*toolLifecycle, pa
 	}
 
 	*messages = append(*messages, Message{
-		ID:        toolID,
+		ID:        messageID,
 		Role:      RoleToolCall,
 		Content:   "",
 		ToolName:  parsed.ToolName,
@@ -264,23 +265,21 @@ func applyToolCall(messages *[]Message, toolStates map[string]*toolLifecycle, pa
 }
 
 func applyToolResult(messages *[]Message, toolStates map[string]*toolLifecycle, parsed event) {
-	toolID := strings.TrimSpace(parsed.ToolCallID)
-	if toolID == "" {
-		toolID = parsed.ID
-	}
-	if toolID == "" {
+	toolKey := toolLifecycleKey(parsed)
+	if toolKey == "" {
 		return
 	}
+	messageID := toolMessageID(parsed)
 
-	lifecycle, ok := toolStates[toolID]
+	lifecycle, ok := toolStates[toolKey]
 	if !ok {
 		lifecycle = &toolLifecycle{callIndex: -1, resultIndex: -1}
-		toolStates[toolID] = lifecycle
+		toolStates[toolKey] = lifecycle
 	}
 
 	if lifecycle.callIndex < 0 {
 		*messages = append(*messages, Message{
-			ID:        toolID,
+			ID:        messageID,
 			Role:      RoleToolCall,
 			Content:   "",
 			ToolName:  parsed.ToolName,
@@ -305,7 +304,7 @@ func applyToolResult(messages *[]Message, toolStates map[string]*toolLifecycle, 
 	}
 
 	*messages = append(*messages, Message{
-		ID:         toolID,
+		ID:         messageID,
 		Role:       RoleToolResult,
 		Content:    "",
 		ToolName:   parsed.ToolName,
@@ -314,6 +313,26 @@ func applyToolResult(messages *[]Message, toolStates map[string]*toolLifecycle, 
 		Timestamp:  parsed.Timestamp,
 	})
 	lifecycle.resultIndex = len(*messages) - 1
+}
+
+func toolLifecycleKey(parsed event) string {
+	toolID := strings.TrimSpace(parsed.ToolCallID)
+	if toolID == "" {
+		toolID = strings.TrimSpace(parsed.ID)
+	}
+	if toolID == "" {
+		return ""
+	}
+
+	turnID := strings.TrimSpace(parsed.TurnID)
+	if turnID == "" {
+		return toolID
+	}
+	return turnID + ":" + toolID
+}
+
+func toolMessageID(parsed event) string {
+	return toolLifecycleKey(parsed)
 }
 
 func mergeToolCallMessage(msg *Message, parsed event) {

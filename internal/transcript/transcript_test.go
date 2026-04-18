@@ -235,6 +235,265 @@ func TestAssembleReadsCanonicalEnvelopeAndStableOrdering(t *testing.T) {
 	}
 }
 
+func TestAssembleRendersSyntheticReentryAsSystemMessage(t *testing.T) {
+	t.Parallel()
+
+	events := []store.SessionEvent{
+		{
+			ID:       "user-1",
+			Sequence: 1,
+			TurnID:   "turn-user",
+			Type:     acp.EventTypeUserMessage,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeUserMessage,
+				"turn-user",
+				time.Date(2026, 4, 18, 11, 0, 0, 0, time.UTC),
+				"human prompt",
+				"",
+				"",
+				nil,
+				nil,
+				false,
+			),
+			Timestamp: time.Date(2026, 4, 18, 11, 0, 0, 0, time.UTC),
+		},
+		{
+			ID:       "synth-1",
+			Sequence: 2,
+			TurnID:   "turn-synth",
+			Type:     acp.EventTypeSyntheticReentry,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeSyntheticReentry,
+				"turn-synth",
+				time.Date(2026, 4, 18, 11, 0, 1, 0, time.UTC),
+				"daemon wake-up",
+				"",
+				"",
+				nil,
+				nil,
+				false,
+			),
+			Timestamp: time.Date(2026, 4, 18, 11, 0, 1, 0, time.UTC),
+		},
+	}
+
+	messages, err := Assemble(events)
+	if err != nil {
+		t.Fatalf("Assemble() error = %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("Assemble() len = %d, want 2", len(messages))
+	}
+	if got := messages[0].Role; got != RoleUser {
+		t.Fatalf("messages[0].Role = %q, want %q", got, RoleUser)
+	}
+	if got := messages[1].Role; got != RoleSystem {
+		t.Fatalf("messages[1].Role = %q, want %q", got, RoleSystem)
+	}
+	if got := messages[1].Content; got != "daemon wake-up" {
+		t.Fatalf("messages[1].Content = %q, want %q", got, "daemon wake-up")
+	}
+}
+
+func TestAssemblePreservesMixedTurnOrderingAndToolPairingWithRepeatedToolIDs(t *testing.T) {
+	t.Parallel()
+
+	events := []store.SessionEvent{
+		{
+			ID:       "user-1",
+			Sequence: 1,
+			TurnID:   "turn-user",
+			Type:     acp.EventTypeUserMessage,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeUserMessage,
+				"turn-user",
+				time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
+				"user prompt",
+				"",
+				"",
+				nil,
+				nil,
+				false,
+			),
+			Timestamp: time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			ID:       "call-user",
+			Sequence: 2,
+			TurnID:   "turn-user",
+			Type:     acp.EventTypeToolCall,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeToolCall,
+				"turn-user",
+				time.Date(2026, 4, 18, 12, 0, 1, 0, time.UTC),
+				"",
+				"Bash",
+				"shared-call",
+				json.RawMessage(`{"command":"echo user"}`),
+				nil,
+				false,
+			),
+			Timestamp: time.Date(2026, 4, 18, 12, 0, 1, 0, time.UTC),
+		},
+		{
+			ID:       "synth-1",
+			Sequence: 3,
+			TurnID:   "turn-synth",
+			Type:     acp.EventTypeSyntheticReentry,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeSyntheticReentry,
+				"turn-synth",
+				time.Date(2026, 4, 18, 12, 0, 2, 0, time.UTC),
+				"daemon wake-up",
+				"",
+				"",
+				nil,
+				nil,
+				false,
+			),
+			Timestamp: time.Date(2026, 4, 18, 12, 0, 2, 0, time.UTC),
+		},
+		{
+			ID:       "result-user",
+			Sequence: 4,
+			TurnID:   "turn-user",
+			Type:     acp.EventTypeToolResult,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeToolResult,
+				"turn-user",
+				time.Date(2026, 4, 18, 12, 0, 3, 0, time.UTC),
+				"",
+				"Bash",
+				"shared-call",
+				nil,
+				&ToolResult{Stdout: "user"},
+				false,
+			),
+			Timestamp: time.Date(2026, 4, 18, 12, 0, 3, 0, time.UTC),
+		},
+		{
+			ID:       "network-1",
+			Sequence: 5,
+			TurnID:   "turn-network",
+			Type:     acp.EventTypeUserMessage,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeUserMessage,
+				"turn-network",
+				time.Date(2026, 4, 18, 12, 0, 4, 0, time.UTC),
+				"network prompt",
+				"",
+				"",
+				nil,
+				nil,
+				false,
+			),
+			Timestamp: time.Date(2026, 4, 18, 12, 0, 4, 0, time.UTC),
+		},
+		{
+			ID:       "call-network",
+			Sequence: 6,
+			TurnID:   "turn-network",
+			Type:     acp.EventTypeToolCall,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeToolCall,
+				"turn-network",
+				time.Date(2026, 4, 18, 12, 0, 5, 0, time.UTC),
+				"",
+				"Bash",
+				"shared-call",
+				json.RawMessage(`{"command":"echo network"}`),
+				nil,
+				false,
+			),
+			Timestamp: time.Date(2026, 4, 18, 12, 0, 5, 0, time.UTC),
+		},
+		{
+			ID:       "result-network",
+			Sequence: 7,
+			TurnID:   "turn-network",
+			Type:     acp.EventTypeToolResult,
+			Content: mustMarshalCanonical(
+				t,
+				acp.EventTypeToolResult,
+				"turn-network",
+				time.Date(2026, 4, 18, 12, 0, 6, 0, time.UTC),
+				"",
+				"Bash",
+				"shared-call",
+				nil,
+				&ToolResult{Stdout: "network"},
+				false,
+			),
+			Timestamp: time.Date(2026, 4, 18, 12, 0, 6, 0, time.UTC),
+		},
+	}
+
+	messages, err := Assemble(events)
+	if err != nil {
+		t.Fatalf("Assemble() error = %v", err)
+	}
+	if len(messages) != 7 {
+		t.Fatalf("Assemble() len = %d, want 7", len(messages))
+	}
+
+	if got := messages[0].Role; got != RoleUser {
+		t.Fatalf("messages[0].Role = %q, want %q", got, RoleUser)
+	}
+	if got := messages[0].Content; got != "user prompt" {
+		t.Fatalf("messages[0].Content = %q, want %q", got, "user prompt")
+	}
+	if got := messages[1].Role; got != RoleToolCall {
+		t.Fatalf("messages[1].Role = %q, want %q", got, RoleToolCall)
+	}
+	if got := messages[2].Role; got != RoleSystem {
+		t.Fatalf("messages[2].Role = %q, want %q", got, RoleSystem)
+	}
+	if got := messages[2].Content; got != "daemon wake-up" {
+		t.Fatalf("messages[2].Content = %q, want %q", got, "daemon wake-up")
+	}
+	if got := messages[3].Role; got != RoleToolResult {
+		t.Fatalf("messages[3].Role = %q, want %q", got, RoleToolResult)
+	}
+	if got := messages[4].Role; got != RoleUser {
+		t.Fatalf("messages[4].Role = %q, want %q", got, RoleUser)
+	}
+	if got := messages[4].Content; got != "network prompt" {
+		t.Fatalf("messages[4].Content = %q, want %q", got, "network prompt")
+	}
+	if got := messages[5].Role; got != RoleToolCall {
+		t.Fatalf("messages[5].Role = %q, want %q", got, RoleToolCall)
+	}
+	if got := messages[6].Role; got != RoleToolResult {
+		t.Fatalf("messages[6].Role = %q, want %q", got, RoleToolResult)
+	}
+	if got, want := messages[1].ID, "turn-user:shared-call"; got != want {
+		t.Fatalf("messages[1].ID = %q, want %q", got, want)
+	}
+	if got, want := messages[3].ID, "turn-user:shared-call"; got != want {
+		t.Fatalf("messages[3].ID = %q, want %q", got, want)
+	}
+	if got, want := messages[5].ID, "turn-network:shared-call"; got != want {
+		t.Fatalf("messages[5].ID = %q, want %q", got, want)
+	}
+	if got, want := messages[6].ID, "turn-network:shared-call"; got != want {
+		t.Fatalf("messages[6].ID = %q, want %q", got, want)
+	}
+	if messages[3].ToolResult == nil || messages[3].ToolResult.Stdout != "user" {
+		t.Fatalf("messages[3].ToolResult = %#v, want stdout user", messages[3].ToolResult)
+	}
+	if messages[6].ToolResult == nil || messages[6].ToolResult.Stdout != "network" {
+		t.Fatalf("messages[6].ToolResult = %#v, want stdout network", messages[6].ToolResult)
+	}
+}
+
 func TestAssembleSkipsIgnorableEvents(t *testing.T) {
 	t.Parallel()
 

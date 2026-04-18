@@ -37,6 +37,7 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	transcriptpkg "github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -1710,6 +1711,197 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 	}
 	if !slices.Contains(projectedTypes, acp.EventTypeDone) {
 		t.Fatalf("projected event types = %#v, want done replay", projectedTypes)
+	}
+}
+
+func TestPromptSubmissionFromStoredEventsUsesSyntheticBoundary(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 18, 14, 0, 0, 0, time.UTC)
+	events := []store.SessionEvent{
+		mustStoredPromptEvent(t, "ev-synth", 1, acp.AgentEvent{
+			Type:      acp.EventTypeSyntheticReentry,
+			TurnID:    "turn-synth",
+			Timestamp: now,
+			Text:      "daemon wake-up",
+			Synthetic: &acp.PromptSyntheticMeta{
+				TaskRunID: "run-1",
+				Reason:    "task_run_completed",
+				Summary:   "background work finished",
+			},
+		}),
+		mustStoredPromptEvent(t, "ev-agent", 2, acp.AgentEvent{
+			Type:      acp.EventTypeAgentMessage,
+			TurnID:    "turn-synth",
+			Timestamp: now.Add(time.Second),
+			Text:      "ready",
+		}),
+	}
+
+	submission, err := promptSubmissionFromStoredEvents(events)
+	if err != nil {
+		t.Fatalf("promptSubmissionFromStoredEvents() error = %v", err)
+	}
+	if got, want := submission.TurnID, "turn-synth"; got != want {
+		t.Fatalf("submission.TurnID = %q, want %q", got, want)
+	}
+	if got, want := len(submission.SeedEvents), 2; got != want {
+		t.Fatalf("len(submission.SeedEvents) = %d, want %d", got, want)
+	}
+	if got, want := submission.SeedEvents[0].Type, acp.EventTypeSyntheticReentry; got != want {
+		t.Fatalf("seedEvents[0].Type = %q, want %q", got, want)
+	}
+	if got, want := submission.SeedEvents[0].Text, "daemon wake-up"; got != want {
+		t.Fatalf("seedEvents[0].Text = %q, want %q", got, want)
+	}
+}
+
+func TestPromptTurnIDFromStoredEventsPrefersFirstPromptBoundary(t *testing.T) {
+	t.Parallel()
+
+	events := []store.SessionEvent{
+		{Type: acp.EventTypeToolCall, TurnID: "turn-tool"},
+		{Type: acp.EventTypeUserMessage, TurnID: "turn-user"},
+		{Type: acp.EventTypeSyntheticReentry, TurnID: "turn-synth"},
+	}
+
+	if got, want := promptTurnIDFromStoredEvents(events), "turn-user"; got != want {
+		t.Fatalf("promptTurnIDFromStoredEvents() = %q, want %q", got, want)
+	}
+}
+
+func TestPromptSubmissionFromStoredEventsRejectsMissingPromptBoundary(t *testing.T) {
+	t.Parallel()
+
+	_, err := promptSubmissionFromStoredEvents([]store.SessionEvent{{
+		Type:   acp.EventTypeAgentMessage,
+		TurnID: "turn-agent",
+	}})
+	if err == nil {
+		t.Fatal("promptSubmissionFromStoredEvents() error = nil, want missing boundary error")
+	}
+	if !strings.Contains(err.Error(), "turn id not found") {
+		t.Fatalf("promptSubmissionFromStoredEvents() error = %v, want turn id failure", err)
+	}
+}
+
+func TestPromptProjectionEventFromStoredEventUsesStoredFallbacks(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 18, 14, 5, 0, 0, time.UTC)
+	projected, err := promptProjectionEventFromStoredEvent(store.SessionEvent{
+		ID:        "ev-fallback",
+		Type:      acp.EventTypeSyntheticReentry,
+		TurnID:    "turn-synth",
+		Timestamp: now,
+		Content:   `{"schema":"agh.session.event.v1","text":"daemon wake-up"}`,
+	})
+	if err != nil {
+		t.Fatalf("promptProjectionEventFromStoredEvent() error = %v", err)
+	}
+	if got, want := projected.Type, acp.EventTypeSyntheticReentry; got != want {
+		t.Fatalf("projected.Type = %q, want %q", got, want)
+	}
+	if got, want := projected.TurnID, "turn-synth"; got != want {
+		t.Fatalf("projected.TurnID = %q, want %q", got, want)
+	}
+	if got := projected.Timestamp; !got.Equal(now) {
+		t.Fatalf("projected.Timestamp = %s, want %s", got, now)
+	}
+}
+
+func TestPromptProjectionEventFromStoredEventReturnsDecodeError(t *testing.T) {
+	t.Parallel()
+
+	_, err := promptProjectionEventFromStoredEvent(store.SessionEvent{
+		ID:      "ev-invalid",
+		Type:    acp.EventTypeSyntheticReentry,
+		TurnID:  "turn-synth",
+		Content: "{",
+	})
+	if err == nil {
+		t.Fatal("promptProjectionEventFromStoredEvent() error = nil, want decode error")
+	}
+}
+
+func TestPromptSeedEventsFromStoredEventsFiltersOtherTurns(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 18, 14, 7, 0, 0, time.UTC)
+	events := []store.SessionEvent{
+		mustStoredPromptEvent(t, "ev-other", 1, acp.AgentEvent{
+			Type:      acp.EventTypeUserMessage,
+			TurnID:    "turn-other",
+			Timestamp: now,
+			Text:      "other",
+		}),
+		mustStoredPromptEvent(t, "ev-synth", 2, acp.AgentEvent{
+			Type:      acp.EventTypeSyntheticReentry,
+			TurnID:    "turn-synth",
+			Timestamp: now.Add(time.Second),
+			Text:      "daemon wake-up",
+		}),
+	}
+
+	seedEvents, err := promptSeedEventsFromStoredEvents(events, "turn-synth")
+	if err != nil {
+		t.Fatalf("promptSeedEventsFromStoredEvents() error = %v", err)
+	}
+	if got, want := len(seedEvents), 1; got != want {
+		t.Fatalf("len(seedEvents) = %d, want %d", got, want)
+	}
+	if got, want := seedEvents[0].Type, acp.EventTypeSyntheticReentry; got != want {
+		t.Fatalf("seedEvents[0].Type = %q, want %q", got, want)
+	}
+}
+
+func TestHostAPIHandlerSubmitPromptRejectsMissingSessionManager(t *testing.T) {
+	t.Parallel()
+
+	var handler HostAPIHandler
+	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello")
+	if err == nil {
+		t.Fatal("submitPrompt() error = nil, want missing session manager error")
+	}
+	if !strings.Contains(err.Error(), "session manager is not configured") {
+		t.Fatalf("submitPrompt() error = %v, want session manager configuration failure", err)
+	}
+}
+
+func TestHostAPIHandlerSubmitPromptRejectsMissingBoundaryEvents(t *testing.T) {
+	t.Parallel()
+
+	promptEvents := make(chan acp.AgentEvent)
+	close(promptEvents)
+
+	handler := &HostAPIHandler{
+		sessions: promptSessionManagerStub{
+			promptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+				return promptEvents, nil
+			},
+			eventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if query.Limit == 1 {
+					return nil, nil
+				}
+				return []store.SessionEvent{{
+					ID:        "ev-agent",
+					Sequence:  1,
+					TurnID:    "turn-agent",
+					Type:      acp.EventTypeAgentMessage,
+					AgentName: "coder",
+					Content:   `{"schema":"agh.session.event.v1","type":"agent_message","text":"reply"}`,
+					Timestamp: time.Date(2026, 4, 18, 14, 6, 0, 0, time.UTC),
+				}}, nil
+			},
+		},
+	}
+
+	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello")
+	if err == nil {
+		t.Fatal("submitPrompt() error = nil, want missing boundary error")
+	}
+	if !strings.Contains(err.Error(), "turn id not found") {
+		t.Fatalf("submitPrompt() error = %v, want turn id failure", err)
 	}
 }
 
@@ -5105,6 +5297,72 @@ func storeSessionDB(ctx context.Context, sessionID string, path string) (session
 
 func sessiondbOpen(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
 	return sessiondb.OpenSessionDB(ctx, sessionID, path)
+}
+
+func mustStoredPromptEvent(t *testing.T, id string, sequence int64, event acp.AgentEvent) store.SessionEvent {
+	t.Helper()
+
+	payload, err := transcriptpkg.MarshalAgentEvent(event)
+	if err != nil {
+		t.Fatalf("MarshalAgentEvent() error = %v", err)
+	}
+	return store.SessionEvent{
+		ID:        id,
+		Sequence:  sequence,
+		TurnID:    event.TurnID,
+		Type:      event.Type,
+		AgentName: "coder",
+		Content:   payload,
+		Timestamp: event.Timestamp,
+	}
+}
+
+type promptSessionManagerStub struct {
+	promptFn func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	eventsFn func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+}
+
+func (s promptSessionManagerStub) Create(context.Context, session.CreateOpts) (*session.Session, error) {
+	return nil, errors.New("unexpected create call")
+}
+
+func (s promptSessionManagerStub) ListAll(context.Context) ([]*session.Info, error) {
+	return nil, errors.New("unexpected list call")
+}
+
+func (s promptSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
+	return nil, errors.New("unexpected status call")
+}
+
+func (s promptSessionManagerStub) Events(
+	ctx context.Context,
+	id string,
+	query store.EventQuery,
+) ([]store.SessionEvent, error) {
+	if s.eventsFn == nil {
+		return nil, nil
+	}
+	return s.eventsFn(ctx, id, query)
+}
+
+func (s promptSessionManagerStub) Stop(context.Context, string) error {
+	return errors.New("unexpected stop call")
+}
+
+func (s promptSessionManagerStub) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
+	if s.promptFn == nil {
+		ch := make(chan acp.AgentEvent)
+		close(ch)
+		return ch, nil
+	}
+	return s.promptFn(ctx, id, msg)
+}
+
+func (s promptSessionManagerStub) ExecEnvironment(
+	context.Context,
+	session.EnvironmentExecRequest,
+) (session.EnvironmentExecResult, error) {
+	return session.EnvironmentExecResult{}, errors.New("unexpected exec call")
 }
 
 func sequentialSessionIDGenerator(prefix string) session.IDGenerator {
