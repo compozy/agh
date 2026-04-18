@@ -43,3 +43,4 @@ export {
   TableCaption,
 } from "./components/table";
 export { Kbd, KbdGroup } from "./components/kbd";
+export { UIProvider, type UIProviderProps } from "./components/ui-provider";

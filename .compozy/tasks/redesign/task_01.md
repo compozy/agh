@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extend tokens, install motion, add UIProvider
 type: frontend
 complexity: low
@@ -40,12 +40,12 @@ Establish the foundation of the new `@agh/ui` surface: add missing tokens from `
 
 ## Subtasks
 
-- [ ] 1.1 Add the 10 new tokens to `packages/ui/src/tokens.css` in the appropriate section blocks (radii, typography, motion, color).
-- [ ] 1.2 Run `pnpm add motion` in both `packages/ui` (peer + dev) and `web/`; pin to a known minor version.
-- [ ] 1.3 Create `packages/ui/src/components/ui-provider.tsx` with the MotionConfig wrapper and export it from `src/index.ts`.
-- [ ] 1.4 Write `packages/ui/src/components/stories/ui-provider.stories.tsx` with a variant demonstrating `reducedMotion="always"`.
-- [ ] 1.5 Trim `web/src/styles.css` to imports + globals; remove dead primitive class definitions.
-- [ ] 1.6 Verify `pnpm --filter @agh/ui build` succeeds and `pnpm --filter @agh/ui test` passes with the new story rendering.
+- [x] 1.1 Add the 10 new tokens to `packages/ui/src/tokens.css` in the appropriate section blocks (radii, typography, motion, color).
+- [x] 1.2 Run `pnpm add motion` in both `packages/ui` (peer + dev) and `web/`; pin to a known minor version.
+- [x] 1.3 Create `packages/ui/src/components/ui-provider.tsx` with the MotionConfig wrapper and export it from `src/index.ts`.
+- [x] 1.4 Write `packages/ui/src/components/stories/ui-provider.stories.tsx` with a variant demonstrating `reducedMotion="always"`.
+- [x] 1.5 Trim `web/src/styles.css` to imports + globals; remove dead primitive class definitions.
+- [x] 1.6 Verify `pnpm --filter @agh/ui build` succeeds and `pnpm --filter @agh/ui test` passes with the new story rendering.
 
 ## Implementation Details
 
@@ -60,7 +60,12 @@ Motion library choice is in ADR-003.
 - `packages/ui/src/index.ts` — public exports; add `UIProvider`.
 - `web/package.json` — runtime dep for `motion`.
 - `web/src/styles.css` — trim to imports + globals.
-- `DESIGN.md` — authoritative list of new tokens (radii, typography, motion).
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md` — repo-root authoritative spec for tokens, type scale, motion.
+  - `docs/design/design-system/colors_and_type.css` — mirror of `@agh/ui/tokens.css` plus the `--font-display`, `--font-wordmark`, `--tracking-eyebrow` tokens and the clamp-based display typography classes. Confirm the ten tokens being added match this file.
+  - `docs/design/design-system/preview/colors-surfaces.html`, `preview/colors-accent.html`, `preview/colors-semantic.html`, `preview/colors-text.html` — token swatch references.
+  - `docs/design/design-system/preview/spacing-radii.html`, `preview/spacing-elevation.html` — radius + elevation token references.
+  - `docs/design/design-system/preview/type-display.html`, `preview/type-body.html`, `preview/type-mono.html`, `preview/type-docs-heading.html` — typography token references.
 
 ### Dependent Files
 
