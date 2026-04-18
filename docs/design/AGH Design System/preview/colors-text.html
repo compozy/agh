@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Text Colors</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 24px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+      .cell {
+        border: 1px solid var(--color-divider);
+        border-radius: 12px;
+        background: var(--color-surface);
+        padding: 16px 16px 14px;
+      }
+      .cell .big {
+        font-family: var(--font-sans);
+        font-size: 20px;
+        line-height: 1.2;
+        margin-bottom: 10px;
+      }
+      .cell .meta {
+        font-family: var(--font-mono);
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--color-text-tertiary);
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .cell .hex {
+        color: var(--color-text-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <div class="cell">
+        <div class="big" style="color: #e5e5e7">Primary text</div>
+        <div class="meta"><span>text · primary</span><span class="hex">#E5E5E7</span></div>
+      </div>
+      <div class="cell">
+        <div class="big" style="color: #98989d">Label</div>
+        <div class="meta"><span>text · label</span><span class="hex">#98989D</span></div>
+      </div>
+      <div class="cell">
+        <div class="big" style="color: #8e8e93">Secondary body</div>
+        <div class="meta"><span>text · secondary</span><span class="hex">#8E8E93</span></div>
+      </div>
+      <div class="cell">
+        <div class="big" style="color: #636366">Tertiary / eyebrow</div>
+        <div class="meta"><span>text · tertiary</span><span class="hex">#636366</span></div>
+      </div>
+    </div>
+  </body>
+</html>

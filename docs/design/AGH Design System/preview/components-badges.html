@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Badges & Chips</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500&family=JetBrains+Mono:wght@600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .tag {
+        font-family: var(--font-mono);
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #636366;
+        min-width: 96px;
+      }
+      .mono {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 3px 8px;
+        border-radius: 6px;
+      }
+      .kind {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 3px 8px;
+        border-radius: 5px;
+        background: #e8572a26;
+        color: #e8572a;
+      }
+      .kind.active {
+        background: #e8572a;
+        color: #17110f;
+      }
+      .alpha {
+        border: 1px solid #3c3a39;
+        border-radius: 3px;
+        padding: 1px 6px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 9px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: #8e8e93;
+      }
+      .pulse {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #30d15826;
+        color: #30d158;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        border-radius: 6px;
+        padding: 2px 8px;
+      }
+      .pulse .d {
+        width: 6px;
+        height: 6px;
+        background: #30d158;
+        border-radius: 999px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <span class="tag">Mono · tones</span>
+      <span class="mono" style="background: #e8572a26; color: #e8572a">accent</span>
+      <span class="mono" style="background: #2e2c2b; color: #636366">neutral</span>
+      <span class="mono" style="background: #30d15826; color: #30d158">success</span>
+    </div>
+    <div class="row">
+      <span class="tag">Kind chips</span> <span class="kind">greet</span
+      ><span class="kind">whois</span><span class="kind">say</span>
+      <span class="kind active">direct</span><span class="kind">recipe</span
+      ><span class="kind">receipt</span><span class="kind">trace</span>
+    </div>
+    <div class="row">
+      <span class="tag">Status</span>
+      <span class="alpha">Alpha</span>
+      <span class="pulse"><span class="d"></span>Online</span>
+    </div>
+  </body>
+</html>

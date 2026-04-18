@@ -3,6 +3,7 @@ import { Skeleton } from "@agh/ui";
 import { http, HttpResponse } from "msw";
 
 import { useAutomationPage } from "@/hooks/routes/use-automation-page";
+import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 
 import { AutomationListPanel } from "../automation-list-panel";
@@ -61,22 +62,22 @@ export const Default: Story = {
 
 export const Empty: Story = {
   parameters: {
-    msw: {
-      handlers: [http.get("/api/automation/jobs", () => HttpResponse.json({ jobs: [] }))],
-    },
+    ...storybookMswParameters({
+      automation: [http.get("/api/automation/jobs", () => HttpResponse.json({ jobs: [] }))],
+    }),
   },
   render: () => <AutomationListPanelFromPage />,
 };
 
 export const Error: Story = {
   parameters: {
-    msw: {
-      handlers: [
+    ...storybookMswParameters({
+      automation: [
         http.get("/api/automation/jobs", () =>
           HttpResponse.json({ error: "automation unavailable" }, { status: 500 })
         ),
       ],
-    },
+    }),
   },
   render: () => <AutomationListPanelFromPage />,
 };

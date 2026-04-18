@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
 
 import { useSkillsPage } from "@/hooks/routes/use-skills-page";
+import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 
 import { MarketplaceView } from "../marketplace-view";
@@ -39,13 +40,13 @@ export const Default: Story = {
 
 export const Error: Story = {
   parameters: {
-    msw: {
-      handlers: [
+    ...storybookMswParameters({
+      skill: [
         http.get("/api/skills", () =>
           HttpResponse.json({ error: "marketplace unavailable" }, { status: 500 })
         ),
       ],
-    },
+    }),
   },
   render: () => <MarketplaceViewFromPage />,
 };

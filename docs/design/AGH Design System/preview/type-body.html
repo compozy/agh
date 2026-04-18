@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Body + Lead</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 22px;
+      }
+      .box {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .meta {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #636366;
+      }
+      .lead {
+        font-family: "Inter", sans-serif;
+        font-size: 18px;
+        line-height: 1.6;
+        color: #8e8e93;
+        margin: 0;
+      }
+      .body {
+        font-family: "Inter", sans-serif;
+        font-size: 16px;
+        line-height: 1.8;
+        color: #8e8e93;
+        margin: 0;
+      }
+      .body strong {
+        color: #e5e5e7;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <span class="meta">Lead · 18/29 · secondary</span>
+      <p class="lead">
+        Sessions, memory, skills, workspaces, automation, bridges — the whole runtime in a single
+        local binary.
+      </p>
+    </div>
+    <div class="box">
+      <span class="meta">Doc body · 16/29 · secondary</span>
+      <p class="body">
+        Each session becomes a durable unit of work. You can <strong>stop it, resume it</strong>,
+        inspect the event history, and reconstruct what happened when a run needs review.
+      </p>
+    </div>
+  </body>
+</html>

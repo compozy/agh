@@ -19,6 +19,7 @@ const {
   queryClientDecorator,
   routerDecorator,
   storybookDecorators,
+  storybookSystemHandlerGroups,
   storybookLoaders,
   storybookSystemHandlers,
   themeDecorator,
@@ -61,13 +62,11 @@ describe("web Storybook config", () => {
     expect(webPreview.loaders).toEqual(storybookLoaders);
     expect(storybookLoaders).toEqual([mswLoader]);
     expect(webPreview.decorators).toEqual(storybookDecorators);
-    expect(webPreview.parameters?.msw?.handlers).toEqual(storybookSystemHandlers);
+    expect(webPreview.parameters?.msw?.handlers).toEqual(storybookSystemHandlerGroups);
     expect(storybookSystemHandlers.length).toBeGreaterThan(0);
     expect(storybookDecorators.filter(decorator => decorator === themeDecorator)).toHaveLength(1);
-    expect(
-      storybookDecorators.filter(decorator => decorator === queryClientDecorator)
-    ).toHaveLength(1);
     expect(storybookDecorators.filter(decorator => decorator === routerDecorator)).toHaveLength(1);
+    expect(storybookDecorators).not.toContain(queryClientDecorator);
   });
 
   it("creates story-scoped query clients with retry disabled and infinite stale time", () => {
@@ -103,9 +102,34 @@ describe("web Storybook config", () => {
     expect(router.state.location.pathname).toBe("/automation");
   });
 
-  it("renders stories through the router decorator stub", async () => {
-    render(routerDecorator(() => createElement("div", { "data-testid": "router-story" }, "Story")));
+  it("creates an app router rooted in the real route tree for nested settings stories", async () => {
+    const router = createStorybookRouter(
+      undefined,
+      {
+        kind: "app",
+        initialEntries: ["/settings/providers"],
+      },
+      createStorybookQueryClient()
+    );
+
+    await router.load();
+
+    expect(router.state.location.pathname).toBe("/settings/providers");
+  });
+
+  it("renders stories through the router decorator stub with a query client available", async () => {
+    render(
+      routerDecorator(() =>
+        createElement(
+          "div",
+          null,
+          createElement("div", { "data-testid": "router-story" }, "Story"),
+          createElement(QueryClientProbe)
+        )
+      )
+    );
 
     expect(await screen.findByTestId("router-story")).toHaveTextContent("Story");
+    expect(await screen.findByTestId("query-client-defaults")).toHaveTextContent("false|Infinity");
   });
 });

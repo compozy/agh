@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Skeleton } from "@agh/ui";
 import { delay, http, HttpResponse } from "msw";
 
+import { storybookMswParameters } from "@/storybook/msw";
 import { useSkillsPage } from "@/hooks/routes/use-skills-page";
 import { PanelSurface } from "@/storybook/story-layout";
 
@@ -59,14 +60,14 @@ export const Default: Story = {
 
 export const Loading: Story = {
   parameters: {
-    msw: {
-      handlers: [
+    ...storybookMswParameters({
+      skill: [
         http.get("/api/skills", async () => {
           await delay("infinite");
           return HttpResponse.json({ skills: [] });
         }),
       ],
-    },
+    }),
   },
   render: () => <SkillListPanelFromPage />,
 };

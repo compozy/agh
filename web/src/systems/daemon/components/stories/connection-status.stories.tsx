@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 
+import { storybookMswParameters } from "@/storybook/msw";
 import { CenteredSurface } from "@/storybook/story-layout";
 import { useDaemonHealth } from "@/systems/daemon";
 
@@ -33,14 +34,14 @@ export const Default: Story = {
 
 export const Disconnected: Story = {
   parameters: {
-    msw: {
-      handlers: [
+    ...storybookMswParameters({
+      daemon: [
         http.get("/api/observe/health", async () => {
           await delay(150);
           return HttpResponse.json({ error: "daemon offline" }, { status: 503 });
         }),
       ],
-    },
+    }),
   },
   render: () => <ConnectionStatusFromQuery />,
 };

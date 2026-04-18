@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Display Type</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+      }
+      .row {
+        display: grid;
+        gap: 8px;
+      }
+      .meta {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--color-text-tertiary);
+        display: flex;
+        gap: 12px;
+      }
+      .meta span + span {
+        color: var(--color-text-secondary);
+      }
+      .hero {
+        font-family: "Playfair Display", serif;
+        font-weight: 400;
+        letter-spacing: -0.035em;
+        line-height: 0.96;
+        color: #e5e5e7;
+        font-size: 54px;
+        margin: 0;
+      }
+      .h2 {
+        font-family: "Playfair Display", serif;
+        font-weight: 400;
+        letter-spacing: -0.03em;
+        line-height: 1.02;
+        color: #e5e5e7;
+        font-size: 38px;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <div class="meta">
+        <span>Hero · site-home h1</span><span>Playfair Display · 400 · −0.035em</span>
+      </div>
+      <h1 class="hero">An agent runtime with a network built in.</h1>
+    </div>
+    <div class="row" style="margin-top: 20px">
+      <div class="meta"><span>Section · h2</span><span>Playfair Display · 400 · −0.03em</span></div>
+      <h2 class="h2">Other tools stop at the runtime boundary.</h2>
+    </div>
+  </body>
+</html>
