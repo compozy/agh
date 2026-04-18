@@ -226,6 +226,11 @@
             "sourceType": "github",
             "computedHash": "c8e869ce32b4839169e11f581035fc351a1e6a80f53471f2c08db4eb6a4d02cc"
         },
+        "design-taste-frontend": {
+            "source": "Leonxlnx/taste-skill",
+            "sourceType": "github",
+            "computedHash": "9d1e82c5c409d2b0247245a005bc0f7e4447c0999b78dcea60f568c1ba4a6694"
+        },
         "devops-engineer": {
             "source": "pedronauck/skills",
             "sourceType": "github",
@@ -456,6 +461,11 @@
             "sourceType": "github",
             "computedHash": "6d36e69adad781f106a2fb4b19ebc22bf0c211babdc0d1ae5822fa65abb48bd8"
         },
+        "minimalist-ui": {
+            "source": "Leonxlnx/taste-skill",
+            "sourceType": "github",
+            "computedHash": "08873a3131d3be27bef9bf3304b310b16b44ca6e3561aebe532797be3443f6bd"
+        },
         "motion": {
             "source": "pedronauck/skills",
             "sourceType": "github",
@@ -605,6 +615,11 @@
             "source": "pedronauck/skills",
             "sourceType": "github",
             "computedHash": "1577f124b82bc9e30f9e4afe6a142956eaff7142e9ef82f6d0403133aba86d6a"
+        },
+        "redesign-existing-projects": {
+            "source": "Leonxlnx/taste-skill",
+            "sourceType": "github",
+            "computedHash": "b405eee0e0e80fc243f731d9aa368bca307e356db7e6157d27101d369dac6726"
         },
         "refactoring-analysis": {
             "source": "pedronauck/skills",
