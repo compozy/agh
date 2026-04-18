@@ -69,7 +69,7 @@ export function TasksCreateModal({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="max-w-[36rem] gap-0 border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-0 text-[color:var(--color-text-primary)] ring-0"
+        className="max-w-[calc(100%-2rem)] gap-0 border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-0 text-[color:var(--color-text-primary)] ring-0 sm:max-w-[36rem]"
         data-testid="tasks-create-modal"
       >
         <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
@@ -89,8 +89,8 @@ export function TasksCreateModal({
           </div>
         </DialogHeader>
 
-        <form onSubmit={form.submitForm}>
-          <div className="space-y-5 px-5 py-4">
+        <form className="flex max-h-[min(85vh,960px)] flex-col" onSubmit={form.submitForm}>
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
             <div data-testid="tasks-create-modal-template-pills">
               <p className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
                 Template

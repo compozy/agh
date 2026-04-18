@@ -9,12 +9,14 @@ import {
   type BrowserConsoleEntry,
   type BrowserNetworkEntry,
   type BrowserRouteState,
+  mirrorBrowserScreenshotForQA,
   persistBrowserArtifacts,
 } from "./artifacts";
 
 export interface BrowserArtifactSessionOptions {
   collector: ArtifactCollector;
   context: BrowserContext;
+  qaOutputRootDir?: string;
 }
 
 export class BrowserArtifactSession {
@@ -23,6 +25,7 @@ export class BrowserArtifactSession {
   private readonly tempDirPromise: Promise<string>;
   private readonly consoleEntries: BrowserConsoleEntry[] = [];
   private readonly networkEntries: BrowserNetworkEntry[] = [];
+  private readonly qaOutputRootDir?: string;
   private readonly screenshotPaths: string[] = [];
   private readonly pages = new Set<Page>();
 
@@ -31,6 +34,7 @@ export class BrowserArtifactSession {
   private constructor(options: BrowserArtifactSessionOptions) {
     this.collector = options.collector;
     this.context = options.context;
+    this.qaOutputRootDir = options.qaOutputRootDir?.trim() || undefined;
     this.tempDirPromise = mkdtemp(path.join(this.collector.rootDir, ".capture-"));
   }
 
@@ -58,6 +62,9 @@ export class BrowserArtifactSession {
     const filePath = path.join(tempDir, `${sanitizePathComponent(name)}.png`);
     await targetPage.screenshot({ fullPage: true, path: filePath });
     this.screenshotPaths.push(filePath);
+    if (this.qaOutputRootDir) {
+      await mirrorBrowserScreenshotForQA(filePath, this.qaOutputRootDir, name);
+    }
     return filePath;
   }
 

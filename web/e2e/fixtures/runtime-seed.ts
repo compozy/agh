@@ -27,6 +27,13 @@ import type {
   SettingsMutationResult,
   SettingsSkillsSection,
 } from "@/systems/settings";
+import type {
+  TaskDashboardView,
+  TaskInboxView,
+  TaskRecord,
+  TaskRun,
+  TaskRunDetailView,
+} from "@/systems/tasks";
 
 const execFileAsync = promisify(execFile);
 
@@ -196,6 +203,23 @@ export interface BrowserAutomationOperatorFlowResult {
   baselineRun: AutomationRun;
 }
 
+export interface BrowserTasksOperatorFlowSeed {
+  sessionAgentName: string;
+  timeoutMs?: number;
+  workspaceRootDir?: string;
+}
+
+export interface BrowserTasksOperatorFlowResult {
+  approvalInbox: TaskInboxView;
+  approvalTask: TaskRecord;
+  dashboard: TaskDashboardView;
+  referenceTask: TaskRecord;
+  runningRun: TaskRun;
+  runningRunDetail: TaskRunDetailView;
+  runningTask: TaskRecord;
+  session: SeededSessionPayload;
+}
+
 export interface BrowserNetworkOperatorFlowSeed {
   channel: string;
   initiatorAgentName: string;
@@ -267,8 +291,17 @@ interface NetworkStatusSeedPayload {
   };
 }
 
+type BrowserTasksOperatorSeedRuntime = Pick<BrowserRuntimeSeedClient, "requestJSON"> &
+  Partial<Pick<BrowserRuntimeSeedClient, "resolveWorkspace">> & {
+    paths?: {
+      homeDir: string;
+    };
+    seeded?: BrowserRuntimeSeedResult;
+  };
+
 const NETWORK_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const AUTOMATION_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
+const TASKS_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const BRIDGE_OPERATOR_FLOW_TIMEOUT_MS = 20_000;
 const SETTINGS_OPERATOR_FLOW_TIMEOUT_MS = 15_000;
 const BROWSER_SEED_POLL_MS = 150;
@@ -377,6 +410,24 @@ export const browserSettingsOperatorFlowScenario = {
   },
 } as const;
 
+export const browserTasksOperatorFlowScenario = {
+  approvalTask: {
+    identifier: "TASK-BROWSER-APPROVAL",
+    title: "Approve browser regression rollout",
+  },
+  referenceTask: {
+    identifier: "TASK-BROWSER-QUEUE",
+    title: "Prepare operator queue summary",
+  },
+  runningTask: {
+    identifier: "TASK-BROWSER-RUN",
+    title: "Capture tasks operator evidence",
+  },
+  runningRun: {
+    claimIdempotencyKey: "tasks-browser-claim-01",
+    enqueueIdempotencyKey: "tasks-browser-enqueue-01",
+  },
+} as const;
 export async function seedBrowserRuntimeHome(
   paths: BrowserRuntimeSeedPaths,
   seed: BrowserRuntimeSeed | undefined
@@ -678,6 +729,160 @@ export async function seedBrowserAutomationOperatorFlow(
     job,
     trigger,
     baselineRun,
+  };
+}
+
+export async function seedBrowserTasksOperatorFlow(
+  runtime: BrowserTasksOperatorSeedRuntime,
+  seed: BrowserTasksOperatorFlowSeed
+): Promise<BrowserTasksOperatorFlowResult> {
+  const sessionAgentName = seed.sessionAgentName.trim();
+  if (sessionAgentName === "") {
+    throw new Error("tasks operator flow seed requires a non-empty session agent name");
+  }
+
+  const timeoutMs = seed.timeoutMs ?? TASKS_OPERATOR_FLOW_TIMEOUT_MS;
+  const sessionWorkspace = await resolveBrowserTasksWorkspace(runtime, seed, timeoutMs);
+  const session = (
+    await runtime.requestJSON<{ session: SeededSessionPayload }>("/api/sessions", {
+      method: "POST",
+      body: JSON.stringify({
+        agent_name: sessionAgentName,
+        workspace: sessionWorkspace.id,
+      }),
+    })
+  ).session;
+
+  const referenceTask = await createBrowserTask(runtime, {
+    description: "Seeded ready task for list and dashboard coverage.",
+    identifier: browserTasksOperatorFlowScenario.referenceTask.identifier,
+    owner: {
+      kind: "human",
+      ref: "qa-operator",
+    },
+    priority: "medium",
+    scope: "global",
+    title: browserTasksOperatorFlowScenario.referenceTask.title,
+  });
+
+  const approvalTask = await createBrowserTask(runtime, {
+    approval_policy: "manual",
+    description: "Approval-gated task for inbox regression coverage.",
+    identifier: browserTasksOperatorFlowScenario.approvalTask.identifier,
+    owner: {
+      kind: "human",
+      ref: "release-manager",
+    },
+    priority: "high",
+    scope: "global",
+    title: browserTasksOperatorFlowScenario.approvalTask.title,
+  });
+
+  const runningTask = await createBrowserTask(runtime, {
+    description: "Running task for dashboard, detail, and run-detail regression coverage.",
+    identifier: browserTasksOperatorFlowScenario.runningTask.identifier,
+    owner: {
+      kind: "automation",
+      ref: "browser-task-runner",
+    },
+    priority: "urgent",
+    scope: "global",
+    title: browserTasksOperatorFlowScenario.runningTask.title,
+  });
+
+  const runningRun = (
+    await runtime.requestJSON<{ run: TaskRun }>(
+      `/api/tasks/${encodeURIComponent(runningTask.id)}/runs`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          idempotency_key: browserTasksOperatorFlowScenario.runningRun.enqueueIdempotencyKey,
+        }),
+      }
+    )
+  ).run;
+
+  await runtime.requestJSON<{ run: TaskRun }>(
+    `/api/task-runs/${encodeURIComponent(runningRun.id)}/claim`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        idempotency_key: browserTasksOperatorFlowScenario.runningRun.claimIdempotencyKey,
+      }),
+    }
+  );
+  await runtime.requestJSON<{ run: TaskRun }>(
+    `/api/task-runs/${encodeURIComponent(runningRun.id)}/attach-session`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        session_id: session.id,
+      }),
+    }
+  );
+  await runtime.requestJSON<{ run: TaskRun }>(
+    `/api/task-runs/${encodeURIComponent(runningRun.id)}/start`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    }
+  );
+
+  const runningRunDetail = await waitForSeedCondition(
+    async () => {
+      const payload = await runtime.requestJSON<{ run: TaskRunDetailView }>(
+        `/api/task-runs/${encodeURIComponent(runningRun.id)}`
+      );
+      const detail = payload.run;
+      return detail.session?.session_id === session.id &&
+        ["claimed", "queued", "running", "starting"].includes(detail.run.status)
+        ? detail
+        : null;
+    },
+    `task run detail ${runningRun.id} to expose linked session`,
+    timeoutMs
+  );
+
+  const dashboard = await waitForSeedCondition(
+    async () => {
+      const payload = await runtime.requestJSON<{ dashboard: TaskDashboardView }>(
+        "/api/observe/tasks/dashboard"
+      );
+      const candidate = payload.dashboard;
+      return candidate.totals.tasks_total >= 3 &&
+        candidate.active_runs.items?.some(item => item.run_id === runningRun.id)
+        ? candidate
+        : null;
+    },
+    "task dashboard seeded operator state",
+    timeoutMs
+  );
+
+  const approvalInbox = await waitForSeedCondition(
+    async () => {
+      const payload = await runtime.requestJSON<{ inbox: TaskInboxView }>(
+        "/api/observe/tasks/inbox?lane=approvals&limit=10"
+      );
+      const candidate = payload.inbox;
+      return candidate.groups?.some(group =>
+        (group.items ?? []).some(item => item.task.id === approvalTask.id)
+      )
+        ? candidate
+        : null;
+    },
+    "task approvals inbox seeded operator state",
+    timeoutMs
+  );
+
+  return {
+    approvalInbox,
+    approvalTask,
+    dashboard,
+    referenceTask,
+    runningRun,
+    runningRunDetail,
+    runningTask,
+    session,
   };
 }
 
@@ -1151,6 +1356,60 @@ async function resolveBrowserBridgeWorkspace(
     "browser bridge workspace",
     timeoutMs
   );
+}
+
+async function resolveBrowserTasksWorkspace(
+  runtime: BrowserTasksOperatorSeedRuntime,
+  seed: BrowserTasksOperatorFlowSeed,
+  timeoutMs: number
+): Promise<WorkspacePayload> {
+  const workspaceRootDir = seed.workspaceRootDir?.trim();
+  if (workspaceRootDir) {
+    if (!runtime.resolveWorkspace) {
+      throw new Error(
+        "tasks operator flow seed requires resolveWorkspace when workspaceRootDir is provided"
+      );
+    }
+    return await runtime.resolveWorkspace(workspaceRootDir);
+  }
+
+  const seededWorkspace = runtime.seeded?.workspace;
+  if (seededWorkspace) {
+    return seededWorkspace;
+  }
+
+  const resolveWorkspace = runtime.resolveWorkspace?.bind(runtime);
+  const homeDir = runtime.paths?.homeDir;
+  if (resolveWorkspace && homeDir) {
+    return await waitForSeedCondition(
+      async () => await resolveWorkspace(homeDir),
+      "browser tasks workspace",
+      timeoutMs
+    );
+  }
+
+  return await waitForSeedCondition(
+    async () => {
+      const payload = await runtime.requestJSON<{ workspaces: WorkspacePayload[] }>(
+        "/api/workspaces"
+      );
+      return payload.workspaces[0] ?? null;
+    },
+    "browser tasks workspace",
+    timeoutMs
+  );
+}
+
+async function createBrowserTask(
+  runtime: Pick<BrowserRuntimeSeedClient, "requestJSON">,
+  body: Record<string, unknown>
+): Promise<TaskRecord> {
+  return (
+    await runtime.requestJSON<{ task: TaskRecord }>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    })
+  ).task;
 }
 
 export async function triggerBrowserBridgeIngress(

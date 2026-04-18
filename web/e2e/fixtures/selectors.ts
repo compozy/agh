@@ -377,7 +377,77 @@ export interface SettingsOperatorSelectors {
   providers: SettingsProvidersSelectors;
   skills: SettingsSkillsSelectors;
 }
+export const tasksOperatorTestIds = {
+  appSidebar: sessionLifecycleTestIds.appSidebar,
+  createDescription: "tasks-create-modal-description",
+  createModal: "tasks-create-modal",
+  createSaveDraft: "tasks-create-modal-save-draft",
+  createSubmit: "tasks-create-modal-submit",
+  createTitle: "tasks-create-modal-title",
+  dashboardView: "tasks-dashboard-view",
+  detailBreadcrumbTasks: "tasks-detail-breadcrumb-tasks",
+  detailContent: "tasks-detail-content",
+  detailPreviewDeeplink: "tasks-detail-preview-deeplink",
+  detailPreviewPanel: "tasks-detail-preview-panel",
+  detailPreviewPublish: "tasks-detail-preview-publish",
+  detailTabAgents: "tasks-detail-tab-agents",
+  detailTabRuns: "tasks-detail-tab-runs",
+  inboxView: "tasks-inbox-view",
+  modeDashboard: "tasks-mode-dashboard",
+  modeInbox: "tasks-mode-inbox",
+  modeList: "tasks-mode-list",
+  multiAgentDisconnected: "tasks-multi-agent-disconnected",
+  multiAgentEmpty: "tasks-multi-agent-empty",
+  multiAgentNoActive: "tasks-multi-agent-no-active",
+  navTasks: "nav-tasks",
+  openCreate: "tasks-open-create",
+  runDetailContent: "tasks-run-detail-content",
+  runSessionDrilldown: "task-run-detail-session-drilldown",
+  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
+  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
+} as const;
 
+export interface TasksOperatorSelectors {
+  appSidebar: Locator;
+  createDescription: Locator;
+  createModal: Locator;
+  createPriority(priority: string): Locator;
+  createSaveDraft: Locator;
+  createSubmit: Locator;
+  createTemplate(templateId: string): Locator;
+  createTitle: Locator;
+  dashboardActiveRun(runId: string): Locator;
+  dashboardActiveRunLink(runId: string): Locator;
+  dashboardView: Locator;
+  detailBreadcrumbTasks: Locator;
+  detailContent: Locator;
+  detailPreviewDeeplink: Locator;
+  detailPreviewPanel: Locator;
+  detailPreviewPublish: Locator;
+  detailRunsLink(runId: string): Locator;
+  detailTab(tabId: string): Locator;
+  detailTabAgents: Locator;
+  detailTabRuns: Locator;
+  inboxApprove(taskId: string): Locator;
+  inboxItem(taskId: string): Locator;
+  inboxLane(lane: string): Locator;
+  inboxOpenTask(taskId: string): Locator;
+  inboxView: Locator;
+  modeDashboard: Locator;
+  modeInbox: Locator;
+  modeList: Locator;
+  multiAgentDisconnected: Locator;
+  multiAgentEmpty: Locator;
+  multiAgentNoActive: Locator;
+  navTasks: Locator;
+  openCreate: Locator;
+  runDetailContent: Locator;
+  runSessionDrilldown: Locator;
+  taskCard(taskId: string): Locator;
+  taskCardPublish(taskId: string): Locator;
+  workspaceOnboarding: Locator;
+  workspaceUseGlobal: Locator;
+}
 export function sessionLifecycleSelectors(
   page: Pick<Page, "getByTestId">
 ): SessionLifecycleSelectors {
@@ -496,7 +566,6 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
     workspaceUseGlobal: page.getByTestId(bridgeOperatorTestIds.workspaceUseGlobal),
   };
 }
-
 export function settingsOperatorSelectors(
   page: Pick<Page, "getByTestId" | "locator">
 ): SettingsOperatorSelectors {
@@ -600,5 +669,52 @@ export function settingsOperatorSelectors(
       extensionToggle: (name: string) =>
         page.getByTestId(`settings-page-hooks-extensions-extensions-item-${name}-toggle`),
     },
+  };
+}
+
+export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOperatorSelectors {
+  return {
+    appSidebar: page.getByTestId(tasksOperatorTestIds.appSidebar),
+    createDescription: page.getByTestId(tasksOperatorTestIds.createDescription),
+    createModal: page.getByTestId(tasksOperatorTestIds.createModal),
+    createPriority: (priority: string) =>
+      page.getByTestId(`tasks-create-modal-priority-${priority}`),
+    createSaveDraft: page.getByTestId(tasksOperatorTestIds.createSaveDraft),
+    createSubmit: page.getByTestId(tasksOperatorTestIds.createSubmit),
+    createTemplate: (templateId: string) =>
+      page.getByTestId(`tasks-create-modal-template-${templateId}`),
+    createTitle: page.getByTestId(tasksOperatorTestIds.createTitle),
+    dashboardActiveRun: (runId: string) => page.getByTestId(`tasks-dashboard-active-run-${runId}`),
+    dashboardActiveRunLink: (runId: string) =>
+      page.getByTestId(`tasks-dashboard-active-run-link-${runId}`),
+    dashboardView: page.getByTestId(tasksOperatorTestIds.dashboardView),
+    detailBreadcrumbTasks: page.getByTestId(tasksOperatorTestIds.detailBreadcrumbTasks),
+    detailContent: page.getByTestId(tasksOperatorTestIds.detailContent),
+    detailPreviewDeeplink: page.getByTestId(tasksOperatorTestIds.detailPreviewDeeplink),
+    detailPreviewPanel: page.getByTestId(tasksOperatorTestIds.detailPreviewPanel),
+    detailPreviewPublish: page.getByTestId(tasksOperatorTestIds.detailPreviewPublish),
+    detailRunsLink: (runId: string) => page.getByTestId(`tasks-detail-runs-link-${runId}`),
+    detailTab: (tabId: string) => page.getByTestId(`tasks-detail-tab-${tabId}`),
+    detailTabAgents: page.getByTestId(tasksOperatorTestIds.detailTabAgents),
+    detailTabRuns: page.getByTestId(tasksOperatorTestIds.detailTabRuns),
+    inboxApprove: (taskId: string) => page.getByTestId(`tasks-inbox-item-approve-${taskId}`),
+    inboxItem: (taskId: string) => page.getByTestId(`tasks-inbox-item-${taskId}`),
+    inboxLane: (lane: string) => page.getByTestId(`tasks-inbox-lane-${lane}`),
+    inboxOpenTask: (taskId: string) => page.getByTestId(`tasks-inbox-item-open-${taskId}`),
+    inboxView: page.getByTestId(tasksOperatorTestIds.inboxView),
+    modeDashboard: page.getByTestId(tasksOperatorTestIds.modeDashboard),
+    modeInbox: page.getByTestId(tasksOperatorTestIds.modeInbox),
+    modeList: page.getByTestId(tasksOperatorTestIds.modeList),
+    multiAgentDisconnected: page.getByTestId(tasksOperatorTestIds.multiAgentDisconnected),
+    multiAgentEmpty: page.getByTestId(tasksOperatorTestIds.multiAgentEmpty),
+    multiAgentNoActive: page.getByTestId(tasksOperatorTestIds.multiAgentNoActive),
+    navTasks: page.getByTestId(tasksOperatorTestIds.navTasks),
+    openCreate: page.getByTestId(tasksOperatorTestIds.openCreate),
+    runDetailContent: page.getByTestId(tasksOperatorTestIds.runDetailContent),
+    runSessionDrilldown: page.getByTestId(tasksOperatorTestIds.runSessionDrilldown),
+    taskCard: (taskId: string) => page.getByTestId(`task-card-${taskId}`),
+    taskCardPublish: (taskId: string) => page.getByTestId(`task-card-publish-${taskId}`),
+    workspaceOnboarding: page.getByTestId(tasksOperatorTestIds.workspaceOnboarding),
+    workspaceUseGlobal: page.getByTestId(tasksOperatorTestIds.workspaceUseGlobal),
   };
 }

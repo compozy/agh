@@ -14,10 +14,12 @@ import {
   browserNetworkOperatorFlowScenario,
   cleanupBrowserSettingsFixtures,
   browserSettingsOperatorFlowScenario,
+  browserTasksOperatorFlowScenario,
   seedBrowserBridgeOperatorFlow,
   seedBrowserAutomationOperatorFlow,
   seedBrowserNetworkOperatorFlow,
   seedBrowserSettingsFixtures,
+  seedBrowserTasksOperatorFlow,
   seedBrowserRuntimeHome,
   type BrowserRuntimeSeedClient,
 } from "./runtime-seed";
@@ -396,6 +398,301 @@ describe("browser runtime seed helpers", () => {
       "/api/automation/jobs/job_browser_deploy_review/runs?limit=10"
     );
     expect(requestJSON).toHaveBeenCalledWith("/api/sessions/sess_browser_automation_01/transcript");
+  });
+
+  it("seeds deterministic task list, dashboard, inbox, and linked run-detail state through public runtime surfaces", async () => {
+    const resolveWorkspace = vi.fn(async () => ({
+      id: "ws_browser_tasks",
+      name: "agh-browser-task-workspace",
+      root_dir: "/tmp/agh-browser-task-workspace",
+    }));
+    const requestJSON = vi.fn(async (pathname: string, init?: RequestInit) => {
+      if (pathname === "/api/sessions") {
+        return {
+          session: {
+            id: "sess_browser_tasks_01",
+            agent_name: "browser-lifecycle-agent",
+            workspace_id: "ws_browser_tasks",
+            state: "active",
+          },
+        };
+      }
+
+      if (pathname === "/api/tasks") {
+        const body = JSON.parse(init?.body as string) as {
+          identifier?: string;
+          title: string;
+        };
+
+        if (body.identifier === browserTasksOperatorFlowScenario.referenceTask.identifier) {
+          return {
+            task: {
+              id: "task_browser_reference",
+              identifier: body.identifier,
+              title: body.title,
+              status: "ready",
+              scope: "global",
+              priority: "medium",
+              owner: { kind: "human", ref: "qa-operator" },
+            },
+          };
+        }
+
+        if (body.identifier === browserTasksOperatorFlowScenario.approvalTask.identifier) {
+          return {
+            task: {
+              id: "task_browser_approval",
+              identifier: body.identifier,
+              title: body.title,
+              status: "blocked",
+              scope: "global",
+              priority: "high",
+              approval_policy: "manual",
+              approval_state: "pending",
+              owner: { kind: "human", ref: "release-manager" },
+            },
+          };
+        }
+
+        if (body.identifier === browserTasksOperatorFlowScenario.runningTask.identifier) {
+          return {
+            task: {
+              id: "task_browser_running",
+              identifier: body.identifier,
+              title: body.title,
+              status: "ready",
+              scope: "global",
+              priority: "urgent",
+              owner: { kind: "automation", ref: "browser-task-runner" },
+            },
+          };
+        }
+      }
+
+      if (pathname === "/api/tasks/task_browser_running/runs") {
+        return {
+          run: {
+            attempt: 1,
+            id: "run_browser_tasks_01",
+            idempotency_key: browserTasksOperatorFlowScenario.runningRun.enqueueIdempotencyKey,
+            queued_at: "2026-04-17T14:00:00Z",
+            status: "queued",
+            task_id: "task_browser_running",
+          },
+        };
+      }
+
+      if (pathname === "/api/task-runs/run_browser_tasks_01/claim") {
+        return {
+          run: {
+            attempt: 1,
+            claimed_by: { kind: "automation", ref: "browser-task-runner" },
+            id: "run_browser_tasks_01",
+            queued_at: "2026-04-17T14:00:00Z",
+            status: "claimed",
+            task_id: "task_browser_running",
+          },
+        };
+      }
+
+      if (pathname === "/api/task-runs/run_browser_tasks_01/attach-session") {
+        return {
+          run: {
+            attempt: 1,
+            id: "run_browser_tasks_01",
+            queued_at: "2026-04-17T14:00:00Z",
+            session_id: "sess_browser_tasks_01",
+            status: "claimed",
+            task_id: "task_browser_running",
+          },
+        };
+      }
+
+      if (pathname === "/api/task-runs/run_browser_tasks_01/start") {
+        return {
+          run: {
+            attempt: 1,
+            id: "run_browser_tasks_01",
+            queued_at: "2026-04-17T14:00:00Z",
+            session_id: "sess_browser_tasks_01",
+            started_at: "2026-04-17T14:00:02Z",
+            status: "running",
+            task_id: "task_browser_running",
+          },
+        };
+      }
+
+      if (pathname === "/api/task-runs/run_browser_tasks_01") {
+        return {
+          run: {
+            run: {
+              attempt: 1,
+              id: "run_browser_tasks_01",
+              queued_at: "2026-04-17T14:00:00Z",
+              session_id: "sess_browser_tasks_01",
+              started_at: "2026-04-17T14:00:02Z",
+              status: "running",
+              task_id: "task_browser_running",
+            },
+            session: {
+              agent_name: "browser-lifecycle-agent",
+              session_id: "sess_browser_tasks_01",
+              state: "active",
+              workspace_id: "ws_browser_tasks",
+            },
+            summary: {
+              last_activity_at: "2026-04-17T14:00:05Z",
+              last_event_type: "task.run.started",
+              tool_call_count: 2,
+              turn_count: 1,
+            },
+            task: {
+              id: "task_browser_running",
+              identifier: browserTasksOperatorFlowScenario.runningTask.identifier,
+              title: browserTasksOperatorFlowScenario.runningTask.title,
+            },
+          },
+        };
+      }
+
+      if (pathname === "/api/observe/tasks/dashboard") {
+        return {
+          dashboard: {
+            active_runs: {
+              claimed: 0,
+              items: [
+                {
+                  age_ms: 5_000,
+                  attempt: 1,
+                  max_attempts: 3,
+                  run_id: "run_browser_tasks_01",
+                  run_status: "running",
+                  task_id: "task_browser_running",
+                  task_identifier: browserTasksOperatorFlowScenario.runningTask.identifier,
+                  task_title: browserTasksOperatorFlowScenario.runningTask.title,
+                },
+              ],
+              queued: 0,
+              running: 1,
+              total: 1,
+            },
+            freshness: {
+              has_live_work: true,
+              observed_at: "2026-04-17T14:00:05Z",
+              stale: false,
+            },
+            totals: {
+              runs_total: 1,
+              tasks_total: 3,
+            },
+          },
+        };
+      }
+
+      if (pathname === "/api/observe/tasks/inbox?lane=approvals&limit=10") {
+        return {
+          inbox: {
+            archived_total: 0,
+            groups: [
+              {
+                count: 1,
+                items: [
+                  {
+                    approval_policy: "manual",
+                    approval_state: "pending",
+                    lane: "approvals",
+                    latest_activity_at: "2026-04-17T14:00:06Z",
+                    task: {
+                      id: "task_browser_approval",
+                      identifier: browserTasksOperatorFlowScenario.approvalTask.identifier,
+                      title: browserTasksOperatorFlowScenario.approvalTask.title,
+                      status: "blocked",
+                    },
+                    triage: {
+                      archived: false,
+                      dismissed: false,
+                      read: false,
+                    },
+                  },
+                ],
+                lane: "approvals",
+                unread_count: 1,
+              },
+            ],
+            total: 1,
+            unread_total: 1,
+          },
+        };
+      }
+
+      throw new Error(`unexpected request ${pathname} ${init?.method ?? "GET"}`);
+    });
+
+    const seeded = await seedBrowserTasksOperatorFlow(
+      {
+        paths: { homeDir: "/tmp/agh-browser-home" },
+        requestJSON: requestJSON as BrowserRuntimeSeedClient["requestJSON"],
+        resolveWorkspace,
+      },
+      {
+        sessionAgentName: "browser-lifecycle-agent",
+      }
+    );
+
+    expect(resolveWorkspace).toHaveBeenCalledWith("/tmp/agh-browser-home");
+    expect(seeded.referenceTask.id).toBe("task_browser_reference");
+    expect(seeded.approvalTask.id).toBe("task_browser_approval");
+    expect(seeded.runningTask.id).toBe("task_browser_running");
+    expect(seeded.runningRun.id).toBe("run_browser_tasks_01");
+    expect(seeded.runningRunDetail.session?.session_id).toBe("sess_browser_tasks_01");
+    expect(seeded.session.id).toBe("sess_browser_tasks_01");
+    expect(seeded.dashboard.active_runs.total).toBe(1);
+    expect(seeded.approvalInbox.groups?.[0]?.items?.[0]?.task.id).toBe("task_browser_approval");
+
+    expect(requestJSON).toHaveBeenCalledWith(
+      "/api/sessions",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          agent_name: "browser-lifecycle-agent",
+          workspace: "ws_browser_tasks",
+        }),
+      })
+    );
+
+    const taskBodies = requestJSON.mock.calls
+      .filter(([pathname]) => pathname === "/api/tasks")
+      .map(
+        ([, init]) => JSON.parse(init?.body as string) as { identifier?: string; title: string }
+      );
+
+    expect(taskBodies).toEqual([
+      expect.objectContaining({
+        identifier: browserTasksOperatorFlowScenario.referenceTask.identifier,
+        title: browserTasksOperatorFlowScenario.referenceTask.title,
+      }),
+      expect.objectContaining({
+        approval_policy: "manual",
+        identifier: browserTasksOperatorFlowScenario.approvalTask.identifier,
+        title: browserTasksOperatorFlowScenario.approvalTask.title,
+      }),
+      expect.objectContaining({
+        identifier: browserTasksOperatorFlowScenario.runningTask.identifier,
+        title: browserTasksOperatorFlowScenario.runningTask.title,
+      }),
+    ]);
+
+    expect(requestJSON).toHaveBeenCalledWith(
+      "/api/task-runs/run_browser_tasks_01/attach-session",
+      expect.objectContaining({
+        body: JSON.stringify({
+          session_id: "sess_browser_tasks_01",
+        }),
+        method: "POST",
+      })
+    );
+    expect(requestJSON).toHaveBeenCalledWith("/api/observe/tasks/dashboard");
+    expect(requestJSON).toHaveBeenCalledWith("/api/observe/tasks/inbox?lane=approvals&limit=10");
   });
 
   it("installs a bridge-capable extension and creates deterministic disabled bridge prerequisites", async () => {
