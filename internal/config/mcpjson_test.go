@@ -82,6 +82,27 @@ func TestParseMCPServersJSONRejectsDuplicateNormalizedNames(t *testing.T) {
 	}
 }
 
+func TestParseMCPServersJSONRejectsUnknownNestedFields(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseMCPServersJSON([]byte(`{
+  "mcpServers": {
+    "alpha": {
+      "command": "alpha",
+      "envv": {
+        "TOKEN": "value"
+      }
+    }
+  }
+}`), "unknown-field.json")
+	if err == nil {
+		t.Fatal("ParseMCPServersJSON() error = nil, want unknown nested field failure")
+	}
+	if !strings.Contains(err.Error(), `unknown field "envv"`) {
+		t.Fatalf("ParseMCPServersJSON() error = %q, want unknown nested-field context", err.Error())
+	}
+}
+
 func TestParseMCPServersJSONRejectsTrailingJSON(t *testing.T) {
 	t.Parallel()
 
@@ -174,7 +195,7 @@ func TestPutMCPSidecarServerPreservesUnknownTopLevelKeysAndUntouchedEntries(t *t
 	}
 }
 
-func TestDeleteMCPSidecarServerPrefersSnakeCaseCollectionWhenBothExist(t *testing.T) {
+func TestDeleteMCPSidecarServerRemovesEntriesFromSnakeCaseCollectionWhenBothExist(t *testing.T) {
 	t.Parallel()
 
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -191,12 +212,12 @@ func TestDeleteMCPSidecarServerPrefersSnakeCaseCollectionWhenBothExist(t *testin
     "alpha": { "command": "camel" }
   },
   "mcp_servers": {
-    "alpha": { "command": "snake" },
-    "beta": { "command": "keep" }
+    "beta": { "command": "snake" },
+    "gamma": { "command": "keep" }
   }
 }`)
 
-	cfg, deleted, err := DeleteMCPSidecarServer(homePaths, "", target, "alpha")
+	cfg, deleted, err := DeleteMCPSidecarServer(homePaths, "", target, "beta")
 	if err != nil {
 		t.Fatalf("DeleteMCPSidecarServer() error = %v", err)
 	}
@@ -229,11 +250,11 @@ func TestDeleteMCPSidecarServerPrefersSnakeCaseCollectionWhenBothExist(t *testin
 	if err := json.Unmarshal(root["mcp_servers"], &snake); err != nil {
 		t.Fatalf("json.Unmarshal(mcp_servers) error = %v", err)
 	}
-	if _, ok := snake["alpha"]; ok {
-		t.Fatalf("snake collection still contains alpha: %#v", snake)
+	if _, ok := snake["beta"]; ok {
+		t.Fatalf("snake collection still contains beta: %#v", snake)
 	}
-	if got, want := snake["beta"].Command, "keep"; got != want {
-		t.Fatalf("snake[beta].Command = %q, want %q", got, want)
+	if got, want := snake["gamma"].Command, "keep"; got != want {
+		t.Fatalf("snake[gamma].Command = %q, want %q", got, want)
 	}
 }
 

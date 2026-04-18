@@ -19,9 +19,8 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 		return CollectionEnvelope{}, fmt.Errorf("settings: list collection %q: %w", req.Collection, err)
 	}
 	if req.Collection != CollectionMCPServers && scope == ScopeWorkspace {
-		return CollectionEnvelope{}, fmt.Errorf(
-			"settings: collection %q does not support workspace scope",
-			req.Collection,
+		return CollectionEnvelope{}, conflictError(
+			fmt.Errorf("settings: collection %q does not support workspace scope", req.Collection),
 		)
 	}
 
@@ -62,7 +61,7 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal}
 		envelope.Hooks = buildHookItems(cfg.Hooks.Declarations)
 	default:
-		return CollectionEnvelope{}, fmt.Errorf("settings: unknown collection %q", req.Collection)
+		return CollectionEnvelope{}, notFoundError(fmt.Errorf("settings: unknown collection %q", req.Collection))
 	}
 
 	return envelope, nil
@@ -75,41 +74,43 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
-		return MutationResult{}, errors.New("settings: collection item name is required")
+		return MutationResult{}, validationError(errors.New("settings: collection item name is required"))
 	}
 
 	switch req.Collection {
 	case CollectionProviders:
 		if scope != ScopeGlobal {
-			return MutationResult{}, errors.New("settings: providers do not support workspace scope")
+			return MutationResult{}, conflictError(errors.New("settings: providers do not support workspace scope"))
 		}
 		if req.Provider == nil {
-			return MutationResult{}, errors.New("settings: provider payload is required")
+			return MutationResult{}, validationError(errors.New("settings: provider payload is required"))
 		}
 		return s.putProvider(name, *req.Provider)
 	case CollectionMCPServers:
 		if req.MCPServer == nil {
-			return MutationResult{}, errors.New("settings: MCP server payload is required")
+			return MutationResult{}, validationError(errors.New("settings: MCP server payload is required"))
 		}
 		return s.putMCPServer(ctx, scope, workspaceID, name, req.Target, *req.MCPServer)
 	case CollectionEnvironments:
 		if scope != ScopeGlobal {
-			return MutationResult{}, errors.New("settings: environments do not support workspace scope")
+			return MutationResult{}, conflictError(
+				errors.New("settings: environments do not support workspace scope"),
+			)
 		}
 		if req.Environment == nil {
-			return MutationResult{}, errors.New("settings: environment payload is required")
+			return MutationResult{}, validationError(errors.New("settings: environment payload is required"))
 		}
 		return s.putEnvironment(name, *req.Environment)
 	case CollectionHooks:
 		if scope != ScopeGlobal {
-			return MutationResult{}, errors.New("settings: hooks do not support workspace scope")
+			return MutationResult{}, conflictError(errors.New("settings: hooks do not support workspace scope"))
 		}
 		if req.Hook == nil {
-			return MutationResult{}, errors.New("settings: hook payload is required")
+			return MutationResult{}, validationError(errors.New("settings: hook payload is required"))
 		}
 		return s.putHook(name, *req.Hook)
 	default:
-		return MutationResult{}, fmt.Errorf("settings: unknown collection %q", req.Collection)
+		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown collection %q", req.Collection))
 	}
 }
 
@@ -120,29 +121,31 @@ func (s *service) DeleteCollectionItem(ctx context.Context, req CollectionItemDe
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
-		return MutationResult{}, errors.New("settings: collection item name is required")
+		return MutationResult{}, validationError(errors.New("settings: collection item name is required"))
 	}
 
 	switch req.Collection {
 	case CollectionProviders:
 		if scope != ScopeGlobal {
-			return MutationResult{}, errors.New("settings: providers do not support workspace scope")
+			return MutationResult{}, conflictError(errors.New("settings: providers do not support workspace scope"))
 		}
 		return s.deleteProvider(name)
 	case CollectionMCPServers:
 		return s.deleteMCPServer(ctx, scope, workspaceID, name, req.Target)
 	case CollectionEnvironments:
 		if scope != ScopeGlobal {
-			return MutationResult{}, errors.New("settings: environments do not support workspace scope")
+			return MutationResult{}, conflictError(
+				errors.New("settings: environments do not support workspace scope"),
+			)
 		}
 		return s.deleteEnvironment(name)
 	case CollectionHooks:
 		if scope != ScopeGlobal {
-			return MutationResult{}, errors.New("settings: hooks do not support workspace scope")
+			return MutationResult{}, conflictError(errors.New("settings: hooks do not support workspace scope"))
 		}
 		return s.deleteHook(name)
 	default:
-		return MutationResult{}, fmt.Errorf("settings: unknown collection %q", req.Collection)
+		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown collection %q", req.Collection))
 	}
 }
 
@@ -320,7 +323,7 @@ func (s *service) buildMCPServerItems(
 func (s *service) putProvider(name string, settings ProviderSettings) (MutationResult, error) {
 	values := providerSettingsMap(settings)
 	if len(values) == 0 {
-		return MutationResult{}, errors.New("settings: provider overlay requires at least one field")
+		return MutationResult{}, validationError(errors.New("settings: provider overlay requires at least one field"))
 	}
 
 	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
@@ -346,7 +349,7 @@ func (s *service) deleteProvider(name string) (MutationResult, error) {
 	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
 		path := []string{"providers", name}
 		if !editor.HasPath(path) {
-			return fmt.Errorf("settings: provider %q overlay not found", name)
+			return notFoundError(fmt.Errorf("settings: provider %q overlay not found", name))
 		}
 		return editor.Delete(path)
 	}); err != nil {
@@ -381,7 +384,7 @@ func (s *service) deleteEnvironment(name string) (MutationResult, error) {
 	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
 		path := []string{"environments", name}
 		if !editor.HasPath(path) {
-			return fmt.Errorf("settings: environment %q not found", name)
+			return notFoundError(fmt.Errorf("settings: environment %q not found", name))
 		}
 		return editor.Delete(path)
 	}); err != nil {
@@ -428,7 +431,7 @@ func (s *service) deleteHook(name string) (MutationResult, error) {
 			return deleteErr
 		}
 		if !deleted {
-			return fmt.Errorf("settings: hook %q not found", name)
+			return notFoundError(fmt.Errorf("settings: hook %q not found", name))
 		}
 		return nil
 	}); err != nil {
@@ -461,11 +464,11 @@ func (s *service) putMCPServer(
 		normalized.Name = name
 	}
 	if normalized.Name != name {
-		return MutationResult{}, fmt.Errorf(
+		return MutationResult{}, validationError(fmt.Errorf(
 			"settings: MCP server payload name %q does not match request name %q",
 			normalized.Name,
 			name,
-		)
+		))
 	}
 
 	if target.Kind() == WriteTargetGlobalMCPSidecar || target.Kind() == WriteTargetWorkspaceMCPSidecar {
@@ -510,7 +513,9 @@ func (s *service) deleteMCPServer(
 			return MutationResult{}, fmt.Errorf("settings: delete MCP server %q: %w", name, deleteErr)
 		}
 		if !deleted {
-			return MutationResult{}, fmt.Errorf("settings: MCP server %q not found in %q", name, target.Kind())
+			return MutationResult{}, notFoundError(
+				fmt.Errorf("settings: MCP server %q not found in %q", name, target.Kind()),
+			)
 		}
 	} else {
 		if _, err := aghconfig.EditConfigOverlay(
@@ -523,7 +528,9 @@ func (s *service) deleteMCPServer(
 					return deleteErr
 				}
 				if !deleted {
-					return fmt.Errorf("settings: MCP server %q not found in %q", name, target.Kind())
+					return notFoundError(
+						fmt.Errorf("settings: MCP server %q not found in %q", name, target.Kind()),
+					)
 				}
 				return nil
 			},
@@ -642,7 +649,9 @@ func (s *service) resolveMCPPutTarget(
 	case WriteTargetGlobalMCPSidecar, WriteTargetWorkspaceMCPSidecar:
 		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope)
 	default:
-		return aghconfig.WriteTarget{}, fmt.Errorf("settings: unsupported MCP write target %q for %q", targetKind, name)
+		return aghconfig.WriteTarget{}, conflictError(
+			fmt.Errorf("settings: unsupported MCP write target %q for %q", targetKind, name),
+		)
 	}
 }
 
@@ -663,7 +672,9 @@ func (s *service) resolveMCPDeleteTarget(
 
 	targetKind, ok := preferredMCPDeleteTarget(scope, name, sources)
 	if !ok {
-		return aghconfig.WriteTarget{}, fmt.Errorf("settings: MCP server %q has no definition in %s scope", name, scope)
+		return aghconfig.WriteTarget{}, notFoundError(
+			fmt.Errorf("settings: MCP server %q has no definition in %s scope", name, scope),
+		)
 	}
 	switch targetKind {
 	case WriteTargetGlobalConfig, WriteTargetWorkspaceConfig:
@@ -671,7 +682,9 @@ func (s *service) resolveMCPDeleteTarget(
 	case WriteTargetGlobalMCPSidecar, WriteTargetWorkspaceMCPSidecar:
 		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope)
 	default:
-		return aghconfig.WriteTarget{}, fmt.Errorf("settings: unsupported MCP write target %q for %q", targetKind, name)
+		return aghconfig.WriteTarget{}, conflictError(
+			fmt.Errorf("settings: unsupported MCP write target %q for %q", targetKind, name),
+		)
 	}
 }
 
@@ -837,14 +850,14 @@ func normalizeHookDeclaration(name string, declaration hookspkg.HookDecl) (hooks
 		normalized.Name = name
 	}
 	if normalized.Name != name {
-		return hookspkg.HookDecl{}, fmt.Errorf(
+		return hookspkg.HookDecl{}, validationError(fmt.Errorf(
 			"settings: hook payload name %q does not match request name %q",
 			normalized.Name,
 			name,
-		)
+		))
 	}
 	if err := hookspkg.ValidateHookDecl(normalized); err != nil {
-		return hookspkg.HookDecl{}, fmt.Errorf("settings: validate hook %q: %w", name, err)
+		return hookspkg.HookDecl{}, validationError(fmt.Errorf("settings: validate hook %q: %w", name, err))
 	}
 	return normalized, nil
 }

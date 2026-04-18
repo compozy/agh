@@ -1382,15 +1382,58 @@ func readOptionalFile(path string) ([]byte, error) {
 }
 
 func writePersistedFile(path string, contents []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("create config directory %q: %w", filepath.Dir(path), err)
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("create config directory %q: %w", dir, err)
 	}
-	if err := os.WriteFile(path, contents, 0o600); err != nil {
-		return fmt.Errorf("write config file %q: %w", path, err)
+
+	tmpFile, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("create temp config file in %q: %w", dir, err)
+	}
+	tmpPath := tmpFile.Name()
+	defer func() {
+		_ = os.Remove(tmpPath)
+	}()
+
+	if err := tmpFile.Chmod(0o600); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("chmod temp config file %q: %w", tmpPath, err)
+	}
+	if _, err := tmpFile.Write(contents); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("write temp config file %q: %w", tmpPath, err)
+	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("sync temp config file %q: %w", tmpPath, err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("close temp config file %q: %w", tmpPath, err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("replace config file %q: %w", path, err)
+	}
+	if err := syncPersistedDir(dir); err != nil {
+		return err
 	}
 	return nil
 }
 
 func samePath(left string, right string) bool {
 	return strings.TrimSpace(left) == strings.TrimSpace(right)
+}
+
+func syncPersistedDir(dir string) error {
+	handle, err := os.Open(dir)
+	if err != nil {
+		return fmt.Errorf("open config directory %q for sync: %w", dir, err)
+	}
+	defer func() {
+		_ = handle.Close()
+	}()
+	if err := handle.Sync(); err != nil {
+		return fmt.Errorf("sync config directory %q: %w", dir, err)
+	}
+	return nil
 }

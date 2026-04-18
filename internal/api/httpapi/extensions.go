@@ -148,6 +148,8 @@ func extensionStatusCode(err error) int {
 		return http.StatusOK
 	case errors.Is(err, extensionpkg.ErrExtensionNotFound):
 		return http.StatusNotFound
+	case errors.Is(err, extensionpkg.ErrExtensionExists):
+		return http.StatusConflict
 	case errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch):
 		return http.StatusBadRequest
 	case errors.Is(err, extensionpkg.ErrManifestInvalid):

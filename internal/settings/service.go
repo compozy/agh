@@ -138,12 +138,12 @@ func (s *service) normalizeReadScope(scope ScopeKind, workspaceID string) (Scope
 		normalized = ScopeGlobal
 	}
 	if err := normalized.Validate(); err != nil {
-		return "", "", err
+		return "", "", validationError(err)
 	}
 
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	if normalized == ScopeGlobal && trimmedWorkspaceID != "" {
-		return "", "", errors.New("settings: workspace_id requires workspace scope")
+		return "", "", conflictError(errors.New("settings: workspace_id requires workspace scope"))
 	}
 	return normalized, trimmedWorkspaceID, nil
 }
@@ -157,7 +157,7 @@ func (s *service) resolveWorkspace(
 		return nil, nil
 	}
 	if strings.TrimSpace(workspaceID) == "" {
-		return nil, errors.New("settings: workspace scope requires a workspace_id")
+		return nil, conflictError(errors.New("settings: workspace scope requires a workspace_id"))
 	}
 	if s.workspaceResolver == nil {
 		return nil, errors.New("settings: workspace resolver is required for workspace scope")

@@ -46,12 +46,12 @@ func ParseMCPServersJSON(content []byte, source string) ([]MCPServer, error) {
 
 	var document mcpJSONDocument
 	if raw := root["mcpServers"]; len(raw) > 0 {
-		if err := json.Unmarshal(raw, &document.MCPServersCamel); err != nil {
+		if err := decodeStrictMCPJSONCollection(raw, &document.MCPServersCamel); err != nil {
 			return nil, fmt.Errorf("config: decode MCP JSON %q mcpServers: %w", sourceName, err)
 		}
 	}
 	if raw := root["mcp_servers"]; len(raw) > 0 {
-		if err := json.Unmarshal(raw, &document.MCPServersSnake); err != nil {
+		if err := decodeStrictMCPJSONCollection(raw, &document.MCPServersSnake); err != nil {
 			return nil, fmt.Errorf("config: decode MCP JSON %q mcp_servers: %w", sourceName, err)
 		}
 	}
@@ -103,6 +103,15 @@ func ensureJSONEOF(decoder *json.Decoder, source string) error {
 	}
 
 	return fmt.Errorf("config: decode MCP JSON %q: unexpected trailing JSON value", source)
+}
+
+func decodeStrictMCPJSONCollection(raw json.RawMessage, dest any) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dest); err != nil {
+		return err
+	}
+	return ensureJSONEOF(decoder, "<nested>")
 }
 
 func sortedMCPJSONServers(values map[string]mcpJSONServer) []MCPServer {

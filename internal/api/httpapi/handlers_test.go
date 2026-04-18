@@ -238,7 +238,6 @@ func TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost(t *testi
 		"/api/settings/automation",
 		"/api/settings/network",
 		"/api/settings/observability",
-		"/api/settings/observability/log-tail",
 		"/api/settings/hooks-extensions",
 		"/api/settings/providers",
 		"/api/settings/providers/demo",
@@ -265,6 +264,18 @@ func TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost(t *testi
 			}
 		})
 	}
+
+	t.Run("Should block daemon log tail reads on non-loopback HTTP", func(t *testing.T) {
+		recorder := performRequest(t, engine, http.MethodGet, "/api/settings/observability/log-tail", nil)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf(
+				"GET /api/settings/observability/log-tail status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusForbidden,
+				recorder.Body.String(),
+			)
+		}
+	})
 }
 
 func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testing.T) {

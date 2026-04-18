@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"strings"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -140,8 +139,8 @@ func TestRelaunchHelperFailurePersistsAfterOldDaemonExit(t *testing.T) {
 	}
 
 	err = helper.run(testutil.Context(t))
-	if err == nil || !strings.Contains(err.Error(), "replacement daemon exited before ready") {
-		t.Fatalf("helper.run() error = %v, want replacement failure", err)
+	if err == nil || !errors.Is(err, errReplacementDaemonExitedBeforeReady) {
+		t.Fatalf("helper.run() error = %v, want replacement-daemon exit sentinel", err)
 	}
 
 	persisted, err := store.Get(operation.OperationID)

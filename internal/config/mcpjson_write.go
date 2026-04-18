@@ -144,12 +144,13 @@ func loadEditableMCPJSONDocument(content []byte, source string) (*editableMCPJSO
 	}
 	document.root = root
 
+	existingNames := make(map[string]string)
 	var err error
-	document.camel, err = loadMCPJSONCollection(root, "mcpServers", trimmedSource)
+	document.camel, err = loadMCPJSONCollection(root, "mcpServers", trimmedSource, existingNames)
 	if err != nil {
 		return nil, err
 	}
-	document.snake, err = loadMCPJSONCollection(root, "mcp_servers", trimmedSource)
+	document.snake, err = loadMCPJSONCollection(root, "mcp_servers", trimmedSource, existingNames)
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +170,7 @@ func loadMCPJSONCollection(
 	root map[string]json.RawMessage,
 	key string,
 	source string,
+	existingNames map[string]string,
 ) (mcpJSONCollection, error) {
 	collection := newMCPJSONCollection(key)
 	raw, ok := root[key]
@@ -198,7 +200,17 @@ func loadMCPJSONCollection(
 				actualName,
 			)
 		}
+		if prior, ok := existingNames[normalized]; ok {
+			return collection, fmt.Errorf(
+				"config: decode MCP JSON %q: duplicate MCP server name %q across top-level collections in %q and %q",
+				source,
+				normalized,
+				prior,
+				actualName,
+			)
+		}
 		collection.nameIndex[normalized] = actualName
+		existingNames[normalized] = actualName
 	}
 
 	return collection, nil
@@ -224,10 +236,9 @@ func (d *editableMCPJSONDocument) Put(server MCPServer) error {
 }
 
 func (d *editableMCPJSONDocument) Delete(name string) bool {
-	if deleted := d.snake.delete(name); deleted {
-		return true
-	}
-	return d.camel.delete(name)
+	deletedSnake := d.snake.delete(name)
+	deletedCamel := d.camel.delete(name)
+	return deletedSnake || deletedCamel
 }
 
 func (d *editableMCPJSONDocument) Bytes() ([]byte, error) {

@@ -28,9 +28,10 @@ const (
 
 var (
 	// ErrRestartOperationNotFound reports a missing persisted restart operation.
-	ErrRestartOperationNotFound = errors.New("daemon: restart operation not found")
-	errInvalidRestartTransition = errors.New("daemon: invalid restart transition")
-	errRestartNotRunning        = errors.New("daemon: restart requires a running daemon")
+	ErrRestartOperationNotFound           = errors.New("daemon: restart operation not found")
+	errReplacementDaemonExitedBeforeReady = errors.New("daemon: replacement daemon exited before ready")
+	errInvalidRestartTransition           = errors.New("daemon: invalid restart transition")
+	errRestartNotRunning                  = errors.New("daemon: restart requires a running daemon")
 )
 
 // RestartStatus is the durable lifecycle state of one daemon restart operation.
@@ -537,8 +538,12 @@ func failRestartOperation(
 	})
 	if transitionErr == nil {
 		operation = failed
+		return operation, fmt.Errorf("daemon: %s: %w", action, err)
 	}
-	return operation, fmt.Errorf("daemon: %s: %w", action, err)
+	return operation, errors.Join(
+		fmt.Errorf("daemon: %s: %w", action, err),
+		fmt.Errorf("daemon: persist failed restart operation %q: %w", operation.OperationID, transitionErr),
+	)
 }
 
 // GetRestartOperation reads one persisted restart operation by id.
@@ -781,13 +786,13 @@ func (h *relaunchHelper) waitForReady(
 				return h.fail(
 					store,
 					operationID,
-					fmt.Errorf("daemon: replacement daemon exited before ready: %w", err),
+					fmt.Errorf("%w: %w", errReplacementDaemonExitedBeforeReady, err),
 				)
 			}
 			return h.fail(
 				store,
 				operationID,
-				errors.New("daemon: replacement daemon exited before ready"),
+				errReplacementDaemonExitedBeforeReady,
 			)
 		case <-waitCtx.Done():
 			return h.fail(
@@ -798,7 +803,11 @@ func (h *relaunchHelper) waitForReady(
 		case <-ticker.C:
 			operation, err := store.Get(operationID)
 			if err != nil {
-				return err
+				return h.fail(
+					store,
+					operationID,
+					fmt.Errorf("daemon: load restart operation %q: %w", operationID, err),
+				)
 			}
 			switch operation.Status {
 			case RestartStatusReady:

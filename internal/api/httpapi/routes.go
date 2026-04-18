@@ -239,7 +239,7 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	observability := settings.Group("/observability")
 	observability.GET("", handlers.GetSettingsObservability)
 	observability.PATCH("", privileged, handlers.UpdateSettingsObservability)
-	observability.GET("/log-tail", handlers.StreamSettingsObservabilityLogTail)
+	observability.GET("/log-tail", privileged, handlers.StreamSettingsObservabilityLogTail)
 
 	settings.GET("/hooks-extensions", handlers.GetSettingsHooksExtensions)
 	settings.PATCH("/hooks-extensions", privileged, handlers.UpdateSettingsHooksExtensions)

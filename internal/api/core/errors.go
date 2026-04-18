@@ -16,6 +16,7 @@ import (
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
+	settingspkg "github.com/pedronauck/agh/internal/settings"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -104,30 +105,22 @@ func StatusForSettingsError(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
-	case errors.Is(err, ErrSettingsForbidden):
+	case errors.Is(err, ErrSettingsForbidden),
+		errors.Is(err, settingspkg.ErrForbidden):
 		return http.StatusForbidden
-	case errors.Is(err, ErrSettingsValidation):
+	case errors.Is(err, ErrSettingsValidation),
+		errors.Is(err, settingspkg.ErrValidation):
 		return http.StatusBadRequest
 	case errors.Is(err, ErrSettingsNotFound),
+		errors.Is(err, settingspkg.ErrNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing),
 		errors.Is(err, os.ErrNotExist):
 		return http.StatusNotFound
 	case errors.Is(err, ErrSettingsConflict),
+		errors.Is(err, settingspkg.ErrConflict),
 		errors.Is(err, aghconfig.ErrUnsupportedTOMLMutation):
 		return http.StatusConflict
-	}
-
-	message := strings.ToLower(strings.TrimSpace(err.Error()))
-	switch {
-	case settingsMessageLooksForbidden(message):
-		return http.StatusForbidden
-	case settingsMessageLooksNotFound(message):
-		return http.StatusNotFound
-	case settingsMessageLooksConflict(message):
-		return http.StatusConflict
-	case settingsMessageLooksValidation(message):
-		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
 	}
@@ -277,38 +270,6 @@ func StatusForSkillError(err error) int {
 	default:
 		return http.StatusInternalServerError
 	}
-}
-
-func settingsMessageLooksForbidden(message string) bool {
-	return strings.Contains(message, "forbidden") ||
-		strings.Contains(message, "disabled in v1")
-}
-
-func settingsMessageLooksNotFound(message string) bool {
-	return strings.Contains(message, " not found") ||
-		strings.Contains(message, "unknown section") ||
-		strings.Contains(message, "unknown collection")
-}
-
-func settingsMessageLooksConflict(message string) bool {
-	return strings.Contains(message, "does not support workspace scope") ||
-		strings.Contains(message, "requires a workspace_id") ||
-		strings.Contains(message, "workspace_id requires workspace scope") ||
-		strings.Contains(message, "unsupported mcp write target") ||
-		strings.Contains(message, "duplicate") ||
-		strings.Contains(message, "already exists") ||
-		strings.Contains(message, "mixes ") ||
-		strings.Contains(message, "invalid scope combination")
-}
-
-func settingsMessageLooksValidation(message string) bool {
-	return strings.Contains(message, "payload is required") ||
-		strings.Contains(message, "name is required") ||
-		strings.Contains(message, "config is required") ||
-		strings.Contains(message, "does not match request name") ||
-		strings.Contains(message, "validate config write") ||
-		strings.Contains(message, "invalid ") ||
-		strings.Contains(message, "decode ")
 }
 
 // NewAutomationValidationError wraps an automation validation failure with the shared sentinel.

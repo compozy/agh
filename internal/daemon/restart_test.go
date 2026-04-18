@@ -352,6 +352,26 @@ func TestRequestRestartExecutableFailurePersistsFailedOperation(t *testing.T) {
 	}
 }
 
+func TestFailRestartOperationSurfacesPersistenceFailures(t *testing.T) {
+	t.Parallel()
+
+	store := newRestartStore(testHomePaths(t), sequentialTime([]time.Time{
+		time.Date(2026, 4, 17, 12, 1, 0, 0, time.UTC),
+	}))
+	actionErr := errors.New("signal failed")
+
+	_, err := failRestartOperation(store, RestartOperation{OperationID: "bad/id"}, "signal daemon shutdown", actionErr)
+	if err == nil {
+		t.Fatal("failRestartOperation() error = nil, want joined action and persistence failures")
+	}
+	if !errors.Is(err, actionErr) {
+		t.Fatalf("failRestartOperation() error = %v, want wrapped action error", err)
+	}
+	if !strings.Contains(err.Error(), `persist failed restart operation "bad/id"`) {
+		t.Fatalf("failRestartOperation() error = %q, want persistence failure context", err.Error())
+	}
+}
+
 func TestRequestRestartWritesOperationBeforeShutdownSignal(t *testing.T) {
 	t.Parallel()
 
@@ -497,6 +517,8 @@ func TestRelaunchHelperWaitsForReleaseBeforeLaunchingReplacement(t *testing.T) {
 	oldAlive.Store(true)
 
 	launchStarted := make(chan struct{})
+	observedOldAlive := make(chan struct{})
+	var observedOldAliveOnce atomic.Bool
 	allowExit := make(chan struct{})
 	helper := newRelaunchHelper(RelaunchHelperConfig{
 		HomePaths:      homePaths,
@@ -505,7 +527,15 @@ func TestRelaunchHelperWaitsForReleaseBeforeLaunchingReplacement(t *testing.T) {
 		ReleaseTimeout: time.Second,
 		ReadyTimeout:   time.Second,
 	})
-	helper.processAlive = func(int) bool { return oldAlive.Load() }
+	helper.processAlive = func(int) bool {
+		if !oldAlive.Load() {
+			return false
+		}
+		if observedOldAliveOnce.CompareAndSwap(false, true) {
+			close(observedOldAlive)
+		}
+		return true
+	}
 	helper.startDetached = func(context.Context, detachedStartRequest) (restartProcess, error) {
 		close(launchStarted)
 		if _, err := store.Transition(operation.OperationID, restartTransition{
@@ -531,9 +561,15 @@ func TestRelaunchHelperWaitsForReleaseBeforeLaunchingReplacement(t *testing.T) {
 	}()
 
 	select {
+	case <-observedOldAlive:
+	case <-runCtx.Done():
+		t.Fatalf("helper.run() did not observe the old daemon before timeout: %v", runCtx.Err())
+	}
+
+	select {
 	case <-launchStarted:
 		t.Fatal("replacement launch started before singleton resources were released")
-	case <-time.After(50 * time.Millisecond):
+	default:
 	}
 
 	oldAlive.Store(false)
@@ -970,6 +1006,66 @@ func TestMarkRestartReadyRequiresFreshDaemonInfo(t *testing.T) {
 	}
 }
 
+func TestWaitForReadyReturnsFailureContextWhenPollingReadBreaks(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	store := newRestartStore(homePaths, sequentialTime([]time.Time{
+		time.Date(2026, 4, 17, 12, 1, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 12, 2, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 12, 3, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 12, 4, 0, 0, time.UTC),
+	}))
+	operation, err := store.Create(RestartOperation{
+		OperationID:        "restart-read-failure",
+		Status:             RestartStatusPending,
+		OldPID:             4242,
+		OldStartedAt:       time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+		OldSocketPath:      homePaths.DaemonSocket,
+		ActiveSessionCount: 1,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	for _, status := range []RestartStatus{
+		RestartStatusStopping,
+		RestartStatusWaitingRelease,
+		RestartStatusStarting,
+	} {
+		operation, err = store.Transition(operation.OperationID, restartTransition{status: status})
+		if err != nil {
+			t.Fatalf("Transition(%s) error = %v", status, err)
+		}
+	}
+
+	if err := os.RemoveAll(homePaths.RestartsDir); err != nil {
+		t.Fatalf("os.RemoveAll(%q) error = %v", homePaths.RestartsDir, err)
+	}
+	if err := os.WriteFile(homePaths.RestartsDir, []byte("broken"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", homePaths.RestartsDir, err)
+	}
+
+	waitBlocked := make(chan struct{})
+	helper := newRelaunchHelper(RelaunchHelperConfig{
+		HomePaths:    homePaths,
+		OperationID:  operation.OperationID,
+		PollInterval: 5 * time.Millisecond,
+		ReadyTimeout: 100 * time.Millisecond,
+	})
+	err = helper.waitForReady(testutil.Context(t), store, operation.OperationID, restartProcessStub{
+		pid: 9393,
+		wait: func() error {
+			<-waitBlocked
+			return nil
+		},
+	})
+	close(waitBlocked)
+
+	if err == nil || !strings.Contains(err.Error(), `load restart operation "restart-read-failure"`) {
+		t.Fatalf("waitForReady() error = %v, want restart-operation read failure context", err)
+	}
+}
+
 func TestRestartOperationFreshInfoCheck(t *testing.T) {
 	t.Parallel()
 
@@ -1151,11 +1247,8 @@ func TestRunRelaunchHelperReplacementFailurePersistsFailedOperation(t *testing.T
 		}, nil
 	}
 
-	if err := helper.run(
-		testutil.Context(t),
-	); err == nil ||
-		!strings.Contains(err.Error(), "replacement daemon exited before ready") {
-		t.Fatalf("helper.run() error = %v, want replacement failure", err)
+	if err := helper.run(testutil.Context(t)); err == nil || !errors.Is(err, errReplacementDaemonExitedBeforeReady) {
+		t.Fatalf("helper.run() error = %v, want replacement-daemon exit sentinel", err)
 	}
 
 	persisted, err := store.Get(operation.OperationID)
@@ -1214,8 +1307,8 @@ func TestRunRelaunchHelperWrapperUsesDefaultLauncherAndPersistsFailure(t *testin
 		ReleaseTimeout: 200 * time.Millisecond,
 		ReadyTimeout:   200 * time.Millisecond,
 	})
-	if err == nil || !strings.Contains(err.Error(), "replacement daemon exited before ready") {
-		t.Fatalf("RunRelaunchHelper() error = %v, want wrapper failure", err)
+	if err == nil || !errors.Is(err, errReplacementDaemonExitedBeforeReady) {
+		t.Fatalf("RunRelaunchHelper() error = %v, want replacement-daemon exit sentinel", err)
 	}
 
 	persisted, err := store.Get(operation.OperationID)

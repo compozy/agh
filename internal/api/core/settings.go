@@ -774,12 +774,18 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 	if err != nil {
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
+	bodyName := strings.TrimSpace(body.Server.Name)
+	if bodyName != "" && bodyName != name {
+		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(
+			fmt.Errorf("mcp-servers.server.name must match path name %q", name),
+		)
+	}
 	target, err := parseSettingsTarget(c.Query("target"))
 	if err != nil {
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
 	server := aghconfig.MCPServer{
-		Name:    strings.TrimSpace(body.Server.Name),
+		Name:    name,
 		Command: strings.TrimSpace(body.Server.Command),
 		Args:    cloneStrings(body.Server.Args),
 		Env:     cloneStringMap(body.Server.Env),
@@ -850,7 +856,15 @@ func parsePutSettingsHookRequest(c *gin.Context) (settingspkg.CollectionItemPutR
 	if err != nil {
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
-	decl, err := hookDeclarationFromPayload(*body.Declaration)
+	bodyName := strings.TrimSpace(body.Declaration.Name)
+	if bodyName != "" && bodyName != name {
+		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(
+			fmt.Errorf("hooks.declaration.name must match path name %q", name),
+		)
+	}
+	declaration := *body.Declaration
+	declaration.Name = name
+	decl, err := hookDeclarationFromPayload(declaration)
 	if err != nil {
 		return settingspkg.CollectionItemPutRequest{}, err
 	}

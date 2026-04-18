@@ -19,7 +19,9 @@ func (s *service) GetSection(ctx context.Context, req SectionRequest) (SectionEn
 		return SectionEnvelope{}, fmt.Errorf("settings: get section %q: %w", req.Section, err)
 	}
 	if scope != ScopeGlobal {
-		return SectionEnvelope{}, fmt.Errorf("settings: section %q does not support workspace scope", req.Section)
+		return SectionEnvelope{}, conflictError(
+			fmt.Errorf("settings: section %q does not support workspace scope", req.Section),
+		)
 	}
 
 	cfg, _, err := s.loadConfig(ctx, scope, workspaceID)
@@ -74,35 +76,22 @@ func (s *service) GetSection(ctx context.Context, req SectionRequest) (SectionEn
 		}
 		envelope.HooksExtensions = &section
 	default:
-		return SectionEnvelope{}, fmt.Errorf("settings: unknown section %q", req.Section)
+		return SectionEnvelope{}, notFoundError(fmt.Errorf("settings: unknown section %q", req.Section))
 	}
 
 	return envelope, nil
 }
 
 func (s *service) UpdateSection(ctx context.Context, req SectionUpdateRequest) (MutationResult, error) {
-	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
 	if err != nil {
-		return MutationResult{}, fmt.Errorf("settings: update section %q: %w", req.Section, err)
-	}
-	if scope != ScopeGlobal {
-		return MutationResult{}, fmt.Errorf("settings: section %q does not support workspace scope", req.Section)
-	}
-
-	cfg, _, err := s.loadConfig(ctx, scope, workspaceID)
-	if err != nil {
-		return MutationResult{}, fmt.Errorf("settings: load section %q config: %w", req.Section, err)
-	}
-
-	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
-	if err != nil {
-		return MutationResult{}, fmt.Errorf("settings: resolve section %q write target: %w", req.Section, err)
+		return MutationResult{}, err
 	}
 
 	switch req.Section {
 	case SectionGeneral:
 		if req.General == nil {
-			return MutationResult{}, errors.New("settings: general section payload is required")
+			return MutationResult{}, validationError(errors.New("settings: general section payload is required"))
 		}
 		changed := diffGeneralSettings(&cfg, *req.General)
 		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
@@ -110,7 +99,7 @@ func (s *service) UpdateSection(ctx context.Context, req SectionUpdateRequest) (
 		})
 	case SectionMemory:
 		if req.Memory == nil {
-			return MutationResult{}, errors.New("settings: memory section payload is required")
+			return MutationResult{}, validationError(errors.New("settings: memory section payload is required"))
 		}
 		changed := diffMemorySettings(cfg.Memory, *req.Memory)
 		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
@@ -118,13 +107,13 @@ func (s *service) UpdateSection(ctx context.Context, req SectionUpdateRequest) (
 		})
 	case SectionSkills:
 		if req.Skills == nil {
-			return MutationResult{}, errors.New("settings: skills section payload is required")
+			return MutationResult{}, validationError(errors.New("settings: skills section payload is required"))
 		}
 		changed := diffSkillsSettings(cfg.Skills, *req.Skills)
 		return s.updateSkillsSection(ctx, cfg.Skills, *req.Skills, changed, target)
 	case SectionAutomation:
 		if req.Automation == nil {
-			return MutationResult{}, errors.New("settings: automation section payload is required")
+			return MutationResult{}, validationError(errors.New("settings: automation section payload is required"))
 		}
 		changed := diffAutomationSettings(&cfg, *req.Automation)
 		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
@@ -132,7 +121,7 @@ func (s *service) UpdateSection(ctx context.Context, req SectionUpdateRequest) (
 		})
 	case SectionNetwork:
 		if req.Network == nil {
-			return MutationResult{}, errors.New("settings: network section payload is required")
+			return MutationResult{}, validationError(errors.New("settings: network section payload is required"))
 		}
 		changed := diffNetworkSettings(cfg.Network, *req.Network)
 		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
@@ -140,7 +129,9 @@ func (s *service) UpdateSection(ctx context.Context, req SectionUpdateRequest) (
 		})
 	case SectionObservability:
 		if req.Observability == nil {
-			return MutationResult{}, errors.New("settings: observability section payload is required")
+			return MutationResult{}, validationError(
+				errors.New("settings: observability section payload is required"),
+			)
 		}
 		changed := diffObservabilitySettings(cfg.Observability, *req.Observability)
 		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
@@ -148,15 +139,54 @@ func (s *service) UpdateSection(ctx context.Context, req SectionUpdateRequest) (
 		})
 	case SectionHooksExtensions:
 		if req.HooksExtensions == nil {
-			return MutationResult{}, errors.New("settings: hooks-extensions section payload is required")
+			return MutationResult{}, validationError(
+				errors.New("settings: hooks-extensions section payload is required"),
+			)
 		}
 		changed := diffExtensionsSettings(cfg.Extensions, *req.HooksExtensions)
 		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
 			return applyExtensionsSettings(editor, *req.HooksExtensions)
 		})
 	default:
-		return MutationResult{}, fmt.Errorf("settings: unknown section %q", req.Section)
+		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown section %q", req.Section))
 	}
+}
+
+func (s *service) loadGlobalSectionUpdate(
+	ctx context.Context,
+	section SectionName,
+	scope ScopeKind,
+	workspaceID string,
+) (aghconfig.Config, aghconfig.WriteTarget, error) {
+	normalizedScope, normalizedWorkspaceID, err := s.normalizeReadScope(scope, workspaceID)
+	if err != nil {
+		return aghconfig.Config{}, aghconfig.WriteTarget{}, fmt.Errorf("settings: update section %q: %w", section, err)
+	}
+	if normalizedScope != ScopeGlobal {
+		return aghconfig.Config{}, aghconfig.WriteTarget{}, conflictError(
+			fmt.Errorf("settings: section %q does not support workspace scope", section),
+		)
+	}
+
+	cfg, _, err := s.loadConfig(ctx, normalizedScope, normalizedWorkspaceID)
+	if err != nil {
+		return aghconfig.Config{}, aghconfig.WriteTarget{}, fmt.Errorf(
+			"settings: load section %q config: %w",
+			section,
+			err,
+		)
+	}
+
+	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
+	if err != nil {
+		return aghconfig.Config{}, aghconfig.WriteTarget{}, fmt.Errorf(
+			"settings: resolve section %q write target: %w",
+			section,
+			err,
+		)
+	}
+
+	return cfg, target, nil
 }
 
 func (s *service) updateConfigSection(

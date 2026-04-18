@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -312,7 +314,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 		assert     func(t *testing.T)
 	}{
 		{
-			name:       "patch section",
+			name:       "Should patch settings sections on loopback HTTP",
 			method:     http.MethodPatch,
 			path:       "/api/settings/general",
 			wantStatus: http.StatusOK,
@@ -340,7 +342,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			},
 		},
 		{
-			name:       "put collection",
+			name:       "Should put MCP collection items on loopback HTTP",
 			method:     http.MethodPut,
 			path:       "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=ws-1&target=sidecar",
 			wantStatus: http.StatusOK,
@@ -357,7 +359,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			},
 		},
 		{
-			name:       "delete collection",
+			name:       "Should delete MCP collection items on loopback HTTP",
 			method:     http.MethodDelete,
 			path:       "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=ws-1&target=sidecar",
 			wantStatus: http.StatusOK,
@@ -371,7 +373,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			},
 		},
 		{
-			name:       "restart action",
+			name:       "Should trigger daemon restart actions on loopback HTTP",
 			method:     http.MethodPost,
 			path:       "/api/settings/actions/restart",
 			body:       []byte(`{}`),
@@ -384,7 +386,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			},
 		},
 		{
-			name:       "install extension",
+			name:       "Should install extensions on loopback HTTP",
 			method:     http.MethodPost,
 			path:       "/api/extensions",
 			wantStatus: http.StatusCreated,
@@ -400,7 +402,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			},
 		},
 		{
-			name:       "enable extension",
+			name:       "Should enable extensions on loopback HTTP",
 			method:     http.MethodPost,
 			path:       "/api/extensions/demo/enable",
 			body:       []byte(`{}`),
@@ -413,7 +415,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			},
 		},
 		{
-			name:       "disable extension",
+			name:       "Should disable extensions on loopback HTTP",
 			method:     http.MethodPost,
 			path:       "/api/extensions/demo/disable",
 			body:       []byte(`{}`),
@@ -454,6 +456,152 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 				tc.assert(t)
 			}
 		})
+	}
+}
+
+func TestLoopbackServerRejectsMismatchedSettingsItemNames(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.HTTP.Host = "127.0.0.1"
+	cfg.HTTP.Port = freeTCPPort(t)
+
+	server, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(&cfg),
+		WithHost(cfg.HTTP.Host),
+		WithPort(cfg.HTTP.Port),
+		WithLogger(discardLogger()),
+		WithSessionManager(stubSessionManager{}),
+		WithTaskService(stubTaskManager{}),
+		WithObserver(stubObserver{}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
+		WithSettingsService(&stubSettingsService{}),
+		WithSettingsRestartController(&stubSettingsRestartController{}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := server.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+
+	readOnly := true
+	testCases := []struct {
+		name      string
+		path      string
+		body      []byte
+		wantError string
+	}{
+		{
+			name: "Should reject MCP server body names that differ from the path key",
+			path: "/api/settings/mcp-servers/server-a",
+			body: mustJSONBody(t, contract.PutSettingsMCPServerRequest{
+				Server: contract.SettingsMCPServerPayload{Name: "server-b", Command: "mcpd"},
+			}),
+			wantError: `settings validation error: mcp-servers.server.name must match path name "server-a"`,
+		},
+		{
+			name: "Should reject hook declaration names that differ from the path key",
+			path: "/api/settings/hooks/capture",
+			body: mustJSONBody(t, contract.PutSettingsHookRequest{
+				Declaration: contract.SettingsHookDeclarationPayload{
+					Name:         "other",
+					Event:        hookspkg.HookToolPreCall,
+					Mode:         hookspkg.HookModeAsync,
+					ExecutorKind: hookspkg.HookExecutorSubprocess,
+					Command:      "/bin/capture",
+					Matcher: hookspkg.HookMatcher{
+						ToolName:      "read",
+						ToolNamespace: "fs",
+						ToolReadOnly:  &readOnly,
+					},
+				},
+			}),
+			wantError: `settings validation error: hooks.declaration.name must match path name "capture"`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := doServerRequest(
+				t,
+				http.DefaultClient,
+				http.MethodPut,
+				mustURL("127.0.0.1", server.Port(), tc.path),
+				tc.body,
+			)
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+			if got, want := resp.StatusCode, http.StatusBadRequest; got != want {
+				body, _ := io.ReadAll(resp.Body)
+				t.Fatalf("PUT %s status = %d, want %d; body=%s", tc.path, got, want, string(body))
+			}
+
+			var payload contract.ErrorPayload
+			decodeServerJSON(t, resp, &payload)
+			if got := payload.Error; got != tc.wantError {
+				t.Fatalf("payload.Error = %q, want %q", got, tc.wantError)
+			}
+		})
+	}
+}
+
+func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.HTTP.Host = "127.0.0.1"
+	cfg.HTTP.Port = freeTCPPort(t)
+
+	server, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(&cfg),
+		WithHost(cfg.HTTP.Host),
+		WithPort(cfg.HTTP.Port),
+		WithLogger(discardLogger()),
+		WithSessionManager(stubSessionManager{}),
+		WithTaskService(stubTaskManager{}),
+		WithObserver(stubObserver{}),
+		WithWorkspaceResolver(stubWorkspaceService{}),
+		WithExtensionService(&stubExtensionService{
+			InstallFn: func(context.Context, contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+				return contract.ExtensionPayload{}, extensionpkg.ErrExtensionExists
+			},
+		}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := server.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+
+	resp := doServerRequest(
+		t,
+		http.DefaultClient,
+		http.MethodPost,
+		mustURL("127.0.0.1", server.Port(), "/api/extensions"),
+		mustJSONBody(t, contract.InstallExtensionRequest{
+			Path:     "/extensions/demo",
+			Checksum: "sha256-demo",
+		}),
+	)
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	if got, want := resp.StatusCode, http.StatusConflict; got != want {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST /api/extensions status = %d, want %d; body=%s", got, want, string(body))
 	}
 }
 
@@ -512,53 +660,111 @@ func TestNonLoopbackServerBlocksSettingsAndExtensionMutationsButKeepsReads(t *te
 		_ = server.Shutdown(context.Background())
 	}()
 
-	readPaths := []string{
-		"/api/settings/general",
-		"/api/settings/actions/restart/op-123",
-		"/api/extensions",
-		"/api/extensions/demo",
+	readCases := []struct {
+		name string
+		path string
+	}{
+		{name: "Should allow reading the general settings section", path: "/api/settings/general"},
+		{name: "Should allow reading restart status", path: "/api/settings/actions/restart/op-123"},
+		{name: "Should allow listing extensions", path: "/api/extensions"},
+		{name: "Should allow reading extension status", path: "/api/extensions/demo"},
 	}
-	for _, path := range readPaths {
-		resp := doServerRequest(t, http.DefaultClient, http.MethodGet, mustURL("127.0.0.1", server.Port(), path), nil)
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			t.Fatalf("GET %s status = %d, want %d; body=%s", path, resp.StatusCode, http.StatusOK, string(body))
-		}
-		_ = resp.Body.Close()
+	for _, tc := range readCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := doServerRequest(
+				t,
+				http.DefaultClient,
+				http.MethodGet,
+				mustURL("127.0.0.1", server.Port(), tc.path),
+				nil,
+			)
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+			if got, want := resp.StatusCode, http.StatusOK; got != want {
+				body, _ := io.ReadAll(resp.Body)
+				t.Fatalf("GET %s status = %d, want %d; body=%s", tc.path, got, want, string(body))
+			}
+		})
 	}
 
+	t.Run("Should block daemon log tail reads on non-loopback HTTP", func(t *testing.T) {
+		resp := doServerRequest(
+			t,
+			http.DefaultClient,
+			http.MethodGet,
+			mustURL("127.0.0.1", server.Port(), "/api/settings/observability/log-tail"),
+			nil,
+		)
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+		if got, want := resp.StatusCode, http.StatusForbidden; got != want {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("GET /api/settings/observability/log-tail status = %d, want %d; body=%s", got, want, string(body))
+		}
+		var payload contract.ErrorPayload
+		decodeServerJSON(t, resp, &payload)
+		if got, want := payload.Error, errLoopbackMutationRequired.Error(); got != want {
+			t.Fatalf("payload.Error = %q, want %q", got, want)
+		}
+	})
+
 	mutationCases := []struct {
+		name   string
 		method string
 		path   string
 		body   []byte
 	}{
-		{method: http.MethodPatch, path: "/api/settings/general", body: []byte(`{}`)},
-		{method: http.MethodPut, path: "/api/settings/providers/demo", body: []byte(`{}`)},
-		{method: http.MethodDelete, path: "/api/settings/hooks/capture"},
-		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/api/extensions", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/api/extensions/demo/enable", body: []byte(`{}`)},
+		{
+			name:   "Should block section patches",
+			method: http.MethodPatch,
+			path:   "/api/settings/general",
+			body:   []byte(`{}`),
+		},
+		{
+			name:   "Should block provider writes",
+			method: http.MethodPut,
+			path:   "/api/settings/providers/demo",
+			body:   []byte(`{}`),
+		},
+		{name: "Should block hook deletions", method: http.MethodDelete, path: "/api/settings/hooks/capture"},
+		{
+			name:   "Should block restart actions",
+			method: http.MethodPost,
+			path:   "/api/settings/actions/restart",
+			body:   []byte(`{}`),
+		},
+		{name: "Should block extension installs", method: http.MethodPost, path: "/api/extensions", body: []byte(`{}`)},
+		{
+			name:   "Should block extension enables",
+			method: http.MethodPost,
+			path:   "/api/extensions/demo/enable",
+			body:   []byte(`{}`),
+		},
 	}
 	for _, tc := range mutationCases {
-		resp := doServerRequest(t, http.DefaultClient, tc.method, mustURL("127.0.0.1", server.Port(), tc.path), tc.body)
-		if resp.StatusCode != http.StatusForbidden {
-			body, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			t.Fatalf(
-				"%s %s status = %d, want %d; body=%s",
+		t.Run(tc.name, func(t *testing.T) {
+			resp := doServerRequest(
+				t,
+				http.DefaultClient,
 				tc.method,
-				tc.path,
-				resp.StatusCode,
-				http.StatusForbidden,
-				string(body),
+				mustURL("127.0.0.1", server.Port(), tc.path),
+				tc.body,
 			)
-		}
-		var payload contract.ErrorPayload
-		decodeServerJSON(t, resp, &payload)
-		if payload.Error != errLoopbackMutationRequired.Error() {
-			t.Fatalf("error = %q, want %q", payload.Error, errLoopbackMutationRequired.Error())
-		}
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+			if got, want := resp.StatusCode, http.StatusForbidden; got != want {
+				body, _ := io.ReadAll(resp.Body)
+				t.Fatalf("%s %s status = %d, want %d; body=%s", tc.method, tc.path, got, want, string(body))
+			}
+			var payload contract.ErrorPayload
+			decodeServerJSON(t, resp, &payload)
+			if got, want := payload.Error, errLoopbackMutationRequired.Error(); got != want {
+				t.Fatalf("payload.Error = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

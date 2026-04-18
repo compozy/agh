@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -264,18 +265,26 @@ func TestStatusForSettingsError(t *testing.T) {
 		},
 		{name: "workspace missing", err: workspacepkg.ErrWorkspaceNotFound, want: http.StatusNotFound},
 		{
-			name: "heuristic unsupported scope",
-			err:  errors.New(`settings: section "general" does not support workspace scope`),
+			name: "settings conflict sentinel",
+			err: fmt.Errorf(
+				"%w: %s",
+				settingspkg.ErrConflict,
+				`settings: section "general" does not support workspace scope`,
+			),
 			want: http.StatusConflict,
 		},
 		{
-			name: "heuristic validation",
-			err:  errors.New("settings: decode network settings request: bad json"),
+			name: "settings validation sentinel",
+			err: fmt.Errorf(
+				"%w: %s",
+				settingspkg.ErrValidation,
+				"settings: decode network settings request: bad json",
+			),
 			want: http.StatusBadRequest,
 		},
 		{
-			name: "heuristic forbidden",
-			err:  errors.New("settings mutations are forbidden for this transport"),
+			name: "settings forbidden sentinel",
+			err:  fmt.Errorf("%w: %s", settingspkg.ErrForbidden, "settings mutations are forbidden for this transport"),
 			want: http.StatusForbidden,
 		},
 	}
@@ -1505,7 +1514,9 @@ func TestGetSettingsGeneralUnsupportedScopeReturnsConflict(t *testing.T) {
 
 	service := &stubSettingsService{
 		GetSectionFn: func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
-			return settingspkg.SectionEnvelope{}, errors.New(
+			return settingspkg.SectionEnvelope{}, fmt.Errorf(
+				"%w: %s",
+				settingspkg.ErrConflict,
 				`settings: section "general" does not support workspace scope`,
 			)
 		},

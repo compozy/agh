@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"slices"
 	"testing"
@@ -247,7 +246,7 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	}
 	sortExtensionsByName(httpList.Extensions)
 	sortExtensionsByName(udsList.Extensions)
-	if !reflect.DeepEqual(httpList.Extensions, udsList.Extensions) {
+	if !extensionsSemanticallyEqual(httpList.Extensions, udsList.Extensions) {
 		t.Fatalf("HTTP extensions = %#v, want UDS parity %#v", httpList.Extensions, udsList.Extensions)
 	}
 	if len(httpList.Extensions) == 0 {
@@ -282,7 +281,7 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	); err != nil {
 		t.Fatalf("UDS extension status error = %v", err)
 	}
-	if !reflect.DeepEqual(httpStatus.Extension, udsStatus.Extension) {
+	if !extensionSemanticallyEqual(httpStatus.Extension, udsStatus.Extension) {
 		t.Fatalf("HTTP extension = %#v, want UDS parity %#v", httpStatus.Extension, udsStatus.Extension)
 	}
 }
@@ -372,6 +371,75 @@ func sortExtensionsByName(values []aghcontract.ExtensionPayload) {
 			return 0
 		}
 	})
+}
+
+func extensionsSemanticallyEqual(left, right []aghcontract.ExtensionPayload) bool {
+	return slices.EqualFunc(left, right, extensionSemanticallyEqual)
+}
+
+func extensionSemanticallyEqual(left, right aghcontract.ExtensionPayload) bool {
+	left = normalizeExtensionPayload(left)
+	right = normalizeExtensionPayload(right)
+
+	if left.Name != right.Name ||
+		left.Version != right.Version ||
+		left.Type != right.Type ||
+		left.Source != right.Source ||
+		left.Enabled != right.Enabled ||
+		left.State != right.State ||
+		left.PID != right.PID ||
+		left.UptimeSeconds != right.UptimeSeconds ||
+		left.Health != right.Health ||
+		left.HealthMessage != right.HealthMessage ||
+		left.LastError != right.LastError ||
+		left.DaemonRunning != right.DaemonRunning {
+		return false
+	}
+	if !slices.Equal(left.Capabilities, right.Capabilities) {
+		return false
+	}
+	if !slices.Equal(left.Actions, right.Actions) {
+		return false
+	}
+	return extensionBundlesSemanticallyEqual(left.Bundles, right.Bundles)
+}
+
+func normalizeExtensionPayload(value aghcontract.ExtensionPayload) aghcontract.ExtensionPayload {
+	value.Capabilities = normalizeStrings(value.Capabilities)
+	value.Actions = normalizeStrings(value.Actions)
+	value.Bundles = normalizeExtensionBundles(value.Bundles)
+	return value
+}
+
+func normalizeExtensionBundles(values []aghcontract.ExtensionBundleSummaryPayload) []aghcontract.ExtensionBundleSummaryPayload {
+	if len(values) == 0 {
+		return nil
+	}
+
+	normalized := make([]aghcontract.ExtensionBundleSummaryPayload, len(values))
+	for idx, value := range values {
+		value.Profiles = normalizeStrings(value.Profiles)
+		normalized[idx] = value
+	}
+	return normalized
+}
+
+func extensionBundlesSemanticallyEqual(
+	left,
+	right []aghcontract.ExtensionBundleSummaryPayload,
+) bool {
+	return slices.EqualFunc(left, right, func(left, right aghcontract.ExtensionBundleSummaryPayload) bool {
+		return left.Name == right.Name &&
+			left.Description == right.Description &&
+			slices.Equal(left.Profiles, right.Profiles)
+	})
+}
+
+func normalizeStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	return append([]string(nil), values...)
 }
 
 func transportMockFixturePath(t testing.TB, name string) string {
