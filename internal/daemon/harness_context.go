@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -571,63 +570,4 @@ func boolTag(value bool) string {
 		return "true"
 	}
 	return "false"
-}
-
-type harnessPromptInputAugmenter struct {
-	resolver   *HarnessContextResolver
-	augmenters map[HarnessAugmenter]session.PromptInputAugmenter
-}
-
-func newHarnessPromptInputAugmenter(
-	resolver *HarnessContextResolver,
-	durableMemory session.PromptInputAugmenter,
-) session.PromptInputAugmenter {
-	if resolver == nil {
-		return nil
-	}
-
-	augmenters := map[HarnessAugmenter]session.PromptInputAugmenter{}
-	if durableMemory != nil {
-		augmenters[HarnessAugmenterDurableMemory] = durableMemory
-	}
-
-	wrapper := &harnessPromptInputAugmenter{
-		resolver:   resolver,
-		augmenters: augmenters,
-	}
-	return wrapper.Augment
-}
-
-func (a *harnessPromptInputAugmenter) Augment(
-	ctx context.Context,
-	sess *session.Session,
-	message string,
-) (string, error) {
-	if a == nil || a.resolver == nil || sess == nil {
-		return message, nil
-	}
-
-	info := sess.Info()
-	if info == nil {
-		return message, nil
-	}
-
-	resolved, err := a.resolver.ResolvePrompt(info, sess.CurrentTurnSource(), acp.PromptMeta{})
-	if err != nil {
-		return "", err
-	}
-
-	out := message
-	for _, name := range resolved.Policy.EnableAugmenters {
-		augmenter := a.augmenters[name]
-		if augmenter == nil {
-			continue
-		}
-		out, err = augmenter(ctx, sess, out)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return out, nil
 }

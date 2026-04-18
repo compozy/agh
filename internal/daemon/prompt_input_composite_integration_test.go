@@ -1,0 +1,178 @@
+//go:build integration
+
+package daemon
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/sessiondb"
+	"github.com/pedronauck/agh/internal/testutil"
+)
+
+func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetworkTurns(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	workspaceRoot := homePaths.HomeDir + "/workspace"
+	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
+	writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspaceRoot)
+
+	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
+	t.Cleanup(func() {
+		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	suffixAugmenter := HarnessAugmenter("suffix")
+	compositeResolver := promptInputCompositeOverlayResolver{
+		base: daemonInstance.harnessResolver,
+		extra: map[TurnOrigin][]HarnessAugmenter{
+			TurnOriginUser:    {suffixAugmenter},
+			TurnOriginNetwork: {suffixAugmenter},
+		},
+	}
+
+	composite, err := newPromptInputCompositeAugmenter(
+		discardLogger(),
+		compositeResolver,
+		append(
+			defaultPromptInputAugmenterDescriptors(memory.NewRecallAugmenter(daemonInstance.memoryStore)),
+			promptInputAugmenterDescriptor{
+				Name:   suffixAugmenter,
+				Order:  200,
+				Budget: 64,
+				Augmenter: func(_ context.Context, _ *session.Session, message string) (string, error) {
+					return message + "\n\nSUFFIX CONTEXT", nil
+				},
+			},
+		)...,
+	)
+	if err != nil {
+		t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
+	}
+	capturedDeps.PromptInputAugmenter = composite
+
+	driver := newHarnessIntegrationDriver()
+	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
+
+	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+		AgentName: resolvedWorkspace.Agents[0].Name,
+		Name:      "networked",
+		Workspace: resolvedWorkspace.ID,
+		Channel:   "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = manager.Stop(testutil.Context(t), created.ID)
+	})
+
+	userEvents, err := manager.Prompt(testutil.Context(t), created.ID, "workspace note")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	drainHarnessIntegrationEvents(userEvents)
+
+	if got := driver.promptCalls[0].Message; !strings.Contains(got, "Relevant durable memory for this turn:") {
+		t.Fatalf("user prompt message = %q, want durable memory recall", got)
+	} else if !strings.Contains(got, "SUFFIX CONTEXT") {
+		t.Fatalf("user prompt message = %q, want suffix augmenter output", got)
+	}
+
+	networkEvents, err := manager.PromptNetwork(
+		testutil.Context(t),
+		created.ID,
+		"network note",
+		acp.PromptNetworkMeta{
+			MessageID: "msg-1",
+			Kind:      "direct",
+			Channel:   "builders",
+			From:      "ops.peer",
+		},
+	)
+	if err != nil {
+		t.Fatalf("PromptNetwork() error = %v", err)
+	}
+	drainHarnessIntegrationEvents(networkEvents)
+
+	if got := driver.promptCalls[1].Message; got != "network note\n\nSUFFIX CONTEXT" {
+		t.Fatalf("network prompt message = %q, want augmented network dispatch", got)
+	}
+	if got := driver.promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
+		t.Fatalf("network prompt turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)
+	}
+
+	storedMessages := loadStoredPromptMessages(t, created)
+	if got, want := len(storedMessages), 2; got != want {
+		t.Fatalf("len(storedMessages) = %d, want %d", got, want)
+	}
+	if !strings.Contains(storedMessages[0], `"text":"workspace note"`) {
+		t.Fatalf("stored user message = %q, want canonical user input", storedMessages[0])
+	}
+	if strings.Contains(storedMessages[0], "Relevant durable memory for this turn:") ||
+		strings.Contains(storedMessages[0], "SUFFIX CONTEXT") {
+		t.Fatalf("stored user message = %q, want no augmenter content", storedMessages[0])
+	}
+	if !strings.Contains(storedMessages[1], `"text":"network note"`) {
+		t.Fatalf("stored network message = %q, want canonical network input", storedMessages[1])
+	}
+	if strings.Contains(storedMessages[1], "SUFFIX CONTEXT") {
+		t.Fatalf("stored network message = %q, want no augmenter content", storedMessages[1])
+	}
+}
+
+type promptInputCompositeOverlayResolver struct {
+	base  promptInputAugmenterResolver
+	extra map[TurnOrigin][]HarnessAugmenter
+}
+
+func (r promptInputCompositeOverlayResolver) ResolvePrompt(
+	info *session.Info,
+	source session.TurnSource,
+	meta acp.PromptMeta,
+) (ResolvedHarnessContext, error) {
+	resolved, err := r.base.ResolvePrompt(info, source, meta)
+	if err != nil {
+		return ResolvedHarnessContext{}, err
+	}
+	additional := r.extra[resolved.Policy.TurnOrigin]
+	if len(additional) == 0 {
+		return resolved, nil
+	}
+	resolved.Policy.EnableAugmenters = append(resolved.Policy.EnableAugmenters, additional...)
+	return resolved, nil
+}
+
+func loadStoredPromptMessages(t *testing.T, sess *session.Session) []string {
+	t.Helper()
+
+	db, err := sessiondb.OpenSessionDB(testutil.Context(t), sess.ID, sess.DBPath())
+	if err != nil {
+		t.Fatalf("OpenSessionDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	events, err := db.Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+
+	messages := make([]string, 0, len(events))
+	for _, event := range events {
+		if event.Type == acp.EventTypeUserMessage {
+			messages = append(messages, event.Content)
+		}
+	}
+	return messages
+}

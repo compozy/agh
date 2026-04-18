@@ -382,13 +382,19 @@ func TestHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 	})
 
 	calls := 0
-	augmenter := newHarnessPromptInputAugmenter(
+	augmenter, err := newPromptInputCompositeAugmenter(
+		discardLogger(),
 		resolver,
-		func(_ context.Context, _ *session.Session, message string) (string, error) {
-			calls++
-			return message + "\n\nmemory block", nil
-		},
+		defaultPromptInputAugmenterDescriptors(
+			func(_ context.Context, _ *session.Session, message string) (string, error) {
+				calls++
+				return message + "\n\nmemory block", nil
+			},
+		)...,
 	)
+	if err != nil {
+		t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
+	}
 
 	got, err := augmenter(
 		context.Background(),

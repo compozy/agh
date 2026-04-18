@@ -900,6 +900,83 @@ func TestPromptAugmenterPreservesStoredUserMessageAndAugmentsDriverDispatch(t *t
 	}
 }
 
+func TestPromptNetworkAugmenterPreservesStoredUserMessageAndAugmentsDriverDispatch(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptInputAugmenter(func(
+		_ context.Context,
+		_ *Session,
+		message string,
+	) (string, error) {
+		return message + "\n\nNETWORK AUGMENT", nil
+	}))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	eventsCh, err := h.manager.PromptNetwork(
+		testutil.Context(t),
+		session.ID,
+		"network message",
+		acp.PromptNetworkMeta{
+			MessageID: "msg-1",
+			Kind:      "direct",
+			Channel:   "builders",
+			From:      "ops.peer",
+		},
+	)
+	if err != nil {
+		t.Fatalf("PromptNetwork() error = %v", err)
+	}
+	_ = collectEvents(t, eventsCh)
+
+	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if len(stored) == 0 {
+		t.Fatal("stored events = 0, want at least one event")
+	}
+	if got := h.driver.promptCalls[0].Message; got != "network message\n\nNETWORK AUGMENT" {
+		t.Fatalf("driver prompt message = %q, want augmented network content", got)
+	}
+	if got := h.driver.promptCalls[0].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
+		t.Fatalf("driver turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)
+	}
+	if !strings.Contains(stored[0].Content, `"text":"network message"`) {
+		t.Fatalf("stored user_message content = %s, want original network message", stored[0].Content)
+	}
+	if strings.Contains(stored[0].Content, "NETWORK AUGMENT") {
+		t.Fatalf("stored user_message content = %s, want no augmentation block", stored[0].Content)
+	}
+}
+
+func TestPromptAugmenterPropagatesFailureAndSkipsDriverDispatch(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptInputAugmenter(func(
+		_ context.Context,
+		_ *Session,
+		_ string,
+	) (string, error) {
+		return "", errors.New("boom")
+	}))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "remember me"); err == nil {
+		t.Fatal("Prompt() error = nil, want augmentation failure")
+	} else if !strings.Contains(err.Error(), "augment prompt input") {
+		t.Fatalf("Prompt() error = %v, want augmentation error context", err)
+	}
+	if got := len(h.driver.promptCalls); got != 0 {
+		t.Fatalf("len(driver.promptCalls) = %d, want 0 after augmentation failure", got)
+	}
+}
+
 func TestPromptAugmenterPropagatesCancellationAndSkipsDriverDispatch(t *testing.T) {
 	t.Parallel()
 

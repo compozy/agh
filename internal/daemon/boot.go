@@ -257,6 +257,7 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error {
 	var prependProviders []session.PromptProvider
 	var appendProviders []session.PromptProvider
+	var err error
 
 	if state.cfg.Memory.Enabled {
 		state.globalMemoryDir = strings.TrimSpace(state.cfg.Memory.GlobalDir)
@@ -297,10 +298,16 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 			defaultStartupPromptSectionDescriptorsFromProviders(prependProviders, appendProviders)...,
 		),
 	)
-	state.promptAugmenter = newHarnessPromptInputAugmenter(
+	state.promptAugmenter, err = newPromptInputCompositeAugmenter(
+		state.logger,
 		state.harnessResolver,
-		memory.NewRecallAugmenter(state.memoryStore),
+		defaultPromptInputAugmenterDescriptors(
+			memory.NewRecallAugmenter(state.memoryStore),
+		)...,
 	)
+	if err != nil {
+		return fmt.Errorf("daemon: build prompt input composite: %w", err)
+	}
 	return nil
 }
 
