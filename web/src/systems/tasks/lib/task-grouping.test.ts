@@ -17,30 +17,29 @@ function buildTask(id: string, status: TaskListItem["status"]): TaskListItem {
 }
 
 describe("task-grouping", () => {
-  it("returns canonical kanban columns in declared order", () => {
+  it("returns the canonical Pending / Running / Done / Failed columns in declared order", () => {
     const columns = getKanbanColumns();
-    expect(columns.map(column => column.id)).toEqual([
-      "pending",
-      "ready",
-      "in_progress",
-      "blocked",
-      "completed",
-      "failed",
-    ]);
+    expect(columns.map(column => column.id)).toEqual(["pending", "running", "done", "failed"]);
+    expect(columns.map(column => column.label)).toEqual(["Pending", "Running", "Done", "Failed"]);
   });
 
-  it("maps task status to expected kanban column id", () => {
+  it("maps production task statuses to the collapsed four-column kanban", () => {
     expect(resolveKanbanColumnId("draft")).toBe("pending");
     expect(resolveKanbanColumnId("pending")).toBe("pending");
-    expect(resolveKanbanColumnId("ready")).toBe("ready");
-    expect(resolveKanbanColumnId("in_progress")).toBe("in_progress");
-    expect(resolveKanbanColumnId("blocked")).toBe("blocked");
-    expect(resolveKanbanColumnId("completed")).toBe("completed");
+    expect(resolveKanbanColumnId("ready")).toBe("pending");
+    expect(resolveKanbanColumnId("blocked")).toBe("pending");
+    expect(resolveKanbanColumnId("in_progress")).toBe("running");
+    expect(resolveKanbanColumnId("completed")).toBe("done");
     expect(resolveKanbanColumnId("failed")).toBe("failed");
     expect(resolveKanbanColumnId("canceled")).toBe("failed");
   });
 
-  it("groups tasks into the expected columns and preserves empty columns", () => {
+  it("accepts the mock status shorthand `running` and `done` so designer fixtures route correctly", () => {
+    expect(resolveKanbanColumnId("running")).toBe("running");
+    expect(resolveKanbanColumnId("done")).toBe("done");
+  });
+
+  it("groups tasks into the four columns and preserves empty columns", () => {
     const tasks: TaskListItem[] = [
       buildTask("a", "draft"),
       buildTask("b", "pending"),
@@ -53,12 +52,10 @@ describe("task-grouping", () => {
     const groups = groupTasksForKanban(tasks);
     const byId = new Map(groups.map(group => [group.column.id, group.tasks.map(t => t.id)]));
 
-    expect(byId.get("pending")).toEqual(["a", "b"]);
-    expect(byId.get("ready")).toEqual(["c"]);
-    expect(byId.get("in_progress")).toEqual(["d"]);
-    expect(byId.get("blocked")).toEqual([]);
-    expect(byId.get("completed")).toEqual([]);
+    expect(byId.get("pending")).toEqual(["a", "b", "c"]);
+    expect(byId.get("running")).toEqual(["d"]);
+    expect(byId.get("done")).toEqual([]);
     expect(byId.get("failed")).toEqual(["e", "f"]);
-    expect(groups).toHaveLength(6);
+    expect(groups).toHaveLength(4);
   });
 });

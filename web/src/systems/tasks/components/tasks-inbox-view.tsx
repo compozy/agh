@@ -1,6 +1,6 @@
 import { AlertCircle, Loader2, Search } from "lucide-react";
 
-import { Empty, Input } from "@agh/ui";
+import { Empty, SearchInput, Switch } from "@agh/ui";
 
 import type { InboxLaneFilter } from "@/hooks/routes/use-tasks-page";
 
@@ -25,6 +25,7 @@ export interface TasksInboxViewProps {
   onArchive?: TasksInboxItemProps["onArchive"];
   onDismiss?: TasksInboxItemProps["onDismiss"];
   onMarkRead?: TasksInboxItemProps["onMarkRead"];
+  onOpen?: TasksInboxItemProps["onOpen"];
   pendingApproveId?: string | null;
   pendingRejectId?: string | null;
   pendingRetryId?: string | null;
@@ -49,6 +50,7 @@ export function TasksInboxView({
   onArchive,
   onDismiss,
   onMarkRead,
+  onOpen,
   pendingApproveId,
   pendingRejectId,
   pendingRetryId,
@@ -64,6 +66,7 @@ export function TasksInboxView({
     onArchive,
     onDismiss,
     onMarkRead,
+    onOpen,
     pendingApproveId,
     pendingRejectId,
     pendingRetryId,
@@ -76,31 +79,23 @@ export function TasksInboxView({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-inbox-view">
       <TasksInboxLaneTabs inbox={inbox} onChange={onLaneChange} value={laneFilter} />
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--color-divider)] px-4 py-3">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--color-text-tertiary)]" />
-          <Input
-            className="h-10 border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] pl-9"
-            data-testid="tasks-inbox-search"
-            onChange={event => onSearchChange(event.target.value)}
-            placeholder="Search inbox..."
-            value={searchQuery}
-          />
-        </div>
+      <div className="flex flex-wrap items-center gap-3 border-b border-[color:var(--color-divider)] px-4 py-3">
+        <SearchInput
+          className="h-9 min-w-[220px] flex-1"
+          data-testid="tasks-inbox-search"
+          onChange={next => onSearchChange(next)}
+          placeholder="Search inbox…"
+          value={searchQuery}
+        />
         <label
-          className="inline-flex items-center gap-2 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-[color:var(--color-text-secondary)]"
+          className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)]"
           data-testid="tasks-inbox-unread-toggle"
         >
-          <input
-            checked={unreadOnly}
-            className="size-3.5 rounded border-[color:var(--color-divider)] bg-transparent"
-            onChange={event => onToggleUnread(event.target.checked)}
-            type="checkbox"
-          />
+          <Switch checked={unreadOnly} onCheckedChange={onToggleUnread} />
           Unread only
         </label>
         <span
-          className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-[color:var(--color-text-tertiary)]"
+          className="font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]"
           data-testid="tasks-inbox-totals"
         >
           {inbox?.unread_total ?? 0} unread · {inbox?.archived_total ?? 0} archived
@@ -132,9 +127,9 @@ export function TasksInboxView({
           >
             <Empty
               className="max-w-xl"
+              description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."
               icon={Search}
               title="Nothing is waiting in the inbox"
-              description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."
             />
           </div>
         ) : (
@@ -145,17 +140,14 @@ export function TasksInboxView({
                 data-testid={`tasks-inbox-group-${group.lane}`}
                 key={group.lane}
               >
-                <header className="flex items-center gap-2 font-mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
+                <header className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
                   <span>{taskInboxLaneLabel(group.lane)}</span>
-                  <span
-                    className="text-[color:var(--color-text-tertiary)]"
-                    data-testid={`tasks-inbox-group-count-${group.lane}`}
-                  >
+                  <span data-testid={`tasks-inbox-group-count-${group.lane}`}>
                     {group.count} {group.count === 1 ? "item" : "items"}
                   </span>
                   {group.unread_count > 0 ? (
                     <span
-                      className="rounded-full bg-[color:var(--color-warning)] px-1.5 py-[1px] text-[0.58rem] tracking-[0.12em] text-[color:var(--color-accent-ink)]"
+                      className="rounded-full bg-[color:var(--color-warning)] px-1.5 py-[1px] text-[10px] tracking-[0.12em] text-[color:var(--color-accent-ink)]"
                       data-testid={`tasks-inbox-group-unread-${group.lane}`}
                     >
                       {group.unread_count} unread

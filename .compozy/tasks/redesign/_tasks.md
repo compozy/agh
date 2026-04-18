@@ -21,7 +21,7 @@
 | 15 | Rewrite /design-system showcase and delete design-system folder       | completed | medium     | task_06, task_07, task_14             |
 | 16 | Wire Playwright visual snapshot baseline for web/                     | completed | medium     | task_11, task_13, task_14             |
 | 17 | Rewrite Tasks domain list + detail panel                              | completed | high       | task_13, task_14                      |
-| 18 | Rewrite Tasks domain Kanban, Dashboard, Inbox views                   | pending | high       | task_17                               |
+| 18 | Rewrite Tasks domain Kanban, Dashboard, Inbox views                   | completed | high       | task_17                               |
 | 19 | Rewrite Tasks domain forms and run detail route                       | pending | medium     | task_17                               |
 | 20 | Rewrite Session domain message thread                                 | pending | high       | task_10, task_13, task_14             |
 | 21 | Rewrite Session domain composer                                       | pending | medium     | task_20                               |
