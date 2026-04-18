@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add Metric, MonoBadge, KindChip, StatusDot, ConnectionIndicator to @agh/ui
 type: refactor
 complexity: high
@@ -41,12 +41,12 @@ Introduce the compact signal primitives: `Metric` (large mono value + label), `M
 
 ## Subtasks
 
-- [ ] 7.1 Implement the five primitives with stories covering all tones + variants.
-- [ ] 7.2 Replace `design-system/metric` and `design-system/metric-strip` importers with compositions of `@agh/ui` `Metric`.
-- [ ] 7.3 Replace `design-system/status-dot` importers with `@agh/ui` `StatusDot`.
-- [ ] 7.4 Replace `design-system/connection-indicator` importers with `@agh/ui` `ConnectionIndicator`.
-- [ ] 7.5 Delete the four migrated files from `web/src/components/design-system/`.
-- [ ] 7.6 Run `make verify` and fix regressions.
+- [x] 7.1 Implement the five primitives with stories covering all tones + variants.
+- [x] 7.2 Replace `design-system/metric` and `design-system/metric-strip` importers with compositions of `@agh/ui` `Metric`.
+- [x] 7.3 Replace `design-system/status-dot` importers with `@agh/ui` `StatusDot`.
+- [x] 7.4 Replace `design-system/connection-indicator` importers with `@agh/ui` `ConnectionIndicator`.
+- [x] 7.5 Delete the four migrated files from `web/src/components/design-system/`.
+- [x] 7.6 Run `make verify` and fix regressions (frontend portion clean; Go lint failures are pre-existing issues tracked in shared workflow memory "Open Risks" and out of scope for task_07).
 
 ## Implementation Details
 

@@ -1,8 +1,7 @@
 import { Hash, Network as NetworkIcon, Plus, Users } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { MetricStrip } from "@/components/design-system";
-import { Button, Pills } from "@agh/ui";
+import { Button, Metric, Pills } from "@agh/ui";
 import {
   NetworkChannelDetailPanel,
   NetworkChannelsListPanel,
@@ -59,12 +58,12 @@ function NetworkPage() {
           <div className="border-b border-[color:var(--color-divider)] p-4">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {page.pageMetrics.map(metric => (
-                <MetricStrip
+                <Metric
                   key={metric.label}
                   data-testid={`network-metric-${metric.label.toLowerCase().replaceAll(" ", "-")}`}
                   label={metric.label}
                   value={metric.value}
-                  detail={metric.detail}
+                  subtext={metric.detail}
                 />
               ))}
             </div>

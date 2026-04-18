@@ -169,3 +169,22 @@ export { SearchInput, type SearchInputProps } from "./components/search-input";
 export { Empty, type EmptyProps } from "./components/empty";
 export { Section, type SectionProps } from "./components/section";
 export { Toolbar, type ToolbarProps } from "./components/toolbar";
+export {
+  StatusDot,
+  type StatusDotProps,
+  type StatusDotTone,
+  type StatusDotSize,
+} from "./components/status-dot";
+export {
+  MonoBadge,
+  monoBadgeVariants,
+  type MonoBadgeProps,
+  type MonoBadgeTone,
+} from "./components/mono-badge";
+export { KindChip, type KindChipProps } from "./components/kind-chip";
+export { Metric, type MetricProps, type MetricTone } from "./components/metric";
+export {
+  ConnectionIndicator,
+  type ConnectionIndicatorProps,
+  type ConnectionStatus,
+} from "./components/connection-indicator";

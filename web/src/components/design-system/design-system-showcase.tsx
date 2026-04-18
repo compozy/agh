@@ -1,10 +1,18 @@
 import { useState } from "react";
 import { Layers3, Sparkles } from "lucide-react";
 
-import { Button, Empty, PageHeader, Pill, Pills, SearchInput, Section, Toolbar } from "@agh/ui";
-
-import { MetricStrip } from "./metric-strip";
-import { StatusDot } from "./status-dot";
+import {
+  Button,
+  Empty,
+  Metric,
+  PageHeader,
+  Pill,
+  Pills,
+  SearchInput,
+  Section,
+  StatusDot,
+  Toolbar,
+} from "@agh/ui";
 
 /**
  * Showcase surface at `/design-system`. Task 06 trimmed this to consume only `@agh/ui`
@@ -22,17 +30,17 @@ const INTEGRATIONS = [
   {
     description: "Daemon, CLI, and web share one visual grammar for state and action.",
     name: "Control plane",
-    tone: "green",
+    tone: "success",
   },
   {
     description: "Session timelines, permission prompts, and status edges stay compact.",
     name: "Runtime telemetry",
-    tone: "amber",
+    tone: "warning",
   },
   {
     description: "Shared surface primitives now live in @agh/ui without forcing a full migration.",
     name: "Foundation layer",
-    tone: "violet",
+    tone: "info",
   },
 ] as const;
 
@@ -93,16 +101,16 @@ function DesignSystemShowcase() {
 
       <Section label="Foundation signal">
         <div className="grid gap-3 md:grid-cols-2">
-          <MetricStrip
-            detail="Surface, line, text, accent, and depth roles are tokenized."
+          <Metric
+            subtext="Surface, line, text, accent, and depth roles are tokenized."
             label="Foundation kit"
-            tone="amber"
+            tone="accent"
             value="08"
           />
-          <MetricStrip
-            detail="Routes are consuming the new primitives without coexistence hacks."
+          <Metric
+            subtext="Routes are consuming the new primitives without coexistence hacks."
             label="Routes migrated"
-            tone="green"
+            tone="success"
             value="06"
           />
         </div>
