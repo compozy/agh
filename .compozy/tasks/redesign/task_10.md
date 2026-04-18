@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add ChatMessageBubble + ToolCallCard shells
 type: frontend
 complexity: medium
@@ -41,10 +41,10 @@ Introduce two presentational shells: `ChatMessageBubble` (user/agent message con
 
 ## Subtasks
 
-- [ ] 10.1 Implement `ChatMessageBubble` with role-based alignment + styling.
-- [ ] 10.2 Implement `ToolCallCard` with status badge + file path composition.
-- [ ] 10.3 Export both from `packages/ui/src/index.ts`.
-- [ ] 10.4 Write stories covering all roles + all statuses.
+- [x] 10.1 Implement `ChatMessageBubble` with role-based alignment + styling.
+- [x] 10.2 Implement `ToolCallCard` with status badge + file path composition.
+- [x] 10.3 Export both from `packages/ui/src/index.ts`.
+- [x] 10.4 Write stories covering all roles + all statuses.
 
 ## Implementation Details
 

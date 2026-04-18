@@ -183,6 +183,17 @@ export {
 } from "./components/mono-badge";
 export { KindChip, type KindChipProps } from "./components/kind-chip";
 export { CodeBlock, type CodeBlockProps } from "./components/code-block";
+export {
+  ChatMessageBubble,
+  type ChatMessageBubbleProps,
+  type ChatMessageRole,
+  type ChatMessageAlign,
+} from "./components/chat-message-bubble";
+export {
+  ToolCallCard,
+  type ToolCallCardProps,
+  type ToolCallStatus,
+} from "./components/tool-call-card";
 export { Metric, type MetricProps, type MetricTone } from "./components/metric";
 export {
   ConnectionIndicator,
