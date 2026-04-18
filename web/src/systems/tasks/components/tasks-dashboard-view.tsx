@@ -53,9 +53,9 @@ export function TasksDashboardView({
       >
         <Empty
           className="max-w-xl"
+          description="Create or run tasks to see queue depth, health, freshness, and live work in one place."
           icon={AlertCircle}
           title="No dashboard data yet"
-          description="Create or run tasks to see queue depth, health, freshness, and live work in one place."
         />
       </div>
     );
@@ -69,12 +69,12 @@ export function TasksDashboardView({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4"
+      className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 py-4"
       data-testid="tasks-dashboard-view"
     >
       <TasksDashboardCards dashboard={dashboard} />
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <TasksDashboardQueueHealth dashboard={dashboard} />
         </div>
@@ -83,7 +83,7 @@ export function TasksDashboardView({
 
       <TasksDashboardActiveRuns dashboard={dashboard} />
 
-      <div className="flex items-center justify-between gap-2 border-t border-[color:var(--color-divider)] pt-3 text-[0.62rem] font-mono uppercase tracking-[0.14em] text-[color:var(--color-text-tertiary)]">
+      <div className="flex items-center justify-between gap-2 border-t border-[color:var(--color-divider)] pt-3 font-mono text-[11px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
         <span data-testid="tasks-dashboard-freshness">
           {freshness.stale ? "Stale" : "Fresh"} · {freshnessLabel}
         </span>

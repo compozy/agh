@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 title: Rewrite Tasks domain Kanban, Dashboard, Inbox views
 type: frontend
 complexity: high
@@ -42,12 +42,12 @@ Rewrite the three remaining Tasks views — Kanban (4 columns), Dashboard (metri
 
 ## Subtasks
 
-- [ ] 18.1 Rewrite `tasks-kanban-board.tsx` on `Section` columns + shared list-row; wire the drag/reorder behavior that exists today unchanged.
-- [ ] 18.2 Rewrite the five `tasks-dashboard-*.tsx` files on `Metric` + `Section`, updating chart tokens to `--color-accent` and `--color-accent-tint-strong`.
-- [ ] 18.3 Rewrite `tasks-inbox-view.tsx` + `tasks-inbox-item.tsx` + `tasks-inbox-lane-tabs.tsx`; ensure Approve/Edit/Reject buttons use the correct `Button` variants (primary / ghost / danger) and an unread dot renders as a `StatusDot` with `tone="accent"` when `item.unread`.
-- [ ] 18.4 Rewrite Storybook stories for all three views covering empty, populated, loading, error, and view-switcher transitions from List to each view.
-- [ ] 18.5 Update Vitest tests only where component props or DOM structure changed; verify untouched tests still pass.
-- [ ] 18.6 Run `make verify` and `pnpm test:visual`; commit Playwright baselines for Kanban, Dashboard, and Inbox routes.
+- [x] 18.1 Rewrite `tasks-kanban-board.tsx` on `Section` columns + shared list-row; wire the drag/reorder behavior that exists today unchanged.
+- [x] 18.2 Rewrite the five `tasks-dashboard-*.tsx` files on `Metric` + `Section`, updating chart tokens to `--color-accent` and `--color-accent-tint-strong`.
+- [x] 18.3 Rewrite `tasks-inbox-view.tsx` + `tasks-inbox-item.tsx` + `tasks-inbox-lane-tabs.tsx`; ensure Approve/Edit/Reject buttons use the correct `Button` variants (primary / ghost / danger) and an unread dot renders as a `StatusDot` with `tone="accent"` when `item.unread`.
+- [x] 18.4 Rewrite Storybook stories for all three views covering empty, populated, loading, error, and view-switcher transitions from List to each view.
+- [x] 18.5 Update Vitest tests only where component props or DOM structure changed; verify untouched tests still pass.
+- [x] 18.6 Run `make verify` and `pnpm test:visual`; commit Playwright baselines for Kanban, Dashboard, and Inbox routes.
 
 ## Implementation Details
 
@@ -79,6 +79,10 @@ Dashboard metric set (top row, left to right):
 - `web/src/systems/tasks/components/tasks-inbox-lane-tabs.tsx` — rewrite on `@agh/ui` `Tabs`.
 - `web/src/systems/tasks/components/tasks-list-row.tsx` — consumed from task 17; do not modify without cross-PR coordination.
 - `web/src/routes/_app/tasks.tsx` — view-switcher already rendered in task 17; confirm Kanban/Dashboard/Inbox sub-routes mount correctly.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4 + §5` — column layouts, metric dashboard card patterns.
+  - `docs/design/web-inspiration/src/pages-core.jsx` — `TasksPage` kanban (4 columns), dashboard (metric row + charts), inbox (approval flow).
+  - `docs/design/web-inspiration/src/primitives.jsx` — shared `Pills` view-switcher + `Metric` tiles.
 
 ### Dependent Files
 

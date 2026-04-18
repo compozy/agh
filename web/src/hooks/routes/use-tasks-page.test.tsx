@@ -132,8 +132,9 @@ describe("useTasksPage", () => {
     expect(result.current.statusCounts.failed).toBe(1);
     expect(result.current.statusCounts.draft).toBe(1);
     expect(result.current.draftTasks.map(task => task.id)).toEqual(["task_003"]);
+    // 4-column kanban collapses draft + ready + pending + blocked into "pending"; fixture has 1 draft + 1 ready.
     expect(result.current.kanbanColumns.find(c => c.column.id === "pending")?.tasks).toHaveLength(
-      1
+      2
     );
     expect(result.current.activeWorkspaceName).toBe("Alpha");
     expect(result.current.isEmpty).toBe(false);

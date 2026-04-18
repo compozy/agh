@@ -12,7 +12,7 @@ import {
 } from "../lib/task-formatters";
 import type { TaskInboxLane, TaskListItem } from "../types";
 
-export interface TasksListRowProps extends Omit<React.ComponentProps<"button">, "onSelect"> {
+export interface TasksListRowProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
   task: TaskListItem;
   selected?: boolean;
   onSelect?: (taskId: string) => void;
@@ -58,17 +58,31 @@ function TasksListRow({
   const timestamp = formatRelativeTime(lastActivity);
   const resolvedTestId = testId ?? `task-card-${task.id}`;
 
+  const clickable = onSelect !== undefined;
+  const handleKeyDown = clickable
+    ? (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect?.(task.id);
+        }
+      }
+    : undefined;
+
   return (
-    <button
-      type="button"
+    <div
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
       aria-pressed={selected}
       data-slot="tasks-list-row"
       data-testid={resolvedTestId}
       data-selected={selected ? "true" : undefined}
-      onClick={() => onSelect?.(task.id)}
+      onClick={clickable ? () => onSelect?.(task.id) : undefined}
+      onKeyDown={handleKeyDown}
       className={cn(
         "group relative flex w-full flex-col gap-2 border-b border-[color:var(--color-divider)] px-4 py-3.5 text-left transition-colors",
-        "hover:bg-[color:var(--color-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
+        clickable &&
+          "cursor-pointer hover:bg-[color:var(--color-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
         selected && "bg-[color:var(--color-surface)]",
         className
       )}
@@ -124,7 +138,7 @@ function TasksListRow({
           {footer}
         </div>
       ) : null}
-    </button>
+    </div>
   );
 }
 

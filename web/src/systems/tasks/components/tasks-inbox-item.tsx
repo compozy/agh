@@ -2,21 +2,19 @@ import { AlertCircle, Archive, ArchiveX, Check, Eye, RotateCcw, X } from "lucide
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Pill } from "@agh/ui";
-import { cn } from "@/lib/utils";
+import { Button, Pill, StatusDot } from "@agh/ui";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 import {
   formatAttemptLabel,
   formatRelativeTime,
   taskApprovalStateLabel,
-  taskInboxLaneLabel,
-  taskLaneTone,
   taskStatusLabel,
   taskStatusTone,
 } from "../lib/task-formatters";
-import type { TaskInboxItem } from "../types";
+import type { TaskInboxItem, TaskListItem } from "../types";
+import { TasksListRow } from "./tasks-list-row";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksInboxItemProps {
   item: TaskInboxItem;
   onApprove?: (taskId: string) => void;
@@ -25,6 +23,7 @@ export interface TasksInboxItemProps {
   onArchive?: (taskId: string) => void;
   onDismiss?: (taskId: string) => void;
   onMarkRead?: (taskId: string) => void;
+  onOpen?: (taskId: string) => void;
   pendingApproveId?: string | null;
   pendingRejectId?: string | null;
   pendingRetryId?: string | null;
@@ -41,6 +40,7 @@ export function TasksInboxItem({
   onArchive,
   onDismiss,
   onMarkRead,
+  onOpen,
   pendingApproveId,
   pendingRejectId,
   pendingRetryId,
@@ -54,73 +54,133 @@ export function TasksInboxItem({
   const isApprovalItem = lane === "approvals";
   const isFailedRun = lane === "failed_runs";
   const isArchived = lane === "archived" || triage.archived;
-  const ownerLabel = task.owner?.ref ?? "—";
   const failedError = run?.error ?? null;
 
+  const handleSelect = () => onOpen?.(taskId);
+
+  const trailing = (
+    <>
+      {unread ? (
+        <StatusDot data-testid={`tasks-inbox-item-unread-${taskId}`} tone="accent" />
+      ) : null}
+      <Pill size="sm" variant={pillVariantFromTone(taskStatusTone(task.status))}>
+        {taskStatusLabel(task.status)}
+      </Pill>
+      {run ? (
+        <span
+          className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]"
+          data-testid={`tasks-inbox-item-run-${taskId}`}
+        >
+          run {run.id}
+          {typeof run.attempt === "number"
+            ? ` · ${formatAttemptLabel(run.attempt, run.max_attempts) ?? ""}`
+            : ""}
+        </span>
+      ) : null}
+    </>
+  );
+
+  const footer = (
+    <InboxItemFooter
+      approval_policy={item.approval_policy}
+      approval_state={item.approval_state}
+      blocking_reason={item.blocking_reason}
+      failedError={failedError}
+      isApprovalItem={isApprovalItem}
+      isArchived={isArchived}
+      isFailedRun={isFailedRun}
+      item={item}
+      onApprove={onApprove}
+      onArchive={onArchive}
+      onDismiss={onDismiss}
+      onMarkRead={onMarkRead}
+      onReject={onReject}
+      onRetry={onRetry}
+      pendingApproveId={pendingApproveId}
+      pendingArchiveId={pendingArchiveId}
+      pendingDismissId={pendingDismissId}
+      pendingMarkReadId={pendingMarkReadId}
+      pendingRejectId={pendingRejectId}
+      pendingRetryId={pendingRetryId}
+      taskId={taskId}
+      unread={unread}
+    />
+  );
+
   return (
-    <article
-      aria-label={`${taskInboxLaneLabel(lane)} item for ${task.title}`}
-      className={cn(
-        "flex flex-col gap-2 rounded-xl border bg-[color:var(--color-surface)] px-4 py-3 transition-colors",
-        unread
-          ? "border-[color:var(--color-divider)]"
-          : "border-[color:var(--color-divider)] opacity-90"
-      )}
+    <TasksListRow
+      className="rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3"
       data-lane={lane}
-      data-testid={`tasks-inbox-item-${taskId}`}
       data-unread={unread ? "true" : "false"}
-    >
-      <header className="flex flex-wrap items-center gap-2 text-xs">
-        {task.identifier ? (
-          <span
-            className="font-mono uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]"
-            data-testid={`tasks-inbox-item-identifier-${taskId}`}
-          >
-            {task.identifier}
-          </span>
-        ) : null}
-        {run ? (
-          <span className="font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]">
-            run {run.id}
-            {typeof run.attempt === "number"
-              ? ` · ${formatAttemptLabel(run.attempt, run.max_attempts) ?? ""}`
-              : ""}
-          </span>
-        ) : null}
-        <Pill variant={pillVariantFromTone(taskLaneTone(lane))}>{taskInboxLaneLabel(lane)}</Pill>
-        <Pill variant={pillVariantFromTone(taskStatusTone(task.status))}>
-          {taskStatusLabel(task.status)}
-        </Pill>
-        {unread ? (
-          <span
-            className="ml-auto inline-flex size-2 rounded-full bg-[color:var(--color-warning)]"
-            data-testid={`tasks-inbox-item-unread-${taskId}`}
-          />
-        ) : (
-          <span
-            className="ml-auto font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]"
-            data-testid={`tasks-inbox-item-read-${taskId}`}
-          >
-            read
-          </span>
-        )}
-      </header>
+      footer={footer}
+      lane={lane}
+      onSelect={onOpen ? handleSelect : undefined}
+      task={task as unknown as TaskListItem}
+      testId={`tasks-inbox-item-${taskId}`}
+      trailing={trailing}
+    />
+  );
+}
 
-      <Link
-        className="truncate text-sm font-medium text-[color:var(--color-text-primary)] hover:underline"
-        data-testid={`tasks-inbox-item-title-${taskId}`}
-        params={{ id: taskId }}
-        to="/tasks/$id"
-      >
-        {task.title}
-      </Link>
+interface InboxItemFooterProps {
+  item: TaskInboxItem;
+  taskId: string;
+  unread: boolean;
+  isApprovalItem: boolean;
+  isFailedRun: boolean;
+  isArchived: boolean;
+  failedError: string | null;
+  approval_policy?: TaskInboxItem["approval_policy"];
+  approval_state?: TaskInboxItem["approval_state"];
+  blocking_reason?: TaskInboxItem["blocking_reason"];
+  onApprove?: (taskId: string) => void;
+  onReject?: (taskId: string) => void;
+  onRetry?: (taskId: string) => void;
+  onArchive?: (taskId: string) => void;
+  onDismiss?: (taskId: string) => void;
+  onMarkRead?: (taskId: string) => void;
+  pendingApproveId?: string | null;
+  pendingRejectId?: string | null;
+  pendingRetryId?: string | null;
+  pendingArchiveId?: string | null;
+  pendingDismissId?: string | null;
+  pendingMarkReadId?: string | null;
+}
 
-      {item.blocking_reason ? (
+function InboxItemFooter({
+  item,
+  taskId,
+  unread,
+  isApprovalItem,
+  isFailedRun,
+  isArchived,
+  failedError,
+  approval_policy,
+  approval_state,
+  blocking_reason,
+  onApprove,
+  onReject,
+  onRetry,
+  onArchive,
+  onDismiss,
+  onMarkRead,
+  pendingApproveId,
+  pendingRejectId,
+  pendingRetryId,
+  pendingArchiveId,
+  pendingDismissId,
+  pendingMarkReadId,
+}: InboxItemFooterProps) {
+  const ownerLabel = item.task.owner?.ref ?? "—";
+
+  return (
+    <>
+      {blocking_reason ? (
         <p
           className="text-xs text-[color:var(--color-text-secondary)]"
           data-testid={`tasks-inbox-item-blocking-${taskId}`}
         >
-          {item.blocking_reason}
+          {blocking_reason}
         </p>
       ) : null}
 
@@ -134,16 +194,19 @@ export function TasksInboxItem({
         </p>
       ) : null}
 
-      {item.approval_policy === "manual" && item.approval_state ? (
+      {approval_policy === "manual" && approval_state ? (
         <p
           className="text-xs text-[color:var(--color-text-secondary)]"
           data-testid={`tasks-inbox-item-approval-${taskId}`}
         >
-          Approval state: {taskApprovalStateLabel(item.approval_state)}
+          Approval state: {taskApprovalStateLabel(approval_state)}
         </p>
       ) : null}
 
-      <footer className="flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div
+        className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px]"
+        data-testid={`tasks-inbox-item-actions-${taskId}`}
+      >
         <span className="flex items-center gap-2 text-[color:var(--color-text-tertiary)]">
           <span data-testid={`tasks-inbox-item-owner-${taskId}`}>{ownerLabel}</span>
           <span>·</span>
@@ -152,79 +215,82 @@ export function TasksInboxItem({
 
         <div
           className="flex flex-wrap items-center gap-1.5"
-          data-testid={`tasks-inbox-item-actions-${taskId}`}
+          onClick={stopPropagation}
+          onKeyDown={stopPropagation}
+          role="presentation"
         >
           {isApprovalItem && onReject ? (
             <ActionButton
-              icon={<X className="size-3.5" />}
+              icon={<X />}
               label="Reject"
               onClick={() => onReject(taskId)}
               pending={pendingRejectId === taskId}
               testId={`tasks-inbox-item-reject-${taskId}`}
-              tone="danger"
+              variant="danger"
             />
           ) : null}
           {isApprovalItem && onApprove ? (
             <ActionButton
-              icon={<Check className="size-3.5" />}
+              icon={<Check />}
               label="Approve"
               onClick={() => onApprove(taskId)}
               pending={pendingApproveId === taskId}
               testId={`tasks-inbox-item-approve-${taskId}`}
-              tone="accent"
+              variant="primary"
             />
           ) : null}
           {isFailedRun && onDismiss ? (
             <ActionButton
-              icon={<ArchiveX className="size-3.5" />}
+              icon={<ArchiveX />}
               label="Dismiss"
               onClick={() => onDismiss(taskId)}
               pending={pendingDismissId === taskId}
               testId={`tasks-inbox-item-dismiss-${taskId}`}
-              tone="neutral"
+              variant="ghost"
             />
           ) : null}
           {isFailedRun && onRetry ? (
             <ActionButton
-              icon={<RotateCcw className="size-3.5" />}
+              icon={<RotateCcw />}
               label="Retry"
               onClick={() => onRetry(taskId)}
               pending={pendingRetryId === taskId}
               testId={`tasks-inbox-item-retry-${taskId}`}
-              tone="accent"
+              variant="primary"
             />
           ) : null}
           {!isApprovalItem && !isFailedRun && onMarkRead && unread ? (
             <ActionButton
-              icon={<Eye className="size-3.5" />}
+              icon={<Eye />}
               label="Mark read"
               onClick={() => onMarkRead(taskId)}
               pending={pendingMarkReadId === taskId}
               testId={`tasks-inbox-item-mark-read-${taskId}`}
-              tone="neutral"
+              variant="ghost"
             />
           ) : null}
           {!isArchived && onArchive ? (
             <ActionButton
-              icon={<Archive className="size-3.5" />}
+              icon={<Archive />}
               label="Archive"
               onClick={() => onArchive(taskId)}
               pending={pendingArchiveId === taskId}
               testId={`tasks-inbox-item-archive-${taskId}`}
-              tone="neutral"
+              variant="ghost"
             />
           ) : null}
-          <Link
-            className="inline-flex items-center rounded-lg border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"
+          <Button
             data-testid={`tasks-inbox-item-open-${taskId}`}
-            params={{ id: taskId }}
-            to="/tasks/$id"
+            nativeButton={false}
+            render={<Link params={{ id: taskId }} to="/tasks/$id" />}
+            size="xs"
+            variant="outline"
           >
-            Open task
-          </Link>
+            Open
+          </Button>
         </div>
-      </footer>
-    </article>
+      </div>
+    </>
   );
 }
 
@@ -234,31 +300,29 @@ interface ActionButtonProps {
   onClick: () => void;
   pending: boolean;
   testId: string;
-  tone: "accent" | "danger" | "neutral";
+  variant: "primary" | "ghost" | "danger";
 }
 
-function ActionButton({ label, icon, onClick, pending, testId, tone }: ActionButtonProps) {
-  const toneClass =
-    tone === "accent"
-      ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)] hover:bg-[color:var(--color-accent-tint)]"
-      : tone === "danger"
-        ? "border-[color:var(--color-danger)] text-[color:var(--color-danger)] hover:bg-[color:var(--color-danger-tint)]"
-        : "border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]";
-
+function ActionButton({ label, icon, onClick, pending, testId, variant }: ActionButtonProps) {
+  const buttonVariant =
+    variant === "primary" ? "default" : variant === "danger" ? "destructive" : "ghost";
   return (
-    <button
+    <Button
       aria-label={label}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 font-mono text-[0.6rem] uppercase tracking-[0.12em] transition-colors disabled:opacity-50",
-        toneClass
-      )}
       data-testid={testId}
+      data-variant={variant}
       disabled={pending}
       onClick={onClick}
+      size="xs"
       type="button"
+      variant={buttonVariant}
     >
       {icon}
       {label}
-    </button>
+    </Button>
   );
+}
+
+function stopPropagation(event: { stopPropagation: () => void }) {
+  event.stopPropagation();
 }
