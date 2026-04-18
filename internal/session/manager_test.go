@@ -1121,6 +1121,187 @@ func TestPromptWithOptsRejectsSyntheticTurnSourceUntilDedicatedPathExists(t *tes
 	}
 }
 
+func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "system-session",
+		Workspace: h.workspaceID,
+		Type:      SessionTypeSystem,
+	})
+	if err != nil {
+		t.Fatalf("Create(system) error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	eventsCh, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+		Message: "synthetic wake-up",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskID:    "task-1",
+			TaskRunID: "run-1",
+			Reason:    "task_run_completed",
+			Summary:   "background work finished",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PromptSynthetic() error = %v", err)
+	}
+	_ = collectEvents(t, eventsCh)
+
+	if got := len(h.driver.promptCalls); got != 1 {
+		t.Fatalf("len(promptCalls) = %d, want 1", got)
+	}
+	if got := h.driver.promptCalls[0].Meta.TurnSource; got != acp.PromptTurnSourceSynthetic {
+		t.Fatalf("promptCalls[0].Meta.TurnSource = %q, want %q", got, acp.PromptTurnSourceSynthetic)
+	}
+	if h.driver.promptCalls[0].Meta.Synthetic == nil {
+		t.Fatal("promptCalls[0].Meta.Synthetic = nil, want metadata")
+	}
+	if got, want := h.driver.promptCalls[0].Meta.Synthetic.TaskRunID, "run-1"; got != want {
+		t.Fatalf("promptCalls[0].Meta.Synthetic.TaskRunID = %q, want %q", got, want)
+	}
+
+	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if len(stored) == 0 {
+		t.Fatal("stored events = 0, want persisted synthetic event")
+	}
+	if got := stored[0].Type; got != acp.EventTypeSyntheticReentry {
+		t.Fatalf("stored[0].Type = %q, want %q", got, acp.EventTypeSyntheticReentry)
+	}
+	if got := countEventType(stored, acp.EventTypeUserMessage); got != 0 {
+		t.Fatalf("countEventType(user_message) = %d, want 0 for synthetic-only prompt", got)
+	}
+
+	payload := decodeStoredEventPayload(t, stored[0])
+	if got, want := payload["type"], acp.EventTypeSyntheticReentry; got != want {
+		t.Fatalf("stored synthetic payload type = %v, want %q", got, want)
+	}
+	if got, want := payload["text"], "synthetic wake-up"; got != want {
+		t.Fatalf("stored synthetic payload text = %v, want %q", got, want)
+	}
+	syntheticPayload, ok := payload["synthetic"].(map[string]any)
+	if !ok {
+		t.Fatalf("stored synthetic payload metadata = %#v, want object", payload["synthetic"])
+	}
+	if got, want := syntheticPayload["task_run_id"], "run-1"; got != want {
+		t.Fatalf("stored synthetic task_run_id = %v, want %q", got, want)
+	}
+	if got, want := syntheticPayload["reason"], "task_run_completed"; got != want {
+		t.Fatalf("stored synthetic reason = %v, want %q", got, want)
+	}
+	if got, want := syntheticPayload["summary"], "background work finished"; got != want {
+		t.Fatalf("stored synthetic summary = %v, want %q", got, want)
+	}
+}
+
+func TestPromptSyntheticRejectsMissingWakeupMetadata(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	_, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+		Message: "synthetic wake-up",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskRunID: "run-1",
+		},
+	})
+	if err == nil {
+		t.Fatal("PromptSynthetic() error = nil, want validation failure")
+	}
+	if !strings.Contains(err.Error(), "requires a reason") {
+		t.Fatalf("PromptSynthetic() error = %v, want missing-reason validation", err)
+	}
+	if got := len(h.driver.promptCalls); got != 0 {
+		t.Fatalf("len(promptCalls) = %d, want 0 after validation failure", got)
+	}
+}
+
+func TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	firstPromptEntered := make(chan struct{})
+	releaseFirstPrompt := make(chan struct{})
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		if req.TurnID == "turn-1" {
+			close(firstPromptEntered)
+			events := make(chan acp.AgentEvent)
+			go func() {
+				<-releaseFirstPrompt
+				close(events)
+			}()
+			return events, nil
+		}
+
+		events := make(chan acp.AgentEvent)
+		close(events)
+		return events, nil
+	}
+
+	userEventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	<-firstPromptEntered
+
+	syntheticEventsCh, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+		Message: "synthetic prompt",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskRunID: "run-2",
+			Reason:    "task_run_completed",
+			Summary:   "queued behind user turn",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PromptSynthetic() error = %v", err)
+	}
+
+	if got := len(h.driver.promptCalls); got != 1 {
+		t.Fatalf("len(promptCalls) before releasing active turn = %d, want 1", got)
+	}
+
+	close(releaseFirstPrompt)
+	_ = collectEvents(t, userEventsCh)
+	_ = collectEvents(t, syntheticEventsCh)
+
+	if got := len(h.driver.promptCalls); got != 2 {
+		t.Fatalf("len(promptCalls) after draining synthetic queue = %d, want 2", got)
+	}
+	if got := h.driver.promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceSynthetic {
+		t.Fatalf("promptCalls[1].Meta.TurnSource = %q, want %q", got, acp.PromptTurnSourceSynthetic)
+	}
+
+	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if len(stored) < 2 {
+		t.Fatalf("stored events = %d, want at least the user and synthetic input events", len(stored))
+	}
+	if got := stored[0].Type; got != acp.EventTypeUserMessage {
+		t.Fatalf("stored[0].Type = %q, want %q", got, acp.EventTypeUserMessage)
+	}
+	if got := stored[1].Type; got != acp.EventTypeSyntheticReentry {
+		t.Fatalf("stored[1].Type = %q, want %q", got, acp.EventTypeSyntheticReentry)
+	}
+}
+
 func TestApprovePermissionRoutesToActiveSession(t *testing.T) {
 	t.Parallel()
 

@@ -61,6 +61,10 @@ type Manager struct {
 	pending    map[string]struct{}
 	finalizing map[string]chan struct{}
 
+	syntheticMu          sync.Mutex
+	syntheticQueues      map[string][]queuedSyntheticPrompt
+	syntheticDispatching map[string]bool
+
 	logger           *slog.Logger
 	driver           AgentDriver
 	notifier         Notifier
@@ -242,12 +246,14 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 
 	manager := &Manager{
-		sessions:   make(map[string]*Session),
-		pending:    make(map[string]struct{}),
-		finalizing: make(map[string]chan struct{}),
-		logger:     slog.Default(),
-		driver:     NewACPDriverAdapter(acp.New()),
-		homePaths:  homePaths,
+		sessions:             make(map[string]*Session),
+		pending:              make(map[string]struct{}),
+		finalizing:           make(map[string]chan struct{}),
+		syntheticQueues:      make(map[string][]queuedSyntheticPrompt),
+		syntheticDispatching: make(map[string]bool),
+		logger:               slog.Default(),
+		driver:               NewACPDriverAdapter(acp.New()),
+		homePaths:            homePaths,
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},

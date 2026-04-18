@@ -83,26 +83,27 @@ type toolLifecycle struct {
 }
 
 type canonicalEventPayload struct {
-	Schema     string          `json:"schema,omitempty"`
-	Type       string          `json:"type,omitempty"`
-	SessionID  string          `json:"session_id,omitempty"`
-	TurnID     string          `json:"turn_id,omitempty"`
-	RequestID  string          `json:"request_id,omitempty"`
-	Timestamp  time.Time       `json:"timestamp"`
-	Text       string          `json:"text,omitempty"`
-	Title      string          `json:"title,omitempty"`
-	ToolName   string          `json:"tool_name,omitempty"`
-	ToolCallID string          `json:"tool_call_id,omitempty"`
-	ToolInput  json.RawMessage `json:"tool_input,omitempty"`
-	ToolResult *ToolResult     `json:"tool_result,omitempty"`
-	ToolError  bool            `json:"tool_error,omitempty"`
-	StopReason string          `json:"stop_reason,omitempty"`
-	Action     string          `json:"action,omitempty"`
-	Resource   string          `json:"resource,omitempty"`
-	Decision   string          `json:"decision,omitempty"`
-	Error      string          `json:"error,omitempty"`
-	Usage      *acp.TokenUsage `json:"usage,omitempty"`
-	Raw        json.RawMessage `json:"raw,omitempty"`
+	Schema     string                   `json:"schema,omitempty"`
+	Type       string                   `json:"type,omitempty"`
+	SessionID  string                   `json:"session_id,omitempty"`
+	TurnID     string                   `json:"turn_id,omitempty"`
+	RequestID  string                   `json:"request_id,omitempty"`
+	Timestamp  time.Time                `json:"timestamp"`
+	Text       string                   `json:"text,omitempty"`
+	Title      string                   `json:"title,omitempty"`
+	ToolName   string                   `json:"tool_name,omitempty"`
+	ToolCallID string                   `json:"tool_call_id,omitempty"`
+	ToolInput  json.RawMessage          `json:"tool_input,omitempty"`
+	ToolResult *ToolResult              `json:"tool_result,omitempty"`
+	ToolError  bool                     `json:"tool_error,omitempty"`
+	StopReason string                   `json:"stop_reason,omitempty"`
+	Action     string                   `json:"action,omitempty"`
+	Resource   string                   `json:"resource,omitempty"`
+	Decision   string                   `json:"decision,omitempty"`
+	Error      string                   `json:"error,omitempty"`
+	Synthetic  *acp.PromptSyntheticMeta `json:"synthetic,omitempty"`
+	Usage      *acp.TokenUsage          `json:"usage,omitempty"`
+	Raw        json.RawMessage          `json:"raw,omitempty"`
 }
 
 // Assemble returns the canonical replay transcript for the provided persisted events.
@@ -727,6 +728,7 @@ func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 		Resource:   event.Resource,
 		Decision:   event.Decision,
 		Error:      event.Error,
+		Synthetic:  clonePromptSyntheticMeta(event.Synthetic),
 		Usage:      event.Usage,
 	}
 
@@ -791,8 +793,21 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Resource:   strings.TrimSpace(decoded.Resource),
 		Decision:   strings.TrimSpace(decoded.Decision),
 		Error:      strings.TrimSpace(decoded.Error),
+		Synthetic:  clonePromptSyntheticMeta(decoded.Synthetic),
 		Usage:      decoded.Usage,
 		Raw:        acp.CloneRawMessage(decoded.Raw),
 	}
 	return event, nil
+}
+
+func clonePromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSyntheticMeta {
+	if meta == nil {
+		return nil
+	}
+
+	cloned := meta.Normalize()
+	if cloned.IsZero() {
+		return nil
+	}
+	return &cloned
 }

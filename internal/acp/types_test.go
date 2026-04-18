@@ -135,3 +135,95 @@ func TestWaitForPromptQuiescenceHasMaximumDuration(t *testing.T) {
 		t.Fatalf("waitForPromptQuiescence() took %v, want bounded wait", elapsed)
 	}
 }
+
+func TestPromptMetaValidateSyntheticRequiresWakeupReason(t *testing.T) {
+	t.Parallel()
+
+	err := (PromptMeta{
+		TurnSource: PromptTurnSourceSynthetic,
+		Synthetic: &PromptSyntheticMeta{
+			TaskRunID: "run-1",
+		},
+	}).Validate()
+	if err == nil {
+		t.Fatal("PromptMeta.Validate() error = nil, want synthetic validation failure")
+	}
+	if !strings.Contains(err.Error(), "requires a reason") {
+		t.Fatalf("PromptMeta.Validate() error = %v, want missing-reason detail", err)
+	}
+}
+
+func TestPromptMetaValidateRejectsSyntheticFieldsOnUserAndNetworkTurns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		meta PromptMeta
+		want string
+	}{
+		{
+			name: "user",
+			meta: PromptMeta{
+				TurnSource: PromptTurnSourceUser,
+				Synthetic:  &PromptSyntheticMeta{Reason: "wake"},
+			},
+			want: "cannot include network or synthetic fields",
+		},
+		{
+			name: "network",
+			meta: PromptMeta{
+				TurnSource: PromptTurnSourceNetwork,
+				Synthetic:  &PromptSyntheticMeta{Reason: "wake"},
+			},
+			want: "cannot include synthetic fields",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.meta.Validate()
+			if err == nil {
+				t.Fatal("PromptMeta.Validate() error = nil, want validation failure")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("PromptMeta.Validate() error = %v, want substring %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestPromptSyntheticMetaNormalizeAndValidate(t *testing.T) {
+	t.Parallel()
+
+	meta := PromptSyntheticMeta{
+		TaskID:    " task-1 ",
+		TaskRunID: " run-1 ",
+		Reason:    " task_run_completed ",
+		Summary:   " ready ",
+	}
+	normalized := meta.Normalize()
+
+	if got, want := normalized.TaskID, "task-1"; got != want {
+		t.Fatalf("Normalize().TaskID = %q, want %q", got, want)
+	}
+	if got, want := normalized.TaskRunID, "run-1"; got != want {
+		t.Fatalf("Normalize().TaskRunID = %q, want %q", got, want)
+	}
+	if got, want := normalized.Reason, "task_run_completed"; got != want {
+		t.Fatalf("Normalize().Reason = %q, want %q", got, want)
+	}
+	if got, want := normalized.Summary, "ready"; got != want {
+		t.Fatalf("Normalize().Summary = %q, want %q", got, want)
+	}
+	if normalized.IsZero() {
+		t.Fatal("Normalize().IsZero() = true, want false")
+	}
+	if err := normalized.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if err := (PromptSyntheticMeta{}).Validate(); err == nil {
+		t.Fatal("Validate(empty) error = nil, want validation failure")
+	}
+}

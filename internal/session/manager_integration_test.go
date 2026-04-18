@@ -125,6 +125,133 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 	}
 }
 
+func TestManagerIntegrationSyntheticPromptPersistsDedicatedEventsWithMixedHistory(t *testing.T) {
+	h := newHarness(t)
+
+	session := createSession(t, h)
+	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
+	if err != nil {
+		t.Fatalf("Prompt(user) error = %v", err)
+	}
+	_ = collectEvents(t, userEvents)
+
+	networkEvents, err := h.manager.PromptNetwork(
+		testutil.Context(t),
+		session.ID,
+		"network prompt",
+		acp.PromptNetworkMeta{MessageID: "msg-1", Kind: "direct"},
+	)
+	if err != nil {
+		t.Fatalf("PromptNetwork() error = %v", err)
+	}
+	_ = collectEvents(t, networkEvents)
+
+	syntheticEvents, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+		Message: "synthetic wake-up",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskRunID: "run-1",
+			Reason:    "task_run_completed",
+			Summary:   "background task finished",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PromptSynthetic() error = %v", err)
+	}
+	_ = collectEvents(t, syntheticEvents)
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
+	if err != nil {
+		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
+	}
+	defer func() {
+		if err := reopened.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("reopened.Close() error = %v", err)
+		}
+	}()
+
+	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query(reopen) error = %v", err)
+	}
+	if got := countEventType(events, acp.EventTypeUserMessage); got != 2 {
+		t.Fatalf("countEventType(user_message) = %d, want 2 for user+network input", got)
+	}
+	if got := countEventType(events, acp.EventTypeSyntheticReentry); got != 1 {
+		t.Fatalf("countEventType(synthetic_reentry) = %d, want 1", got)
+	}
+	if !containsEventType(events, acp.EventTypeAgentMessage) || !containsEventType(events, acp.EventTypeDone) {
+		t.Fatalf("mixed history missing runtime events: %#v", events)
+	}
+}
+
+func TestManagerIntegrationSyntheticQueuePreservesOrderingBehindActivePrompt(t *testing.T) {
+	h := newHarness(t)
+
+	session := createSession(t, h)
+
+	firstPromptEntered := make(chan struct{})
+	releaseFirstPrompt := make(chan struct{})
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		if req.TurnID == "turn-1" {
+			close(firstPromptEntered)
+			events := make(chan acp.AgentEvent)
+			go func() {
+				<-releaseFirstPrompt
+				close(events)
+			}()
+			return events, nil
+		}
+
+		events := make(chan acp.AgentEvent)
+		close(events)
+		return events, nil
+	}
+
+	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
+	if err != nil {
+		t.Fatalf("Prompt(user) error = %v", err)
+	}
+	<-firstPromptEntered
+
+	syntheticEvents, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+		Message: "synthetic wake-up",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskRunID: "run-2",
+			Reason:    "task_run_completed",
+			Summary:   "queued after user turn",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PromptSynthetic() error = %v", err)
+	}
+
+	close(releaseFirstPrompt)
+	_ = collectEvents(t, userEvents)
+	_ = collectEvents(t, syntheticEvents)
+
+	events, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if len(events) < 2 {
+		t.Fatalf("stored events = %d, want at least two input events", len(events))
+	}
+	if got := events[0].Type; got != acp.EventTypeUserMessage {
+		t.Fatalf("events[0].Type = %q, want %q", got, acp.EventTypeUserMessage)
+	}
+	if got := events[1].Type; got != acp.EventTypeSyntheticReentry {
+		t.Fatalf("events[1].Type = %q, want %q", got, acp.EventTypeSyntheticReentry)
+	}
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("cleanup Stop() error = %v", err)
+	}
+}
+
 func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
 	h := newHarness(t)
 	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)

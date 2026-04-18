@@ -21,7 +21,7 @@ type TurnSource string
 const (
 	TurnSourceUser      TurnSource = TurnSource(acp.PromptTurnSourceUser)
 	TurnSourceNetwork   TurnSource = TurnSource(acp.PromptTurnSourceNetwork)
-	TurnSourceSynthetic TurnSource = "synthetic"
+	TurnSourceSynthetic TurnSource = TurnSource(acp.PromptTurnSourceSynthetic)
 )
 
 // PromptOpts carries per-turn metadata through the session prompt pipeline.

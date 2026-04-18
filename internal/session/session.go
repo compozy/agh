@@ -15,6 +15,8 @@ import (
 var (
 	// ErrInvalidStateTransition reports that a session state transition is not allowed.
 	ErrInvalidStateTransition = errors.New("session: invalid state transition")
+	// ErrPromptInProgress reports that the session already has prompt setup or execution in flight.
+	ErrPromptInProgress = errors.New("session: prompt already in progress")
 )
 
 // State is the lifecycle state of a managed runtime session.
@@ -312,6 +314,33 @@ func (s *Session) beginPromptSetup() (*AgentProcess, error) {
 	}
 	if s.process == nil {
 		return nil, errors.New("session: agent process is not available")
+	}
+	if s.promptSetupDone == nil {
+		s.promptSetupDone = closedSignalChan()
+	}
+	if s.promptSetupCount == 0 {
+		s.promptSetupDone = make(chan struct{})
+	}
+	s.promptSetupCount++
+	return s.process, nil
+}
+
+func (s *Session) beginExclusivePromptSetup() (*AgentProcess, error) {
+	if s == nil {
+		return nil, errors.New("session: session is required")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.State != StateActive {
+		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
+	}
+	if s.process == nil {
+		return nil, errors.New("session: agent process is not available")
+	}
+	if s.promptSetupCount > 0 || s.currentTurnSource != "" {
+		return nil, ErrPromptInProgress
 	}
 	if s.promptSetupDone == nil {
 		s.promptSetupDone = closedSignalChan()
