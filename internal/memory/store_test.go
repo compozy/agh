@@ -1169,6 +1169,78 @@ func TestWorkspaceMemoryDirRoundTripsToWorkspaceRoot(t *testing.T) {
 	})
 }
 
+func TestStoreNormalizesExplicitWorkspacePaths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should search workspace memories when the workspace option points at the memory dir", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		).ForWorkspace(workspaceRoot)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		if err := store.Write(ScopeWorkspace, "project.md", mustMemoryContent(t, testMemoryMeta{
+			Name:        "Workspace Search",
+			Description: "Normalize explicit workspace paths",
+			Type:        MemoryTypeProject,
+		}, "Unique workspace signal for normalization coverage.\n")); err != nil {
+			t.Fatalf("Store.Write(workspace) error = %v", err)
+		}
+
+		results, err := store.Search(context.Background(), "unique workspace signal", SearchOptions{
+			Scope:     ScopeWorkspace,
+			Workspace: workspaceMemoryDir(workspaceRoot),
+			Limit:     5,
+		})
+		if err != nil {
+			t.Fatalf("Store.Search() error = %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("len(results) = %d, want 1; results=%#v", len(results), results)
+		}
+		if results[0].Scope != ScopeWorkspace {
+			t.Fatalf("results[0].Scope = %q, want %q", results[0].Scope, ScopeWorkspace)
+		}
+		if results[0].Workspace != workspaceRoot {
+			t.Fatalf("results[0].Workspace = %q, want %q", results[0].Workspace, workspaceRoot)
+		}
+	})
+
+	t.Run("Should include workspace memories in health stats when given the memory dir form", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		).ForWorkspace(workspaceRoot)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		if err := store.Write(ScopeWorkspace, "project.md", mustMemoryContent(t, testMemoryMeta{
+			Name:        "Workspace Health",
+			Description: "Normalize health stats workspace filters",
+			Type:        MemoryTypeProject,
+		}, "Workspace health stats should use the canonical workspace root.\n")); err != nil {
+			t.Fatalf("Store.Write(workspace) error = %v", err)
+		}
+
+		stats, err := store.HealthStats(context.Background(), []string{workspaceMemoryDir(workspaceRoot)})
+		if err != nil {
+			t.Fatalf("Store.HealthStats() error = %v", err)
+		}
+		if stats.IndexedFiles != 1 || stats.OrphanedFiles != 0 || stats.LastReindex == nil {
+			t.Fatalf("HealthStats() = %#v, want indexed=1 orphaned=0 lastReindex set", stats)
+		}
+	})
+}
+
 func TestStoreRejectsInvalidInputs(t *testing.T) {
 	t.Parallel()
 

@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -34,8 +35,7 @@ const (
 )
 
 var (
-	Default                 = Verify
-	errRaceEnabledGoCommand = errors.New("run race-enabled go command")
+	Default = Verify
 )
 
 func Deps() error {
@@ -88,7 +88,7 @@ func Test() error {
 	if err := ensureWebBundle(); err != nil {
 		return err
 	}
-	return runRaceEnabledGoCommand(nil,
+	return runRaceEnabledGoCommand(context.Background(), nil,
 		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
 		"--format", "pkgname", "--", "-race", "-parallel=4", "./...")
 }
@@ -98,7 +98,7 @@ func TestIntegration() error {
 	if err := ensureWebBundle(); err != nil {
 		return err
 	}
-	return runRaceEnabledGoCommand(nil,
+	return runRaceEnabledGoCommand(context.Background(), nil,
 		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
 		"--format", "pkgname", "--", "-race", "-parallel=4", "-tags", "integration", "./...")
 }
@@ -134,33 +134,33 @@ func Build() error {
 }
 
 func Codegen() error {
-	if err := runCommandInDir(".", "go", "run", "./cmd/agh-codegen", "all"); err != nil {
+	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/agh-codegen", "all"); err != nil {
 		return err
 	}
 	return generateWebOpenAPITypes(webOpenAPITypePath)
 }
 
 func CodegenCheck() error {
-	if err := runCommandInDir(".", "go", "run", "./cmd/agh-codegen", "check"); err != nil {
+	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/agh-codegen", "check"); err != nil {
 		return err
 	}
 	return checkWebOpenAPITypes(webOpenAPITypePath)
 }
 
 func WebLint() error {
-	return runCommandInDir("web", "bun", "run", "lint")
+	return runCommandInDir(context.Background(), "web", "bun", "run", "lint")
 }
 
 func WebTypecheck() error {
-	return runCommandInDir("web", "bun", "run", "typecheck:raw")
+	return runCommandInDir(context.Background(), "web", "bun", "run", "typecheck:raw")
 }
 
 func WebTest() error {
-	return runCommandInDir("web", "bun", "run", "test:raw")
+	return runCommandInDir(context.Background(), "web", "bun", "run", "test:raw")
 }
 
 func WebBuild() error {
-	return runCommandInDir("web", "bun", "run", "build:raw")
+	return runCommandInDir(context.Background(), "web", "bun", "run", "build:raw")
 }
 
 func buildGo() error {
@@ -273,10 +273,10 @@ func generateWebOpenAPITypes(outputPath string) error {
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return err
 	}
-	if err := runCommandInDir(".", "bunx", "openapi-typescript", openAPISpecPath, "-o", outputPath); err != nil {
+	if err := runCommandInDir(context.Background(), ".", "bunx", "openapi-typescript", openAPISpecPath, "-o", outputPath); err != nil {
 		return err
 	}
-	return runCommandInDir(".", "bunx", "oxfmt", outputPath)
+	return runCommandInDir(context.Background(), ".", "bunx", "oxfmt", outputPath)
 }
 
 func checkWebOpenAPITypes(path string) error {
@@ -370,6 +370,8 @@ func ensureWebBundle() error {
 }
 
 func runE2ELane(lane e2elane.Lane) error {
+	ctx := context.Background()
+
 	plan, err := e2elane.PlanForLane(lane)
 	if err != nil {
 		return err
@@ -387,13 +389,13 @@ func runE2ELane(lane e2elane.Lane) error {
 	}
 
 	for _, suite := range plan.GoSuites {
-		if err := runIntegrationSuite(suite, laneEnv); err != nil {
+		if err := runIntegrationSuite(ctx, suite, laneEnv); err != nil {
 			return err
 		}
 	}
 
 	for _, suite := range plan.ScriptSuites {
-		if err := runCommandInDirWithEnv(suite.Dir, laneEnv, "bun", "run", suite.Script); err != nil {
+		if err := runCommandInDirWithEnv(ctx, suite.Dir, laneEnv, "bun", "run", suite.Script); err != nil {
 			return err
 		}
 	}
@@ -408,6 +410,7 @@ func shouldEnsureWebBundle(plan e2elane.Plan) bool {
 func prepareE2ELaneEnv() (map[string]string, error) {
 	daemonPath, err := resolveOrBuildLaneBinary(daemonBinaryEnvVar, func(outputPath string) error {
 		return runCommandInDir(
+			context.Background(),
 			".",
 			"go",
 			"build",
@@ -424,6 +427,7 @@ func prepareE2ELaneEnv() (map[string]string, error) {
 
 	driverPath, err := resolveOrBuildLaneBinary(driverBinaryEnvVar, func(outputPath string) error {
 		return runCommandInDir(
+			context.Background(),
 			".",
 			"go",
 			"build",
@@ -479,7 +483,7 @@ func laneBinaryName(name string) string {
 	return name
 }
 
-func runIntegrationSuite(suite e2elane.GoSuite, env map[string]string) error {
+func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[string]string) error {
 	args := []string{
 		"run",
 		"gotest.tools/gotestsum@" + gotestsumVersion,
@@ -496,15 +500,15 @@ func runIntegrationSuite(suite e2elane.GoSuite, env map[string]string) error {
 		args = append(args, "-run", suite.Run)
 	}
 	args = append(args, suite.Packages...)
-	return runRaceEnabledGoCommand(env, args...)
+	return runRaceEnabledGoCommand(ctx, env, args...)
 }
 
-func runCommandInDir(dir string, name string, args ...string) error {
-	return runCommandInDirWithEnv(dir, nil, name, args...)
+func runCommandInDir(ctx context.Context, dir string, name string, args ...string) error {
+	return runCommandInDirWithEnv(ctx, dir, nil, name, args...)
 }
 
-func runCommandInDirWithEnv(dir string, env map[string]string, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+func runCommandInDirWithEnv(ctx context.Context, dir string, env map[string]string, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -534,9 +538,9 @@ func mergeCommandEnv(overrides map[string]string) []string {
 	return env
 }
 
-func runRaceEnabledGoCommand(env map[string]string, args ...string) error {
-	if err := runCommandInDirWithEnv(".", withRaceEnabledEnv(env), "go", args...); err != nil {
-		return fmt.Errorf("%w %v: %w", errRaceEnabledGoCommand, args, err)
+func runRaceEnabledGoCommand(ctx context.Context, env map[string]string, args ...string) error {
+	if err := runCommandInDirWithEnv(ctx, ".", withRaceEnabledEnv(env), "go", args...); err != nil {
+		return fmt.Errorf("race-enabled go command %v: %w", args, err)
 	}
 	return nil
 }

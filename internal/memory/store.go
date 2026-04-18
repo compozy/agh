@@ -80,7 +80,7 @@ func WithCatalogDatabasePath(path string) StoreOption {
 // ForWorkspace returns a clone of the store bound to the supplied workspace root.
 func (s *Store) ForWorkspace(workspaceRoot string) *Store {
 	clone := *s
-	clone.workspaceDir = workspaceMemoryDir(workspaceRoot)
+	clone.workspaceDir = workspaceMemoryDir(canonicalWorkspaceRoot(workspaceRoot))
 	return &clone
 }
 
@@ -413,15 +413,15 @@ func (s *Store) HealthStats(ctx context.Context, workspaces []string) (HealthSta
 	filters = append(filters, catalogFilter{scope: ScopeGlobal})
 	seen := map[string]struct{}{}
 	for _, workspace := range workspaces {
-		trimmed := strings.TrimSpace(workspace)
-		if trimmed == "" {
+		workspaceRoot := canonicalWorkspaceRoot(workspace)
+		if workspaceRoot == "" {
 			continue
 		}
-		if _, exists := seen[trimmed]; exists {
+		if _, exists := seen[workspaceRoot]; exists {
 			continue
 		}
-		seen[trimmed] = struct{}{}
-		filters = append(filters, catalogFilter{scope: ScopeWorkspace, workspaceRoot: trimmed})
+		seen[workspaceRoot] = struct{}{}
+		filters = append(filters, catalogFilter{scope: ScopeWorkspace, workspaceRoot: workspaceRoot})
 	}
 
 	for _, filter := range filters {
@@ -576,7 +576,7 @@ func (s *Store) normalizeScopeAndWorkspace(scope Scope, workspace string) (Scope
 		}
 	}
 
-	workspaceRoot := cleanDirPath(workspace)
+	workspaceRoot := canonicalWorkspaceRoot(workspace)
 	if workspaceRoot == "" {
 		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
 	}
@@ -910,6 +910,17 @@ func cleanDirPath(path string) string {
 	}
 
 	return filepath.Clean(trimmed)
+}
+
+func canonicalWorkspaceRoot(path string) string {
+	clean := cleanDirPath(path)
+	if clean == "" {
+		return ""
+	}
+	if root := deriveWorkspaceRoot(clean); root != "" {
+		return root
+	}
+	return clean
 }
 
 func cleanFilename(filename string) (string, error) {
