@@ -1,12 +1,23 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 
-import { Pill } from "@agh/ui";
+import {
+  MonoBadge,
+  Pill,
+  Section,
+  StatusDot,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@agh/ui";
+import { pillVariantFromTone } from "@/lib/pill-variant";
 
-import { formatRelativeTime, taskRunStatusTone } from "../lib/task-formatters";
+import { formatRelativeTime, taskRunStatusTone, taskStatusSignal } from "../lib/task-formatters";
 import type { TaskRun } from "../types";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksDetailRunsPanelProps {
   taskId: string;
   runs: TaskRun[];
@@ -57,57 +68,79 @@ export function TasksDetailRunsPanel({
   }
 
   return (
-    <section
+    <Section
       aria-label="Task runs"
-      className="flex min-h-0 flex-1 flex-col"
+      className="px-6 py-5"
       data-testid="tasks-detail-runs-panel"
+      label={`Runs · ${runs.length}`}
     >
-      <ol className="flex flex-col divide-y divide-[color:var(--color-divider)]">
-        {runs.map(run => (
-          <li
-            className="flex items-center gap-3 px-6 py-3 hover:bg-[color:var(--color-surface)]"
-            data-testid={`tasks-detail-runs-item-${run.id}`}
-            key={run.id}
-          >
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-secondary)]">
-                <Pill variant={pillVariantFromTone(taskRunStatusTone(run.status))}>
-                  {run.status}
-                </Pill>
-                <span className="font-mono text-[color:var(--color-text-primary)]">{run.id}</span>
-                <span>attempt {run.attempt}</span>
-                {run.session_id ? (
-                  <span className="font-mono">session {run.session_id}</span>
-                ) : null}
-                {run.claimed_by?.ref ? <span>· claimed by {run.claimed_by.ref}</span> : null}
-              </div>
-              <div className="flex flex-wrap items-center gap-3 text-[0.66rem] font-mono uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-                <span>queued {formatRelativeTime(run.queued_at)}</span>
-                {run.started_at ? <span>started {formatRelativeTime(run.started_at)}</span> : null}
-                {run.ended_at ? <span>ended {formatRelativeTime(run.ended_at)}</span> : null}
-              </div>
-              {run.error ? (
-                <p
-                  className="text-xs text-[color:var(--color-danger)]"
-                  data-testid={`tasks-detail-runs-error-${run.id}`}
-                >
-                  {run.error}
-                </p>
-              ) : null}
-            </div>
-            <Link
-              aria-label={`Open run ${run.id}`}
-              className="flex shrink-0 items-center gap-1 font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
-              data-testid={`tasks-detail-runs-link-${run.id}`}
-              params={{ id: taskId, runId: run.id }}
-              to="/tasks/$id/runs/$runId"
-            >
-              Open
-              <ChevronRight className="size-3" />
-            </Link>
-          </li>
-        ))}
-      </ol>
-    </section>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead />
+            <TableHead>Run</TableHead>
+            <TableHead>Attempt</TableHead>
+            <TableHead>Queued</TableHead>
+            <TableHead>Ended</TableHead>
+            <TableHead className="w-8" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {runs.map(run => {
+            const signal = taskStatusSignal(run.status);
+            return (
+              <TableRow data-testid={`tasks-detail-runs-item-${run.id}`} key={run.id}>
+                <TableCell className="w-8 pl-4">
+                  <StatusDot tone={signal.tone} pulse={signal.pulse} />
+                </TableCell>
+                <TableCell className="max-w-[360px]">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <MonoBadge>{run.id}</MonoBadge>
+                      <Pill variant={pillVariantFromTone(taskRunStatusTone(run.status))}>
+                        {run.status}
+                      </Pill>
+                      {run.session_id ? (
+                        <span className="font-mono text-[11px] text-[color:var(--color-text-secondary)]">
+                          session {run.session_id}
+                        </span>
+                      ) : null}
+                    </div>
+                    {run.error ? (
+                      <p
+                        className="text-[11px] text-[color:var(--color-danger)]"
+                        data-testid={`tasks-detail-runs-error-${run.id}`}
+                      >
+                        {run.error}
+                      </p>
+                    ) : null}
+                  </div>
+                </TableCell>
+                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-secondary)]">
+                  attempt {run.attempt}
+                </TableCell>
+                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                  {formatRelativeTime(run.queued_at)}
+                </TableCell>
+                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                  {run.ended_at ? formatRelativeTime(run.ended_at) : "—"}
+                </TableCell>
+                <TableCell className="w-8 pr-4">
+                  <Link
+                    aria-label={`Open run ${run.id}`}
+                    className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
+                    data-testid={`tasks-detail-runs-link-${run.id}`}
+                    params={{ id: taskId, runId: run.id }}
+                    to="/tasks/$id/runs/$runId"
+                  >
+                    Open <ChevronRight className="size-3" />
+                  </Link>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </Section>
   );
 }

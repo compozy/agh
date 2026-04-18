@@ -91,7 +91,7 @@ export {
 } from "./lib/query-options";
 
 // Formatters and helpers
-export type { TaskSemanticTone } from "./lib/task-formatters";
+export type { TaskSemanticTone, TaskStatusSignal } from "./lib/task-formatters";
 export {
   countTasksByStatus,
   formatAttemptLabel,
@@ -110,7 +110,9 @@ export {
   taskPriorityLabel,
   taskPriorityTone,
   taskRunStatusTone,
+  taskShortId,
   taskStatusLabel,
+  taskStatusSignal,
   taskStatusTone,
 } from "./lib/task-formatters";
 
@@ -165,6 +167,8 @@ export {
 export { TASKS_SHELL_TITLE, TasksPageShell } from "./components/tasks-page-shell";
 export { TaskCard } from "./components/task-card";
 export type { TaskCardProps } from "./components/task-card";
+export { TasksListRow } from "./components/tasks-list-row";
+export type { TasksListRowProps } from "./components/tasks-list-row";
 export { TasksListPanel } from "./components/tasks-list-panel";
 export type { TasksListPanelProps } from "./components/tasks-list-panel";
 export { TasksDetailPreviewPanel } from "./components/tasks-detail-preview-panel";

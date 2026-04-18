@@ -1,24 +1,40 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { Pill } from "@agh/ui";
+import {
+  MonoBadge,
+  Pill,
+  Section,
+  StatusDot,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@agh/ui";
+import { pillVariantFromTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
   taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
-  taskStatusLabel,
+  taskShortId,
+  taskStatusSignal,
   taskStatusTone,
 } from "../lib/task-formatters";
 import type { TaskChildSummary } from "../types";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
 export interface TasksDetailChildrenPanelProps {
   items: TaskChildSummary[];
   errorMessage?: string | null;
 }
 
+/**
+ * Child task table — `Section` + `Table` with `StatusDot` + `MonoBadge` id +
+ * status/priority pills + owner + last-activity + deep-link.
+ */
 export function TasksDetailChildrenPanel({
   items,
   errorMessage = null,
@@ -46,53 +62,72 @@ export function TasksDetailChildrenPanel({
   }
 
   return (
-    <section
+    <Section
       aria-label="Child tasks"
-      className="flex min-h-0 flex-1 flex-col"
+      className="px-6 py-5"
       data-testid="tasks-detail-children-panel"
+      label={`Children · ${items.length}`}
     >
-      <ol className="flex flex-col divide-y divide-[color:var(--color-divider)]">
-        {items.map(child => (
-          <li
-            className="flex items-center gap-3 px-6 py-3 hover:bg-[color:var(--color-surface)]"
-            data-testid={`tasks-detail-children-item-${child.id}`}
-            key={child.id}
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-secondary)]">
-                <Pill variant={pillVariantFromTone(taskStatusTone(child.status))}>
-                  {taskStatusLabel(child.status)}
-                </Pill>
-                {child.priority ? (
-                  <Pill variant={pillVariantFromTone(taskPriorityTone(child.priority))}>
-                    {taskPriorityLabel(child.priority)}
-                  </Pill>
-                ) : null}
-                <span className="font-mono text-[color:var(--color-text-primary)]">
-                  {child.identifier ?? child.id}
-                </span>
-                <span>· Owner {taskOwnerLabel(child.owner)}</span>
-                {child.last_activity_at ? (
-                  <span>· Updated {formatRelativeTime(child.last_activity_at)}</span>
-                ) : null}
-              </div>
-              <p className="mt-1 truncate text-sm text-[color:var(--color-text-primary)]">
-                {child.title}
-              </p>
-            </div>
-            <Link
-              aria-label={`Open task ${child.identifier ?? child.id}`}
-              className="flex shrink-0 items-center gap-1 font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
-              data-testid={`tasks-detail-children-link-${child.id}`}
-              params={{ id: child.id }}
-              to="/tasks/$id"
-            >
-              Open
-              <ChevronRight className="size-3" />
-            </Link>
-          </li>
-        ))}
-      </ol>
-    </section>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead />
+            <TableHead>Title</TableHead>
+            <TableHead>Owner</TableHead>
+            <TableHead>Updated</TableHead>
+            <TableHead className="w-8" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map(child => {
+            const signal = taskStatusSignal(child.status);
+            return (
+              <TableRow data-testid={`tasks-detail-children-item-${child.id}`} key={child.id}>
+                <TableCell className="w-8 pl-4">
+                  <StatusDot tone={signal.tone} pulse={signal.pulse} />
+                </TableCell>
+                <TableCell className="max-w-[360px]">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="truncate text-[13px] text-[color:var(--color-text-primary)]">
+                      {child.title}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                      <MonoBadge>
+                        {taskShortId({ id: child.id, identifier: child.identifier })}
+                      </MonoBadge>
+                      <Pill variant={pillVariantFromTone(taskStatusTone(child.status))}>
+                        {child.status}
+                      </Pill>
+                      {child.priority ? (
+                        <Pill variant={pillVariantFromTone(taskPriorityTone(child.priority))}>
+                          {taskPriorityLabel(child.priority)}
+                        </Pill>
+                      ) : null}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="text-[12px] text-[color:var(--color-text-secondary)]">
+                  {taskOwnerLabel(child.owner)}
+                </TableCell>
+                <TableCell className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                  {child.last_activity_at ? formatRelativeTime(child.last_activity_at) : "—"}
+                </TableCell>
+                <TableCell className="w-8 pr-4">
+                  <Link
+                    aria-label={`Open task ${child.identifier ?? child.id}`}
+                    className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
+                    data-testid={`tasks-detail-children-link-${child.id}`}
+                    params={{ id: child.id }}
+                    to="/tasks/$id"
+                  >
+                    Open <ChevronRight className="size-3" />
+                  </Link>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </Section>
   );
 }

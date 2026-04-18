@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ArrowUpRight, ChevronRight, Loader2 } from "lucide-react";
 
-import { Pill } from "@agh/ui";
+import { MonoBadge, Pill, Section, StatusDot } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import type { MultiAgentAgent, MultiAgentLiveState } from "@/hooks/routes/use-task-detail-page";
@@ -12,12 +12,14 @@ import {
   taskOwnerLabel,
   taskRunStatusTone,
   taskStatusLabel,
+  taskStatusSignal,
   taskStatusTone,
 } from "../lib/task-formatters";
 import type { TaskTimelineItem } from "../types";
 import { TasksTimelinePanel } from "./tasks-timeline-panel";
 
 import { pillVariantFromTone } from "@/lib/pill-variant";
+
 export interface TasksMultiAgentPanelProps {
   agents: MultiAgentAgent[];
   state: MultiAgentLiveState;
@@ -33,6 +35,12 @@ export interface TasksMultiAgentPanelProps {
   errorMessage?: string | null;
 }
 
+/**
+ * Multi-agent live view — `Section` header summarising descendant/live counts,
+ * one `<article>` per agent (`StatusDot` + `MonoBadge` id + status/priority
+ * pills + open links), and an interleaved timeline `Section` below built from
+ * `TasksTimelinePanel`.
+ */
 export function TasksMultiAgentPanel({
   agents,
   state,
@@ -79,22 +87,17 @@ export function TasksMultiAgentPanel({
       className="flex min-h-0 flex-1 flex-col gap-5 px-6 py-5"
       data-testid="tasks-multi-agent-panel"
     >
-      <header
-        className="flex flex-wrap items-center justify-between gap-3"
+      <Section
         data-testid="tasks-multi-agent-header"
+        label={descendantCount === 0 ? "Multi-Agent Live" : `Multi-Agent Live · ${descendantCount}`}
+        right={<AgentsLivePill count={liveCount} />}
       >
-        <div className="flex flex-col gap-1">
-          <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-            Multi-Agent Live
-          </p>
-          <p className="text-sm text-[color:var(--color-text-secondary)]">
-            {descendantCount === 0
-              ? "No child runs yet."
-              : `${descendantCount} ${descendantCount === 1 ? "descendant" : "descendants"} · ${activeDescendants} active`}
-          </p>
-        </div>
-        <AgentsLivePill count={liveCount} />
-      </header>
+        <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+          {descendantCount === 0
+            ? "No child runs yet."
+            : `${descendantCount} ${descendantCount === 1 ? "descendant" : "descendants"} · ${activeDescendants} active`}
+        </p>
+      </Section>
 
       {state === "no-descendants" ? (
         <div
@@ -122,25 +125,23 @@ export function TasksMultiAgentPanel({
         </div>
       ) : null}
 
-      <section
+      <Section
         aria-label="Interleaved agent timeline"
-        className="flex min-h-0 flex-col gap-3 rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)]"
+        className="gap-3 rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-5 py-4"
         data-testid="tasks-multi-agent-timeline"
-      >
-        <div className="flex items-center justify-between gap-2 border-b border-[color:var(--color-divider)] px-5 py-3">
-          <p className="font-mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-            Interleaved Timeline · all runs, dedup by (run_id, seq)
-          </p>
-          {timelineLive ? (
+        label="Interleaved Timeline · dedup by (run_id, seq)"
+        right={
+          timelineLive ? (
             <span
-              className="inline-flex items-center gap-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)]"
+              className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)]"
               data-testid="tasks-multi-agent-timeline-live"
             >
-              <span className="size-1.5 animate-pulse rounded-full bg-[color:var(--color-accent)]" />
+              <StatusDot tone="accent" pulse />
               Live
             </span>
-          ) : null}
-        </div>
+          ) : undefined
+        }
+      >
         <TasksTimelinePanel
           canLoadMore={canLoadMoreTimeline}
           errorMessage={timelineErrorMessage}
@@ -149,7 +150,7 @@ export function TasksMultiAgentPanel({
           items={timeline}
           onLoadMore={onLoadMoreTimeline}
         />
-      </section>
+      </Section>
     </section>
   );
 }
@@ -166,6 +167,7 @@ function TasksMultiAgentAgentCard({ agent }: TasksMultiAgentAgentCardProps) {
   const attempts = run ? formatAttemptLabel(run.attempt, run.max_attempts) : null;
   const ownerLabel = taskOwnerLabel(task.owner);
   const lineage = agent.isRoot ? "primary task" : `child of ${node.parent_task_id ?? "—"}`;
+  const signal = taskStatusSignal(task.status);
 
   return (
     <article
@@ -183,25 +185,24 @@ function TasksMultiAgentAgentCard({ agent }: TasksMultiAgentAgentCardProps) {
           <AgentAvatar label={agent.label} isLive={agent.isLive} />
           <div className="min-w-0 flex-1">
             <div
-              className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-secondary)]"
+              className="flex flex-wrap items-center gap-2 text-[13px] text-[color:var(--color-text-secondary)]"
               data-testid={`tasks-multi-agent-agent-meta-${task.id}`}
             >
-              <span className="text-sm font-semibold text-[color:var(--color-text-primary)]">
+              <StatusDot tone={signal.tone} pulse={signal.pulse} />
+              <span className="text-[13px] font-semibold text-[color:var(--color-text-primary)]">
                 {agent.label}
               </span>
-              {run?.id ? (
-                <span className="font-mono text-[color:var(--color-text-primary)]">{run.id}</span>
-              ) : null}
+              {run?.id ? <MonoBadge>{run.id}</MonoBadge> : null}
               <span>· {lineage}</span>
               {attempts ? <span>· {attempts}</span> : null}
             </div>
             <p
-              className="mt-1 truncate text-sm text-[color:var(--color-text-primary)]"
+              className="mt-1 truncate text-[13px] text-[color:var(--color-text-primary)]"
               data-testid={`tasks-multi-agent-agent-title-${task.id}`}
             >
               {task.title}
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-secondary)]">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[color:var(--color-text-secondary)]">
               <Pill variant={pillVariantFromTone(taskStatusTone(task.status))}>
                 {taskStatusLabel(task.status)}
               </Pill>
@@ -222,7 +223,7 @@ function TasksMultiAgentAgentCard({ agent }: TasksMultiAgentAgentCardProps) {
             </div>
             {run?.error ? (
               <p
-                className="mt-2 flex items-start gap-1 text-xs text-[color:var(--color-danger)]"
+                className="mt-2 flex items-start gap-1 text-[11px] text-[color:var(--color-danger)]"
                 data-testid={`tasks-multi-agent-agent-error-${task.id}`}
               >
                 <AlertCircle className="mt-0.5 size-3 shrink-0" />
@@ -233,19 +234,16 @@ function TasksMultiAgentAgentCard({ agent }: TasksMultiAgentAgentCardProps) {
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           {agent.isRoot ? (
-            <span
-              className="inline-flex items-center gap-1 rounded-md bg-[color:var(--color-accent-tint)] px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)]"
-              data-testid={`tasks-multi-agent-agent-primary-${task.id}`}
-            >
+            <MonoBadge data-testid={`tasks-multi-agent-agent-primary-${task.id}`} tone="accent">
               Primary · Pinned
-            </span>
+            </MonoBadge>
           ) : null}
           {agent.isLive ? (
             <span
-              className="inline-flex items-center gap-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)]"
+              className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)]"
               data-testid={`tasks-multi-agent-agent-live-${task.id}`}
             >
-              <span className="size-1.5 animate-pulse rounded-full bg-[color:var(--color-accent)]" />
+              <StatusDot tone="accent" pulse />
               Live
             </span>
           ) : null}
@@ -258,7 +256,7 @@ function TasksMultiAgentAgentCard({ agent }: TasksMultiAgentAgentCardProps) {
       >
         {run?.session_id ? (
           <Link
-            className="inline-flex items-center gap-1 font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
+            className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
             data-testid={`tasks-multi-agent-agent-session-${task.id}`}
             params={{ id: run.session_id }}
             to="/session/$id"
@@ -268,7 +266,7 @@ function TasksMultiAgentAgentCard({ agent }: TasksMultiAgentAgentCardProps) {
         ) : null}
         {run?.id ? (
           <Link
-            className="inline-flex items-center gap-1 font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
+            className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
             data-testid={`tasks-multi-agent-agent-run-${task.id}`}
             params={{ id: task.id, runId: run.id }}
             to="/tasks/$id/runs/$runId"
@@ -278,7 +276,7 @@ function TasksMultiAgentAgentCard({ agent }: TasksMultiAgentAgentCardProps) {
         ) : null}
         {!agent.isRoot ? (
           <Link
-            className="inline-flex items-center gap-1 font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
+            className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:underline"
             data-testid={`tasks-multi-agent-agent-task-${task.id}`}
             params={{ id: task.id }}
             to="/tasks/$id"
@@ -300,18 +298,14 @@ function AgentsLivePill({ count }: AgentsLivePillProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 rounded-md border px-3 py-1 font-mono text-[0.62rem] uppercase tracking-[0.14em]",
+        "inline-flex items-center gap-2 rounded-md border px-3 py-1 font-mono text-[11px] uppercase tracking-[0.14em]",
         isLive
           ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)]"
           : "border-[color:var(--color-divider)] bg-[color:var(--color-surface)] text-[color:var(--color-text-secondary)]"
       )}
       data-testid="tasks-multi-agent-live-count"
     >
-      {isLive ? (
-        <span className="size-1.5 animate-pulse rounded-full bg-[color:var(--color-accent)]" />
-      ) : (
-        <span className="size-1.5 rounded-full bg-[color:var(--color-text-tertiary)]" />
-      )}
+      <StatusDot tone={isLive ? "accent" : "neutral"} pulse={isLive} />
       {count} {count === 1 ? "agent" : "agents"} live
     </span>
   );

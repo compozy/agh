@@ -1,7 +1,7 @@
 import { Globe, ListChecks, Plus, RefreshCcw, Sparkles, UserCheck, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Empty, Pill } from "@agh/ui";
+import { Button, Empty, Pill, Section } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 
@@ -22,6 +22,11 @@ export interface TasksEmptyStateProps {
   onCopyCli?: () => void;
 }
 
+/**
+ * Empty-state for the Tasks domain — composes `@agh/ui` `Empty` + `Section` +
+ * template-card grid. The `Empty` action slot owns the primary CTA; the Section
+ * below lists the six task templates.
+ */
 export function TasksEmptyState({
   workspaceName,
   onSelectTemplate,
@@ -62,17 +67,16 @@ export function TasksEmptyState({
           }
         />
 
-        <section data-testid="tasks-empty-templates">
-          <div className="flex items-center justify-between">
-            <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-              Start from a template
-            </p>
-            <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-tertiary)]">
+        <Section
+          data-testid="tasks-empty-templates"
+          label="Start from a template"
+          right={
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[color:var(--color-text-tertiary)]">
               {TASK_TEMPLATES.length} templates
             </p>
-          </div>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_1fr_1fr]">
+          }
+        >
+          <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_1fr_1fr]">
             {TASK_TEMPLATES.map(template => (
               <TemplateCard
                 key={template.id}
@@ -81,7 +85,7 @@ export function TasksEmptyState({
               />
             ))}
           </div>
-        </section>
+        </Section>
       </div>
     </div>
   );
