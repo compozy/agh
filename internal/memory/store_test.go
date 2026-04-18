@@ -665,28 +665,30 @@ func TestStoreLoadIndex(t *testing.T) {
 }
 
 func TestStoreLoadPromptIndexViaBackendAlias(t *testing.T) {
-	t.Parallel()
+	t.Run("Should expose LoadIndex via the backend alias", func(t *testing.T) {
+		t.Parallel()
 
-	env := newTestStoreEnv(t)
-	if err := env.store.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
-		Name:        "Prefs",
-		Description: "Saved preference",
-		Type:        MemoryTypeUser,
-	}, "body\n")); err != nil {
-		t.Fatalf("Store.Write() error = %v", err)
-	}
+		env := newTestStoreEnv(t)
+		if err := env.store.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+			Name:        "Prefs",
+			Description: "Saved preference",
+			Type:        MemoryTypeUser,
+		}, "body\n")); err != nil {
+			t.Fatalf("Store.Write() error = %v", err)
+		}
 
-	var backend Backend = env.store
-	got, truncated, err := backend.LoadPromptIndex(ScopeGlobal)
-	if err != nil {
-		t.Fatalf("Backend.LoadPromptIndex() error = %v", err)
-	}
-	if truncated {
-		t.Fatal("Backend.LoadPromptIndex() truncated = true, want false")
-	}
-	if !strings.Contains(got, "- [Prefs](prefs.md) - Saved preference") {
-		t.Fatalf("Backend.LoadPromptIndex() = %q, want rendered index entry", got)
-	}
+		var backend Backend = env.store
+		got, truncated, err := backend.LoadPromptIndex(ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Backend.LoadPromptIndex() error = %v", err)
+		}
+		if truncated {
+			t.Fatal("Backend.LoadPromptIndex() truncated = true, want false")
+		}
+		if !strings.Contains(got, "- [Prefs](prefs.md) - Saved preference") {
+			t.Fatalf("Backend.LoadPromptIndex() = %q, want rendered index entry", got)
+		}
+	})
 }
 
 func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
@@ -789,142 +791,210 @@ func TestStoreLoadIndexSynthesizesWhenIndexIsMissingOrStale(t *testing.T) {
 }
 
 func TestStoreSearchAndReindex(t *testing.T) {
-	t.Parallel()
+	t.Run("Should search and reindex visible scopes on cold start", func(t *testing.T) {
+		t.Parallel()
 
-	baseDir := t.TempDir()
-	workspaceRoot := filepath.Join(baseDir, "workspace")
-	catalogPath := filepath.Join(baseDir, "agh.db")
-	store := NewStore(
-		filepath.Join(baseDir, "global"),
-		WithCatalogDatabasePath(catalogPath),
-	).ForWorkspace(workspaceRoot)
-	if err := store.EnsureDirs(); err != nil {
-		t.Fatalf("Store.EnsureDirs() error = %v", err)
-	}
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(catalogPath),
+		).ForWorkspace(workspaceRoot)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
 
-	if err := store.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
-		Name:        "Code Style",
-		Description: "Keep prompts concise",
-		Type:        MemoryTypeUser,
-	}, "User prefers concise answers and explicit tradeoffs.\n")); err != nil {
-		t.Fatalf("Store.Write(global) error = %v", err)
-	}
-	if err := store.Write(ScopeWorkspace, "auth.md", mustMemoryContent(t, testMemoryMeta{
-		Name:        "Auth Rewrite",
-		Description: "Workspace auth migration",
-		Type:        MemoryTypeProject,
-	}, "The workspace is migrating auth from JWT to sessions.\n")); err != nil {
-		t.Fatalf("Store.Write(workspace) error = %v", err)
-	}
+		if err := store.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+			Name:        "Code Style",
+			Description: "Keep prompts concise",
+			Type:        MemoryTypeUser,
+		}, "User prefers concise answers and explicit tradeoffs.\n")); err != nil {
+			t.Fatalf("Store.Write(global) error = %v", err)
+		}
+		if err := store.Write(ScopeWorkspace, "auth.md", mustMemoryContent(t, testMemoryMeta{
+			Name:        "Auth Rewrite",
+			Description: "Workspace auth migration",
+			Type:        MemoryTypeProject,
+		}, "The workspace is migrating auth from JWT to sessions.\n")); err != nil {
+			t.Fatalf("Store.Write(workspace) error = %v", err)
+		}
 
-	ctx := context.Background()
-	results, err := store.Search(ctx, "auth sessions concise", SearchOptions{Workspace: workspaceRoot, Limit: 5})
-	if err != nil {
-		t.Fatalf("Store.Search() error = %v", err)
-	}
-	if len(results) != 2 {
-		t.Fatalf("len(results) = %d, want 2; results=%#v", len(results), results)
-	}
-	if results[0].Scope != ScopeWorkspace {
-		t.Fatalf("results[0].Scope = %q, want workspace", results[0].Scope)
-	}
+		ctx := context.Background()
+		results, err := store.Search(ctx, "auth sessions concise", SearchOptions{Workspace: workspaceRoot, Limit: 5})
+		if err != nil {
+			t.Fatalf("Store.Search() error = %v", err)
+		}
+		if len(results) != 2 {
+			t.Fatalf("len(results) = %d, want 2; results=%#v", len(results), results)
+		}
+		if results[0].Scope != ScopeWorkspace {
+			t.Fatalf("results[0].Scope = %q, want workspace", results[0].Scope)
+		}
 
-	reindex, err := store.Reindex(ctx, ReindexOptions{Workspace: workspaceRoot})
-	if err != nil {
-		t.Fatalf("Store.Reindex() error = %v", err)
-	}
-	if reindex.IndexedFiles != 2 {
-		t.Fatalf("Reindex.IndexedFiles = %d, want 2", reindex.IndexedFiles)
-	}
+		reindex, err := store.Reindex(ctx, ReindexOptions{Workspace: workspaceRoot})
+		if err != nil {
+			t.Fatalf("Store.Reindex() error = %v", err)
+		}
+		if reindex.IndexedFiles != 2 {
+			t.Fatalf("Reindex.IndexedFiles = %d, want 2", reindex.IndexedFiles)
+		}
 
-	stats, err := store.HealthStats(ctx, []string{workspaceRoot})
-	if err != nil {
-		t.Fatalf("Store.HealthStats() error = %v", err)
-	}
-	if stats.IndexedFiles != 2 || stats.OrphanedFiles != 0 || stats.LastReindex == nil {
-		t.Fatalf("HealthStats() = %#v, want indexed=2 orphaned=0 lastReindex set", stats)
-	}
+		stats, err := store.HealthStats(ctx, []string{workspaceRoot})
+		if err != nil {
+			t.Fatalf("Store.HealthStats() error = %v", err)
+		}
+		if stats.IndexedFiles != 2 || stats.OrphanedFiles != 0 || stats.LastReindex == nil {
+			t.Fatalf("HealthStats() = %#v, want indexed=2 orphaned=0 lastReindex set", stats)
+		}
+	})
+
+	t.Run("Should index a new workspace even when global catalog rows already exist", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		ctx := context.Background()
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		globalDir := filepath.Join(baseDir, "global")
+		seedWorkspace := filepath.Join(baseDir, "workspace-seed")
+		freshWorkspace := filepath.Join(baseDir, "workspace-fresh")
+
+		seedStore := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(seedWorkspace)
+		if err := seedStore.EnsureDirs(); err != nil {
+			t.Fatalf("seedStore.EnsureDirs() error = %v", err)
+		}
+		if err := seedStore.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+			Name:        "Shared Preferences",
+			Description: "Global shared signal",
+			Type:        MemoryTypeUser,
+		}, "Shared signal is available globally.\n")); err != nil {
+			t.Fatalf("seedStore.Write(global) error = %v", err)
+		}
+		if _, err := seedStore.Reindex(ctx, ReindexOptions{Scope: ScopeGlobal}); err != nil {
+			t.Fatalf("seedStore.Reindex(global) error = %v", err)
+		}
+
+		freshStore := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(freshWorkspace)
+		if err := freshStore.EnsureDirs(); err != nil {
+			t.Fatalf("freshStore.EnsureDirs() error = %v", err)
+		}
+		if err := freshStore.Write(ScopeWorkspace, "project.md", mustMemoryContent(t, testMemoryMeta{
+			Name:        "Workspace Plan",
+			Description: "Workspace shared signal",
+			Type:        MemoryTypeProject,
+		}, "Shared signal is available in the fresh workspace.\n")); err != nil {
+			t.Fatalf("freshStore.Write(workspace) error = %v", err)
+		}
+
+		results, err := freshStore.Search(ctx, "shared signal", SearchOptions{Workspace: freshWorkspace, Limit: 5})
+		if err != nil {
+			t.Fatalf("freshStore.Search() error = %v", err)
+		}
+		if len(results) != 2 {
+			t.Fatalf("len(results) = %d, want 2; results=%#v", len(results), results)
+		}
+
+		scopeCounts := map[Scope]int{}
+		for _, result := range results {
+			scopeCounts[result.Scope.Normalize()]++
+		}
+		if scopeCounts[ScopeGlobal] != 1 || scopeCounts[ScopeWorkspace] != 1 {
+			t.Fatalf("scopeCounts = %#v, want one global and one workspace result", scopeCounts)
+		}
+
+		stats, err := freshStore.HealthStats(ctx, []string{freshWorkspace})
+		if err != nil {
+			t.Fatalf("freshStore.HealthStats() error = %v", err)
+		}
+		if stats.IndexedFiles != 2 || stats.OrphanedFiles != 0 || stats.LastReindex == nil {
+			t.Fatalf("HealthStats() = %#v, want indexed=2 orphaned=0 lastReindex set", stats)
+		}
+	})
 }
 
 func TestStoreSearchTreatsFTSReservedWordsAsLiteralTerms(t *testing.T) {
-	t.Parallel()
+	t.Run("Should treat FTS reserved words as literal search terms", func(t *testing.T) {
+		t.Parallel()
 
-	baseDir := t.TempDir()
-	workspaceRoot := filepath.Join(baseDir, "workspace")
-	catalogPath := filepath.Join(baseDir, "agh.db")
-	store := NewStore(
-		filepath.Join(baseDir, "global"),
-		WithCatalogDatabasePath(catalogPath),
-	).ForWorkspace(workspaceRoot)
-	if err := store.EnsureDirs(); err != nil {
-		t.Fatalf("Store.EnsureDirs() error = %v", err)
-	}
-	if err := store.Write(ScopeGlobal, "operators.md", mustMemoryContent(t, testMemoryMeta{
-		Name:        "Reserved Words",
-		Description: "Contains literal FTS keywords",
-		Type:        MemoryTypeUser,
-	}, "Remember the literal token not in this memory.\n")); err != nil {
-		t.Fatalf("Store.Write() error = %v", err)
-	}
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(catalogPath),
+		).ForWorkspace(workspaceRoot)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		if err := store.Write(ScopeGlobal, "operators.md", mustMemoryContent(t, testMemoryMeta{
+			Name:        "Reserved Words",
+			Description: "Contains literal FTS keywords",
+			Type:        MemoryTypeUser,
+		}, "Remember the literal token not in this memory.\n")); err != nil {
+			t.Fatalf("Store.Write() error = %v", err)
+		}
 
-	results, err := store.Search(context.Background(), "not", SearchOptions{Workspace: workspaceRoot, Limit: 5})
-	if err != nil {
-		t.Fatalf("Store.Search() error = %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("len(results) = %d, want 1; results=%#v", len(results), results)
-	}
-	if got, want := results[0].Filename, "operators.md"; got != want {
-		t.Fatalf("results[0].Filename = %q, want %q", got, want)
-	}
+		results, err := store.Search(context.Background(), "not", SearchOptions{Workspace: workspaceRoot, Limit: 5})
+		if err != nil {
+			t.Fatalf("Store.Search() error = %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("len(results) = %d, want 1; results=%#v", len(results), results)
+		}
+		if got, want := results[0].Filename, "operators.md"; got != want {
+			t.Fatalf("results[0].Filename = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
-	t.Parallel()
+	t.Run("Should keep primary mutations successful when derived sync fails", func(t *testing.T) {
+		t.Parallel()
 
-	baseDir := t.TempDir()
-	workspaceRoot := filepath.Join(baseDir, "workspace")
-	catalogPath := filepath.Join(baseDir, "catalog-dir")
-	if err := os.MkdirAll(catalogPath, dirPerm); err != nil {
-		t.Fatalf("os.MkdirAll(%q) error = %v", catalogPath, err)
-	}
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		catalogPath := filepath.Join(baseDir, "catalog-dir")
+		if err := os.MkdirAll(catalogPath, dirPerm); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", catalogPath, err)
+		}
 
-	store := NewStore(
-		filepath.Join(baseDir, "global"),
-		WithCatalogDatabasePath(catalogPath),
-	).ForWorkspace(workspaceRoot)
-	if err := store.EnsureDirs(); err != nil {
-		t.Fatalf("Store.EnsureDirs() error = %v", err)
-	}
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(catalogPath),
+		).ForWorkspace(workspaceRoot)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
 
-	var logs bytes.Buffer
-	store.logger = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	content := mustMemoryContent(t, testMemoryMeta{
-		Name:        "Prefs",
-		Description: "Saved preference",
-		Type:        MemoryTypeUser,
-	}, "body\n")
+		var logs bytes.Buffer
+		store.logger = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
+		content := mustMemoryContent(t, testMemoryMeta{
+			Name:        "Prefs",
+			Description: "Saved preference",
+			Type:        MemoryTypeUser,
+		}, "body\n")
 
-	if err := store.Write(ScopeGlobal, "prefs.md", content); err != nil {
-		t.Fatalf("Store.Write() error = %v, want primary mutation to succeed", err)
-	}
-	if _, err := store.Read(ScopeGlobal, "prefs.md"); err != nil {
-		t.Fatalf("Store.Read() error = %v, want written file present", err)
-	}
-	if !strings.Contains(logs.String(), "sync derived state failed after mutation") {
-		t.Fatalf("logs = %q, want derived sync warning", logs.String())
-	}
+		if err := store.Write(ScopeGlobal, "prefs.md", content); err != nil {
+			t.Fatalf("Store.Write() error = %v, want primary mutation to succeed", err)
+		}
+		if _, err := store.Read(ScopeGlobal, "prefs.md"); err != nil {
+			t.Fatalf("Store.Read() error = %v, want written file present", err)
+		}
+		if !strings.Contains(logs.String(), "sync derived state failed after mutation") {
+			t.Fatalf("logs = %q, want derived sync warning", logs.String())
+		}
 
-	logs.Reset()
-	if err := store.Delete(ScopeGlobal, "prefs.md"); err != nil {
-		t.Fatalf("Store.Delete() error = %v, want primary mutation to succeed", err)
-	}
-	if _, err := store.Read(ScopeGlobal, "prefs.md"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("Store.Read(deleted) error = %v, want os.ErrNotExist", err)
-	}
-	if !strings.Contains(logs.String(), "sync derived state failed after mutation") {
-		t.Fatalf("logs = %q, want derived sync warning after delete", logs.String())
-	}
+		logs.Reset()
+		if err := store.Delete(ScopeGlobal, "prefs.md"); err != nil {
+			t.Fatalf("Store.Delete() error = %v, want primary mutation to succeed", err)
+		}
+		if _, err := store.Read(ScopeGlobal, "prefs.md"); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Store.Read(deleted) error = %v, want os.ErrNotExist", err)
+		}
+		if !strings.Contains(logs.String(), "sync derived state failed after mutation") {
+			t.Fatalf("logs = %q, want derived sync warning after delete", logs.String())
+		}
+	})
 }
 
 func TestStoreEnsureDirs(t *testing.T) {
@@ -954,12 +1024,14 @@ func TestStoreEnsureDirs(t *testing.T) {
 }
 
 func TestWorkspaceMemoryDirRoundTripsToWorkspaceRoot(t *testing.T) {
-	t.Parallel()
+	t.Run("Should round-trip workspace roots through the memory directory path", func(t *testing.T) {
+		t.Parallel()
 
-	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-	if got := deriveWorkspaceRoot(workspaceMemoryDir(workspaceRoot)); got != workspaceRoot {
-		t.Fatalf("deriveWorkspaceRoot(workspaceMemoryDir(%q)) = %q, want %q", workspaceRoot, got, workspaceRoot)
-	}
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		if got := deriveWorkspaceRoot(workspaceMemoryDir(workspaceRoot)); got != workspaceRoot {
+			t.Fatalf("deriveWorkspaceRoot(workspaceMemoryDir(%q)) = %q, want %q", workspaceRoot, got, workspaceRoot)
+		}
+	})
 }
 
 func TestStoreRejectsInvalidInputs(t *testing.T) {

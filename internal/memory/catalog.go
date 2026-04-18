@@ -263,7 +263,7 @@ func (c *catalog) lastReindex(ctx context.Context) (*time.Time, error) {
 	return &parsed, nil
 }
 
-func (c *catalog) entryCount(ctx context.Context) (int, error) {
+func (c *catalog) scopeEntryCount(ctx context.Context, scope Scope, workspaceRoot string) (int, error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return 0, err
@@ -272,9 +272,26 @@ func (c *catalog) entryCount(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
+	query := `SELECT COUNT(*) FROM memory_catalog_entries`
+	args := make([]any, 0, 1)
+	switch scope.Normalize() {
+	case ScopeGlobal:
+		query += ` WHERE scope = 'global'`
+	case ScopeWorkspace:
+		query += ` WHERE scope = 'workspace' AND workspace_root = ?`
+		args = append(args, strings.TrimSpace(workspaceRoot))
+	default:
+		return 0, fmt.Errorf("memory: count catalog entries for unsupported scope %q", scope)
+	}
+
 	var count int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_catalog_entries`).Scan(&count); err != nil {
-		return 0, fmt.Errorf("memory: count catalog entries: %w", err)
+	if err := db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf(
+			"memory: count catalog entries for scope %q workspace %q: %w",
+			scope.Normalize(),
+			strings.TrimSpace(workspaceRoot),
+			err,
+		)
 	}
 	return count, nil
 }

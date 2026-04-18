@@ -424,21 +424,9 @@ func (s *Store) HealthStats(ctx context.Context, workspaces []string) (HealthSta
 		filters = append(filters, catalogFilter{scope: ScopeWorkspace, workspaceRoot: trimmed})
 	}
 
-	entryCount, err := s.catalog.entryCount(ctx)
-	if err != nil {
-		return HealthStats{}, err
-	}
-	if entryCount == 0 {
-		if _, err := s.reindexScopes(ctx, ScopeGlobal, ""); err != nil {
+	for _, filter := range filters {
+		if err := s.ensureCatalogFilterReady(ctx, filter); err != nil {
 			return HealthStats{}, err
-		}
-		for _, filter := range filters {
-			if filter.scope != ScopeWorkspace {
-				continue
-			}
-			if _, err := s.reindexScopes(ctx, ScopeWorkspace, filter.workspaceRoot); err != nil {
-				return HealthStats{}, err
-			}
 		}
 	}
 
@@ -606,14 +594,41 @@ func (s *Store) ensureCatalogReady(ctx context.Context, scope Scope, workspaceRo
 	if s.catalog == nil {
 		return nil
 	}
-	entryCount, err := s.catalog.entryCount(ctx)
+
+	filters := []catalogFilter{{scope: ScopeGlobal}}
+	switch scope.Normalize() {
+	case ScopeGlobal:
+		filters = filters[:1]
+	case ScopeWorkspace:
+		filters = []catalogFilter{{scope: ScopeWorkspace, workspaceRoot: workspaceRoot}}
+	default:
+		if strings.TrimSpace(workspaceRoot) != "" {
+			filters = append(filters, catalogFilter{scope: ScopeWorkspace, workspaceRoot: workspaceRoot})
+		}
+	}
+
+	for _, filter := range filters {
+		if err := s.ensureCatalogFilterReady(ctx, filter); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) ensureCatalogFilterReady(ctx context.Context, filter catalogFilter) error {
+	if s.catalog == nil {
+		return nil
+	}
+
+	entryCount, err := s.catalog.scopeEntryCount(ctx, filter.scope, filter.workspaceRoot)
 	if err != nil {
 		return err
 	}
 	if entryCount > 0 {
 		return nil
 	}
-	_, err = s.reindexScopes(ctx, scope, workspaceRoot)
+
+	_, err = s.reindexScopes(ctx, filter.scope, filter.workspaceRoot)
 	return err
 }
 

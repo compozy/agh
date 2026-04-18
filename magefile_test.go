@@ -3,6 +3,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pedronauck/agh/internal/e2elane"
@@ -54,7 +55,7 @@ func TestShouldEnsureWebBundle(t *testing.T) {
 func TestWithRaceEnabledEnv(t *testing.T) {
 	t.Parallel()
 
-	t.Run("sets cgo for race commands without mutating the input", func(t *testing.T) {
+	t.Run("Should set cgo for race commands without mutating the input", func(t *testing.T) {
 		t.Parallel()
 
 		overrides := map[string]string{
@@ -80,12 +81,31 @@ func TestWithRaceEnabledEnv(t *testing.T) {
 		}
 	})
 
-	t.Run("works with nil input", func(t *testing.T) {
+	t.Run("Should work with nil input", func(t *testing.T) {
 		t.Parallel()
 
 		got := withRaceEnabledEnv(nil)
 		if got["CGO_ENABLED"] != "1" {
 			t.Fatalf("withRaceEnabledEnv(nil) CGO_ENABLED = %q, want %q", got["CGO_ENABLED"], "1")
+		}
+	})
+}
+
+func TestRunRaceEnabledGoCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wrap subprocess failures with command context", func(t *testing.T) {
+		t.Parallel()
+
+		err := runRaceEnabledGoCommand(nil, "definitely-not-a-go-subcommand")
+		if err == nil {
+			t.Fatal("runRaceEnabledGoCommand() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "run race-enabled go command") {
+			t.Fatalf("runRaceEnabledGoCommand() error = %q, want wrapper context", err)
+		}
+		if !strings.Contains(err.Error(), "definitely-not-a-go-subcommand") {
+			t.Fatalf("runRaceEnabledGoCommand() error = %q, want failing args in context", err)
 		}
 	})
 }

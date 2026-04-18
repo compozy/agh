@@ -20,15 +20,17 @@ import (
 )
 
 const (
-	golangciLintVersion = "v2.11.4"
-	binDir              = "bin"
-	cliBinary           = "agh"
-	versionPackage      = "github.com/pedronauck/agh/internal/version"
-	openAPISpecPath     = "openapi/agh.json"
-	webOpenAPITypePath  = "web/src/generated/agh-openapi.d.ts"
-	webDistIndex        = "web/dist/index.html"
-	daemonBinaryEnvVar  = "AGH_TEST_DAEMON_BIN"
-	driverBinaryEnvVar  = "AGH_TEST_ACPMOCK_DRIVER_BIN"
+	golangciLintVersion   = "v2.11.4"
+	goplsModernizeVersion = "v0.21.1"
+	gotestsumVersion      = "v1.13.0"
+	binDir                = "bin"
+	cliBinary             = "agh"
+	versionPackage        = "github.com/pedronauck/agh/internal/version"
+	openAPISpecPath       = "openapi/agh.json"
+	webOpenAPITypePath    = "web/src/generated/agh-openapi.d.ts"
+	webDistIndex          = "web/dist/index.html"
+	daemonBinaryEnvVar    = "AGH_TEST_DAEMON_BIN"
+	driverBinaryEnvVar    = "AGH_TEST_ACPMOCK_DRIVER_BIN"
 )
 
 var Default = Verify
@@ -72,7 +74,7 @@ func Modernize() error {
 	return sh.RunV(
 		"go",
 		"run",
-		"golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest",
+		"golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@"+goplsModernizeVersion,
 		"-fix",
 		"./...",
 	)
@@ -84,7 +86,7 @@ func Test() error {
 		return err
 	}
 	return runRaceEnabledGoCommand(nil,
-		"run", "gotest.tools/gotestsum@latest",
+		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
 		"--format", "pkgname", "--", "-race", "-parallel=4", "./...")
 }
 
@@ -94,7 +96,7 @@ func TestIntegration() error {
 		return err
 	}
 	return runRaceEnabledGoCommand(nil,
-		"run", "gotest.tools/gotestsum@latest",
+		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
 		"--format", "pkgname", "--", "-race", "-parallel=4", "-tags", "integration", "./...")
 }
 
@@ -477,7 +479,7 @@ func laneBinaryName(name string) string {
 func runIntegrationSuite(suite e2elane.GoSuite, env map[string]string) error {
 	args := []string{
 		"run",
-		"gotest.tools/gotestsum@latest",
+		"gotest.tools/gotestsum@" + gotestsumVersion,
 		"--format",
 		"pkgname",
 		"--",
@@ -530,7 +532,10 @@ func mergeCommandEnv(overrides map[string]string) []string {
 }
 
 func runRaceEnabledGoCommand(env map[string]string, args ...string) error {
-	return runCommandInDirWithEnv(".", withRaceEnabledEnv(env), "go", args...)
+	if err := runCommandInDirWithEnv(".", withRaceEnabledEnv(env), "go", args...); err != nil {
+		return fmt.Errorf("run race-enabled go command %v: %w", args, err)
+	}
+	return nil
 }
 
 func withRaceEnabledEnv(overrides map[string]string) map[string]string {
