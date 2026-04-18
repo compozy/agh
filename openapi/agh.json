@@ -24390,6 +24390,9 @@
                                                 "description": {
                                                     "type": "string"
                                                 },
+                                                "draft": {
+                                                    "type": "boolean"
+                                                },
                                                 "id": {
                                                     "type": "string"
                                                 },
@@ -25708,6 +25711,9 @@
                                                         "description": {
                                                             "type": "string"
                                                         },
+                                                        "draft": {
+                                                            "type": "boolean"
+                                                        },
                                                         "id": {
                                                             "type": "string"
                                                         },
@@ -26029,6 +26035,9 @@
                                                 "description": {
                                                     "type": "string"
                                                 },
+                                                "draft": {
+                                                    "type": "boolean"
+                                                },
                                                 "id": {
                                                     "type": "string"
                                                 },
@@ -26296,6 +26305,9 @@
                                                 },
                                                 "description": {
                                                     "type": "string"
+                                                },
+                                                "draft": {
+                                                    "type": "boolean"
                                                 },
                                                 "id": {
                                                     "type": "string"
@@ -26581,6 +26593,9 @@
                                                 },
                                                 "description": {
                                                     "type": "string"
+                                                },
+                                                "draft": {
+                                                    "type": "boolean"
                                                 },
                                                 "id": {
                                                     "type": "string"
@@ -26922,6 +26937,9 @@
                                                 },
                                                 "description": {
                                                     "type": "string"
+                                                },
+                                                "draft": {
+                                                    "type": "boolean"
                                                 },
                                                 "id": {
                                                     "type": "string"
@@ -28262,6 +28280,9 @@
                                                         "description": {
                                                             "type": "string"
                                                         },
+                                                        "draft": {
+                                                            "type": "boolean"
+                                                        },
                                                         "id": {
                                                             "type": "string"
                                                         },
@@ -29582,6 +29603,9 @@
                                                         "description": {
                                                             "type": "string"
                                                         },
+                                                        "draft": {
+                                                            "type": "boolean"
+                                                        },
                                                         "id": {
                                                             "type": "string"
                                                         },
@@ -29842,6 +29866,9 @@
                                                 },
                                                 "description": {
                                                     "type": "string"
+                                                },
+                                                "draft": {
+                                                    "type": "boolean"
                                                 },
                                                 "id": {
                                                     "type": "string"
@@ -30110,6 +30137,9 @@
                                                 },
                                                 "description": {
                                                     "type": "string"
+                                                },
+                                                "draft": {
+                                                    "type": "boolean"
                                                 },
                                                 "id": {
                                                     "type": "string"

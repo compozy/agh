@@ -62,6 +62,7 @@ type TaskPayload struct {
 	Status         taskpkg.Status         `json:"status"`
 	ApprovalPolicy taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
 	ApprovalState  taskpkg.ApprovalState  `json:"approval_state,omitempty"`
+	Draft          bool                   `json:"draft,omitempty"`
 	Owner          *taskpkg.Ownership     `json:"owner,omitempty"`
 	CreatedBy      taskpkg.ActorIdentity  `json:"created_by"`
 	Origin         taskpkg.Origin         `json:"origin"`

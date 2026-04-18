@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -387,8 +388,8 @@ func TestTaskStreamHandlerUsesSharedSSEPathIntegration(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("stream status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
-	if got := resp.Header().Get("Content-Type"); got != "text/event-stream" {
-		t.Fatalf("stream content-type = %q, want text/event-stream", got)
+	if got := resp.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
+		t.Fatalf("stream content-type = %q, want prefix %q", got, "text/event-stream")
 	}
 	if !resp.Flushed {
 		t.Fatal("stream response was not flushed")

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,22 +14,28 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+func newExpandedTaskHandlers(workspaceGet func(context.Context, string) (workspacepkg.Workspace, error)) *BaseHandlers {
+	gin.SetMode(gin.TestMode)
+
+	handlers := &BaseHandlers{TransportName: "api-core-test"}
+	if workspaceGet != nil {
+		handlers.Workspaces = workspaceServiceStub{get: workspaceGet}
+	}
+	return handlers
+}
+
 func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 	t.Parallel()
 
-	gin.SetMode(gin.TestMode)
-	handlers := &BaseHandlers{
-		TransportName: "api-core-test",
-		Workspaces: workspaceServiceStub{get: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+	t.Run("task list", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newExpandedTaskHandlers(func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
 			if ref != "alpha" {
 				t.Fatalf("workspace ref = %q, want %q", ref, "alpha")
 			}
 			return workspacepkg.Workspace{ID: "ws-alpha"}, nil
-		}},
-	}
-
-	t.Run("task list", func(t *testing.T) {
-		t.Parallel()
+		})
 
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
@@ -68,6 +75,8 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 
 	t.Run("timeline and stream", func(t *testing.T) {
 		t.Parallel()
+
+		handlers := newExpandedTaskHandlers(nil)
 
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
@@ -123,6 +132,13 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 
 	t.Run("dashboard and inbox", func(t *testing.T) {
 		t.Parallel()
+
+		handlers := newExpandedTaskHandlers(func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+			if ref != "alpha" {
+				t.Fatalf("workspace ref = %q, want %q", ref, "alpha")
+			}
+			return workspacepkg.Workspace{ID: "ws-alpha"}, nil
+		})
 
 		dashboardRecorder := httptest.NewRecorder()
 		dashboardCtx, _ := gin.CreateTestContext(dashboardRecorder)
@@ -191,32 +207,70 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 	t.Parallel()
 
-	gin.SetMode(gin.TestMode)
-	handlers := &BaseHandlers{
-		TransportName: "api-core-test",
-		Workspaces: workspaceServiceStub{get: func(context.Context, string) (workspacepkg.Workspace, error) {
-			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
-		}},
-	}
+	t.Run("invalid lane", func(t *testing.T) {
+		t.Parallel()
 
-	recorder := httptest.NewRecorder()
-	ginCtx, _ := gin.CreateTestContext(recorder)
-	ginCtx.Request = httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodGet,
-		"/observe/tasks/inbox?lane=bogus",
-		http.NoBody,
-	)
+		handlers := newExpandedTaskHandlers(nil)
 
-	query, err := ParseTaskInboxQuery(ginCtx)
-	if err != nil {
-		t.Fatalf("ParseTaskInboxQuery() error = %v", err)
-	}
-	if _, err := handlers.taskInboxDomainQuery(context.Background(), query); err == nil {
-		t.Fatal("taskInboxDomainQuery(invalid lane) error = nil, want non-nil")
-	} else {
+		recorder := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(recorder)
+		ginCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/observe/tasks/inbox?lane=bogus",
+			http.NoBody,
+		)
+
+		_, err := ParseTaskInboxQuery(ginCtx)
+		if err == nil {
+			t.Fatal("ParseTaskInboxQuery(invalid lane) error = nil, want non-nil")
+		}
 		assertTaskValidationError(t, err, "lane")
-	}
+
+		if _, err := handlers.taskInboxDomainQuery(
+			context.Background(),
+			contract.TaskInboxQuery{Lane: "bogus"},
+		); err == nil {
+			t.Fatal("taskInboxDomainQuery(invalid lane) error = nil, want non-nil")
+		} else {
+			assertTaskValidationError(t, err, "lane")
+		}
+	})
+
+	t.Run("workspace lookup failure", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newExpandedTaskHandlers(func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+		})
+
+		recorder := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(recorder)
+		ginCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/observe/tasks/inbox?scope=workspace&workspace=missing&lane=approvals",
+			http.NoBody,
+		)
+
+		query, err := ParseTaskInboxQuery(ginCtx)
+		if err != nil {
+			t.Fatalf("ParseTaskInboxQuery() error = %v", err)
+		}
+		if _, err := handlers.taskInboxDomainQuery(
+			context.Background(),
+			query,
+		); !errors.Is(
+			err,
+			workspacepkg.ErrWorkspaceNotFound,
+		) {
+			t.Fatalf(
+				"taskInboxDomainQuery(workspace lookup) error = %v, want %v",
+				err,
+				workspacepkg.ErrWorkspaceNotFound,
+			)
+		}
+	})
 }
 
 func TestTaskDraftFilteringAndNormalizationHelpers(t *testing.T) {

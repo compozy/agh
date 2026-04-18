@@ -84,6 +84,9 @@ func findTaskRunInDetail(
 	detail *aghcontract.TaskDetailPayload,
 	runID string,
 ) (aghcontract.TaskRunPayload, bool) {
+	if detail == nil {
+		return aghcontract.TaskRunPayload{}, false
+	}
 	return findTaskRunPayload(detail.Runs, runID)
 }
 
@@ -111,6 +114,14 @@ func TestRequireDelegatedTaskAutomationRun(t *testing.T) {
 	}
 	if err := requireDelegatedTaskAutomationRun(run); err != nil {
 		t.Fatalf("requireDelegatedTaskAutomationRun() error = %v", err)
+	}
+}
+
+func TestFindTaskRunInDetailReturnsMissingForNilDetail(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := findTaskRunInDetail(nil, "task-run-1"); ok {
+		t.Fatal("findTaskRunInDetail(nil) = present, want missing")
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -728,8 +729,8 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		if streamResp.Code != http.StatusOK {
 			t.Fatalf("stream status = %d, want %d; body=%s", streamResp.Code, http.StatusOK, streamResp.Body.String())
 		}
-		if got := streamResp.Header().Get("Content-Type"); got != "text/event-stream" {
-			t.Fatalf("stream content-type = %q, want text/event-stream", got)
+		if got := streamResp.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
+			t.Fatalf("stream content-type = %q, want prefix %q", got, "text/event-stream")
 		}
 		if !streamResp.Flushed {
 			t.Fatal("stream recorder was not flushed")

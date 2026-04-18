@@ -1995,6 +1995,7 @@ export interface Task {
   status: Status;
   approval_policy?: ApprovalPolicy;
   approval_state?: ApprovalState;
+  draft?: boolean;
   owner?: Ownership;
   created_by: ActorIdentity;
   origin: Origin;

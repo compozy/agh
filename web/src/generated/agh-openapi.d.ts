@@ -14452,6 +14452,7 @@ export interface operations {
                 ref: string;
               };
               description?: string;
+              draft?: boolean;
               id: string;
               identifier?: string;
               max_attempts?: number;
@@ -15051,6 +15052,7 @@ export interface operations {
                   ref: string;
                 };
                 description?: string;
+                draft?: boolean;
                 id: string;
                 identifier?: string;
                 max_attempts?: number;
@@ -15218,6 +15220,7 @@ export interface operations {
                 ref: string;
               };
               description?: string;
+              draft?: boolean;
               id: string;
               identifier?: string;
               max_attempts?: number;
@@ -15374,6 +15377,7 @@ export interface operations {
                 ref: string;
               };
               description?: string;
+              draft?: boolean;
               id: string;
               identifier?: string;
               max_attempts?: number;
@@ -15538,6 +15542,7 @@ export interface operations {
                 ref: string;
               };
               description?: string;
+              draft?: boolean;
               id: string;
               identifier?: string;
               max_attempts?: number;
@@ -15720,6 +15725,7 @@ export interface operations {
                 ref: string;
               };
               description?: string;
+              draft?: boolean;
               id: string;
               identifier?: string;
               max_attempts?: number;
@@ -16328,6 +16334,7 @@ export interface operations {
                   ref: string;
                 };
                 description?: string;
+                draft?: boolean;
                 id: string;
                 identifier?: string;
                 max_attempts?: number;
@@ -16919,6 +16926,7 @@ export interface operations {
                   ref: string;
                 };
                 description?: string;
+                draft?: boolean;
                 id: string;
                 identifier?: string;
                 max_attempts?: number;
@@ -17065,6 +17073,7 @@ export interface operations {
                 ref: string;
               };
               description?: string;
+              draft?: boolean;
               id: string;
               identifier?: string;
               max_attempts?: number;
@@ -17221,6 +17230,7 @@ export interface operations {
                 ref: string;
               };
               description?: string;
+              draft?: boolean;
               id: string;
               identifier?: string;
               max_attempts?: number;

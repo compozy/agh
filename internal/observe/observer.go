@@ -38,6 +38,7 @@ type Registry interface {
 	ListPermissionLog(ctx context.Context, query store.PermissionLogQuery) ([]store.PermissionLogEntry, error)
 	ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
 	ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpkg.Summary, error)
+	CountDependencies(ctx context.Context, taskID string) (int, error)
 	ListTaskRuns(ctx context.Context, query taskpkg.RunQuery) ([]taskpkg.Run, error)
 	ListTaskEvents(ctx context.Context, query taskpkg.EventQuery) ([]taskpkg.Event, error)
 	ListTaskTriageStates(ctx context.Context, actor taskpkg.ActorIdentity) ([]taskpkg.TriageState, error)
@@ -86,6 +87,13 @@ type TaskHealthConfig struct {
 	ClaimedStuckAfter  time.Duration
 	StartingStuckAfter time.Duration
 	RunningStuckAfter  time.Duration
+}
+
+// TaskDashboardConfig controls task dashboard freshness/backlog thresholds and active-run list size.
+type TaskDashboardConfig struct {
+	ActiveRunLimit   int
+	BacklogWarnAfter time.Duration
+	StaleAfter       time.Duration
 }
 
 type taskDashboardConfig struct {
@@ -204,6 +212,36 @@ func WithTaskHealthConfig(cfg TaskHealthConfig) Option {
 	}
 }
 
+// WithTaskDashboardConfig overrides the dashboard thresholds and active-run
+// list sizing used by the observer task dashboard view.
+func WithTaskDashboardConfig(cfg TaskDashboardConfig) Option {
+	return func(observer *Observer) {
+		observer.taskDashboardConfig = normalizeTaskDashboardConfig(cfg)
+	}
+}
+
+func defaultTaskDashboardConfig() taskDashboardConfig {
+	return taskDashboardConfig{
+		activeRunLimit:   4,
+		backlogWarnAfter: 10 * time.Minute,
+		staleAfter:       2 * time.Minute,
+	}
+}
+
+func normalizeTaskDashboardConfig(cfg TaskDashboardConfig) taskDashboardConfig {
+	normalized := defaultTaskDashboardConfig()
+	if cfg.ActiveRunLimit > 0 {
+		normalized.activeRunLimit = cfg.ActiveRunLimit
+	}
+	if cfg.BacklogWarnAfter > 0 {
+		normalized.backlogWarnAfter = cfg.BacklogWarnAfter
+	}
+	if cfg.StaleAfter > 0 {
+		normalized.staleAfter = cfg.StaleAfter
+	}
+	return normalized
+}
+
 // New constructs an Observer and opens the global AGH database when needed.
 func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	if ctx == nil {
@@ -229,11 +267,7 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 			StartingStuckAfter: 5 * time.Minute,
 			RunningStuckAfter:  30 * time.Minute,
 		},
-		taskDashboardConfig: taskDashboardConfig{
-			activeRunLimit:   4,
-			backlogWarnAfter: 10 * time.Minute,
-			staleAfter:       2 * time.Minute,
-		},
+		taskDashboardConfig: defaultTaskDashboardConfig(),
 	}
 
 	for _, opt := range opts {

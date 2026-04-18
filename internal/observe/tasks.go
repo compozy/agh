@@ -699,6 +699,7 @@ func taskDashboardTotalsFromSnapshot(
 	metrics TaskMetrics,
 ) TaskDashboardTotals {
 	awaitingApproval := countAwaitingApprovalTasks(snapshot.tasks)
+	dependencyBlocked := countDependencyBlockedTasks(snapshot.tasks)
 
 	totals := TaskDashboardTotals{
 		TasksTotal:            summary.TotalTasks,
@@ -720,7 +721,7 @@ func taskDashboardTotalsFromSnapshot(
 		FailedRuns:            countRunStatus(metrics.TaskRunsTotal, taskpkg.TaskRunStatusFailed),
 		CanceledRuns:          countRunStatus(metrics.TaskRunsTotal, taskpkg.TaskRunStatusCanceled),
 	}
-	totals.DependencyBlockedTasks = max(totals.BlockedTasks-totals.AwaitingApprovalTasks, 0)
+	totals.DependencyBlockedTasks = dependencyBlocked
 	totals.ActiveRuns = totals.QueuedRuns + totals.ClaimedRuns + totals.StartingRuns + totals.RunningRuns
 	return totals
 }
@@ -1345,6 +1346,20 @@ func countAwaitingApprovalTasks(tasks []taskpkg.Summary) int {
 	return count
 }
 
+func countDependencyBlockedTasks(tasks []taskpkg.Summary) int {
+	count := 0
+	for _, item := range tasks {
+		if item.Status.Normalize() != taskpkg.TaskStatusBlocked {
+			continue
+		}
+		if item.DependencyCount <= 0 && len(item.Dependencies) == 0 {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
 func dashboardStatusForCount(count int) string {
 	return dashboardStatusForAny(count > 0)
 }
@@ -1588,6 +1603,17 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		return taskSnapshot{}, fmt.Errorf("observe: list tasks for summary: %w", err)
 	}
 	tasks = filterTasksByOrigin(tasks, query.OriginKind)
+	for idx := range tasks {
+		taskID := strings.TrimSpace(tasks[idx].ID)
+		if taskID == "" {
+			continue
+		}
+		dependencyCount, err := o.registry.CountDependencies(ctx, taskID)
+		if err != nil {
+			return taskSnapshot{}, fmt.Errorf("observe: count dependencies for task %q: %w", taskID, err)
+		}
+		tasks[idx].DependencyCount = dependencyCount
+	}
 
 	tasksByID := make(map[string]taskpkg.Summary, len(tasks))
 	taskIDs := make(map[string]struct{}, len(tasks))

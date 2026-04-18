@@ -29,6 +29,9 @@ func (h *HostAPIHandler) handleTasks(ctx context.Context, raw json.RawMessage) (
 	if err != nil {
 		return nil, err
 	}
+	if shouldOverfetchTaskDrafts(params) {
+		query.Limit = 0
+	}
 
 	tasks, err := manager.ListTasks(ctx, query, actor)
 	if err != nil {
@@ -584,22 +587,27 @@ func (h *HostAPIHandler) taskDashboardQueryFromParams(
 		NetworkChannel: strings.TrimSpace(params.NetworkChannel),
 		OriginKind:     params.OriginKind.Normalize(),
 	}
-	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
-		if err := taskpkg.ValidateScopeBinding(
-			query.Scope,
-			workspaceRef,
-			"task_dashboard_query",
-			"workspace",
-		); err != nil {
+	if query.Scope.Normalize() != "" {
+		if err := query.Scope.Validate("task_dashboard_query.scope"); err != nil {
 			return observepkg.TaskDashboardQuery{}, invalidParamsRPCError(err)
 		}
-		if query.Scope.Normalize() == taskpkg.ScopeWorkspace {
-			workspaceID, err := h.resolveTaskWorkspaceID(ctx, workspaceRef)
-			if err != nil {
-				return observepkg.TaskDashboardQuery{}, err
+	}
+	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
+		if query.Scope.Normalize() == taskpkg.ScopeGlobal {
+			if err := taskpkg.ValidateScopeBinding(
+				query.Scope,
+				workspaceRef,
+				"task_dashboard_query",
+				"workspace",
+			); err != nil {
+				return observepkg.TaskDashboardQuery{}, invalidParamsRPCError(err)
 			}
-			query.WorkspaceID = workspaceID
 		}
+		workspaceID, err := h.resolveTaskWorkspaceID(ctx, workspaceRef)
+		if err != nil {
+			return observepkg.TaskDashboardQuery{}, err
+		}
+		query.WorkspaceID = workspaceID
 	}
 	if err := validateTaskChannel("task_dashboard_query.network_channel", query.NetworkChannel); err != nil {
 		return observepkg.TaskDashboardQuery{}, err
@@ -623,17 +631,27 @@ func (h *HostAPIHandler) taskInboxQueryFromParams(
 		Search:    strings.TrimSpace(params.Query),
 		Limit:     params.Limit,
 	}
-	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
-		if err := taskpkg.ValidateScopeBinding(query.Scope, workspaceRef, "task_inbox_query", "workspace"); err != nil {
+	if query.Scope.Normalize() != "" {
+		if err := query.Scope.Validate("task_inbox_query.scope"); err != nil {
 			return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
 		}
-		if query.Scope.Normalize() == taskpkg.ScopeWorkspace {
-			workspaceID, err := h.resolveTaskWorkspaceID(ctx, workspaceRef)
-			if err != nil {
-				return observepkg.TaskInboxQuery{}, err
+	}
+	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
+		if query.Scope.Normalize() == taskpkg.ScopeGlobal {
+			if err := taskpkg.ValidateScopeBinding(
+				query.Scope,
+				workspaceRef,
+				"task_inbox_query",
+				"workspace",
+			); err != nil {
+				return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
 			}
-			query.WorkspaceID = workspaceID
 		}
+		workspaceID, err := h.resolveTaskWorkspaceID(ctx, workspaceRef)
+		if err != nil {
+			return observepkg.TaskInboxQuery{}, err
+		}
+		query.WorkspaceID = workspaceID
 	}
 	if err := query.Validate(); err != nil {
 		return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
@@ -1419,6 +1437,10 @@ func filterTaskListDrafts(tasks []taskpkg.Summary, query apicontract.TaskListQue
 		return filtered[:query.Limit]
 	}
 	return filtered
+}
+
+func shouldOverfetchTaskDrafts(query apicontract.TaskListQuery) bool {
+	return !query.IncludeDrafts && query.Status.Normalize() == "" && query.Limit > 0
 }
 
 func cloneOwnership(source *taskpkg.Ownership) *taskpkg.Ownership {

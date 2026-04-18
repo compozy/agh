@@ -86,6 +86,7 @@ func TestTaskContractsMarshalExpandedTaskReadModels(t *testing.T) {
 			Status:         taskpkg.TaskStatusBlocked,
 			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
 			ApprovalState:  taskpkg.ApprovalStatePending,
+			Draft:          true,
 			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "alice"},
 			CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "alice"},
 			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindWeb, Ref: "agh-web"},
@@ -146,6 +147,7 @@ func TestTaskContractsMarshalExpandedTaskReadModels(t *testing.T) {
 		"runs",
 		"events",
 	)
+	assertObjectKeys(t, nestedObject(t, taskObject, "task"), "draft")
 
 	summaryObject := nestedObject(t, taskObject, "summary")
 	assertObjectKeys(

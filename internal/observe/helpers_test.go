@@ -54,6 +54,43 @@ func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
 	}
 }
 
+func TestWithTaskDashboardConfigOverridesDefaults(t *testing.T) {
+	t.Parallel()
+
+	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	observer, err := New(
+		testutil.Context(t),
+		WithHomePaths(home),
+		WithTaskDashboardConfig(TaskDashboardConfig{
+			ActiveRunLimit:   7,
+			BacklogWarnAfter: 45 * time.Second,
+			StaleAfter:       15 * time.Second,
+		}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := observer.Close(testutil.Context(t)); closeErr != nil {
+			t.Fatalf("Close() error = %v", closeErr)
+		}
+	})
+
+	if got, want := observer.taskDashboardConfig.activeRunLimit, 7; got != want {
+		t.Fatalf("taskDashboardConfig.activeRunLimit = %d, want %d", got, want)
+	}
+	if got, want := observer.taskDashboardConfig.backlogWarnAfter, 45*time.Second; got != want {
+		t.Fatalf("taskDashboardConfig.backlogWarnAfter = %v, want %v", got, want)
+	}
+	if got, want := observer.taskDashboardConfig.staleAfter, 15*time.Second; got != want {
+		t.Fatalf("taskDashboardConfig.staleAfter = %v, want %v", got, want)
+	}
+}
+
 func TestDefaultPermissionModeResolverUsesConfigAndAgent(t *testing.T) {
 	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {

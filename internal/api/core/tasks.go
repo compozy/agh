@@ -1442,6 +1442,7 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		Status:         record.Status,
 		ApprovalPolicy: record.ApprovalPolicy,
 		ApprovalState:  record.ApprovalState,
+		Draft:          record.Status.Normalize() == taskpkg.TaskStatusDraft,
 		Owner:          cloneOwnership(record.Owner),
 		CreatedBy:      record.CreatedBy,
 		Origin:         record.Origin,

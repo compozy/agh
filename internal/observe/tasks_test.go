@@ -452,6 +452,18 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 		CreatedAt:      now.Add(-13 * time.Minute),
 		UpdatedAt:      now.Add(-8 * time.Minute),
 	})
+	createObserveDependency(t, h, taskpkg.Dependency{
+		TaskID:          "task-blocked-approval",
+		DependsOnTaskID: "task-ready",
+		Kind:            taskpkg.DependencyKindBlocks,
+		CreatedAt:       now.Add(-8 * time.Minute),
+	})
+	createObserveDependency(t, h, taskpkg.Dependency{
+		TaskID:          "task-blocked-deps",
+		DependsOnTaskID: "task-ready",
+		Kind:            taskpkg.DependencyKindBlocks,
+		CreatedAt:       now.Add(-7 * time.Minute),
+	})
 	createObserveTask(t, h, taskpkg.Task{
 		ID:             "task-running",
 		Scope:          taskpkg.ScopeWorkspace,
@@ -556,7 +568,7 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 	if got, want := dashboard.Totals.AwaitingApprovalTasks, 1; got != want {
 		t.Fatalf("dashboard.Totals.AwaitingApprovalTasks = %d, want %d", got, want)
 	}
-	if got, want := dashboard.Totals.DependencyBlockedTasks, 1; got != want {
+	if got, want := dashboard.Totals.DependencyBlockedTasks, 2; got != want {
 		t.Fatalf("dashboard.Totals.DependencyBlockedTasks = %d, want %d", got, want)
 	}
 	if got, want := dashboard.Totals.ActiveRuns, 2; got != want {
@@ -565,7 +577,7 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 	if got, want := dashboard.Cards.InProgress.Tasks, 1; got != want {
 		t.Fatalf("dashboard.Cards.InProgress.Tasks = %d, want %d", got, want)
 	}
-	if got, want := dashboard.Cards.Blocked.AwaitingDependencies, 1; got != want {
+	if got, want := dashboard.Cards.Blocked.AwaitingDependencies, 2; got != want {
 		t.Fatalf("dashboard.Cards.Blocked.AwaitingDependencies = %d, want %d", got, want)
 	}
 	if got, want := dashboard.Cards.Failed.FailedRuns, 1; got != want {
@@ -1163,6 +1175,13 @@ func createObserveRun(t *testing.T, h *harness, run taskpkg.Run) {
 	t.Helper()
 	if err := h.registry.CreateTaskRun(testutil.Context(t), run); err != nil {
 		t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+	}
+}
+
+func createObserveDependency(t *testing.T, h *harness, dependency taskpkg.Dependency) {
+	t.Helper()
+	if err := h.registry.CreateDependency(testutil.Context(t), dependency); err != nil {
+		t.Fatalf("CreateDependency(%q -> %q) error = %v", dependency.TaskID, dependency.DependsOnTaskID, err)
 	}
 }
 

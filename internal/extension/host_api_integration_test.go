@@ -524,6 +524,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	env.grant(
 		"ext-reader",
 		[]string{
+			"tasks",
 			"tasks/get",
 			"tasks/runs/get",
 			"tasks/timeline",
@@ -648,6 +649,18 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatalf("tasks/dashboard active_runs = %d, want >= 1", dashboard.Totals.ActiveRuns)
 	}
 
+	dashboardWorkspaceOnlyResult, err := env.call(t, "ext-reader", "tasks/dashboard", map[string]any{
+		"workspace": env.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/dashboard workspace-only) error = %v", err)
+	}
+	var dashboardWorkspaceOnly apicontract.TaskDashboardPayload
+	decodeResult(t, dashboardWorkspaceOnlyResult, &dashboardWorkspaceOnly)
+	if dashboardWorkspaceOnly.Totals.TasksTotal < 1 {
+		t.Fatalf("tasks/dashboard workspace-only tasks_total = %d, want >= 1", dashboardWorkspaceOnly.Totals.TasksTotal)
+	}
+
 	inboxResult, err := env.call(t, "ext-reader", "tasks/inbox", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
 		"workspace": env.workspaceID,
@@ -662,9 +675,59 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	if inbox.Total < 1 || len(inbox.Groups) == 0 {
 		t.Fatalf("tasks/inbox = %#v, want approval item", inbox)
 	}
-	if got, want := inbox.Groups[0].Items[0].Task.ID, approvalTask.ID; got != want {
-		t.Fatalf("tasks/inbox.groups[0].items[0].task.id = %q, want %q", got, want)
+	if !taskInboxContainsTask(inbox.Groups, approvalTask.ID) {
+		t.Fatalf("tasks/inbox groups = %#v, want task %q", inbox.Groups, approvalTask.ID)
 	}
+
+	inboxWorkspaceOnlyResult, err := env.call(t, "ext-reader", "tasks/inbox", map[string]any{
+		"workspace": env.workspaceID,
+		"lane":      apicontract.TaskInboxLaneApprovals,
+		"limit":     10,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/inbox workspace-only) error = %v", err)
+	}
+	var inboxWorkspaceOnly apicontract.TaskInboxPayload
+	decodeResult(t, inboxWorkspaceOnlyResult, &inboxWorkspaceOnly)
+	if !taskInboxContainsTask(inboxWorkspaceOnly.Groups, approvalTask.ID) {
+		t.Fatalf("tasks/inbox workspace-only groups = %#v, want task %q", inboxWorkspaceOnly.Groups, approvalTask.ID)
+	}
+
+	if _, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: env.workspaceID,
+		Title:       "Newest hidden draft",
+		Draft:       true,
+	}, actor); err != nil {
+		t.Fatalf("tasks.CreateTask(draft) error = %v", err)
+	}
+
+	listResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
+		"workspace": env.workspaceID,
+		"limit":     1,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks) error = %v", err)
+	}
+	var listed []apicontract.TaskSummaryPayload
+	decodeResult(t, listResult, &listed)
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(tasks workspace-only) = %d, want %d", got, want)
+	}
+	if listed[0].Draft {
+		t.Fatalf("tasks workspace-only[0] = %#v, want non-draft item", listed[0])
+	}
+}
+
+func taskInboxContainsTask(groups []apicontract.TaskInboxLaneGroupPayload, taskID string) bool {
+	for _, group := range groups {
+		for _, item := range group.Items {
+			if item.Task.ID == taskID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestHostAPIIntegrationTaskReadSurfaceErrorsStayHostFacing(t *testing.T) {
