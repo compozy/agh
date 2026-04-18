@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Detail timeline and run detail routes
 type: frontend
 complexity: high
@@ -31,11 +31,11 @@ Implement the task-detail and run-detail deep-link experiences on top of the tas
 </requirements>
 
 ## Subtasks
-- [ ] 15.1 Build task-detail route orchestration over the task detail and timeline reads
-- [ ] 15.2 Implement timeline, dependency, child-task, and linked-run UI for the task-detail screen
-- [ ] 15.3 Build run-detail route orchestration over the task run-detail read
-- [ ] 15.4 Implement run-detail panels, linked-session drill-down affordances, and fallback states
-- [ ] 15.5 Add route and component tests for deep links, live states, and run-detail behavior
+- [x] 15.1 Build task-detail route orchestration over the task detail and timeline reads
+- [x] 15.2 Implement timeline, dependency, child-task, and linked-run UI for the task-detail screen
+- [x] 15.3 Build run-detail route orchestration over the task run-detail read
+- [x] 15.4 Implement run-detail panels, linked-session drill-down affordances, and fallback states
+- [x] 15.5 Add route and component tests for deep links, live states, and run-detail behavior
 
 ## Implementation Details
 
@@ -70,16 +70,16 @@ See TechSpec sections "Core Interfaces", "API Endpoints", and the analysis docs 
 
 ## Tests
 - Unit tests:
-  - [ ] Task-detail route hook resolves task ID, selection state, active tab, and timeline query behavior correctly
-  - [ ] Timeline components render task events, linked run state, cursor or pagination changes, and fallback states correctly
-  - [ ] Run-detail route hook resolves run ID, linked task context, and drill-down actions correctly from deep links
-  - [ ] Run-detail UI renders timing, metrics, tool or token summaries, and loading or error states without relying on raw session data
-  - [ ] Navigation affordances back to task detail or list preserve search params and selection context coherently
+  - [x] Task-detail route hook resolves task ID, selection state, active tab, and timeline query behavior correctly
+  - [x] Timeline components render task events, linked run state, cursor or pagination changes, and fallback states correctly
+  - [x] Run-detail route hook resolves run ID, linked task context, and drill-down actions correctly from deep links
+  - [x] Run-detail UI renders timing, metrics, tool or token summaries, and loading or error states without relying on raw session data
+  - [x] Navigation affordances back to task detail or list preserve search params and selection context coherently
 - Integration tests:
-  - [ ] Direct navigation to a task-detail route loads the expected task-native content and timeline scaffolding
-  - [ ] Timeline refresh, pagination, or live-update fallback behavior does not duplicate rows or lose linked run context
-  - [ ] Direct navigation to a run-detail route loads the expected run summary and linked-session affordances
-  - [ ] Navigation between list, detail, and run-detail routes preserves selection and deep-link state coherently
+  - [x] Direct navigation to a task-detail route loads the expected task-native content and timeline scaffolding
+  - [x] Timeline refresh, pagination, or live-update fallback behavior does not duplicate rows or lose linked run context
+  - [x] Direct navigation to a run-detail route loads the expected run summary and linked-session affordances
+  - [x] Navigation between list, detail, and run-detail routes preserves selection and deep-link state coherently
 - Test coverage target: >=80%
 - All tests must pass
 

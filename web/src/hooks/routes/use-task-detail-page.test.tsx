@@ -112,4 +112,40 @@ describe("useTaskDetailPage", () => {
     expect(result.current.fatalError).toBeInstanceOf(Error);
     expect(getTask).not.toHaveBeenCalled();
   });
+
+  it("advances the timeline cursor when handleTimelineLoadMore is called", () => {
+    const { result } = renderHook(
+      () => useTaskDetailPage("task_001", { initialTimelineLimit: 25 }),
+      { wrapper: createWrapper() }
+    );
+
+    expect(result.current.timelineLimit).toBe(25);
+
+    act(() => {
+      result.current.handleTimelineLoadMore();
+    });
+
+    expect(result.current.timelineLimit).toBeGreaterThan(25);
+  });
+
+  it("derives an isLive flag from the active run status", async () => {
+    vi.mocked(getTask).mockResolvedValue({
+      task: { id: "task_001", title: "Review", status: "in_progress", scope: "workspace" },
+      summary: {
+        id: "task_001",
+        title: "Review",
+        status: "in_progress",
+        scope: "workspace",
+        active_run: { id: "run_active", status: "running" },
+      },
+    } as never);
+
+    const { result } = renderHook(() => useTaskDetailPage("task_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLive).toBe(true);
+    });
+  });
 });

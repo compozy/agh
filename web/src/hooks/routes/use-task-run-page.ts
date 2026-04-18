@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import { toast } from "sonner";
 
-import { useTask, useTaskRunDetail } from "@/systems/tasks";
+import { useCancelTaskRun, useTask, useTaskRunDetail } from "@/systems/tasks";
 
 interface UseTaskRunPageOptions {
   enableTaskDetail?: boolean;
@@ -13,6 +14,7 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
 
   const runQuery = useTaskRunDetail(runId, { enabled: hasRunId });
   const taskQuery = useTask(taskId, { enabled: hasTaskId && enableTaskDetail });
+  const cancelMutation = useCancelTaskRun();
 
   const run = runQuery.data ?? null;
   const task = taskQuery.data ?? null;
@@ -27,8 +29,31 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     return runQuery.error ?? null;
   }, [hasRunId, hasTaskId, runQuery.error]);
 
+  const isLive = useMemo(() => {
+    const status = run?.run?.status;
+    return (
+      status === "running" || status === "starting" || status === "claimed" || status === "queued"
+    );
+  }, [run]);
+
+  const handleCancelRun = useCallback(async () => {
+    if (!hasRunId) {
+      return;
+    }
+
+    try {
+      await cancelMutation.mutateAsync({ runId });
+      toast.success("Run canceled.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel run");
+    }
+  }, [cancelMutation, hasRunId, runId]);
+
   return {
     fatalError,
+    handleCancelRun,
+    isCancelPending: cancelMutation.isPending,
+    isLive,
     notFound: runQuery.isError && runQuery.error?.message?.includes("not found"),
     run,
     runError: runQuery.error ?? null,

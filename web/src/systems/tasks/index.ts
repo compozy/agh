@@ -173,3 +173,34 @@ export { TasksEmptyState } from "./components/tasks-empty-state";
 export type { TasksEmptyStateProps } from "./components/tasks-empty-state";
 export { TasksCreateModal } from "./components/tasks-create-modal";
 export type { TasksCreateModalProps } from "./components/tasks-create-modal";
+
+// Task detail + run detail components
+export { TasksDetailHeader } from "./components/tasks-detail-header";
+export type { TasksDetailHeaderProps } from "./components/tasks-detail-header";
+export { TasksDetailTabs } from "./components/tasks-detail-tabs";
+export type { TasksDetailTabItem, TasksDetailTabsProps } from "./components/tasks-detail-tabs";
+export { TasksDetailOverviewPanel } from "./components/tasks-detail-overview-panel";
+export type { TasksDetailOverviewPanelProps } from "./components/tasks-detail-overview-panel";
+export { TasksTimelinePanel } from "./components/tasks-timeline-panel";
+export type { TasksTimelinePanelProps } from "./components/tasks-timeline-panel";
+export { TasksDetailRunsPanel } from "./components/tasks-detail-runs-panel";
+export type { TasksDetailRunsPanelProps } from "./components/tasks-detail-runs-panel";
+export { TasksDetailChildrenPanel } from "./components/tasks-detail-children-panel";
+export type { TasksDetailChildrenPanelProps } from "./components/tasks-detail-children-panel";
+export { TasksDetailDependenciesPanel } from "./components/tasks-detail-dependencies-panel";
+export type { TasksDetailDependenciesPanelProps } from "./components/tasks-detail-dependencies-panel";
+
+export { TaskRunDetailHeader } from "./components/task-run-detail-header";
+export type { TaskRunDetailHeaderProps } from "./components/task-run-detail-header";
+export {
+  TaskRunActivityPanel,
+  TaskRunIdentityPanel,
+  TaskRunProgressPanel,
+} from "./components/task-run-detail-panels";
+export type {
+  TaskRunActivityPanelProps,
+  TaskRunIdentityPanelProps,
+  TaskRunProgressPanelProps,
+} from "./components/task-run-detail-panels";
+export { TaskRunDetailSessionLink } from "./components/task-run-detail-session-link";
+export type { TaskRunDetailSessionLinkProps } from "./components/task-run-detail-session-link";

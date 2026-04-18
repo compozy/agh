@@ -88,4 +88,26 @@ describe("useTaskRunPage", () => {
 
     expect(getTask).not.toHaveBeenCalled();
   });
+
+  it("derives isLive from the current run status", async () => {
+    const { result } = renderHook(() => useTaskRunPage("task_001", "run_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLive).toBe(true);
+    });
+  });
+
+  it("exposes a handleCancelRun action", async () => {
+    const { result } = renderHook(() => useTaskRunPage("task_001", "run_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.run?.run.id).toBe("run_001");
+    });
+
+    expect(typeof result.current.handleCancelRun).toBe("function");
+  });
 });
