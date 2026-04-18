@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Kbd, KbdGroup } from "@agh/ui";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import {
   CircleDotIcon,
   CpuIcon,
@@ -9,6 +9,7 @@ import {
   SettingsIcon,
 } from "lucide-react";
 
+import { Kbd, KbdGroup } from "../kbd";
 import {
   Command,
   CommandEmpty,
@@ -18,20 +19,21 @@ import {
   CommandList,
   CommandSeparator,
   CommandShortcut,
-} from "@/components/ui/command";
+} from "../command";
 
 const meta: Meta<typeof Command> = {
-  title: "components/ui/Command",
+  title: "ui/Command",
   component: Command,
   parameters: {
     layout: "centered",
     docs: {
       description: {
         component:
-          "cmdk-powered palette. Use as a standalone panel or inside a CommandDialog. Items stay searchable via the input.",
+          "cmdk-powered palette. Use as a standalone panel or inside a CommandDialog. Arrow keys move between items; Enter selects.",
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
@@ -51,7 +53,6 @@ const quickItems = [
 ];
 
 export const Default: Story = {
-  args: {},
   render: () => (
     <Command className="w-[24rem] border">
       <CommandInput placeholder="Type a command or search…" />
@@ -81,7 +82,6 @@ export const Default: Story = {
 };
 
 export const WithShortcuts: Story = {
-  args: {},
   render: () => (
     <Command className="w-[24rem] border">
       <CommandInput placeholder="Jump to…" />
@@ -106,4 +106,39 @@ export const WithShortcuts: Story = {
       </CommandList>
     </Command>
   ),
+};
+
+export const KeyboardNavigation: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Filter by typing, then Arrow keys highlight items and Enter selects the highlighted one.",
+      },
+    },
+  },
+  render: () => (
+    <Command className="w-[24rem] border">
+      <CommandInput placeholder="Search…" aria-label="Search palette" />
+      <CommandList>
+        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandGroup heading="Navigate">
+          {navigateItems.map(item => (
+            <CommandItem key={item.value} value={item.value}>
+              <item.icon />
+              {item.label}
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const search = await canvas.findByRole("combobox", { name: "Search palette" });
+    await userEvent.click(search);
+    await userEvent.type(search, "agents");
+    await waitFor(() => expect(canvas.getByText("Go to agents")).toBeInTheDocument());
+    await expect(canvas.queryByText("Go to memory")).not.toBeInTheDocument();
+  },
 };

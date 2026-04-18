@@ -6,7 +6,7 @@
 |----|-----------------------------------------------------------------------|---------|------------|---------------------------------------|
 | 01 | Extend tokens, install motion, add UIProvider                         | completed | low        | —                                     |
 | 02 | Migrate shadcn batch 1 (Dialog, Popover, Sheet, Tooltip) to @agh/ui   | completed | medium     | task_01                               |
-| 03 | Migrate shadcn batch 2 (Combobox, Command, Select, ScrollArea, Tabs) to @agh/ui | pending | medium     | task_01                               |
+| 03 | Migrate shadcn batch 2 (Combobox, Command, Select, ScrollArea, Tabs) to @agh/ui | completed | medium     | task_01                               |
 | 04 | Migrate shadcn batch 3 (DropdownMenu, Switch, Toggle, ToggleGroup, Accordion, Collapsible) to @agh/ui | pending | medium     | task_01                               |
 | 05 | Add Sidebar + SplitPane primitives to @agh/ui                         | pending | high       | task_01                               |
 | 06 | Add PageHeader, Pills, SearchInput, Empty, Section, Toolbar and migrate design-system primitives | pending | critical   | task_01                               |

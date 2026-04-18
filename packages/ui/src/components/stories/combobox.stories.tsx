@@ -1,27 +1,33 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
   Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
   ComboboxCollection,
   ComboboxContent,
   ComboboxEmpty,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-} from "@/components/ui/combobox";
+  useComboboxAnchor,
+} from "../combobox";
 
 const meta: Meta<typeof Combobox> = {
-  title: "components/ui/Combobox",
+  title: "ui/Combobox",
   component: Combobox,
   parameters: {
     layout: "centered",
     docs: {
       description: {
         component:
-          "Base UI Combobox with autofilter. Pass `items` for built-in filtering; type in the input to exercise keyboard navigation.",
+          "Base UI Combobox with autofilter. Compose `<ComboboxInput>` for single-select or `<ComboboxChips>` + `<ComboboxChipsInput>` for multi-select.",
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
@@ -40,7 +46,6 @@ const cities: CityOption[] = [
 ];
 
 export const Default: Story = {
-  args: {},
   render: () => (
     <div className="w-80">
       <Combobox items={cities}>
@@ -63,7 +68,6 @@ export const Default: Story = {
 };
 
 export const Filtering: Story = {
-  args: {},
   parameters: {
     docs: {
       description: {
@@ -91,3 +95,51 @@ export const Filtering: Story = {
     </div>
   ),
 };
+
+function MultiSelectCombobox() {
+  const anchor = useComboboxAnchor();
+  return (
+    <div className="w-80">
+      <Combobox items={cities} multiple>
+        <ComboboxChips ref={anchor}>
+          <ComboboxChipsInput placeholder="Add cities" aria-label="Add cities" />
+        </ComboboxChips>
+        <ComboboxContent anchor={anchor}>
+          <ComboboxList>
+            <ComboboxEmpty>No matches</ComboboxEmpty>
+            <ComboboxCollection>
+              {(item: CityOption) => (
+                <ComboboxItem key={item.value} value={item}>
+                  {item.label}
+                </ComboboxItem>
+              )}
+            </ComboboxCollection>
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </div>
+  );
+}
+
+export const MultiSelect: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`multiple` enables chip-based multi-select. Selections render as `<ComboboxChip>` inside `<ComboboxChips>`; remove with click or Backspace.",
+      },
+    },
+  },
+  render: () => <MultiSelectCombobox />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = await canvas.findByRole("combobox", { name: "Add cities" });
+    await userEvent.click(input);
+    await waitFor(() => expect(within(document.body).getByText("Berlin")).toBeInTheDocument());
+    await userEvent.click(within(document.body).getByText("Berlin"));
+    await waitFor(() => expect(document.querySelector("[data-slot=combobox-chip]")).not.toBeNull());
+  },
+};
+
+// Re-export to ensure ComboboxChip remains a public primitive exercised by this story file.
+void ComboboxChip;

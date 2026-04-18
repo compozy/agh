@@ -4,14 +4,17 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 
 ## Current State
 
-- Phase 1 in progress. Tasks 01 + 02 landed: tokens/motion/UIProvider foundation, plus Dialog/Popover/Sheet/Tooltip migrated into `@agh/ui` with motion-driven exit animations via Base UI's `actionsRef.unmount` + `AnimatePresence`.
+- Phase 1 in progress. Tasks 01 + 02 + 03 landed: tokens/motion/UIProvider, Dialog/Popover/Sheet/Tooltip (motion), plus Combobox/Command/Select/ScrollArea/Tabs in `@agh/ui` (CSS animations kept — see decisions below).
 
 ## Shared Decisions
 
 - **Package manager is Bun.** Treat all `pnpm --filter <pkg> <cmd>` references in task docs as `bun run --cwd <pkg> <cmd>`. Install with `bun add` (never edit `package.json` by hand).
-- **`packages/ui` now has its own Vitest harness** (`packages/ui/vitest.config.ts` + `src/test-setup.ts`, included in root `vitest.config.ts` `projects`). New primitives should land with colocated `*.test.tsx` files rather than spinning up separate configs.
+- **`packages/ui` now has its own Vitest harness** (`packages/ui/vitest.config.ts` + `src/test-setup.ts`, included in root `vitest.config.ts` `projects`). New primitives should land with colocated `*.test.tsx` files rather than spinning up separate configs. The setup file also mocks `Element.prototype.scrollIntoView` for cmdk under jsdom.
 - **Motion consumer hooks**: use `useReducedMotionConfig()` (context-aware) when asserting against a `MotionConfig` wrapper. Plain `useReducedMotion()` only reads `matchMedia` and ignores the provider.
-- **Base UI + motion integration template**: for any Base UI primitive with a Portal/Popup lifecycle (Dialog, Popover, Sheet, Tooltip, and coming Select/Combobox), wrap the Root in a controlled state component that passes `actionsRef={useRef()}` to Base UI and exposes `{ actionsRef, open }` via context. The Content renders `<AnimatePresence onExitComplete={() => actionsRef.current?.unmount()}>` around `{open && <Portal keepMounted>…</Portal>}`, and wires Backdrop/Popup via `render={<motion.div initial/animate/exit/>}`. This is the only sanctioned pattern in this repo — do not re-introduce `data-open:animate-*` CSS keyframes alongside motion, it double-animates.
+- **Base UI + motion integration template**: for any Base UI primitive with a Portal/Popup lifecycle, wrap the Root in a controlled state component that passes `actionsRef={useRef()}` to Base UI and exposes `{ actionsRef, open }` via context. The Content renders `<AnimatePresence onExitComplete={() => actionsRef.current?.unmount()}>` around `{open && <Portal keepMounted>…</Portal>}`, and wires Backdrop/Popup via `render={<motion.div initial/animate/exit/>}`. This is the sanctioned pattern for motion-animated popups — do not re-introduce `data-open:animate-*` CSS keyframes alongside motion, it double-animates.
+- **Select + Combobox kept CSS animations, not motion.** `SelectPortal` does not expose `keepMounted`, and Select's `alignItemWithTrigger` already suppresses the CSS animation; converting them to motion requires a deeper rewrite. They stay on `tw-animate-css` until a future task explicitly migrates them.
+- **Base UI's `Input` is `Field.Control`.** Do not use it inside a `ComboboxPrimitive.Input render={}` — `Field.Control` intercepts the input state and the combobox stops receiving typed values in tests. Use a raw `<input>` with the primitive's classes instead.
+- **Base UI Combobox input filtering under jsdom.** `userEvent.type` does not fire the input event the combobox listens to; use `fireEvent.change(input, { target: { value } })` to drive filter tests.
 
 ## Shared Learnings
 

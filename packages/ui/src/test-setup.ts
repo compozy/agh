@@ -22,4 +22,8 @@ if (typeof window !== "undefined") {
   }
 
   window.ResizeObserver = ResizeObserverMock;
+
+  if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = function scrollIntoView() {};
+  }
 }

@@ -1,20 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Card, CardContent, CardHeader, CardTitle, Separator } from "@agh/ui";
 
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "../card";
+import { Separator } from "../separator";
+import { ScrollArea, ScrollBar } from "../scroll-area";
 
 const meta: Meta<typeof ScrollArea> = {
-  title: "components/ui/ScrollArea",
+  title: "ui/ScrollArea",
   component: ScrollArea,
   parameters: {
     layout: "centered",
     docs: {
       description: {
         component:
-          "Custom scrollbar wrapper with vertical and horizontal modes. Frame content in an @agh/ui Card to show the bounded viewport.",
+          "Custom scrollbar wrapper with vertical and horizontal modes. Renders a track + thumb only when the viewport actually overflows.",
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
@@ -27,7 +29,6 @@ const events = Array.from({ length: 24 }, (_, i) => ({
 }));
 
 export const Default: Story = {
-  args: {},
   render: () => (
     <Card className="w-[22rem]">
       <CardHeader>
@@ -50,8 +51,31 @@ export const Default: Story = {
   ),
 };
 
+export const Overflow: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Viewport overflow surfaces the custom rounded thumb on a translucent track without shifting layout.",
+      },
+    },
+  },
+  render: () => (
+    <div className="h-56 w-64 rounded-lg border bg-card">
+      <ScrollArea className="h-full">
+        <ol className="px-4 py-3 text-sm">
+          {Array.from({ length: 40 }, (_, i) => (
+            <li key={i} className="py-1">
+              Row {String(i + 1).padStart(2, "0")}
+            </li>
+          ))}
+        </ol>
+      </ScrollArea>
+    </div>
+  ),
+};
+
 export const Horizontal: Story = {
-  args: {},
   render: () => (
     <ScrollArea className="w-[28rem] rounded-lg border bg-card">
       <div className="flex gap-3 p-3">

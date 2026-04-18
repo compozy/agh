@@ -1,20 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@agh/ui";
 
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../tabs";
 
 const meta: Meta<typeof Tabs> = {
-  title: "components/ui/Tabs",
+  title: "ui/Tabs",
   component: Tabs,
   parameters: {
     layout: "centered",
     docs: {
       description: {
         component:
-          "Tabbed content switcher with a default segmented style and a `line` variant for dashboards. Pairs with @agh/ui Card for panel framing.",
+          "Tabbed content switcher with a default segmented style and a `line` variant. Supports horizontal (default) and vertical orientations.",
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
@@ -42,7 +43,6 @@ const panels = [
 ] as const;
 
 export const Default: Story = {
-  args: {},
   render: () => (
     <Tabs defaultValue={panels[0].value} className="w-[28rem]">
       <TabsList>
@@ -70,7 +70,6 @@ export const Default: Story = {
 };
 
 export const LineVariant: Story = {
-  args: {},
   render: () => (
     <Tabs defaultValue={panels[1].value} className="w-[28rem]">
       <TabsList variant="line">
@@ -82,6 +81,37 @@ export const LineVariant: Story = {
       </TabsList>
       {panels.map(panel => (
         <TabsContent key={panel.value} value={panel.value} className="pt-3">
+          <p className="text-sm text-muted-foreground">{panel.body}</p>
+        </TabsContent>
+      ))}
+    </Tabs>
+  ),
+};
+
+export const Vertical: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`orientation='vertical'` stacks the list down the left edge and aligns triggers to the start.",
+      },
+    },
+  },
+  render: () => (
+    <Tabs
+      defaultValue={panels[0].value}
+      orientation="vertical"
+      className="w-[32rem] flex-row items-start gap-4"
+    >
+      <TabsList>
+        {panels.map(panel => (
+          <TabsTrigger key={panel.value} value={panel.value}>
+            {panel.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {panels.map(panel => (
+        <TabsContent key={panel.value} value={panel.value}>
           <p className="text-sm text-muted-foreground">{panel.body}</p>
         </TabsContent>
       ))}
