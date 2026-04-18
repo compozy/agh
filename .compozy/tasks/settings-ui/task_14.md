@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Hooks and Extensions page
 type: frontend
 complexity: high
@@ -39,11 +39,11 @@ Implement the combined `hooks-extensions` settings page that depends on both con
 
 ## Subtasks
 
-- [ ] 14.1 Implement the `hooks-extensions` route with combined config and runtime sections
-- [ ] 14.2 Render hook declarations and extension policy state from the settings section envelope
-- [ ] 14.3 Wire extension operational actions that apply immediately through the shared settings or extension adapters
-- [ ] 14.4 Surface restart-required versus immediate-action behavior clearly in the UI
-- [ ] 14.5 Add tests for combined page rendering, actions, and mutation messaging
+- [x] 14.1 Implement the `hooks-extensions` route with combined config and runtime sections
+- [x] 14.2 Render hook declarations and extension policy state from the settings section envelope
+- [x] 14.3 Wire extension operational actions that apply immediately through the shared settings or extension adapters
+- [x] 14.4 Surface restart-required versus immediate-action behavior clearly in the UI
+- [x] 14.5 Add tests for combined page rendering, actions, and mutation messaging
 
 ## Implementation Details
 

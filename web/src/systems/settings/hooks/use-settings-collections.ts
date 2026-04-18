@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   settingsEnvironmentDetailOptions,
   settingsEnvironmentsListOptions,
+  settingsExtensionsListOptions,
   settingsHooksListOptions,
   settingsMCPServersListOptions,
   settingsProviderDetailOptions,
@@ -36,4 +37,8 @@ export function useSettingsHooks() {
 
 export function useSettingsMCPServers(filter: SettingsMCPServerListFilter = {}) {
   return useQuery(settingsMCPServersListOptions(filter));
+}
+
+export function useSettingsExtensions() {
+  return useQuery(settingsExtensionsListOptions());
 }

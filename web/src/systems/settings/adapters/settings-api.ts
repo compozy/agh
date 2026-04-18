@@ -10,6 +10,7 @@ import type {
   SettingsEnvironmentCollection,
   SettingsEnvironmentDetail,
   SettingsEnvironmentRequest,
+  SettingsExtensionEntry,
   SettingsGeneralSection,
   SettingsHookCollection,
   SettingsHookRequest,
@@ -641,4 +642,65 @@ export const OBSERVABILITY_LOG_TAIL_PATH = "/api/settings/observability/log-tail
 
 export function settingsObservabilityLogTailPath(): string {
   return OBSERVABILITY_LOG_TAIL_PATH;
+}
+
+export async function listSettingsExtensions(
+  signal?: AbortSignal
+): Promise<SettingsExtensionEntry[]> {
+  const { data, error, response } = await apiClient.GET("/api/extensions", { signal });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to list extensions", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to list extensions").extensions;
+}
+
+export async function enableSettingsExtension(
+  name: string,
+  signal?: AbortSignal
+): Promise<SettingsExtensionEntry> {
+  const { data, error, response } = await apiClient.POST("/api/extensions/{name}/enable", {
+    params: { path: { name } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new SettingsApiError(`Extension not found: ${name}`, 404);
+    }
+
+    throw new SettingsApiError(
+      defaultApiErrorMessage(`Failed to enable extension "${name}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to enable extension "${name}"`).extension;
+}
+
+export async function disableSettingsExtension(
+  name: string,
+  signal?: AbortSignal
+): Promise<SettingsExtensionEntry> {
+  const { data, error, response } = await apiClient.POST("/api/extensions/{name}/disable", {
+    params: { path: { name } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new SettingsApiError(`Extension not found: ${name}`, 404);
+    }
+
+    throw new SettingsApiError(
+      defaultApiErrorMessage(`Failed to disable extension "${name}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to disable extension "${name}"`).extension;
 }

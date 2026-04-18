@@ -7,6 +7,16 @@ export type SettingsAutomationSection = OperationResponse<"getSettingsAutomation
 export type SettingsNetworkSection = OperationResponse<"getSettingsNetwork", 200>;
 export type SettingsObservabilitySection = OperationResponse<"getSettingsObservability", 200>;
 export type SettingsHooksExtensionsSection = OperationResponse<"getSettingsHooksExtensions", 200>;
+export type SettingsHooksExtensionsHook = NonNullable<
+  SettingsHooksExtensionsSection["hooks"]
+>[number];
+export type SettingsHooksExtensionsInstalled = NonNullable<
+  SettingsHooksExtensionsSection["installed"]
+>[number];
+export type SettingsHooksExtensionsTransportParity =
+  SettingsHooksExtensionsSection["transport_parity"];
+
+export type SettingsExtensionEntry = OperationResponse<"listExtensions", 200>["extensions"][number];
 
 export type SettingsProviderCollection = OperationResponse<"listSettingsProviders", 200>;
 export type SettingsProviderEntry = SettingsProviderCollection["providers"][number];

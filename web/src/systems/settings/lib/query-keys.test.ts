@@ -68,4 +68,9 @@ describe("settingsKeys", () => {
     expect(settingsKeys.restartRoot()).toEqual(["settings", "restart"]);
     expect(settingsKeys.restartStatus("op_001")).toEqual(["settings", "restart", "op_001"]);
   });
+
+  it("isolates extensions keys from collections and sections", () => {
+    expect(settingsKeys.extensionsRoot()).toEqual(["settings", "extensions"]);
+    expect(settingsKeys.extensionsList()).toEqual(["settings", "extensions", "list"]);
+  });
 });

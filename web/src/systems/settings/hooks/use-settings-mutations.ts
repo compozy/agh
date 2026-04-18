@@ -5,6 +5,8 @@ import {
   deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
+  disableSettingsExtension,
+  enableSettingsExtension,
   putSettingsEnvironment,
   putSettingsHook,
   putSettingsMCPServer,
@@ -21,6 +23,7 @@ import { settingsKeys } from "../lib/query-keys";
 import { useSettingsRestartStore } from "../stores/use-settings-restart-store";
 import type {
   SettingsEnvironmentRequest,
+  SettingsExtensionEntry,
   SettingsHookRequest,
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerPutFilter,
@@ -251,5 +254,30 @@ export function useDeleteSettingsMCPServer() {
     mutationFn: ({ name, filter }: MCPDeleteParams) => deleteSettingsMCPServer(name, filter ?? {}),
     onSuccess: recordMutation,
     onSettled: () => invalidateMCPServers(queryClient),
+  });
+}
+
+function invalidateExtensions(queryClient: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: settingsKeys.extensionsRoot() }),
+    queryClient.invalidateQueries({ queryKey: settingsKeys.section("hooks-extensions") }),
+  ]);
+}
+
+export function useEnableSettingsExtension() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SettingsExtensionEntry, Error, string>({
+    mutationFn: name => enableSettingsExtension(name),
+    onSettled: () => invalidateExtensions(queryClient),
+  });
+}
+
+export function useDisableSettingsExtension() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SettingsExtensionEntry, Error, string>({
+    mutationFn: name => disableSettingsExtension(name),
+    onSettled: () => invalidateExtensions(queryClient),
   });
 }

@@ -40,6 +40,9 @@ export const settingsKeys = {
   mcpList: (filter: SettingsMCPServerListFilter = {}) =>
     [...settingsKeys.mcpLists(), filter.scope ?? "", normalizeText(filter.workspace_id)] as const,
 
+  extensionsRoot: () => [...settingsKeys.all, "extensions"] as const,
+  extensionsList: () => [...settingsKeys.extensionsRoot(), "list"] as const,
+
   restartRoot: () => [...settingsKeys.all, "restart"] as const,
   restartStatus: (operationId: string) => [...settingsKeys.restartRoot(), operationId] as const,
 };

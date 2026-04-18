@@ -12,6 +12,7 @@ import {
   getSettingsRestartStatus,
   getSettingsSkills,
   listSettingsEnvironments,
+  listSettingsExtensions,
   listSettingsHooks,
   listSettingsMCPServers,
   listSettingsProviders,
@@ -140,6 +141,15 @@ export function settingsMCPServersListOptions(filter: SettingsMCPServerListFilte
   return queryOptions({
     queryKey: settingsKeys.mcpList(filter),
     queryFn: ({ signal }) => listSettingsMCPServers(filter, signal),
+    staleTime: COLLECTION_STALE_TIME,
+    refetchInterval: COLLECTION_REFETCH_INTERVAL,
+  });
+}
+
+export function settingsExtensionsListOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.extensionsList(),
+    queryFn: ({ signal }) => listSettingsExtensions(signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
   });

@@ -8,6 +8,8 @@ vi.mock("../adapters/settings-api", () => ({
   deleteSettingsHook: vi.fn(),
   deleteSettingsMCPServer: vi.fn(),
   deleteSettingsProvider: vi.fn(),
+  disableSettingsExtension: vi.fn(),
+  enableSettingsExtension: vi.fn(),
   putSettingsEnvironment: vi.fn(),
   putSettingsHook: vi.fn(),
   putSettingsMCPServer: vi.fn(),
@@ -24,6 +26,8 @@ vi.mock("../adapters/settings-api", () => ({
 import {
   deleteSettingsMCPServer,
   deleteSettingsProvider,
+  disableSettingsExtension,
+  enableSettingsExtension,
   putSettingsMCPServer,
   updateSettingsGeneral,
   updateSettingsMemory,
@@ -34,6 +38,8 @@ import { useSettingsRestartStore } from "../stores/use-settings-restart-store";
 import {
   useDeleteSettingsMCPServer,
   useDeleteSettingsProvider,
+  useDisableSettingsExtension,
+  useEnableSettingsExtension,
   usePutSettingsMCPServer,
   useUpdateSettingsGeneral,
   useUpdateSettingsMemory,
@@ -221,6 +227,63 @@ describe("mcp server mutations", () => {
       scope: "workspace",
       workspace_id: "ws_alpha",
       target: "auto",
+    });
+  });
+});
+
+describe("extension action mutations", () => {
+  const extension = {
+    name: "daytona",
+    enabled: true,
+    version: "1.2.3",
+    state: "running",
+    source: "marketplace",
+    type: "backend",
+    daemon_running: true,
+  };
+
+  it("enables an extension and invalidates extension + section caches", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    vi.mocked(enableSettingsExtension).mockResolvedValue(extension);
+
+    const { result } = renderHook(() => useEnableSettingsExtension(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync("daytona");
+    });
+
+    expect(enableSettingsExtension).toHaveBeenCalledWith("daytona");
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: settingsKeys.extensionsRoot(),
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: settingsKeys.section("hooks-extensions"),
+      });
+    });
+
+    // Extension toggles must not leak into the restart banner.
+    expect(useSettingsRestartStore.getState().lastMutation).toBeNull();
+  });
+
+  it("disables an extension and reuses the same invalidation path", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    vi.mocked(disableSettingsExtension).mockResolvedValue({ ...extension, enabled: false });
+
+    const { result } = renderHook(() => useDisableSettingsExtension(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync("daytona");
+    });
+
+    expect(disableSettingsExtension).toHaveBeenCalledWith("daytona");
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: settingsKeys.extensionsRoot(),
+      });
     });
   });
 });

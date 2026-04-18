@@ -5,10 +5,13 @@ import {
   deleteSettingsEnvironment,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
+  disableSettingsExtension,
+  enableSettingsExtension,
   getSettingsGeneral,
   getSettingsObservability,
   getSettingsRestartStatus,
   listSettingsEnvironments,
+  listSettingsExtensions,
   listSettingsHooks,
   listSettingsMCPServers,
   listSettingsProviders,
@@ -393,6 +396,64 @@ describe("restart action", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
     await expect(getSettingsRestartStatus("missing")).rejects.toThrow(
       "Restart operation not found: missing"
+    );
+  });
+});
+
+describe("extension operational actions", () => {
+  const extensionFixture = {
+    name: "daytona",
+    enabled: true,
+    version: "1.2.3",
+    state: "running",
+    source: "marketplace",
+    type: "backend",
+    daemon_running: true,
+    health: "healthy",
+  };
+
+  it("lists installed extensions through the HTTP endpoint", async () => {
+    mockJsonResponse({ extensions: [extensionFixture] });
+
+    const result = await listSettingsExtensions();
+
+    expect(result).toEqual([extensionFixture]);
+    await expectFetchRequest({ path: "/api/extensions" });
+  });
+
+  it("enables an extension and returns the updated record", async () => {
+    mockJsonResponse({ extension: extensionFixture });
+
+    const result = await enableSettingsExtension("daytona");
+
+    expect(result.enabled).toBe(true);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/extensions/daytona/enable",
+    });
+  });
+
+  it("disables an extension and returns the updated record", async () => {
+    mockJsonResponse({ extension: { ...extensionFixture, enabled: false } });
+
+    const result = await disableSettingsExtension("daytona");
+
+    expect(result.enabled).toBe(false);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/extensions/daytona/disable",
+    });
+  });
+
+  it("maps 404 responses to a typed not-found error for enable and disable", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+    await expect(enableSettingsExtension("missing")).rejects.toThrow(
+      "Extension not found: missing"
+    );
+
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+    await expect(disableSettingsExtension("missing")).rejects.toThrow(
+      "Extension not found: missing"
     );
   });
 });
