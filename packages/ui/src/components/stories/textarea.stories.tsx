@@ -4,7 +4,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "../field";
 import { Textarea } from "../textarea";
 
 const meta: Meta<typeof Textarea> = {
-  title: "components/ui/Textarea",
+  title: "ui/Textarea",
   component: Textarea,
   parameters: {
     layout: "centered",
@@ -15,6 +15,7 @@ const meta: Meta<typeof Textarea> = {
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;

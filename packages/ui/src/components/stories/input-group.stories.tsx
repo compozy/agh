@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CommandIcon, MailIcon, SearchIcon } from "lucide-react";
-import { Kbd, Label } from "@agh/ui";
 
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel } from "../field";
 import {
   InputGroup,
   InputGroupAddon,
@@ -10,10 +9,12 @@ import {
   InputGroupInput,
   InputGroupText,
   InputGroupTextarea,
-} from "@/components/ui/input-group";
+} from "../input-group";
+import { Kbd } from "../kbd";
+import { Label } from "../label";
 
 const meta: Meta<typeof InputGroup> = {
-  title: "components/ui/InputGroup",
+  title: "ui/InputGroup",
   component: InputGroup,
   parameters: {
     layout: "centered",
@@ -24,6 +25,7 @@ const meta: Meta<typeof InputGroup> = {
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;

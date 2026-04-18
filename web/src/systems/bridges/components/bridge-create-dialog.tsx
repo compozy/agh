@@ -7,22 +7,19 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  Input,
-  Pill,
-  Switch,
-} from "@agh/ui";
-
-import {
   Field,
   FieldContent,
   FieldDescription,
   FieldGroup,
   FieldSet,
   FieldTitle,
-} from "@/components/ui/field";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-
-import { Textarea } from "@/components/ui/textarea";
+  Input,
+  NativeSelect,
+  NativeSelectOption,
+  Pill,
+  Switch,
+  Textarea,
+} from "@agh/ui";
 
 import {
   buildBridgeProviderKey,

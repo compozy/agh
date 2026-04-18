@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { toast } from "sonner";
-import { Button } from "@agh/ui";
+import { expect, userEvent, within } from "storybook/test";
 
-import { Toaster } from "../sonner";
+import { Button } from "../button";
+import { Toaster, toast } from "../sonner";
 
 const meta: Meta<typeof Toaster> = {
-  title: "components/ui/Sonner",
+  title: "ui/Sonner",
   component: Toaster,
   parameters: {
     layout: "centered",
@@ -16,6 +16,7 @@ const meta: Meta<typeof Toaster> = {
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
@@ -74,4 +75,34 @@ export const WithAction: Story = {
       <Toaster />
     </div>
   ),
+};
+
+export const ErrorPlay: Story = {
+  args: {},
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Interaction test — clicking the trigger fires `toast.error` and the toast body renders with the danger message.",
+      },
+    },
+  },
+  render: () => (
+    <div className="flex flex-col items-start gap-3">
+      <Button
+        data-testid="sonner-error-trigger"
+        onClick={() => toast.error("Daemon disconnected from the UDS socket.")}
+      >
+        Trigger error toast
+      </Button>
+      <Toaster />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByTestId("sonner-error-trigger");
+    await userEvent.click(trigger);
+    const body = await within(document.body).findByText("Daemon disconnected from the UDS socket.");
+    expect(body).toBeInTheDocument();
+  },
 };

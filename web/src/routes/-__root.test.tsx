@@ -9,14 +9,11 @@ vi.mock("next-themes", () => ({
   ),
 }));
 
-vi.mock("@/components/ui/sonner", () => ({
-  Toaster: () => <div data-testid="toaster" />,
-}));
-
 vi.mock("@agh/ui", async () => {
   const actual = await vi.importActual<typeof import("@agh/ui")>("@agh/ui");
   return {
     ...actual,
+    Toaster: () => <div data-testid="toaster" />,
     TooltipProvider: ({ children }: { children: React.ReactNode }) => (
       <div data-testid="tooltip-provider">{children}</div>
     ),

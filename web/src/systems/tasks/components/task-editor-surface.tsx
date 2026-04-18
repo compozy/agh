@@ -2,8 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Pencil, Plus } from "lucide-react";
 import type * as React from "react";
 
-import { Textarea } from "@/components/ui/textarea";
-import { Button, Input, Pill } from "@agh/ui";
+import { Button, Input, Pill, Textarea } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import type { CreateTaskDraftInput } from "@/hooks/routes/use-tasks-page";

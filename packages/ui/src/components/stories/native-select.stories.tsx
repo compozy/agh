@@ -1,14 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
-import {
-  NativeSelect,
-  NativeSelectOptGroup,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+import { Field, FieldDescription, FieldError, FieldLabel } from "../field";
+import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "../native-select";
 
 const meta: Meta<typeof NativeSelect> = {
-  title: "components/ui/NativeSelect",
+  title: "ui/NativeSelect",
   component: NativeSelect,
   parameters: {
     layout: "centered",
@@ -19,6 +15,7 @@ const meta: Meta<typeof NativeSelect> = {
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;

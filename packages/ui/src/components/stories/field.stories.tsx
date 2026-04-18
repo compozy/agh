@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Input } from "@agh/ui";
 
 import {
   Field,
@@ -9,10 +8,11 @@ import {
   FieldLabel,
   FieldLegend,
   FieldSet,
-} from "@/components/ui/field";
+} from "../field";
+import { Input } from "../input";
 
 const meta: Meta<typeof Field> = {
-  title: "components/ui/Field",
+  title: "ui/Field",
   component: Field,
   parameters: {
     layout: "centered",
@@ -23,6 +23,7 @@ const meta: Meta<typeof Field> = {
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;

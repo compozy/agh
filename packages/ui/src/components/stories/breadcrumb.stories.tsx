@@ -11,7 +11,7 @@ import {
 } from "../breadcrumb";
 
 const meta: Meta<typeof Breadcrumb> = {
-  title: "components/ui/Breadcrumb",
+  title: "ui/Breadcrumb",
   component: Breadcrumb,
   parameters: {
     layout: "centered",
@@ -22,6 +22,7 @@ const meta: Meta<typeof Breadcrumb> = {
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;

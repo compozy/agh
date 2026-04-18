@@ -4,7 +4,7 @@ import { CircleCheckIcon } from "lucide-react";
 import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarImage } from "../avatar";
 
 const meta: Meta<typeof Avatar> = {
-  title: "components/ui/Avatar",
+  title: "ui/Avatar",
   component: Avatar,
   parameters: {
     layout: "centered",
@@ -15,6 +15,7 @@ const meta: Meta<typeof Avatar> = {
       },
     },
   },
+  tags: ["autodocs"],
 };
 
 export default meta;
