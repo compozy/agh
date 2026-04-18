@@ -1,0 +1,235 @@
+# @agh/ui
+
+`@agh/ui` is the **single source of generic UI primitives** for every AGH surface — the operator runtime (`web/`), the marketing + docs site (`packages/site/`), and any future UI that needs the AGH look and feel. It owns the design tokens, the motion config, and the flat warm-dark primitive set. Domain compositions (session inspectors, task cards, automation rows) live in `web/src/systems/**` and **compose** these primitives; they never redefine them.
+
+This README is the contributor guide. Read it before adding, editing, or moving a primitive.
+
+## Canonical references
+
+- [`DESIGN.md`](../../DESIGN.md) — authoritative written spec for tokens, typography, component shapes, voice, iconography, and motion. Always open this first.
+- [`docs/design/design-system/README.md`](../../docs/design/design-system/README.md) — prose-first brand + structural guide mirrored by the sections below.
+- [`.agents/skills/agh-design/SKILL.md`](../../.agents/skills/agh-design/SKILL.md) — Claude-invocable skill that enforces the same brand rules when generating artifacts.
+- [`./src/tokens.css`](./src/tokens.css) — the runtime token file. Every primitive pulls from here — never invent values.
+- [`./src/index.ts`](./src/index.ts) — authoritative export list. This file is the surface contract; if an identifier is not here, `web/` cannot import it.
+
+## Architecture decisions
+
+Every rule below is derived from an accepted ADR. Open the ADR before challenging the rule.
+
+- [ADR-001: Consolidate UI primitives into @agh/ui](../../.compozy/tasks/redesign/adrs/adr-001.md) — single-package primitive policy and the import-direction rule (`web/src/** → @agh/ui`, never the reverse).
+- [ADR-002: Greenfield migration — delete without backwards-compat](../../.compozy/tasks/redesign/adrs/adr-002.md) — no compat shims, no feature flags. Old primitives leave with the PR that replaces them.
+- [ADR-003: Adopt `motion` for UI animations](../../.compozy/tasks/redesign/adrs/adr-003.md) — when to reach for `motion` vs when CSS suffices.
+- [ADR-004: Phased rollout](../../.compozy/tasks/redesign/adrs/adr-004.md) — why new primitives land with stories and snapshots on day one.
+- [ADR-005: Visual parity via Playwright snapshots](../../.compozy/tasks/redesign/adrs/adr-005.md) — per-story `toHaveScreenshot()` is the regression gate.
+
+## When to add a primitive here vs. in `web/`
+
+Ask one question: **is this a domain-free shape that could serve a second surface without code changes?**
+
+If yes — keep it here. Pull tokens from [`./src/tokens.css`](./src/tokens.css), wire the API in terms of slots (`rail`, `list`, `detail`, `leading`, `trailing`, …) and variants (`tone`, `size`, `density`), and hold no AGH-specific defaults in its props. Examples: `Sidebar`, `SplitPane`, `Metric`, `StatusDot`, `ConnectionIndicator`, `ChatMessageBubble` (the **shell**, not the session-aware message body).
+
+If it reads session events, hits a TanStack query, consumes the `agh-openapi` types, or only makes sense inside one domain — keep it in `web/src/systems/<domain>/components/`. The `@agh/ui` shell stays ignorant of that domain; the domain component composes the shell. This matches **ADR-001** — `@agh/ui` does not import from `web/src/**`.
+
+## Primitive inventory
+
+Every exported identifier from [`./src/index.ts`](./src/index.ts) is listed here by name. Each primitive group links to its colocated Storybook file under [`./src/components/stories/`](./src/components/stories/).
+
+### Foundations
+
+Provider plumbing, typography atoms, and the `cn` class-merger.
+
+| Export                               | Story                                                                         | Purpose                                                                                                                     |
+| ------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `UIProvider` · `UIProviderProps`     | [`ui-provider.stories.tsx`](./src/components/stories/ui-provider.stories.tsx) | Root `MotionConfig` wrapper. Sets `reducedMotion="user"` by default and `transition={{ duration: 0.15, ease: "easeOut" }}`. |
+| `DirectionProvider` · `useDirection` | [`direction.stories.tsx`](./src/components/stories/direction.stories.tsx)     | RTL/LTR direction context for downstream primitives.                                                                        |
+| `cn`                                 | —                                                                             | `clsx` + `tailwind-merge` wrapper. Always compose classnames through `cn` so Tailwind conflicts collapse deterministically. |
+| `Label`                              | [`label.stories.tsx`](./src/components/stories/label.stories.tsx)             | Form-label atom.                                                                                                            |
+| `Separator`                          | [`separator.stories.tsx`](./src/components/stories/separator.stories.tsx)     | 1px hairline — `--color-divider`.                                                                                           |
+
+### Structural
+
+Layout shells, overlays, containers, and navigation primitives.
+
+| Export                                                                                                                                                                                                                                                                                                                                                                | Story                                                                             | Notes                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `Sidebar` · `SidebarProps` · `SIDEBAR_PANEL_WIDTH_DEFAULT` · `SIDEBAR_RAIL_WIDTH`                                                                                                                                                                                                                                                                                     | [`sidebar.stories.tsx`](./src/components/stories/sidebar.stories.tsx)             | Rail + header + nav + footer slots. Collapse trigger is built in; host must not add its own. |
+| `SplitPane` · `SplitPaneProps` · `SPLIT_LIST_WIDTH_DEFAULT`                                                                                                                                                                                                                                                                                                           | [`split-pane.stories.tsx`](./src/components/stories/split-pane.stories.tsx)       | List + detail + `detailEmpty` slots with narrow-breakpoint back-button.                      |
+| `PageHeader` · `PageHeaderProps`                                                                                                                                                                                                                                                                                                                                      | [`page-header.stories.tsx`](./src/components/stories/page-header.stories.tsx)     | Eyebrow + title + actions.                                                                   |
+| `Section` · `SectionProps`                                                                                                                                                                                                                                                                                                                                            | [`section.stories.tsx`](./src/components/stories/section.stories.tsx)             | Titled content region with eyebrow + optional actions.                                       |
+| `Toolbar` · `ToolbarProps`                                                                                                                                                                                                                                                                                                                                            | [`toolbar.stories.tsx`](./src/components/stories/toolbar.stories.tsx)             | Inline toolbar row.                                                                          |
+| `Card` · `CardHeader` · `CardFooter` · `CardTitle` · `CardAction` · `CardDescription` · `CardContent`                                                                                                                                                                                                                                                                 | [`card.stories.tsx`](./src/components/stories/card.stories.tsx)                   | Flat `--color-surface` panel.                                                                |
+| `Table` · `TableHeader` · `TableBody` · `TableFooter` · `TableHead` · `TableRow` · `TableCell` · `TableCaption`                                                                                                                                                                                                                                                       | [`table.stories.tsx`](./src/components/stories/table.stories.tsx)                 | Dense data table.                                                                            |
+| `Item` · `ItemActions` · `ItemContent` · `ItemDescription` · `ItemFooter` · `ItemGroup` · `ItemHeader` · `ItemMedia` · `ItemSeparator` · `ItemTitle`                                                                                                                                                                                                                  | [`item.stories.tsx`](./src/components/stories/item.stories.tsx)                   | List row with leading/trailing media + metadata slots.                                       |
+| `Tabs` · `TabsContent` · `TabsList` · `TabsTrigger` · `tabsListVariants`                                                                                                                                                                                                                                                                                              | [`tabs.stories.tsx`](./src/components/stories/tabs.stories.tsx)                   | Base UI Tabs.                                                                                |
+| `Accordion` · `AccordionContent` · `AccordionItem` · `AccordionTrigger`                                                                                                                                                                                                                                                                                               | [`accordion.stories.tsx`](./src/components/stories/accordion.stories.tsx)         | Base UI Accordion (`multiple` boolean, **not** Radix `type`).                                |
+| `Collapsible` · `CollapsibleContent` · `CollapsibleTrigger`                                                                                                                                                                                                                                                                                                           | [`collapsible.stories.tsx`](./src/components/stories/collapsible.stories.tsx)     | CSS-animated disclosure.                                                                     |
+| `Breadcrumb` · `BreadcrumbEllipsis` · `BreadcrumbItem` · `BreadcrumbLink` · `BreadcrumbList` · `BreadcrumbPage` · `BreadcrumbSeparator`                                                                                                                                                                                                                               | [`breadcrumb.stories.tsx`](./src/components/stories/breadcrumb.stories.tsx)       | Route breadcrumb.                                                                            |
+| `ScrollArea` · `ScrollBar`                                                                                                                                                                                                                                                                                                                                            | [`scroll-area.stories.tsx`](./src/components/stories/scroll-area.stories.tsx)     | Styled scrollable region.                                                                    |
+| `Empty` · `EmptyProps`                                                                                                                                                                                                                                                                                                                                                | [`empty.stories.tsx`](./src/components/stories/empty.stories.tsx)                 | Empty-state scaffold.                                                                        |
+| `Dialog` · `DialogClose` · `DialogContent` · `DialogDescription` · `DialogFooter` · `DialogHeader` · `DialogOverlay` · `DialogPortal` · `DialogTitle` · `DialogTrigger`                                                                                                                                                                                               | [`dialog.stories.tsx`](./src/components/stories/dialog.stories.tsx)               | `motion`-animated modal.                                                                     |
+| `Sheet` · `SheetClose` · `SheetContent` · `SheetDescription` · `SheetFooter` · `SheetHeader` · `SheetTitle` · `SheetTrigger`                                                                                                                                                                                                                                          | [`sheet.stories.tsx`](./src/components/stories/sheet.stories.tsx)                 | `motion`-animated side panel.                                                                |
+| `Popover` · `PopoverContent` · `PopoverDescription` · `PopoverHeader` · `PopoverTitle` · `PopoverTrigger`                                                                                                                                                                                                                                                             | [`popover.stories.tsx`](./src/components/stories/popover.stories.tsx)             | `motion`-animated floating panel.                                                            |
+| `Tooltip` · `TooltipContent` · `TooltipProvider` · `TooltipTrigger`                                                                                                                                                                                                                                                                                                   | [`tooltip.stories.tsx`](./src/components/stories/tooltip.stories.tsx)             | `motion`-animated hover hint.                                                                |
+| `DropdownMenu` · `DropdownMenuCheckboxItem` · `DropdownMenuContent` · `DropdownMenuGroup` · `DropdownMenuItem` · `DropdownMenuLabel` · `DropdownMenuPortal` · `DropdownMenuRadioGroup` · `DropdownMenuRadioItem` · `DropdownMenuSeparator` · `DropdownMenuShortcut` · `DropdownMenuSub` · `DropdownMenuSubContent` · `DropdownMenuSubTrigger` · `DropdownMenuTrigger` | [`dropdown-menu.stories.tsx`](./src/components/stories/dropdown-menu.stories.tsx) | Base UI Menu — `DropdownMenuLabel` must be inside `DropdownMenuGroup`.                       |
+
+### Form
+
+Controls, selection, and the input scaffolding primitives.
+
+| Export                                                                                                                                                                                                                                                                                                                        | Story                                                                             | Notes                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `Button` · `buttonVariants`                                                                                                                                                                                                                                                                                                   | [`button.stories.tsx`](./src/components/stories/button.stories.tsx)               | Variants mapped to the tokens in `DESIGN.md §5`.                                         |
+| `ButtonGroup` · `ButtonGroupSeparator` · `ButtonGroupText` · `buttonGroupVariants`                                                                                                                                                                                                                                            | [`button-group.stories.tsx`](./src/components/stories/button-group.stories.tsx)   | Adjacent button cluster.                                                                 |
+| `Toggle` · `toggleVariants`                                                                                                                                                                                                                                                                                                   | [`toggle.stories.tsx`](./src/components/stories/toggle.stories.tsx)               | Single toggle button.                                                                    |
+| `ToggleGroup` · `ToggleGroupItem`                                                                                                                                                                                                                                                                                             | [`toggle-group.stories.tsx`](./src/components/stories/toggle-group.stories.tsx)   | Base UI ToggleGroup (`multiple` boolean, **not** Radix `type`).                          |
+| `Switch`                                                                                                                                                                                                                                                                                                                      | [`switch.stories.tsx`](./src/components/stories/switch.stories.tsx)               | Boolean switch.                                                                          |
+| `Input`                                                                                                                                                                                                                                                                                                                       | [`input.stories.tsx`](./src/components/stories/input.stories.tsx)                 | Text input — Base UI `Field.Control`. Do **not** use inside a `ComboboxInput render={}`. |
+| `Textarea`                                                                                                                                                                                                                                                                                                                    | [`textarea.stories.tsx`](./src/components/stories/textarea.stories.tsx)           | Multi-line text input.                                                                   |
+| `NativeSelect` · `NativeSelectOptGroup` · `NativeSelectOption`                                                                                                                                                                                                                                                                | [`native-select.stories.tsx`](./src/components/stories/native-select.stories.tsx) | Unstyled native select for forms that need OS-level interaction.                         |
+| `InputGroup` · `InputGroupAddon` · `InputGroupButton` · `InputGroupInput` · `InputGroupText` · `InputGroupTextarea`                                                                                                                                                                                                           | [`input-group.stories.tsx`](./src/components/stories/input-group.stories.tsx)     | Composable input shell with slotted addons.                                              |
+| `SearchInput` · `SearchInputProps`                                                                                                                                                                                                                                                                                            | [`search-input.stories.tsx`](./src/components/stories/search-input.stories.tsx)   | Search variant with leading icon + clear affordance.                                     |
+| `Field` · `FieldContent` · `FieldDescription` · `FieldError` · `FieldGroup` · `FieldLabel` · `FieldLegend` · `FieldSeparator` · `FieldSet` · `FieldTitle`                                                                                                                                                                     | [`field.stories.tsx`](./src/components/stories/field.stories.tsx)                 | Accessible form field scaffold.                                                          |
+| `Kbd` · `KbdGroup`                                                                                                                                                                                                                                                                                                            | [`kbd.stories.tsx`](./src/components/stories/kbd.stories.tsx)                     | Keyboard-shortcut chip.                                                                  |
+| `Select` · `SelectContent` · `SelectGroup` · `SelectItem` · `SelectLabel` · `SelectScrollDownButton` · `SelectScrollUpButton` · `SelectSeparator` · `SelectTrigger` · `SelectValue`                                                                                                                                           | [`select.stories.tsx`](./src/components/stories/select.stories.tsx)               | CSS-animated Base UI Select.                                                             |
+| `Combobox` · `ComboboxChip` · `ComboboxChips` · `ComboboxChipsInput` · `ComboboxClear` · `ComboboxCollection` · `ComboboxContent` · `ComboboxEmpty` · `ComboboxGroup` · `ComboboxInput` · `ComboboxItem` · `ComboboxLabel` · `ComboboxList` · `ComboboxSeparator` · `ComboboxTrigger` · `ComboboxValue` · `useComboboxAnchor` | [`combobox.stories.tsx`](./src/components/stories/combobox.stories.tsx)           | Base UI Combobox.                                                                        |
+| `Command` · `CommandDialog` · `CommandEmpty` · `CommandGroup` · `CommandInput` · `CommandItem` · `CommandList` · `CommandSeparator` · `CommandShortcut`                                                                                                                                                                       | [`command.stories.tsx`](./src/components/stories/command.stories.tsx)             | `cmdk` command palette.                                                                  |
+
+### Feedback
+
+Status, alerting, progress, and density-sensitive signal primitives.
+
+| Export                                                                                                                           | Story                                                                                           | Notes                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `Alert` · `AlertTitle` · `AlertDescription` · `AlertAction` · `alertVariants`                                                    | [`alert.stories.tsx`](./src/components/stories/alert.stories.tsx)                               | Inline alerts.                                                                                                 |
+| `Progress` · `ProgressTrack` · `ProgressIndicator` · `ProgressLabel` · `ProgressValue`                                           | [`progress.stories.tsx`](./src/components/stories/progress.stories.tsx)                         | Linear progress.                                                                                               |
+| `Badge` · `badgeVariants`                                                                                                        | [`badge.stories.tsx`](./src/components/stories/badge.stories.tsx)                               | Tinted badges — use `MonoBadge` for status, `KindChip` for kind labels.                                        |
+| `Skeleton`                                                                                                                       | [`skeleton.stories.tsx`](./src/components/stories/skeleton.stories.tsx)                         | Shimmer placeholder.                                                                                           |
+| `Spinner`                                                                                                                        | [`spinner.stories.tsx`](./src/components/stories/spinner.stories.tsx)                           | Spinner atom.                                                                                                  |
+| `Toaster` · `toast` · `ToasterProps`                                                                                             | [`sonner.stories.tsx`](./src/components/stories/sonner.stories.tsx)                             | `sonner` re-export. Mount `<Toaster />` once at the app root. Default `theme="system"`.                        |
+| `StatusDot` · `StatusDotProps` · `StatusDotTone` · `StatusDotSize`                                                               | [`status-dot.stories.tsx`](./src/components/stories/status-dot.stories.tsx)                     | Live-status dot. Tone vocabulary: `success \| warning \| danger \| info \| accent \| neutral`.                 |
+| `MonoBadge` · `monoBadgeVariants` · `MonoBadgeProps` · `MonoBadgeTone`                                                           | [`mono-badge.stories.tsx`](./src/components/stories/mono-badge.stories.tsx)                     | 11px mono status badge (`RUNNING`, `DONE`, `ERROR`, …).                                                        |
+| `KindChip` · `KindChipProps`                                                                                                     | [`kind-chip.stories.tsx`](./src/components/stories/kind-chip.stories.tsx)                       | 5px-radius kind label — protocol kinds, scopes, categories.                                                    |
+| `ConnectionIndicator` · `ConnectionIndicatorProps` · `ConnectionStatus`                                                          | [`connection-indicator.stories.tsx`](./src/components/stories/connection-indicator.stories.tsx) | Live-connection composite (`StatusDot` + label). Default labels `Connected` / `Disconnected` / `Reconnecting`. |
+| `Metric` · `MetricProps` · `MetricTone`                                                                                          | [`metric.stories.tsx`](./src/components/stories/metric.stories.tsx)                             | Dashboard metric with `detail` (inline mono unit) + `subtext` (secondary line) slots.                          |
+| `Pill` · `Pills` · `pillVariants` · `pillToggleVariants` · `PillProps` · `PillsProps` · `PillsItem` · `PillVariant` · `PillSize` | [`pills.stories.tsx`](./src/components/stories/pills.stories.tsx)                               | `Pill` standalone + `Pills` tablist (`role="tab"`, `aria-selected`).                                           |
+| `Avatar` · `AvatarBadge` · `AvatarFallback` · `AvatarGroup` · `AvatarGroupCount` · `AvatarImage`                                 | [`avatar.stories.tsx`](./src/components/stories/avatar.stories.tsx)                             | Identity avatar with grouping.                                                                                 |
+
+### Chat
+
+Style-only shells for agent conversations. They accept children (body, meta, status) from domain code — they do not know about session state, streaming, or tool IDs.
+
+| Export                                                                                  | Story                                                                                         | Notes                                                                                                             |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `ChatMessageBubble` · `ChatMessageBubbleProps` · `ChatMessageRole` · `ChatMessageAlign` | [`chat-message-bubble.stories.tsx`](./src/components/stories/chat-message-bubble.stories.tsx) | Role-driven layout shell (`user`, `agent`, `system`, `tool`, `diff`). `role` prop shadows the native ARIA `role`. |
+| `ToolCallCard` · `ToolCallCardProps` · `ToolCallStatus`                                 | [`tool-call-card.stories.tsx`](./src/components/stories/tool-call-card.stories.tsx)           | Tool-call framing card. Status → tone: `running → accent`, `done → success`, `error → danger`.                    |
+| `CodeBlock` · `CodeBlockProps`                                                          | [`code-block.stories.tsx`](./src/components/stories/code-block.stories.tsx)                   | Canvas-deep container with accent `$ ` prompt and ghost copy → 1.5s check swap.                                   |
+
+## UIProvider wiring
+
+[`UIProvider`](./src/components/ui-provider.tsx) wraps a single `MotionConfig` that every `motion` primitive under it inherits. Mount it **once** at the application root.
+
+```tsx
+// web/src/main.tsx
+import { UIProvider } from "@agh/ui";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <UIProvider>
+    <App />
+  </UIProvider>
+);
+```
+
+`reducedMotion` defaults to `"user"` — motion honors `prefers-reduced-motion: reduce`. Override only for:
+
+- `"always"` — tests, Playwright snapshots, and demos that must render a frozen frame.
+- `"never"` — internal debugging when verifying a non-reduced animation path. Never ship this to production.
+
+### Reduced-motion gotchas
+
+- **`useReducedMotionConfig()` (context-aware) vs `useReducedMotion()`** — when asserting against a wrapping `<MotionConfig>` (or `<UIProvider reducedMotion="always">`), use the context-aware hook. Plain `useReducedMotion()` only reads `window.matchMedia` and ignores the provider.
+- **Width animations ignore `reducedMotion`.** `motion` zeros transform/opacity but not layout-affecting props like `width`. Any primitive that animates width (Sidebar collapse, SplitPane resize) must set `duration: 0` explicitly when the provider is reduced.
+
+## Motion vs. CSS decision rules
+
+ADR-003 scopes motion tightly: CSS owns simple state, `motion` owns orchestration. Three concrete examples:
+
+1. **Hover color change** → **CSS**. `hover:bg-[color:var(--color-hover)]` transitions `background` in 150ms via `--duration-base`. No JS involved. Same for focus rings, `active:translate-y-px`, `dot-pulse`, and skeleton `shimmer`.
+2. **Unmount animation (Dialog/Popover/Sheet closing)** → **`motion`**. The element leaves the tree; CSS cannot animate an unmount. Use the sanctioned `AnimatePresence` + `actionsRef` pattern described in the workflow memory: `<AnimatePresence onExitComplete={() => actionsRef.current?.unmount()}>` around `{open && <Portal keepMounted>…</Portal>}`. Do **not** combine `data-open:animate-*` keyframes with `motion` — it double-animates.
+3. **Route transition (Session → Tasks)** → **`motion`**. Siblings need coordinated enter/exit across the outlet; CSS-only cannot do that. Wrap the outlet in `AnimatePresence mode="wait"` at the route boundary.
+
+Quick heuristic: **Does the element mount or unmount? Does timing need to sync across siblings? Is there a layout transition?** If any answer is yes, reach for `motion`. Otherwise, CSS.
+
+## Story contribution rules
+
+Every primitive ships with a colocated `<name>.stories.tsx` under [`./src/components/stories/`](./src/components/stories/). Stories are **both** the visual reference and the input to the Playwright snapshot suite, so the rules below are enforced at merge time.
+
+- **Every variant has a story.** Size, tone, density, empty, loading, error. Missing variants are missing snapshots.
+- **Use real primitives, not fixtures.** Stories render the real component with inline props; mocks only replace data (MSW, fixtures).
+- **No `play()` that mutates state unless the story is explicitly excluded from the visual suite.** `play-fn`-tagged stories are skipped by Playwright because their side effects fight the snapshot frame.
+- **Dark background is implicit.** The preview is dark by default (`color-scheme: dark`); do not pass a background override.
+- **Tokens only — no hex/`rgb`/`hsl` literals.** Pull from `--color-*`, `--radius-*`, `--duration-*`, `--ease-*`, `--font-*`. Inventing a value is a review blocker.
+- **Tests colocate with the component.** `<name>.test.tsx` next to `<name>.tsx`. The package's Vitest project discovers `src/**/*.{test,spec}.{ts,tsx}` and `tests/**/*.test.{ts,tsx}` — see [`vitest.config.ts`](./vitest.config.ts).
+
+## Playwright snapshot workflow
+
+Visual regression is enforced per ADR-005. The harness runs Playwright against a **static Storybook build** served on `127.0.0.1:6007` by [`scripts/serve-storybook.ts`](./scripts/serve-storybook.ts). Configuration lives in [`playwright.config.ts`](./playwright.config.ts).
+
+### Generating baselines
+
+```sh
+# Local (macOS / darwin baselines)
+bun run --cwd packages/ui test:visual:install   # one-time: install Chromium
+bun run --cwd packages/ui test:visual           # build Storybook + run visual tests
+```
+
+First-time runs (and any story with no baseline yet) record a baseline PNG into `src/components/stories/__snapshots__/<story-id>-chromium-<platform>.png`. Subsequent runs compare against that baseline with `maxDiffPixelRatio: 0.001` (0.1%).
+
+### Updating baselines (intentional drift)
+
+Only when the visual change is **intentional** and reviewed in the PR body with a before/after.
+
+```sh
+bun run --cwd packages/ui test:visual:update
+```
+
+Commit the updated PNGs in the same commit as the code change — reviewers expect the baseline diff to accompany the primitive diff.
+
+### Reviewing a failing snapshot
+
+Playwright drops `*-actual.png`, `*-expected.png`, and `*-diff.png` next to the baseline on failure. Open the `diff` PNG first; if the drift is real, either fix the primitive or update the baseline. If the drift is font rendering, confirm your Chromium version matches CI before chasing it.
+
+### Per-platform baselines + CI
+
+- Baseline filenames embed `{projectName}-{platform}`, so macOS (dev) and Linux (CI) baselines coexist without clobbering. Only the darwin set is committed today.
+- The first `ui-visual` CI run on `ubuntu-22.04` needs `--update-snapshots` to seed the linux baselines. Do this as a one-off `workflow_dispatch` PR before depending on the visual gate as a merge blocker.
+- Local dev servers share the same static build path — do not run `bun run storybook` and `bun run test:visual` concurrently on the same port (`6007`).
+
+### CI gate expectations
+
+- `bun run --cwd packages/ui test` — unit + Vitest assertions. Zero failures.
+- `bun run --cwd packages/ui build-storybook` — Storybook builds cleanly.
+- `bun run --cwd packages/ui test:visual` — zero baseline drift (or intentional drift committed alongside the change).
+- Snapshot count must not decrease without a matching primitive deletion in the same PR.
+
+## Anti-patterns
+
+These all fail review. They exist because they have all been tried.
+
+- **No domain imports inside `@agh/ui`.** A primitive that imports from `web/src/**`, `@/systems/**`, or any TanStack/openapi/zustand symbol breaks ADR-001. Primitives are domain-free.
+- **No AGH-specific defaults in primitive props.** `Sidebar` does not default to "Workspaces"; `Metric` does not default a tone to match the Tasks dashboard; `ChatMessageBubble` does not assume an agent name. Defaults stay generic or are required props.
+- **No `data-open:animate-*` keyframes next to `motion` exit animations.** Pick one per primitive. The sanctioned motion template (see workflow memory + ADR-003) uses `AnimatePresence` + `actionsRef`; re-introducing CSS keyframes alongside it double-animates.
+- **No `any`, no `@ts-expect-error`.** The public type surface is part of the contract. Inferred generics and narrowed discriminated unions replace escape hatches.
+- **No hex / `rgb()` / `hsl()` literals in primitive code or stories.** Use tokens. Drift caught by review + snapshots.
+- **No `useReducedMotion()` in a primitive that lives under `UIProvider`.** Use `useReducedMotionConfig()` so the provider is authoritative.
+- **No new exports without a story, a test, and a snapshot.** All three land in the same PR.
+- **No primitive that owns a TanStack query, a zustand store, or an SSE subscription.** That belongs in `web/src/systems/<domain>/`.
+
+## Quick reference
+
+| Want to do this…                | Read this                                              |
+| ------------------------------- | ------------------------------------------------------ |
+| Add a new primitive             | This README + `DESIGN.md` + ADR-001                    |
+| Animate something               | ADR-003 + "Motion vs. CSS" above                       |
+| Update a baseline               | "Playwright snapshot workflow" above + ADR-005         |
+| Rename an existing export       | ADR-002 (no compat shims)                              |
+| Consume a primitive from `web/` | Import from `@agh/ui`; never from `packages/ui/src/**` |
