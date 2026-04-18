@@ -1,0 +1,116 @@
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { once } from "node:events";
+import { setTimeout as delay } from "node:timers/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { expect, test } from "@playwright/test";
+
+const storybookHost = "127.0.0.1";
+const storybookPort = 6106;
+const storybookBaseURL = `http://${storybookHost}:${storybookPort}`;
+const storyURL = `${storybookBaseURL}/iframe.html?id=components-design-system-panel--default&viewMode=story`;
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+
+test("registers the MSW worker and bypasses unknown requests in web Storybook", async ({
+  page,
+}) => {
+  const cwd = path.resolve(currentDir, "..");
+  const output: string[] = [];
+  const browserConsole: string[] = [];
+  const storybook = spawn(
+    "bunx",
+    ["storybook", "dev", "--host", storybookHost, "--port", String(storybookPort), "--ci"],
+    {
+      cwd,
+      env: process.env,
+      stdio: "pipe",
+    }
+  );
+
+  const captureOutput = (chunk: string) => {
+    output.push(chunk);
+  };
+
+  storybook.stdout.on("data", chunk => {
+    captureOutput(chunk.toString());
+  });
+  storybook.stderr.on("data", chunk => {
+    captureOutput(chunk.toString());
+  });
+
+  try {
+    await waitForStorybook(storybookBaseURL, storybook);
+
+    page.on("console", message => {
+      browserConsole.push(message.text());
+    });
+
+    await page.goto(storyURL, { waitUntil: "domcontentloaded" });
+    await expect(
+      page.getByText("Dense surfaces still need calm internal hierarchy.")
+    ).toBeVisible();
+
+    await expect
+      .poll(() => browserConsole.find(entry => entry.includes("[MSW]")), {
+        timeout: 15_000,
+      })
+      .toBeTruthy();
+
+    const unknownRequest = await page.evaluate(async () => {
+      const response = await fetch("/api/storybook-unhandled-request");
+      return {
+        ok: response.ok,
+        status: response.status,
+      };
+    });
+
+    expect(unknownRequest).toEqual({ ok: false, status: 404 });
+    await page.waitForTimeout(250);
+    expect(browserConsole.some(entry => entry.includes("without a matching request handler"))).toBe(
+      false
+    );
+  } finally {
+    await stopStorybook(storybook);
+  }
+});
+
+async function waitForStorybook(
+  baseURL: string,
+  storybook: ChildProcessWithoutNullStreams
+): Promise<void> {
+  const deadline = Date.now() + 60_000;
+
+  while (Date.now() < deadline) {
+    if (storybook.exitCode !== null) {
+      throw new Error(`Storybook exited early with code ${storybook.exitCode}.`);
+    }
+
+    try {
+      const response = await fetch(`${baseURL}/iframe.html`);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // Storybook is still starting.
+    }
+
+    await delay(500);
+  }
+
+  throw new Error("Timed out waiting for Storybook to start.");
+}
+
+async function stopStorybook(storybook: ChildProcessWithoutNullStreams): Promise<void> {
+  if (storybook.exitCode !== null) {
+    return;
+  }
+
+  storybook.kill("SIGTERM");
+  const exited = Promise.race([once(storybook, "exit"), delay(5_000).then(() => "timeout")]);
+
+  if ((await exited) === "timeout" && storybook.exitCode === null) {
+    storybook.kill("SIGKILL");
+    await once(storybook, "exit");
+  }
+}

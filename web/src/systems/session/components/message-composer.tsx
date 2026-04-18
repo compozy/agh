@@ -69,6 +69,7 @@ export function MessageComposer({ onSend, disabled, className }: MessageComposer
         />
         <button
           type="button"
+          aria-label="Send message"
           disabled={disabled}
           onClick={handleSend}
           className={cn(

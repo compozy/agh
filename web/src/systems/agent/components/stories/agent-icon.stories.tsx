@@ -1,0 +1,47 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+
+import { CenteredSurface } from "@/storybook/story-layout";
+import { agentFixtures, primaryAgentFixture } from "@/systems/agent/mocks";
+
+import { AgentIcon } from "../agent-icon";
+
+const meta: Meta<typeof AgentIcon> = {
+  title: "systems/agent/AgentIcon",
+  component: AgentIcon,
+  parameters: {
+    layout: "centered",
+  },
+  args: {
+    provider: primaryAgentFixture.provider,
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Default: Story = {
+  render: args => (
+    <CenteredSurface className="gap-3">
+      <AgentIcon {...args} className="size-5" />
+      <span className="text-sm text-[color:var(--color-text-secondary)]">{args.provider}</span>
+    </CenteredSurface>
+  ),
+};
+
+export const Providers: Story = {
+  render: () => (
+    <CenteredSurface className="gap-4">
+      {agentFixtures.map(agent => (
+        <div
+          key={agent.name}
+          className="flex min-w-28 flex-col items-center gap-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3"
+        >
+          <AgentIcon provider={agent.provider} className="size-5" />
+          <span className="text-xs font-medium text-[color:var(--color-text-primary)]">
+            {agent.name}
+          </span>
+        </div>
+      ))}
+    </CenteredSurface>
+  ),
+};

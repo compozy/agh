@@ -22,4 +22,5 @@ if (typeof window !== "undefined") {
   }
 
   window.ResizeObserver = ResizeObserverMock;
+  window.scrollTo = () => {};
 }
