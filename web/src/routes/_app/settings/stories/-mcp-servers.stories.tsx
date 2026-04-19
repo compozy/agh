@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
+import { useEffect } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -26,6 +27,38 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {},
   parameters: appRouteParameters("/settings/mcp-servers"),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Dirty editor state — the add-server dialog is open with the name field
+ * pre-filled, matching the visual contract for "user is mid-edit in the editor".
+ */
+export const Dirty: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/mcp-servers"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookMCPServersDirtySetup />
+    </>
+  ),
+};
+
+/**
+ * Empty catalog branch exercising the `@agh/ui` `Empty` primitive when the
+ * global scope returns no MCP servers.
+ */
+export const Empty: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/mcp-servers"),
+    ...storybookMswParameters({
+      settings: [
+        http.get("/api/settings/mcp-servers", () => HttpResponse.json({ mcp_servers: [] })),
+      ],
+    }),
+  },
   render: () => <StorybookWorkspaceSetup />,
 };
 
@@ -127,3 +160,49 @@ export const Error: Story = {
   },
   render: () => <StorybookWorkspaceSetup />,
 };
+
+/**
+ * Reaches the dirty editor state by opening the add-server dialog and seeding
+ * the name field. RAF-polls until the route mounts.
+ */
+function StorybookMCPServersDirtySetup() {
+  useEffect(() => {
+    let cancelled = false;
+    let stage: "open" | "fill" = "open";
+    const setValue = (element: HTMLInputElement, next: string) => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value"
+      )?.set;
+      setter?.call(element, next);
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const advance = () => {
+      if (cancelled) return;
+      if (stage === "open") {
+        const trigger = document.querySelector<HTMLButtonElement>(
+          '[data-testid="settings-page-mcp-servers-create"]'
+        );
+        if (trigger) {
+          trigger.click();
+          stage = "fill";
+        }
+      } else if (stage === "fill") {
+        const input = document.querySelector<HTMLInputElement>(
+          '[data-testid="settings-mcp-servers-editor-name-input"]'
+        );
+        if (input) {
+          setValue(input, "dirty-server");
+          return;
+        }
+      }
+      requestAnimationFrame(advance);
+    };
+    requestAnimationFrame(advance);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return null;
+}

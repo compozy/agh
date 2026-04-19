@@ -354,6 +354,32 @@ describe("HooksExtensionsSettingsPage", () => {
     expect(banner).toHaveTextContent("applied immediately");
   });
 
+  it("renders the @agh/ui Empty cards when no hooks and no extensions are registered", () => {
+    pageState = makeState({
+      hooks: [],
+      hooksCounts: { total: 0, enabled: 0 },
+      extensions: [],
+      extensionsCounts: { total: 0, enabled: 0 },
+    });
+    render(<HooksExtensionsSettingsPage />);
+    const hooksEmpty = screen.getByTestId("settings-page-hooks-extensions-hooks-empty");
+    expect(hooksEmpty).toHaveAttribute("data-slot", "empty");
+    expect(hooksEmpty).toHaveTextContent("No hooks registered");
+    const extensionsEmpty = screen.getByTestId("settings-page-hooks-extensions-extensions-empty");
+    expect(extensionsEmpty).toHaveAttribute("data-slot", "empty");
+    expect(extensionsEmpty).toHaveTextContent("No extensions installed");
+  });
+
+  it("renders the action banner through @agh/ui Alert with role=status", () => {
+    pageState = makeState({
+      lastAction: { kind: "extension-toggled", name: "daytona", enabled: true },
+    });
+    render(<HooksExtensionsSettingsPage />);
+    const banner = screen.getByTestId("settings-page-hooks-extensions-action-result");
+    expect(banner).toHaveAttribute("data-slot", "alert");
+    expect(banner).toHaveAttribute("role", "status");
+  });
+
   it("renders allowed-kinds chips as active when selected in the draft", () => {
     render(<HooksExtensionsSettingsPage />);
     const snapshotChip = screen.getByTestId(

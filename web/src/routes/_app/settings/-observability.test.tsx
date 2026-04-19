@@ -152,6 +152,19 @@ describe("ObservabilitySettingsPage", () => {
     expect(link).toHaveAttribute("href", "/api/settings/observability/log-tail");
   });
 
+  it("renders the overview metric grid via @agh/ui Metric", () => {
+    render(<ObservabilitySettingsPage />);
+
+    const sessions = screen.getByTestId("settings-page-observability-metric-sessions");
+    expect(sessions).toHaveAttribute("data-slot", "metric");
+    expect(sessions).toHaveTextContent("Active sessions");
+    expect(sessions).toHaveTextContent("4");
+
+    const storage = screen.getByTestId("settings-page-observability-metric-storage");
+    expect(storage).toHaveAttribute("data-slot", "metric");
+    expect(storage).toHaveTextContent("Storage used");
+  });
+
   it("marks log-tail unavailable when the envelope reports no capability", () => {
     pageState.envelope = {
       ...envelope,

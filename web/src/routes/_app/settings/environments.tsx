@@ -1,7 +1,23 @@
-import { AlertCircle, Check, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, Boxes, Check, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Button } from "@agh/ui";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  Button,
+  Empty,
+  Input,
+  MonoBadge,
+  NativeSelect,
+  NativeSelectOption,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@agh/ui";
 import {
   useSettingsEnvironmentsPage,
   type EnvironmentDraft,
@@ -99,26 +115,18 @@ function EnvironmentsSettingsPage() {
       />
 
       {page.environments.length === 0 ? (
-        <div
-          className="rounded-md border border-dashed border-[color:var(--color-divider)] px-4 py-8 text-center text-sm text-[color:var(--color-text-tertiary)]"
+        <Empty
+          icon={Boxes}
+          title="No environments defined"
+          description='Use "New environment" to create an overlay profile referenceable by workspaces.'
           data-testid="settings-page-environments-empty"
-        >
-          No environment profiles defined. Create one to assign it to workspaces.
-        </div>
+        />
       ) : (
-        <div
-          className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
-          data-testid="settings-page-environments-grid"
-        >
-          {page.environments.map(entry => (
-            <EnvironmentCard
-              key={entry.name}
-              entry={entry}
-              onEdit={page.openEdit}
-              onDelete={page.openDelete}
-            />
-          ))}
-        </div>
+        <EnvironmentsTable
+          environments={page.environments}
+          onEdit={page.openEdit}
+          onDelete={page.openDelete}
+        />
       )}
 
       <EnvironmentEditor
@@ -144,7 +152,54 @@ function EnvironmentsSettingsPage() {
   );
 }
 
-function EnvironmentCard({
+function EnvironmentsTable({
+  environments,
+  onEdit,
+  onDelete,
+}: {
+  environments: SettingsEnvironmentEntry[];
+  onEdit: (entry: SettingsEnvironmentEntry) => void;
+  onDelete: (entry: SettingsEnvironmentEntry) => void;
+}) {
+  return (
+    <div
+      className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
+      data-testid="settings-page-environments-list"
+    >
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-[color:var(--color-surface-elevated)]">
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Name
+            </TableHead>
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Backend
+            </TableHead>
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Profile
+            </TableHead>
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Source
+            </TableHead>
+            <TableHead className="text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Usage
+            </TableHead>
+            <TableHead className="w-[1%] text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Actions
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {environments.map(entry => (
+            <EnvironmentRow key={entry.name} entry={entry} onEdit={onEdit} onDelete={onDelete} />
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function EnvironmentRow({
   entry,
   onEdit,
   onDelete,
@@ -159,22 +214,46 @@ function EnvironmentCard({
   const deletable = source.kind !== "builtin-provider";
 
   return (
-    <article
-      className="flex flex-col gap-4 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-4 py-4"
-      data-testid={`settings-page-environments-card-${entry.name}`}
-    >
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <h3 className="font-mono text-sm text-[color:var(--color-text-primary)]">
-              {entry.name}
-            </h3>
-          </div>
-          <p className="text-xs text-[color:var(--color-text-tertiary)]">
+    <TableRow data-testid={`settings-page-environments-card-${entry.name}`}>
+      <TableCell>
+        <span className="font-mono text-sm text-[color:var(--color-text-primary)]">
+          {entry.name}
+        </span>
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-1">
+          <MonoBadge tone={backendTone(profile.backend)}>{profile.backend}</MonoBadge>
+          <span className="text-xs text-[color:var(--color-text-tertiary)]">
             {backendLabel(profile.backend)}
-          </p>
+          </span>
         </div>
-        <div className="flex items-center gap-1">
+      </TableCell>
+      <TableCell className="text-xs">
+        <div
+          className="flex flex-col gap-0.5"
+          data-testid={`settings-page-environments-card-${entry.name}-profile`}
+        >
+          <ProfileLine label="sync_mode" value={profile.sync_mode ?? "—"} />
+          <ProfileLine label="persistence" value={profile.persistence ?? "—"} />
+          <ProfileLine label="runtime_root" value={profile.runtime_root ?? "—"} />
+        </div>
+      </TableCell>
+      <TableCell>
+        <SettingsSourceBadge
+          data-testid={`settings-page-environments-card-${entry.name}-source`}
+          source={source}
+          shadowed={shadowed}
+        />
+      </TableCell>
+      <TableCell
+        className="text-right font-mono text-xs text-[color:var(--color-text-secondary)]"
+        data-testid={`settings-page-environments-card-${entry.name}-usage`}
+      >
+        {entry.workspace_usage_count}{" "}
+        {entry.workspace_usage_count === 1 ? "workspace" : "workspaces"}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center justify-end gap-1">
           <Button
             type="button"
             variant="ghost"
@@ -202,41 +281,19 @@ function EnvironmentCard({
             <Trash2 className="size-3.5" />
           </Button>
         </div>
-      </header>
-
-      <dl
-        className="flex flex-col gap-1.5 rounded-md bg-[color:var(--color-surface)] px-3 py-2"
-        data-testid={`settings-page-environments-card-${entry.name}-profile`}
-      >
-        <ProfileRow label="backend" value={profile.backend} />
-        <ProfileRow label="sync_mode" value={profile.sync_mode ?? "—"} />
-        <ProfileRow label="persistence" value={profile.persistence ?? "—"} />
-        <ProfileRow label="runtime_root" value={profile.runtime_root ?? "—"} />
-      </dl>
-
-      <footer className="flex items-center justify-between gap-3 text-xs text-[color:var(--color-text-tertiary)]">
-        <SettingsSourceBadge
-          data-testid={`settings-page-environments-card-${entry.name}-source`}
-          source={source}
-          shadowed={shadowed}
-        />
-        <span data-testid={`settings-page-environments-card-${entry.name}-usage`}>
-          {entry.workspace_usage_count}{" "}
-          {entry.workspace_usage_count === 1 ? "workspace" : "workspaces"}
-        </span>
-      </footer>
-    </article>
+      </TableCell>
+    </TableRow>
   );
 }
 
-function ProfileRow({ label, value }: { label: string; value: string }) {
+function ProfileLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between text-xs">
-      <span className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+    <span className="flex items-center gap-2 whitespace-nowrap">
+      <span className="font-mono text-[0.58rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
         {label}
       </span>
       <span className="font-mono text-[color:var(--color-text-primary)]">{value}</span>
-    </div>
+    </span>
   );
 }
 
@@ -247,6 +304,13 @@ function backendLabel(backend: string): string {
     e2b: "firecracker microVM · E2B",
   };
   return map[backend] ?? `custom backend · ${backend}`;
+}
+
+function backendTone(backend: string): "success" | "info" | "accent" | "neutral" {
+  if (backend === "local") return "success";
+  if (backend === "daytona") return "info";
+  if (backend === "e2b") return "accent";
+  return "neutral";
 }
 
 interface EnvironmentEditorProps {
@@ -341,8 +405,8 @@ function EnvironmentEditor({
           }
           hint={isCreate ? "REQUIRED" : "LOCKED"}
           control={
-            <input
-              className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)] disabled:opacity-60"
+            <Input
+              className="w-56 font-mono disabled:opacity-60"
               data-testid="settings-environments-editor-name-input"
               value={draft.name}
               placeholder="e.g. local"
@@ -357,16 +421,16 @@ function EnvironmentEditor({
           description="Which execution backend the environment uses."
           hint="REQUIRED"
           control={
-            <select
-              className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+            <NativeSelect
+              className="w-56 font-mono"
               data-testid="settings-environments-editor-backend-input"
               value={draft.backend}
               onChange={event => onChange(current => ({ ...current, backend: event.target.value }))}
             >
-              <option value="local">local</option>
-              <option value="daytona">daytona</option>
-              <option value="e2b">e2b</option>
-            </select>
+              <NativeSelectOption value="local">local</NativeSelectOption>
+              <NativeSelectOption value="daytona">daytona</NativeSelectOption>
+              <NativeSelectOption value="e2b">e2b</NativeSelectOption>
+            </NativeSelect>
           }
         />
         <SettingsFieldRow
@@ -375,8 +439,8 @@ function EnvironmentEditor({
           description="How files move between host and sandbox."
           hint="OPTIONAL"
           control={
-            <input
-              className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+            <Input
+              className="w-56 font-mono"
               data-testid="settings-environments-editor-sync-mode-input"
               value={draft.sync_mode}
               placeholder="none | session-bidir | turn-bidir"
@@ -392,8 +456,8 @@ function EnvironmentEditor({
           description="Workspace lifecycle between sessions."
           hint="OPTIONAL"
           control={
-            <input
-              className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+            <Input
+              className="w-56 font-mono"
               data-testid="settings-environments-editor-persistence-input"
               value={draft.persistence}
               placeholder="transient | reuse | archive"
@@ -409,8 +473,8 @@ function EnvironmentEditor({
           description="Directory mounted as the working root."
           hint="OPTIONAL"
           control={
-            <input
-              className="h-8 w-72 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+            <Input
+              className="w-72 font-mono"
               data-testid="settings-environments-editor-runtime-root-input"
               value={draft.runtime_root}
               placeholder="~ | /workspace | /home/user"
@@ -508,11 +572,6 @@ function ActionResultBanner({
   onDismiss: () => void;
 }) {
   const isSaved = action.kind === "saved";
-  const tone = isSaved ? "success" : "info";
-  const toneClasses =
-    tone === "success"
-      ? "border-[color:var(--color-success)] bg-[color:var(--color-success-tint)] text-[color:var(--color-success)]"
-      : "border-[color:var(--color-info)] bg-[color:var(--color-info-tint)] text-[color:var(--color-info)]";
   const restartBadge = action.result.restart_required
     ? "restart required to apply"
     : "applied immediately";
@@ -523,25 +582,25 @@ function ActionResultBanner({
       : `Deleted "${action.name}" · ${restartBadge}.`;
 
   return (
-    <div
-      className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-xs ${toneClasses}`}
+    <Alert
+      variant={isSaved ? "success" : "info"}
+      role="status"
       data-testid="settings-page-environments-action-result"
       data-kind={action.kind}
-      role="status"
     >
-      <span className="flex items-center gap-2">
-        <Check className="size-3.5" />
-        <span>{message}</span>
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onDismiss}
-        data-testid="settings-page-environments-action-result-dismiss"
-      >
-        <X className="size-3.5" />
-      </Button>
-    </div>
+      <Check className="size-3.5" />
+      <AlertDescription className="text-xs">{message}</AlertDescription>
+      <AlertAction>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onDismiss}
+          data-testid="settings-page-environments-action-result-dismiss"
+        >
+          <X className="size-3.5" />
+        </Button>
+      </AlertAction>
+    </Alert>
   );
 }
