@@ -742,6 +742,7 @@ func enqueueTaskRunFromRequest(taskID string, req apicontract.EnqueueTaskRunRequ
 		TaskID:         strings.TrimSpace(taskID),
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
 		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
+		Metadata:       cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("enqueue_run"); err != nil {
 		return taskpkg.EnqueueRun{}, invalidParamsRPCError(err)
@@ -985,6 +986,7 @@ func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {
 		StartedAt:      optionalTime(run.StartedAt),
 		EndedAt:        optionalTime(run.EndedAt),
 		Error:          run.Error,
+		Metadata:       cloneRawMessage(run.Metadata),
 		Result:         cloneRawMessage(run.Result),
 	}
 }
@@ -1485,10 +1487,7 @@ func listTasksWithDraftCompensation(
 const taskDraftOverfetchMaxLimit = 500
 
 func nextDraftFetchLimit(currentLimit, requestedLimit int) int {
-	nextLimit := currentLimit * 2
-	if nextLimit < currentLimit+requestedLimit {
-		nextLimit = currentLimit + requestedLimit
-	}
+	nextLimit := max(currentLimit*2, currentLimit+requestedLimit)
 	return nextLimit
 }
 

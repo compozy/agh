@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Ordered prompt augmentation composite over the current manager seam
 type: backend
 complexity: high
@@ -31,11 +31,11 @@ Introduce ordered prompt augmentation on top of the current single `PromptInputA
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Introduce a daemon-side composite augmenter that adapts to the current manager seam
-- [ ] 3.2 Define augmenter ordering, aggregate budget handling, and criticality semantics
-- [ ] 3.3 Move the current memory recall augmenter behind the composite path
-- [ ] 3.4 Preserve stored-input versus dispatched-input behavior for real user and network turns
-- [ ] 3.5 Add focused coverage for ordering, budget, and failure behavior
+- [x] 3.1 Introduce a daemon-side composite augmenter that adapts to the current manager seam
+- [x] 3.2 Define augmenter ordering, aggregate budget handling, and criticality semantics
+- [x] 3.3 Move the current memory recall augmenter behind the composite path
+- [x] 3.4 Preserve stored-input versus dispatched-input behavior for real user and network turns
+- [x] 3.5 Add focused coverage for ordering, budget, and failure behavior
 
 ## Implementation Details
 
@@ -75,16 +75,16 @@ See TechSpec "Workstream 3: Turn Augmentation Pipeline" and ADR-002. This task s
 
 ## Tests
 - Unit tests:
-  - [ ] Composite augmenters run in deterministic order even when registration order differs from execution priority
-  - [ ] Aggregate budget logic trims or rejects later augmenter output once the declared budget ceiling is reached
-  - [ ] A critical augmenter failure aborts dispatch before driver submission and returns a visible error path
-  - [ ] A noncritical augmenter failure is logged and the next augmenter still executes with the last valid message state
-  - [ ] Memory recall participates through the composite path and does not bypass ordering or budget rules
-  - [ ] Blank or whitespace-only augmenter output never clobbers an already valid dispatch message
+  - [x] Composite augmenters run in deterministic order even when registration order differs from execution priority
+  - [x] Aggregate budget logic trims or rejects later augmenter output once the declared budget ceiling is reached
+  - [x] A critical augmenter failure aborts dispatch before driver submission and returns a visible error path
+  - [x] A noncritical augmenter failure is logged and the next augmenter still executes with the last valid message state
+  - [x] Memory recall participates through the composite path and does not bypass ordering or budget rules
+  - [x] Blank or whitespace-only augmenter output never clobbers an already valid dispatch message
 - Integration tests:
-  - [ ] Stored user input remains canonical in the session DB while the driver receives the fully augmented dispatch text
-  - [ ] `PromptNetwork` continues to preserve stored-input invariants while still dispatching an augmented network-originated message
-  - [ ] Daemon wiring installs the composite path so a session with memory recall plus one additional augmenter produces stable end-to-end dispatch behavior
+  - [x] Stored user input remains canonical in the session DB while the driver receives the fully augmented dispatch text
+  - [x] `PromptNetwork` continues to preserve stored-input invariants while still dispatching an augmented network-originated message
+  - [x] Daemon wiring installs the composite path so a session with memory recall plus one additional augmenter produces stable end-to-end dispatch behavior
 - Test coverage target: >=80%
 - All tests must pass
 

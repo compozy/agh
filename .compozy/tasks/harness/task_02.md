@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Startup prompt section registry and network startup overlay
 type: backend
 complexity: high
@@ -31,11 +31,11 @@ Evolve the existing assembler/provider chain into an explicit startup section sy
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Introduce startup section descriptors and a selector that evaluates against resolved harness policy
-- [ ] 2.2 Extend the composed assembler to gather and order only eligible sections
-- [ ] 2.3 Move the `agh-network` startup behavior into the section-selection model
-- [ ] 2.4 Add budget and omission behavior for startup sections
-- [ ] 2.5 Add coverage for section ordering, network overlay selection, and startup prompt assembly
+- [x] 2.1 Introduce startup section descriptors and a selector that evaluates against resolved harness policy
+- [x] 2.2 Extend the composed assembler to gather and order only eligible sections
+- [x] 2.3 Move the `agh-network` startup behavior into the section-selection model
+- [x] 2.4 Add budget and omission behavior for startup sections
+- [x] 2.5 Add coverage for section ordering, network overlay selection, and startup prompt assembly
 
 ## Implementation Details
 
@@ -77,15 +77,15 @@ See TechSpec "Workstream 2: Startup Prompt Architecture" and ADR-002. This task 
 
 ## Tests
 - Unit tests:
-  - [ ] Section selector includes only providers whose predicates match the resolved startup policy for one concrete session context
-  - [ ] Section ordering stays deterministic when prepend, base prompt, and append providers all contribute eligible sections
-  - [ ] Empty sections and over-budget sections are omitted or trimmed according to the declared startup-section policy
-  - [ ] `agh-network` startup content is selected only through the new section model and never via inline append logic
-  - [ ] Repeated section registration or selector re-entry does not duplicate network or bootstrap sections in the final prompt
+  - [x] Section selector includes only providers whose predicates match the resolved startup policy for one concrete session context
+  - [x] Section ordering stays deterministic when prepend, base prompt, and append providers all contribute eligible sections
+  - [x] Empty sections and over-budget sections are omitted or trimmed according to the declared startup-section policy
+  - [x] `agh-network` startup content is selected only through the new section model and never via inline append logic
+  - [x] Repeated section registration or selector re-entry does not duplicate network or bootstrap sections in the final prompt
 - Integration tests:
-  - [ ] Starting a channel-bound session produces startup prompt content that includes the explicit network overlay in the expected position
-  - [ ] Starting a non-network session omits the network overlay entirely while preserving other startup sections such as memory or skills
-  - [ ] Session resume follows the same section-selection path and does not reintroduce the old inline `agh-network` append behavior
+  - [x] Starting a channel-bound session produces startup prompt content that includes the explicit network overlay in the expected position
+  - [x] Starting a non-network session omits the network overlay entirely while preserving other startup sections such as memory or skills
+  - [x] Session resume follows the same section-selection path and does not reintroduce the old inline `agh-network` append behavior
 - Test coverage target: >=80%
 - All tests must pass
 

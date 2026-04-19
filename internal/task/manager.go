@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +44,7 @@ type managerOptions struct {
 	store             Store
 	sessions          SessionExecutor
 	runtimeViews      RuntimeViewReader
+	eventObserver     EventObserver
 	channelValidator  func(string) error
 	now               func() time.Time
 	newID             func(prefix string) string
@@ -55,6 +57,7 @@ type Service struct {
 	store             Store
 	sessions          SessionExecutor
 	runtimeViews      RuntimeViewReader
+	eventObserver     EventObserver
 	channelValidator  func(string) error
 	now               func() time.Time
 	newID             func(prefix string) string
@@ -85,6 +88,13 @@ func WithSessionExecutor(sessions SessionExecutor) Option {
 func WithRuntimeViewReader(reader RuntimeViewReader) Option {
 	return func(opts *managerOptions) {
 		opts.runtimeViews = reader
+	}
+}
+
+// WithEventObserver injects a best-effort observer for immutable task events.
+func WithEventObserver(observer EventObserver) Option {
+	return func(opts *managerOptions) {
+		opts.eventObserver = observer
 	}
 }
 
@@ -149,6 +159,7 @@ func NewManager(opts ...Option) (*Service, error) {
 		store:             options.store,
 		sessions:          options.sessions,
 		runtimeViews:      options.runtimeViews,
+		eventObserver:     options.eventObserver,
 		channelValidator:  options.channelValidator,
 		now:               options.now,
 		newID:             options.newID,
@@ -1277,6 +1288,7 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 		normalizedSpec.IdempotencyKey,
 		actor.Origin,
 		normalizedSpec.NetworkChannel,
+		normalizedSpec.Metadata,
 		m.now().UTC(),
 	)
 	if err != nil {
@@ -1801,6 +1813,7 @@ func normalizeEnqueueRunSpec(spec EnqueueRun) (EnqueueRun, error) {
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	if err := normalized.Validate("enqueue_run"); err != nil {
 		return EnqueueRun{}, err
 	}
@@ -2559,8 +2572,40 @@ func (m *Service) recordTaskEvent(
 		return err
 	}
 
-	m.emitTaskLiveEventBestEffort(ctx, event.ID)
+	postCommitCtx := context.Background()
+	if ctx != nil {
+		postCommitCtx = context.WithoutCancel(ctx)
+	}
+
+	record, err := m.store.GetTaskEventRecord(postCommitCtx, event.ID)
+	if err != nil {
+		m.emitTaskLiveEventBestEffort(postCommitCtx, event.ID)
+		return nil
+	}
+	m.notifyTaskObserverBestEffort(postCommitCtx, record)
+	m.emitTaskLiveRecordBestEffort(postCommitCtx, record)
 	return nil
+}
+
+func (m *Service) notifyTaskObserverBestEffort(ctx context.Context, record EventRecord) {
+	if m == nil || m.eventObserver == nil {
+		return
+	}
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			slog.Error(
+				"task: task event observer panicked during post-commit notification",
+				"panic", recovered,
+				"event_id", record.Event.ID,
+				"task_id", record.Event.TaskID,
+				"run_id", record.Event.RunID,
+				"event_type", record.Event.EventType,
+			)
+		}
+	}()
+
+	m.eventObserver.OnTaskEvent(ctx, record)
 }
 
 func marshalTaskEventPayload(payload any) (json.RawMessage, error) {

@@ -4,27 +4,31 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-// ComposedAssembler combines prepend and append prompt providers around the
-// base agent prompt.
+// ComposedAssembler assembles selected startup prompt sections around the base
+// agent prompt.
 type ComposedAssembler struct {
-	prependProviders []session.PromptProvider
-	appendProviders  []session.PromptProvider
+	selector    *SectionSelector
+	descriptors []PromptSectionDescriptor
 }
 
-// ComposedAssemblerOption customizes the prompt provider chain for a
+// ComposedAssemblerOption customizes the prompt section chain for a
 // ComposedAssembler.
 type ComposedAssemblerOption func(*ComposedAssembler)
 
-var _ session.PromptAssembler = (*ComposedAssembler)(nil)
+var (
+	_ session.PromptAssembler        = (*ComposedAssembler)(nil)
+	_ session.StartupPromptAssembler = (*ComposedAssembler)(nil)
+)
 
-// NewComposedAssembler constructs a ComposedAssembler from prompt provider
-// groups.
+// NewComposedAssembler constructs a ComposedAssembler from startup section
+// descriptors.
 func NewComposedAssembler(opts ...ComposedAssemblerOption) *ComposedAssembler {
 	assembler := &ComposedAssembler{}
 	for _, opt := range opts {
@@ -36,34 +40,92 @@ func NewComposedAssembler(opts ...ComposedAssemblerOption) *ComposedAssembler {
 	return assembler
 }
 
-// WithPrependPromptProviders appends variadic prompt providers ahead of the
-// base agent prompt.
+// WithSectionSelector installs the daemon-owned startup section selector.
+func WithSectionSelector(selector *SectionSelector) ComposedAssemblerOption {
+	return func(assembler *ComposedAssembler) {
+		if assembler == nil {
+			return
+		}
+		assembler.selector = selector
+	}
+}
+
+// WithPromptSectionDescriptors appends explicit startup prompt section
+// descriptors to the assembler.
+func WithPromptSectionDescriptors(descriptors ...PromptSectionDescriptor) ComposedAssemblerOption {
+	copied := append([]PromptSectionDescriptor(nil), descriptors...)
+	return func(assembler *ComposedAssembler) {
+		if assembler == nil || len(copied) == 0 {
+			return
+		}
+		assembler.descriptors = append(assembler.descriptors, copied...)
+	}
+}
+
+// WithPrependPromptProviders preserves the legacy prepend provider option by
+// wrapping providers in explicit prepend descriptors.
 func WithPrependPromptProviders(providers ...session.PromptProvider) ComposedAssemblerOption {
 	copied := append([]session.PromptProvider(nil), providers...)
 	return func(assembler *ComposedAssembler) {
 		if assembler == nil || len(copied) == 0 {
 			return
 		}
-		assembler.prependProviders = append(assembler.prependProviders, copied...)
+		baseOrder := len(assembler.descriptors) * 10
+		for idx, provider := range copied {
+			if provider == nil {
+				continue
+			}
+			assembler.descriptors = append(assembler.descriptors, PromptSectionDescriptor{
+				Name:     fmt.Sprintf("legacy-prepend-%d", baseOrder+idx),
+				Position: PromptSectionPositionPrepend,
+				Order:    baseOrder + idx,
+				Provider: provider,
+			})
+		}
 	}
 }
 
-// WithAppendPromptProviders appends variadic prompt providers after the base
-// agent prompt.
+// WithAppendPromptProviders preserves the legacy append provider option by
+// wrapping providers in explicit append descriptors.
 func WithAppendPromptProviders(providers ...session.PromptProvider) ComposedAssemblerOption {
 	copied := append([]session.PromptProvider(nil), providers...)
 	return func(assembler *ComposedAssembler) {
 		if assembler == nil || len(copied) == 0 {
 			return
 		}
-		assembler.appendProviders = append(assembler.appendProviders, copied...)
+		baseOrder := len(assembler.descriptors) * 10
+		for idx, provider := range copied {
+			if provider == nil {
+				continue
+			}
+			assembler.descriptors = append(assembler.descriptors, PromptSectionDescriptor{
+				Name:     fmt.Sprintf("legacy-append-%d", baseOrder+idx),
+				Position: PromptSectionPositionAppend,
+				Order:    baseOrder + idx,
+				Provider: provider,
+			})
+		}
 	}
 }
 
-// Assemble renders prepend prompt sections, the trimmed base agent prompt, and
-// append prompt sections into one composed system prompt.
+// Assemble renders the selected startup sections using a baseline startup
+// context for callers that only know about the legacy assembler seam.
 func (a *ComposedAssembler) Assemble(
 	ctx context.Context,
+	agent aghconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	return a.AssembleStartup(ctx, session.StartupPromptContext{
+		AgentName:   strings.TrimSpace(agent.Name),
+		SessionType: session.SessionTypeUser,
+	}, agent, workspace)
+}
+
+// AssembleStartup renders eligible prepend sections, the trimmed base prompt,
+// and eligible append sections into one composed startup system prompt.
+func (a *ComposedAssembler) AssembleStartup(
+	ctx context.Context,
+	startup session.StartupPromptContext,
 	agent aghconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
@@ -72,51 +134,115 @@ func (a *ComposedAssembler) Assemble(
 		return basePrompt, nil
 	}
 
-	sections := make([]string, 0, len(a.prependProviders)+len(a.appendProviders)+1)
-
-	prependSections, err := gatherPromptSections(ctx, workspace, "prepend", a.prependProviders)
+	selected, err := a.selectDescriptors(startup)
 	if err != nil {
 		return "", err
 	}
-	sections = append(sections, prependSections...)
 
+	prependSections, appendSections, err := gatherPromptSections(ctx, workspace, selected)
+	if err != nil {
+		return "", err
+	}
+
+	sections := make([]string, 0, len(prependSections)+len(appendSections)+1)
+	sections = append(sections, prependSections...)
 	if basePrompt != "" {
 		sections = append(sections, basePrompt)
-	}
-
-	appendSections, err := gatherPromptSections(ctx, workspace, "append", a.appendProviders)
-	if err != nil {
-		return "", err
 	}
 	sections = append(sections, appendSections...)
 
 	return strings.Join(sections, "\n\n"), nil
 }
 
+func (a *ComposedAssembler) selectDescriptors(
+	startup session.StartupPromptContext,
+) ([]PromptSectionDescriptor, error) {
+	if len(a.descriptors) == 0 {
+		return nil, nil
+	}
+	if err := validatePromptSectionDescriptors(a.descriptors); err != nil {
+		return nil, err
+	}
+	if a.selector == nil {
+		return normalizeAndSortPromptSectionDescriptors(a.descriptors), nil
+	}
+	selected, _, err := a.selector.Select(startup, a.descriptors)
+	return selected, err
+}
+
 func gatherPromptSections(
 	ctx context.Context,
 	workspace *workspacepkg.ResolvedWorkspace,
-	position string,
-	providers []session.PromptProvider,
-) ([]string, error) {
-	sections := make([]string, 0, len(providers))
-	for idx, provider := range providers {
-		if provider == nil {
+	descriptors []PromptSectionDescriptor,
+) ([]string, []string, error) {
+	prependSections := make([]string, 0, len(descriptors))
+	appendSections := make([]string, 0, len(descriptors))
+
+	for _, descriptor := range descriptors {
+		if descriptor.Provider == nil {
 			continue
 		}
 
-		section, err := provider.PromptSection(ctx, workspace)
+		section, err := descriptor.Provider.PromptSection(ctx, workspace)
 		if err != nil {
-			return nil, fmt.Errorf("daemon: %s prompt provider %d: %w", position, idx, err)
+			return nil, nil, fmt.Errorf(
+				"daemon: %s prompt section %q: %w",
+				descriptor.Position,
+				descriptor.Name,
+				err,
+			)
 		}
 
-		section = strings.TrimSpace(section)
+		section = applyPromptSectionBudget(strings.TrimSpace(section), descriptor)
 		if section == "" {
 			continue
 		}
 
-		sections = append(sections, section)
+		switch descriptor.Position {
+		case PromptSectionPositionPrepend:
+			prependSections = append(prependSections, section)
+		case PromptSectionPositionAppend:
+			appendSections = append(appendSections, section)
+		default:
+			return nil, nil, fmt.Errorf(
+				"daemon: invalid prompt section position %q for %q",
+				descriptor.Position,
+				descriptor.Name,
+			)
+		}
 	}
 
-	return sections, nil
+	return prependSections, appendSections, nil
+}
+
+func applyPromptSectionBudget(section string, descriptor PromptSectionDescriptor) string {
+	if section == "" || descriptor.Budget <= 0 {
+		return section
+	}
+	if utf8.RuneCountInString(section) <= descriptor.Budget {
+		return section
+	}
+	if descriptor.BudgetBehavior == PromptSectionBudgetBehaviorOmit {
+		return ""
+	}
+	return strings.TrimSpace(trimStringToRunes(section, descriptor.Budget))
+}
+
+func trimStringToRunes(value string, budget int) string {
+	if budget <= 0 || value == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.Grow(len(value))
+
+	count := 0
+	for _, r := range value {
+		if count == budget {
+			break
+		}
+		builder.WriteRune(r)
+		count++
+	}
+	return builder.String()
 }

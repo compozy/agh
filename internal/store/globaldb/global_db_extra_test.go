@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,6 +101,44 @@ func TestGlobalDBTransactionCleanupHelpers(t *testing.T) {
 	joinCleanupError(&target, cleanupErr)
 	if !errors.Is(target, primaryErr) || !errors.Is(target, cleanupErr) {
 		t.Fatalf("joinCleanupError(joined) = %v, want primary and cleanup", target)
+	}
+}
+
+func TestTableDefinitionSQLAndSessionsDirForDatabasePath(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db, err := store.OpenSQLiteDatabase(ctx, filepath.Join(t.TempDir(), "table-definition.db"), nil)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	if _, err := db.ExecContext(
+		ctx,
+		`CREATE TABLE sample_table (id TEXT PRIMARY KEY, summary TEXT NOT NULL)`,
+	); err != nil {
+		t.Fatalf("CREATE TABLE sample_table error = %v", err)
+	}
+
+	definition, err := tableDefinitionSQL(ctx, db, "sample_table")
+	if err != nil {
+		t.Fatalf("tableDefinitionSQL(sample_table) error = %v", err)
+	}
+	if !strings.Contains(definition, "CREATE TABLE sample_table") {
+		t.Fatalf("tableDefinitionSQL(sample_table) = %q, want CREATE TABLE statement", definition)
+	}
+
+	if _, err := tableDefinitionSQL(ctx, db, "missing_table"); err == nil {
+		t.Fatal("tableDefinitionSQL(missing_table) error = nil, want missing-table failure")
+	}
+
+	if got := sessionsDirForDatabasePath("   "); got != "" {
+		t.Fatalf("sessionsDirForDatabasePath(blank) = %q, want empty", got)
+	}
+	dbPath := filepath.Join(t.TempDir(), "agh.db")
+	if got, want := sessionsDirForDatabasePath(dbPath), filepath.Join(filepath.Dir(dbPath), "sessions"); got != want {
+		t.Fatalf("sessionsDirForDatabasePath(%q) = %q, want %q", dbPath, got, want)
 	}
 }
 
@@ -547,6 +586,93 @@ func TestGlobalDBMigrationHelpers(t *testing.T) {
 	checkForeignKey("permission_log_new")
 	if err := tx.Rollback(); err != nil {
 		t.Fatalf("Rollback() error = %v", err)
+	}
+}
+
+func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	base := time.Date(2026, 4, 18, 13, 0, 0, 0, time.UTC)
+
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"harness-observe-workspace",
+		filepath.Join(t.TempDir(), "harness-observe-workspace"),
+	)
+	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		ID:          "sess-harness",
+		AgentName:   "coder",
+		WorkspaceID: workspaceID,
+		State:       "active",
+		CreatedAt:   base,
+		UpdatedAt:   base,
+	}); err != nil {
+		t.Fatalf("RegisterSession() error = %v", err)
+	}
+
+	summaries := []EventSummary{
+		{
+			SessionID: "sess-harness",
+			Type:      "harness.context_resolved",
+			AgentName: "coder",
+			Summary:   "surface=startup sections=memory|skills|network",
+			Timestamp: base,
+		},
+		{
+			SessionID: "sess-harness",
+			Type:      "harness.section_selected",
+			AgentName: "coder",
+			Summary:   "selected=memory|skills|network count=3",
+			Timestamp: base.Add(time.Second),
+		},
+		{
+			SessionID: "sess-harness",
+			Type:      "harness.augmenter_applied",
+			AgentName: "coder",
+			Summary:   "augmenter=durable_memory outcome=blank",
+			Timestamp: base.Add(2 * time.Second),
+		},
+	}
+	for _, summary := range summaries {
+		if err := globalDB.WriteEventSummary(testutil.Context(t), summary); err != nil {
+			t.Fatalf("WriteEventSummary(%q) error = %v", summary.Type, err)
+		}
+	}
+
+	filtered, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
+		SessionID: "sess-harness",
+		Type:      "harness.context_resolved",
+	})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(filtered) error = %v", err)
+	}
+	if got, want := len(filtered), 1; got != want {
+		t.Fatalf("len(filtered) = %d, want %d", got, want)
+	}
+	if got, want := filtered[0].Summary, summaries[0].Summary; got != want {
+		t.Fatalf("filtered[0].Summary = %q, want %q", got, want)
+	}
+
+	recent, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
+		SessionID: "sess-harness",
+		Limit:     2,
+	})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(recent) error = %v", err)
+	}
+	if got, want := len(recent), 2; got != want {
+		t.Fatalf("len(recent) = %d, want %d", got, want)
+	}
+	if got, want := recent[0].Type, "harness.section_selected"; got != want {
+		t.Fatalf("recent[0].Type = %q, want %q", got, want)
+	}
+	if got, want := recent[1].Type, "harness.augmenter_applied"; got != want {
+		t.Fatalf("recent[1].Type = %q, want %q", got, want)
+	}
+	if !recent[0].Timestamp.Before(recent[1].Timestamp) {
+		t.Fatalf("recent timestamps = [%v %v], want ascending recent order", recent[0].Timestamp, recent[1].Timestamp)
 	}
 }
 

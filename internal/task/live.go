@@ -651,6 +651,10 @@ func (m *Service) emitTaskLiveEventBestEffort(ctx context.Context, eventID strin
 	if err != nil {
 		return
 	}
+	m.emitTaskLiveRecordBestEffort(ctx, record)
+}
+
+func (m *Service) emitTaskLiveRecordBestEffort(ctx context.Context, record EventRecord) {
 	items, err := m.timelineItemsFromRecords(ctx, []EventRecord{record})
 	if err != nil || len(items) == 0 {
 		return

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Harness QA execution and daemon/runtime E2E
 type: test
 complexity: critical
@@ -34,11 +34,11 @@ Execute the full QA pass for the harness architecture using the artifacts from `
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/harness` and derive the execution matrix from `task_09` artifacts
-- [ ] 10.2 Run the baseline repository verification gate and establish the runtime/integration starting point
-- [ ] 10.3 Execute real startup, augmentation, transcript, detached completion, and reentry scenarios through repo-supported surfaces
-- [ ] 10.4 Fix root-cause regressions, add matching regression coverage, and rerun impacted scenarios
-- [ ] 10.5 Rerun final verification gates and publish `.compozy/tasks/harness/qa/verification-report.md`
+- [x] 10.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/harness` and derive the execution matrix from `task_09` artifacts
+- [x] 10.2 Run the baseline repository verification gate and establish the runtime/integration starting point
+- [x] 10.3 Execute real startup, augmentation, transcript, detached completion, and reentry scenarios through repo-supported surfaces
+- [x] 10.4 Fix root-cause regressions, add matching regression coverage, and rerun impacted scenarios
+- [x] 10.5 Rerun final verification gates and publish `.compozy/tasks/harness/qa/verification-report.md`
 
 ## Implementation Details
 
@@ -104,3 +104,10 @@ See TechSpec "Workstream 6: Storage, Observability, and Verification" and the QA
 - The harness architecture has fresh runtime evidence proving the main end-to-end flows
 - Any QA failures were fixed at the source and documented with fresh evidence
 - The normal repository verification gates pass with the new harness coverage in place
+
+## Completion Notes
+
+- Added `TestDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd` to `internal/daemon/daemon_integration_test.go` to close the silent/drop runtime coverage gap through the normal daemon integration lane.
+- Published fresh QA evidence in `.compozy/tasks/harness/qa/verification-report.md`.
+- Fresh final verification passed on 2026-04-18: targeted harness runtime bundles, `make test-integration`, and `make verify`.
+- Documented the task/skill mismatch that still references `scripts/discover-project-contract.py`; the script is absent in this worktree, so QA used the repository-defined verification contract.

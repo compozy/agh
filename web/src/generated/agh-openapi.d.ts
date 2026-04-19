@@ -13115,6 +13115,7 @@ export interface operations {
                 error?: string;
                 id: string;
                 idempotency_key?: string;
+                metadata?: unknown;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -13310,6 +13311,7 @@ export interface operations {
               error?: string;
               id: string;
               idempotency_key?: string;
+              metadata?: unknown;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -13455,6 +13457,7 @@ export interface operations {
               error?: string;
               id: string;
               idempotency_key?: string;
+              metadata?: unknown;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -13599,6 +13602,7 @@ export interface operations {
               error?: string;
               id: string;
               idempotency_key?: string;
+              metadata?: unknown;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -13743,6 +13747,7 @@ export interface operations {
               error?: string;
               id: string;
               idempotency_key?: string;
+              metadata?: unknown;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -13888,6 +13893,7 @@ export interface operations {
               error?: string;
               id: string;
               idempotency_key?: string;
+              metadata?: unknown;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -14032,6 +14038,7 @@ export interface operations {
               error?: string;
               id: string;
               idempotency_key?: string;
+              metadata?: unknown;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -14850,6 +14857,7 @@ export interface operations {
                 error?: string;
                 id: string;
                 idempotency_key?: string;
+                metadata?: unknown;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -16132,6 +16140,7 @@ export interface operations {
                 error?: string;
                 id: string;
                 idempotency_key?: string;
+                metadata?: unknown;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -16724,6 +16733,7 @@ export interface operations {
                 error?: string;
                 id: string;
                 idempotency_key?: string;
+                metadata?: unknown;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -17400,6 +17410,7 @@ export interface operations {
               error?: string;
               id: string;
               idempotency_key?: string;
+              metadata?: unknown;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -17502,6 +17513,7 @@ export interface operations {
       content: {
         "application/json": {
           idempotency_key?: string;
+          metadata?: unknown;
           network_channel?: string;
         };
       };
@@ -17534,6 +17546,7 @@ export interface operations {
               error?: string;
               id: string;
               idempotency_key?: string;
+              metadata?: unknown;
               network_channel?: string;
               origin: {
                 /** @enum {string} */

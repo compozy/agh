@@ -268,6 +268,7 @@ type Run struct {
 	Origin         Origin          `json:"origin"`
 	IdempotencyKey string          `json:"idempotency_key,omitempty"`
 	NetworkChannel string          `json:"network_channel,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
 	QueuedAt       time.Time       `json:"queued_at"`
 	ClaimedAt      time.Time       `json:"claimed_at"`
 	StartedAt      time.Time       `json:"started_at"`
@@ -429,9 +430,10 @@ type AddDependency struct {
 
 // EnqueueRun captures the mutable inputs accepted when queuing a task run.
 type EnqueueRun struct {
-	TaskID         string `json:"task_id"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-	NetworkChannel string `json:"network_channel,omitempty"`
+	TaskID         string          `json:"task_id"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	NetworkChannel string          `json:"network_channel,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
 // ClaimRun captures one run-claim request.

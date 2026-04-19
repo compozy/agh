@@ -30,6 +30,7 @@ import (
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -106,6 +107,77 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("stop session status = %d, want %d; body=%s", stopResp.StatusCode, http.StatusNoContent, string(body))
 	}
 	_ = stopResp.Body.Close()
+}
+
+func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	sessionID := createIntegrationSession(t, runtime)
+
+	const promptTimeout = 5 * time.Second
+
+	userCtx, cancelUser := context.WithTimeout(context.Background(), promptTimeout)
+	userEvents, userErr := runtime.manager.Prompt(userCtx, sessionID, "hello")
+	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, userEvents, userErr), promptTimeout)
+	cancelUser()
+
+	networkCtx, cancelNetwork := context.WithTimeout(context.Background(), promptTimeout)
+	networkEvents, networkErr := runtime.manager.PromptNetwork(networkCtx, sessionID, "network hello")
+	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, networkEvents, networkErr), promptTimeout)
+	cancelNetwork()
+
+	syntheticCtx, cancelSynthetic := context.WithTimeout(context.Background(), promptTimeout)
+	syntheticEvents, syntheticErr := runtime.manager.PromptSynthetic(syntheticCtx, sessionID, session.SyntheticPromptOpts{
+		Message: "daemon wake-up",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskRunID: "run-1",
+			Reason:    "task_run_completed",
+			Summary:   "background work finished",
+		},
+	})
+	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, syntheticEvents, syntheticErr), promptTimeout)
+	cancelSynthetic()
+
+	resp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/sessions/"+sessionID+"/transcript", nil, nil)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		t.Fatalf("transcript status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
+	}
+
+	var payload struct {
+		Messages []transcript.Message `json:"messages"`
+	}
+	decodeHTTPJSON(t, resp, &payload)
+	if len(payload.Messages) != 6 {
+		t.Fatalf("len(messages) = %d, want 6", len(payload.Messages))
+	}
+	if got := payload.Messages[0].Role; got != transcript.RoleUser {
+		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.RoleUser)
+	}
+	if got := payload.Messages[0].Content; got != "hello" {
+		t.Fatalf("messages[0].Content = %q, want %q", got, "hello")
+	}
+	if got := payload.Messages[1].Role; got != transcript.RoleAssistant {
+		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.RoleAssistant)
+	}
+	if got := payload.Messages[2].Role; got != transcript.RoleUser {
+		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.RoleUser)
+	}
+	if got := payload.Messages[2].Content; got != "network hello" {
+		t.Fatalf("messages[2].Content = %q, want %q", got, "network hello")
+	}
+	if got := payload.Messages[3].Role; got != transcript.RoleAssistant {
+		t.Fatalf("messages[3].Role = %q, want %q", got, transcript.RoleAssistant)
+	}
+	if got := payload.Messages[4].Role; got != transcript.RoleSystem {
+		t.Fatalf("messages[4].Role = %q, want %q", got, transcript.RoleSystem)
+	}
+	if got := payload.Messages[4].Content; got != "daemon wake-up" {
+		t.Fatalf("messages[4].Content = %q, want %q", got, "daemon wake-up")
+	}
+	if got := payload.Messages[5].Role; got != transcript.RoleAssistant {
+		t.Fatalf("messages[5].Role = %q, want %q", got, transcript.RoleAssistant)
+	}
 }
 
 func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
@@ -2269,6 +2341,46 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, mess
 	}
 	_, _ = io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
+}
+
+func mustIntegrationPrompt(t *testing.T, events <-chan acp.AgentEvent, err error) <-chan acp.AgentEvent {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("prompt submission error = %v", err)
+	}
+	return events
+}
+
+func collectIntegrationPromptEvents(
+	t *testing.T,
+	events <-chan acp.AgentEvent,
+	timeout time.Duration,
+) []acp.AgentEvent {
+	t.Helper()
+
+	collected := make([]acp.AgentEvent, 0, 4)
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+Loop:
+	for {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				break Loop
+			}
+			collected = append(collected, event)
+		case <-timer.C:
+			t.Fatalf("timed out waiting for prompt events after %v", timeout)
+		}
+	}
+	if len(collected) == 0 {
+		t.Fatal("prompt events = 0, want completed prompt stream")
+	}
+	if got := collected[len(collected)-1].Type; got != acp.EventTypeDone {
+		t.Fatalf("last prompt event type = %q, want %q", got, acp.EventTypeDone)
+	}
+	return collected
 }
 
 func stopIntegrationSession(t *testing.T, runtime integrationRuntime, sessionID string) {

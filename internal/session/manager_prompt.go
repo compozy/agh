@@ -13,11 +13,19 @@ import (
 )
 
 type promptRequest struct {
+	turnID     string
 	target     string
 	message    string
 	turnSource TurnSource
 	meta       acp.PromptMeta
 }
+
+type promptSubmissionPath string
+
+const (
+	promptSubmissionPathUserFacing promptSubmissionPath = "user_facing"
+	promptSubmissionPathSynthetic  promptSubmissionPath = "synthetic"
+)
 
 // Prompt sends one prompt turn to an active session and mirrors the runtime stream into storage and observers.
 func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
@@ -51,44 +59,51 @@ func (m *Manager) PromptNetwork(
 
 // PromptWithOpts sends one prompt turn with daemon-local provenance metadata.
 func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts) (<-chan acp.AgentEvent, error) {
-	req, err := parsePromptRequest(ctx, id, opts)
+	req, err := m.parsePromptRequest(ctx, id, opts)
 	if err != nil {
 		return nil, err
 	}
 
+	return m.submitPromptRequest(ctx, req)
+}
+
+func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<-chan acp.AgentEvent, error) {
 	session, err := m.lookupPromptSession(req.target)
 	if err != nil {
 		return nil, err
 	}
 
-	turnID := strings.TrimSpace(m.newTurnID())
-	if turnID == "" {
-		turnID = newID("turn")
-	}
-
-	message, err := m.dispatchInputPreSubmit(ctx, session, turnID, req.turnSource, req.message)
+	message, err := m.dispatchInputPreSubmit(ctx, session, req.turnID, req.turnSource, req.message)
 	if err != nil {
 		return nil, err
 	}
-	turnState := newPromptTurnDispatchState(session, turnID, req.turnSource, message)
+	turnState := newPromptTurnDispatchState(session, req.turnID, req.turnSource, message)
 	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
 		return nil, err
 	}
 
-	proc, err := session.beginPromptSetup()
+	beginPromptSetup := session.beginPromptSetup
+	if req.turnSource == TurnSourceSynthetic {
+		beginPromptSetup = session.beginExclusivePromptSetup
+	}
+	proc, err := beginPromptSetup()
 	if err != nil {
 		return nil, err
 	}
 	defer session.finishPromptSetup()
 	session.setCurrentTurnSource(turnState.turnSource)
+	session.setCurrentPromptMeta(req.meta)
 	clearTurnSource := true
 	defer func() {
 		if clearTurnSource {
 			session.clearCurrentTurnSource()
+			session.clearCurrentPromptMeta()
 		}
 	}()
 
-	if err := m.recordPromptInputEvent(ctx, session, req.target, turnID, message); err != nil {
+	recordReq := req
+	recordReq.message = message
+	if err := m.recordPromptInputEvent(ctx, session, recordReq); err != nil {
 		return nil, err
 	}
 
@@ -96,16 +111,14 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 	if m.inputAugmenter != nil {
 		augmented, augmentErr := m.inputAugmenter(ctx, session, message)
 		if augmentErr != nil {
-			if errors.Is(augmentErr, context.Canceled) || errors.Is(augmentErr, context.DeadlineExceeded) {
-				return nil, fmt.Errorf("session: augment prompt input: %w", augmentErr)
-			}
-			m.sessionLogger(session).Warn("session: prompt input augmentation failed", "error", augmentErr)
-		} else if strings.TrimSpace(augmented) != "" {
+			return nil, fmt.Errorf("session: augment prompt input: %w", augmentErr)
+		}
+		if strings.TrimSpace(augmented) != "" {
 			dispatchMessage = augmented
 		}
 	}
 	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{
-		TurnID:  turnID,
+		TurnID:  req.turnID,
 		Message: dispatchMessage,
 		Meta:    req.meta,
 	})
@@ -120,7 +133,7 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 	return out, nil
 }
 
-func parsePromptRequest(ctx context.Context, id string, opts PromptOpts) (promptRequest, error) {
+func (m *Manager) parsePromptRequest(ctx context.Context, id string, opts PromptOpts) (promptRequest, error) {
 	if ctx == nil {
 		return promptRequest{}, errors.New("session: prompt context is required")
 	}
@@ -143,12 +156,13 @@ func parsePromptRequest(ctx context.Context, id string, opts PromptOpts) (prompt
 		)
 	}
 
-	meta, err := normalizePromptMeta(turnSource, opts.PromptMeta)
+	meta, err := normalizePromptMeta(turnSource, opts.PromptMeta, promptSubmissionPathUserFacing)
 	if err != nil {
 		return promptRequest{}, err
 	}
 
 	return promptRequest{
+		turnID:     m.newPromptTurnID(),
 		target:     target,
 		message:    message,
 		turnSource: turnSource,
@@ -156,7 +170,11 @@ func parsePromptRequest(ctx context.Context, id string, opts PromptOpts) (prompt
 	}, nil
 }
 
-func normalizePromptMeta(turnSource TurnSource, meta acp.PromptMeta) (acp.PromptMeta, error) {
+func normalizePromptMeta(
+	turnSource TurnSource,
+	meta acp.PromptMeta,
+	path promptSubmissionPath,
+) (acp.PromptMeta, error) {
 	normalized := meta.Normalize()
 	if normalized.TurnSource == "" {
 		normalized.TurnSource = string(turnSource)
@@ -168,6 +186,18 @@ func normalizePromptMeta(turnSource TurnSource, meta acp.PromptMeta) (acp.Prompt
 			normalized.TurnSource,
 		)
 	}
+	if turnSource == TurnSourceSynthetic {
+		if path != promptSubmissionPathSynthetic {
+			return acp.PromptMeta{}, errors.New(
+				"session: synthetic prompt turns require the dedicated synthetic submission path",
+			)
+		}
+		if normalized.Synthetic == nil {
+			return acp.PromptMeta{}, errors.New(
+				"session: synthetic prompt turns require synthetic metadata",
+			)
+		}
+	}
 	if turnSource == TurnSourceUser && normalized.Network != nil {
 		return acp.PromptMeta{}, errors.New("session: user prompt metadata cannot include network fields")
 	}
@@ -175,6 +205,18 @@ func normalizePromptMeta(turnSource TurnSource, meta acp.PromptMeta) (acp.Prompt
 		return acp.PromptMeta{}, err
 	}
 	return normalized, nil
+}
+
+func (m *Manager) newPromptTurnID() string {
+	if m == nil || m.newTurnID == nil {
+		return newID("turn")
+	}
+
+	turnID := strings.TrimSpace(m.newTurnID())
+	if turnID == "" {
+		return newID("turn")
+	}
+	return turnID
 }
 
 func (m *Manager) lookupPromptSession(target string) (*Session, error) {
@@ -200,21 +242,36 @@ func (m *Manager) lookupPromptSession(target string) (*Session, error) {
 func (m *Manager) recordPromptInputEvent(
 	ctx context.Context,
 	session *Session,
-	target string,
-	turnID string,
-	message string,
+	req promptRequest,
 ) error {
-	userEvent := m.normalizeEvent(session, turnID, acp.AgentEvent{
+	event := acp.AgentEvent{
 		Type:      acp.EventTypeUserMessage,
-		TurnID:    turnID,
+		TurnID:    req.turnID,
 		Timestamp: m.now(),
-		Text:      message,
-	})
-	if err := m.recordEvent(ctx, session, userEvent); err != nil {
-		return fmt.Errorf("session: persist prompt message for %q: %w", target, err)
+		Text:      req.message,
 	}
-	m.notifyAgentEvent(ctx, session, userEvent)
+	if req.turnSource == TurnSourceSynthetic {
+		event.Type = acp.EventTypeSyntheticReentry
+		event.Synthetic = clonePromptSyntheticMeta(req.meta.Synthetic)
+	}
+	event = m.normalizeEvent(session, req.turnID, event)
+	if err := m.recordEvent(ctx, session, event); err != nil {
+		return fmt.Errorf("session: persist prompt message for %q: %w", req.target, err)
+	}
+	m.notifyAgentEvent(ctx, session, event)
 	return nil
+}
+
+func clonePromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSyntheticMeta {
+	if meta == nil {
+		return nil
+	}
+
+	cloned := meta.Normalize()
+	if cloned.IsZero() {
+		return nil
+	}
+	return &cloned
 }
 
 // ApprovePermission resolves one pending interactive permission request for an active session.
@@ -268,6 +325,8 @@ func (m *Manager) pumpPrompt(
 		m.dispatchTurnEnd(ctx, turnState, time.Time{})
 		if session != nil {
 			session.clearCurrentTurnSource()
+			session.clearCurrentPromptMeta()
+			m.startNextQueuedSyntheticPrompt(session.ID)
 		}
 		notifier := m.currentTurnEndNotifier()
 		if notifier != nil && session != nil {

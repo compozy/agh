@@ -61,12 +61,17 @@ type Manager struct {
 	pending    map[string]struct{}
 	finalizing map[string]chan struct{}
 
+	syntheticMu          sync.Mutex
+	syntheticQueues      map[string][]queuedSyntheticPrompt
+	syntheticDispatching map[string]bool
+
 	logger           *slog.Logger
 	driver           AgentDriver
 	notifier         Notifier
 	networkPeers     NetworkPeerLifecycle
 	turnEndNotifier  TurnEndNotifier
 	inputAugmenter   PromptInputAugmenter
+	startupOverlay   StartupPromptOverlay
 	hooks            HookSet
 	environment      *environment.Registry
 	agentResolver    AgentResolver
@@ -184,6 +189,13 @@ func WithPromptInputAugmenter(augmenter PromptInputAugmenter) Option {
 	}
 }
 
+// WithStartupPromptOverlay injects a daemon-owned startup prompt overlay.
+func WithStartupPromptOverlay(overlay StartupPromptOverlay) Option {
+	return func(manager *Manager) {
+		manager.startupOverlay = overlay
+	}
+}
+
 // WithNow overrides the manager clock, mainly for tests.
 func WithNow(now func() time.Time) Option {
 	return func(manager *Manager) {
@@ -234,12 +246,14 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 
 	manager := &Manager{
-		sessions:   make(map[string]*Session),
-		pending:    make(map[string]struct{}),
-		finalizing: make(map[string]chan struct{}),
-		logger:     slog.Default(),
-		driver:     NewACPDriverAdapter(acp.New()),
-		homePaths:  homePaths,
+		sessions:             make(map[string]*Session),
+		pending:              make(map[string]struct{}),
+		finalizing:           make(map[string]chan struct{}),
+		syntheticQueues:      make(map[string][]queuedSyntheticPrompt),
+		syntheticDispatching: make(map[string]bool),
+		logger:               slog.Default(),
+		driver:               NewACPDriverAdapter(acp.New()),
+		homePaths:            homePaths,
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
@@ -458,21 +472,54 @@ func (m *Manager) releaseReservation(id string) {
 }
 
 func (m *Manager) remove(id string) {
+	target := strings.TrimSpace(id)
+
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if done, ok := m.finalizing[id]; ok {
+	if done, ok := m.finalizing[target]; ok {
 		close(done)
 	}
-	delete(m.sessions, id)
-	delete(m.pending, id)
-	delete(m.finalizing, id)
+	delete(m.sessions, target)
+	delete(m.pending, target)
+	delete(m.finalizing, target)
+	m.mu.Unlock()
+
+	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotFound)
 }
 
 func (m *Manager) removeActive(id string) {
+	target := strings.TrimSpace(id)
+
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.sessions, id)
-	delete(m.pending, id)
+	delete(m.sessions, target)
+	delete(m.pending, target)
+	m.mu.Unlock()
+
+	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotActive)
+}
+
+func (m *Manager) takeQueuedSyntheticPrompts(sessionID string) []queuedSyntheticPrompt {
+	if m == nil {
+		return nil
+	}
+
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return nil
+	}
+
+	m.syntheticMu.Lock()
+	defer m.syntheticMu.Unlock()
+
+	queue := append([]queuedSyntheticPrompt(nil), m.syntheticQueues[target]...)
+	delete(m.syntheticQueues, target)
+	delete(m.syntheticDispatching, target)
+	return queue
+}
+
+func (m *Manager) emitDroppedSyntheticPrompts(items []queuedSyntheticPrompt, err error) {
+	for _, item := range items {
+		m.emitQueuedSyntheticDispatchError(item, err)
+	}
 }
 
 func (m *Manager) finishFinalization(id string) {

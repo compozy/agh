@@ -29,6 +29,7 @@ const (
 	RoleAssistant  Role = "assistant"
 	RoleToolCall   Role = "tool_call"
 	RoleToolResult Role = "tool_result"
+	RoleSystem     Role = "system"
 )
 
 // ToolResult is the canonical renderable tool output shape for replay.
@@ -83,26 +84,27 @@ type toolLifecycle struct {
 }
 
 type canonicalEventPayload struct {
-	Schema     string          `json:"schema,omitempty"`
-	Type       string          `json:"type,omitempty"`
-	SessionID  string          `json:"session_id,omitempty"`
-	TurnID     string          `json:"turn_id,omitempty"`
-	RequestID  string          `json:"request_id,omitempty"`
-	Timestamp  time.Time       `json:"timestamp"`
-	Text       string          `json:"text,omitempty"`
-	Title      string          `json:"title,omitempty"`
-	ToolName   string          `json:"tool_name,omitempty"`
-	ToolCallID string          `json:"tool_call_id,omitempty"`
-	ToolInput  json.RawMessage `json:"tool_input,omitempty"`
-	ToolResult *ToolResult     `json:"tool_result,omitempty"`
-	ToolError  bool            `json:"tool_error,omitempty"`
-	StopReason string          `json:"stop_reason,omitempty"`
-	Action     string          `json:"action,omitempty"`
-	Resource   string          `json:"resource,omitempty"`
-	Decision   string          `json:"decision,omitempty"`
-	Error      string          `json:"error,omitempty"`
-	Usage      *acp.TokenUsage `json:"usage,omitempty"`
-	Raw        json.RawMessage `json:"raw,omitempty"`
+	Schema     string                   `json:"schema,omitempty"`
+	Type       string                   `json:"type,omitempty"`
+	SessionID  string                   `json:"session_id,omitempty"`
+	TurnID     string                   `json:"turn_id,omitempty"`
+	RequestID  string                   `json:"request_id,omitempty"`
+	Timestamp  time.Time                `json:"timestamp"`
+	Text       string                   `json:"text,omitempty"`
+	Title      string                   `json:"title,omitempty"`
+	ToolName   string                   `json:"tool_name,omitempty"`
+	ToolCallID string                   `json:"tool_call_id,omitempty"`
+	ToolInput  json.RawMessage          `json:"tool_input,omitempty"`
+	ToolResult *ToolResult              `json:"tool_result,omitempty"`
+	ToolError  bool                     `json:"tool_error,omitempty"`
+	StopReason string                   `json:"stop_reason,omitempty"`
+	Action     string                   `json:"action,omitempty"`
+	Resource   string                   `json:"resource,omitempty"`
+	Decision   string                   `json:"decision,omitempty"`
+	Error      string                   `json:"error,omitempty"`
+	Synthetic  *acp.PromptSyntheticMeta `json:"synthetic,omitempty"`
+	Usage      *acp.TokenUsage          `json:"usage,omitempty"`
+	Raw        json.RawMessage          `json:"raw,omitempty"`
 }
 
 // Assemble returns the canonical replay transcript for the provided persisted events.
@@ -149,7 +151,9 @@ func processTranscriptEvent(
 
 	switch parsed.Type {
 	case acp.EventTypeUserMessage:
-		appendUserTranscriptMessage(messages, assistant, parsed)
+		appendInputTranscriptMessage(messages, assistant, parsed, RoleUser)
+	case acp.EventTypeSyntheticReentry:
+		appendInputTranscriptMessage(messages, assistant, parsed, RoleSystem)
 	case acp.EventTypeAgentMessage:
 		appendAssistantTranscriptContent(assistant, parsed, false)
 	case acp.EventTypeThought:
@@ -174,14 +178,14 @@ func flushAssistantOnTurnChange(messages *[]Message, assistant *assistantBuffer,
 	}
 }
 
-func appendUserTranscriptMessage(messages *[]Message, assistant *assistantBuffer, parsed event) {
+func appendInputTranscriptMessage(messages *[]Message, assistant *assistantBuffer, parsed event, role Role) {
 	flushAssistantBuffer(messages, assistant)
 	if strings.TrimSpace(parsed.Text) == "" {
 		return
 	}
 	*messages = append(*messages, Message{
 		ID:        parsed.ID,
-		Role:      RoleUser,
+		Role:      role,
 		Content:   parsed.Text,
 		Timestamp: parsed.Timestamp,
 	})
@@ -231,18 +235,16 @@ func flushAssistantBuffer(messages *[]Message, assistant *assistantBuffer) {
 }
 
 func applyToolCall(messages *[]Message, toolStates map[string]*toolLifecycle, parsed event) {
-	toolID := strings.TrimSpace(parsed.ToolCallID)
-	if toolID == "" {
-		toolID = parsed.ID
-	}
-	if toolID == "" {
+	toolKey := toolLifecycleKey(parsed)
+	if toolKey == "" {
 		return
 	}
+	messageID := toolMessageID(parsed)
 
-	lifecycle, ok := toolStates[toolID]
+	lifecycle, ok := toolStates[toolKey]
 	if !ok {
 		lifecycle = &toolLifecycle{callIndex: -1, resultIndex: -1}
-		toolStates[toolID] = lifecycle
+		toolStates[toolKey] = lifecycle
 	}
 
 	if lifecycle.callIndex >= 0 {
@@ -252,7 +254,7 @@ func applyToolCall(messages *[]Message, toolStates map[string]*toolLifecycle, pa
 	}
 
 	*messages = append(*messages, Message{
-		ID:        toolID,
+		ID:        messageID,
 		Role:      RoleToolCall,
 		Content:   "",
 		ToolName:  parsed.ToolName,
@@ -263,23 +265,21 @@ func applyToolCall(messages *[]Message, toolStates map[string]*toolLifecycle, pa
 }
 
 func applyToolResult(messages *[]Message, toolStates map[string]*toolLifecycle, parsed event) {
-	toolID := strings.TrimSpace(parsed.ToolCallID)
-	if toolID == "" {
-		toolID = parsed.ID
-	}
-	if toolID == "" {
+	toolKey := toolLifecycleKey(parsed)
+	if toolKey == "" {
 		return
 	}
+	messageID := toolMessageID(parsed)
 
-	lifecycle, ok := toolStates[toolID]
+	lifecycle, ok := toolStates[toolKey]
 	if !ok {
 		lifecycle = &toolLifecycle{callIndex: -1, resultIndex: -1}
-		toolStates[toolID] = lifecycle
+		toolStates[toolKey] = lifecycle
 	}
 
 	if lifecycle.callIndex < 0 {
 		*messages = append(*messages, Message{
-			ID:        toolID,
+			ID:        messageID,
 			Role:      RoleToolCall,
 			Content:   "",
 			ToolName:  parsed.ToolName,
@@ -304,7 +304,7 @@ func applyToolResult(messages *[]Message, toolStates map[string]*toolLifecycle, 
 	}
 
 	*messages = append(*messages, Message{
-		ID:         toolID,
+		ID:         messageID,
 		Role:       RoleToolResult,
 		Content:    "",
 		ToolName:   parsed.ToolName,
@@ -313,6 +313,28 @@ func applyToolResult(messages *[]Message, toolStates map[string]*toolLifecycle, 
 		Timestamp:  parsed.Timestamp,
 	})
 	lifecycle.resultIndex = len(*messages) - 1
+}
+
+func toolLifecycleKey(parsed event) string {
+	toolID := strings.TrimSpace(parsed.ToolCallID)
+	if toolID != "" {
+		return toolID
+	}
+
+	fallbackID := strings.TrimSpace(parsed.ID)
+	if fallbackID == "" {
+		return ""
+	}
+
+	turnID := strings.TrimSpace(parsed.TurnID)
+	if turnID == "" {
+		return fallbackID
+	}
+	return turnID + ":" + fallbackID
+}
+
+func toolMessageID(parsed event) string {
+	return toolLifecycleKey(parsed)
 }
 
 func mergeToolCallMessage(msg *Message, parsed event) {
@@ -727,6 +749,7 @@ func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 		Resource:   event.Resource,
 		Decision:   event.Decision,
 		Error:      event.Error,
+		Synthetic:  clonePromptSyntheticMeta(event.Synthetic),
 		Usage:      event.Usage,
 	}
 
@@ -791,8 +814,21 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Resource:   strings.TrimSpace(decoded.Resource),
 		Decision:   strings.TrimSpace(decoded.Decision),
 		Error:      strings.TrimSpace(decoded.Error),
+		Synthetic:  clonePromptSyntheticMeta(decoded.Synthetic),
 		Usage:      decoded.Usage,
 		Raw:        acp.CloneRawMessage(decoded.Raw),
 	}
 	return event, nil
+}
+
+func clonePromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSyntheticMeta {
+	if meta == nil {
+		return nil
+	}
+
+	cloned := meta.Normalize()
+	if cloned.IsZero() {
+		return nil
+	}
+	return &cloned
 }

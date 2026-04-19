@@ -900,6 +900,83 @@ func TestPromptAugmenterPreservesStoredUserMessageAndAugmentsDriverDispatch(t *t
 	}
 }
 
+func TestPromptNetworkAugmenterPreservesStoredUserMessageAndAugmentsDriverDispatch(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptInputAugmenter(func(
+		_ context.Context,
+		_ *Session,
+		message string,
+	) (string, error) {
+		return message + "\n\nNETWORK AUGMENT", nil
+	}))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	eventsCh, err := h.manager.PromptNetwork(
+		testutil.Context(t),
+		session.ID,
+		"network message",
+		acp.PromptNetworkMeta{
+			MessageID: "msg-1",
+			Kind:      "direct",
+			Channel:   "builders",
+			From:      "ops.peer",
+		},
+	)
+	if err != nil {
+		t.Fatalf("PromptNetwork() error = %v", err)
+	}
+	_ = collectEvents(t, eventsCh)
+
+	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if len(stored) == 0 {
+		t.Fatal("stored events = 0, want at least one event")
+	}
+	if got := h.driver.promptCalls[0].Message; got != "network message\n\nNETWORK AUGMENT" {
+		t.Fatalf("driver prompt message = %q, want augmented network content", got)
+	}
+	if got := h.driver.promptCalls[0].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
+		t.Fatalf("driver turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)
+	}
+	if !strings.Contains(stored[0].Content, `"text":"network message"`) {
+		t.Fatalf("stored user_message content = %s, want original network message", stored[0].Content)
+	}
+	if strings.Contains(stored[0].Content, "NETWORK AUGMENT") {
+		t.Fatalf("stored user_message content = %s, want no augmentation block", stored[0].Content)
+	}
+}
+
+func TestPromptAugmenterPropagatesFailureAndSkipsDriverDispatch(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithPromptInputAugmenter(func(
+		_ context.Context,
+		_ *Session,
+		_ string,
+	) (string, error) {
+		return "", errors.New("boom")
+	}))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "remember me"); err == nil {
+		t.Fatal("Prompt() error = nil, want augmentation failure")
+	} else if !strings.Contains(err.Error(), "augment prompt input") {
+		t.Fatalf("Prompt() error = %v, want augmentation error context", err)
+	}
+	if got := len(h.driver.promptCalls); got != 0 {
+		t.Fatalf("len(driver.promptCalls) = %d, want 0 after augmentation failure", got)
+	}
+}
+
 func TestPromptAugmenterPropagatesCancellationAndSkipsDriverDispatch(t *testing.T) {
 	t.Parallel()
 
@@ -1017,6 +1094,211 @@ func TestPromptNetworkRejectsMultipleMetadataValues(t *testing.T) {
 	}
 	if got := len(h.driver.promptCalls); got != 0 {
 		t.Fatalf("len(promptCalls) = %d, want 0 when PromptNetwork validation fails", got)
+	}
+}
+
+func TestPromptWithOptsRejectsSyntheticTurnSourceUntilDedicatedPathExists(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	_, err := h.manager.PromptWithOpts(testutil.Context(t), session.ID, PromptOpts{
+		Message:    "synthetic prompt",
+		TurnSource: TurnSourceSynthetic,
+	})
+	if err == nil {
+		t.Fatal("PromptWithOpts(synthetic) error = nil, want validation failure")
+	}
+	if !strings.Contains(err.Error(), "dedicated synthetic submission path") {
+		t.Fatalf("PromptWithOpts(synthetic) error = %v, want dedicated-path validation", err)
+	}
+	if got := len(h.driver.promptCalls); got != 0 {
+		t.Fatalf("len(promptCalls) = %d, want 0 when synthetic validation fails", got)
+	}
+}
+
+func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "system-session",
+		Workspace: h.workspaceID,
+		Type:      SessionTypeSystem,
+	})
+	if err != nil {
+		t.Fatalf("Create(system) error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	eventsCh, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+		Message: "synthetic wake-up",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskID:    "task-1",
+			TaskRunID: "run-1",
+			Reason:    "task_run_completed",
+			Summary:   "background work finished",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PromptSynthetic() error = %v", err)
+	}
+	_ = collectEvents(t, eventsCh)
+
+	if got := len(h.driver.promptCalls); got != 1 {
+		t.Fatalf("len(promptCalls) = %d, want 1", got)
+	}
+	if got := h.driver.promptCalls[0].Meta.TurnSource; got != acp.PromptTurnSourceSynthetic {
+		t.Fatalf("promptCalls[0].Meta.TurnSource = %q, want %q", got, acp.PromptTurnSourceSynthetic)
+	}
+	if h.driver.promptCalls[0].Meta.Synthetic == nil {
+		t.Fatal("promptCalls[0].Meta.Synthetic = nil, want metadata")
+	}
+	if got, want := h.driver.promptCalls[0].Meta.Synthetic.TaskRunID, "run-1"; got != want {
+		t.Fatalf("promptCalls[0].Meta.Synthetic.TaskRunID = %q, want %q", got, want)
+	}
+
+	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if len(stored) == 0 {
+		t.Fatal("stored events = 0, want persisted synthetic event")
+	}
+	if got := stored[0].Type; got != acp.EventTypeSyntheticReentry {
+		t.Fatalf("stored[0].Type = %q, want %q", got, acp.EventTypeSyntheticReentry)
+	}
+	if got := countEventType(stored, acp.EventTypeUserMessage); got != 0 {
+		t.Fatalf("countEventType(user_message) = %d, want 0 for synthetic-only prompt", got)
+	}
+
+	payload := decodeStoredEventPayload(t, stored[0])
+	if got, want := payload["type"], acp.EventTypeSyntheticReentry; got != want {
+		t.Fatalf("stored synthetic payload type = %v, want %q", got, want)
+	}
+	if got, want := payload["text"], "synthetic wake-up"; got != want {
+		t.Fatalf("stored synthetic payload text = %v, want %q", got, want)
+	}
+	syntheticPayload, ok := payload["synthetic"].(map[string]any)
+	if !ok {
+		t.Fatalf("stored synthetic payload metadata = %#v, want object", payload["synthetic"])
+	}
+	if got, want := syntheticPayload["task_run_id"], "run-1"; got != want {
+		t.Fatalf("stored synthetic task_run_id = %v, want %q", got, want)
+	}
+	if got, want := syntheticPayload["reason"], "task_run_completed"; got != want {
+		t.Fatalf("stored synthetic reason = %v, want %q", got, want)
+	}
+	if got, want := syntheticPayload["summary"], "background work finished"; got != want {
+		t.Fatalf("stored synthetic summary = %v, want %q", got, want)
+	}
+}
+
+func TestPromptSyntheticRejectsMissingWakeupMetadata(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	_, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+		Message: "synthetic wake-up",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskRunID: "run-1",
+		},
+	})
+	if err == nil {
+		t.Fatal("PromptSynthetic() error = nil, want validation failure")
+	}
+	if !strings.Contains(err.Error(), "requires a reason") {
+		t.Fatalf("PromptSynthetic() error = %v, want missing-reason validation", err)
+	}
+	if got := len(h.driver.promptCalls); got != 0 {
+		t.Fatalf("len(promptCalls) = %d, want 0 after validation failure", got)
+	}
+}
+
+func TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	firstPromptEntered := make(chan struct{})
+	releaseFirstPrompt := make(chan struct{})
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		if req.TurnID == "turn-1" {
+			close(firstPromptEntered)
+			events := make(chan acp.AgentEvent)
+			go func() {
+				<-releaseFirstPrompt
+				close(events)
+			}()
+			return events, nil
+		}
+
+		events := make(chan acp.AgentEvent)
+		close(events)
+		return events, nil
+	}
+
+	userEventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	<-firstPromptEntered
+
+	syntheticEventsCh, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+		Message: "synthetic prompt",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskRunID: "run-2",
+			Reason:    "task_run_completed",
+			Summary:   "queued behind user turn",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PromptSynthetic() error = %v", err)
+	}
+
+	if got := len(h.driver.promptCalls); got != 1 {
+		t.Fatalf("len(promptCalls) before releasing active turn = %d, want 1", got)
+	}
+
+	close(releaseFirstPrompt)
+	_ = collectEvents(t, userEventsCh)
+	_ = collectEvents(t, syntheticEventsCh)
+
+	if got := len(h.driver.promptCalls); got != 2 {
+		t.Fatalf("len(promptCalls) after draining synthetic queue = %d, want 2", got)
+	}
+	if got := h.driver.promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceSynthetic {
+		t.Fatalf("promptCalls[1].Meta.TurnSource = %q, want %q", got, acp.PromptTurnSourceSynthetic)
+	}
+
+	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if len(stored) < 2 {
+		t.Fatalf("stored events = %d, want at least the user and synthetic input events", len(stored))
+	}
+	if got := stored[0].Type; got != acp.EventTypeUserMessage {
+		t.Fatalf("stored[0].Type = %q, want %q", got, acp.EventTypeUserMessage)
+	}
+	if got := stored[1].Type; got != acp.EventTypeSyntheticReentry {
+		t.Fatalf("stored[1].Type = %q, want %q", got, acp.EventTypeSyntheticReentry)
 	}
 }
 
@@ -1636,25 +1918,94 @@ func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+
+	var (
+		called       bool
+		gotChannel   string
+		gotType      Type
+		gotWorkspace string
+	)
+	h.manager = newManagerWithHarness(
+		t,
+		h,
+		WithPromptAssembler(nil),
+		WithStartupPromptOverlay(
+			startupPromptOverlayFunc(func(
+				_ context.Context,
+				startup StartupPromptContext,
+				prompt string,
+			) (string, error) {
+				called = true
+				gotChannel = startup.Channel
+				gotType = startup.SessionType
+				gotWorkspace = startup.Workspace
+				return prompt + "\n\noverlay block", nil
+			}),
+		),
+	)
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Channel:   "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	if !called {
+		t.Fatal("Create() did not invoke the configured startup prompt overlay")
+	}
+	if gotChannel != "builders" {
+		t.Fatalf("startup overlay channel = %q, want %q", gotChannel, "builders")
+	}
+	if gotType != SessionTypeUser {
+		t.Fatalf("startup overlay session type = %q, want %q", gotType, SessionTypeUser)
+	}
+	if gotWorkspace != h.workspace {
+		t.Fatalf("startup overlay workspace = %q, want %q", gotWorkspace, h.workspace)
+	}
+	if got := h.driver.startCalls[0].SystemPrompt; got != "You are a coding assistant.\n\noverlay block" {
+		t.Fatalf("start system prompt = %q, want overlay output", got)
+	}
+}
+
 func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	networkSkill, err := bundled.LoadContent(networkSkillName)
+	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
 	}
 
 	h.manager = newManagerWithHarness(
 		t,
 		h,
 		WithPromptAssembler(
-			promptAssemblerFunc(
-				func(_ context.Context, agent aghconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error) {
+			startupPromptAssemblerFunc(
+				func(
+					_ context.Context,
+					startup StartupPromptContext,
+					agent aghconfig.AgentDef,
+					workspace *workspacepkg.ResolvedWorkspace,
+				) (string, error) {
 					if got, want := workspace.RootDir, h.workspace; got != want {
 						t.Fatalf("assembler workspace = %q, want %q", got, want)
 					}
-					return agent.Prompt + "\n\nmemory block", nil
+					prompt := agent.Prompt + "\n\nmemory block"
+					if strings.TrimSpace(startup.Channel) == "" {
+						return prompt, nil
+					}
+					return prompt + "\n\n" + networkSkill, nil
 				},
 			),
 		),
@@ -1707,9 +2058,9 @@ func TestCreateWithoutChannelDoesNotAppendBundledNetworkSkill(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t, WithPromptAssembler(nil))
-	networkSkill, err := bundled.LoadContent(networkSkillName)
+	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
 	}
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
@@ -1734,10 +2085,10 @@ func TestCreateWithoutChannelDoesNotAppendBundledNetworkSkill(t *testing.T) {
 func TestResumeWithChannelReinjectsBundledNetworkSkillOnce(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t, WithPromptAssembler(nil))
-	networkSkill, err := bundled.LoadContent(networkSkillName)
+	h := newHarness(t)
+	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
 	}
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
@@ -2045,6 +2396,21 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithHomePaths(h.homePaths),
 		WithDriver(h.driver),
 		WithNotifier(h.notifier),
+		WithPromptAssembler(
+			startupPromptAssemblerFunc(
+				func(_ context.Context, startup StartupPromptContext, agent aghconfig.AgentDef, _ *workspacepkg.ResolvedWorkspace) (string, error) {
+					prompt := strings.TrimSpace(agent.Prompt)
+					if strings.TrimSpace(startup.Channel) == "" {
+						return prompt, nil
+					}
+					networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
+					if err != nil {
+						return "", err
+					}
+					return prompt + "\n\n" + strings.TrimSpace(networkSkill), nil
+				},
+			),
+		),
 		WithWorkspaceResolver(h.resolver),
 		WithStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
@@ -2188,6 +2554,45 @@ func (fn promptAssemblerFunc) Assemble(
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	return fn(ctx, agent, workspace)
+}
+
+const testBundledNetworkSkillName = "agh-network"
+
+type startupPromptAssemblerFunc func(
+	context.Context,
+	StartupPromptContext,
+	aghconfig.AgentDef,
+	*workspacepkg.ResolvedWorkspace,
+) (string, error)
+
+func (fn startupPromptAssemblerFunc) Assemble(
+	ctx context.Context,
+	agent aghconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	return fn(ctx, StartupPromptContext{
+		AgentName:   strings.TrimSpace(agent.Name),
+		SessionType: SessionTypeUser,
+	}, agent, workspace)
+}
+
+func (fn startupPromptAssemblerFunc) AssembleStartup(
+	ctx context.Context,
+	startup StartupPromptContext,
+	agent aghconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	return fn(ctx, startup, agent, workspace)
+}
+
+type startupPromptOverlayFunc func(context.Context, StartupPromptContext, string) (string, error)
+
+func (fn startupPromptOverlayFunc) Apply(
+	ctx context.Context,
+	startup StartupPromptContext,
+	prompt string,
+) (string, error) {
+	return fn(ctx, startup, prompt)
 }
 
 type fakeNotifier struct {

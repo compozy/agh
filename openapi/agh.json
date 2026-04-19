@@ -21941,6 +21941,7 @@
                                                         "idempotency_key": {
                                                             "type": "string"
                                                         },
+                                                        "metadata": {},
                                                         "network_channel": {
                                                             "type": "string"
                                                         },
@@ -22322,6 +22323,7 @@
                                                 "idempotency_key": {
                                                     "type": "string"
                                                 },
+                                                "metadata": {},
                                                 "network_channel": {
                                                     "type": "string"
                                                 },
@@ -22566,6 +22568,7 @@
                                                 "idempotency_key": {
                                                     "type": "string"
                                                 },
+                                                "metadata": {},
                                                 "network_channel": {
                                                     "type": "string"
                                                 },
@@ -22809,6 +22812,7 @@
                                                 "idempotency_key": {
                                                     "type": "string"
                                                 },
+                                                "metadata": {},
                                                 "network_channel": {
                                                     "type": "string"
                                                 },
@@ -23050,6 +23054,7 @@
                                                 "idempotency_key": {
                                                     "type": "string"
                                                 },
+                                                "metadata": {},
                                                 "network_channel": {
                                                     "type": "string"
                                                 },
@@ -23295,6 +23300,7 @@
                                                 "idempotency_key": {
                                                     "type": "string"
                                                 },
+                                                "metadata": {},
                                                 "network_channel": {
                                                     "type": "string"
                                                 },
@@ -23538,6 +23544,7 @@
                                                 "idempotency_key": {
                                                     "type": "string"
                                                 },
+                                                "metadata": {},
                                                 "network_channel": {
                                                     "type": "string"
                                                 },
@@ -25242,6 +25249,7 @@
                                                             "idempotency_key": {
                                                                 "type": "string"
                                                             },
+                                                            "metadata": {},
                                                             "network_channel": {
                                                                 "type": "string"
                                                             },
@@ -27811,6 +27819,7 @@
                                                             "idempotency_key": {
                                                                 "type": "string"
                                                             },
+                                                            "metadata": {},
                                                             "network_channel": {
                                                                 "type": "string"
                                                             },
@@ -29134,6 +29143,7 @@
                                                             "idempotency_key": {
                                                                 "type": "string"
                                                             },
+                                                            "metadata": {},
                                                             "network_channel": {
                                                                 "type": "string"
                                                             },
@@ -30442,6 +30452,7 @@
                                                     "idempotency_key": {
                                                         "type": "string"
                                                     },
+                                                    "metadata": {},
                                                     "network_channel": {
                                                         "type": "string"
                                                     },
@@ -30610,6 +30621,7 @@
                                     "idempotency_key": {
                                         "type": "string"
                                     },
+                                    "metadata": {},
                                     "network_channel": {
                                         "type": "string"
                                     }
@@ -30672,6 +30684,7 @@
                                                 "idempotency_key": {
                                                     "type": "string"
                                                 },
+                                                "metadata": {},
                                                 "network_channel": {
                                                     "type": "string"
                                                 },

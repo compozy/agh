@@ -393,7 +393,6 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should aggregate dashboard cards queue health and breakdown from persisted task state", func(t *testing.T) {
-
 		h := newHarness(t)
 		h.observer.taskDashboardConfig.backlogWarnAfter = 30 * time.Minute
 		h.observer.taskHealthConfig = TaskHealthConfig{
@@ -709,7 +708,6 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 	t.Parallel()
 
 	t.Run("Should select recent active runs and filter workspace scoped snapshots", func(t *testing.T) {
-
 		h := newHarness(t)
 		h.observer.taskDashboardConfig.activeRunLimit = 4
 		h.observer.taskHealthConfig = TaskHealthConfig{
@@ -898,7 +896,6 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should assign inbox lanes and support unread lane and search filters", func(t *testing.T) {
-
 		h := newHarness(t)
 		now := h.observer.now()
 		alice := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "alice"}

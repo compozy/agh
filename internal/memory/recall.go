@@ -12,6 +12,9 @@ import (
 const (
 	maxRecallResults    = 3
 	maxRecallCharacters = 1500
+	// RecallAugmenterBudget is the declared daemon-side budget for durable
+	// memory recall when it participates in the prompt augmentation composite.
+	RecallAugmenterBudget = maxRecallCharacters
 )
 
 // NewRecallAugmenter returns a bounded prompt augmenter that prepends durable

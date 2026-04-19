@@ -40,6 +40,8 @@ type bootState struct {
 	logger              *slog.Logger
 	closeLogger         func() error
 	lock                *Lock
+	harnessResolver     *HarnessContextResolver
+	harnessRecorder     *harnessLifecycleRecorder
 	memoryStore         *memory.Store
 	skillsRegistry      *skills.Registry
 	mcpResolver         *skills.MCPResolver
@@ -47,6 +49,8 @@ type bootState struct {
 	dreamRuntime        *consolidation.Runtime
 	globalMemoryDir     string
 	promptAssembler     session.PromptAssembler
+	startupOverlay      session.StartupPromptOverlay
+	promptAugmenter     session.PromptInputAugmenter
 	notifier            *hooksNotifier
 	registry            Registry
 	environmentRegistry *environment.Registry
@@ -254,6 +258,7 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error {
 	var prependProviders []session.PromptProvider
 	var appendProviders []session.PromptProvider
+	var err error
 
 	if state.cfg.Memory.Enabled {
 		state.globalMemoryDir = strings.TrimSpace(state.cfg.Memory.GlobalDir)
@@ -281,10 +286,31 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
 	}
 
+	state.harnessResolver = NewHarnessContextResolver(HarnessRuntimeSignals{
+		MemoryPromptSectionEnabled: state.memoryStore != nil,
+		SkillsPromptSectionEnabled: state.skillsRegistry != nil,
+		DurableMemoryAugmenter:     state.memoryStore != nil,
+		SyntheticTurnsEnabled:      true,
+		DetachedTaskRuntimeEnabled: true,
+	})
+	state.harnessRecorder = newHarnessLifecycleRecorder(state.logger, d.now)
 	state.promptAssembler = NewComposedAssembler(
-		WithPrependPromptProviders(prependProviders...),
-		WithAppendPromptProviders(appendProviders...),
+		WithSectionSelector(NewSectionSelector(state.harnessResolver, state.harnessRecorder)),
+		WithPromptSectionDescriptors(
+			defaultStartupPromptSectionDescriptorsFromProviders(prependProviders, appendProviders)...,
+		),
 	)
+	state.promptAugmenter, err = newPromptInputCompositeAugmenter(
+		state.logger,
+		state.harnessResolver,
+		state.harnessRecorder,
+		defaultPromptInputAugmenterDescriptors(
+			memory.NewRecallAugmenter(state.memoryStore),
+		)...,
+	)
+	if err != nil {
+		return fmt.Errorf("daemon: build prompt input composite: %w", err)
+	}
 	return nil
 }
 
@@ -371,6 +397,9 @@ func (d *Daemon) bootRegistryState(
 	}
 	state.registry = registry
 	state.workspaceResolver = workspaceResolver
+	if state.harnessRecorder != nil {
+		state.harnessRecorder.SetStore(registry)
+	}
 	return nil
 }
 
@@ -454,13 +483,15 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 			Conversation: state.notifier,
 			Compaction:   state.notifier,
 		},
-		PromptAssembler:     state.promptAssembler,
-		MemoryStore:         state.memoryStore,
-		AgentResolver:       agentCatalogDependency(state.agentCatalog),
-		SkillRegistry:       skillRegistryDependency(state.skillsRegistry),
-		MCPResolver:         mcpResolverDependency(state.mcpResolver),
-		WorkspaceResolver:   state.workspaceResolver,
-		EnvironmentRegistry: state.environmentRegistry,
+		PromptAssembler:      state.promptAssembler,
+		StartupPromptOverlay: state.startupOverlay,
+		PromptInputAugmenter: state.promptAugmenter,
+		MemoryStore:          state.memoryStore,
+		AgentResolver:        agentCatalogDependency(state.agentCatalog),
+		SkillRegistry:        skillRegistryDependency(state.skillsRegistry),
+		MCPResolver:          mcpResolverDependency(state.mcpResolver),
+		WorkspaceResolver:    state.workspaceResolver,
+		EnvironmentRegistry:  state.environmentRegistry,
 	}
 }
 
@@ -818,6 +849,9 @@ func (d *Daemon) initializeHookObservers(state *bootState) ([]hookspkg.HookDecl,
 	state.lifecycleObservers = newSessionLifecycleFanout()
 	if state.observer != nil {
 		state.lifecycleObservers.Add(state.observer)
+	}
+	if state.harnessRecorder != nil {
+		state.lifecycleObservers.Add(state.harnessRecorder)
 	}
 	state.hookTelemetrySinks = newHookTelemetryFanout()
 	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
@@ -1374,6 +1408,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.closeLogger = state.closeLogger
 	d.booting = false
 	d.lock = state.lock
+	d.harnessResolver = state.harnessResolver
 	d.registry = state.registry
 	d.memoryStore = state.memoryStore
 	d.sessions = state.sessions

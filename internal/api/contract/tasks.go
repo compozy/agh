@@ -105,6 +105,7 @@ type TaskRunPayload struct {
 	StartedAt      *time.Time             `json:"started_at,omitempty"`
 	EndedAt        *time.Time             `json:"ended_at,omitempty"`
 	Error          string                 `json:"error,omitempty"`
+	Metadata       json.RawMessage        `json:"metadata,omitempty"`
 	Result         json.RawMessage        `json:"result,omitempty"`
 }
 
@@ -562,8 +563,9 @@ type AddTaskDependencyRequest struct {
 
 // EnqueueTaskRunRequest is the shared run-enqueue request payload.
 type EnqueueTaskRunRequest struct {
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-	NetworkChannel string `json:"network_channel,omitempty"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	NetworkChannel string          `json:"network_channel,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
 // ClaimTaskRunRequest is the shared run-claim request payload.

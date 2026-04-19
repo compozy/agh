@@ -21,6 +21,8 @@ import (
 const (
 	// EventTypeUserMessage is emitted when the agent echoes a user message chunk.
 	EventTypeUserMessage = "user_message"
+	// EventTypeSyntheticReentry is emitted for daemon-originated synthetic prompt input.
+	EventTypeSyntheticReentry = "synthetic_reentry"
 	// EventTypeAgentMessage is emitted for assistant message chunks.
 	EventTypeAgentMessage = "agent_message"
 	// EventTypeThought is emitted for assistant thought chunks.
@@ -123,12 +125,16 @@ const (
 	// PromptTurnSourceNetwork identifies a daemon prompt that originated from an
 	// AGH network envelope delivery.
 	PromptTurnSourceNetwork = "network"
+	// PromptTurnSourceSynthetic identifies a daemon-owned prompt turn injected by
+	// internal runtime code.
+	PromptTurnSourceSynthetic = "synthetic"
 )
 
 // PromptMeta carries structured, transport-stable metadata for one ACP prompt.
 type PromptMeta struct {
-	TurnSource string             `json:"turn_source,omitempty"`
-	Network    *PromptNetworkMeta `json:"network,omitempty"`
+	TurnSource string               `json:"turn_source,omitempty"`
+	Network    *PromptNetworkMeta   `json:"network,omitempty"`
+	Synthetic  *PromptSyntheticMeta `json:"synthetic,omitempty"`
 }
 
 // PromptNetworkMeta captures stable AGH network envelope correlation fields.
@@ -144,6 +150,14 @@ type PromptNetworkMeta struct {
 	CausationID   string `json:"causation_id,omitempty"`
 }
 
+// PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
+type PromptSyntheticMeta struct {
+	TaskID    string `json:"task_id,omitempty"`
+	TaskRunID string `json:"task_run_id,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+	Summary   string `json:"summary,omitempty"`
+}
+
 // Normalize returns a trimmed copy of the prompt metadata.
 func (m PromptMeta) Normalize() PromptMeta {
 	normalized := PromptMeta{
@@ -155,13 +169,19 @@ func (m PromptMeta) Normalize() PromptMeta {
 			normalized.Network = &network
 		}
 	}
+	if m.Synthetic != nil {
+		synthetic := m.Synthetic.Normalize()
+		if !synthetic.IsZero() {
+			normalized.Synthetic = &synthetic
+		}
+	}
 	return normalized
 }
 
 // IsZero reports whether the prompt metadata carries any fields.
 func (m PromptMeta) IsZero() bool {
 	normalized := m.Normalize()
-	return normalized.TurnSource == "" && normalized.Network == nil
+	return normalized.TurnSource == "" && normalized.Network == nil && normalized.Synthetic == nil
 }
 
 // Validate ensures the metadata shape is internally consistent.
@@ -169,12 +189,23 @@ func (m PromptMeta) Validate() error {
 	normalized := m.Normalize()
 	switch normalized.TurnSource {
 	case "", PromptTurnSourceUser:
-		if normalized.Network != nil {
-			return errors.New("acp: user prompt metadata cannot include network fields")
+		if normalized.Network != nil || normalized.Synthetic != nil {
+			return errors.New("acp: user prompt metadata cannot include network or synthetic fields")
 		}
 		return nil
 	case PromptTurnSourceNetwork:
+		if normalized.Synthetic != nil {
+			return errors.New("acp: network prompt metadata cannot include synthetic fields")
+		}
 		return nil
+	case PromptTurnSourceSynthetic:
+		if normalized.Network != nil {
+			return errors.New("acp: synthetic prompt metadata cannot include network fields")
+		}
+		if normalized.Synthetic == nil {
+			return errors.New("acp: synthetic prompt metadata requires synthetic fields")
+		}
+		return normalized.Synthetic.Validate()
 	default:
 		return fmt.Errorf("acp: invalid prompt turn source %q", normalized.TurnSource)
 	}
@@ -199,6 +230,31 @@ func (m PromptNetworkMeta) Normalize() PromptNetworkMeta {
 func (m PromptNetworkMeta) IsZero() bool {
 	normalized := m.Normalize()
 	return normalized == (PromptNetworkMeta{})
+}
+
+// Normalize returns a trimmed copy of the synthetic metadata.
+func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
+	return PromptSyntheticMeta{
+		TaskID:    strings.TrimSpace(m.TaskID),
+		TaskRunID: strings.TrimSpace(m.TaskRunID),
+		Reason:    strings.TrimSpace(m.Reason),
+		Summary:   strings.TrimSpace(m.Summary),
+	}
+}
+
+// IsZero reports whether the synthetic metadata carries any fields.
+func (m PromptSyntheticMeta) IsZero() bool {
+	normalized := m.Normalize()
+	return normalized == (PromptSyntheticMeta{})
+}
+
+// Validate ensures the synthetic metadata carries the minimum wake-up identity.
+func (m PromptSyntheticMeta) Validate() error {
+	normalized := m.Normalize()
+	if normalized.Reason == "" {
+		return errors.New("acp: synthetic prompt metadata requires a reason")
+	}
+	return nil
 }
 
 // Caps captures the usable capabilities exposed by an ACP agent.
@@ -275,6 +331,7 @@ type AgentEvent struct {
 	Resource   string
 	Decision   string
 	Error      string
+	Synthetic  *PromptSyntheticMeta
 	Usage      *TokenUsage
 	Raw        json.RawMessage
 }

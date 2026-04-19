@@ -20,6 +20,7 @@ import (
 const (
 	hookInputClassUserMessage    = acp.EventTypeUserMessage
 	hookInputClassNetworkMessage = "network_message"
+	hookInputClassSynthetic      = acp.EventTypeSyntheticReentry
 	hookInputClassStartup        = "startup_prompt"
 
 	hookMessageRoleAssistant = "assistant"
@@ -68,10 +69,14 @@ func newPromptTurnDispatchState(
 }
 
 func inputClassForTurnSource(source TurnSource) string {
-	if normalizeTurnSource(source) == TurnSourceNetwork {
+	switch normalizeTurnSource(source) {
+	case TurnSourceNetwork:
 		return hookInputClassNetworkMessage
+	case TurnSourceSynthetic:
+		return hookInputClassSynthetic
+	default:
+		return hookInputClassUserMessage
 	}
-	return hookInputClassUserMessage
 }
 
 func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts) (CreateOpts, error) {

@@ -2267,6 +2267,7 @@ export interface TaskRun {
   started_at?: ISODateTime;
   ended_at?: ISODateTime;
   error?: string;
+  metadata?: JSONValue;
   result?: JSONValue;
 }
 
@@ -2394,6 +2395,7 @@ export interface TaskRunEnqueueParams {
   task_id: string;
   idempotency_key?: string;
   network_channel?: string;
+  metadata?: JSONValue;
 }
 
 export interface TaskRunFailParams {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -167,6 +168,56 @@ func TestStreamObserveEventsPollsForNewEvents(t *testing.T) {
 	}
 	if records[0].ID == records[1].ID {
 		t.Fatalf("expected distinct observe SSE ids, got %#v", records)
+	}
+}
+
+func TestStreamObserveEventsCarriesHarnessLifecyclePayloads(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	done := make(chan struct{})
+	var doneOnce sync.Once
+	observer := stubObserver{
+		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+			doneOnce.Do(func() { close(done) })
+			return []store.EventSummary{{
+				ID:        "sum-harness",
+				SessionID: "sess-harness",
+				Type:      "harness.context_resolved",
+				AgentName: "coder",
+				Summary:   "surface=startup sections=memory|skills|network",
+				Timestamp: time.Date(2026, 4, 18, 13, 0, 0, 0, time.UTC),
+			}}, nil
+		},
+	}
+	handlers := newTestHandlers(t, stubSessionManager{}, observer, homePaths)
+	handlers.setStreamDone(done)
+	engine := newTestRouter(t, handlers)
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/api/observe/events/stream?session_id=sess-harness",
+		http.NoBody,
+	)
+	engine.ServeHTTP(recorder, req)
+
+	records := parseSSE(t, recorder.Body.String())
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("len(records) = %d, want %d; body=%s", got, want, recorder.Body.String())
+	}
+
+	var payload observeEventPayload
+	if err := json.Unmarshal(records[0].Data, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(observe payload) error = %v", err)
+	}
+	if got, want := payload.Type, "harness.context_resolved"; got != want {
+		t.Fatalf("payload.Type = %q, want %q", got, want)
+	}
+	if got, want := payload.SessionID, "sess-harness"; got != want {
+		t.Fatalf("payload.SessionID = %q, want %q", got, want)
+	}
+	if !bytes.Contains(records[0].Data, []byte("sections=memory|skills|network")) {
+		t.Fatalf("payload = %s, want harness summary content", string(records[0].Data))
 	}
 }
 

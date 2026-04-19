@@ -1647,17 +1647,11 @@ func (h *HostAPIHandler) submitPrompt(
 		return hostAPIPromptSubmission{}, err
 	}
 
-	turnID := ""
-	for _, event := range events {
-		if strings.TrimSpace(event.Type) != acp.EventTypeUserMessage {
-			continue
-		}
-		if strings.TrimSpace(event.TurnID) == "" {
-			continue
-		}
-		turnID = strings.TrimSpace(event.TurnID)
-		break
-	}
+	return promptSubmissionFromStoredEvents(events)
+}
+
+func promptSubmissionFromStoredEvents(events []store.SessionEvent) (hostAPIPromptSubmission, error) {
+	turnID := promptTurnIDFromStoredEvents(events)
 	if turnID == "" {
 		return hostAPIPromptSubmission{}, errors.New("extension: prompt turn id not found after prompt submission")
 	}
@@ -1671,6 +1665,29 @@ func (h *HostAPIHandler) submitPrompt(
 		TurnID:     turnID,
 		SeedEvents: seedEvents,
 	}, nil
+}
+
+func promptTurnIDFromStoredEvents(events []store.SessionEvent) string {
+	for _, event := range events {
+		if !isPromptInitiatingStoredEventType(event.Type) {
+			continue
+		}
+		turnID := strings.TrimSpace(event.TurnID)
+		if turnID == "" {
+			continue
+		}
+		return turnID
+	}
+	return ""
+}
+
+func isPromptInitiatingStoredEventType(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case acp.EventTypeUserMessage, acp.EventTypeSyntheticReentry:
+		return true
+	default:
+		return false
+	}
 }
 
 func promptSeedEventsFromStoredEvents(

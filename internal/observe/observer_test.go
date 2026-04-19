@@ -280,6 +280,64 @@ func TestQueryEventsFilterBySessionID(t *testing.T) {
 	}
 }
 
+func TestQueryEventsReturnsHarnessLifecycleSummaries(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	sess := newSession("sess-harness-observe", session.StateActive, h.workspace, h.now)
+	h.observer.OnSessionCreated(testutil.Context(t), sess)
+
+	base := h.now.Add(3 * time.Minute)
+	summaries := []store.EventSummary{
+		{
+			SessionID: sess.ID,
+			Type:      "harness.context_resolved",
+			AgentName: sess.AgentName,
+			Summary:   "surface=startup sections=memory|skills|network",
+			Timestamp: base,
+		},
+		{
+			SessionID: sess.ID,
+			Type:      "harness.section_selected",
+			AgentName: sess.AgentName,
+			Summary:   "selected=memory|skills|network count=3",
+			Timestamp: base.Add(time.Second),
+		},
+		{
+			SessionID: sess.ID,
+			Type:      "harness.augmenter_applied",
+			AgentName: sess.AgentName,
+			Summary:   "augmenter=durable_memory outcome=blank",
+			Timestamp: base.Add(2 * time.Second),
+		},
+	}
+	for _, summary := range summaries {
+		if err := h.observer.registry.WriteEventSummary(testutil.Context(t), summary); err != nil {
+			t.Fatalf("WriteEventSummary(%q) error = %v", summary.Type, err)
+		}
+	}
+
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{
+		SessionID: sess.ID,
+		Limit:     3,
+	})
+	if err != nil {
+		t.Fatalf("QueryEvents() error = %v", err)
+	}
+	if got, want := len(events), 3; got != want {
+		t.Fatalf("len(events) = %d, want %d", got, want)
+	}
+	if got, want := events[0].Type, "harness.context_resolved"; got != want {
+		t.Fatalf("events[0].Type = %q, want %q", got, want)
+	}
+	if got, want := events[2].Type, "harness.augmenter_applied"; got != want {
+		t.Fatalf("events[2].Type = %q, want %q", got, want)
+	}
+	if got, want := events[2].Summary, summaries[2].Summary; got != want {
+		t.Fatalf("events[2].Summary = %q, want %q", got, want)
+	}
+}
+
 func TestQueryEventsFilterByEventType(t *testing.T) {
 	t.Parallel()
 

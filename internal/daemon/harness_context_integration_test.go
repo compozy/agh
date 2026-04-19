@@ -1,0 +1,532 @@
+//go:build integration
+
+package daemon
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/pedronauck/agh/internal/acp"
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/skills/bundled"
+	"github.com/pedronauck/agh/internal/store/sessiondb"
+	"github.com/pedronauck/agh/internal/testutil"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+)
+
+func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	workspaceRoot := homePaths.HomeDir + "/workspace"
+	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
+	writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspaceRoot)
+
+	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
+	t.Cleanup(func() {
+		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if daemonInstance.harnessResolver == nil {
+		t.Fatal("boot() did not retain the harness resolver")
+	}
+	if _, ok := capturedDeps.PromptAssembler.(session.StartupPromptAssembler); !ok {
+		t.Fatal("boot() did not inject a startup-aware prompt assembler")
+	}
+	if capturedDeps.StartupPromptOverlay != nil {
+		t.Fatal("boot() unexpectedly injected a startup prompt overlay")
+	}
+	if capturedDeps.PromptInputAugmenter == nil {
+		t.Fatal("boot() did not inject the prompt input augmenter")
+	}
+
+	driver := newHarnessIntegrationDriver()
+	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
+
+	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+		AgentName: resolvedWorkspace.Agents[0].Name,
+		Name:      "networked",
+		Workspace: resolvedWorkspace.ID,
+		Channel:   "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = manager.Stop(testutil.Context(t), created.ID)
+	})
+
+	startupResolved, err := daemonInstance.harnessResolver.ResolveStartup(session.StartupPromptContext{
+		SessionType: created.Info().Type,
+		Channel:     created.Info().Channel,
+		WorkspaceID: created.Info().WorkspaceID,
+		Workspace:   created.Info().Workspace,
+		AgentName:   created.Info().AgentName,
+	})
+	if err != nil {
+		t.Fatalf("ResolveStartup() error = %v", err)
+	}
+	if !containsHarnessSection(startupResolved.Policy.IncludeSections, HarnessPromptSectionNetwork) {
+		t.Fatalf("startup IncludeSections = %#v, want network section", startupResolved.Policy.IncludeSections)
+	}
+
+	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+	}
+	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, networkSkill) {
+		t.Fatalf("start system prompt = %q, want bundled network skill content", got)
+	}
+	if got := strings.Count(driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
+		t.Fatalf("network skill occurrences = %d, want 1", got)
+	}
+	assertPromptContainsInOrder(
+		t,
+		driver.startCalls[0].SystemPrompt,
+		"# Persistent Memory",
+		"You are a coding assistant.",
+		"<available-skills>",
+		networkSkill,
+	)
+
+	userResolved, err := daemonInstance.harnessResolver.ResolvePrompt(created.Info(), session.TurnSourceUser, acp.PromptMeta{})
+	if err != nil {
+		t.Fatalf("ResolvePrompt(user) error = %v", err)
+	}
+	if !slices.Equal(userResolved.Policy.EnableAugmenters, []HarnessAugmenter{HarnessAugmenterDurableMemory}) {
+		t.Fatalf("user EnableAugmenters = %#v, want durable memory", userResolved.Policy.EnableAugmenters)
+	}
+
+	userEvents, err := manager.PromptWithOpts(testutil.Context(t), created.ID, session.PromptOpts{
+		Message:    "workspace note",
+		TurnSource: session.TurnSourceUser,
+	})
+	if err != nil {
+		t.Fatalf("PromptWithOpts(user) error = %v", err)
+	}
+	drainHarnessIntegrationEvents(userEvents)
+	if got := driver.promptCalls[0].Message; !strings.Contains(got, "Relevant durable memory for this turn:") {
+		t.Fatalf("user prompt message = %q, want durable memory augmentation", got)
+	}
+
+	networkResolved, err := daemonInstance.harnessResolver.ResolvePrompt(created.Info(), session.TurnSourceNetwork, acp.PromptMeta{})
+	if err != nil {
+		t.Fatalf("ResolvePrompt(network) error = %v", err)
+	}
+	if len(networkResolved.Policy.EnableAugmenters) != 0 {
+		t.Fatalf("network EnableAugmenters = %#v, want empty", networkResolved.Policy.EnableAugmenters)
+	}
+
+	networkEvents, err := manager.PromptNetwork(
+		testutil.Context(t),
+		created.ID,
+		"workspace note",
+		acp.PromptNetworkMeta{Channel: "builders", From: "ops.peer"},
+	)
+	if err != nil {
+		t.Fatalf("PromptNetwork() error = %v", err)
+	}
+	drainHarnessIntegrationEvents(networkEvents)
+	if got := driver.promptCalls[1].Message; got != "workspace note" {
+		t.Fatalf("network prompt message = %q, want raw network input", got)
+	}
+	if got := driver.promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
+		t.Fatalf("network prompt turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)
+	}
+}
+
+func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	workspaceRoot := homePaths.HomeDir + "/workspace"
+	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
+
+	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
+	t.Cleanup(func() {
+		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	driver := newHarnessIntegrationDriver()
+	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
+
+	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+		AgentName: resolvedWorkspace.Agents[0].Name,
+		Name:      "networked",
+		Workspace: resolvedWorkspace.ID,
+		Channel:   "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	beforeResume, err := daemonInstance.harnessResolver.ResolvePrompt(
+		created.Info(),
+		session.TurnSourceNetwork,
+		acp.PromptMeta{},
+	)
+	if err != nil {
+		t.Fatalf("ResolvePrompt(before resume) error = %v", err)
+	}
+
+	if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	resumed, err := manager.Resume(testutil.Context(t), created.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	afterResume, err := daemonInstance.harnessResolver.ResolvePrompt(
+		resumed.Info(),
+		session.TurnSourceNetwork,
+		acp.PromptMeta{},
+	)
+	if err != nil {
+		t.Fatalf("ResolvePrompt(after resume) error = %v", err)
+	}
+
+	if !reflect.DeepEqual(beforeResume.Policy, afterResume.Policy) {
+		t.Fatalf("resolved policy changed across resume\nbefore=%#v\nafter=%#v", beforeResume.Policy, afterResume.Policy)
+	}
+
+	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+	}
+	if got := strings.Count(driver.startCalls[1].SystemPrompt, networkSkill); got != 1 {
+		t.Fatalf("resume prompt network skill occurrences = %d, want 1", got)
+	}
+}
+
+func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	workspaceRoot := homePaths.HomeDir + "/workspace"
+	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
+	writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspaceRoot)
+
+	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
+	t.Cleanup(func() {
+		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	driver := newHarnessIntegrationDriver()
+	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
+
+	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+		AgentName: resolvedWorkspace.Agents[0].Name,
+		Name:      "interactive",
+		Workspace: resolvedWorkspace.ID,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = manager.Stop(testutil.Context(t), created.ID)
+	})
+
+	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+	}
+	if strings.Contains(driver.startCalls[0].SystemPrompt, networkSkill) {
+		t.Fatalf("start system prompt unexpectedly contains bundled network skill")
+	}
+	assertPromptContainsInOrder(
+		t,
+		driver.startCalls[0].SystemPrompt,
+		"# Persistent Memory",
+		"You are a coding assistant.",
+		"<available-skills>",
+	)
+}
+
+func bootHarnessPolicyDaemon(
+	t *testing.T,
+	homePaths aghconfig.HomePaths,
+	cfg *aghconfig.Config,
+) (*Daemon, SessionManagerDeps) {
+	t.Helper()
+
+	var capturedDeps SessionManagerDeps
+
+	d, err := New(
+		WithHomePaths(homePaths),
+		WithConfig(cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+		capturedDeps = deps
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	return d, capturedDeps
+}
+
+func newHarnessIntegrationManager(
+	t *testing.T,
+	homePaths aghconfig.HomePaths,
+	deps SessionManagerDeps,
+	resolvedWorkspace workspacepkg.ResolvedWorkspace,
+	driver *harnessIntegrationDriver,
+) *session.Manager {
+	t.Helper()
+
+	manager, err := session.NewManager(
+		session.WithHomePaths(homePaths),
+		session.WithDriver(driver),
+		session.WithWorkspaceResolver(&harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace}),
+		session.WithStore(func(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
+			return sessiondb.OpenSessionDB(ctx, sessionID, path)
+		}),
+		session.WithLogger(discardLogger()),
+		session.WithEnvironmentRegistry(deps.EnvironmentRegistry),
+		session.WithPromptAssembler(deps.PromptAssembler),
+		session.WithPromptInputAugmenter(deps.PromptInputAugmenter),
+		session.WithSkillRegistry(deps.SkillRegistry),
+		session.WithMCPResolver(deps.MCPResolver),
+	)
+	if err != nil {
+		t.Fatalf("session.NewManager() error = %v", err)
+	}
+	return manager
+}
+
+func drainHarnessIntegrationEvents(events <-chan acp.AgentEvent) {
+	for range events {
+	}
+}
+
+func newHarnessIntegrationWorkspace(
+	t *testing.T,
+	homePaths aghconfig.HomePaths,
+	cfg aghconfig.Config,
+	root string,
+) workspacepkg.ResolvedWorkspace {
+	t.Helper()
+
+	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
+	}
+
+	resolvedEnvironment, err := cfg.ResolveEnvironment(cfg.Defaults.Environment)
+	if err != nil {
+		t.Fatalf("ResolveEnvironment() error = %v", err)
+	}
+
+	return workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      "ws-harness",
+			RootDir: root,
+			Name:    "workspace",
+		},
+		Config: cfg,
+		Agents: []aghconfig.AgentDef{
+			{
+				Name:     "coder",
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			},
+		},
+		Environment: resolvedEnvironment,
+	}
+}
+
+type harnessIntegrationWorkspaceResolver struct {
+	resolved workspacepkg.ResolvedWorkspace
+}
+
+func (r *harnessIntegrationWorkspaceResolver) Resolve(
+	_ context.Context,
+	idOrPath string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	target := strings.TrimSpace(idOrPath)
+	switch target {
+	case r.resolved.ID, r.resolved.Name, r.resolved.RootDir:
+		return r.resolved, nil
+	default:
+		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+	}
+}
+
+func (r *harnessIntegrationWorkspaceResolver) ResolveOrRegister(
+	_ context.Context,
+	path string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	if strings.TrimSpace(path) == strings.TrimSpace(r.resolved.RootDir) {
+		return r.resolved, nil
+	}
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+type harnessIntegrationDriver struct {
+	mu          sync.Mutex
+	startCalls  []acp.StartOpts
+	promptCalls []acp.PromptRequest
+	processes   map[*session.AgentProcess]*harnessIntegrationProcess
+	sequence    int
+}
+
+type harnessIntegrationProcess struct {
+	done   chan struct{}
+	closed bool
+	handle *session.AgentProcess
+}
+
+func newHarnessIntegrationDriver() *harnessIntegrationDriver {
+	return &harnessIntegrationDriver{
+		processes: make(map[*session.AgentProcess]*harnessIntegrationProcess),
+	}
+}
+
+func (d *harnessIntegrationDriver) Start(_ context.Context, opts acp.StartOpts) (*session.AgentProcess, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.sequence++
+	copied := opts
+	copied.AdditionalDirs = append([]string(nil), opts.AdditionalDirs...)
+	copied.Env = append([]string(nil), opts.Env...)
+	copied.MCPServers = append([]aghconfig.MCPServer(nil), opts.MCPServers...)
+	d.startCalls = append(d.startCalls, copied)
+
+	sessionID := fmt.Sprintf("acp-%d", d.sequence)
+	if copied.ResumeSessionID != "" {
+		sessionID = copied.ResumeSessionID
+	}
+
+	proc := newHarnessIntegrationProcess(copied.AgentName, copied.Command, copied.Cwd, sessionID)
+	d.processes[proc.handle] = proc
+	return proc.handle, nil
+}
+
+func (d *harnessIntegrationDriver) Prompt(
+	_ context.Context,
+	proc *session.AgentProcess,
+	req acp.PromptRequest,
+) (<-chan acp.AgentEvent, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.processes[proc] == nil {
+		return nil, fmt.Errorf("test: unknown process")
+	}
+	d.promptCalls = append(d.promptCalls, req)
+
+	events := make(chan acp.AgentEvent, 2)
+	go func() {
+		defer close(events)
+		ts := time.Now().UTC()
+		totalTokens := int64(3)
+		events <- acp.AgentEvent{
+			Type:      acp.EventTypeAgentMessage,
+			SessionID: proc.SessionID,
+			TurnID:    req.TurnID,
+			Timestamp: ts,
+			Text:      "reply",
+		}
+		events <- acp.AgentEvent{
+			Type:       acp.EventTypeDone,
+			SessionID:  proc.SessionID,
+			TurnID:     req.TurnID,
+			Timestamp:  ts,
+			StopReason: "end_turn",
+			Usage: &acp.TokenUsage{
+				TurnID:      req.TurnID,
+				TotalTokens: &totalTokens,
+				Timestamp:   ts,
+			},
+		}
+	}()
+	return events, nil
+}
+
+func (d *harnessIntegrationDriver) Cancel(context.Context, *session.AgentProcess) error {
+	return nil
+}
+
+func (d *harnessIntegrationDriver) Stop(_ context.Context, proc *session.AgentProcess) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	fakeProc := d.processes[proc]
+	if fakeProc == nil {
+		return nil
+	}
+	fakeProc.exit()
+	return nil
+}
+
+func newHarnessIntegrationProcess(
+	agentName string,
+	command string,
+	cwd string,
+	sessionID string,
+) *harnessIntegrationProcess {
+	proc := &harnessIntegrationProcess{
+		done: make(chan struct{}),
+	}
+	proc.handle = session.NewAgentProcess(session.AgentProcessOptions{
+		PID:       1,
+		AgentName: agentName,
+		Command:   command,
+		Cwd:       cwd,
+		SessionID: sessionID,
+		Caps: acp.Caps{
+			SupportsLoadSession: true,
+			SupportedModes:      []string{"chat"},
+			SupportedModels:     []string{"gpt-4o"},
+		},
+		StartedAt: time.Now().UTC(),
+		Done:      proc.done,
+		Wait: func() error {
+			<-proc.done
+			return nil
+		},
+		ConfigureRuntime: func(func() session.TurnSource) {},
+	})
+	return proc
+}
+
+func (p *harnessIntegrationProcess) exit() {
+	if p == nil || p.closed {
+		return
+	}
+	p.closed = true
+	close(p.done)
+}

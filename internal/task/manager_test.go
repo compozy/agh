@@ -73,6 +73,19 @@ type testRuntimeViewReader struct {
 	stats    map[string][]storepkg.TokenStats
 }
 
+type contextSensitiveEventStore struct {
+	*inMemoryManagerStore
+	getTaskEventRecordCanceled []bool
+}
+
+type recordingTaskEventObserver struct {
+	records []EventRecord
+}
+
+type panickingTaskEventObserver struct {
+	panicValue any
+}
+
 func (r testRuntimeViewReader) GetSession(_ context.Context, sessionID string) (*RunSessionRef, error) {
 	session, ok := r.sessions[strings.TrimSpace(sessionID)]
 	if !ok || session == nil {
@@ -95,6 +108,22 @@ func (r testRuntimeViewReader) ListSessionTokenStats(
 	sessionID string,
 ) ([]storepkg.TokenStats, error) {
 	return append([]storepkg.TokenStats(nil), r.stats[strings.TrimSpace(sessionID)]...), nil
+}
+
+func (s *contextSensitiveEventStore) GetTaskEventRecord(ctx context.Context, eventID string) (EventRecord, error) {
+	s.getTaskEventRecordCanceled = append(s.getTaskEventRecordCanceled, ctx != nil && ctx.Err() != nil)
+	if ctx != nil && ctx.Err() != nil {
+		return EventRecord{}, ctx.Err()
+	}
+	return s.inMemoryManagerStore.GetTaskEventRecord(ctx, eventID)
+}
+
+func (o *recordingTaskEventObserver) OnTaskEvent(_ context.Context, record EventRecord) {
+	o.records = append(o.records, record)
+}
+
+func (o *panickingTaskEventObserver) OnTaskEvent(_ context.Context, _ EventRecord) {
+	panic(o.panicValue)
 }
 
 func (e *recordingSessionExecutor) StartTaskSession(_ context.Context, spec *StartTaskSession) (*SessionRef, error) {
@@ -465,6 +494,7 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 	runIdempotencyKey string,
 	origin Origin,
 	requestedChannel string,
+	metadata json.RawMessage,
 	queuedAt time.Time,
 ) (Task, Run, bool, error) {
 	taskRecord, ok := s.tasks[strings.TrimSpace(taskID)]
@@ -518,6 +548,7 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		Origin:         origin,
 		IdempotencyKey: trimmedKey,
 		NetworkChannel: resolvedRunChannel(requestedChannel, taskRecord.NetworkChannel),
+		Metadata:       normalizeRawJSON(metadata),
 		QueuedAt:       queuedAt.UTC(),
 	}
 	if err := s.CreateTaskRun(context.Background(), run); err != nil {
@@ -3063,6 +3094,212 @@ func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {
 	}
 }
 
+func TestManagerEnqueueRunPreservesMetadataAcrossIdempotentDuplicates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve metadata across idempotent duplicates", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor, err := DeriveAutomationActorContext("rule:harness-detached", "daemon.harness.detached")
+		if err != nil {
+			t.Fatalf("DeriveAutomationActorContext() error = %v", err)
+		}
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Detached metadata task",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		metadata := json.RawMessage(
+			`{"schema":"agh.harness.detached.v1","owner_session_id":"sess-owner","wake_target":{"session_id":"sess-wake"}}`,
+		)
+		firstRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{
+			TaskID:         taskRecord.ID,
+			IdempotencyKey: "detached-metadata-1",
+			Metadata:       metadata,
+		}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(first) error = %v", err)
+		}
+		if got, want := string(firstRun.Metadata), string(metadata); got != want {
+			t.Fatalf("firstRun.Metadata = %s, want %s", got, want)
+		}
+
+		storedRun, err := store.GetTaskRun(context.Background(), firstRun.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if got, want := string(storedRun.Metadata), string(metadata); got != want {
+			t.Fatalf("storedRun.Metadata = %s, want %s", got, want)
+		}
+
+		duplicateRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{
+			TaskID:         taskRecord.ID,
+			IdempotencyKey: "detached-metadata-1",
+			Metadata:       metadata,
+		}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(duplicate) error = %v", err)
+		}
+		if got, want := duplicateRun.ID, firstRun.ID; got != want {
+			t.Fatalf("duplicateRun.ID = %q, want %q", got, want)
+		}
+		if got, want := string(duplicateRun.Metadata), string(metadata); got != want {
+			t.Fatalf("duplicateRun.Metadata = %s, want %s", got, want)
+		}
+		if got, want := len(store.runs), 1; got != want {
+			t.Fatalf("len(store.runs) = %d, want %d", got, want)
+		}
+
+		conflictingMetadata := json.RawMessage(
+			`{"schema":"agh.harness.detached.v1","owner_session_id":"sess-other","wake_target":{"session_id":"sess-other","channel":"ops"}}`,
+		)
+		conflictingDuplicate, err := manager.EnqueueRun(context.Background(), EnqueueRun{
+			TaskID:         taskRecord.ID,
+			IdempotencyKey: "detached-metadata-1",
+			Metadata:       conflictingMetadata,
+		}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(conflicting duplicate) error = %v", err)
+		}
+		if got, want := conflictingDuplicate.ID, firstRun.ID; got != want {
+			t.Fatalf("conflictingDuplicate.ID = %q, want %q", got, want)
+		}
+		if got, want := string(conflictingDuplicate.Metadata), string(metadata); got != want {
+			t.Fatalf("conflictingDuplicate.Metadata = %s, want original %s", got, want)
+		}
+
+		storedRun, err = store.GetTaskRun(context.Background(), firstRun.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(conflicting duplicate) error = %v", err)
+		}
+		if got, want := string(storedRun.Metadata), string(metadata); got != want {
+			t.Fatalf("storedRun.Metadata after conflicting duplicate = %s, want original %s", got, want)
+		}
+	})
+}
+
+func TestManagerRecordTaskEventPostCommitNotifications(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should detach post-commit notifications from caller context", func(t *testing.T) {
+		t.Parallel()
+
+		store := &contextSensitiveEventStore{inMemoryManagerStore: newInMemoryManagerStore()}
+		observer := &recordingTaskEventObserver{}
+		manager := newTaskManagerForTestWithOptions(t, store, WithEventObserver(observer))
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Detached post-commit notifications",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		observer.records = nil
+		store.getTaskEventRecordCanceled = nil
+
+		streamCtx := t.Context()
+
+		stream, err := manager.Stream(streamCtx, taskRecord.ID, StreamQuery{AfterSequence: 1}, actor)
+		if err != nil {
+			t.Fatalf("Stream() error = %v", err)
+		}
+
+		canceledCtx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		if err := manager.recordTaskEvent(
+			canceledCtx,
+			taskRecord.ID,
+			"",
+			taskEventUpdated,
+			actor,
+			map[string]any{"source": "post-commit"},
+		); err != nil {
+			t.Fatalf("recordTaskEvent() error = %v", err)
+		}
+
+		live := awaitTaskStreamEvent(t, stream)
+		if got, want := live.Type, taskEventUpdated; got != want {
+			t.Fatalf("live.Type = %q, want %q", got, want)
+		}
+		if got, want := live.Timeline.EventID, "evt-test-3"; got != want {
+			t.Fatalf("live.Timeline.EventID = %q, want %q", got, want)
+		}
+		if got, want := len(observer.records), 1; got != want {
+			t.Fatalf("len(observer.records) = %d, want %d", got, want)
+		}
+		if got, want := observer.records[0].Event.EventType, taskEventUpdated; got != want {
+			t.Fatalf("observer.records[0].Event.EventType = %q, want %q", got, want)
+		}
+		if got, want := len(store.getTaskEventRecordCanceled), 1; got != want {
+			t.Fatalf("len(store.getTaskEventRecordCanceled) = %d, want %d", got, want)
+		}
+		if store.getTaskEventRecordCanceled[0] {
+			t.Fatal("GetTaskEventRecord() observed a canceled context, want detached post-commit context")
+		}
+	})
+
+	t.Run("Should continue live fanout when the observer panics", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithEventObserver(&panickingTaskEventObserver{panicValue: "observer boom"}),
+		)
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Observer panic notifications",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		stream, err := manager.Stream(t.Context(), taskRecord.ID, StreamQuery{AfterSequence: 1}, actor)
+		if err != nil {
+			t.Fatalf("Stream() error = %v", err)
+		}
+
+		func() {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					t.Fatalf("recordTaskEvent() panic = %v, want recovered observer panic", recovered)
+				}
+			}()
+
+			if err := manager.recordTaskEvent(
+				context.Background(),
+				taskRecord.ID,
+				"",
+				taskEventUpdated,
+				actor,
+				map[string]any{"source": "observer-panic"},
+			); err != nil {
+				t.Fatalf("recordTaskEvent() error = %v", err)
+			}
+		}()
+
+		live := awaitTaskStreamEvent(t, stream)
+		if got, want := live.Type, taskEventUpdated; got != want {
+			t.Fatalf("live.Type = %q, want %q", got, want)
+		}
+		if got, want := live.Timeline.EventID, "evt-test-3"; got != want {
+			t.Fatalf("live.Timeline.EventID = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestManagerNetworkPeerEnqueueRunUsesOriginScopedIdempotency(t *testing.T) {
 	t.Parallel()
 
@@ -4185,6 +4422,7 @@ func cloneTaskRun(record Run) Run {
 		claimedBy := *record.ClaimedBy
 		cloned.ClaimedBy = &claimedBy
 	}
+	cloned.Metadata = cloneRawJSON(record.Metadata)
 	cloned.Result = cloneRawJSON(record.Result)
 	return cloned
 }

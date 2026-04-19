@@ -125,11 +125,246 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 	}
 }
 
+func TestManagerIntegrationSyntheticPromptPersistsDedicatedEventsWithMixedHistory(t *testing.T) {
+	h := newHarness(t)
+
+	session := createSession(t, h)
+	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
+	if err != nil {
+		t.Fatalf("Prompt(user) error = %v", err)
+	}
+	_ = collectEvents(t, userEvents)
+
+	networkEvents, err := h.manager.PromptNetwork(
+		testutil.Context(t),
+		session.ID,
+		"network prompt",
+		acp.PromptNetworkMeta{MessageID: "msg-1", Kind: "direct"},
+	)
+	if err != nil {
+		t.Fatalf("PromptNetwork() error = %v", err)
+	}
+	_ = collectEvents(t, networkEvents)
+
+	syntheticEvents, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+		Message: "synthetic wake-up",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskRunID: "run-1",
+			Reason:    "task_run_completed",
+			Summary:   "background task finished",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PromptSynthetic() error = %v", err)
+	}
+	_ = collectEvents(t, syntheticEvents)
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	reopened, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, session.DBPath())
+	if err != nil {
+		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
+	}
+	defer func() {
+		if err := reopened.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("reopened.Close() error = %v", err)
+		}
+	}()
+
+	events, err := reopened.Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query(reopen) error = %v", err)
+	}
+	if got := countEventType(events, acp.EventTypeUserMessage); got != 2 {
+		t.Fatalf("countEventType(user_message) = %d, want 2 for user+network input", got)
+	}
+	if got := countEventType(events, acp.EventTypeSyntheticReentry); got != 1 {
+		t.Fatalf("countEventType(synthetic_reentry) = %d, want 1", got)
+	}
+	if !containsEventType(events, acp.EventTypeAgentMessage) || !containsEventType(events, acp.EventTypeDone) {
+		t.Fatalf("mixed history missing runtime events: %#v", events)
+	}
+}
+
+func TestManagerIntegrationSyntheticQueuePreservesOrderingBehindActivePrompt(t *testing.T) {
+	h := newHarness(t)
+
+	session := createSession(t, h)
+
+	firstPromptEntered := make(chan struct{})
+	releaseFirstPrompt := make(chan struct{})
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		if req.TurnID == "turn-1" {
+			close(firstPromptEntered)
+			events := make(chan acp.AgentEvent)
+			go func() {
+				<-releaseFirstPrompt
+				events <- acp.AgentEvent{
+					Type:      acp.EventTypeDone,
+					TurnID:    req.TurnID,
+					Timestamp: time.Now().UTC(),
+				}
+				close(events)
+			}()
+			return events, nil
+		}
+
+		events := make(chan acp.AgentEvent)
+		close(events)
+		return events, nil
+	}
+
+	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
+	if err != nil {
+		t.Fatalf("Prompt(user) error = %v", err)
+	}
+	<-firstPromptEntered
+
+	syntheticEvents, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+		Message: "synthetic wake-up",
+		Metadata: acp.PromptSyntheticMeta{
+			TaskRunID: "run-2",
+			Reason:    "task_run_completed",
+			Summary:   "queued after user turn",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PromptSynthetic() error = %v", err)
+	}
+
+	close(releaseFirstPrompt)
+	_ = collectEvents(t, userEvents)
+	_ = collectEvents(t, syntheticEvents)
+
+	events, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query() error = %v", err)
+	}
+	if len(events) < 3 {
+		t.Fatalf("stored events = %d, want at least user, done, and synthetic events", len(events))
+	}
+
+	userIndex := -1
+	doneIndex := -1
+	syntheticIndex := -1
+	for i, event := range events {
+		switch event.Type {
+		case acp.EventTypeUserMessage:
+			if userIndex < 0 {
+				userIndex = i
+			}
+		case acp.EventTypeDone:
+			if doneIndex < 0 {
+				doneIndex = i
+			}
+		case acp.EventTypeSyntheticReentry:
+			if syntheticIndex < 0 {
+				syntheticIndex = i
+			}
+		}
+	}
+	if userIndex < 0 {
+		t.Fatalf("stored events missing %q: %#v", acp.EventTypeUserMessage, events)
+	}
+	if doneIndex < 0 {
+		t.Fatalf("stored events missing %q: %#v", acp.EventTypeDone, events)
+	}
+	if syntheticIndex < 0 {
+		t.Fatalf("stored events missing %q: %#v", acp.EventTypeSyntheticReentry, events)
+	}
+	if !(userIndex < doneIndex && doneIndex < syntheticIndex) {
+		t.Fatalf("event order user=%d done=%d synthetic=%d, want user < done < synthetic", userIndex, doneIndex, syntheticIndex)
+	}
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("cleanup Stop() error = %v", err)
+	}
+}
+
+func TestManagerIntegrationRemovePurgesSyntheticState(t *testing.T) {
+	tests := []struct {
+		name   string
+		remove func(*Manager, string)
+	}{
+		{
+			name: "Should purge synthetic state on remove",
+			remove: func(m *Manager, id string) {
+				m.remove(id)
+			},
+		},
+		{
+			name: "Should purge synthetic state on removeActive",
+			remove: func(m *Manager, id string) {
+				m.removeActive(id)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			eventsCh := make(chan acp.AgentEvent, 1)
+			finalizing := make(chan struct{})
+			manager := &Manager{
+				sessions: map[string]*Session{
+					"sess-synth": {ID: "sess-synth"},
+				},
+				pending: map[string]struct{}{
+					"sess-synth": {},
+				},
+				finalizing: map[string]chan struct{}{
+					"sess-synth": finalizing,
+				},
+				syntheticQueues: map[string][]queuedSyntheticPrompt{
+					"sess-synth": {{
+						request: promptRequest{target: "sess-synth", turnID: "turn-synth"},
+						out:     eventsCh,
+					}},
+				},
+				syntheticDispatching: map[string]bool{
+					"sess-synth": true,
+				},
+			}
+
+			tc.remove(manager, "sess-synth")
+
+			manager.syntheticMu.Lock()
+			if got := len(manager.syntheticQueues["sess-synth"]); got != 0 {
+				manager.syntheticMu.Unlock()
+				t.Fatalf("len(syntheticQueues[\"sess-synth\"]) = %d, want 0", got)
+			}
+			if manager.syntheticDispatching["sess-synth"] {
+				manager.syntheticMu.Unlock()
+				t.Fatal("syntheticDispatching[\"sess-synth\"] = true, want cleared")
+			}
+			manager.syntheticMu.Unlock()
+
+			event, ok := <-eventsCh
+			if !ok {
+				t.Fatal("queued synthetic output closed without error event")
+			}
+			if got, want := event.Type, acp.EventTypeError; got != want {
+				t.Fatalf("queued synthetic event type = %q, want %q", got, want)
+			}
+			if got, want := event.TurnID, "turn-synth"; got != want {
+				t.Fatalf("queued synthetic event turn id = %q, want %q", got, want)
+			}
+			if !strings.Contains(event.Error, "synthetic prompt dropped") {
+				t.Fatalf("queued synthetic error = %q, want drop summary", event.Error)
+			}
+			if _, ok := <-eventsCh; ok {
+				t.Fatal("queued synthetic output channel left open after removal")
+			}
+		})
+	}
+}
+
 func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
 	h := newHarness(t)
-	networkSkill, err := bundled.LoadContent(networkSkillName)
+	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
 	if err != nil {
-		t.Fatalf("LoadContent(%q) error = %v", networkSkillName, err)
+		t.Fatalf("LoadContent(%q) error = %v", testBundledNetworkSkillName, err)
 	}
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{

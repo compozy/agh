@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -70,6 +71,7 @@ type RunStore interface {
 		idempotencyKey string,
 		origin Origin,
 		requestedChannel string,
+		metadata json.RawMessage,
 		queuedAt time.Time,
 	) (Task, Run, bool, error)
 }

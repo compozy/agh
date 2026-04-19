@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Task-run completion to synthetic reentry bridge
 type: backend
 complexity: critical
@@ -32,11 +32,11 @@ Connect detached harness task-run completion to policy-based synthetic session r
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Add the daemon-owned completion bridge from task-run terminal states into harness wake-up decisions
-- [ ] 7.2 Implement wake-up policy evaluation for reenter versus silent completion behavior
-- [ ] 7.3 Queue or drop synthetic wake-ups according to session state and explicit runtime rules
-- [ ] 7.4 Emit observable completion and wake-up signals regardless of whether reentry occurs
-- [ ] 7.5 Add integration coverage for completion, wake-up, shutdown, and recovery scenarios
+- [x] 7.1 Add the daemon-owned completion bridge from task-run terminal states into harness wake-up decisions
+- [x] 7.2 Implement wake-up policy evaluation for reenter versus silent completion behavior
+- [x] 7.3 Queue or drop synthetic wake-ups according to session state and explicit runtime rules
+- [x] 7.4 Emit observable completion and wake-up signals regardless of whether reentry occurs
+- [x] 7.5 Add integration coverage for completion, wake-up, shutdown, and recovery scenarios
 
 ## Implementation Details
 
@@ -80,15 +80,15 @@ See TechSpec "Workstream 4: Synthetic Reentry Model", "Workstream 5: Detached As
 
 ## Tests
 - Unit tests:
-  - [ ] Completed detached runs trigger the expected wake-up policy decision from their persisted harness metadata
-  - [ ] Silent-completion policy records observability without enqueuing or dispatching a synthetic prompt
-  - [ ] Busy-session behavior queues one synthetic wake-up instead of bypassing the current active turn
-  - [ ] Missing, stopped, or not-yet-resumable target sessions are handled according to the explicit drop/report rules
-  - [ ] Duplicate terminal notifications for the same `task_run` do not emit duplicate synthetic wake-ups
+  - [x] Completed detached runs trigger the expected wake-up policy decision from their persisted harness metadata
+  - [x] Silent-completion policy records observability without enqueuing or dispatching a synthetic prompt
+  - [x] Busy-session behavior queues one synthetic wake-up instead of bypassing the current active turn
+  - [x] Missing, stopped, or not-yet-resumable target sessions are handled according to the explicit drop/report rules
+  - [x] Duplicate terminal notifications for the same `task_run` do not emit duplicate synthetic wake-ups
 - Integration tests:
-  - [ ] Detached run completion can wake a live session through the synthetic prompt path end to end, including persisted event creation
-  - [ ] Multiple completed runs targeting the same session are reentered in deterministic FIFO order
-  - [ ] Shutdown or boot-recovery scenarios do not emit duplicate wake-ups for the same completed run
+  - [x] Detached run completion can wake a live session through the synthetic prompt path end to end, including persisted event creation
+  - [x] Multiple completed runs targeting the same session are reentered in deterministic FIFO order
+  - [x] Shutdown or boot-recovery scenarios do not emit duplicate wake-ups for the same completed run
 - Test coverage target: >=80%
 - All tests must pass
 

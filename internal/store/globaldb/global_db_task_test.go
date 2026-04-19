@@ -82,6 +82,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"started_at",
 		"ended_at",
 		"error",
+		"metadata_json",
 		"result_json",
 	})
 	assertTableColumns(t, globalDB.db, "task_dependencies", []string{
@@ -500,6 +501,7 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	}
 
 	queuedRun := taskRunForTest("run-queued", taskRecord.ID)
+	queuedRun.Metadata = json.RawMessage(`{"schema":"agh.harness.detached.v1","owner_session_id":"sess-owner"}`)
 	if err := globalDB.CreateTaskRun(testutil.Context(t), queuedRun); err != nil {
 		t.Fatalf("CreateTaskRun() error = %v", err)
 	}
@@ -597,6 +599,7 @@ func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *tes
 
 	origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"}
 	queuedAt := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+	metadata := json.RawMessage(`{"schema":"agh.harness.detached.v1","wake_target":{"session_id":"sess-wake"}}`)
 	type reserveResult struct {
 		task     taskpkg.Task
 		run      taskpkg.Run
@@ -618,6 +621,7 @@ func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *tes
 				"dup-key",
 				origin,
 				"ops",
+				metadata,
 				queuedAt,
 			)
 			results[i] = reserveResult{
@@ -645,6 +649,9 @@ func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *tes
 		}
 		if got, want := result.run.Attempt, 1; got != want {
 			t.Fatalf("ReserveQueuedRun(%d) attempt = %d, want %d", idx, got, want)
+		}
+		if got, want := string(result.run.Metadata), string(metadata); got != want {
+			t.Fatalf("ReserveQueuedRun(%d) metadata = %s, want %s", idx, got, want)
 		}
 	}
 
@@ -679,6 +686,9 @@ func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *tes
 	}
 	if got, want := storedRun.ID, results[0].run.ID; got != want {
 		t.Fatalf("GetTaskRunByIdempotencyKey() id = %q, want %q", got, want)
+	}
+	if got, want := string(storedRun.Metadata), string(metadata); got != want {
+		t.Fatalf("GetTaskRunByIdempotencyKey() metadata = %s, want %s", got, want)
 	}
 }
 
@@ -1224,7 +1234,14 @@ func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTaskEventRecords() error = %v", err)
 	}
-	if got, want := []int64{records[0].Sequence, records[1].Sequence}, []int64{1, 2}; got[0] != want[0] || got[1] != want[1] {
+	if got, want := []int64{
+		records[0].Sequence,
+		records[1].Sequence,
+	}, []int64{
+		1,
+		2,
+	}; got[0] != want[0] ||
+		got[1] != want[1] {
 		t.Fatalf("record sequences = %#v, want %#v", got, want)
 	}
 }
@@ -1344,6 +1361,7 @@ func assertTaskRunEqual(t *testing.T, got taskpkg.Run, want taskpkg.Run) {
 		!got.StartedAt.Equal(want.StartedAt) ||
 		!got.EndedAt.Equal(want.EndedAt) ||
 		got.Error != want.Error ||
+		string(got.Metadata) != string(want.Metadata) ||
 		string(got.Result) != string(want.Result) {
 		t.Fatalf("task run = %#v, want %#v", got, want)
 	}

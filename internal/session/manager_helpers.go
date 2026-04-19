@@ -19,6 +19,7 @@ import (
 func (m *Manager) startupPrompt(
 	ctx context.Context,
 	sessionCtx hookspkg.SessionContext,
+	startupCtx StartupPromptContext,
 	agent aghconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
@@ -27,7 +28,7 @@ func (m *Manager) startupPrompt(
 		return m.dispatchPromptPostAssemble(ctx, sessionCtx, prompt)
 	}
 
-	assembledPrompt, err := m.assembler.Assemble(ctx, agent, workspace)
+	assembledPrompt, err := assembleStartupPrompt(ctx, m.assembler, startupCtx, agent, workspace)
 	if err != nil {
 		return "", fmt.Errorf("session: assemble prompt for %q: %w", agent.Name, err)
 	}
@@ -36,6 +37,19 @@ func (m *Manager) startupPrompt(
 	}
 
 	return m.dispatchPromptPostAssemble(ctx, sessionCtx, strings.TrimSpace(assembledPrompt))
+}
+
+func assembleStartupPrompt(
+	ctx context.Context,
+	assembler PromptAssembler,
+	startupCtx StartupPromptContext,
+	agent aghconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	if startupAssembler, ok := assembler.(StartupPromptAssembler); ok {
+		return startupAssembler.AssembleStartup(ctx, startupCtx, agent, workspace)
+	}
+	return assembler.Assemble(ctx, agent, workspace)
 }
 
 func (m *Manager) startPermissions(sessionType Type, configured string) aghconfig.PermissionMode {
