@@ -470,6 +470,19 @@ sequenceDiagram
 - `to` SHOULD be null
 - `interaction_id` SHOULD be null
 
+#### AGH capability brief extension
+
+AGH MAY project a normalized local capability catalog into the `Peer Card` brief-discovery surface:
+
+- `peer_card.capabilities` remains the compact list of capability IDs
+- `peer_card.ext["agh.capabilities_brief"]` MAY carry an array of objects with only:
+  - `id`
+  - `summary`
+
+If `agh.capabilities_brief` is present, its entries MUST align with `peer_card.capabilities` in the same order. If a peer has no local capability catalog, AGH SHOULD emit `peer_card.capabilities = []` and omit `agh.capabilities_brief`.
+
+Local capability authoring, file layout, and validation are runtime concerns and are documented separately in `docs/agents/capabilities.md`.
+
 ### 8.3 `whois`
 
 `whois` retrieves or returns peer card information.
@@ -498,6 +511,36 @@ sequenceDiagram
 - a response `whois` MUST set `reply_to`
 - targeted lookup SHOULD set `to`
 - untargeted lookup MAY be broadcast within a channel
+
+#### AGH rich capability discovery extension
+
+AGH MAY use envelope `ext` keys to request or return a rich capability catalog without bloating ordinary `whois` traffic.
+
+Request keys:
+
+- `ext["agh.include"]` MAY contain `"capability_catalog"` to request rich capability discovery
+- `ext["agh.capability_ids"]` MAY contain a list of capability IDs used to filter the returned catalog
+
+Response key:
+
+- `ext["agh.capability_catalog"]` MAY contain:
+
+```json
+{
+  "capabilities": []
+}
+```
+
+Rules:
+
+- rich capability discovery is explicit; without `agh.include=["capability_catalog"]`, AGH SHOULD keep `whois` responses at the minimal `peer_card` shape
+- the response still returns the normal `peer_card`
+- the rich catalog belongs in envelope `ext`, not in `peer_card.ext`
+- if the peer has no local catalog, `agh.capability_catalog.capabilities` MUST be `[]`
+- if `agh.capability_ids` filters out every capability, `agh.capability_catalog.capabilities` MUST be `[]`
+- receivers MUST ignore unknown AGH extension keys per the core `ext` rules
+
+The local capability catalog model and validation rules are runtime concerns and are documented separately in `docs/agents/capabilities.md`.
 
 ### 8.4 `say`
 

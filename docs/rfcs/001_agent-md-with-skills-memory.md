@@ -100,6 +100,7 @@ Each agent is a self-contained directory:
 .agents/
   code-reviewer/
     AGENT.md                    # Agent definition (frontmatter + prompt)
+    capabilities.toml           # Optional local capability catalog sidecar
     skills/                     # Agent-exclusive skills
       review-checklist/
         SKILL.md
@@ -121,6 +122,8 @@ Each agent is a self-contained directory:
       MEMORY.md
       debug_patterns.md
 ```
+
+In AGH, self-contained agent directories may also include optional runtime sidecars that travel with the agent, such as `mcp.json` and a capability catalog (`capabilities.toml`, `capabilities.json`, or `capabilities/`). The runtime authoring rules for capability catalogs live in [docs/agents/capabilities.md](../agents/capabilities.md).
 
 Agent directories can live in:
 
@@ -271,6 +274,8 @@ agh agent import code-reviewer.tar.gz
 ```
 
 No external dependencies to chase. No global state to replicate. The directory contains everything the agent needs to function. Skills inside the agent directory follow the standard AgentSkills SKILL.md format — they work in any AgentSkills-compatible platform if extracted.
+
+That portability also applies to optional runtime sidecars that belong to the agent directory, including the local capability catalog used for AGH capability discovery.
 
 ### 2.8 CLI
 
