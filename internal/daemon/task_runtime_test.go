@@ -1501,7 +1501,14 @@ func testHarnessReentryBridgeHelperCoverage(t *testing.T) {
 		},
 	}
 
-	if _, err := newHarnessReentryBridge(nil, resolver, nil, db, sessions, discardLogger()); err == nil {
+	if _, err := newHarnessReentryBridge(
+		nilTaskRuntimeContext(),
+		resolver,
+		nil,
+		db,
+		sessions,
+		discardLogger(),
+	); err == nil {
 		t.Fatal("newHarnessReentryBridge(nil ctx) error = nil, want validation error")
 	}
 	if _, err := newHarnessReentryBridge(context.Background(), nil, nil, db, sessions, discardLogger()); err == nil {
