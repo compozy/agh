@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
+import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
 import { settingsSkillsSectionFixture } from "@/systems/settings/mocks";
 import {
   StorybookRestartBannerSetup,
@@ -31,7 +32,26 @@ export const Default: Story = {
 };
 
 /**
- * Disabled-skills empty branch when nothing has been opted out.
+ * Dirty shell state — the marketplace registry has been edited so the policy
+ * section's save controls enable.
+ */
+export const Dirty: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/skills"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookFieldDirtySetup
+        testId="settings-page-skills-marketplace-registry-input"
+        value="dirty-registry"
+      />
+    </>
+  ),
+};
+
+/**
+ * Disabled-skills empty branch when nothing has been opted out — exercises
+ * the @agh/ui Empty primitive for the no-skills baseline.
  */
 export const DisabledEmpty: Story = {
   args: {},

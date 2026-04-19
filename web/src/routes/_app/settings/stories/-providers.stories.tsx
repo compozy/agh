@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
+import { useEffect } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -30,7 +31,23 @@ export const Default: Story = {
 };
 
 /**
- * Empty catalog branch before any provider overlays have been defined.
+ * Dirty shell state — the create-editor dialog is open with the name field
+ * pre-filled, mirroring the visual contract for "user has typed into the editor".
+ */
+export const Dirty: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/providers"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookProvidersDirtySetup />
+    </>
+  ),
+};
+
+/**
+ * Empty catalog branch before any provider overlays have been defined — exercises
+ * the @agh/ui Empty primitive for the zero-providers baseline.
  */
 export const Empty: Story = {
   args: {},
@@ -118,3 +135,49 @@ export const Error: Story = {
   },
   render: () => <StorybookWorkspaceSetup />,
 };
+
+/**
+ * Reaches the dirty editor state by opening the create dialog and seeding the
+ * name field via a native value setter. RAF-polls until the route mounts.
+ */
+function StorybookProvidersDirtySetup() {
+  useEffect(() => {
+    let cancelled = false;
+    let stage: "open" | "fill" = "open";
+    const setValue = (element: HTMLInputElement, next: string) => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value"
+      )?.set;
+      setter?.call(element, next);
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const advance = () => {
+      if (cancelled) return;
+      if (stage === "open") {
+        const trigger = document.querySelector<HTMLButtonElement>(
+          '[data-testid="settings-page-providers-create"]'
+        );
+        if (trigger) {
+          trigger.click();
+          stage = "fill";
+        }
+      } else if (stage === "fill") {
+        const input = document.querySelector<HTMLInputElement>(
+          '[data-testid="settings-providers-editor-name-input"]'
+        );
+        if (input) {
+          setValue(input, "dirty-provider");
+          return;
+        }
+      }
+      requestAnimationFrame(advance);
+    };
+    requestAnimationFrame(advance);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return null;
+}

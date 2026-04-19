@@ -2,7 +2,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Pills } from "@agh/ui";
+import { Input, Pills } from "@agh/ui";
 import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
 import type { SettingsGeneralSection } from "@/systems/settings";
 import {
@@ -161,8 +161,8 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
         description="Used when a new session doesn't specify one"
         hint="CONFIG.TOML"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56"
             data-testid="settings-page-general-default-agent-input"
             value={draft.defaults.agent}
             onChange={event =>
@@ -178,10 +178,10 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
         data-testid="settings-page-general-default-provider"
         label="Default provider"
         description="LLM backend agents spawn against"
-        hint="CONFIG.TOML"
+        hint="OPTIONAL"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56"
             data-testid="settings-page-general-default-provider-input"
             value={draft.defaults.provider ?? ""}
             placeholder="auto"
@@ -200,8 +200,8 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
         description="Execution profile for new workspaces"
         hint="DEFAULT"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56 font-mono"
             data-testid="settings-page-general-default-environment-input"
             value={draft.defaults.environment ?? ""}
             placeholder="local"
@@ -246,13 +246,13 @@ function SessionSection({ draft, setDraft }: DraftSectionProps) {
         data-testid="settings-page-general-session-timeout"
         label="Session timeout"
         description="0 disables force-close"
-        hint="DEFAULT"
+        hint="SECONDS"
         control={
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="number"
               min={0}
-              className="h-8 w-24 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+              className="w-28"
               data-testid="settings-page-general-session-timeout-input"
               value={parseSessionTimeoutSeconds(draft.session_timeout)}
               onChange={event =>

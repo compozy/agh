@@ -93,6 +93,40 @@ export function StorybookGeneralDraftDirtySetup() {
 }
 
 /**
+ * Programmatically dirties a settings field by typing `value` into the
+ * input matching `testId`. Generic version of `StorybookGeneralDraftDirtySetup`
+ * — reusable across every settings sub-route's dirty baseline.
+ */
+export function StorybookFieldDirtySetup({ testId, value }: { testId: string; value: string }) {
+  useEffect(() => {
+    let cancelled = false;
+    const setValue = (element: HTMLInputElement, next: string) => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value"
+      )?.set;
+      setter?.call(element, next);
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const tryDirty = () => {
+      if (cancelled) return;
+      const input = document.querySelector<HTMLInputElement>(`[data-testid="${testId}"]`);
+      if (input) {
+        setValue(input, value);
+        return;
+      }
+      requestAnimationFrame(tryDirty);
+    };
+    requestAnimationFrame(tryDirty);
+    return () => {
+      cancelled = true;
+    };
+  }, [testId, value]);
+  return null;
+}
+
+/**
  * Dirties the draft and clicks Save, leaving the PATCH request suspended so
  * the save-bar reads isSaving=true for the baseline.
  */

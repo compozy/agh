@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Settings pages batch 1 (general, memory, skills, providers, automation)
 type: frontend
 complexity: high
@@ -46,13 +46,13 @@ Rewrite the five Phase 6 sub-route pages `/settings/general`, `/settings/memory`
 
 > Subtasks below describe sub-routes, not individual files — each sub-route owns its route file plus any in-file section subcomponents. No new component files land in `web/src/systems/settings/components/`.
 
-- [ ] 31.1 Rewrite `/settings/general` — app / session timeout / permission-mode sections with `Section` + `Field` + `Switch` + `Pills`; Save-bar + Restart-banner wired through `useSettingsGeneralPage`.
-- [ ] 31.2 Rewrite `/settings/memory` — scope toggles, retention fields, dream-trigger thresholds, and the stats grid using `Section` + `Field` + `SettingsStatGrid`; confirm large-number formatting.
-- [ ] 31.3 Rewrite `/settings/skills` — installed skills `Table` (name, id, version, source, enabled `Switch`), filter `Pills`, `Empty` state when list is empty, optional `Dialog` for skill detail.
-- [ ] 31.4 Rewrite `/settings/providers` — provider `Table` (name, kind, base URL, API key status), add-provider `Dialog` with `Field` + `Input` + `Combobox` for kind, delete confirmation via `Dialog`.
-- [ ] 31.5 Rewrite `/settings/automation` — automation rules `Table` with enabled `Switch`, trigger-kind `Pills`, create / edit `Dialog`, and restart-banner wiring for daemon-sensitive toggles.
-- [ ] 31.6 Update the matching `*.stories.tsx` files under `web/src/routes/_app/settings/stories/` to consume the new components and exercise idle + dirty + loading + empty states.
-- [ ] 31.7 Regenerate Playwright snapshot baselines per sub-route (idle + dirty minimum; add empty for `skills` / `providers`).
+- [x] 31.1 Rewrite `/settings/general` — app / session timeout / permission-mode sections with `Section` + `Field` + `Switch` + `Pills`; Save-bar + Restart-banner wired through `useSettingsGeneralPage`.
+- [x] 31.2 Rewrite `/settings/memory` — scope toggles, retention fields, dream-trigger thresholds, and the stats grid using `Section` + `Field` + `SettingsStatGrid`; confirm large-number formatting.
+- [x] 31.3 Rewrite `/settings/skills` — installed skills `Table` (name, id, version, source, enabled `Switch`), filter `Pills`, `Empty` state when list is empty, optional `Dialog` for skill detail.
+- [x] 31.4 Rewrite `/settings/providers` — provider `Table` (name, kind, base URL, API key status), add-provider `Dialog` with `Field` + `Input` + `Combobox` for kind, delete confirmation via `Dialog`.
+- [x] 31.5 Rewrite `/settings/automation` — automation rules `Table` with enabled `Switch`, trigger-kind `Pills`, create / edit `Dialog`, and restart-banner wiring for daemon-sensitive toggles.
+- [x] 31.6 Update the matching `*.stories.tsx` files under `web/src/routes/_app/settings/stories/` to consume the new components and exercise idle + dirty + loading + empty states.
+- [x] 31.7 Regenerate Playwright snapshot baselines per sub-route (idle + dirty minimum; add empty for `skills` / `providers`).
 
 ## Implementation Details
 

@@ -2,7 +2,7 @@ import { AlertCircle, Loader2, Play } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Button, Switch } from "@agh/ui";
+import { Button, Input, Switch } from "@agh/ui";
 import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
 import type { SettingsMemorySection } from "@/systems/settings";
 import {
@@ -128,8 +128,8 @@ function MemorySystemSection({ draft, setDraft }: DraftSectionProps) {
         description="Where user + feedback memories live"
         hint="DEFAULT"
         control={
-          <input
-            className="h-8 w-72 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-72 font-mono"
             data-testid="settings-page-memory-global-dir-input"
             value={draft.global_dir ?? ""}
             placeholder="~/.agh/memory"
@@ -156,6 +156,7 @@ function DreamSection({
   onConsolidate,
   actionMessage,
 }: DreamSectionProps) {
+  const dreamDisabled = !draft.dream.enabled;
   return (
     <SettingsSectionCard
       eyebrow="Dream consolidation"
@@ -192,11 +193,15 @@ function DreamSection({
           />
         }
       />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div
+        className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+        data-disabled={dreamDisabled ? "true" : undefined}
+      >
         <DreamField
           label="Consolidation agent"
           testId="settings-page-memory-dream-agent"
           value={draft.dream.agent}
+          disabled={dreamDisabled}
           onChange={value => setDraft({ ...draft, dream: { ...draft.dream, agent: value } })}
         />
         <DreamField
@@ -205,6 +210,7 @@ function DreamSection({
           type="number"
           value={String(draft.dream.min_hours)}
           suffix="h"
+          disabled={dreamDisabled}
           onChange={value =>
             setDraft({
               ...draft,
@@ -217,6 +223,7 @@ function DreamSection({
           testId="settings-page-memory-dream-min-sessions"
           type="number"
           value={String(draft.dream.min_sessions)}
+          disabled={dreamDisabled}
           onChange={value =>
             setDraft({
               ...draft,
@@ -228,6 +235,7 @@ function DreamSection({
           label="Check interval"
           testId="settings-page-memory-dream-check-interval"
           value={draft.dream.check_interval}
+          disabled={dreamDisabled}
           onChange={value =>
             setDraft({ ...draft, dream: { ...draft.dream, check_interval: value } })
           }
@@ -251,21 +259,31 @@ interface DreamFieldProps {
   value: string;
   type?: "text" | "number";
   suffix?: string;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }
 
-function DreamField({ label, testId, value, type = "text", suffix, onChange }: DreamFieldProps) {
+function DreamField({
+  label,
+  testId,
+  value,
+  type = "text",
+  suffix,
+  disabled,
+  onChange,
+}: DreamFieldProps) {
   return (
     <div className="flex flex-col gap-1">
       <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
         {label}
       </span>
       <div className="flex items-center gap-2">
-        <input
+        <Input
           type={type}
-          className="h-8 w-full rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+          className="w-full"
           data-testid={testId}
           value={value}
+          disabled={disabled}
           onChange={event => onChange(event.target.value)}
         />
         {suffix ? (
