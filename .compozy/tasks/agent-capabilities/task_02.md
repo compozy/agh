@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Capability-Aware Runtime Join Plumbing
 type: backend
 complexity: high
@@ -32,11 +32,11 @@ Propagate the loaded capability catalog from the runtime/session layer to the ne
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Design the capability-aware join payload or interface addition consumed by `internal/session` and `internal/network`
-- [ ] 2.2 Update the session activation path to gather loaded capability data and send it through the late-bound network lifecycle
-- [ ] 2.3 Update the network manager join preparation path to consume the richer input instead of relying only on `DefaultPeerCard(peerID)`
-- [ ] 2.4 Preserve existing leave, stop, and resume behavior while accommodating the new join payload
-- [ ] 2.5 Add focused unit and integration regressions around the evolved session/network boundary
+- [x] 2.1 Design the capability-aware join payload or interface addition consumed by `internal/session` and `internal/network`
+- [x] 2.2 Update the session activation path to gather loaded capability data and send it through the late-bound network lifecycle
+- [x] 2.3 Update the network manager join preparation path to consume the richer input instead of relying only on `DefaultPeerCard(peerID)`
+- [x] 2.4 Preserve existing leave, stop, and resume behavior while accommodating the new join payload
+- [x] 2.5 Add focused unit and integration regressions around the evolved session/network boundary
 
 ## Implementation Details
 
@@ -70,15 +70,15 @@ See TechSpec "Component Overview", "Data flow", and build order step 4. The impo
 
 ## Tests
 - Unit tests:
-  - [ ] `joinNetworkPeer()` remains a no-op when the session is nil, the channel is blank, or no lifecycle is installed
-  - [ ] `joinNetworkPeer()` forwards the same `session_id`, `peer_id`, and `channel` as before while adding capability-aware runtime input
-  - [ ] The evolved join payload carries a deterministic empty capability projection when task_01 loaded no catalog, instead of leaving `PeerCard.Capabilities` nil
-  - [ ] `prepareJoinLocalPeer()` builds the local peer from supplied runtime capability input rather than always calling `DefaultPeerCard(peerID)` as the authoritative source
-  - [ ] Leave and stop paths still use only `session_id` and do not regress because of the join payload change
+  - [x] `joinNetworkPeer()` remains a no-op when the session is nil, the channel is blank, or no lifecycle is installed
+  - [x] `joinNetworkPeer()` forwards the same `session_id`, `peer_id`, and `channel` as before while adding capability-aware runtime input
+  - [x] The evolved join payload carries a deterministic empty capability projection when task_01 loaded no catalog, instead of leaving `PeerCard.Capabilities` nil
+  - [x] `prepareJoinLocalPeer()` builds the local peer from supplied runtime capability input rather than always calling `DefaultPeerCard(peerID)` as the authoritative source
+  - [x] Leave and stop paths still use only `session_id` and do not regress because of the join payload change
 - Integration tests:
-  - [ ] Activating a session whose agent directory contains a capability catalog reaches the network join path once and registers the same `peer_id` with enriched peer-card input
-  - [ ] Activating a session with no capability catalog still joins successfully and keeps capability projection empty-but-valid
-  - [ ] Resume or restart flows do not double-register the local peer or lose capability context across a join/leave cycle
+  - [x] Activating a session whose agent directory contains a capability catalog reaches the network join path once and registers the same `peer_id` with enriched peer-card input
+  - [x] Activating a session with no capability catalog still joins successfully and keeps capability projection empty-but-valid
+  - [x] Resume or restart flows do not double-register the local peer or lose capability context across a join/leave cycle
 - Test coverage target: >=80%
 - All tests must pass
 

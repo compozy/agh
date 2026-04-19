@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Agent Capabilities QA Execution and End-to-End Validation
 type: test
 complexity: critical
@@ -33,11 +33,11 @@ Execute the full QA pass for agent capabilities using the artifacts from task_06
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/agent-capabilities` and derive the execution matrix from task_06 artifacts
-- [ ] 7.2 Run the baseline repository verification gate and establish the pre-execution health state
-- [ ] 7.3 Execute real loader, session join, brief discovery, rich discovery, and empty/oversized edge-case scenarios through supported repo surfaces
-- [ ] 7.4 Fix root-cause regressions, add matching regression coverage, and rerun impacted scenarios
-- [ ] 7.5 Rerun final verification gates and publish `.compozy/tasks/agent-capabilities/qa/verification-report.md`
+- [x] 7.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/agent-capabilities` and derive the execution matrix from task_06 artifacts
+- [x] 7.2 Run the baseline repository verification gate and establish the pre-execution health state
+- [x] 7.3 Execute real loader, session join, brief discovery, rich discovery, and empty/oversized edge-case scenarios through supported repo surfaces
+- [x] 7.4 Fix root-cause regressions, add matching regression coverage, and rerun impacted scenarios
+- [x] 7.5 Rerun final verification gates and publish `.compozy/tasks/agent-capabilities/qa/verification-report.md`
 
 ## Implementation Details
 
@@ -74,17 +74,17 @@ See the TechSpec "Testing Approach" plus the QA artifacts from task_06. The key 
 
 ## Tests
 - Unit tests:
-  - [ ] Any bug found in capability loading gains a narrow regression that covers the exact failing layout or validation rule instead of only a broad parser happy path
-  - [ ] Any bug found in join plumbing gains a regression that proves the specific session-to-network payload invariant that failed
-  - [ ] Any bug found in brief or rich discovery gains the narrowest regression in `internal/network` or `internal/api/core` that proves the exact ext or filtering behavior
-  - [ ] Any bug found in the oversized-response guard gains a regression that proves invalid responses are not emitted
+  - [x] Any bug found in capability loading gains a narrow regression that covers the exact failing layout or validation rule instead of only a broad parser happy path
+  - [x] Any bug found in join plumbing gains a regression that proves the specific session-to-network payload invariant that failed
+  - [x] Any bug found in brief or rich discovery gains the narrowest regression in `internal/network` or `internal/api/core` that proves the exact ext or filtering behavior
+  - [x] Any bug found in the oversized-response guard gains a regression that proves invalid responses are not emitted
 - Integration tests:
-  - [ ] Real agent-directory fixtures prove capability catalogs load through the runtime path rather than only through isolated helper calls
-  - [ ] Real session activation or manager flows prove local peers join with capability-aware peer cards
-  - [ ] Real `greet` or peer-listing flows prove `peer_card.capabilities` and `agh.capabilities_brief` remain aligned
-  - [ ] Real `whois` flows prove explicit rich discovery, `capability_ids` filtering, no-catalog behavior, and unknown-ID behavior end to end
-  - [ ] API-visible peer payloads remain correct after the runtime/router flows complete
-  - [ ] `make verify` passes from a clean rerun after the final QA fix set
+  - [x] Real agent-directory fixtures prove capability catalogs load through the runtime path rather than only through isolated helper calls
+  - [x] Real session activation or manager flows prove local peers join with capability-aware peer cards
+  - [x] Real `greet` or peer-listing flows prove `peer_card.capabilities` and `agh.capabilities_brief` remain aligned
+  - [x] Real `whois` flows prove explicit rich discovery, `capability_ids` filtering, no-catalog behavior, and unknown-ID behavior end to end
+  - [x] API-visible peer payloads remain correct after the runtime/router flows complete
+  - [x] `make verify` passes from a clean rerun after the final QA fix set
 - Test coverage target: >=80%
 - All tests must pass
 

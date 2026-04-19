@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Explicit Rich Capability Discovery via Whois
 type: backend
 complexity: high
@@ -33,11 +33,11 @@ Implement the explicit rich capability discovery flow over `whois` using AGH-spe
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Add the AGH `whois` extension parsing needed to detect rich capability discovery requests
-- [ ] 4.2 Generate rich capability catalog responses for full-catalog and filtered `capability_ids` requests
-- [ ] 4.3 Keep ordinary `whois` behavior unchanged when no rich discovery is requested
-- [ ] 4.4 Enforce empty-catalog behavior for no-catalog and unknown-ID cases plus a safe oversized-response guard
-- [ ] 4.5 Add unit and integration coverage for request parsing, response generation, filtering, and response-size protection
+- [x] 4.1 Add the AGH `whois` extension parsing needed to detect rich capability discovery requests
+- [x] 4.2 Generate rich capability catalog responses for full-catalog and filtered `capability_ids` requests
+- [x] 4.3 Keep ordinary `whois` behavior unchanged when no rich discovery is requested
+- [x] 4.4 Enforce empty-catalog behavior for no-catalog and unknown-ID cases plus a safe oversized-response guard
+- [x] 4.5 Add unit and integration coverage for request parsing, response generation, filtering, and response-size protection
 
 ## Implementation Details
 
@@ -70,17 +70,17 @@ See TechSpec "Projection rules" and the RFC 003 sections for `whois`, `agh.inclu
 
 ## Tests
 - Unit tests:
-  - [ ] A `whois` request with no `agh.include` continues to generate the current minimal response only
-  - [ ] A `whois` request with `agh.include=["capability_catalog"]` returns `agh.capability_catalog` with required `id`, `summary`, and `outcome` fields for each entry
-  - [ ] A request with `agh.capability_ids=["create-landing-page"]` returns only that capability and preserves normalized catalog order
-  - [ ] Unknown `agh.capability_ids` return `agh.capability_catalog.capabilities = []` instead of omitting the catalog key
-  - [ ] A peer with no catalog returns `agh.capability_catalog.capabilities = []` when rich discovery is explicitly requested
-  - [ ] Unknown AGH ext keys on an otherwise valid `whois` request are ignored rather than causing rejection
-  - [ ] A rich response that would exceed the allowed envelope size is blocked or reduced by the chosen guard and is never emitted as an invalid envelope
+  - [x] A `whois` request with no `agh.include` continues to generate the current minimal response only
+  - [x] A `whois` request with `agh.include=["capability_catalog"]` returns `agh.capability_catalog` with required `id`, `summary`, and `outcome` fields for each entry
+  - [x] A request with `agh.capability_ids=["create-landing-page"]` returns only that capability and preserves normalized catalog order
+  - [x] Unknown `agh.capability_ids` return `agh.capability_catalog.capabilities = []` instead of omitting the catalog key
+  - [x] A peer with no catalog returns `agh.capability_catalog.capabilities = []` when rich discovery is explicitly requested
+  - [x] Unknown AGH ext keys on an otherwise valid `whois` request are ignored rather than causing rejection
+  - [x] A rich response that would exceed the allowed envelope size is blocked or reduced by the chosen guard and is never emitted as an invalid envelope
 - Integration tests:
-  - [ ] Directed `whois` rich discovery returns the responder `peer_card` plus `agh.capability_catalog` to the requester in one valid response envelope
-  - [ ] Filtered rich discovery returns only the requested capability entries while still refreshing remote presence from the response `peer_card`
-  - [ ] Envelope normalization and router publish/receive cycles preserve `agh.capability_catalog` ext payloads intact for valid rich responses
+  - [x] Directed `whois` rich discovery returns the responder `peer_card` plus `agh.capability_catalog` to the requester in one valid response envelope
+  - [x] Filtered rich discovery returns only the requested capability entries while still refreshing remote presence from the response `peer_card`
+  - [x] Envelope normalization and router publish/receive cycles preserve `agh.capability_catalog` ext payloads intact for valid rich responses
 - Test coverage target: >=80%
 - All tests must pass
 

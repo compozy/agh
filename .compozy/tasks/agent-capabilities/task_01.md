@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Capability Catalog Loader and Validation
 type: backend
 complexity: medium
@@ -30,11 +30,11 @@ Implement the local capability catalog model and loader in `internal/config` so 
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Add the capability catalog structs and loader entrypoints under `internal/config`
-- [ ] 1.2 Implement single-file TOML/JSON parsing plus directory enumeration with explicit format selection rules
-- [ ] 1.3 Enforce catalog validation rules, including duplicate IDs, required fields, basename matching, and mixed-layout rejection
-- [ ] 1.4 Integrate optional capability loading into agent-directory loading without breaking existing `AGENT.md` and `mcp.json` behavior
-- [ ] 1.5 Add precise unit and integration coverage for valid layouts, invalid layouts, and optional-catalog behavior
+- [x] 1.1 Add the capability catalog structs and loader entrypoints under `internal/config`
+- [x] 1.2 Implement single-file TOML/JSON parsing plus directory enumeration with explicit format selection rules
+- [x] 1.3 Enforce catalog validation rules, including duplicate IDs, required fields, basename matching, and mixed-layout rejection
+- [x] 1.4 Integrate optional capability loading into agent-directory loading without breaking existing `AGENT.md` and `mcp.json` behavior
+- [x] 1.5 Add precise unit and integration coverage for valid layouts, invalid layouts, and optional-catalog behavior
 
 ## Implementation Details
 
@@ -68,20 +68,20 @@ See TechSpec "Data Models", "Projection rules", and "Testing Approach". Reuse th
 
 ## Tests
 - Unit tests:
-  - [ ] Loading `capabilities.toml` with multiple valid entries returns a normalized catalog and preserves optional fields such as `context_needed` and `execution_outline`
-  - [ ] Loading `capabilities.json` accepts the same schema, rejects unknown JSON fields, and rejects trailing JSON data
-  - [ ] Directory mode loads only regular files of the selected format and ignores dotfiles plus files with other extensions
-  - [ ] `capabilities.toml` plus `capabilities/` returns a hard validation error instead of merging
-  - [ ] `capabilities.toml` plus `capabilities.json` in the same agent directory returns a hard validation error
-  - [ ] Mixed `.toml` and `.json` files under `capabilities/` returns a hard validation error
-  - [ ] Duplicate capability IDs across directory entries return an error that identifies the normalized duplicated ID
-  - [ ] Missing `id`, missing `summary`, and missing `outcome` each return field-specific validation errors
-  - [ ] Directory entries whose basename without extension does not match `id` return a validation error
-  - [ ] Missing capability catalog returns a deterministic no-catalog result instead of an error
+  - [x] Loading `capabilities.toml` with multiple valid entries returns a normalized catalog and preserves optional fields such as `context_needed` and `execution_outline`
+  - [x] Loading `capabilities.json` accepts the same schema, rejects unknown JSON fields, and rejects trailing JSON data
+  - [x] Directory mode loads only regular files of the selected format and ignores dotfiles plus files with other extensions
+  - [x] `capabilities.toml` plus `capabilities/` returns a hard validation error instead of merging
+  - [x] `capabilities.toml` plus `capabilities.json` in the same agent directory returns a hard validation error
+  - [x] Mixed `.toml` and `.json` files under `capabilities/` returns a hard validation error
+  - [x] Duplicate capability IDs across directory entries return an error that identifies the normalized duplicated ID
+  - [x] Missing `id`, missing `summary`, and missing `outcome` each return field-specific validation errors
+  - [x] Directory entries whose basename without extension does not match `id` return a validation error
+  - [x] Missing capability catalog returns a deterministic no-catalog result instead of an error
 - Integration tests:
-  - [ ] `LoadAgentDefFile()` on a real agent directory loads `AGENT.md`, merges `mcp.json`, and attaches a capability catalog from a sibling capability sidecar
-  - [ ] `LoadWorkspaceAgentDefs()` preserves root/additional/global precedence while carrying capability catalogs only for the winning agent definition
-  - [ ] Agents with no capability catalog still load successfully through the same workspace discovery path
+  - [x] `LoadAgentDefFile()` on a real agent directory loads `AGENT.md`, merges `mcp.json`, and attaches a capability catalog from a sibling capability sidecar
+  - [x] `LoadWorkspaceAgentDefs()` preserves root/additional/global precedence while carrying capability catalogs only for the winning agent definition
+  - [x] Agents with no capability catalog still load successfully through the same workspace discovery path
 - Test coverage target: >=80%
 - All tests must pass
 

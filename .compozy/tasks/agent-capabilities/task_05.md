@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Runtime Authoring Documentation for Capabilities
 type: docs
 complexity: low
@@ -32,10 +32,10 @@ Document how AGH authors declare capabilities locally and how those declarations
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Write the runtime-facing capability authoring guide with supported layouts and field definitions
-- [ ] 5.2 Add valid and invalid catalog examples that match the implemented loader behavior exactly
-- [ ] 5.3 Cross-link the runtime guide with RFC 001 and RFC 003 so the runtime/network boundary is explicit
-- [ ] 5.4 Verify wording, examples, and field names against the shipped runtime behavior from tasks 01-04
+- [x] 5.1 Write the runtime-facing capability authoring guide with supported layouts and field definitions
+- [x] 5.2 Add valid and invalid catalog examples that match the implemented loader behavior exactly
+- [x] 5.3 Cross-link the runtime guide with RFC 001 and RFC 003 so the runtime/network boundary is explicit
+- [x] 5.4 Verify wording, examples, and field names against the shipped runtime behavior from tasks 01-04
 
 ## Implementation Details
 
@@ -66,14 +66,14 @@ See TechSpec "Data Models", "Projection rules", and "Technical Considerations", 
 
 ## Tests
 - Unit tests:
-  - [ ] The authoring guide lists all four supported local catalog shapes and explicitly lists the invalid mixed-mode and mixed-format layouts
-  - [ ] The guide marks `id`, `summary`, and `outcome` as required and `context_needed`, `artifacts_expected`, `execution_outline`, `constraints`, and `examples` as optional
-  - [ ] The guide explains basename-without-extension matching in directory mode and the no-catalog behavior clearly
-  - [ ] The guide includes one valid single-file example and one valid directory-mode example that match the runtime schema exactly
+  - [x] The authoring guide lists all four supported local catalog shapes and explicitly lists the invalid mixed-mode and mixed-format layouts
+  - [x] The guide marks `id`, `summary`, and `outcome` as required and `context_needed`, `artifacts_expected`, `execution_outline`, `constraints`, and `examples` as optional
+  - [x] The guide explains basename-without-extension matching in directory mode and the no-catalog behavior clearly
+  - [x] The guide includes one valid single-file example and one valid directory-mode example that match the runtime schema exactly
 - Integration tests:
-  - [ ] Every wire key named in the docs exactly matches the implemented RFC strings: `agh.capabilities_brief`, `agh.include`, `agh.capability_ids`, and `agh.capability_catalog`
-  - [ ] The local layout examples remain consistent with the loader and validation behavior defined in tasks 01-04
-  - [ ] RFC 001, RFC 003, and the new runtime guide do not contradict one another about where local authoring ends and wire projection begins
+  - [x] Every wire key named in the docs exactly matches the implemented RFC strings: `agh.capabilities_brief`, `agh.include`, `agh.capability_ids`, and `agh.capability_catalog`
+  - [x] The local layout examples remain consistent with the loader and validation behavior defined in tasks 01-04
+  - [x] RFC 001, RFC 003, and the new runtime guide do not contradict one another about where local authoring ends and wire projection begins
 - Test coverage target: >=80%
 - All tests must pass
 

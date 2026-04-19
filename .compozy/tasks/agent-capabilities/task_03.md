@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Brief Capability Projection in Peer Cards
 type: backend
 complexity: high
@@ -32,11 +32,11 @@ Project the normalized capability catalog into the brief discovery surfaces that
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Implement the brief projection helper that turns a normalized catalog into capability IDs plus `agh.capabilities_brief`
-- [ ] 3.2 Build local peer cards from the projected brief capability view during join and regreet flows
-- [ ] 3.3 Ensure `PeerCard.Ext` continues to round-trip through router, manager, and API payload conversion without mutation or aliasing
-- [ ] 3.4 Make the no-catalog path explicit and deterministic across peer registration and serialization
-- [ ] 3.5 Add precise unit and integration coverage for projection agreement, greet publication, and API visibility
+- [x] 3.1 Implement the brief projection helper that turns a normalized catalog into capability IDs plus `agh.capabilities_brief`
+- [x] 3.2 Build local peer cards from the projected brief capability view during join and regreet flows
+- [x] 3.3 Ensure `PeerCard.Ext` continues to round-trip through router, manager, and API payload conversion without mutation or aliasing
+- [x] 3.4 Make the no-catalog path explicit and deterministic across peer registration and serialization
+- [x] 3.5 Add precise unit and integration coverage for projection agreement, greet publication, and API visibility
 
 ## Implementation Details
 
@@ -69,15 +69,15 @@ See TechSpec "Projection rules" and the RFC 003 `greet` update. The projection s
 
 ## Tests
 - Unit tests:
-  - [ ] Brief projection returns the capability ID list and `agh.capabilities_brief` entries in the same stable order as the normalized catalog
-  - [ ] Each brief entry `id` exactly matches one `PeerCard.Capabilities` element from the same projection output
-  - [ ] No-catalog projection yields `PeerCard.Capabilities = []` and omits the `agh.capabilities_brief` ext key
-  - [ ] `clonePeerCard()` and peer normalization preserve brief capability ext payloads without mutating the caller-owned ext map
-  - [ ] `NetworkPeerPayloadFromInfo()` clones `agh.capabilities_brief` into the contract payload rather than sharing the source map by reference
+  - [x] Brief projection returns the capability ID list and `agh.capabilities_brief` entries in the same stable order as the normalized catalog
+  - [x] Each brief entry `id` exactly matches one `PeerCard.Capabilities` element from the same projection output
+  - [x] No-catalog projection yields `PeerCard.Capabilities = []` and omits the `agh.capabilities_brief` ext key
+  - [x] `clonePeerCard()` and peer normalization preserve brief capability ext payloads without mutating the caller-owned ext map
+  - [x] `NetworkPeerPayloadFromInfo()` clones `agh.capabilities_brief` into the contract payload rather than sharing the source map by reference
 - Integration tests:
-  - [ ] Joining a local peer with capabilities causes the initial `greet` to advertise both `peer_card.capabilities` and `agh.capabilities_brief`
-  - [ ] `ListPeers()` and peer detail payloads expose `agh.capabilities_brief` for the same peer card seen on the wire
-  - [ ] Reconnect/regreet flows preserve brief capability IDs and summaries instead of dropping or duplicating them
+  - [x] Joining a local peer with capabilities causes the initial `greet` to advertise both `peer_card.capabilities` and `agh.capabilities_brief`
+  - [x] `ListPeers()` and peer detail payloads expose `agh.capabilities_brief` for the same peer card seen on the wire
+  - [x] Reconnect/regreet flows preserve brief capability IDs and summaries instead of dropping or duplicating them
 - Test coverage target: >=80%
 - All tests must pass
 

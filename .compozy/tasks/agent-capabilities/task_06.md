@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Agent Capabilities QA Plan and Regression Artifacts
 type: test
 complexity: high
@@ -32,11 +32,11 @@ Generate the reusable QA planning artifacts for agent capabilities before live e
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/agent-capabilities`
-- [ ] 6.2 Write the feature-level capability QA plan with scope, risks, environments, and entry/exit criteria
-- [ ] 6.3 Generate manual test cases for loader, join, brief discovery, rich discovery, empty-catalog, and limit-guard scenarios
-- [ ] 6.4 Build regression-suite definitions with explicit P0/P1 flow ordering for `/qa-execution`
-- [ ] 6.5 Validate traceability and handoff completeness for task_07
+- [x] 6.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/agent-capabilities`
+- [x] 6.2 Write the feature-level capability QA plan with scope, risks, environments, and entry/exit criteria
+- [x] 6.3 Generate manual test cases for loader, join, brief discovery, rich discovery, empty-catalog, and limit-guard scenarios
+- [x] 6.4 Build regression-suite definitions with explicit P0/P1 flow ordering for `/qa-execution`
+- [x] 6.5 Validate traceability and handoff completeness for task_07
 
 ## Implementation Details
 
@@ -71,14 +71,14 @@ See the TechSpec "Testing Approach" plus tasks 01-05. The QA plan should transla
 
 ## Tests
 - Unit tests:
-  - [ ] `agent-capabilities-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, and a risk table focused on loader and network discovery seams
-  - [ ] Manual test cases exist for single-file TOML/JSON, directory TOML/JSON, mixed-layout rejection, basename mismatch, duplicate IDs, no-catalog behavior, brief discovery, rich discovery, unknown IDs, and oversized responses
-  - [ ] Regression-suite documents define smoke, targeted, and full execution lanes with explicit P0/P1 ordering
-  - [ ] Each P0/P1 test case names the exact task or TechSpec rule it is proving
+  - [x] `agent-capabilities-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, and a risk table focused on loader and network discovery seams
+  - [x] Manual test cases exist for single-file TOML/JSON, directory TOML/JSON, mixed-layout rejection, basename mismatch, duplicate IDs, no-catalog behavior, brief discovery, rich discovery, unknown IDs, and oversized responses
+  - [x] Regression-suite documents define smoke, targeted, and full execution lanes with explicit P0/P1 ordering
+  - [x] Each P0/P1 test case names the exact task or TechSpec rule it is proving
 - Integration tests:
-  - [ ] All generated artifacts land under `.compozy/tasks/agent-capabilities/qa/` and can be consumed directly by `/qa-execution`
-  - [ ] The regression suite covers runtime, router, and API-visible behavior rather than only parser-level checks
-  - [ ] Any bug report created during planning references the originating test case or documented discrepancy clearly
+  - [x] All generated artifacts land under `.compozy/tasks/agent-capabilities/qa/` and can be consumed directly by `/qa-execution`
+  - [x] The regression suite covers runtime, router, and API-visible behavior rather than only parser-level checks
+  - [x] Any bug report created during planning references the originating test case or documented discrepancy clearly
 - Test coverage target: >=80%
 - All tests must pass
 
