@@ -22,6 +22,8 @@ const (
 	harnessSummarySyntheticReentryEmitted = "harness.synthetic_reentry_emitted"
 	harnessSummarySyntheticReentryDropped = "harness.synthetic_reentry_dropped"
 
+	harnessReentryShutdownFinalizationTimeout = time.Second
+
 	harnessTaskEventRunCompleted = "task.run_completed"
 	harnessTaskEventRunFailed    = "task.run_failed"
 	harnessTaskEventRunCanceled  = "task.run_canceled"
@@ -845,7 +847,9 @@ func (b *harnessReentryBridge) finalizeRunOutcome(
 ) {
 	defer b.releaseProcessing(runID)
 
-	opCtx := b.operationContext()
+	opCtx, cancel := b.finalizationContext()
+	defer cancel()
+
 	run, err := b.store.GetTaskRun(opCtx, runID)
 	if err != nil {
 		b.logger.Error("daemon: load detached harness run for finalization", "run_id", runID, "error", err)
@@ -880,7 +884,8 @@ func (b *harnessReentryBridge) finalizeRunOutcome(
 
 	switch outcome {
 	case harnessReentryOutcomeEmitted:
-		b.writeEventSummary(
+		b.writeEventSummaryWithContext(
+			opCtx,
 			sessionID,
 			agentName,
 			harnessSummarySyntheticReentryEmitted,
@@ -888,7 +893,8 @@ func (b *harnessReentryBridge) finalizeRunOutcome(
 			now,
 		)
 	case harnessReentryOutcomeSilent, harnessReentryOutcomeDropped:
-		b.writeEventSummary(
+		b.writeEventSummaryWithContext(
+			opCtx,
 			sessionID,
 			agentName,
 			harnessSummarySyntheticReentryDropped,
@@ -899,6 +905,17 @@ func (b *harnessReentryBridge) finalizeRunOutcome(
 }
 
 func (b *harnessReentryBridge) writeEventSummary(
+	sessionID string,
+	agentName string,
+	eventType string,
+	summary string,
+	timestamp time.Time,
+) {
+	b.writeEventSummaryWithContext(b.operationContext(), sessionID, agentName, eventType, summary, timestamp)
+}
+
+func (b *harnessReentryBridge) writeEventSummaryWithContext(
+	ctx context.Context,
 	sessionID string,
 	agentName string,
 	eventType string,
@@ -916,7 +933,10 @@ func (b *harnessReentryBridge) writeEventSummary(
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()
 	}
-	if err := b.store.WriteEventSummary(b.operationContext(), store.EventSummary{
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := b.store.WriteEventSummary(ctx, store.EventSummary{
 		SessionID: targetSessionID,
 		Type:      strings.TrimSpace(eventType),
 		AgentName: targetAgentName,
@@ -936,7 +956,17 @@ func (b *harnessReentryBridge) operationContext() context.Context {
 	if b == nil || b.ctx == nil {
 		return context.Background()
 	}
-	return context.WithoutCancel(b.ctx)
+	return b.ctx
+}
+
+func (b *harnessReentryBridge) finalizationContext() (context.Context, context.CancelFunc) {
+	if b == nil || b.ctx == nil {
+		return context.WithTimeout(context.Background(), harnessReentryShutdownFinalizationTimeout)
+	}
+	if b.ctx.Err() == nil {
+		return b.ctx, func() {}
+	}
+	return context.WithTimeout(context.Background(), harnessReentryShutdownFinalizationTimeout)
 }
 
 func (b *harnessReentryBridge) requestRescan() {

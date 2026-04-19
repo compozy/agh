@@ -3374,6 +3374,10 @@ func TestDetachedHarnessDaemonScenarios(t *testing.T) {
 			run:  testHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence,
 		},
 		{
+			name: "ShouldCancelBlockedStatusLookupOnBridgeShutdown",
+			run:  testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup,
+		},
+		{
 			name: "ShouldFinalizeHungSyntheticWakeOnBridgeShutdown",
 			run:  testHarnessReentryBridgeShutdownFinalizesHungSyntheticWake,
 		},
@@ -3608,6 +3612,75 @@ func testHarnessReentryBridgeShutdownFinalizesHungSyntheticWake(t *testing.T) {
 	metadata := waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeDropped)
 	if got, want := metadata.Reentry.Reason, harnessReentryReasonDispatchFailed; got != want {
 		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
+	}
+}
+
+func testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup(t *testing.T) {
+	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		SyntheticTurnsEnabled:      true,
+		DetachedTaskRuntimeEnabled: true,
+	})
+	db := openDaemonTestGlobalDB(t)
+	actor, err := detachedHarnessActorContext("sess-owner")
+	if err != nil {
+		t.Fatalf("detachedHarnessActorContext() error = %v", err)
+	}
+
+	completedAt := time.Date(2026, 4, 19, 4, 0, 0, 0, time.UTC)
+	seedDetachedHarnessRecoveryRunForTest(
+		t,
+		db,
+		actor,
+		"task-blocked",
+		"run-blocked",
+		"blocked status lookup",
+		completedAt,
+	)
+
+	statusStarted := make(chan struct{})
+	sessions := &blockingStatusSessionManager{
+		fakeSessionManager: &fakeSessionManager{
+			infos: []*session.Info{
+				{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+				{ID: "sess-wake", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
+			},
+		},
+		blockSessionID: "sess-wake",
+		statusStarted:  statusStarted,
+	}
+
+	bridge, err := newHarnessReentryBridge(context.Background(), resolver, nil, db, sessions, discardLogger())
+	if err != nil {
+		t.Fatalf("newHarnessReentryBridge() error = %v", err)
+	}
+	t.Cleanup(bridge.shutdown)
+
+	bridge.OnTaskEvent(context.Background(), taskpkg.EventRecord{
+		Sequence: 1,
+		Event: taskpkg.Event{
+			TaskID:    "task-blocked",
+			RunID:     "run-blocked",
+			EventType: harnessTaskEventRunCompleted,
+			Timestamp: completedAt,
+		},
+	})
+
+	select {
+	case <-statusStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("bridge worker did not reach the blocked status lookup")
+	}
+
+	shutdownDone := make(chan struct{})
+	go func() {
+		bridge.shutdown()
+		close(shutdownDone)
+	}()
+
+	select {
+	case <-shutdownDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("shutdown() blocked while a session status lookup ignored cancellation")
 	}
 }
 
@@ -3935,6 +4008,13 @@ type fakeSessionManager struct {
 	waitFinalizationsCalls   int
 }
 
+type blockingStatusSessionManager struct {
+	*fakeSessionManager
+	blockSessionID string
+	statusStarted  chan struct{}
+	statusOnce     sync.Once
+}
+
 type fakeSyntheticPromptCall struct {
 	id   string
 	opts session.SyntheticPromptOpts
@@ -3985,6 +4065,19 @@ func (f *fakeSessionManager) Status(_ context.Context, id string) (*session.Info
 		}
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (f *blockingStatusSessionManager) Status(ctx context.Context, id string) (*session.Info, error) {
+	if strings.TrimSpace(id) == strings.TrimSpace(f.blockSessionID) {
+		if f.statusStarted != nil {
+			f.statusOnce.Do(func() {
+				close(f.statusStarted)
+			})
+		}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return f.fakeSessionManager.Status(ctx, id)
 }
 
 func (f *fakeSessionManager) Events(

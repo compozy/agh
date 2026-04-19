@@ -1908,6 +1908,63 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingBoundaryEvents(t *testing.T) {
 	}
 }
 
+func TestHostAPIHandlerSubmitPromptRejectsUnexpectedStubCalls(t *testing.T) {
+	t.Parallel()
+
+	closedPromptEvents := func() <-chan acp.AgentEvent {
+		ch := make(chan acp.AgentEvent)
+		close(ch)
+		return ch
+	}
+
+	tests := []struct {
+		name     string
+		sessions promptSessionManagerStub
+		wantErr  string
+	}{
+		{
+			name: "ShouldRejectMissingPromptCallback",
+			sessions: promptSessionManagerStub{
+				eventsFn: func(_ context.Context, _ string, _ store.EventQuery) ([]store.SessionEvent, error) {
+					return []store.SessionEvent{{
+						ID:        "ev-user",
+						Sequence:  1,
+						TurnID:    "turn-user",
+						Type:      acp.EventTypeUserMessage,
+						Content:   `{"schema":"agh.session.event.v1","type":"user_message","text":"hello"}`,
+						Timestamp: time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC),
+					}}, nil
+				},
+			},
+			wantErr: "unexpected prompt call",
+		},
+		{
+			name: "ShouldRejectMissingEventsCallback",
+			sessions: promptSessionManagerStub{
+				promptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+					return closedPromptEvents(), nil
+				},
+			},
+			wantErr: "unexpected events call",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := &HostAPIHandler{sessions: tt.sessions}
+			_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello")
+			if err == nil {
+				t.Fatalf("submitPrompt() error = nil, want %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("submitPrompt() error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestBridgeHostAPIHelpersMapErrorsAndFormatInboundMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -5379,7 +5436,7 @@ func (s promptSessionManagerStub) Events(
 	query store.EventQuery,
 ) ([]store.SessionEvent, error) {
 	if s.eventsFn == nil {
-		return nil, nil
+		return nil, errors.New("unexpected events call")
 	}
 	return s.eventsFn(ctx, id, query)
 }
@@ -5390,9 +5447,7 @@ func (s promptSessionManagerStub) Stop(context.Context, string) error {
 
 func (s promptSessionManagerStub) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	if s.promptFn == nil {
-		ch := make(chan acp.AgentEvent)
-		close(ch)
-		return ch, nil
+		return nil, errors.New("unexpected prompt call")
 	}
 	return s.promptFn(ctx, id, msg)
 }
