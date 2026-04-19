@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fireEvent, userEvent, within } from "storybook/test";
 
 import { PanelSurface } from "@/storybook/story-layout";
 import { NetworkChannelsListPanel } from "@/systems/network/components/network-channels-list-panel";
@@ -18,14 +19,13 @@ type Story = StoryObj<typeof meta>;
 
 function NetworkChannelsListPanelFrame(props: ComponentProps<typeof NetworkChannelsListPanel>) {
   return (
-    <PanelSurface className="max-w-[280px]">
+    <PanelSurface className="max-w-[320px]">
       <NetworkChannelsListPanel {...props} />
     </PanelSurface>
   );
 }
 
 export const Default: Story = {
-  args: {},
   render: () => (
     <NetworkChannelsListPanelFrame
       channels={networkChannelsFixture.channels}
@@ -38,7 +38,6 @@ export const Default: Story = {
 };
 
 export const Loading: Story = {
-  args: {},
   render: () => (
     <NetworkChannelsListPanelFrame
       channels={[]}
@@ -52,7 +51,6 @@ export const Loading: Story = {
 };
 
 export const Empty: Story = {
-  args: {},
   render: () => (
     <NetworkChannelsListPanelFrame
       channels={[]}
@@ -62,4 +60,38 @@ export const Empty: Story = {
       selectedChannel={null}
     />
   ),
+};
+
+export const Error: Story = {
+  render: () => (
+    <NetworkChannelsListPanelFrame
+      channels={[]}
+      errorMessage="Network status unavailable"
+      onSearchChange={() => undefined}
+      onSelectChannel={() => undefined}
+      searchQuery=""
+      selectedChannel={null}
+    />
+  ),
+};
+
+export const SearchFilter: Story = {
+  tags: ["play-fn"],
+  render: Default.render,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const search = await canvas.findByTestId("network-channel-search-input");
+    fireEvent.change(search, { target: { value: "release" } });
+    await expect(search).toHaveValue("release");
+  },
+};
+
+export const RowSelect: Story = {
+  tags: ["play-fn"],
+  render: Default.render,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const target = networkChannelsFixture.channels[1]!;
+    await userEvent.click(await canvas.findByTestId(`network-channel-item-${target.channel}`));
+  },
 };

@@ -1,11 +1,13 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import { Button, Empty } from "@agh/ui";
+
+type IconComponent = ComponentType<{ className?: string; size?: number }>;
 
 interface NetworkEmptyStateProps {
   actionLabel?: string;
   description: string;
-  icon: ReactNode;
+  icon?: IconComponent | ReactNode;
   onAction?: () => void;
   testId: string;
   title: string;
@@ -20,7 +22,7 @@ export function NetworkEmptyState({
   title,
 }: NetworkEmptyStateProps) {
   return (
-    <div className="flex flex-1 items-center justify-center px-6 py-8" data-testid={testId}>
+    <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-8" data-testid={testId}>
       <Empty
         className="max-w-xl"
         icon={icon}
