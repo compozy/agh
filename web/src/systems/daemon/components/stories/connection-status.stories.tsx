@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
+import { useEffect, useState } from "react";
+import { expect, waitFor, within } from "storybook/test";
+
+import type { ConnectionStatus as ConnectionStatusType } from "@agh/ui";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { CenteredSurface } from "@/storybook/story-layout";
@@ -52,4 +56,63 @@ export const Reconnecting: Story = {
       <ConnectionStatus status="reconnecting" />
     </CenteredSurface>
   ),
+};
+
+interface StatusTransitionProps {
+  sequence: ConnectionStatusType[];
+  intervalMs: number;
+}
+
+function StatusTransitionDriver({ sequence, intervalMs }: StatusTransitionProps) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (index >= sequence.length - 1) {
+      return;
+    }
+    const handle = window.setTimeout(() => setIndex(current => current + 1), intervalMs);
+    return () => window.clearTimeout(handle);
+  }, [index, intervalMs, sequence.length]);
+
+  return (
+    <CenteredSurface>
+      <div data-testid="connection-status-driver" data-current-status={sequence[index]}>
+        <ConnectionStatus status={sequence[index]} />
+      </div>
+    </CenteredSurface>
+  );
+}
+
+/**
+ * Storybook interaction test — drive ConnectionStatus through
+ * connected → reconnecting → disconnected and assert that the
+ * underlying ConnectionIndicator tone + label updates each step.
+ */
+export const StatusTransitions: Story = {
+  tags: ["play-fn"],
+  render: () => (
+    <StatusTransitionDriver
+      intervalMs={50}
+      sequence={["connected", "reconnecting", "disconnected"]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const driver = await canvas.findByTestId("connection-status-driver");
+
+    await waitFor(() => {
+      expect(driver).toHaveAttribute("data-current-status", "connected");
+    });
+    expect(within(driver).getByText("Connected")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(driver).toHaveAttribute("data-current-status", "reconnecting");
+    });
+    expect(within(driver).getByText("Reconnecting")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(driver).toHaveAttribute("data-current-status", "disconnected");
+    });
+    expect(within(driver).getByText("Disconnected")).toBeInTheDocument();
+  },
 };

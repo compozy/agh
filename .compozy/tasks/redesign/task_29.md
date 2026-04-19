@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Daemon status and home dashboard
 type: frontend
 complexity: low
@@ -43,13 +43,13 @@ Rewrite `web/src/systems/daemon/**` (connection/health status indicator) and the
 
 ## Subtasks
 
-- [ ] 29.1 Audit `systems/daemon/components/**`, `systems/daemon/hooks/**`, and `routes/_app/index.tsx` to catalogue existing behavior and data sources.
-- [ ] 29.2 Rewrite `connection-status.tsx` as a one-line composition over `@agh/ui` `ConnectionIndicator`.
-- [ ] 29.3 Build a small route-level hook that aggregates daemon health, workspace count, agent count, and active session count.
-- [ ] 29.4 Rewrite `routes/_app/index.tsx` on `PageHeader` + `Section` + `Metric` grid + `StatusDot` + `ConnectionIndicator`; add loading, error, and degraded-daemon states.
-- [ ] 29.5 Update or add Storybook stories for the dashboard: healthy, degraded, disconnected, empty-workspace, loading, error.
-- [ ] 29.6 Regenerate Playwright visual snapshot baselines for `/` (healthy, degraded, disconnected, empty).
-- [ ] 29.7 Run `make web-lint`, `make web-typecheck`, `make web-test`, and `make verify`.
+- [x] 29.1 Audit `systems/daemon/components/**`, `systems/daemon/hooks/**`, and `routes/_app/index.tsx` to catalogue existing behavior and data sources.
+- [x] 29.2 Rewrite `connection-status.tsx` as a one-line composition over `@agh/ui` `ConnectionIndicator`.
+- [x] 29.3 Build a small route-level hook that aggregates daemon health, workspace count, agent count, and active session count.
+- [x] 29.4 Rewrite `routes/_app/index.tsx` on `PageHeader` + `Section` + `Metric` grid + `StatusDot` + `ConnectionIndicator`; add loading, error, and degraded-daemon states.
+- [x] 29.5 Update or add Storybook stories for the dashboard: healthy, degraded, disconnected, empty-workspace, loading, error.
+- [x] 29.6 Regenerate Playwright visual snapshot baselines for `/` (healthy, degraded, disconnected, empty).
+- [x] 29.7 Run `make web-lint`, `make web-typecheck`, `make web-test`, and `make verify`.
 
 ## Implementation Details
 
@@ -88,15 +88,15 @@ Follow TechSpec "Impact Analysis" row `web/src/systems/workspace/**, daemon/**, 
 ## Tests
 
 - Unit tests:
-  - [ ] `ConnectionStatus` forwards `status` prop to `ConnectionIndicator` and renders the matching tone.
-  - [ ] Home dashboard renders `PageHeader` with title "Home" and the daemon `StatusDot` tone mapping (`success` for healthy, `warning` for degraded, `danger` for disconnected, `neutral` for unknown).
-  - [ ] Home dashboard renders a `Metric` grid with active sessions, workspaces, agents, and uptime values.
-  - [ ] Loading state renders skeletons for each `Metric` card.
-  - [ ] Error state renders an `Empty` (or equivalent) region with the error message.
-  - [ ] Disconnected state renders the `ConnectionIndicator` in `disconnected` tone and a short recovery hint.
+  - [x] `ConnectionStatus` forwards `status` prop to `ConnectionIndicator` and renders the matching tone.
+  - [x] Home dashboard renders `PageHeader` with title "Home" and the daemon `StatusDot` tone mapping (`success` for healthy, `warning` for degraded, `danger` for disconnected, `neutral` for unknown).
+  - [x] Home dashboard renders a `Metric` grid with active sessions, workspaces, agents, and uptime values.
+  - [x] Loading state renders skeletons for each `Metric` card.
+  - [x] Error state renders an `Empty` (or equivalent) region with the error message.
+  - [x] Disconnected state renders the `ConnectionIndicator` in `disconnected` tone and a short recovery hint.
 - Integration tests:
-  - [ ] Storybook `play()` transitions the story from healthy → degraded → disconnected and asserts `StatusDot` + `ConnectionIndicator` tones update.
-  - [ ] Playwright visual snapshot match for `/` healthy, degraded, disconnected, and empty states.
+  - [x] Storybook `play()` transitions the story from healthy → degraded → disconnected and asserts `StatusDot` + `ConnectionIndicator` tones update.
+  - [x] Playwright visual snapshot match for `/` healthy, degraded, disconnected, and empty states.
 - Test coverage target: >=80%
 - All tests must pass
 
