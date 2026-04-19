@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -3355,9 +3356,42 @@ func freeTCPPort(t *testing.T) int {
 	return testutil.FreeTCPPort(t)
 }
 
-func TestTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *testing.T) {
-	t.Parallel()
+func TestDetachedHarnessDaemonScenarios(t *testing.T) {
+	testCases := []struct {
+		name string
+		run  func(*testing.T)
+	}{
+		{
+			name: "ShouldAllowProcessedReentryMetadataForDuplicateDetachedHarnessSubmission",
+			run:  testTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata,
+		},
+		{
+			name: "ShouldScheduleRescanWhenHarnessReentryQueueIsFull",
+			run:  testHarnessReentryBridgeOnTaskEventSchedulesRescanWhenQueueIsFull,
+		},
+		{
+			name: "ShouldRecoverEqualTimestampRunsByTerminalSequence",
+			run:  testHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence,
+		},
+		{
+			name: "ShouldFinalizeHungSyntheticWakeOnBridgeShutdown",
+			run:  testHarnessReentryBridgeShutdownFinalizesHungSyntheticWake,
+		},
+		{
+			name: "ShouldFilterFallbackSectionsWithoutDuplicatesOrDisabledProviders",
+			run:  testSectionSelectorFallbackStillFiltersProvidersAndDuplicates,
+		},
+	}
 
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.run(t)
+		})
+	}
+}
+
+func testTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *testing.T) {
 	sessions := &fakeSessionManager{}
 	runtime, resolver, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
@@ -3415,9 +3449,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *t
 	}
 }
 
-func TestHarnessReentryBridgeOnTaskEventSchedulesRescanWhenQueueIsFull(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeOnTaskEventSchedulesRescanWhenQueueIsFull(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -3459,9 +3491,7 @@ func TestHarnessReentryBridgeOnTaskEventSchedulesRescanWhenQueueIsFull(t *testin
 	}
 }
 
-func TestHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence(t *testing.T) {
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
 		SyntheticTurnsEnabled:      true,
 		DetachedTaskRuntimeEnabled: true,
@@ -3538,9 +3568,7 @@ func TestHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence(t *t
 	}
 }
 
-func TestHarnessReentryBridgeShutdownFinalizesHungSyntheticWake(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeShutdownFinalizesHungSyntheticWake(t *testing.T) {
 	started := make(chan struct{})
 	blocked := make(chan acp.AgentEvent)
 	sessions := &fakeSessionManager{
@@ -3583,9 +3611,7 @@ func TestHarnessReentryBridgeShutdownFinalizesHungSyntheticWake(t *testing.T) {
 	}
 }
 
-func TestSectionSelectorFallbackStillFiltersProvidersAndDuplicates(t *testing.T) {
-	t.Parallel()
-
+func testSectionSelectorFallbackStillFiltersProvidersAndDuplicates(t *testing.T) {
 	var selector *SectionSelector
 	selected, resolved, err := selector.Select(
 		session.StartupPromptContext{SessionType: session.SessionTypeUser},
@@ -3645,6 +3671,157 @@ func TestSectionSelectorFallbackStillFiltersProvidersAndDuplicates(t *testing.T)
 		len(resolved.Policy.ObservabilityTags) != 0 {
 		t.Fatalf("resolved fallback context = %#v, want zero-value policy context", resolved)
 	}
+}
+
+func TestHarnessContextResolverDetachedRunModeRequiresDetachedMetadata(t *testing.T) {
+	testCases := []struct {
+		name  string
+		input HarnessResolutionInput
+		want  DetachedRunMode
+	}{
+		{
+			name: "ShouldNotEnableDetachedRunModeForSystemStartupWithoutDetachedMetadata",
+			input: HarnessResolutionInput{
+				Surface: ResolutionSurfaceStartup,
+				Session: HarnessSessionInput{
+					Type: session.SessionTypeSystem,
+				},
+			},
+			want: DetachedRunModeNone,
+		},
+		{
+			name: "ShouldNotEnableDetachedRunModeForSyntheticTurnsWithoutDetachedMetadata",
+			input: HarnessResolutionInput{
+				Surface: ResolutionSurfaceTurn,
+				Session: HarnessSessionInput{
+					Type: session.SessionTypeSystem,
+				},
+				Turn: HarnessTurnRequest{
+					Source: session.TurnSourceSynthetic,
+					Synthetic: &SyntheticTurnMetadata{
+						Reason:  "task_complete",
+						Trigger: "task.run_completed",
+					},
+				},
+			},
+			want: DetachedRunModeNone,
+		},
+		{
+			name: "ShouldEnableDetachedRunModeOnlyWhenDetachedMetadataIsPresent",
+			input: HarnessResolutionInput{
+				Surface: ResolutionSurfaceTurn,
+				Session: HarnessSessionInput{
+					Type: session.SessionTypeSystem,
+				},
+				Turn: HarnessTurnRequest{
+					Source: session.TurnSourceSynthetic,
+					Synthetic: &SyntheticTurnMetadata{
+						Reason:  "task_complete",
+						Trigger: "task.run_completed",
+					},
+					Detached: &DetachedRunMetadata{
+						TaskRunID: "run-123",
+					},
+				},
+			},
+			want: DetachedRunModeTaskRuntime,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+				SyntheticTurnsEnabled:      true,
+				DetachedTaskRuntimeEnabled: true,
+			})
+			resolved, err := resolver.Resolve(tt.input)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v", err)
+			}
+			if got, want := resolved.Policy.DetachedRunMode, tt.want; got != want {
+				t.Fatalf("DetachedRunMode = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestFakeSessionManagerEventsReturnAscendingSequenceOrder(t *testing.T) {
+	t.Run("ShouldSortBySequenceBeforeApplyingLimit", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{
+			sessionEvents: map[string][]store.SessionEvent{
+				"sess-wake": {
+					{ID: "evt-3", SessionID: "sess-wake", Sequence: 3, Type: acp.EventTypeSyntheticReentry},
+					{ID: "evt-1", SessionID: "sess-wake", Sequence: 1, Type: acp.EventTypeSyntheticReentry},
+					{ID: "evt-2", SessionID: "sess-wake", Sequence: 2, Type: acp.EventTypeSyntheticReentry},
+				},
+			},
+		}
+
+		events, err := sessions.Events(testutil.Context(t), "sess-wake", store.EventQuery{Limit: 2})
+		if err != nil {
+			t.Fatalf("Events() error = %v", err)
+		}
+		if got, want := len(events), 2; got != want {
+			t.Fatalf("len(events) = %d, want %d", got, want)
+		}
+		if got, want := events[0].Sequence, int64(2); got != want {
+			t.Fatalf("events[0].Sequence = %d, want %d", got, want)
+		}
+		if got, want := events[1].Sequence, int64(3); got != want {
+			t.Fatalf("events[1].Sequence = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestPromptInputCompositeEnforcesPerDescriptorBudgets(t *testing.T) {
+	t.Run("ShouldCapEachDescriptorBeforeConsumingAggregateBudget", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := &staticPromptInputAugmenterResolver{
+			resolved: ResolvedHarnessContext{
+				Policy: ResolvedHarnessPolicy{
+					EnableAugmenters: []HarnessAugmenter{"prefix", "suffix"},
+				},
+			},
+		}
+
+		augmenter, err := newPromptInputCompositeAugmenter(
+			discardLogger(),
+			resolver,
+			nil,
+			promptInputAugmenterDescriptor{
+				Name:   "prefix",
+				Order:  100,
+				Budget: 1,
+				Augmenter: func(_ context.Context, _ *session.Session, message string) (string, error) {
+					return "AAAA" + message, nil
+				},
+			},
+			promptInputAugmenterDescriptor{
+				Name:   "suffix",
+				Order:  200,
+				Budget: 3,
+				Augmenter: func(_ context.Context, _ *session.Session, message string) (string, error) {
+					return message + "BBBB", nil
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
+		}
+
+		got, err := augmenter(context.Background(), newPromptInputTestSession(""), "base")
+		if err != nil {
+			t.Fatalf("Augment() error = %v", err)
+		}
+		if got != "AbaseBBB" {
+			t.Fatalf("Augment() = %q, want %q", got, "AbaseBBB")
+		}
+	})
 }
 
 func seedDetachedHarnessRecoveryRunForTest(
@@ -3829,6 +4006,9 @@ func (f *fakeSessionManager) Events(
 		}
 		filtered = append(filtered, event)
 	}
+	sort.SliceStable(filtered, func(i, j int) bool {
+		return filtered[i].Sequence < filtered[j].Sequence
+	})
 	if query.Limit > 0 && len(filtered) > query.Limit {
 		filtered = filtered[len(filtered)-query.Limit:]
 	}

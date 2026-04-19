@@ -97,6 +97,7 @@ type recoveredDetachedHarnessRun struct {
 type harnessReentryBridge struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
+	workers  sync.WaitGroup
 	resolver *HarnessContextResolver
 	recorder *harnessLifecycleRecorder
 	store    harnessReentryStore
@@ -153,7 +154,7 @@ func newHarnessReentryBridge(
 		processing: make(map[string]struct{}),
 		queues:     make(map[string]*harnessWakeQueue),
 	}
-	go bridge.run()
+	bridge.startWorker(bridge.run)
 	return bridge, nil
 }
 
@@ -162,6 +163,13 @@ func (b *harnessReentryBridge) shutdown() {
 		return
 	}
 	b.cancel()
+	b.workers.Wait()
+}
+
+func (b *harnessReentryBridge) startWorker(worker func()) {
+	b.workers.Go(func() {
+		worker()
+	})
 }
 
 func (b *harnessReentryBridge) OnTaskEvent(_ context.Context, record taskpkg.EventRecord) {
@@ -611,7 +619,10 @@ func (b *harnessReentryBridge) enqueueWake(item harnessSyntheticWake) {
 	b.queueMu.Unlock()
 
 	if shouldStart {
-		go b.drainWakeQueue(item.targetSessionID)
+		targetSessionID := item.targetSessionID
+		b.startWorker(func() {
+			b.drainWakeQueue(targetSessionID)
+		})
 	}
 }
 
@@ -643,12 +654,31 @@ func compareSyntheticWake(left harnessSyntheticWake, right harnessSyntheticWake)
 
 func (b *harnessReentryBridge) drainWakeQueue(sessionID string) {
 	for {
+		select {
+		case <-b.ctx.Done():
+			b.discardWakeQueue(sessionID)
+			return
+		default:
+		}
 		item, ok := b.nextWake(sessionID)
 		if !ok {
 			return
 		}
 		b.dispatchWake(item)
 	}
+}
+
+func (b *harnessReentryBridge) discardWakeQueue(sessionID string) {
+	b.queueMu.Lock()
+	defer b.queueMu.Unlock()
+
+	queue := b.queues[sessionID]
+	if queue == nil {
+		return
+	}
+	queue.dispatching = false
+	queue.items = nil
+	delete(b.queues, sessionID)
 }
 
 func (b *harnessReentryBridge) nextWake(sessionID string) (harnessSyntheticWake, bool) {
@@ -716,7 +746,9 @@ func (b *harnessReentryBridge) dispatchWake(item harnessSyntheticWake) {
 		return
 	}
 
-	go b.awaitSyntheticWake(item, eventsCh)
+	b.startWorker(func() {
+		b.awaitSyntheticWake(item, eventsCh)
+	})
 }
 
 func (b *harnessReentryBridge) awaitSyntheticWake(

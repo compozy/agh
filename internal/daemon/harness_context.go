@@ -250,7 +250,7 @@ func (r *HarnessContextResolver) Resolve(input HarnessResolutionInput) (Resolved
 		IncludeSections:  r.resolveSections(sessionCtx),
 		EnableAugmenters: r.resolveAugmenters(surface, turnCtx),
 		ReentryMode:      r.resolveReentry(turnCtx),
-		DetachedRunMode:  r.resolveDetachedRunMode(sessionCtx),
+		DetachedRunMode:  r.resolveDetachedRunMode(sessionCtx, turnCtx),
 	}
 	policy.DiagnosticLabel = buildHarnessDiagnosticLabel(sessionCtx, policy)
 	policy.ObservabilityTags = buildHarnessObservabilityTags(surface, sessionCtx, turnCtx, policy)
@@ -511,8 +511,14 @@ func (r *HarnessContextResolver) resolveReentry(turnCtx HarnessTurnContext) Reen
 	return ReentryModeNone
 }
 
-func (r *HarnessContextResolver) resolveDetachedRunMode(sessionCtx HarnessSessionContext) DetachedRunMode {
+func (r *HarnessContextResolver) resolveDetachedRunMode(
+	sessionCtx HarnessSessionContext,
+	turnCtx HarnessTurnContext,
+) DetachedRunMode {
 	if !r.runtime.DetachedTaskRuntimeEnabled {
+		return DetachedRunModeNone
+	}
+	if turnCtx.Detached == nil {
 		return DetachedRunModeNone
 	}
 	if sessionCtx.SessionClass == SessionClassSystem {

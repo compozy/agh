@@ -311,11 +311,15 @@ func (c *promptInputComposite) applyAugmentedMessage(
 		return current, remainingBudget
 	}
 
+	descriptorBudget := remainingBudget
+	if limited && descriptor.Budget > 0 {
+		descriptorBudget = min(remainingBudget, descriptor.Budget)
+	}
 	bounded, consumed := applyPromptInputAugmenterBudget(
 		current,
 		next,
 		limited,
-		remainingBudget,
+		descriptorBudget,
 		descriptor.BudgetBehavior,
 	)
 	if strings.TrimSpace(bounded) == "" {

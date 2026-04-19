@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -218,7 +219,46 @@ func TestBootWiresTaskRuntimeWithDedicatedSessionBridge(t *testing.T) {
 	}
 }
 
-func TestBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
+func TestDetachedHarnessIntegration(t *testing.T) {
+	testCases := []struct {
+		name string
+		run  func(*testing.T)
+	}{
+		{
+			name: "ShouldWireDetachedHarnessTaskRuntimeAcrossScopes",
+			run:  testBootWiresDetachedHarnessTaskRuntimeAcrossScopes,
+		},
+		{
+			name: "ShouldEmitSyntheticReentryAfterDetachedHarnessCompletionEndToEnd",
+			run:  testDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd,
+		},
+		{
+			name: "ShouldRecordSilentDropWhenPolicySuppressesDetachedHarnessWakeEndToEnd",
+			run:  testDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd,
+		},
+		{
+			name: "ShouldPreserveDetachedHarnessWakeFIFOAcrossRuns",
+			run:  testDetachedHarnessCompletionWakePreservesFIFOAcrossRuns,
+		},
+		{
+			name: "ShouldReusePersistedSyntheticEventDuringDetachedHarnessRecoveryDedupe",
+			run:  testBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe,
+		},
+		{
+			name: "ShouldRecoverDetachedHarnessRunThroughTaskRuntimeRulesOnBoot",
+			run:  testBootRecoversDetachedHarnessRunThroughTaskRuntimeRules,
+		},
+	}
+
+	for _, tt := range testCases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			tt.run(t)
+		})
+	}
+}
+
+func testBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	sessions := &fakeSessionManager{}
@@ -394,7 +434,7 @@ func TestBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 	}
 }
 
-func TestDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T) {
+func testDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	sessions := &fakeSessionManager{}
@@ -505,7 +545,7 @@ func TestDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T
 	}
 }
 
-func TestDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd(t *testing.T) {
+func testDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	sessions := &fakeSessionManager{}
@@ -584,7 +624,7 @@ func TestDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd(t *testing.T) 
 	}
 }
 
-func TestDetachedHarnessCompletionWakePreservesFIFOAcrossRuns(t *testing.T) {
+func testDetachedHarnessCompletionWakePreservesFIFOAcrossRuns(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	sessions := &fakeSessionManager{}
@@ -668,7 +708,7 @@ func TestDetachedHarnessCompletionWakePreservesFIFOAcrossRuns(t *testing.T) {
 	}
 }
 
-func TestBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *testing.T) {
+func testBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
@@ -791,7 +831,7 @@ func TestBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *
 	}
 }
 
-func TestBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
+func testBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
@@ -3358,7 +3398,7 @@ func ensureDetachedHarnessWorkspaceIndex(
 	if _, err := db.GetWorkspace(testutil.Context(t), workspaceID); err == nil {
 		return nil
 	} else if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
-		return err
+		return fmt.Errorf("get workspace %q: %w", workspaceID, err)
 	}
 
 	rootDir := strings.TrimSpace(workspaceRoot)
@@ -3366,15 +3406,18 @@ func ensureDetachedHarnessWorkspaceIndex(
 		rootDir = filepath.Join(homePaths.HomeDir, workspaceID)
 	}
 	if err := os.MkdirAll(rootDir, 0o755); err != nil {
-		return err
+		return fmt.Errorf("mkdir workspace root %q: %w", rootDir, err)
 	}
-	return db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+	if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
 		ID:        workspaceID,
 		Name:      workspaceID,
 		RootDir:   rootDir,
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
-	})
+	}); err != nil {
+		return fmt.Errorf("insert workspace %q: %w", workspaceID, err)
+	}
+	return nil
 }
 
 func cloneFakeSessionEvents(source map[string][]store.SessionEvent) map[string][]store.SessionEvent {

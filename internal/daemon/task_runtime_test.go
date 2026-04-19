@@ -1139,9 +1139,62 @@ func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
 	}
 }
 
-func TestHarnessReentryBridgeEmitsSyntheticWakeAndObservability(t *testing.T) {
-	t.Parallel()
+func TestHarnessReentryBridgeScenarios(t *testing.T) {
+	testCases := []struct {
+		name string
+		run  func(*testing.T)
+	}{
+		{
+			name: "ShouldEmitSyntheticWakeAndObservabilityForDetachedCompletion",
+			run:  testHarnessReentryBridgeEmitsSyntheticWakeAndObservability,
+		},
+		{
+			name: "ShouldRecordDropSummaryWhenPolicyIsSilent",
+			run:  testHarnessReentryBridgeSilentPolicyRecordsDropSummary,
+		},
+		{
+			name: "ShouldDropMissingOrStoppedTargetsWithoutDispatchingWake",
+			run:  testHarnessReentryBridgeMissingAndStoppedTargetsDropWithoutWake,
+		},
+		{
+			name: "ShouldStayIdempotentAcrossDuplicateTerminalNotifications",
+			run:  testHarnessReentryBridgeDuplicateTerminalNotificationsStayIdempotent,
+		},
+		{
+			name: "ShouldPreserveSyntheticWakeFIFOOrdering",
+			run:  testHarnessReentryBridgePreservesSyntheticWakeFIFO,
+		},
+		{
+			name: "ShouldCoverHarnessReentryBridgeHelperBehaviors",
+			run:  testHarnessReentryBridgeHelperCoverage,
+		},
+		{
+			name: "ShouldDropWhenSyntheticDispatchFails",
+			run:  testHarnessReentryBridgeDropsWhenSyntheticDispatchFails,
+		},
+		{
+			name: "ShouldDropWhenSyntheticPromptChannelHasNoEvent",
+			run:  testHarnessReentryBridgeDropsWhenSyntheticPromptChannelHasNoEvent,
+		},
+		{
+			name: "ShouldDropWhenSyntheticPromptReturnsAnErrorEvent",
+			run:  testHarnessReentryBridgeDropsWhenSyntheticPromptReturnsErrorEvent,
+		},
+		{
+			name: "ShouldUseRecordedSyntheticEventForDispatchDedupe",
+			run:  testHarnessReentryBridgeDispatchWakeUsesRecordedSyntheticEvent,
+		},
+	}
 
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.run(t)
+		})
+	}
+}
+
+func testHarnessReentryBridgeEmitsSyntheticWakeAndObservability(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
@@ -1196,9 +1249,7 @@ func TestHarnessReentryBridgeEmitsSyntheticWakeAndObservability(t *testing.T) {
 	}
 }
 
-func TestHarnessReentryBridgeSilentPolicyRecordsDropSummary(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeSilentPolicyRecordsDropSummary(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
@@ -1241,9 +1292,7 @@ func TestHarnessReentryBridgeSilentPolicyRecordsDropSummary(t *testing.T) {
 	}
 }
 
-func TestHarnessReentryBridgeMissingAndStoppedTargetsDropWithoutWake(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeMissingAndStoppedTargetsDropWithoutWake(t *testing.T) {
 	testCases := []struct {
 		name       string
 		mutate     func(*fakeSessionManager)
@@ -1309,9 +1358,7 @@ func TestHarnessReentryBridgeMissingAndStoppedTargetsDropWithoutWake(t *testing.
 	}
 }
 
-func TestHarnessReentryBridgeDuplicateTerminalNotificationsStayIdempotent(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeDuplicateTerminalNotificationsStayIdempotent(t *testing.T) {
 	releaseFirst := make(chan struct{})
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
@@ -1366,9 +1413,7 @@ func TestHarnessReentryBridgeDuplicateTerminalNotificationsStayIdempotent(t *tes
 	waitForDetachedHarnessReentryState(t, runtime, submission.Run.ID, harnessReentryOutcomeEmitted)
 }
 
-func TestHarnessReentryBridgePreservesSyntheticWakeFIFO(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgePreservesSyntheticWakeFIFO(t *testing.T) {
 	releaseFirst := make(chan struct{})
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
@@ -1442,9 +1487,7 @@ func TestHarnessReentryBridgePreservesSyntheticWakeFIFO(t *testing.T) {
 	waitForDetachedHarnessReentryState(t, runtime, second.Run.ID, harnessReentryOutcomeEmitted)
 }
 
-func TestHarnessReentryBridgeHelperCoverage(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeHelperCoverage(t *testing.T) {
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
 		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
@@ -1579,9 +1622,7 @@ func TestHarnessReentryBridgeHelperCoverage(t *testing.T) {
 	}
 }
 
-func TestHarnessReentryBridgeDropsWhenSyntheticDispatchFails(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeDropsWhenSyntheticDispatchFails(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
@@ -1617,9 +1658,7 @@ func TestHarnessReentryBridgeDropsWhenSyntheticDispatchFails(t *testing.T) {
 	)
 }
 
-func TestHarnessReentryBridgeDropsWhenSyntheticPromptChannelHasNoEvent(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeDropsWhenSyntheticPromptChannelHasNoEvent(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
@@ -1650,9 +1689,7 @@ func TestHarnessReentryBridgeDropsWhenSyntheticPromptChannelHasNoEvent(t *testin
 	}
 }
 
-func TestHarnessReentryBridgeDropsWhenSyntheticPromptReturnsErrorEvent(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeDropsWhenSyntheticPromptReturnsErrorEvent(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
@@ -1684,9 +1721,7 @@ func TestHarnessReentryBridgeDropsWhenSyntheticPromptReturnsErrorEvent(t *testin
 	}
 }
 
-func TestHarnessReentryBridgeDispatchWakeUsesRecordedSyntheticEvent(t *testing.T) {
-	t.Parallel()
-
+func testHarnessReentryBridgeDispatchWakeUsesRecordedSyntheticEvent(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{ID: "sess-owner", AgentName: "coder", Type: session.SessionTypeSystem, State: session.StateActive},
