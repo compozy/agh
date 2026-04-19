@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -119,6 +118,13 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 						ID:      "review-pr",
 						Summary: "Review pull requests",
 						Outcome: "Deliver actionable pull request feedback",
+						ContextNeeded: []string{
+							"Pull request diff",
+							"Acceptance criteria",
+						},
+						ArtifactsExpected: []string{
+							"Review summary",
+						},
 					}},
 				},
 			},
