@@ -274,15 +274,17 @@ A `peer_id` value (used in `from`, `to`, and Peer Card) MUST match `[a-z0-9][a-z
 
 #### 6.2.1 Peer Card fields
 
-| Field                   | Type            | Required | Notes                                         |
-| ----------------------- | --------------- | -------- | --------------------------------------------- |
-| `peer_id`               | string          | yes      | canonical peer identity                       |
-| `display_name`          | string or null  | no       | human-friendly label                          |
-| `profiles_supported`    | array of string | yes      | supported protocol profiles                   |
-| `capabilities`          | array of string | yes      | peer capabilities                             |
-| `artifacts_supported`   | array of string | yes      | artifact types the peer understands           |
-| `trust_modes_supported` | array of string | yes      | for example `unverified`                      |
-| `ext`                   | object          | no       | profile-specific or runtime-specific metadata |
+| Field                   | Type            | Required | Notes                                                 |
+| ----------------------- | --------------- | -------- | ----------------------------------------------------- |
+| `peer_id`               | string          | yes      | canonical peer identity                               |
+| `display_name`          | string or null  | no       | human-friendly label                                  |
+| `profiles_supported`    | array of string | yes      | supported protocol profiles                           |
+| `capabilities`          | array of string | yes      | minimal capability identifiers advertised by the peer |
+| `artifacts_supported`   | array of string | yes      | artifact types the peer understands                   |
+| `trust_modes_supported` | array of string | yes      | for example `unverified`                              |
+| `ext`                   | object          | no       | profile-specific or runtime-specific metadata         |
+
+`capabilities` is the minimal capability index advertised by the peer. Implementations MAY expose richer capability discovery metadata through `ext`.
 
 ### 6.3 Minimal discovery
 
@@ -300,13 +302,17 @@ The core does not define:
 
 ### 6.4 Capability semantics
 
-Capabilities are opaque strings defined by implementations or future profiles. Namechanneld strings are RECOMMENDED, for example:
+Capabilities are opaque identifiers defined by implementations or future profiles. Namespaced strings are RECOMMENDED, for example:
 
 - `chat.translate`
 - `artifact.recipe.consume`
 - `workspace.patch.apply`
 
-The core does not impose a global capability taxonomy.
+Capability advertisements are advisory. They indicate what a peer claims it can do, but they do not imply authorization, safety, or guaranteed execution semantics.
+
+The core does not require capabilities to correspond to tools, prompts, or workflow definitions, and it does not impose a global capability taxonomy.
+
+Implementations MAY expose richer capability discovery metadata using `ext`.
 
 ---
 
@@ -470,6 +476,31 @@ sequenceDiagram
 - `to` SHOULD be null
 - `interaction_id` SHOULD be null
 
+#### AGH profile extension: brief capability discovery
+
+AGH peers SHOULD expose brief capability discovery metadata under:
+
+- `body.peer_card.ext["agh.capabilities_brief"]`
+
+Recommended shape:
+
+```json
+[
+  {
+    "id": "create-landing-page",
+    "summary": "Creates a landing page from a brief."
+  }
+]
+```
+
+Rules:
+
+- brief capability metadata is optional at the core level
+- when present, each entry MUST include `id` and `summary`
+- for AGH peers, `id` MUST correspond to one string in `peer_card.capabilities`
+- summaries SHOULD remain short enough for periodic `greet` traffic
+- summaries SHOULD be a single short sentence and SHOULD target `<= 160` UTF-8 characters in v0
+
 ### 8.3 `whois`
 
 `whois` retrieves or returns peer card information.
@@ -498,6 +529,94 @@ sequenceDiagram
 - a response `whois` MUST set `reply_to`
 - targeted lookup SHOULD set `to`
 - untargeted lookup MAY be broadcast within a channel
+
+#### AGH profile extension: rich capability discovery
+
+A requester MAY ask for rich capability discovery using envelope `ext` keys:
+
+- `ext["agh.include"]`
+- `ext["agh.capability_ids"]`
+
+Recommended request shapes:
+
+Full catalog request:
+
+```json
+{
+  "ext": {
+    "agh.include": ["capability_catalog"]
+  }
+}
+```
+
+Filtered catalog request:
+
+```json
+{
+  "ext": {
+    "agh.include": ["capability_catalog"],
+    "agh.capability_ids": ["create-landing-page"]
+  }
+}
+```
+
+An AGH peer responding with rich capability discovery SHOULD place the result in:
+
+- `ext["agh.capability_catalog"]`
+
+Recommended shape:
+
+- `agh.capability_catalog` SHOULD be an object containing:
+  - `capabilities`: array of capability entries
+- each capability entry MUST include:
+  - `id`
+  - `summary`
+  - `outcome`
+- each capability entry MAY include:
+  - `context_needed`
+  - `artifacts_expected`
+  - `execution_outline`
+  - `constraints`
+  - `examples`
+
+Recommended response shape:
+
+```json
+{
+  "ext": {
+    "agh.capability_catalog": {
+      "capabilities": [
+        {
+          "id": "create-landing-page",
+          "summary": "Creates a landing page from a brief.",
+          "outcome": "Landing page ready or near-ready with copy, structure, and implementation or proposal.",
+          "context_needed": ["product", "target audience", "offer"],
+          "artifacts_expected": ["copy", "page structure", "implementation"],
+          "execution_outline": [
+            "understand the brief",
+            "run discovery",
+            "draft copy",
+            "compose the page",
+            "refine and deliver"
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+Rules:
+
+- rich capability discovery is explicit, not automatic
+- peers SHOULD NOT include full capability catalogs in periodic `greet`
+- peers MAY return the full catalog or a filtered subset based on `agh.capability_ids`
+- when `agh.capability_ids` is present and no requested IDs match, peers SHOULD return `agh.capability_catalog.capabilities = []`
+- peers that have no rich capability catalog SHOULD return `agh.capability_catalog.capabilities = []` when rich discovery was explicitly requested
+- requesters SHOULD prefer `agh.capability_ids` once brief discovery identifies likely matches
+- responders MUST NOT emit a `whois` response exceeding the envelope size limit
+- if a full rich catalog would exceed the envelope size limit, responders SHOULD omit `agh.capability_catalog` unless a narrower filtered request is provided
+- peers that do not implement these AGH extension keys MUST ignore them
 
 ### 8.4 `say`
 
@@ -837,7 +956,7 @@ v0 does not verify sender identity. The `from` field is trusted at face value. D
 
 ### 11.5 Capability confusion
 
-Capability strings are advisory until a peer verifies actual behavior. Receivers MUST NOT assume unsupported capabilities are safe simply because they were advertised in a `Peer Card`.
+Capability strings and rich capability metadata are advisory until a peer verifies actual behavior. Receivers MUST NOT assume advertised capabilities are safe, authorized, or guaranteed simply because they were present in a `Peer Card` or returned through capability discovery.
 
 ---
 
