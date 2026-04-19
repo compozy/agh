@@ -13,18 +13,16 @@ import {
   FieldGroup,
   FieldTitle,
   Input,
+  MonoBadge,
+  type MonoBadgeTone,
   NativeSelect,
   NativeSelectOption,
-  Pill,
+  Section,
   Textarea,
 } from "@agh/ui";
-import {
-  bridgeProviderStateTone,
-  describeBridgeTestTarget,
-} from "@/systems/bridges/lib/bridge-formatters";
+import { describeBridgeTestTarget } from "@/systems/bridges/lib/bridge-formatters";
 import type { BridgeTestDeliveryDraft, TestBridgeDeliveryResponse } from "@/systems/bridges/types";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
 interface BridgeTestDeliveryDialogProps {
   bridgeName?: string;
   draft: BridgeTestDeliveryDraft;
@@ -34,6 +32,21 @@ interface BridgeTestDeliveryDialogProps {
   onSubmit: () => void;
   open: boolean;
   result: TestBridgeDeliveryResponse | null;
+}
+
+function resultTone(status: string): MonoBadgeTone {
+  switch (status) {
+    case "resolved":
+    case "ready":
+      return "success";
+    case "error":
+    case "failed":
+      return "danger";
+    case "pending":
+      return "warning";
+    default:
+      return "neutral";
+  }
 }
 
 export function BridgeTestDeliveryDialog({
@@ -49,7 +62,7 @@ export function BridgeTestDeliveryDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="max-w-[calc(100%-2rem)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-0 text-[color:var(--color-text-primary)] sm:max-w-2xl"
+        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-2xl"
         showCloseButton={false}
       >
         <form
@@ -57,21 +70,19 @@ export function BridgeTestDeliveryDialog({
           data-testid="bridge-test-delivery-dialog"
           onSubmit={event => {
             event.preventDefault();
-            if (isPending) {
-              return;
-            }
+            if (isPending) return;
             onSubmit();
           }}
         >
-          <DialogHeader className="space-y-2 px-6 pt-6">
+          <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
             <DialogTitle>Test Delivery</DialogTitle>
-            <DialogDescription className="text-[color:var(--color-text-secondary)]">
+            <DialogDescription>
               Resolve the outbound target for {bridgeName ?? "the selected bridge"} using the saved
               defaults plus any explicit overrides below.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="flex-1 overflow-y-auto px-5 py-5">
             <FieldGroup className="gap-4">
               <Field>
                 <FieldContent>
@@ -179,45 +190,32 @@ export function BridgeTestDeliveryDialog({
               </div>
 
               {result ? (
-                <section
-                  className="space-y-3 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4"
+                <Section
                   data-testid="bridge-test-delivery-result"
+                  label="Resolved target"
+                  right={<MonoBadge tone={resultTone(result.status)}>{result.status}</MonoBadge>}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-                      Resolved target
-                    </p>
-                    <Pill variant={pillVariantFromTone(bridgeProviderStateTone(result.status))}>
-                      {result.status}
-                    </Pill>
-                  </div>
-                  <p className="text-sm text-[color:var(--color-text-primary)]">
+                  <p className="text-[13px] text-[color:var(--color-text-primary)]">
                     {describeBridgeTestTarget(result.delivery_target)}
                   </p>
                   {result.message ? (
-                    <p className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+                    <p className="mt-2 text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
                       Message: {result.message}
                     </p>
                   ) : null}
-                </section>
+                </Section>
               ) : null}
             </FieldGroup>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-6 py-4">
-            <Button
-              className="border-[color:var(--color-divider)] bg-transparent text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
-              onClick={() => onOpenChange(false)}
-              size="lg"
-              type="button"
-              variant="outline"
-            >
+          <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+            <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
               Close
             </Button>
-            <Button data-testid="submit-test-delivery" disabled={isPending} size="lg" type="submit">
+            <Button data-testid="submit-test-delivery" disabled={isPending} size="sm" type="submit">
               {isPending ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="size-3.5 animate-spin" />
                   Resolving…
                 </>
               ) : (

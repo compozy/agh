@@ -41,6 +41,50 @@ export const Default: Story = {
   ),
 };
 
+export const Disabled: Story = {
+  render: () => (
+    <PanelSurface>
+      <BridgeDetailPanel
+        bridge={{
+          ...bridgeDetailFixture.bridge,
+          enabled: false,
+          status: "disabled",
+        }}
+        error={null}
+        health={{ ...bridgeDetailFixture.health, status: "disabled" }}
+        isLoading={false}
+        isRoutesLoading={false}
+        onOpenTestDelivery={() => undefined}
+        provider={bridgeProvidersFixture[0]}
+        routes={[]}
+        secretBindings={bridgeSecretBindingsFixture}
+        secretInputValues={{ bot_token: "AGH_BRIDGE_BOT_TOKEN" }}
+        workspaceName="agh2"
+      />
+    </PanelSurface>
+  ),
+};
+
+export const NoRoutes: Story = {
+  render: () => (
+    <PanelSurface>
+      <BridgeDetailPanel
+        bridge={bridgeDetailFixture.bridge}
+        error={null}
+        health={bridgeDetailFixture.health}
+        isLoading={false}
+        isRoutesLoading={false}
+        onOpenTestDelivery={() => undefined}
+        provider={bridgeProvidersFixture[0]}
+        routes={[]}
+        secretBindings={bridgeSecretBindingsFixture}
+        secretInputValues={{ bot_token: "AGH_BRIDGE_BOT_TOKEN" }}
+        workspaceName="agh2"
+      />
+    </PanelSurface>
+  ),
+};
+
 export const Error: Story = {
   render: () => (
     <PanelSurface>

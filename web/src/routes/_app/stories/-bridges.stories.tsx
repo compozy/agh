@@ -68,7 +68,7 @@ export const TestDelivery: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const button = await canvas.findByTestId("bridge-test-delivery-open");
+    const button = await canvas.findByTestId("open-test-delivery-btn");
     await userEvent.click(button);
     await expect(canvas.findByTestId("bridge-test-delivery-dialog")).resolves.toBeDefined();
   },

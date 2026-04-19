@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
 
 import { createBridgeTestDeliveryDraft } from "@/systems/bridges";
 import { bridgeDetailFixture, testBridgeDeliveryFixture } from "@/systems/bridges/mocks";
@@ -17,36 +18,41 @@ const meta: Meta<typeof BridgeTestDeliveryDialog> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function BridgeTestDeliveryDialogHarness({ errorMessage }: { errorMessage?: string }) {
+function BridgeTestDeliveryDialogHarness({ includeResult = true }: { includeResult?: boolean }) {
   const [draft, setDraft] = useState(createBridgeTestDeliveryDraft(bridgeDetailFixture.bridge));
 
   return (
-    <div className="space-y-4">
-      {errorMessage ? (
-        <div className="mx-auto max-w-2xl rounded-xl border border-[color:var(--color-danger)] bg-[color:var(--color-danger-tint)] px-4 py-3 text-sm text-[color:var(--color-danger)]">
-          {errorMessage}
-        </div>
-      ) : null}
-      <BridgeTestDeliveryDialog
-        bridgeName={bridgeDetailFixture.bridge.display_name}
-        draft={draft}
-        isPending={false}
-        onDraftChange={setDraft}
-        onOpenChange={() => undefined}
-        onSubmit={() => undefined}
-        open
-        result={errorMessage ? null : testBridgeDeliveryFixture}
-      />
-    </div>
+    <BridgeTestDeliveryDialog
+      bridgeName={bridgeDetailFixture.bridge.display_name}
+      draft={draft}
+      isPending={false}
+      onDraftChange={setDraft}
+      onOpenChange={() => undefined}
+      onSubmit={() => undefined}
+      open
+      result={includeResult ? testBridgeDeliveryFixture : null}
+    />
   );
 }
 
 export const Default: Story = {
-  render: () => <BridgeTestDeliveryDialogHarness />,
+  render: () => <BridgeTestDeliveryDialogHarness includeResult={false} />,
 };
 
-export const Error: Story = {
-  render: () => (
-    <BridgeTestDeliveryDialogHarness errorMessage="Failed to resolve delivery target for Support." />
-  ),
+export const WithResolvedTarget: Story = {
+  render: () => <BridgeTestDeliveryDialogHarness includeResult />,
+};
+
+export const OpenFlow: Story = {
+  tags: ["play-fn"],
+  render: () => <BridgeTestDeliveryDialogHarness includeResult={false} />,
+  play: async ({ canvasElement }) => {
+    const body = within(document.body);
+    const message = await body.findByTestId("test-delivery-message");
+    await userEvent.type(message, "Ping", { delay: null });
+    await expect(message).toHaveValue("Ping");
+    const dialog = await body.findByTestId("bridge-test-delivery-dialog");
+    await expect(dialog).toBeVisible();
+    void canvasElement;
+  },
 };
