@@ -9,6 +9,8 @@ describe("AgentIcon", () => {
     const icon = screen.getByTestId("icon");
     expect(icon).toBeInTheDocument();
     expect(icon.tagName.toLowerCase()).toBe("svg");
+    expect(icon).toHaveAttribute("data-slot", "agent-icon");
+    expect(icon).toHaveAttribute("data-provider", "claude");
   });
 
   it('maps "codex" provider to Code icon', () => {
@@ -21,6 +23,16 @@ describe("AgentIcon", () => {
     expect(screen.getByTestId("icon")).toBeInTheDocument();
   });
 
+  it('maps "openai" provider to Bot icon', () => {
+    render(<AgentIcon provider="openai" data-testid="icon" />);
+    expect(screen.getByTestId("icon")).toBeInTheDocument();
+  });
+
+  it('maps "ollama" provider to Terminal icon', () => {
+    render(<AgentIcon provider="ollama" data-testid="icon" />);
+    expect(screen.getByTestId("icon")).toBeInTheDocument();
+  });
+
   it("returns fallback icon for unknown provider", () => {
     render(<AgentIcon provider="unknown-provider" data-testid="icon" />);
     expect(screen.getByTestId("icon")).toBeInTheDocument();
@@ -28,7 +40,8 @@ describe("AgentIcon", () => {
 
   it("is case-insensitive for provider matching", () => {
     render(<AgentIcon provider="Claude" data-testid="icon" />);
-    expect(screen.getByTestId("icon")).toBeInTheDocument();
+    const icon = screen.getByTestId("icon");
+    expect(icon).toHaveAttribute("data-provider", "claude");
   });
 
   it("has known providers in providerIconMap", () => {
@@ -39,9 +52,10 @@ describe("AgentIcon", () => {
     expect(providerIconMap).toHaveProperty("ollama");
   });
 
-  it("applies custom className", () => {
-    render(<AgentIcon provider="claude" data-testid="icon" className="size-8" />);
+  it("applies custom className on top of the tone class", () => {
+    render(<AgentIcon provider="claude" tone="accent" data-testid="icon" className="size-8" />);
     const icon = screen.getByTestId("icon");
     expect(icon.getAttribute("class")).toContain("size-8");
+    expect(icon.getAttribute("class")).toContain("text-[color:var(--color-accent)]");
   });
 });

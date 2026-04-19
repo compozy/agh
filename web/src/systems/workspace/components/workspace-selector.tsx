@@ -1,57 +1,119 @@
-import { Badge, NativeSelect, NativeSelectOption } from "@agh/ui";
+import { Inbox } from "lucide-react";
+
+import { Avatar, AvatarFallback, cn, Empty, Pill, StatusDot, type StatusDotTone } from "@agh/ui";
+
 import type { WorkspacePayload } from "../types";
 
 interface WorkspaceSelectorProps {
   workspaces: WorkspacePayload[];
-  value: string | null;
-  onValueChange: (workspaceId: string) => void;
+  activeWorkspaceId: string | null;
+  onSelectWorkspace: (workspaceId: string) => void;
+  globalWorkspaceId?: string | null;
   disabled?: boolean;
+  className?: string;
+}
+
+function workspaceInitial(name: string): string {
+  return name.trim().charAt(0).toUpperCase() || "·";
 }
 
 function WorkspaceSelector({
   workspaces,
-  value,
-  onValueChange,
+  activeWorkspaceId,
+  onSelectWorkspace,
+  globalWorkspaceId = null,
   disabled = false,
+  className,
 }: WorkspaceSelectorProps) {
-  const selectedWorkspace =
-    workspaces.find(workspace => workspace.id === value) ?? workspaces[0] ?? null;
+  if (workspaces.length === 0) {
+    return (
+      <Empty
+        icon={Inbox}
+        title="No workspaces"
+        description="Register a workspace to activate AGH for this machine."
+        data-testid="workspace-selector-empty"
+        className={className}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-2">
-      <NativeSelect
-        aria-label="Workspace"
-        className="w-full"
-        value={selectedWorkspace?.id ?? ""}
-        onChange={event => onValueChange(event.currentTarget.value)}
-        disabled={disabled || workspaces.length === 0}
-      >
-        {workspaces.map(workspace => (
-          <NativeSelectOption key={workspace.id} value={workspace.id}>
-            {workspace.name}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+    <ul
+      data-testid="workspace-selector"
+      aria-label="Workspaces"
+      className={cn("flex flex-col gap-1", className)}
+    >
+      {workspaces.map(workspace => {
+        const isActive = workspace.id === activeWorkspaceId;
+        const isGlobal = globalWorkspaceId !== null && workspace.id === globalWorkspaceId;
+        const dotTone: StatusDotTone = isActive ? "success" : "neutral";
+        const initial = workspaceInitial(workspace.name);
 
-      {selectedWorkspace && (
-        <div className="flex items-center gap-2 overflow-hidden">
-          <Badge
-            variant="outline"
-            className="h-5 shrink-0 px-1.5 font-mono text-[0.55rem]"
-            data-testid="workspace-selector-id"
-          >
-            {selectedWorkspace.id}
-          </Badge>
-          <span
-            className="truncate text-[0.68rem] text-[color:var(--color-text-tertiary)]"
-            data-testid="workspace-selector-root-dir"
-            title={selectedWorkspace.root_dir}
-          >
-            {selectedWorkspace.root_dir}
-          </span>
-        </div>
-      )}
-    </div>
+        return (
+          <li key={workspace.id}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={isActive}
+              aria-pressed={isActive}
+              disabled={disabled}
+              data-testid={`workspace-selector-item-${workspace.id}`}
+              data-active={isActive}
+              onClick={() => onSelectWorkspace(workspace.id)}
+              className={cn(
+                "group flex w-full items-center gap-3 rounded-xl border border-transparent bg-[color:var(--color-surface)] px-2.5 py-2 text-left transition-colors",
+                "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
+                isActive &&
+                  "border-[color:var(--color-accent)] bg-[color:var(--color-surface-elevated)]",
+                "disabled:pointer-events-none disabled:opacity-50"
+              )}
+            >
+              <Avatar size="sm" className="shrink-0">
+                <AvatarFallback
+                  className={cn(
+                    "font-mono text-[11px] font-semibold tracking-[0.02em]",
+                    isActive
+                      ? "bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)]"
+                      : "bg-[color:var(--color-surface-elevated)] text-[color:var(--color-text-secondary)]"
+                  )}
+                >
+                  {initial}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]"
+                    data-testid={`workspace-selector-name-${workspace.id}`}
+                  >
+                    {workspace.name}
+                  </span>
+                  {isGlobal ? (
+                    <Pill variant="accent" data-testid={`workspace-selector-home-${workspace.id}`}>
+                      HOME
+                    </Pill>
+                  ) : (
+                    <Pill data-testid={`workspace-selector-path-${workspace.id}`}>PATH</Pill>
+                  )}
+                </div>
+                <span
+                  className="truncate font-mono text-[0.68rem] text-[color:var(--color-text-tertiary)]"
+                  data-testid={`workspace-selector-root-dir-${workspace.id}`}
+                  title={workspace.root_dir}
+                >
+                  {workspace.root_dir}
+                </span>
+              </div>
+              <StatusDot
+                tone={dotTone}
+                size="md"
+                data-testid={`workspace-selector-dot-${workspace.id}`}
+              />
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
