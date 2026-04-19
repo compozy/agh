@@ -102,6 +102,14 @@ vi.mock("@/systems/session/hooks/use-session-actions", () => ({
   }),
 }));
 
+vi.mock("@/systems/skill", () => ({
+  useSkills: () => ({ data: undefined, isLoading: false, error: null }),
+}));
+
+vi.mock("@/systems/network", () => ({
+  useNetworkChannels: () => ({ data: undefined, isLoading: false, error: null }),
+}));
+
 vi.mock("@/systems/session/components/chat-header", () => ({
   ChatHeader: ({ workspaceName }: { workspaceName?: string }) => (
     <div data-testid="chat-header">{workspaceName ?? "no-workspace"}</div>

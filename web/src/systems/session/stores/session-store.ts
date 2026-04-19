@@ -1,11 +1,18 @@
 import type { StateCreator } from "zustand";
 import type { PermissionRequest, UIMessage } from "../types";
 
+export interface ComposerDraft {
+  text: string;
+  skillId?: string;
+  channel?: string;
+}
+
 export interface SessionState {
   activeSessionId: string | null;
   messages: UIMessage[];
   isStreaming: boolean;
   pendingPermission: PermissionRequest | null;
+  drafts: Record<string, ComposerDraft>;
 }
 
 export interface SessionActions {
@@ -13,6 +20,8 @@ export interface SessionActions {
   appendMessage: (msg: UIMessage) => void;
   updateLastMessage: (partial: Partial<UIMessage>) => void;
   setPendingPermission: (req: PermissionRequest | null) => void;
+  setDraft: (sessionId: string, patch: Partial<ComposerDraft>) => void;
+  clearDraft: (sessionId: string) => void;
   clearSession: () => void;
 }
 
@@ -23,18 +32,21 @@ export const initialSessionState: SessionState = {
   messages: [],
   isStreaming: false,
   pendingPermission: null,
+  drafts: {},
 };
 
 export const createSessionStore: StateCreator<SessionStore> = set => ({
   ...initialSessionState,
 
   setActiveSession: (id, messages) =>
-    set({
+    set(state => ({
       activeSessionId: id,
       messages,
       isStreaming: false,
       pendingPermission: null,
-    }),
+      // Drafts survive session switches so unsent text persists across route navigations.
+      drafts: state.drafts,
+    })),
 
   appendMessage: msg => set(state => ({ messages: [...state.messages, msg] })),
 
@@ -51,6 +63,30 @@ export const createSessionStore: StateCreator<SessionStore> = set => ({
     }),
 
   setPendingPermission: pendingPermission => set({ pendingPermission }),
+
+  setDraft: (sessionId, patch) =>
+    set(state => {
+      const current = state.drafts[sessionId] ?? { text: "" };
+      const next: ComposerDraft = { ...current, ...patch };
+      const isEmpty = !next.text && !next.skillId && !next.channel;
+      if (isEmpty) {
+        if (!(sessionId in state.drafts)) {
+          return state;
+        }
+        const { [sessionId]: _removed, ...rest } = state.drafts;
+        return { drafts: rest };
+      }
+      return { drafts: { ...state.drafts, [sessionId]: next } };
+    }),
+
+  clearDraft: sessionId =>
+    set(state => {
+      if (!(sessionId in state.drafts)) {
+        return state;
+      }
+      const { [sessionId]: _removed, ...rest } = state.drafts;
+      return { drafts: rest };
+    }),
 
   clearSession: () => set(initialSessionState),
 });

@@ -68,6 +68,7 @@ export {
 // Stores
 export { useSessionStore } from "./hooks/use-session-store";
 export type {
+  ComposerDraft,
   SessionState as SessionStoreState,
   SessionActions,
   SessionStore,
@@ -99,7 +100,14 @@ export {
 export { ToolCallCard, type ToolCallCardProps } from "./components/tool-call-card";
 export { ChatHeader, type ChatHeaderProps } from "./components/chat-header";
 export { MessageBubble, type MessageBubbleProps } from "./components/message-bubble";
-export { MessageComposer, type MessageComposerProps } from "./components/message-composer";
+export {
+  MessageComposer,
+  type MessageComposerAttachment,
+  type MessageComposerChannel,
+  type MessageComposerPayload,
+  type MessageComposerProps,
+  type MessageComposerSkill,
+} from "./components/message-composer";
 export { ThinkingBlock, type ThinkingBlockProps } from "./components/thinking-block";
 export {
   ProcessingIndicator,
