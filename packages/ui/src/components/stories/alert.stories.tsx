@@ -58,3 +58,44 @@ export const Destructive: Story = {
     </Alert>
   ),
 };
+
+export const Warning: Story = {
+  args: {},
+  render: () => (
+    <Alert variant="warning" role="status">
+      <TriangleAlertIcon />
+      <AlertTitle>Restart required</AlertTitle>
+      <AlertDescription>Changes saved. Restart the daemon to apply them.</AlertDescription>
+    </Alert>
+  ),
+};
+
+export const Success: Story = {
+  args: {},
+  render: () => (
+    <Alert variant="success" role="status">
+      <AlertTitle>Deploy complete</AlertTitle>
+      <AlertDescription>All services are reporting healthy.</AlertDescription>
+    </Alert>
+  ),
+};
+
+export const Info: Story = {
+  args: {},
+  render: () => (
+    <Alert variant="info" role="status">
+      <AlertTitle>Maintenance scheduled</AlertTitle>
+      <AlertDescription>Daemon will restart automatically in 15 minutes.</AlertDescription>
+    </Alert>
+  ),
+};
+
+export const Accent: Story = {
+  args: {},
+  render: () => (
+    <Alert variant="accent" role="status">
+      <AlertTitle>New agent available</AlertTitle>
+      <AlertDescription>claude-opus-4-7 is ready to install.</AlertDescription>
+    </Alert>
+  ),
+};

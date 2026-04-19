@@ -1,7 +1,6 @@
 import { Loader2, RefreshCw, ShieldAlert, X } from "lucide-react";
 
-import { Button } from "@agh/ui";
-import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, Button, cn } from "@agh/ui";
 
 interface RestartBannerState {
   isVisible: boolean;
@@ -30,7 +29,15 @@ function SettingsRestartBanner({ slug, restart, className }: SettingsRestartBann
     return null;
   }
 
-  const tone = restart.isFailed ? "danger" : restart.isSuccessful ? "success" : "warning";
+  const tone = restart.isFailed
+    ? "danger"
+    : restart.isSuccessful
+      ? "success"
+      : restart.isPolling
+        ? "info"
+        : "warning";
+
+  const variant = tone === "danger" ? "destructive" : tone;
 
   const message = restart.isFailed
     ? `Daemon restart failed${restart.failureReason ? `: ${restart.failureReason}` : ""}`
@@ -40,39 +47,37 @@ function SettingsRestartBanner({ slug, restart, className }: SettingsRestartBann
         ? `Restarting daemon${restart.status ? ` · ${restart.status}` : ""}`
         : "Changes saved. Restart the daemon to apply.";
 
+  const Icon = restart.isPolling ? Loader2 : ShieldAlert;
+
   return (
-    <div
+    <Alert
+      variant={variant}
+      role={tone === "danger" ? "alert" : "status"}
       className={cn(
-        "flex flex-wrap items-center justify-between gap-3 border-b px-8 py-3 text-sm",
-        tone === "danger" &&
-          "border-[color:var(--color-danger)] bg-[color:var(--color-danger-tint)] text-[color:var(--color-danger)]",
-        tone === "success" &&
-          "border-[color:var(--color-success)] bg-[color:var(--color-success-tint)] text-[color:var(--color-success)]",
-        tone === "warning" &&
-          "border-[color:var(--color-warning)] bg-[color:var(--color-warning-tint)] text-[color:var(--color-warning)]",
+        "flex flex-wrap items-center justify-between gap-3 rounded-none border-x-0 border-t-0 px-8 py-3 md:px-10",
         className
       )}
       data-testid={`settings-page-${slug}-restart-banner`}
       data-tone={tone}
-      role={tone === "danger" ? "alert" : "status"}
     >
-      <div className="flex min-w-0 items-center gap-2">
-        {restart.isPolling ? (
-          <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
-        ) : (
-          <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
-        )}
-        <span className="truncate" data-testid={`settings-page-${slug}-restart-banner-message`}>
-          {message}
-        </span>
-        {restart.operationId ? (
-          <span
-            className="font-mono text-[0.64rem] tracking-[0.1em] text-[color:var(--color-text-label)]"
-            data-testid={`settings-page-${slug}-restart-banner-op`}
-          >
-            {restart.operationId}
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <Icon
+          className={cn("size-4 shrink-0", restart.isPolling && "animate-spin")}
+          aria-hidden="true"
+        />
+        <AlertDescription className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+          <span className="truncate" data-testid={`settings-page-${slug}-restart-banner-message`}>
+            {message}
           </span>
-        ) : null}
+          {restart.operationId ? (
+            <span
+              className="font-mono text-[10px] font-semibold tracking-[0.08em] text-[color:var(--color-text-label)]"
+              data-testid={`settings-page-${slug}-restart-banner-op`}
+            >
+              {restart.operationId}
+            </span>
+          ) : null}
+        </AlertDescription>
       </div>
       <div className="flex items-center gap-2">
         {restart.isRestartRequired && !restart.isPolling && !restart.isSuccessful ? (
@@ -101,7 +106,7 @@ function SettingsRestartBanner({ slug, restart, className }: SettingsRestartBann
           </Button>
         ) : null}
       </div>
-    </div>
+    </Alert>
   );
 }
 

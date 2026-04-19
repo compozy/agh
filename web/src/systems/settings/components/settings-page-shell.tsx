@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@agh/ui";
 
 interface SettingsPageShellProps {
   slug: string;
@@ -36,9 +36,12 @@ function SettingsPageShell({
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <p className="font-mono text-[0.6rem] uppercase tracking-[0.22em] text-[color:var(--color-text-label)]">
+            <span
+              className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--color-text-label)]"
+              data-testid={`settings-page-${slug}-eyebrow`}
+            >
               {eyebrow} / {title}
-            </p>
+            </span>
             <h1 className="text-2xl font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]">
               {title}
             </h1>
@@ -54,7 +57,7 @@ function SettingsPageShell({
         </div>
         {statusLine ? (
           <div
-            className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[0.8125rem] text-[color:var(--color-text-secondary)]"
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-[color:var(--color-text-secondary)]"
             data-testid={`settings-page-${slug}-status`}
           >
             {statusLine}

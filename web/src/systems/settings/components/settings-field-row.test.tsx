@@ -21,4 +21,30 @@ describe("SettingsFieldRow", () => {
     expect(screen.getByLabelText("provider")).toBeInTheDocument();
     expect(row).toHaveTextContent("CONFIG.TOML");
   });
+
+  it("forwards the error message when provided", () => {
+    render(
+      <SettingsFieldRow
+        label="API key"
+        error="required"
+        control={<input aria-label="api-key" />}
+        data-testid="field-row"
+      />
+    );
+
+    const row = screen.getByTestId("field-row");
+    expect(row).toHaveTextContent("required");
+  });
+
+  it("renders inside an @agh/ui Field container (data-slot=field)", () => {
+    render(
+      <SettingsFieldRow
+        label="Session timeout"
+        control={<input aria-label="timeout" />}
+        data-testid="field-row"
+      />
+    );
+
+    expect(screen.getByTestId("field-row")).toHaveAttribute("data-slot", "field");
+  });
 });

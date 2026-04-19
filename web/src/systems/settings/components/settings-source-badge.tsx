@@ -1,7 +1,7 @@
-import type { SettingsSourceKind } from "../types";
-import { Pill } from "@agh/ui";
+import { MonoBadge, type MonoBadgeTone } from "@agh/ui";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import type { SettingsSourceKind } from "../types";
+
 interface SettingsSource {
   kind: SettingsSourceKind;
   scope: "global" | "workspace";
@@ -22,8 +22,19 @@ const KIND_LABELS: Record<SettingsSourceKind, string> = {
   "workspace-mcp-sidecar": "WS-MCP.JSON",
 };
 
-function badgeTone(_kind: SettingsSourceKind): "neutral" {
-  return "neutral";
+function badgeTone(kind: SettingsSourceKind): MonoBadgeTone {
+  switch (kind) {
+    case "builtin-provider":
+      return "neutral";
+    case "global-config":
+    case "global-mcp-sidecar":
+      return "info";
+    case "workspace-config":
+    case "workspace-mcp-sidecar":
+      return "warning";
+    default:
+      return "neutral";
+  }
 }
 
 function sourceLabel(source: SettingsSource): string {
@@ -41,25 +52,26 @@ function SettingsSourceBadge({
 }: SettingsSourceBadgeProps) {
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
-      <Pill
-        variant={pillVariantFromTone(badgeTone(source.kind))}
+      <MonoBadge
+        tone={badgeTone(source.kind)}
         data-testid={testId ? `${testId}-effective` : undefined}
       >
         {sourceLabel(source)}
-      </Pill>
+      </MonoBadge>
       {shadowed && shadowed.length > 0 ? (
         <span
-          className="flex flex-wrap items-center gap-1 text-[0.625rem] tracking-[0.12em] text-[color:var(--color-text-label)]"
+          className="flex flex-wrap items-center gap-1 font-mono text-[10px] font-semibold tracking-[0.1em] text-[color:var(--color-text-label)]"
           data-testid={testId ? `${testId}-shadowed` : undefined}
         >
-          <span className="font-mono uppercase">shadows</span>
+          <span className="uppercase">shadows</span>
           {shadowed.map((entry, index) => (
-            <Pill
+            <MonoBadge
+              tone="neutral"
               // biome-ignore lint/suspicious/noArrayIndexKey: source list is stable per read
               key={`${entry.kind}-${entry.scope}-${entry.workspace_id ?? ""}-${index}`}
             >
               {sourceLabel(entry)}
-            </Pill>
+            </MonoBadge>
           ))}
         </span>
       ) : null}

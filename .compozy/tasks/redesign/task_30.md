@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Settings shell (save-bar, page-actions, restart-banner)
 type: frontend
 complexity: medium
@@ -44,13 +44,13 @@ Rewrite every reusable Settings-wide surface that each sub-route inherits: the p
 
 ## Subtasks
 
-- [ ] 30.1 Audit the current Settings shell pieces and the `_app/settings/*` routes to list every prop, slot, and `data-testid` consumed by sub-routes.
-- [ ] 30.2 Rewrite `settings-page-shell.tsx` on top of `@agh/ui` `PageHeader` + `Section`, with slots for actions, banner, body, and footer save-bar.
-- [ ] 30.3 Rewrite `settings-save-bar.tsx` as a `@agh/ui` `Section`-wrapped footer bar with `Button` primary + ghost, respecting dirty / invalid / saving / error / warning states.
-- [ ] 30.4 Rewrite `settings-restart-banner.tsx` as a `@agh/ui` `Alert` composition covering idle-warning, polling, success, and failure tones + dismiss.
-- [ ] 30.5 Rewrite `settings-page-actions.tsx`, `settings-section-card.tsx`, `settings-field-row.tsx`, `settings-status-line.tsx`, `settings-stat-grid.tsx`, `settings-collection-header.tsx`, `settings-source-badge.tsx`, and `web/src/routes/_app/settings/index.tsx` as thin `@agh/ui` compositions.
-- [ ] 30.6 Add / update the `_app/settings.tsx` layout route to render the shell once and pass the `<Outlet />` into the body; ensure restart-banner + save-bar slots are provided by the consumer page.
-- [ ] 30.7 Generate Playwright snapshot baselines for the shell states (idle / dirty / saving / restart-warning / restart-polling / restart-success / restart-failure) under `/settings/general` used as the shell representative.
+- [x] 30.1 Audit the current Settings shell pieces and the `_app/settings/*` routes to list every prop, slot, and `data-testid` consumed by sub-routes.
+- [x] 30.2 Rewrite `settings-page-shell.tsx` on top of `@agh/ui` `PageHeader` + `Section`, with slots for actions, banner, body, and footer save-bar.
+- [x] 30.3 Rewrite `settings-save-bar.tsx` as a `@agh/ui` `Section`-wrapped footer bar with `Button` primary + ghost, respecting dirty / invalid / saving / error / warning states.
+- [x] 30.4 Rewrite `settings-restart-banner.tsx` as a `@agh/ui` `Alert` composition covering idle-warning, polling, success, and failure tones + dismiss.
+- [x] 30.5 Rewrite `settings-page-actions.tsx`, `settings-section-card.tsx`, `settings-field-row.tsx`, `settings-status-line.tsx`, `settings-stat-grid.tsx`, `settings-collection-header.tsx`, `settings-source-badge.tsx`, and `web/src/routes/_app/settings/index.tsx` as thin `@agh/ui` compositions.
+- [x] 30.6 Add / update the `_app/settings.tsx` layout route to render the shell once and pass the `<Outlet />` into the body; ensure restart-banner + save-bar slots are provided by the consumer page.
+- [x] 30.7 Generate Playwright snapshot baselines for the shell states (idle / dirty / saving / restart-warning / restart-polling / restart-success / restart-failure) under `/settings/general` used as the shell representative.
 
 ## Implementation Details
 
@@ -93,22 +93,22 @@ See TechSpec "Impact Analysis" row for `web/src/routes/_app/settings/**` and ADR
 ## Tests
 
 - Unit tests:
-  - [ ] `SettingsPageShell` renders `SETTINGS / <title>` eyebrow + H1 + body + footer slots with the `data-testid="settings-page-<slug>-*"` contract intact.
-  - [ ] `SettingsSaveBar` disables the Save button when `isDirty=false`, and enables it when `isDirty=true && isSaving=false && isInvalid=false`.
-  - [ ] `SettingsSaveBar` shows the `Loader2` spinner + "Saving…" label when `isSaving=true` and re-enables after `isSaving` flips to `false`.
-  - [ ] `SettingsSaveBar` renders `error` text with the danger tone when `error` is non-null, and `warnings` list with warning tone when `error` is null and `warnings.length > 0`.
-  - [ ] `SettingsSaveBar` renders the `lastAppliedLabel` with the success check when `isDirty=false && !error && !warnings`.
-  - [ ] `SettingsPageActions` renders "Restart daemon" using `@agh/ui` `Button` variant `outline`, disables it while `restart.isTriggerPending || restart.isPolling`, and calls `restart.trigger()` on click.
-  - [ ] `SettingsRestartBanner` returns null when `restart.isVisible=false`.
-  - [ ] `SettingsRestartBanner` renders warning tone + "Changes saved. Restart the daemon to apply." when `isRestartRequired=true && !isPolling && !isSuccessful`.
-  - [ ] `SettingsRestartBanner` renders polling tone + `status` suffix (`Restarting daemon · <status>`) when `isPolling=true`.
-  - [ ] `SettingsRestartBanner` renders danger tone + `failureReason` suffix when `isFailed=true`, and exposes `role="alert"`.
-  - [ ] `SettingsRestartBanner` renders the Dismiss button when `isSuccessful || isFailed` and calls `restart.dismiss()` on click.
-  - [ ] `SettingsFieldRow` forwards `label`, `description`, `error`, and renders children inside the `@agh/ui` `Field` container.
+  - [x] `SettingsPageShell` renders `SETTINGS / <title>` eyebrow + H1 + body + footer slots with the `data-testid="settings-page-<slug>-*"` contract intact.
+  - [x] `SettingsSaveBar` disables the Save button when `isDirty=false`, and enables it when `isDirty=true && isSaving=false && isInvalid=false`.
+  - [x] `SettingsSaveBar` shows the `Loader2` spinner + "Saving…" label when `isSaving=true` and re-enables after `isSaving` flips to `false`.
+  - [x] `SettingsSaveBar` renders `error` text with the danger tone when `error` is non-null, and `warnings` list with warning tone when `error` is null and `warnings.length > 0`.
+  - [x] `SettingsSaveBar` renders the `lastAppliedLabel` with the success check when `isDirty=false && !error && !warnings`.
+  - [x] `SettingsPageActions` renders "Restart daemon" using `@agh/ui` `Button` variant `outline`, disables it while `restart.isTriggerPending || restart.isPolling`, and calls `restart.trigger()` on click.
+  - [x] `SettingsRestartBanner` returns null when `restart.isVisible=false`.
+  - [x] `SettingsRestartBanner` renders warning tone + "Changes saved. Restart the daemon to apply." when `isRestartRequired=true && !isPolling && !isSuccessful`.
+  - [x] `SettingsRestartBanner` renders polling tone + `status` suffix (`Restarting daemon · <status>`) when `isPolling=true`.
+  - [x] `SettingsRestartBanner` renders danger tone + `failureReason` suffix when `isFailed=true`, and exposes `role="alert"`.
+  - [x] `SettingsRestartBanner` renders the Dismiss button when `isSuccessful || isFailed` and calls `restart.dismiss()` on click.
+  - [x] `SettingsFieldRow` forwards `label`, `description`, `error`, and renders children inside the `@agh/ui` `Field` container.
 - Integration tests:
-  - [ ] Storybook `play()` on `SettingsSaveBar` flips `isDirty` true→false and asserts Discard + Save disable and the "No unsaved changes" placeholder returns.
-  - [ ] Storybook `play()` on `SettingsRestartBanner` cycles warning → polling → success tones and asserts the Dismiss button only appears in success / failure states.
-  - [ ] Playwright snapshot baseline for `/settings/general` in idle / dirty / saving / restart-warning / restart-polling / restart-success / restart-failure states matches the committed PNGs within 0.1% threshold.
+  - [x] Storybook `play()` on `SettingsSaveBar` flips `isDirty` true→false and asserts Discard + Save disable and the "No unsaved changes" placeholder returns.
+  - [x] Storybook `play()` on `SettingsRestartBanner` cycles warning → polling → success tones and asserts the Dismiss button only appears in success / failure states.
+  - [x] Playwright snapshot baseline for `/settings/general` in idle / dirty / saving / restart-warning / restart-polling / restart-success / restart-failure states matches the committed PNGs within 0.1% threshold.
 - Test coverage target: >=80%
 - All tests must pass
 

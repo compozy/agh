@@ -1,7 +1,6 @@
 import { AlertCircle, Check, Loader2, Save, Undo2 } from "lucide-react";
 
-import { Button } from "@agh/ui";
-import { cn } from "@/lib/utils";
+import { Button, cn } from "@agh/ui";
 
 interface SettingsSaveBarProps {
   slug: string;

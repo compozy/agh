@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@agh/ui";
 
 interface SettingsCollectionHeaderProps {
   eyebrow: string;
@@ -23,7 +23,7 @@ function SettingsCollectionHeader({
       data-testid={testId}
     >
       <div className="flex flex-wrap items-baseline gap-3">
-        <span className="font-mono text-[0.64rem] uppercase tracking-[0.2em] text-(--color-text-label)">
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-label)]">
           {eyebrow}
         </span>
         {summary ? (

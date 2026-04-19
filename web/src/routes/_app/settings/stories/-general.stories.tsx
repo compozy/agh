@@ -3,6 +3,11 @@ import { delay, http, HttpResponse } from "msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import {
+  StorybookGeneralDraftDirtySetup,
+  StorybookGeneralSavingSetup,
+  StorybookRestartPhaseSetup,
+} from "@/storybook/settings-state-helpers";
+import {
   StorybookRestartBannerSetup,
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
@@ -13,7 +18,7 @@ import {
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
     "routes/app/settings/general",
-    "General settings route stories rendered through the real app shell, including loading, error, and restart-required layout states."
+    "General settings route stories rendered through the real app shell, including loading, error, dirty, saving, and all restart banner tones."
   ),
 };
 
@@ -22,25 +27,12 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * Default general settings page with runtime status and editable defaults.
+ * Represents the `idle` shell state for the Playwright baseline gate.
  */
 export const Default: Story = {
   args: {},
   parameters: appRouteParameters("/settings/general"),
   render: () => <StorybookWorkspaceSetup />,
-};
-
-/**
- * Restart-required banner state after a mutation touched daemon-wide configuration.
- */
-export const RestartBanner: Story = {
-  args: {},
-  parameters: appRouteParameters("/settings/general"),
-  render: () => (
-    <>
-      <StorybookWorkspaceSetup />
-      <StorybookRestartBannerSetup section="general" />
-    </>
-  ),
 };
 
 /**
@@ -78,4 +70,134 @@ export const Error: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Dirty shell state — the default-agent field has been edited so the save-bar
+ * reads Unsaved changes + the Save button enables.
+ */
+export const Dirty: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/general"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookGeneralDraftDirtySetup />
+    </>
+  ),
+};
+
+/**
+ * Saving shell state — the PATCH endpoint hangs so the Save button shows the
+ * spinner + Saving… label for the baseline.
+ */
+export const Saving: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/general"),
+    ...storybookMswParameters({
+      settings: [
+        http.patch("/api/settings/general", async () => {
+          await delay("infinite");
+          return HttpResponse.json({});
+        }),
+      ],
+    }),
+  },
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookGeneralSavingSetup />
+    </>
+  ),
+};
+
+/**
+ * Restart-warning banner — mutation recorded as restart-required.
+ */
+export const RestartWarning: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/general"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookRestartBannerSetup section="general" />
+    </>
+  ),
+};
+
+/**
+ * Restart-polling banner — operation started, status still pending, spinner
+ * visible in the banner.
+ */
+export const RestartPolling: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/general"),
+    ...storybookMswParameters({
+      settings: [
+        http.get("/api/settings/restart/:operationId", async () => {
+          await delay("infinite");
+          return HttpResponse.json({});
+        }),
+      ],
+    }),
+  },
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookRestartPhaseSetup
+        section="general"
+        overrides={{
+          mutationRestartRequired: true,
+          operationId: "op_polling",
+          status: "pending",
+          activeSessionCount: 2,
+        }}
+      />
+    </>
+  ),
+};
+
+/**
+ * Restart-success banner — operation completed, Dismiss button visible.
+ */
+export const RestartSuccess: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/general"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookRestartPhaseSetup
+        section="general"
+        overrides={{
+          mutationRestartRequired: true,
+          operationId: "op_success",
+          status: "ready",
+        }}
+      />
+    </>
+  ),
+};
+
+/**
+ * Restart-failure banner — operation failed with a reason suffix + Dismiss.
+ */
+export const RestartFailure: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/general"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookRestartPhaseSetup
+        section="general"
+        overrides={{
+          mutationRestartRequired: true,
+          operationId: "op_failure",
+          status: "failed",
+          failureReason: "helper exited non-zero",
+        }}
+      />
+    </>
+  ),
 };
