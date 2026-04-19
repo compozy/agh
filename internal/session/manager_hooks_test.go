@@ -1325,21 +1325,21 @@ type recordingNetworkPeerLifecycle struct {
 }
 
 type networkJoinCall struct {
-	sessionID string
-	peerID    string
-	channel   string
+	sessionID    string
+	peerID       string
+	channel      string
+	capabilities []NetworkPeerCapability
 }
 
 func (r *recordingNetworkPeerLifecycle) JoinChannel(
 	_ context.Context,
-	sessionID string,
-	peerID string,
-	channel string,
+	join NetworkPeerJoin,
 ) error {
 	r.joins = append(r.joins, networkJoinCall{
-		sessionID: sessionID,
-		peerID:    peerID,
-		channel:   channel,
+		sessionID:    join.SessionID,
+		peerID:       join.PeerID,
+		channel:      join.Channel,
+		capabilities: cloneNetworkPeerCapabilities(join.Capabilities),
 	})
 	return r.joinErr
 }

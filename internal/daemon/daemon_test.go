@@ -4412,9 +4412,10 @@ type fakeNetworkRuntime struct {
 }
 
 type fakeNetworkJoinCall struct {
-	sessionID string
-	peerID    string
-	channel   string
+	sessionID    string
+	peerID       string
+	channel      string
+	capabilities []session.NetworkPeerCapability
 }
 
 func (f *fakeNetworkRuntime) Send(_ context.Context, req network.SendRequest) (string, error) {
@@ -4460,13 +4461,14 @@ func (f *fakeNetworkRuntime) Inbox(_ context.Context, sessionID string) ([]netwo
 	return append([]network.Envelope(nil), f.inboxes[sessionID]...), nil
 }
 
-func (f *fakeNetworkRuntime) JoinChannel(_ context.Context, sessionID string, peerID string, channel string) error {
+func (f *fakeNetworkRuntime) JoinChannel(_ context.Context, join session.NetworkPeerJoin) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.joinCalls = append(f.joinCalls, fakeNetworkJoinCall{
-		sessionID: sessionID,
-		peerID:    peerID,
-		channel:   channel,
+		sessionID:    join.SessionID,
+		peerID:       join.PeerID,
+		channel:      join.Channel,
+		capabilities: append([]session.NetworkPeerCapability(nil), join.Capabilities...),
 	})
 	return nil
 }

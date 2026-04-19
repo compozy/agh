@@ -15,6 +15,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	sessionpkg "github.com/pedronauck/agh/internal/session"
 )
 
 const (
@@ -330,8 +331,8 @@ func rollbackManagerInit(ctx context.Context, cancel context.CancelFunc, transpo
 }
 
 // JoinChannel registers one daemon-local session as a visible network peer.
-func (m *Manager) JoinChannel(ctx context.Context, sessionID string, peerID string, channel string) error {
-	request, err := normalizeJoinChannelRequest(ctx, m, sessionID, peerID, channel)
+func (m *Manager) JoinChannel(ctx context.Context, join sessionpkg.NetworkPeerJoin) error {
+	request, err := normalizeJoinChannelRequest(ctx, m, join)
 	if err != nil {
 		return err
 	}
@@ -358,17 +359,16 @@ func (m *Manager) JoinChannel(ctx context.Context, sessionID string, peerID stri
 }
 
 type joinChannelRequest struct {
-	sessionID string
-	peerID    string
-	channel   string
+	sessionID    string
+	peerID       string
+	channel      string
+	capabilities []sessionpkg.NetworkPeerCapability
 }
 
 func normalizeJoinChannelRequest(
 	ctx context.Context,
 	manager *Manager,
-	sessionID string,
-	peerID string,
-	channel string,
+	join sessionpkg.NetworkPeerJoin,
 ) (joinChannelRequest, error) {
 	if ctx == nil {
 		return joinChannelRequest{}, errors.New("network: join context is required")
@@ -384,9 +384,10 @@ func normalizeJoinChannelRequest(
 	}
 
 	request := joinChannelRequest{
-		sessionID: strings.TrimSpace(sessionID),
-		peerID:    strings.TrimSpace(peerID),
-		channel:   strings.TrimSpace(channel),
+		sessionID:    strings.TrimSpace(join.SessionID),
+		peerID:       strings.TrimSpace(join.PeerID),
+		channel:      strings.TrimSpace(join.Channel),
+		capabilities: cloneJoinCapabilities(join.Capabilities),
 	}
 	if request.sessionID == "" {
 		return joinChannelRequest{}, fmt.Errorf("%w: session id is required", ErrMissingField)
@@ -398,6 +399,21 @@ func normalizeJoinChannelRequest(
 		return joinChannelRequest{}, err
 	}
 	return request, nil
+}
+
+func cloneJoinCapabilities(capabilities []sessionpkg.NetworkPeerCapability) []sessionpkg.NetworkPeerCapability {
+	if len(capabilities) == 0 {
+		return []sessionpkg.NetworkPeerCapability{}
+	}
+
+	cloned := make([]sessionpkg.NetworkPeerCapability, 0, len(capabilities))
+	for _, capability := range capabilities {
+		cloned = append(cloned, sessionpkg.NetworkPeerCapability{
+			ID:      strings.TrimSpace(capability.ID),
+			Summary: strings.TrimSpace(capability.Summary),
+		})
+	}
+	return cloned
 }
 
 func (m *Manager) prepareJoinLocalPeer(
@@ -413,7 +429,7 @@ func (m *Manager) prepareJoinLocalPeer(
 		}
 	}
 
-	card, err := DefaultPeerCard(request.peerID)
+	card, err := localPeerCardFromJoinRequest(request)
 	if err != nil {
 		return LocalPeer{}, false, err
 	}
@@ -422,6 +438,27 @@ func (m *Manager) prepareJoinLocalPeer(
 		return LocalPeer{}, false, err
 	}
 	return local, false, nil
+}
+
+func localPeerCardFromJoinRequest(request joinChannelRequest) (PeerCard, error) {
+	card, err := DefaultPeerCard(request.peerID)
+	if err != nil {
+		return PeerCard{}, err
+	}
+	card.Capabilities = capabilityIDsFromJoinRequest(request.capabilities)
+	return card, nil
+}
+
+func capabilityIDsFromJoinRequest(capabilities []sessionpkg.NetworkPeerCapability) []string {
+	if len(capabilities) == 0 {
+		return []string{}
+	}
+
+	ids := make([]string, 0, len(capabilities))
+	for _, capability := range capabilities {
+		ids = append(ids, strings.TrimSpace(capability.ID))
+	}
+	return ids
 }
 
 func (m *Manager) newManagedSession(local LocalPeer) (*managedSession, error) {

@@ -31,10 +31,26 @@ type PromptOpts struct {
 	PromptMeta acp.PromptMeta
 }
 
+// NetworkPeerCapability is the brief runtime-owned capability projection shared
+// with the network join lifecycle.
+type NetworkPeerCapability struct {
+	ID      string
+	Summary string
+}
+
+// NetworkPeerJoin describes one daemon-local peer registration request for the
+// late-bound network lifecycle.
+type NetworkPeerJoin struct {
+	SessionID    string
+	PeerID       string
+	Channel      string
+	Capabilities []NetworkPeerCapability
+}
+
 // NetworkPeerLifecycle is the late-bound network join/leave surface consumed by
 // the session manager without importing the network package.
 type NetworkPeerLifecycle interface {
-	JoinChannel(ctx context.Context, sessionID string, peerID string, channel string) error
+	JoinChannel(ctx context.Context, join NetworkPeerJoin) error
 	LeaveChannel(ctx context.Context, sessionID string) error
 }
 

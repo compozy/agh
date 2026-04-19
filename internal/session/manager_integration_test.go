@@ -5,18 +5,21 @@ package session
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	"github.com/pedronauck/agh/internal/testutil"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestManagerIntegrationFullLifecycle(t *testing.T) {
@@ -81,6 +84,138 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	meta := readMeta(t, resumed.MetaPath())
 	if meta.State != string(StateStopped) {
 		t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
+	}
+}
+
+func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAndStop(t *testing.T) {
+	h := newHarness(t)
+	lifecycle := newFakeNetworkPeerLifecycle()
+	h.manager.SetNetworkPeerLifecycle(lifecycle)
+
+	resolvedEnvironment, err := h.cfg.ResolveEnvironment(h.cfg.Defaults.Environment)
+	if err != nil {
+		t.Fatalf("ResolveEnvironment() error = %v", err)
+	}
+	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{
+			{
+				Name:     aghconfig.DefaultAgentName,
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			},
+			{
+				Name:     "coder",
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+				Capabilities: &aghconfig.CapabilityCatalog{
+					Capabilities: []aghconfig.CapabilityDef{{
+						ID:      "review-pr",
+						Summary: "Review pull requests",
+						Outcome: "Deliver actionable pull request feedback",
+					}},
+				},
+			},
+		},
+		Environment: resolvedEnvironment,
+	})
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Channel:   "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if got := lifecycle.joinCount(); got != 1 {
+		t.Fatalf("join count after Create() = %d, want 1", got)
+	}
+	firstJoin := lifecycle.joinCall(0)
+	if got, want := firstJoin.sessionID, session.ID; got != want {
+		t.Fatalf("first join session_id = %q, want %q", got, want)
+	}
+	if got, want := firstJoin.peerID, "coder."+session.ID; got != want {
+		t.Fatalf("first join peer_id = %q, want %q", got, want)
+	}
+	wantCapabilities := []NetworkPeerCapability{{
+		ID:      "review-pr",
+		Summary: "Review pull requests",
+	}}
+	if !slices.Equal(firstJoin.capabilities, wantCapabilities) {
+		t.Fatalf("first join capabilities = %#v, want %#v", firstJoin.capabilities, wantCapabilities)
+	}
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if got := lifecycle.leaveCount(); got != 1 {
+		t.Fatalf("leave count after Stop() = %d, want 1", got)
+	}
+	if got, want := lifecycle.leaveCall(0), session.ID; got != want {
+		t.Fatalf("leave session_id = %q, want %q", got, want)
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	if got := lifecycle.joinCount(); got != 2 {
+		t.Fatalf("join count after Resume() = %d, want 2", got)
+	}
+	secondJoin := lifecycle.joinCall(1)
+	if got, want := secondJoin.sessionID, resumed.ID; got != want {
+		t.Fatalf("second join session_id = %q, want %q", got, want)
+	}
+	if got, want := secondJoin.peerID, "coder."+resumed.ID; got != want {
+		t.Fatalf("second join peer_id = %q, want %q", got, want)
+	}
+	if !slices.Equal(secondJoin.capabilities, wantCapabilities) {
+		t.Fatalf("second join capabilities = %#v, want %#v", secondJoin.capabilities, wantCapabilities)
+	}
+
+	if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+		t.Fatalf("final Stop() error = %v", err)
+	}
+	if got := lifecycle.leaveCount(); got != 2 {
+		t.Fatalf("leave count after resumed Stop() = %d, want 2", got)
+	}
+}
+
+func TestManagerIntegrationCapabilityAwareJoinKeepsMissingCatalogProjectionEmpty(t *testing.T) {
+	h := newHarness(t)
+	lifecycle := newFakeNetworkPeerLifecycle()
+	h.manager.SetNetworkPeerLifecycle(lifecycle)
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Channel:   "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	if got := lifecycle.joinCount(); got != 1 {
+		t.Fatalf("join count after Create() = %d, want 1", got)
+	}
+	join := lifecycle.joinCall(0)
+	if join.capabilities == nil {
+		t.Fatal("join capabilities = nil, want deterministic empty projection")
+	}
+	if got := len(join.capabilities); got != 0 {
+		t.Fatalf("join capabilities len = %d, want 0", got)
 	}
 }
 

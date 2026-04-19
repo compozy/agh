@@ -1625,7 +1625,11 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 	if lifecycle == nil {
 		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
 	}
-	if err := lifecycle.JoinChannel(testutil.Context(t), "sess-net", "coder.sess-net", "builders"); err != nil {
+	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		SessionID: "sess-net",
+		PeerID:    "coder.sess-net",
+		Channel:   "builders",
+	}); err != nil {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
 
@@ -1721,7 +1725,11 @@ func TestBootNetworkShutdownTracksInterruptedInFlightDelivery(t *testing.T) {
 	if lifecycle == nil {
 		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
 	}
-	if err := lifecycle.JoinChannel(testutil.Context(t), "sess-net", "coder.sess-net", "builders"); err != nil {
+	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		SessionID: "sess-net",
+		PeerID:    "coder.sess-net",
+		Channel:   "builders",
+	}); err != nil {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
 

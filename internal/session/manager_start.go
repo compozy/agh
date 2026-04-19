@@ -38,8 +38,9 @@ type sessionStartSpec struct {
 }
 
 type sessionStartRuntime struct {
-	agent      aghconfig.ResolvedAgent
-	mcpServers []aghconfig.MCPServer
+	agent               aghconfig.ResolvedAgent
+	mcpServers          []aghconfig.MCPServer
+	networkCapabilities []NetworkPeerCapability
 }
 
 type sessionStartStorage struct {
@@ -184,6 +185,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 		session,
 		proc,
 		runtime.agent,
+		runtime.networkCapabilities,
 		spec.postEvent,
 		spec.preserveStopReason,
 	); err != nil {
@@ -265,8 +267,9 @@ func (m *Manager) prepareSessionStartRuntime(
 	}
 
 	return sessionStartRuntime{
-		agent:      resolved,
-		mcpServers: startMCPServers,
+		agent:               resolved,
+		mcpServers:          startMCPServers,
+		networkCapabilities: networkPeerCapabilities(agentDef.Capabilities),
 	}, nil
 }
 

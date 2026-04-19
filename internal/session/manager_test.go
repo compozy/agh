@@ -314,6 +314,12 @@ func TestCreateResumeAndStopInvokeLateBoundNetworkPeerLifecycle(t *testing.T) {
 	if got, want := firstJoin.channel, "builders"; got != want {
 		t.Fatalf("first join channel = %q, want %q", got, want)
 	}
+	if firstJoin.capabilities == nil {
+		t.Fatal("first join capabilities = nil, want deterministic empty projection")
+	}
+	if got := len(firstJoin.capabilities); got != 0 {
+		t.Fatalf("first join capabilities len = %d, want 0", got)
+	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
@@ -342,6 +348,12 @@ func TestCreateResumeAndStopInvokeLateBoundNetworkPeerLifecycle(t *testing.T) {
 	if got, want := secondJoin.channel, "builders"; got != want {
 		t.Fatalf("second join channel = %q, want %q", got, want)
 	}
+	if secondJoin.capabilities == nil {
+		t.Fatal("second join capabilities = nil, want deterministic empty projection")
+	}
+	if got := len(secondJoin.capabilities); got != 0 {
+		t.Fatalf("second join capabilities len = %d, want 0", got)
+	}
 
 	if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
 		t.Fatalf("Stop(resumed) error = %v", err)
@@ -352,6 +364,107 @@ func TestCreateResumeAndStopInvokeLateBoundNetworkPeerLifecycle(t *testing.T) {
 	if got, want := lifecycle.leaveCall(1), resumed.ID; got != want {
 		t.Fatalf("second leave session_id = %q, want %q", got, want)
 	}
+}
+
+func TestJoinNetworkPeerHandlesNoOpConditionsAndCapabilityProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should no-op for nil session blank channel and missing lifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		capabilities := []NetworkPeerCapability{{
+			ID:      "review-pr",
+			Summary: "Review pull requests",
+		}}
+
+		tests := []struct {
+			name             string
+			session          *Session
+			installLifecycle bool
+		}{
+			{
+				name:             "Should no-op when session is nil",
+				session:          nil,
+				installLifecycle: true,
+			},
+			{
+				name: "Should no-op when channel is blank",
+				session: &Session{
+					ID:        "sess-no-channel",
+					AgentName: "Coder",
+					Channel:   "   ",
+				},
+				installLifecycle: true,
+			},
+			{
+				name: "Should no-op when lifecycle is missing",
+				session: &Session{
+					ID:        "sess-no-lifecycle",
+					AgentName: "Coder",
+					Channel:   "builders",
+				},
+				installLifecycle: false,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				h := newHarness(t)
+				lifecycle := newFakeNetworkPeerLifecycle()
+				if tc.installLifecycle {
+					h.manager.SetNetworkPeerLifecycle(lifecycle)
+				}
+
+				if err := h.manager.joinNetworkPeer(testutil.Context(t), tc.session, capabilities); err != nil {
+					t.Fatalf("joinNetworkPeer() error = %v", err)
+				}
+				if got := lifecycle.joinCount(); got != 0 {
+					t.Fatalf("joinNetworkPeer() join count = %d, want 0", got)
+				}
+			})
+		}
+	})
+
+	t.Run("Should forward identity channel and capability-aware payload", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		lifecycle := newFakeNetworkPeerLifecycle()
+		h.manager.SetNetworkPeerLifecycle(lifecycle)
+
+		session := &Session{
+			ID:        "sess-capabilities",
+			AgentName: "Coder",
+			Channel:   "builders",
+		}
+		capabilities := []NetworkPeerCapability{{
+			ID:      "review-pr",
+			Summary: "Review pull requests",
+		}}
+
+		if err := h.manager.joinNetworkPeer(testutil.Context(t), session, capabilities); err != nil {
+			t.Fatalf("joinNetworkPeer() error = %v", err)
+		}
+
+		if got := lifecycle.joinCount(); got != 1 {
+			t.Fatalf("joinNetworkPeer() join count = %d, want 1", got)
+		}
+		call := lifecycle.joinCall(0)
+		if got, want := call.sessionID, "sess-capabilities"; got != want {
+			t.Fatalf("join session_id = %q, want %q", got, want)
+		}
+		if got, want := call.peerID, "coder.sess-capabilities"; got != want {
+			t.Fatalf("join peer_id = %q, want %q", got, want)
+		}
+		if got, want := call.channel, "builders"; got != want {
+			t.Fatalf("join channel = %q, want %q", got, want)
+		}
+		if !slices.Equal(call.capabilities, capabilities) {
+			t.Fatalf("join capabilities = %#v, want %#v", call.capabilities, capabilities)
+		}
+	})
 }
 
 func TestResumeRepairsIncompleteStartAndStartsFreshACPClient(t *testing.T) {
@@ -582,6 +695,7 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 		session,
 		proc,
 		aghconfig.ResolvedAgent{Name: "coder"},
+		[]NetworkPeerCapability{},
 		hookspkg.HookSessionPostCreate,
 		false,
 	); err != nil {
@@ -680,6 +794,7 @@ func TestActivateAndWatchRollsBackOnMetaWriteFailure(t *testing.T) {
 		session,
 		proc,
 		aghconfig.ResolvedAgent{Name: "coder"},
+		[]NetworkPeerCapability{},
 		hookspkg.HookSessionPostCreate,
 		false,
 	); err == nil {
@@ -2664,9 +2779,10 @@ type fakeNetworkPeerLifecycle struct {
 }
 
 type fakeNetworkJoinCall struct {
-	sessionID string
-	peerID    string
-	channel   string
+	sessionID    string
+	peerID       string
+	channel      string
+	capabilities []NetworkPeerCapability
 }
 
 func newFakeNetworkPeerLifecycle() *fakeNetworkPeerLifecycle {
@@ -2675,16 +2791,15 @@ func newFakeNetworkPeerLifecycle() *fakeNetworkPeerLifecycle {
 
 func (f *fakeNetworkPeerLifecycle) JoinChannel(
 	_ context.Context,
-	sessionID string,
-	peerID string,
-	channel string,
+	join NetworkPeerJoin,
 ) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.joins = append(f.joins, fakeNetworkJoinCall{
-		sessionID: sessionID,
-		peerID:    peerID,
-		channel:   channel,
+		sessionID:    join.SessionID,
+		peerID:       join.PeerID,
+		channel:      join.Channel,
+		capabilities: cloneNetworkPeerCapabilities(join.Capabilities),
 	})
 	return nil
 }

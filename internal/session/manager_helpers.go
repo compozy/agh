@@ -89,6 +89,7 @@ func (m *Manager) activateAndWatch(
 	session *Session,
 	proc *AgentProcess,
 	resolved aghconfig.ResolvedAgent,
+	networkCapabilities []NetworkPeerCapability,
 	postEvent hookspkg.HookEvent,
 	preserveStopReason bool,
 ) error {
@@ -104,7 +105,7 @@ func (m *Manager) activateAndWatch(
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(err, rollbackErr)
 	}
-	if err := m.joinNetworkPeer(ctx, session); err != nil {
+	if err := m.joinNetworkPeer(ctx, session, networkCapabilities); err != nil {
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(
 			fmt.Errorf("session: join network channel for %q: %w", session.ID, err),
@@ -126,7 +127,7 @@ func (m *Manager) activateAndWatch(
 	return nil
 }
 
-func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session) error {
+func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session, capabilities []NetworkPeerCapability) error {
 	if ctx == nil {
 		return errors.New("session: join network peer context is required")
 	}
@@ -144,7 +145,10 @@ func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session) error {
 		return nil
 	}
 
-	return lifecycle.JoinChannel(ctx, info.ID, networkPeerID(info.AgentName, info.ID), info.Channel)
+	return lifecycle.JoinChannel(
+		ctx,
+		newNetworkPeerJoin(info.ID, networkPeerID(info.AgentName, info.ID), info.Channel, capabilities),
+	)
 }
 
 func (m *Manager) leaveNetworkPeer(ctx context.Context, session *Session) error {
