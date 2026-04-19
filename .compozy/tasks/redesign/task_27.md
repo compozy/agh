@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Skills domain (installed + marketplace)
 type: frontend
 complexity: medium
@@ -43,13 +43,13 @@ Rewrite `web/src/systems/skill/**` as a two-tab surface. The **Installed** tab i
 
 ## Subtasks
 
-- [ ] 27.1 Audit `web/src/systems/skill/components/**`, `routes/_app/skills.tsx`, and `useSkillsPage` to inventory props and behaviors that must survive.
-- [ ] 27.2 Rewrite `skill-list-panel.tsx` on `SplitPane.list` with `SearchInput`, source-grouped rows, and `MonoBadge` source chips.
-- [ ] 27.3 Rewrite `skill-detail-panel.tsx` on `SplitPane.detail` with `PageHeader`, `Switch` (enable/disable), `Section` blocks for Overview / Capabilities / Recent Calls, and `Table` for call history.
-- [ ] 27.4 Rewrite `marketplace-view.tsx` as a `Card` grid with `Pills` category filter, install `Button`, and `Empty` state when filters match nothing.
-- [ ] 27.5 Rewrite `routes/_app/skills.tsx` to compose `PageHeader` + `Tabs` (Installed / Marketplace) + the new panels.
-- [ ] 27.6 Update or add Storybook stories for installed-list, detail, marketplace-grid, loading, error, empty (no installed, no marketplace results), and disabled-install.
-- [ ] 27.7 Regenerate Playwright visual snapshot baselines for `/skills` (installed-empty, installed-populated, detail-open, marketplace-grid).
+- [x] 27.1 Audit `web/src/systems/skill/components/**`, `routes/_app/skills.tsx`, and `useSkillsPage` to inventory props and behaviors that must survive.
+- [x] 27.2 Rewrite `skill-list-panel.tsx` on `SplitPane.list` with `SearchInput`, source-grouped rows, and `MonoBadge` source chips.
+- [x] 27.3 Rewrite `skill-detail-panel.tsx` on `SplitPane.detail` with `PageHeader`, `Switch` (enable/disable), `Section` blocks for Overview / Capabilities / Recent Calls, and `Table` for call history.
+- [x] 27.4 Rewrite `marketplace-view.tsx` as a `Card` grid with `Pills` category filter, install `Button`, and `Empty` state when filters match nothing.
+- [x] 27.5 Rewrite `routes/_app/skills.tsx` to compose `PageHeader` + `Tabs` (Installed / Marketplace) + the new panels.
+- [x] 27.6 Update or add Storybook stories for installed-list, detail, marketplace-grid, loading, error, empty (no installed, no marketplace results), and disabled-install.
+- [x] 27.7 Regenerate Playwright visual snapshot baselines for `/skills` (installed-empty, installed-populated, detail-open, marketplace-grid).
 
 ## Implementation Details
 

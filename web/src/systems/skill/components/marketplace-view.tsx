@@ -1,12 +1,27 @@
-import { Download, Search } from "lucide-react";
+import { Download, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { Pills } from "@agh/ui";
-import type { SkillPayload } from "../types";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  Empty,
+  MonoBadge,
+  Pills,
+  SearchInput,
+} from "@agh/ui";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import {
+  MARKETPLACE_CATEGORIES,
+  type MarketplaceCategory,
+  deriveSkillAuthor,
+  deriveSkillTags,
+  filterSkillsByQuery,
+  matchesMarketplaceCategory,
+} from "../lib/skill-formatters";
+import type { SkillPayload } from "../types";
 
 interface MarketplaceViewProps {
   skills: SkillPayload[];
@@ -16,112 +31,95 @@ interface MarketplaceViewProps {
   installUnavailableReason?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const CATEGORIES = ["ALL", "TESTING", "DATABASE", "DEPLOY", "AI", "DEVOPS", "SECURITY"] as const;
-
-type Category = (typeof CATEGORIES)[number];
-
-// ---------------------------------------------------------------------------
-// Marketplace Row
-// ---------------------------------------------------------------------------
-
-function MarketplaceRow({
-  skill,
-  isInstalled,
-  onInstall,
-  isInstalling,
-  installUnavailableReason,
-}: {
+interface MarketplaceCardProps {
   skill: SkillPayload;
   isInstalled: boolean;
   onInstall?: () => void;
   isInstalling: boolean;
   installUnavailableReason?: string;
-}) {
-  const tags = skill.metadata?.tags;
-  const tagList: string[] = Array.isArray(tags) ? (tags as string[]) : [];
-  const downloads = skill.metadata?.downloads;
+}
 
+function MarketplaceCard({
+  skill,
+  isInstalled,
+  onInstall,
+  isInstalling,
+  installUnavailableReason,
+}: MarketplaceCardProps) {
+  const author = deriveSkillAuthor(skill);
+  const tags = deriveSkillTags(skill);
+  const downloads = skill.metadata?.downloads;
   const installDisabled = isInstalling || !onInstall;
 
   return (
-    <div
-      className="flex items-center gap-4 rounded-lg bg-[color:var(--color-surface)] px-4 py-3"
-      data-testid={`marketplace-row-${skill.name}`}
-    >
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-[15px] font-medium text-[color:var(--color-text-primary)]">
-            {skill.name}
+    <Card className="flex flex-col gap-3" data-testid={`marketplace-row-${skill.name}`} size="sm">
+      <CardHeader>
+        <div className="flex items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-[color:var(--color-surface-elevated)] text-[color:var(--color-accent)]"
+          >
+            <Wrench className="size-4" />
           </span>
-          {skill.provenance && (
-            <span className="text-xs text-[color:var(--color-text-tertiary)]">
-              @{skill.provenance.slug}
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+              {skill.name}
             </span>
-          )}
-          {skill.version && (
-            <span className="text-xs text-[color:var(--color-text-tertiary)]">
-              v{skill.version}
-            </span>
-          )}
+            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+              {author ? <span>{`@${author}`}</span> : null}
+              {skill.version ? <span>{`v${skill.version}`}</span> : null}
+              {downloads !== undefined && downloads !== null ? (
+                <span className="inline-flex items-center gap-1">
+                  <Download aria-hidden="true" className="size-3" />
+                  {String(downloads)}
+                </span>
+              ) : null}
+            </div>
+          </div>
         </div>
-        <p className="mt-0.5 truncate text-xs text-[color:var(--color-text-secondary)]">
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        <p className="text-[12.5px] leading-[1.55] text-[color:var(--color-text-secondary)]">
           {skill.description}
         </p>
-        {tagList.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {tagList.map(tag => (
-              <span
+        {tags.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {tags.map(tag => (
+              <MonoBadge
+                data-testid={`marketplace-tag-${skill.name}-${tag}`}
                 key={tag}
-                className="inline-flex h-[22px] items-center rounded-md border border-[color:var(--color-divider)] px-2 text-[10px] text-[color:var(--color-text-tertiary)]"
+                tone="neutral"
+                uppercase={false}
               >
                 {tag}
-              </span>
+              </MonoBadge>
             ))}
           </div>
+        ) : null}
+      </CardContent>
+      <CardFooter className="bg-transparent">
+        {isInstalled ? (
+          <MonoBadge data-testid={`installed-pill-${skill.name}`} tone="success">
+            INSTALLED
+          </MonoBadge>
+        ) : (
+          <Button
+            aria-disabled={installDisabled}
+            data-testid={`install-btn-${skill.name}`}
+            disabled={installDisabled}
+            onClick={() => onInstall?.()}
+            size="sm"
+            title={!onInstall ? installUnavailableReason : undefined}
+            type="button"
+            variant="outline"
+          >
+            Install
+          </Button>
         )}
-      </div>
-
-      {/* Downloads */}
-      {downloads != null && (
-        <div className="flex shrink-0 items-center gap-1 text-xs text-[color:var(--color-text-tertiary)]">
-          <Download className="size-3" />
-          <span>{String(downloads)}</span>
-        </div>
-      )}
-
-      {/* Action */}
-      {isInstalled ? (
-        <span
-          className="inline-flex h-8 shrink-0 items-center rounded-full border border-[color:var(--color-divider)] px-3.5 text-xs text-[color:var(--color-text-tertiary)]"
-          data-testid={`installed-pill-${skill.name}`}
-        >
-          INSTALLED
-        </span>
-      ) : (
-        <button
-          onClick={() => onInstall?.()}
-          disabled={installDisabled}
-          aria-disabled={installDisabled}
-          title={!onInstall ? installUnavailableReason : undefined}
-          className="inline-flex h-8 shrink-0 items-center rounded-full bg-[color:var(--color-accent)] px-3.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--color-accent-hover)] disabled:opacity-50"
-          data-testid={`install-btn-${skill.name}`}
-          type="button"
-        >
-          INSTALL
-        </button>
-      )}
-    </div>
+      </CardFooter>
+    </Card>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Marketplace View
-// ---------------------------------------------------------------------------
 
 function MarketplaceView({
   skills,
@@ -131,86 +129,69 @@ function MarketplaceView({
   installUnavailableReason,
 }: MarketplaceViewProps) {
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState<Category>("ALL");
+  const [activeCategory, setActiveCategory] = useState<MarketplaceCategory>("ALL");
 
   const filtered = useMemo(() => {
-    let result = skills;
-
-    if (search) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        s => s.name.toLowerCase().includes(q) || (s.description ?? "").toLowerCase().includes(q)
-      );
-    }
-
-    if (activeCategory !== "ALL") {
-      const cat = activeCategory.toLowerCase();
-      result = result.filter(s => {
-        const tags = s.metadata?.tags;
-        if (Array.isArray(tags)) {
-          return (tags as string[]).some(t => t.toLowerCase() === cat);
-        }
-        return false;
-      });
-    }
-
-    return result;
+    const byQuery = filterSkillsByQuery(skills, search);
+    return byQuery.filter(skill => matchesMarketplaceCategory(skill, activeCategory));
   }, [skills, search, activeCategory]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden" data-testid="marketplace-view">
-      {/* Search */}
-      <div className="border-b border-[color:var(--color-divider)] p-4">
-        <div className="flex items-center gap-2 rounded-lg bg-[color:var(--color-surface-elevated)] px-3 py-2">
-          <Search className="size-4 shrink-0 text-[color:var(--color-text-tertiary)]" />
-          <input
-            type="text"
-            placeholder="Search skills on marketplace..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full bg-transparent text-sm text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-tertiary)] outline-none"
-            data-testid="marketplace-search-input"
-          />
-        </div>
-      </div>
-
-      {/* Category filter chips */}
-      <div className="border-b border-[color:var(--color-divider)] px-4 py-3">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="marketplace-view">
+      <div className="flex flex-col gap-3 border-b border-[color:var(--color-divider)] px-4 py-3">
+        <SearchInput
+          data-testid="marketplace-search-input"
+          onChange={setSearch}
+          placeholder="Search skills on marketplace…"
+          value={search}
+        />
         <Pills
-          size="sm"
           aria-label="Marketplace category"
-          value={activeCategory}
-          onChange={setActiveCategory}
-          items={CATEGORIES.map(cat => ({
+          data-testid="marketplace-category-pills"
+          items={MARKETPLACE_CATEGORIES.map(cat => ({
             value: cat,
             label: cat,
             testId: `category-chip-${cat}`,
           }))}
+          onChange={setActiveCategory}
+          size="sm"
+          value={activeCategory}
         />
       </div>
-
-      {/* Skill rows */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="flex flex-col gap-2">
-          {filtered.length === 0 && (
-            <div
-              className="py-12 text-center text-sm text-[color:var(--color-text-tertiary)]"
-              data-testid="marketplace-empty"
-            >
-              No skills found
-            </div>
-          )}
-          {filtered.map(skill => (
-            <MarketplaceRow
-              key={skill.name}
-              skill={skill}
-              isInstalled={installedSkillNames.has(skill.name)}
-              onInstall={onInstall ? () => onInstall(skill.name) : undefined}
-              isInstalling={isInstalling}
-              installUnavailableReason={installUnavailableReason}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {filtered.length === 0 ? (
+          <div
+            className="flex min-h-[240px] items-center justify-center"
+            data-testid="marketplace-empty"
+          >
+            <Empty
+              className="max-w-sm"
+              description={
+                search.trim() !== "" || activeCategory !== "ALL"
+                  ? "No skills match the current filters."
+                  : "No skills found on the marketplace."
+              }
+              icon={Wrench}
+              title="No skills found"
             />
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+            data-testid="marketplace-grid"
+          >
+            {filtered.map(skill => (
+              <MarketplaceCard
+                installUnavailableReason={installUnavailableReason}
+                isInstalled={installedSkillNames.has(skill.name)}
+                isInstalling={isInstalling}
+                key={skill.name}
+                onInstall={onInstall ? () => onInstall(skill.name) : undefined}
+                skill={skill}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

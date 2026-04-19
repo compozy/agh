@@ -167,9 +167,9 @@ describe("SkillsPage", () => {
   // Rendering & tabs
   // -----------------------------------------------------------------------
 
-  it("renders INSTALLED tab by default with skill list", () => {
+  it("renders Installed tab by default with skill list", () => {
     render(<SkillsPage />);
-    expect(screen.getByTestId("tab-installed")).toHaveTextContent("INSTALLED");
+    expect(screen.getByTestId("tab-installed")).toHaveTextContent("Installed");
     expect(screen.getByTestId("skill-list-panel")).toBeInTheDocument();
   });
 
@@ -243,19 +243,33 @@ describe("SkillsPage", () => {
     mockSkillDetail = ALL_SKILLS[0];
     render(<SkillsPage />);
     const detailPanel = screen.getByTestId("skill-detail-panel");
-    expect(within(detailPanel).getByText("alpha-skill")).toBeInTheDocument();
+    expect(within(detailPanel).getByTestId("skill-detail-title")).toHaveTextContent("alpha-skill");
   });
 
   // -----------------------------------------------------------------------
   // Skill detail panel
   // -----------------------------------------------------------------------
 
-  it("detail panel shows BUNDLED badge for bundled skills", () => {
-    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled" });
+  it("detail panel renders source as MonoBadge with accent tone", () => {
+    mockSkillDetail = makeSkill({ name: "mp-plugin", source: "marketplace" });
     render(<SkillsPage />);
 
     const badge = screen.getByTestId("source-badge");
-    expect(badge).toHaveTextContent("bundled");
+    expect(badge).toHaveTextContent("marketplace");
+    expect(badge).toHaveAttribute("data-tone", "accent");
+  });
+
+  it("detail panel renders version and author as MonoBadge meta", () => {
+    mockSkillDetail = makeSkill({
+      name: "mp-plugin",
+      source: "marketplace",
+      version: "3.1.0",
+      provenance: { slug: "author", registry: "clawhub", version: "3.1.0", installed_at: "" },
+    });
+    render(<SkillsPage />);
+
+    expect(screen.getByTestId("detail-version-badge")).toHaveTextContent("v3.1.0");
+    expect(screen.getByTestId("detail-author-badge")).toHaveTextContent("@author");
   });
 
   it("detail panel shows empty state when no skill selected and no skills exist", () => {
@@ -267,12 +281,12 @@ describe("SkillsPage", () => {
     );
   });
 
-  it("detail panel Disable button calls useDisableSkill mutation", async () => {
+  it("detail panel Switch toggles the disable mutation when enabled", async () => {
     const user = userEvent.setup();
     mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled", enabled: true });
     render(<SkillsPage />);
 
-    await user.click(screen.getByTestId("disable-skill-btn"));
+    await user.click(screen.getByTestId("skill-enabled-switch"));
 
     expect(mockDisableMutate).toHaveBeenCalledWith({
       name: "alpha-skill",
@@ -280,19 +294,28 @@ describe("SkillsPage", () => {
     });
   });
 
-  it("detail panel Enable button calls useEnableSkill mutation", async () => {
+  it("detail panel Switch toggles the enable mutation when disabled", async () => {
     const user = userEvent.setup();
     mockSkillDetail = makeSkill({ name: "beta-skill", source: "bundled", enabled: false });
-    // Select the disabled skill
     mockSkills = [makeSkill({ name: "beta-skill", source: "bundled", enabled: false })];
     render(<SkillsPage />);
 
-    await user.click(screen.getByTestId("enable-skill-btn"));
+    await user.click(screen.getByTestId("skill-enabled-switch"));
 
     expect(mockEnableMutate).toHaveBeenCalledWith({
       name: "beta-skill",
       workspace: "ws_test",
     });
+  });
+
+  it("detail panel Switch is disabled while an action is pending", () => {
+    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled", enabled: true });
+    mockEnablePending = true;
+    render(<SkillsPage />);
+
+    const sw = screen.getByTestId("skill-enabled-switch");
+    expect(sw).toHaveAttribute("aria-disabled", "true");
+    expect(sw).toHaveAttribute("data-disabled");
   });
 
   // -----------------------------------------------------------------------
@@ -325,16 +348,16 @@ describe("SkillsPage", () => {
   // Status dots
   // -----------------------------------------------------------------------
 
-  it("shows green status dot for enabled skills", () => {
+  it("shows success status dot for enabled skills", () => {
     render(<SkillsPage />);
     const dot = screen.getByTestId("skill-status-dot-alpha-skill");
-    expect(dot.className).toContain("bg-[color:var(--color-success)]");
+    expect(dot).toHaveAttribute("data-tone", "success");
   });
 
-  it("shows gray status dot for disabled skills", () => {
+  it("shows neutral status dot for disabled skills", () => {
     render(<SkillsPage />);
     const dot = screen.getByTestId("skill-status-dot-beta-skill");
-    expect(dot.className).toContain("bg-[color:var(--color-text-tertiary)]");
+    expect(dot).toHaveAttribute("data-tone", "neutral");
   });
 
   // -----------------------------------------------------------------------
@@ -373,6 +396,17 @@ describe("SkillsPage", () => {
 
     // All skills in our mock are "installed"
     expect(screen.getByTestId("installed-pill-alpha-skill")).toHaveTextContent("INSTALLED");
+  });
+
+  it("marketplace category filter shows Empty when nothing matches", async () => {
+    const user = userEvent.setup();
+    mockSkills = BUNDLED_SKILLS; // no tags, so DATABASE matches nothing
+    render(<SkillsPage />);
+
+    await user.click(screen.getByTestId("tab-marketplace"));
+    await user.click(screen.getByTestId("category-chip-DATABASE"));
+
+    expect(screen.getByTestId("marketplace-empty")).toBeInTheDocument();
   });
 
   // -----------------------------------------------------------------------
@@ -421,15 +455,30 @@ describe("SkillsPage", () => {
     );
   });
 
-  it("detail panel shows metadata table when skill has metadata", () => {
+  it("detail panel shows capabilities and recent calls from metadata", () => {
     mockSkillDetail = makeSkill({
       name: "alpha-skill",
       source: "bundled",
-      metadata: { author: "team", category: "testing" },
+      metadata: {
+        capabilities: ["shell.run", "git.stage"],
+        recent_calls: [
+          { label: "skill.run", status: "success", timestamp: new Date().toISOString() },
+        ],
+      },
     });
     render(<SkillsPage />);
-    expect(screen.getByText("author")).toBeInTheDocument();
-    expect(screen.getByText("team")).toBeInTheDocument();
+
+    expect(screen.getByTestId("skill-capability-shell.run")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-capability-git.stage")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-recent-call-row-0")).toHaveTextContent("skill.run");
+  });
+
+  it("detail panel shows Empty state when no capabilities or recent calls exist", () => {
+    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled" });
+    render(<SkillsPage />);
+
+    expect(screen.getByTestId("skill-capabilities-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-recent-calls-empty")).toBeInTheDocument();
   });
 
   // -----------------------------------------------------------------------

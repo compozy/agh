@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { delay, http, HttpResponse } from "msw";
+import { http, HttpResponse } from "msw";
+import { useEffect } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -20,33 +21,38 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+function MarketplaceTabAutoClick() {
+  useEffect(() => {
+    let raf = 0;
+    const tryClick = () => {
+      const tab = document.querySelector<HTMLButtonElement>("[data-testid='tab-marketplace']");
+      if (tab) {
+        tab.click();
+        return;
+      }
+      raf = window.requestAnimationFrame(tryClick);
+    };
+    tryClick();
+    return () => {
+      if (raf !== 0) window.cancelAnimationFrame(raf);
+    };
+  }, []);
+  return null;
+}
+
 /**
- * Default installed-skills route with list and detail panels.
+ * Populated installed-skills branch with list + auto-selected detail.
  */
-export const Default: Story = {
+export const InstalledPopulated: Story = {
   args: {},
   parameters: appRouteParameters("/skills"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 /**
- * Marketplace tab selected from the top-level route tabs.
+ * Installed tab when no skills exist.
  */
-export const Marketplace: Story = {
-  args: {},
-  parameters: appRouteParameters("/skills"),
-  render: () => <StorybookWorkspaceSetup />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("tab-marketplace"));
-    await expect(canvas.findByTestId("marketplace-view")).resolves.toBeDefined();
-  },
-};
-
-/**
- * Empty installed-skills branch when the skill catalog is empty.
- */
-export const Empty: Story = {
+export const InstalledEmpty: Story = {
   args: {},
   parameters: {
     ...appRouteParameters("/skills"),
@@ -58,25 +64,41 @@ export const Empty: Story = {
 };
 
 /**
- * Deferred content fetch state after requesting full skill content.
+ * Detail panel populated — visually identical to InstalledPopulated thanks to
+ * auto-selection, but retained as a distinct baseline for the detail state.
  */
-export const ViewContent: Story = {
+export const DetailOpen: Story = {
   args: {},
-  parameters: {
-    ...appRouteParameters("/skills"),
-    ...storybookMswParameters({
-      skill: [
-        http.get("/api/skills/:name/content", async () => {
-          await delay("infinite");
-          return HttpResponse.json({ content: "" });
-        }),
-      ],
-    }),
-  },
+  parameters: appRouteParameters("/skills"),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Marketplace tab active. Uses a minimal auto-click wrapper (not a Storybook
+ * play function) so the visual-snapshot suite still captures the card grid.
+ */
+export const MarketplaceGrid: Story = {
+  args: {},
+  parameters: appRouteParameters("/skills"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <MarketplaceTabAutoClick />
+    </>
+  ),
+};
+
+/**
+ * Interaction test: clicking the marketplace tab surfaces the card grid.
+ */
+export const MarketplaceInteraction: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: appRouteParameters("/skills"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("skill-detail-view-content"));
-    await expect(canvas.findByTestId("skill-detail-content-loading")).resolves.toBeDefined();
+    await userEvent.click(await canvas.findByTestId("tab-marketplace"));
+    await expect(canvas.findByTestId("marketplace-view")).resolves.toBeDefined();
   },
 };

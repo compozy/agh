@@ -1,11 +1,29 @@
-import { ExternalLink, Loader2, Power } from "lucide-react";
+import { AlertCircle, ExternalLink, Loader2, Wrench } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import {
+  Button,
+  Empty,
+  MonoBadge,
+  PageHeader,
+  Section,
+  StatusDot,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@agh/ui";
+
+import {
+  deriveSkillAuthor,
+  deriveSkillCapabilities,
+  deriveSkillRecentCalls,
+  formatSkillRelativeTime,
+  skillSourceTone,
+} from "../lib/skill-formatters";
 import type { SkillPayload } from "../types";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 interface SkillDetailPanelProps {
   skill: SkillPayload | undefined;
@@ -21,136 +39,195 @@ interface SkillDetailPanelProps {
   isActionPending: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Source Badge
-// ---------------------------------------------------------------------------
-
-const SOURCE_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
-  bundled: {
-    bg: "bg-[color:var(--color-success-tint)]",
-    text: "text-[color:var(--color-success)]",
-  },
-  workspace: {
-    bg: "bg-[color:var(--color-info-tint)]",
-    text: "text-[color:var(--color-info)]",
-  },
-  marketplace: {
-    bg: "bg-[color:var(--color-accent-tint)]",
-    text: "text-[color:var(--color-accent)]",
-  },
-  user: {
-    bg: "bg-[color:var(--color-warning-tint)]",
-    text: "text-[color:var(--color-warning)]",
-  },
-  additional: {
-    bg: "bg-[color:var(--color-neutral-tint)]",
-    text: "text-[color:var(--color-text-tertiary)]",
-  },
-};
-
-function SourceBadge({ source }: { source: string }) {
-  const colors = SOURCE_BADGE_COLORS[source] ?? SOURCE_BADGE_COLORS.additional;
-
+function SkillDetailMeta({ skill }: { skill: SkillPayload }) {
+  const author = deriveSkillAuthor(skill);
   return (
-    <span
-      className={cn(
-        "inline-flex h-[22px] items-center rounded-md px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em]",
-        colors.bg,
-        colors.text
-      )}
-      data-testid="source-badge"
-    >
-      {source}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Content Preview Card
-// ---------------------------------------------------------------------------
-
-function ContentCard({ content }: { content: string }) {
-  return (
-    <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-body">
-      <h4 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-        Full Content
-      </h4>
-      <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-[color:var(--color-text-secondary)]">
-        {content}
-      </pre>
+    <div className="flex flex-wrap items-center gap-1.5">
+      {skill.version ? (
+        <MonoBadge data-testid="detail-version-badge">{`v${skill.version}`}</MonoBadge>
+      ) : null}
+      {author ? <MonoBadge data-testid="detail-author-badge">{`@${author}`}</MonoBadge> : null}
+      <MonoBadge data-testid="source-badge" tone={skillSourceTone(skill.source)}>
+        {skill.source}
+      </MonoBadge>
     </div>
   );
 }
 
-function ContentSection({
-  skill,
-  content,
-  isLoading,
-  error,
-  onViewContent,
-  onRetryContent,
-}: {
+interface SkillContentSectionProps {
   skill: SkillPayload;
   content: string | undefined;
   isLoading: boolean;
   error: Error | null;
   onViewContent: (name: string) => void;
   onRetryContent: () => void;
-}) {
-  if (content) {
-    return <ContentCard content={content} />;
-  }
+}
 
+function SkillContentSection({
+  skill,
+  content,
+  isLoading,
+  error,
+  onViewContent,
+  onRetryContent,
+}: SkillContentSectionProps) {
+  if (content) {
+    return (
+      <div
+        className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
+        data-testid="content-body"
+      >
+        <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-[color:var(--color-text-secondary)]">
+          {content}
+        </pre>
+      </div>
+    );
+  }
   if (isLoading) {
     return (
-      <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-loading">
-        <div className="flex items-center gap-2 text-sm text-[color:var(--color-text-secondary)]">
-          <Loader2 className="size-4 animate-spin text-[color:var(--color-text-tertiary)]" />
-          Loading full skill content...
-        </div>
+      <div
+        className="flex items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3 text-[13px] text-[color:var(--color-text-secondary)]"
+        data-testid="content-loading"
+      >
+        <Loader2
+          aria-hidden="true"
+          className="size-4 animate-spin text-[color:var(--color-text-tertiary)]"
+        />
+        Loading full skill content…
       </div>
     );
   }
-
   if (error) {
     return (
-      <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-error">
-        <p className="text-sm text-[color:var(--color-danger)]">Failed to load full content.</p>
-        <button
-          type="button"
-          onClick={onRetryContent}
-          className="mt-2 text-sm text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)]"
+      <div
+        className="flex flex-col gap-2 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3"
+        data-testid="content-error"
+      >
+        <p className="text-[13px] text-[color:var(--color-danger)]">
+          {error.message ?? "Failed to load full content."}
+        </p>
+        <Button
           data-testid="retry-view-content-btn"
+          onClick={onRetryContent}
+          size="sm"
+          type="button"
+          variant="outline"
         >
           Try again
-        </button>
+        </Button>
       </div>
     );
   }
-
   return (
-    <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-empty">
-      <h4 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-        Content
-      </h4>
-      <p className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+    <div
+      className="flex flex-col gap-3 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3"
+      data-testid="content-empty"
+    >
+      <p className="text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
         Full skill instructions are loaded on demand.
       </p>
-      <button
-        type="button"
-        onClick={() => onViewContent(skill.name)}
-        className="mt-3 text-sm text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)]"
-        data-testid="view-full-content-btn"
-      >
-        View full content
-      </button>
+      <div>
+        <Button
+          data-testid="view-full-content-btn"
+          onClick={() => onViewContent(skill.name)}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          View full content
+        </Button>
+      </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Skill Detail Panel
-// ---------------------------------------------------------------------------
+function SkillCapabilitiesSection({ skill }: { skill: SkillPayload }) {
+  const capabilities = deriveSkillCapabilities(skill);
+  return (
+    <Section label="Capabilities">
+      {capabilities.length === 0 ? (
+        <div data-testid="skill-capabilities-empty">
+          <Empty
+            className="max-w-sm"
+            description="This skill has not declared any capabilities."
+            title="No capabilities"
+          />
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="skill-capabilities-list">
+          {capabilities.map(capability => (
+            <MonoBadge
+              data-testid={`skill-capability-${capability}`}
+              key={capability}
+              uppercase={false}
+            >
+              {capability}
+            </MonoBadge>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
+  const calls = deriveSkillRecentCalls(skill);
+  return (
+    <Section label="Recent calls">
+      {calls.length === 0 ? (
+        <div data-testid="skill-recent-calls-empty">
+          <Empty
+            className="max-w-sm"
+            description="No recent invocations recorded."
+            title="No recent calls"
+          />
+        </div>
+      ) : (
+        <div
+          className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
+          data-testid="skill-recent-calls-table"
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[72px]">Status</TableHead>
+                <TableHead>Call</TableHead>
+                <TableHead className="w-[120px] text-right">When</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {calls.map((call, index) => (
+                <TableRow
+                  data-testid={`skill-recent-call-row-${index}`}
+                  key={`${call.label}-${index}`}
+                >
+                  <TableCell>
+                    <StatusDot
+                      pulse={call.status === "pending"}
+                      tone={
+                        call.status === "error"
+                          ? "danger"
+                          : call.status === "pending"
+                            ? "accent"
+                            : "success"
+                      }
+                    />
+                  </TableCell>
+                  <TableCell className="font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+                    {call.label}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                    {call.timestamp ? formatSkillRelativeTime(call.timestamp) : "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </Section>
+  );
+}
 
 function SkillDetailPanel({
   skill,
@@ -167,8 +244,14 @@ function SkillDetailPanel({
 }: SkillDetailPanelProps) {
   if (isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center" data-testid="skill-detail-loading">
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center"
+        data-testid="skill-detail-loading"
+      >
+        <Loader2
+          aria-hidden="true"
+          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+        />
       </div>
     );
   }
@@ -176,10 +259,15 @@ function SkillDetailPanel({
   if (error) {
     return (
       <div
-        className="flex flex-1 items-center justify-center text-sm text-[color:var(--color-danger)]"
+        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
         data-testid="skill-detail-error"
       >
-        Failed to load skill details
+        <Empty
+          className="max-w-md"
+          description={error.message ?? "Failed to load skill details"}
+          icon={AlertCircle}
+          title="Failed to load skill details"
+        />
       </div>
     );
   }
@@ -187,130 +275,94 @@ function SkillDetailPanel({
   if (!skill) {
     return (
       <div
-        className="flex flex-1 items-center justify-center text-sm text-[color:var(--color-text-tertiary)]"
+        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
         data-testid="skill-detail-empty"
       >
-        Select a skill to view details
+        <Empty
+          className="max-w-md"
+          description="Select a skill to view details"
+          icon={Wrench}
+          title="Select a skill to view details"
+        />
       </div>
     );
   }
 
+  const handleToggle = (next: boolean) => {
+    if (isActionPending) return;
+    if (next) {
+      onEnable(skill.name);
+    } else {
+      onDisable(skill.name);
+    }
+  };
+
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto p-6" data-testid="skill-detail-panel">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3">
-          <h2 className="text-base font-semibold text-[color:var(--color-text-primary)]">
-            {skill.name}
-          </h2>
-          <SourceBadge source={skill.source} />
-        </div>
-
-        {skill.version && (
-          <span className="mt-1 block text-xs text-[color:var(--color-text-tertiary)]">
-            v{skill.version}
-          </span>
-        )}
-
-        {/* Status line */}
-        <div className="mt-2 flex items-center gap-2">
-          <span
-            className={cn(
-              "size-2 rounded-full",
-              skill.enabled
-                ? "bg-[color:var(--color-success)]"
-                : "bg-[color:var(--color-text-tertiary)]"
-            )}
-          />
-          <span className="text-xs text-[color:var(--color-text-secondary)]">
-            {skill.enabled ? "Enabled" : "Disabled"}
-          </span>
-          <span className="text-xs text-[color:var(--color-text-tertiary)]">{skill.dir}</span>
-        </div>
-      </div>
-
-      {/* Description */}
-      <div className="mb-6">
-        <h3 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-          Description
-        </h3>
-        <p className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
-          {skill.description}
-        </p>
-      </div>
-
-      {/* Content */}
-      <ContentSection
-        skill={skill}
-        content={content}
-        isLoading={isContentLoading}
-        error={contentError}
-        onViewContent={onViewContent}
-        onRetryContent={onRetryContent}
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="skill-detail-panel">
+      <PageHeader
+        count={undefined}
+        icon={() => <Wrench className="size-3.5" data-testid="skill-detail-icon" />}
+        meta={<SkillDetailMeta skill={skill} />}
+        title={<span data-testid="skill-detail-title">{skill.name}</span>}
       />
 
-      {/* Metadata */}
-      {skill.metadata && Object.keys(skill.metadata).length > 0 && (
-        <div className="mt-6">
-          <h3 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-            Metadata
-          </h3>
-          <div className="overflow-hidden rounded-lg">
-            {Object.entries(skill.metadata).map(([key, value], idx) => (
-              <div
-                key={key}
-                className={cn(
-                  "flex items-center justify-between px-3 py-2",
-                  idx % 2 === 0 ? "bg-transparent" : "bg-[color:var(--color-surface)]"
-                )}
+      <div className="flex flex-col gap-6 px-6 py-5">
+        <Section
+          label="Overview"
+          right={
+            <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
+              <span
+                className="font-mono text-[11px] uppercase tracking-[0.08em] text-[color:var(--color-text-label)]"
+                id="skill-enabled-label"
               >
-                <span className="text-xs text-[color:var(--color-text-tertiary)]">{key}</span>
-                <span className="text-sm font-medium text-[color:var(--color-text-primary)]">
-                  {String(value)}
-                </span>
-              </div>
-            ))}
+                {skill.enabled ? "Enabled" : "Disabled"}
+              </span>
+              <Switch
+                aria-labelledby="skill-enabled-label"
+                checked={skill.enabled}
+                data-testid="skill-enabled-switch"
+                disabled={isActionPending}
+                onCheckedChange={handleToggle}
+              />
+            </div>
+          }
+        >
+          <div className="flex flex-col gap-3">
+            <p className="text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
+              {skill.description}
+            </p>
+            <span className="truncate font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+              {skill.dir}
+            </span>
+            <SkillContentSection
+              content={content}
+              error={contentError}
+              isLoading={isContentLoading}
+              onRetryContent={onRetryContent}
+              onViewContent={onViewContent}
+              skill={skill}
+            />
           </div>
-        </div>
-      )}
+        </Section>
 
-      {/* Actions */}
-      <div className="mt-6 flex items-center gap-3">
-        {skill.enabled ? (
-          <button
-            onClick={() => onDisable(skill.name)}
-            disabled={isActionPending}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-transparent px-5 text-sm font-medium text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-hover)] disabled:opacity-50"
-            data-testid="disable-skill-btn"
-            type="button"
-          >
-            <Power className="size-3.5" />
-            Disable
-          </button>
-        ) : (
-          <button
-            onClick={() => onEnable(skill.name)}
-            disabled={isActionPending}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[color:var(--color-accent)] px-5 text-sm font-medium text-white transition-colors hover:bg-[color:var(--color-accent-hover)] disabled:opacity-50"
-            data-testid="enable-skill-btn"
-            type="button"
-          >
-            <Power className="size-3.5" />
-            Enable
-          </button>
-        )}
-        <button
-          type="button"
-          disabled
+        <SkillCapabilitiesSection skill={skill} />
+        <SkillRecentCallsSection skill={skill} />
+      </div>
+
+      <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-[color:var(--color-divider)] px-6 py-4">
+        <Button
           aria-disabled="true"
-          title="CLI deep links are not implemented yet"
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-transparent px-5 text-sm font-medium text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-hover)]"
           data-testid="view-in-cli-btn"
+          disabled
+          size="sm"
+          title="CLI deep links are not implemented yet"
+          type="button"
+          variant="ghost"
         >
           <ExternalLink className="size-3.5" />
           View in CLI
-        </button>
-      </div>
+        </Button>
+      </footer>
     </div>
   );
 }
