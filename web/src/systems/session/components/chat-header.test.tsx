@@ -3,25 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "../types";
 
-vi.mock("@/lib/utils", () => ({
-  cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
-}));
-
-vi.mock("@agh/ui", () => ({
-  Button: ({
-    children,
-    onClick,
-    ...props
-  }: {
-    children: React.ReactNode;
-    onClick?: () => void;
-    [key: string]: unknown;
-  }) => (
-    <button onClick={onClick} {...props}>
-      {children}
-    </button>
-  ),
-}));
+vi.mock("@/lib/utils", async importActual => {
+  const actual = await importActual<typeof import("@/lib/utils")>();
+  return {
+    ...actual,
+    cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
+  };
+});
 
 import { ChatHeader } from "./chat-header";
 
@@ -45,28 +33,30 @@ describe("ChatHeader", () => {
     expect(screen.getByTestId("session-name")).toHaveTextContent("My Test Session");
   });
 
-  it("shows agent status dot with success color for active state", () => {
+  it("renders status dot with success tone for active state", () => {
     render(<ChatHeader session={baseSession} onStop={vi.fn()} onResume={vi.fn()} />);
 
     const dot = screen.getByTestId("agent-status-dot");
-    expect(dot.className).toMatch(/bg-\[color:var\(--color-success\)\]/);
+    expect(dot.getAttribute("data-slot")).toBe("status-dot");
+    expect(dot.getAttribute("data-tone")).toBe("success");
+    expect(dot.getAttribute("data-size")).toBe("md");
   });
 
-  it("shows agent status dot with warning color and pulse for starting state", () => {
+  it("renders status dot with warning tone and pulse for starting state", () => {
     const session = { ...baseSession, state: "starting" as const };
     render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} />);
 
     const dot = screen.getByTestId("agent-status-dot");
-    expect(dot.className).toMatch(/bg-\[color:var\(--color-warning\)\]/);
-    expect(dot.className).toContain("animate-pulse");
+    expect(dot.getAttribute("data-tone")).toBe("warning");
+    expect(dot.getAttribute("data-pulse")).toBe("true");
   });
 
-  it("shows agent status dot with tertiary color for stopped state", () => {
+  it("renders status dot with neutral tone for stopped state", () => {
     const session = { ...baseSession, state: "stopped" as const };
     render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} />);
 
     const dot = screen.getByTestId("agent-status-dot");
-    expect(dot.className).toMatch(/bg-\[color:var\(--color-text-tertiary\)\]/);
+    expect(dot.getAttribute("data-tone")).toBe("neutral");
   });
 
   it("shows workspace name in breadcrumb when provided", () => {
@@ -74,7 +64,9 @@ describe("ChatHeader", () => {
       <ChatHeader session={baseSession} onStop={vi.fn()} onResume={vi.fn()} workspaceName="alpha" />
     );
 
-    expect(screen.getByTestId("session-workspace-badge")).toHaveTextContent("alpha");
+    const badge = screen.getByTestId("session-workspace-badge");
+    expect(badge).toHaveTextContent("alpha");
+    expect(badge.getAttribute("data-slot")).toBe("mono-badge");
   });
 
   it("shows session ID when name is not set", () => {

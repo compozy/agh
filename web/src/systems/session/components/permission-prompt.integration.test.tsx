@@ -25,41 +25,13 @@ vi.mock("@tanstack/react-virtual", () => ({
   }),
 }));
 
-vi.mock("@/lib/utils", () => ({
-  cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
-}));
-
-vi.mock("@agh/ui", () => ({
-  Button: ({
-    children,
-    onClick,
-    disabled,
-    ...props
-  }: {
-    children: React.ReactNode;
-    onClick?: () => void;
-    disabled?: boolean;
-    [key: string]: unknown;
-  }) => (
-    <button onClick={onClick} disabled={disabled} {...props}>
-      {children}
-    </button>
-  ),
-  Card: ({ children, ...props }: Record<string, unknown>) => (
-    <div {...props}>{children as React.ReactNode}</div>
-  ),
-  CardHeader: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
-  CardTitle: ({ children }: Record<string, unknown>) => <h3>{children as React.ReactNode}</h3>,
-  CardContent: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
-  CardFooter: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
-  Collapsible: ({ children }: Record<string, unknown>) => <div>{children as React.ReactNode}</div>,
-  CollapsibleTrigger: ({ children }: Record<string, unknown>) => (
-    <button>{children as React.ReactNode}</button>
-  ),
-  CollapsibleContent: ({ children }: Record<string, unknown>) => (
-    <div>{children as React.ReactNode}</div>
-  ),
-}));
+vi.mock("@/lib/utils", async importActual => {
+  const actual = await importActual<typeof import("@/lib/utils")>();
+  return {
+    ...actual,
+    cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
+  };
+});
 
 vi.mock("react-syntax-highlighter", () => ({
   PrismAsyncLight: Object.assign(({ children }: { children: string }) => <pre>{children}</pre>, {

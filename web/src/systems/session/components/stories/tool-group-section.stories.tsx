@@ -4,6 +4,7 @@ import { CenteredSurface } from "@/storybook/story-layout";
 import {
   bashToolMessageFixture,
   editToolMessageFixture,
+  errorToolMessageFixture,
   runningBashToolMessageFixture,
   searchToolMessageFixture,
 } from "@/systems/session/mocks";
@@ -44,10 +45,18 @@ export const Default: Story = {
   ),
 };
 
-export const Empty: Story = {
+export const WithError: Story = {
   render: () => (
     <ToolGroupFrame>
-      <ToolGroupSection tools={[]} />
+      <ToolGroupSection tools={[bashToolMessageFixture, errorToolMessageFixture]} />
+    </ToolGroupFrame>
+  ),
+};
+
+export const SingleTool: Story = {
+  render: () => (
+    <ToolGroupFrame>
+      <ToolGroupSection tools={[bashToolMessageFixture]} />
     </ToolGroupFrame>
   ),
 };

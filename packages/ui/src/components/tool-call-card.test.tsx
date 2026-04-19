@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react";
+import { FileEditIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import { ToolCallCard, type ToolCallStatus } from "./tool-call-card";
@@ -82,5 +83,31 @@ describe("ToolCallCard", () => {
     const root = container.querySelector<HTMLElement>('[data-slot="tool-call-card"]');
     expect(root?.className).toContain("ring-1");
     expect(root?.getAttribute("data-testid")).toBe("card");
+  });
+
+  it("Should render a custom Lucide icon component when icon prop is a component ref", () => {
+    const { container } = render(
+      <ToolCallCard toolName="file.edit" status="done" icon={FileEditIcon} />
+    );
+    const icon = container.querySelector<SVGElement>('[data-slot="tool-call-card-icon"]');
+    expect(icon).not.toBeNull();
+    expect((icon as unknown as SVGElement).classList.contains("lucide-file-pen")).toBe(true);
+  });
+
+  it("Should render a pre-rendered ReactNode icon as-is", () => {
+    const { container } = render(
+      <ToolCallCard
+        toolName="file.edit"
+        status="done"
+        icon={<span data-testid="custom-icon">✎</span>}
+      />
+    );
+    expect(container.querySelector('[data-testid="custom-icon"]')?.textContent).toBe("✎");
+  });
+
+  it("Should apply a danger-toned border when status is error", () => {
+    const { container } = render(<ToolCallCard toolName="t" status="error" />);
+    const root = container.querySelector<HTMLElement>('[data-slot="tool-call-card"]');
+    expect(root?.className).toContain("data-[status=error]:border-[color:var(--color-danger)]/40");
   });
 });

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
+import type { ToolCallStatus } from "@agh/ui";
+
 import {
   getToolCompactSummary,
   getToolFullSummary,
@@ -63,7 +65,7 @@ export function useToolCallCard(message: UIMessage) {
       ? "tool-card-error"
       : "tool-card-success";
 
-  const status = isRunning ? "running" : isError ? "error" : "done";
+  const status: ToolCallStatus = isRunning ? "running" : isError ? "error" : "done";
 
   return {
     expanded,

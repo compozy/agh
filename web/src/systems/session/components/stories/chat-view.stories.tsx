@@ -4,8 +4,13 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { StorySurface } from "@/storybook/story-layout";
 import {
   assistantMessageFixture,
+  bashToolMessageFixture,
+  diffMessageFixture,
+  editToolMessageFixture,
   markdownFixture,
+  runningBashToolMessageFixture,
   streamingAssistantMessageFixture,
+  systemMessageFixture,
   uiMessageFixtures,
   userMessageFixture,
 } from "@/systems/session/mocks";
@@ -70,10 +75,48 @@ function StreamingChatViewStory() {
   return <ChatView agentName="codex-agent" isStreaming={isStreaming} messages={messages} />;
 }
 
+const fiveRoleThread: UIMessage[] = [
+  systemMessageFixture,
+  { ...userMessageFixture, content: "Refactor the event mapper grouping." },
+  {
+    ...assistantMessageFixture,
+    thinking: undefined,
+    content:
+      "Proposed plan: extract `groupToolCallsByTurn` into a pure helper and point the caller at it.",
+  },
+  runningBashToolMessageFixture,
+  bashToolMessageFixture,
+  editToolMessageFixture,
+  {
+    ...assistantMessageFixture,
+    id: "msg_assistant_diff_intro",
+    thinking: undefined,
+    content: "Here is the resulting diff.",
+    timestamp: Date.parse("2026-04-17T16:11:30Z"),
+  },
+  diffMessageFixture,
+];
+
+export const Empty: Story = {
+  render: () => (
+    <ChatViewFrame>
+      <ChatView agentName="codex-agent" isStreaming={false} messages={[]} />
+    </ChatViewFrame>
+  ),
+};
+
 export const Default: Story = {
   render: () => (
     <ChatViewFrame>
       <ChatView agentName="codex-agent" isStreaming={false} messages={uiMessageFixtures} />
+    </ChatViewFrame>
+  ),
+};
+
+export const FiveRoles: Story = {
+  render: () => (
+    <ChatViewFrame>
+      <ChatView agentName="claude-code" isStreaming={false} messages={fiveRoleThread} />
     </ChatViewFrame>
   ),
 };
