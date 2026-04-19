@@ -62,6 +62,47 @@ describe("AutomationListPanel", () => {
     expect(screen.getByTestId("automation-list-summary")).toHaveTextContent("1 job in alpha");
   });
 
+  it("renders the loading fallback when isLoading=true and the list is empty", () => {
+    render(
+      <AutomationListPanel
+        activeWorkspaceName="alpha"
+        isLoading
+        jobs={[]}
+        kind="jobs"
+        onSearchChange={vi.fn()}
+        onSelect={vi.fn()}
+        scopeFilter="all"
+        searchQuery=""
+        selectedId={null}
+        totalCount={0}
+        triggers={[]}
+      />
+    );
+
+    expect(screen.getByTestId("automation-list-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("automation-list-empty")).not.toBeInTheDocument();
+  });
+
+  it("renders the error fallback when an errorMessage is provided and the list is empty", () => {
+    render(
+      <AutomationListPanel
+        activeWorkspaceName="alpha"
+        errorMessage="boom"
+        jobs={[]}
+        kind="jobs"
+        onSearchChange={vi.fn()}
+        onSelect={vi.fn()}
+        scopeFilter="all"
+        searchQuery=""
+        selectedId={null}
+        totalCount={0}
+        triggers={[]}
+      />
+    );
+
+    expect(screen.getByTestId("automation-list-error")).toHaveTextContent("boom");
+  });
+
   it("filters trigger items from the search box", async () => {
     const user = userEvent.setup();
     let currentQuery = "";

@@ -35,3 +35,27 @@ export const Empty: Story = {
     </CenteredSurface>
   ),
 };
+
+export const Loading: Story = {
+  render: () => (
+    <CenteredSurface>
+      <div className="w-full max-w-3xl">
+        <AutomationRunHistory error={null} isLoading runs={[]} />
+      </div>
+    </CenteredSurface>
+  ),
+};
+
+export const ErrorState: Story = {
+  render: () => (
+    <CenteredSurface>
+      <div className="w-full max-w-3xl">
+        <AutomationRunHistory
+          error={new globalThis.Error("Failed to load automation runs")}
+          isLoading={false}
+          runs={[]}
+        />
+      </div>
+    </CenteredSurface>
+  ),
+};

@@ -1,14 +1,19 @@
 import type { FormEvent } from "react";
 
-import { Button, Pills } from "@agh/ui";
-
 import {
-  AutomationCheckbox,
-  AutomationField,
-  AutomationFormSection,
-  AutomationInput,
-  AutomationTextarea,
-} from "./automation-form-primitives";
+  Button,
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+  Input,
+  Pills,
+  Section,
+  Switch,
+  Textarea,
+} from "@agh/ui";
+
 import { retryDraftForStrategy } from "../lib/automation-drafts";
 import type { CreateAutomationJobRequest } from "../types";
 
@@ -48,9 +53,7 @@ export function AutomationJobForm({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canSubmit || isPending) {
-      return;
-    }
+    if (!canSubmit || isPending) return;
     onSubmit();
   };
 
@@ -60,283 +63,281 @@ export function AutomationJobForm({
       data-testid="automation-job-form"
       onSubmit={handleSubmit}
     >
-      <div className="border-b border-[color:var(--color-divider)] px-6 py-5">
-        <div className="max-w-2xl space-y-1 pr-12">
-          <h2 className="text-lg font-semibold text-[color:var(--color-text-primary)]">
-            {mode === "create" ? "Create Job" : "Edit Job"}
-          </h2>
-          <p className="text-sm text-[color:var(--color-text-secondary)]">
-            Scheduled jobs dispatch prompts to agents on a time-based cadence.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-        <AutomationFormSection
-          description="Name the job, choose the agent, and define the prompt it should execute."
-          title="Core"
-        >
-          <div className="grid gap-4 md:grid-cols-2">
-            <AutomationField label="Name">
-              <AutomationInput
-                data-testid="job-name-input"
-                onChange={event => onChange({ ...draft, name: event.target.value })}
-                placeholder="daily-standup"
-                value={draft.name}
+      <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+        <Section label="Core">
+          <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="job-name">Name</FieldLabel>
+                <Input
+                  data-testid="job-name-input"
+                  id="job-name"
+                  onChange={event => onChange({ ...draft, name: event.target.value })}
+                  placeholder="daily-standup"
+                  value={draft.name}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="job-agent">Agent</FieldLabel>
+                <Input
+                  data-testid="job-agent-input"
+                  id="job-agent"
+                  onChange={event => onChange({ ...draft, agent_name: event.target.value })}
+                  placeholder="coder"
+                  value={draft.agent_name}
+                />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="job-prompt">Prompt</FieldLabel>
+              <Textarea
+                data-testid="job-prompt-input"
+                id="job-prompt"
+                onChange={event => onChange({ ...draft, prompt: event.target.value })}
+                placeholder="Summarize the latest commits and open review actions."
+                rows={4}
+                value={draft.prompt}
               />
-            </AutomationField>
-            <AutomationField label="Agent">
-              <AutomationInput
-                data-testid="job-agent-input"
-                onChange={event => onChange({ ...draft, agent_name: event.target.value })}
-                placeholder="coder"
-                value={draft.agent_name}
-              />
-            </AutomationField>
-          </div>
-          <AutomationField label="Prompt">
-            <AutomationTextarea
-              data-testid="job-prompt-input"
-              onChange={event => onChange({ ...draft, prompt: event.target.value })}
-              placeholder="Summarize the latest commits and open review actions."
-              value={draft.prompt}
-            />
-          </AutomationField>
-          <div className="space-y-2">
-            <span className="text-sm font-medium text-[color:var(--color-text-primary)]">
-              Scope
-            </span>
-            <Pills
-              aria-label="Scope"
-              value={draft.scope}
-              onChange={next => {
-                if (next === "global") {
-                  onChange({ ...draft, scope: "global", workspace_id: undefined });
-                } else {
-                  onChange({
-                    ...draft,
-                    scope: "workspace",
-                    workspace_id: activeWorkspaceId ?? draft.workspace_id,
-                  });
-                }
-              }}
-              items={[
-                { value: "global", label: "GLOBAL", testId: "job-scope-global" },
-                { value: "workspace", label: "WORKSPACE", testId: "job-scope-workspace" },
-              ]}
-            />
-            {draft.scope === "workspace" ? (
-              <p className="text-xs text-[color:var(--color-text-secondary)]">
-                {draft.workspace_id
-                  ? `Bound to workspace ${draft.workspace_id}.`
-                  : "Select an active workspace before saving a workspace-scoped job."}
-              </p>
-            ) : null}
-          </div>
-        </AutomationFormSection>
-
-        <AutomationFormSection
-          description="Choose the cadence and execution time shape for this job."
-          title="Schedule"
-        >
-          <div className="space-y-2">
-            <span className="text-sm font-medium text-[color:var(--color-text-primary)]">Mode</span>
-            <Pills
-              aria-label="Schedule mode"
-              value={schedule.mode}
-              onChange={next => {
-                if (next === "cron") {
-                  onChange({
-                    ...draft,
-                    schedule: { mode: "cron", expr: schedule.expr ?? "0 9 * * *" },
-                  });
-                } else if (next === "every") {
-                  onChange({
-                    ...draft,
-                    schedule: { mode: "every", interval: schedule.interval ?? "30m" },
-                  });
-                } else {
-                  onChange({
-                    ...draft,
-                    schedule: { mode: "at", time: schedule.time ?? new Date().toISOString() },
-                  });
-                }
-              }}
-              items={[
-                { value: "cron", label: "CRON", testId: "job-schedule-mode-cron" },
-                { value: "every", label: "EVERY", testId: "job-schedule-mode-every" },
-                { value: "at", label: "AT", testId: "job-schedule-mode-at" },
-              ]}
-            />
-          </div>
-          <AutomationField
-            hint={
-              schedule.mode === "cron"
-                ? "Standard cron expression"
-                : schedule.mode === "every"
-                  ? "Duration such as 30m or 4h"
-                  : "UTC timestamp"
-            }
-            label={
-              schedule.mode === "cron"
-                ? "Cron expression"
-                : schedule.mode === "every"
-                  ? "Interval"
-                  : "Run at"
-            }
-          >
-            {schedule.mode === "cron" ? (
-              <AutomationInput
-                data-testid="job-schedule-expr"
-                onChange={event =>
-                  onChange({
-                    ...draft,
-                    schedule: { mode: "cron", expr: event.target.value },
-                  })
-                }
-                placeholder="0 9 * * *"
-                value={schedule.expr ?? ""}
-              />
-            ) : schedule.mode === "every" ? (
-              <AutomationInput
-                data-testid="job-schedule-interval"
-                onChange={event =>
-                  onChange({
-                    ...draft,
-                    schedule: { mode: "every", interval: event.target.value },
-                  })
-                }
-                placeholder="30m"
-                value={schedule.interval ?? ""}
-              />
-            ) : (
-              <AutomationInput
-                data-testid="job-schedule-time"
-                onChange={event =>
-                  onChange({
-                    ...draft,
-                    schedule: { mode: "at", time: event.target.value },
-                  })
-                }
-                placeholder="2026-04-15T15:00:00Z"
-                value={schedule.time ?? ""}
-              />
-            )}
-          </AutomationField>
-        </AutomationFormSection>
-
-        <AutomationFormSection
-          description="Retry and fire limits protect the daemon from noisy automation."
-          title="Governance"
-        >
-          <div className="grid gap-4 md:grid-cols-3">
-            <AutomationField label="Retry policy">
+            </Field>
+            <Field>
+              <FieldTitle>Scope</FieldTitle>
               <Pills
-                size="sm"
-                aria-label="Retry policy"
-                value={retry.strategy}
-                onChange={next => onChange({ ...draft, retry: retryDraftForStrategy(next, retry) })}
+                aria-label="Scope"
                 items={[
-                  { value: "none", label: "NONE", testId: "job-retry-strategy-none" },
-                  { value: "backoff", label: "BACKOFF", testId: "job-retry-strategy-backoff" },
+                  { value: "global", label: "GLOBAL", testId: "job-scope-global" },
+                  { value: "workspace", label: "WORKSPACE", testId: "job-scope-workspace" },
                 ]}
+                onChange={next => {
+                  if (next === "global") {
+                    onChange({ ...draft, scope: "global", workspace_id: undefined });
+                  } else {
+                    onChange({
+                      ...draft,
+                      scope: "workspace",
+                      workspace_id: activeWorkspaceId ?? draft.workspace_id,
+                    });
+                  }
+                }}
+                value={draft.scope}
               />
-            </AutomationField>
-            <AutomationField label="Max retries">
-              <AutomationInput
-                data-testid="job-retry-max"
-                disabled={retry.strategy !== "backoff"}
-                min={0}
-                onChange={event =>
-                  onChange({
-                    ...draft,
-                    retry: {
-                      ...retryDraftForStrategy("backoff", retry),
-                      max_retries: Number(event.target.value || "0"),
-                    },
-                  })
-                }
-                type="number"
-                value={retry.strategy === "backoff" ? retry.max_retries : 0}
-              />
-            </AutomationField>
-            <AutomationField label="Base delay">
-              <AutomationInput
-                data-testid="job-retry-delay"
-                disabled={retry.strategy !== "backoff"}
-                onChange={event =>
-                  onChange({
-                    ...draft,
-                    retry: {
-                      ...retryDraftForStrategy("backoff", retry),
-                      base_delay: event.target.value,
-                    },
-                  })
-                }
-                placeholder="2s"
-                value={retry.strategy === "backoff" ? retry.base_delay : ""}
-              />
-            </AutomationField>
+              {draft.scope === "workspace" ? (
+                <FieldDescription>
+                  {draft.workspace_id
+                    ? `Bound to workspace ${draft.workspace_id}.`
+                    : "Select an active workspace before saving a workspace-scoped job."}
+                </FieldDescription>
+              ) : null}
+            </Field>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <AutomationField label="Max fires">
-              <AutomationInput
-                data-testid="job-fire-limit-max"
-                min={1}
-                onChange={event =>
-                  onChange({
-                    ...draft,
-                    fire_limit: {
-                      ...(draft.fire_limit ?? { window: "1h" }),
-                      max: Number(event.target.value || "1"),
-                    },
-                  })
-                }
-                type="number"
-                value={draft.fire_limit?.max ?? 12}
+        </Section>
+
+        <Section label="Schedule">
+          <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+            <Field>
+              <FieldTitle>Mode</FieldTitle>
+              <Pills
+                aria-label="Schedule mode"
+                items={[
+                  { value: "cron", label: "CRON", testId: "job-schedule-mode-cron" },
+                  { value: "every", label: "EVERY", testId: "job-schedule-mode-every" },
+                  { value: "at", label: "AT", testId: "job-schedule-mode-at" },
+                ]}
+                onChange={next => {
+                  if (next === "cron") {
+                    onChange({
+                      ...draft,
+                      schedule: { mode: "cron", expr: schedule.expr ?? "0 9 * * *" },
+                    });
+                  } else if (next === "every") {
+                    onChange({
+                      ...draft,
+                      schedule: { mode: "every", interval: schedule.interval ?? "30m" },
+                    });
+                  } else {
+                    onChange({
+                      ...draft,
+                      schedule: { mode: "at", time: schedule.time ?? new Date().toISOString() },
+                    });
+                  }
+                }}
+                value={schedule.mode}
               />
-            </AutomationField>
-            <AutomationField label="Window">
-              <AutomationInput
-                data-testid="job-fire-limit-window"
-                onChange={event =>
-                  onChange({
-                    ...draft,
-                    fire_limit: {
-                      ...(draft.fire_limit ?? { max: 12 }),
-                      window: event.target.value,
-                    },
-                  })
-                }
-                placeholder="1h"
-                value={draft.fire_limit?.window ?? "1h"}
-              />
-            </AutomationField>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="job-schedule-input">
+                {schedule.mode === "cron"
+                  ? "Cron expression"
+                  : schedule.mode === "every"
+                    ? "Interval"
+                    : "Run at"}
+              </FieldLabel>
+              {schedule.mode === "cron" ? (
+                <Input
+                  data-testid="job-schedule-expr"
+                  id="job-schedule-input"
+                  onChange={event =>
+                    onChange({ ...draft, schedule: { mode: "cron", expr: event.target.value } })
+                  }
+                  placeholder="0 9 * * *"
+                  value={schedule.expr ?? ""}
+                />
+              ) : schedule.mode === "every" ? (
+                <Input
+                  data-testid="job-schedule-interval"
+                  id="job-schedule-input"
+                  onChange={event =>
+                    onChange({
+                      ...draft,
+                      schedule: { mode: "every", interval: event.target.value },
+                    })
+                  }
+                  placeholder="30m"
+                  value={schedule.interval ?? ""}
+                />
+              ) : (
+                <Input
+                  data-testid="job-schedule-time"
+                  id="job-schedule-input"
+                  onChange={event =>
+                    onChange({ ...draft, schedule: { mode: "at", time: event.target.value } })
+                  }
+                  placeholder="2026-04-15T15:00:00Z"
+                  value={schedule.time ?? ""}
+                />
+              )}
+              <FieldDescription>
+                {schedule.mode === "cron"
+                  ? "Standard cron expression"
+                  : schedule.mode === "every"
+                    ? "Duration such as 30m or 4h"
+                    : "UTC timestamp"}
+              </FieldDescription>
+            </Field>
           </div>
-          <AutomationCheckbox
-            checked={draft.enabled ?? true}
-            description="Disabled jobs stay visible but never dispatch on their schedule."
-            label={mode === "create" ? "Enabled on create" : "Enabled"}
-            onCheckedChange={checked => onChange({ ...draft, enabled: checked })}
-          />
-        </AutomationFormSection>
+        </Section>
+
+        <Section label="Governance">
+          <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              <Field>
+                <FieldTitle>Retry policy</FieldTitle>
+                <Pills
+                  aria-label="Retry policy"
+                  items={[
+                    { value: "none", label: "NONE", testId: "job-retry-strategy-none" },
+                    { value: "backoff", label: "BACKOFF", testId: "job-retry-strategy-backoff" },
+                  ]}
+                  onChange={next =>
+                    onChange({ ...draft, retry: retryDraftForStrategy(next, retry) })
+                  }
+                  size="sm"
+                  value={retry.strategy}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="job-retry-max">Max retries</FieldLabel>
+                <Input
+                  data-testid="job-retry-max"
+                  disabled={retry.strategy !== "backoff"}
+                  id="job-retry-max"
+                  min={0}
+                  onChange={event =>
+                    onChange({
+                      ...draft,
+                      retry: {
+                        ...retryDraftForStrategy("backoff", retry),
+                        max_retries: Number(event.target.value || "0"),
+                      },
+                    })
+                  }
+                  type="number"
+                  value={retry.strategy === "backoff" ? retry.max_retries : 0}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="job-retry-delay">Base delay</FieldLabel>
+                <Input
+                  data-testid="job-retry-delay"
+                  disabled={retry.strategy !== "backoff"}
+                  id="job-retry-delay"
+                  onChange={event =>
+                    onChange({
+                      ...draft,
+                      retry: {
+                        ...retryDraftForStrategy("backoff", retry),
+                        base_delay: event.target.value,
+                      },
+                    })
+                  }
+                  placeholder="2s"
+                  value={retry.strategy === "backoff" ? retry.base_delay : ""}
+                />
+              </Field>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="job-fire-limit-max">Max fires</FieldLabel>
+                <Input
+                  data-testid="job-fire-limit-max"
+                  id="job-fire-limit-max"
+                  min={1}
+                  onChange={event =>
+                    onChange({
+                      ...draft,
+                      fire_limit: {
+                        ...(draft.fire_limit ?? { window: "1h" }),
+                        max: Number(event.target.value || "1"),
+                      },
+                    })
+                  }
+                  type="number"
+                  value={draft.fire_limit?.max ?? 12}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="job-fire-limit-window">Window</FieldLabel>
+                <Input
+                  data-testid="job-fire-limit-window"
+                  id="job-fire-limit-window"
+                  onChange={event =>
+                    onChange({
+                      ...draft,
+                      fire_limit: {
+                        ...(draft.fire_limit ?? { max: 12 }),
+                        window: event.target.value,
+                      },
+                    })
+                  }
+                  placeholder="1h"
+                  value={draft.fire_limit?.window ?? "1h"}
+                />
+              </Field>
+            </div>
+            <Field orientation="horizontal">
+              <Switch
+                checked={draft.enabled ?? true}
+                data-testid="job-enabled-toggle"
+                onCheckedChange={checked => onChange({ ...draft, enabled: checked })}
+              />
+              <FieldContent>
+                <FieldTitle>{mode === "create" ? "Enabled on create" : "Enabled"}</FieldTitle>
+                <FieldDescription>
+                  Disabled jobs stay visible but never dispatch on their schedule.
+                </FieldDescription>
+              </FieldContent>
+            </Field>
+          </div>
+        </Section>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-6 py-4">
-        <Button
-          className="border-[color:var(--color-divider)] bg-transparent text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
-          onClick={onCancel}
-          size="lg"
-          type="button"
-          variant="outline"
-        >
+      <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+        <Button onClick={onCancel} type="button" variant="outline">
           Cancel
         </Button>
         <Button
+          className="min-w-32"
           data-testid="submit-job-form"
           disabled={!canSubmit || isPending}
-          className="min-w-32"
-          size="lg"
           type="submit"
         >
           {isPending ? "Saving..." : mode === "create" ? "Create Job" : "Save Changes"}

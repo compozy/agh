@@ -407,6 +407,8 @@ function useAutomationPage() {
 
   const listPanelProps = {
     activeWorkspaceName: activeWorkspace?.name,
+    errorMessage: currentListError?.message ?? null,
+    isLoading: currentListLoading,
     jobs: visibleJobs,
     kind: activeTab,
     onSearchChange: setSearchQuery,
