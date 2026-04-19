@@ -2,7 +2,7 @@ import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Switch } from "@agh/ui";
+import { Input, MonoBadge, Switch } from "@agh/ui";
 import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
 import type { SettingsObservabilitySection } from "@/systems/settings";
 import {
@@ -12,6 +12,8 @@ import {
   SettingsRestartBanner,
   SettingsSaveBar,
   SettingsSectionCard,
+  SettingsStatGrid,
+  SettingsStatItem,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -21,6 +23,7 @@ export const Route = createFileRoute("/_app/settings/observability")({
 
 type ObservabilityConfig = SettingsObservabilitySection["config"];
 type LogTailMeta = SettingsObservabilitySection["log_tail"];
+type Runtime = SettingsObservabilitySection["runtime"];
 
 const GB = 1024 * 1024 * 1024;
 const MB = 1024 * 1024;
@@ -101,6 +104,12 @@ function ObservabilitySettingsPage() {
         />
       }
     >
+      <OverviewMetrics
+        activeSessions={runtime.active_sessions}
+        activeAgents={runtime.active_agents}
+        totalStorage={totalStorage}
+        cap={cap}
+      />
       <CaptureSection
         draft={draft}
         setDraft={setDraft}
@@ -110,8 +119,52 @@ function ObservabilitySettingsPage() {
         cap={cap}
       />
       <TranscriptsSection draft={draft} setDraft={setDraft} />
-      <LogTailSection logTail={logTail} />
+      <LogTailSection logTail={logTail} runtime={runtime} />
     </SettingsPageShell>
+  );
+}
+
+interface OverviewMetricsProps {
+  activeSessions: number;
+  activeAgents: number;
+  totalStorage: number;
+  cap: number;
+}
+
+function OverviewMetrics({
+  activeSessions,
+  activeAgents,
+  totalStorage,
+  cap,
+}: OverviewMetricsProps) {
+  const capPercent = cap > 0 ? Math.min(100, Math.round((totalStorage / cap) * 100)) : 0;
+  return (
+    <SettingsSectionCard eyebrow="Runtime" note="live capture volume">
+      <SettingsStatGrid>
+        <SettingsStatItem
+          label="Active sessions"
+          value={String(activeSessions)}
+          testId="settings-page-observability-metric-sessions"
+        />
+        <SettingsStatItem
+          label="Active agents"
+          value={String(activeAgents)}
+          testId="settings-page-observability-metric-agents"
+        />
+        <SettingsStatItem
+          label="Storage used"
+          value={formatBytes(totalStorage)}
+          detail={`of ${formatBytes(cap)}`}
+          testId="settings-page-observability-metric-storage"
+        />
+        <SettingsStatItem
+          label="Capacity"
+          value={`${capPercent}%`}
+          detail="of soft cap"
+          testId="settings-page-observability-metric-capacity"
+        />
+      </SettingsStatGrid>
+    </SettingsSectionCard>
   );
 }
 
@@ -140,12 +193,12 @@ function CaptureSection({
       eyebrow="Capture"
       note="events, transcripts, logs"
       headerAction={
-        <span
-          className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]"
+        <MonoBadge
+          tone={capPercent > 85 ? "warning" : "neutral"}
           data-testid="settings-page-observability-cap-percent"
         >
           {capPercent}% of cap
-        </span>
+        </MonoBadge>
       }
     >
       <SettingsFieldRow
@@ -234,7 +287,8 @@ function TranscriptsSection({ draft, setDraft }: DraftSectionProps) {
   );
 }
 
-function LogTailSection({ logTail }: { logTail: LogTailMeta }) {
+function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: Runtime }) {
+  void runtime;
   return (
     <SettingsSectionCard eyebrow="Log tail" note="daemon log stream">
       <div
@@ -285,10 +339,10 @@ function NumberField({ label, testId, value, suffix, onChange }: NumberFieldProp
         {label}
       </span>
       <div className="flex items-center gap-2">
-        <input
+        <Input
+          className="w-full"
           type="number"
           min={0}
-          className="h-8 w-full rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
           data-testid={testId}
           value={value}
           onChange={event => onChange(Number(event.target.value || 0))}

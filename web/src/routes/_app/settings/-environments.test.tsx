@@ -180,14 +180,17 @@ describe("EnvironmentsSettingsPage", () => {
     ).toHaveTextContent("CONFIG");
   });
 
-  it("shows empty state when no environments exist", () => {
+  it("shows the @agh/ui Empty card when no environments exist", () => {
     pageState = makeState({
       environments: [],
       envelope: { environments: [] },
       counts: { total: 0, totalWorkspaces: 0 },
     });
     render(<EnvironmentsSettingsPage />);
-    expect(screen.getByTestId("settings-page-environments-empty")).toBeInTheDocument();
+    const empty = screen.getByTestId("settings-page-environments-empty");
+    expect(empty).toBeInTheDocument();
+    expect(empty).toHaveAttribute("data-slot", "empty");
+    expect(empty).toHaveTextContent("No environments defined");
   });
 
   it("wires create, edit, and delete controls", () => {
@@ -261,7 +264,7 @@ describe("EnvironmentsSettingsPage", () => {
     );
   });
 
-  it("shows the last action banner after save and delete", () => {
+  it("shows the last action banner after save and delete via @agh/ui Alert", () => {
     pageState = makeState({
       lastAction: {
         kind: "deleted",
@@ -272,6 +275,7 @@ describe("EnvironmentsSettingsPage", () => {
     });
     render(<EnvironmentsSettingsPage />);
     const banner = screen.getByTestId("settings-page-environments-action-result");
+    expect(banner).toHaveAttribute("data-slot", "alert");
     expect(banner).toHaveTextContent('Deleted "local"');
     expect(banner).toHaveTextContent("3 workspaces affected");
   });

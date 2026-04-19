@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
+import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
 import {
   StorybookRestartBannerSetup,
   StorybookRouteCanvas,
@@ -27,6 +28,21 @@ export const Default: Story = {
   args: {},
   parameters: appRouteParameters("/settings/network"),
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Dirty shell state — the listener port has been edited so the save-bar reads
+ * Unsaved changes + the Save button enables.
+ */
+export const Dirty: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/network"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookFieldDirtySetup testId="settings-page-network-port-input" value="4200" />
+    </>
+  ),
 };
 
 /**

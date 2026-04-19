@@ -3,6 +3,7 @@ import { delay, http, HttpResponse } from "msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
+import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
 import { settingsHooksExtensionsSectionFixture } from "@/systems/settings/mocks";
 import {
   StorybookRestartBannerSetup,
@@ -29,6 +30,24 @@ export const Default: Story = {
   args: {},
   parameters: appRouteParameters("/settings/hooks-extensions"),
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Dirty policy draft — the marketplace registry input has been edited so the
+ * policy save-bar reads dirty and enables the save button.
+ */
+export const Dirty: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/hooks-extensions"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookFieldDirtySetup
+        testId="settings-page-hooks-extensions-policy-registry-input"
+        value="github-dirty"
+      />
+    </>
+  ),
 };
 
 /**

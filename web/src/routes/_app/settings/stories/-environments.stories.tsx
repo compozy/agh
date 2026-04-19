@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
+import { useEffect } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -13,7 +14,7 @@ import {
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
     "routes/app/settings/environments",
-    "Environment profile route stories covering the grid layout, empty state, editor flow, delete warnings, and request failures."
+    "Environment profile route stories covering the table layout, empty state, editor flow, delete warnings, and request failures."
   ),
 };
 
@@ -21,12 +22,27 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Default environment catalog with workspace usage counts.
+ * Default environment catalog with workspace usage counts rendered in a @agh/ui Table.
  */
 export const Default: Story = {
   args: {},
   parameters: appRouteParameters("/settings/environments"),
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Dirty editor state — the new-environment dialog is open with the name field
+ * pre-filled so the Create button enables for the baseline.
+ */
+export const Dirty: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/environments"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookEnvironmentsDirtySetup />
+    </>
+  ),
 };
 
 /**
@@ -118,3 +134,49 @@ export const Error: Story = {
   },
   render: () => <StorybookWorkspaceSetup />,
 };
+
+/**
+ * Reaches the dirty editor state by opening the new-environment dialog and
+ * seeding the name field. RAF-polls until the route mounts.
+ */
+function StorybookEnvironmentsDirtySetup() {
+  useEffect(() => {
+    let cancelled = false;
+    let stage: "open" | "fill" = "open";
+    const setValue = (element: HTMLInputElement, next: string) => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value"
+      )?.set;
+      setter?.call(element, next);
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const advance = () => {
+      if (cancelled) return;
+      if (stage === "open") {
+        const trigger = document.querySelector<HTMLButtonElement>(
+          '[data-testid="settings-page-environments-create"]'
+        );
+        if (trigger) {
+          trigger.click();
+          stage = "fill";
+        }
+      } else if (stage === "fill") {
+        const input = document.querySelector<HTMLInputElement>(
+          '[data-testid="settings-environments-editor-name-input"]'
+        );
+        if (input) {
+          setValue(input, "dirty-environment");
+          return;
+        }
+      }
+      requestAnimationFrame(advance);
+    };
+    requestAnimationFrame(advance);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return null;
+}

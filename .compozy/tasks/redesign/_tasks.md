@@ -35,4 +35,4 @@
 | 29 | Rewrite Daemon status and home dashboard                              | completed | low        | task_13, task_14                      |
 | 30 | Rewrite Settings shell (save-bar, page-actions, restart-banner)       | completed | medium     | task_13, task_14                      |
 | 31 | Rewrite Settings pages batch 1 (general, memory, skills, providers, automation) | completed | high       | task_30                               |
-| 32 | Rewrite Settings pages batch 2 (mcp-servers, hooks-extensions, observability, environments, network) | pending | high       | task_30                               |
+| 32 | Rewrite Settings pages batch 2 (mcp-servers, hooks-extensions, observability, environments, network) | completed | high       | task_30                               |

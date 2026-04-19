@@ -2,7 +2,7 @@ import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Switch } from "@agh/ui";
+import { Input, Switch } from "@agh/ui";
 import { useSettingsNetworkPage } from "@/hooks/routes/use-settings-network-page";
 import type { SettingsNetworkSection } from "@/systems/settings";
 import {
@@ -198,10 +198,10 @@ function ListenerSection({ draft, setDraft }: DraftSectionProps) {
         description="TCP port for the embedded network"
         hint="CONFIG.TOML"
         control={
-          <input
+          <Input
+            className="w-28"
             type="number"
             min={0}
-            className="h-8 w-28 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
             data-testid="settings-page-network-port-input"
             value={draft.port}
             onChange={event => setDraft({ ...draft, port: Number(event.target.value || 0) })}
@@ -214,8 +214,8 @@ function ListenerSection({ draft, setDraft }: DraftSectionProps) {
         description="Channel new sessions join when none is specified"
         hint="DEFAULT"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56 font-mono"
             data-testid="settings-page-network-default-channel-input"
             value={draft.default_channel ?? ""}
             placeholder="agh"
@@ -278,10 +278,10 @@ function NumberField({ label, testId, value, suffix, onChange }: NumberFieldProp
         {label}
       </span>
       <div className="flex items-center gap-2">
-        <input
+        <Input
+          className="w-full"
           type="number"
           min={0}
-          className="h-8 w-full rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
           data-testid={testId}
           value={value}
           onChange={event => onChange(Number(event.target.value || 0))}

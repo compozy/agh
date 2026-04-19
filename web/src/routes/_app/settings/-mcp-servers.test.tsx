@@ -282,9 +282,28 @@ describe("MCPServersSettingsPage", () => {
     expect(screen.getByTestId("settings-page-mcp-servers-scope-label")).toHaveTextContent(
       "polybot"
     );
-    expect(screen.getByTestId("settings-page-mcp-servers-empty")).toHaveTextContent(
-      /workspace overrides/i
-    );
+    const empty = screen.getByTestId("settings-page-mcp-servers-empty");
+    expect(empty).toHaveAttribute("data-slot", "empty");
+    expect(empty).toHaveTextContent("No MCP servers configured");
+  });
+
+  it("renders the @agh/ui Empty card when the global catalog is empty", () => {
+    pageState = makeState({
+      servers: [],
+      envelope: { mcp_servers: [] },
+      counts: { total: 0, shadowed: 0 },
+    });
+    render(<MCPServersPage />);
+    const empty = screen.getByTestId("settings-page-mcp-servers-empty");
+    expect(empty).toHaveAttribute("data-slot", "empty");
+    expect(empty).toHaveTextContent("No MCP servers configured");
+  });
+
+  it("renders each row with a success StatusDot and name", () => {
+    render(<MCPServersPage />);
+    const dot = screen.getByTestId("settings-page-mcp-servers-row-filesystem-status");
+    expect(dot).toHaveAttribute("data-slot", "status-dot");
+    expect(dot).toHaveAttribute("data-tone", "configured");
   });
 
   it("renders the create editor with target selector defaulted to auto", () => {
@@ -363,6 +382,20 @@ describe("MCPServersSettingsPage", () => {
     });
     render(<MCPServersPage />);
     expect(screen.getByTestId("settings-mcp-servers-delete-no-shadowed")).toBeInTheDocument();
+  });
+
+  it("renders the saved-action banner through @agh/ui Alert with role=status", () => {
+    pageState = makeState({
+      lastAction: {
+        kind: "saved",
+        name: "filesystem",
+        result: { restart_required: false, write_target: "global-config" },
+      },
+    });
+    render(<MCPServersPage />);
+    const banner = screen.getByTestId("settings-page-mcp-servers-action-result");
+    expect(banner).toHaveAttribute("data-slot", "alert");
+    expect(banner).toHaveAttribute("role", "status");
   });
 
   it("shows the last action banner for saved and deleted actions", () => {
