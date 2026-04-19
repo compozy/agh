@@ -1,8 +1,12 @@
 package network
 
 import (
+	"encoding/json"
+	"slices"
 	"testing"
 	"time"
+
+	sessionpkg "github.com/pedronauck/agh/internal/session"
 )
 
 func TestPeerRegistryIsolatesChannelsExpiresRemotesAndLeavesLocal(t *testing.T) {
@@ -158,6 +162,96 @@ func TestPeerRegistryMoveLocalPeerAndIgnoreMatchingRemoteAdvertisement(t *testin
 	}
 }
 
+func TestProjectCapabilityBriefViewMatchesProjectedIDsAndBriefEntries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep capability ids and brief entries aligned in stable order", func(t *testing.T) {
+		t.Parallel()
+
+		ids, ext, err := projectCapabilityBriefView([]sessionpkg.NetworkPeerCapability{
+			{
+				ID:      " review-pr ",
+				Summary: " Review pull requests ",
+			},
+			{
+				ID:      "draft-spec",
+				Summary: "Draft technical specs",
+			},
+		})
+		if err != nil {
+			t.Fatalf("projectCapabilityBriefView() error = %v", err)
+		}
+
+		wantBrief := []capabilityBrief{
+			{ID: "review-pr", Summary: "Review pull requests"},
+			{ID: "draft-spec", Summary: "Draft technical specs"},
+		}
+		if got, want := ids, []string{"review-pr", "draft-spec"}; !slices.Equal(got, want) {
+			t.Fatalf("projected capability ids = %#v, want %#v", got, want)
+		}
+		if got := decodeCapabilityBriefPayload(t, ext[capabilityBriefExtKey]); !slices.Equal(got, wantBrief) {
+			t.Fatalf("capability brief entries = %#v, want %#v", got, wantBrief)
+		}
+	})
+
+	t.Run("Should keep no-catalog peers discovery-empty without the brief ext key", func(t *testing.T) {
+		t.Parallel()
+
+		ids, ext, err := projectCapabilityBriefView(nil)
+		if err != nil {
+			t.Fatalf("projectCapabilityBriefView(nil) error = %v", err)
+		}
+		if ids == nil {
+			t.Fatal("projected ids = nil, want empty-but-valid slice")
+		}
+		if got := len(ids); got != 0 {
+			t.Fatalf("len(projected ids) = %d, want 0", got)
+		}
+		if ext != nil && ext[capabilityBriefExtKey] != nil {
+			t.Fatalf("projected ext = %#v, want omitted capability brief key", ext)
+		}
+	})
+}
+
+func TestCloneAndNormalizePeerCardPreserveCapabilityBriefExt(t *testing.T) {
+	t.Parallel()
+
+	card, err := DefaultPeerCard("reviewer.sess-brief")
+	if err != nil {
+		t.Fatalf("DefaultPeerCard() error = %v", err)
+	}
+	if err := applyCapabilityBriefProjection(&card, []sessionpkg.NetworkPeerCapability{{
+		ID:      "review-pr",
+		Summary: "Review pull requests",
+	}}); err != nil {
+		t.Fatalf("applyCapabilityBriefProjection() error = %v", err)
+	}
+
+	cloned := clonePeerCard(card)
+	normalized, err := normalizePeerCard(card)
+	if err != nil {
+		t.Fatalf("normalizePeerCard() error = %v", err)
+	}
+
+	wantCapabilities := append([]string(nil), card.Capabilities...)
+	wantBriefRaw := append(json.RawMessage(nil), card.Ext[capabilityBriefExtKey]...)
+	card.Capabilities[0] = "mutated"
+	card.Ext[capabilityBriefExtKey][0] = '{'
+
+	if got := cloned.Capabilities; !slices.Equal(got, wantCapabilities) {
+		t.Fatalf("cloned capabilities = %#v, want %#v", got, wantCapabilities)
+	}
+	if got := normalized.Capabilities; !slices.Equal(got, wantCapabilities) {
+		t.Fatalf("normalized capabilities = %#v, want %#v", got, wantCapabilities)
+	}
+	if got := string(cloned.Ext[capabilityBriefExtKey]); got != string(wantBriefRaw) {
+		t.Fatalf("cloned capability brief raw = %q, want %q", got, string(wantBriefRaw))
+	}
+	if got := string(normalized.Ext[capabilityBriefExtKey]); got != string(wantBriefRaw) {
+		t.Fatalf("normalized capability brief raw = %q, want %q", got, string(wantBriefRaw))
+	}
+}
+
 func mustPeerCard(t *testing.T, peerID string) PeerCard {
 	t.Helper()
 
@@ -166,4 +260,18 @@ func mustPeerCard(t *testing.T, peerID string) PeerCard {
 		t.Fatalf("DefaultPeerCard(%q) error = %v", peerID, err)
 	}
 	return card
+}
+
+func decodeCapabilityBriefPayload(t *testing.T, raw json.RawMessage) []capabilityBrief {
+	t.Helper()
+
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var brief []capabilityBrief
+	if err := json.Unmarshal(raw, &brief); err != nil {
+		t.Fatalf("json.Unmarshal(capability brief) error = %v", err)
+	}
+	return brief
 }

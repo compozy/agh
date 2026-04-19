@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
+
+	sessionpkg "github.com/pedronauck/agh/internal/session"
 )
 
 func TestRouterSendEnforcesPresencePreflight(t *testing.T) {
@@ -375,6 +378,12 @@ func TestRouterHeartbeatPublishAndLeaveHelpers(t *testing.T) {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
 	local := mustPeerCard(t, "coder.sess-a")
+	if err := applyCapabilityBriefProjection(&local, []sessionpkg.NetworkPeerCapability{{
+		ID:      "review-pr",
+		Summary: "Review pull requests",
+	}}); err != nil {
+		t.Fatalf("applyCapabilityBriefProjection() error = %v", err)
+	}
 	if _, err := registry.RegisterLocal("sess-a", "builders", local, now); err != nil {
 		t.Fatalf("RegisterLocal(local) error = %v", err)
 	}
@@ -391,6 +400,28 @@ func TestRouterHeartbeatPublishAndLeaveHelpers(t *testing.T) {
 	}
 	if got, want := greet.Subject, "agh.network.v0.builders.broadcast"; got != want {
 		t.Fatalf("PublishGreet().Subject = %q, want %q", got, want)
+	}
+	firstMessage := transport.Message(0)
+	var firstEnvelope Envelope
+	if err := json.Unmarshal(firstMessage.payload, &firstEnvelope); err != nil {
+		t.Fatalf("json.Unmarshal(first greet envelope) error = %v", err)
+	}
+	decoded, err := firstEnvelope.DecodeBody()
+	if err != nil {
+		t.Fatalf("DecodeBody(first greet) error = %v", err)
+	}
+	firstGreet := decoded.(GreetBody)
+	if got := decodeCapabilityBriefPayload(
+		t,
+		firstGreet.PeerCard.Ext[capabilityBriefExtKey],
+	); !slices.Equal(
+		got,
+		[]capabilityBrief{{
+			ID:      "review-pr",
+			Summary: "Review pull requests",
+		}},
+	) {
+		t.Fatalf("first greet capability brief = %#v, want review-pr brief entry", got)
 	}
 
 	ctx := t.Context()

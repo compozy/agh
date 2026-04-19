@@ -290,6 +290,18 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		if got, want := local.PeerCard.Capabilities, []string{"review-pr"}; !slices.Equal(got, want) {
 			t.Fatalf("local peer capabilities = %#v, want %#v", got, want)
 		}
+		if got := decodeCapabilityBriefPayload(
+			t,
+			local.PeerCard.Ext[capabilityBriefExtKey],
+		); !slices.Equal(
+			got,
+			[]capabilityBrief{{
+				ID:      "review-pr",
+				Summary: "Review pull requests",
+			}},
+		) {
+			t.Fatalf("local peer capability brief = %#v, want review-pr brief entry", got)
+		}
 
 		stored, ok := manager.peers.LocalBySession("sess-capabilities")
 		if !ok {
@@ -297,6 +309,18 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		}
 		if got, want := stored.PeerCard.Capabilities, []string{"review-pr"}; !slices.Equal(got, want) {
 			t.Fatalf("stored peer capabilities = %#v, want %#v", got, want)
+		}
+		if got := decodeCapabilityBriefPayload(
+			t,
+			stored.PeerCard.Ext[capabilityBriefExtKey],
+		); !slices.Equal(
+			got,
+			[]capabilityBrief{{
+				ID:      "review-pr",
+				Summary: "Review pull requests",
+			}},
+		) {
+			t.Fatalf("stored peer capability brief = %#v, want review-pr brief entry", got)
 		}
 	})
 
@@ -318,6 +342,9 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		}
 		if got := len(local.PeerCard.Capabilities); got != 0 {
 			t.Fatalf("local peer capabilities len = %d, want 0", got)
+		}
+		if local.PeerCard.Ext != nil && local.PeerCard.Ext[capabilityBriefExtKey] != nil {
+			t.Fatalf("local peer ext = %#v, want omitted capability brief key", local.PeerCard.Ext)
 		}
 	})
 }

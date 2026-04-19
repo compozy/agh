@@ -445,20 +445,10 @@ func localPeerCardFromJoinRequest(request joinChannelRequest) (PeerCard, error) 
 	if err != nil {
 		return PeerCard{}, err
 	}
-	card.Capabilities = capabilityIDsFromJoinRequest(request.capabilities)
+	if err := applyCapabilityBriefProjection(&card, request.capabilities); err != nil {
+		return PeerCard{}, err
+	}
 	return card, nil
-}
-
-func capabilityIDsFromJoinRequest(capabilities []sessionpkg.NetworkPeerCapability) []string {
-	if len(capabilities) == 0 {
-		return []string{}
-	}
-
-	ids := make([]string, 0, len(capabilities))
-	for _, capability := range capabilities {
-		ids = append(ids, strings.TrimSpace(capability.ID))
-	}
-	return ids
 }
 
 func (m *Manager) newManagedSession(local LocalPeer) (*managedSession, error) {

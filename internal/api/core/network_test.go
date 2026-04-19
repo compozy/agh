@@ -165,6 +165,34 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			t.Fatalf("payload.DisplayName = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should clone capability brief peer-card metadata", func(t *testing.T) {
+		t.Parallel()
+
+		brief := json.RawMessage(`[{"id":"review-pr","summary":"Review pull requests"}]`)
+		payload := core.NetworkPeerPayloadFromInfo(network.PeerInfo{
+			PeerID:  "reviewer.sess-b",
+			Channel: "builders",
+			Local:   true,
+			PeerCard: network.PeerCard{
+				PeerID:              "reviewer.sess-b",
+				ProfilesSupported:   []string{network.ProtocolV0},
+				Capabilities:        []string{"review-pr"},
+				ArtifactsSupported:  []string{},
+				TrustModesSupported: []string{},
+				Ext: network.ExtensionMap{
+					"agh.capabilities_brief": brief,
+				},
+			},
+		})
+
+		brief[0] = '{'
+		if got, want := string(
+			payload.PeerCard.Ext["agh.capabilities_brief"],
+		), `[{"id":"review-pr","summary":"Review pull requests"}]`; got != want {
+			t.Fatalf("payload capability brief = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestBundleActivationPayloadUsesMaterializedStableIDs(t *testing.T) {
@@ -300,7 +328,10 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 					Capabilities:        []string{"send"},
 					ArtifactsSupported:  []string{"text"},
 					TrustModesSupported: []string{"untrusted"},
-					Ext:                 network.ExtensionMap{"agh.workflow_id": json.RawMessage(`"wf-1"`)},
+					Ext: network.ExtensionMap{
+						"agh.workflow_id":        json.RawMessage(`"wf-1"`),
+						"agh.capabilities_brief": json.RawMessage(`[{"id":"send","summary":"Send channel updates"}]`),
+					},
 				},
 				JoinedAt:  timePtr(fixedNow),
 				LastSeen:  timePtr(fixedNow),
@@ -389,6 +420,11 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		if len(peersPayload.Peers) != 1 || peersPayload.Peers[0].PeerCard.DisplayName == nil ||
 			*peersPayload.Peers[0].PeerCard.DisplayName != "Reviewer" {
 			t.Fatalf("peers payload = %#v", peersPayload.Peers)
+		}
+		if got, want := string(
+			peersPayload.Peers[0].PeerCard.Ext["agh.capabilities_brief"],
+		), `[{"id":"send","summary":"Send channel updates"}]`; got != want {
+			t.Fatalf("peer list capability brief = %q, want %q", got, want)
 		}
 	})
 
@@ -755,6 +791,141 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if !strings.Contains(payload.Error, "network service is required") {
 			t.Fatalf("peers unavailable payload = %#v, want network service error", payload)
+		}
+	})
+
+	t.Run("ShouldReturnServiceUnavailableForNetworkDetailHandlersWhenServiceMissing", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+
+		for _, path := range []string{"/network/peers/reviewer.sess-a", "/network/channels/builders"} {
+			resp := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
+			if resp.Code != http.StatusServiceUnavailable {
+				t.Fatalf("%s code = %d, want %d", path, resp.Code, http.StatusServiceUnavailable)
+			}
+		}
+	})
+
+	t.Run("ShouldReturnInternalServerErrorForPeerDetailWhenNetworkStoreMissing", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if channel != "" {
+					t.Fatalf("ListPeers() channel = %q, want empty filter", channel)
+				}
+				return []network.PeerInfo{{
+					PeerID:   "reviewer.sess-a",
+					Channel:  "builders",
+					Local:    false,
+					PeerCard: network.PeerCard{PeerID: "reviewer.sess-a"},
+				}}, nil
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers/reviewer.sess-a", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("peer detail code = %d, want %d", resp.Code, http.StatusInternalServerError)
+		}
+	})
+
+	t.Run("ShouldReturnBadRequestForBlankNetworkPeerID", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers/%20", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("peer detail code = %d, want %d", resp.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("ShouldReturnNotFoundForMissingNetworkPeerAndChannelDetails", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return nil, nil
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(context.Context, string) ([]network.PeerInfo, error) {
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				return nil, nil
+			},
+			ListNetworkAuditFn: func(context.Context, store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error) {
+				return nil, nil
+			},
+		}
+
+		peerResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers/reviewer.sess-missing", nil)
+		if peerResp.Code != http.StatusNotFound {
+			t.Fatalf("peer detail code = %d, want %d", peerResp.Code, http.StatusNotFound)
+		}
+
+		channelResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders", nil)
+		if channelResp.Code != http.StatusNotFound {
+			t.Fatalf("channel detail code = %d, want %d", channelResp.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("ShouldReturnInternalServerErrorWhenChannelMessagesStoreMissing", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders/messages", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("channel messages code = %d, want %d", resp.Code, http.StatusInternalServerError)
 		}
 	})
 
@@ -1395,6 +1566,62 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 			t.Fatalf("local session_id = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should return not found when a channel has no presence or history", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return nil, nil
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if got, want := channel, "builders"; got != want {
+					t.Fatalf("ListPeers() channel = %q, want %q", got, want)
+				}
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.Channel, "builders"; got != want {
+					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
+				}
+				return nil, nil
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders/messages", nil)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("channel messages code = %d, want %d", resp.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("Should reject invalid channel message limits", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders/messages?limit=abc", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("channel messages code = %d, want %d", resp.Code, http.StatusBadRequest)
+		}
+	})
 }
 
 func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
@@ -1567,7 +1794,18 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 					PeerID:    "coder.sess-coder",
 					Channel:   "builders",
 					Local:     true,
-					PeerCard:  network.PeerCard{PeerID: "coder.sess-coder"},
+					PeerCard: network.PeerCard{
+						PeerID:              "coder.sess-coder",
+						Capabilities:        []string{"review-pr"},
+						ProfilesSupported:   []string{network.ProtocolV0},
+						ArtifactsSupported:  []string{},
+						TrustModesSupported: []string{},
+						Ext: network.ExtensionMap{
+							"agh.capabilities_brief": json.RawMessage(
+								`[{"id":"review-pr","summary":"Review pull requests"}]`,
+							),
+						},
+					},
 				}}, nil
 			},
 		}
@@ -1638,6 +1876,110 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 			t.Fatalf("payload.Peer.Metrics.Delivered = %d, want %d", got, want)
 		}
 		if got, want := payload.Peer.Metrics.Rejected, int64(1); got != want {
+			t.Fatalf("payload.Peer.Metrics.Rejected = %d, want %d", got, want)
+		}
+		if got, want := string(
+			payload.Peer.PeerCard.Ext["agh.capabilities_brief"],
+		), `[{"id":"review-pr","summary":"Review pull requests"}]`; got != want {
+			t.Fatalf("peer detail capability brief = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should derive remote peer metrics from channel audit history", func(t *testing.T) {
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return nil, nil
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+
+		remoteDisplayName := "Reviewer"
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if channel != "" {
+					t.Fatalf("ListPeers() channel = %q, want empty filter", channel)
+				}
+				return []network.PeerInfo{{
+					PeerID:  "reviewer.sess-remote",
+					Channel: "builders",
+					Local:   false,
+					PeerCard: network.PeerCard{
+						PeerID:              "reviewer.sess-remote",
+						DisplayName:         &remoteDisplayName,
+						Capabilities:        []string{"review-pr"},
+						ProfilesSupported:   []string{network.ProtocolV0},
+						ArtifactsSupported:  []string{},
+						TrustModesSupported: []string{},
+						Ext: network.ExtensionMap{
+							"agh.capabilities_brief": json.RawMessage(
+								`[{"id":"review-pr","summary":"Review pull requests"}]`,
+							),
+						},
+					},
+				}}, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkAuditFn: func(_ context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error) {
+				if got, want := query.Channel, "builders"; got != want {
+					t.Fatalf("ListNetworkAudit() channel = %q, want %q", got, want)
+				}
+				if query.SessionID != "" {
+					t.Fatalf("ListNetworkAudit() session_id = %q, want empty remote lookup", query.SessionID)
+				}
+				return []store.NetworkAuditEntry{
+					{
+						Direction: network.AuditDirectionReceived,
+						Kind:      "say",
+						Channel:   "builders",
+						PeerFrom:  "reviewer.sess-remote",
+						MessageID: "msg-remote-1",
+						Size:      1,
+					},
+					{
+						Direction: network.AuditDirectionDelivered,
+						Kind:      "direct",
+						Channel:   "builders",
+						PeerTo:    "reviewer.sess-remote",
+						MessageID: "msg-remote-2",
+						Size:      1,
+					},
+					{
+						Direction: network.AuditDirectionRejected,
+						Kind:      "receipt",
+						Channel:   "builders",
+						PeerFrom:  "other.sess-peer",
+						MessageID: "msg-other",
+						Size:      1,
+					},
+				}, nil
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers/reviewer.sess-remote", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("remote peer detail code = %d, want %d", resp.Code, http.StatusOK)
+		}
+
+		var payload contract.NetworkPeerResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := payload.Peer.DisplayName, "Reviewer"; got != want {
+			t.Fatalf("payload.Peer.DisplayName = %q, want %q", got, want)
+		}
+		if got, want := payload.Peer.Metrics.Received, int64(1); got != want {
+			t.Fatalf("payload.Peer.Metrics.Received = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.Delivered, int64(1); got != want {
+			t.Fatalf("payload.Peer.Metrics.Delivered = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.Rejected, int64(0); got != want {
 			t.Fatalf("payload.Peer.Metrics.Rejected = %d, want %d", got, want)
 		}
 	})
