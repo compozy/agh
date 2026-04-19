@@ -1,11 +1,19 @@
-import { ExternalLink, Loader2, Trash2 } from "lucide-react";
+import { AlertCircle, BookOpen, ExternalLink, Loader2, Trash2 } from "lucide-react";
+import { useState } from "react";
 
-import { cn } from "@/lib/utils";
+import { Button, CodeBlock, Empty, MonoBadge, Section, StatusDot } from "@agh/ui";
+
+import {
+  deriveScopeFromFilename,
+  formatKnowledgeDateTime,
+  formatKnowledgeRelativeTime,
+  knowledgeScopeLabel,
+  memoryScopeTone,
+  memoryTypeTone,
+} from "@/systems/knowledge/lib/knowledge-formatters";
 import type { MemoryHeader } from "@/systems/knowledge/types";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import { KnowledgeDeleteDialog } from "./knowledge-delete-dialog";
 
 interface KnowledgeDetailPanelProps {
   memory: MemoryHeader | undefined;
@@ -17,112 +25,11 @@ interface KnowledgeDetailPanelProps {
   isDeletePending: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Type Badge (detail view)
-// ---------------------------------------------------------------------------
-
-const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  user: { bg: "bg-[#e8572a26]", text: "text-[#e8572a]" },
-  feedback: { bg: "bg-[#e8572a26]", text: "text-[#e8572a]" },
-  project: { bg: "bg-[#30d15826]", text: "text-[#30d158]" },
-  reference: { bg: "bg-[#bf5af226]", text: "text-[#bf5af2]" },
-};
-
-function DetailTypeBadge({ type }: { type: string }) {
-  const colors = TYPE_COLORS[type] ?? TYPE_COLORS.user;
-  return (
-    <span
-      className={cn(
-        "inline-flex h-[22px] items-center rounded-md px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em]",
-        colors.bg,
-        colors.text
-      )}
-      data-testid="detail-type-badge"
-    >
-      {type}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Content Preview Card
-// ---------------------------------------------------------------------------
-
-function ContentPreviewCard({ content }: { content: string }) {
-  const preview = content.length > 300 ? `${content.slice(0, 300)}...` : content;
-
-  return (
-    <div className="rounded-xl bg-[color:var(--color-surface)] p-4" data-testid="content-preview">
-      <h4 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-        Content
-      </h4>
-      <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-[color:var(--color-text-secondary)]">
-        {preview}
-      </pre>
-      {content.length > 300 && (
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Full content view is not implemented yet"
-          className="mt-2 text-sm text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-hover)]"
-          data-testid="view-full-content-link"
-        >
-          View full content &rarr;
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Metadata Table
-// ---------------------------------------------------------------------------
-
 interface MetadataRow {
   key: string;
   value: string;
+  tone?: "mono" | "plain";
 }
-
-function MetadataTable({ rows }: { rows: MetadataRow[] }) {
-  return (
-    <div className="overflow-hidden rounded-lg" data-testid="metadata-table">
-      {rows.map((row, idx) => (
-        <div
-          key={row.key}
-          className={cn(
-            "flex items-center justify-between px-3 py-2",
-            idx % 2 === 0 ? "bg-transparent" : "bg-[color:var(--color-surface)]"
-          )}
-          data-testid={`metadata-row-${row.key}`}
-        >
-          <span className="text-xs text-[color:var(--color-text-tertiary)]">{row.key}</span>
-          <span className="text-sm font-medium text-[color:var(--color-text-primary)]">
-            {row.value}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function formatDateTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) {
-    return dateStr;
-  }
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Knowledge Detail Panel
-// ---------------------------------------------------------------------------
 
 function KnowledgeDetailPanel({
   memory,
@@ -133,13 +40,18 @@ function KnowledgeDetailPanel({
   onDelete,
   isDeletePending,
 }: KnowledgeDetailPanelProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   if (isLoading) {
     return (
       <div
-        className="flex flex-1 items-center justify-center"
+        className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="knowledge-detail-loading"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2
+          aria-hidden="true"
+          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+        />
       </div>
     );
   }
@@ -147,10 +59,15 @@ function KnowledgeDetailPanel({
   if (error) {
     return (
       <div
-        className="flex flex-1 items-center justify-center text-sm text-[color:var(--color-danger)]"
+        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
         data-testid="knowledge-detail-error"
       >
-        Failed to load memory details
+        <Empty
+          className="max-w-md"
+          description={error.message ?? "Failed to load memory details"}
+          icon={AlertCircle}
+          title="Failed to load memory details"
+        />
       </div>
     );
   }
@@ -158,87 +75,157 @@ function KnowledgeDetailPanel({
   if (!memory) {
     return (
       <div
-        className="flex flex-1 items-center justify-center text-sm text-[color:var(--color-text-tertiary)]"
+        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
         data-testid="knowledge-detail-empty"
       >
-        Select a memory to view details
+        <Empty
+          className="max-w-md"
+          description="Select a memory to view details"
+          icon={BookOpen}
+          title="Select a memory to view details"
+        />
       </div>
     );
   }
 
+  const resolvedScope = scope ?? deriveScopeFromFilename(memory.filename);
+  const scopeForTone = resolvedScope === "workspace" ? "workspace" : "global";
+  const scopeTone = memoryScopeTone(scopeForTone);
+  const typeTone = memoryTypeTone(memory.type);
+
   const metadataRows: MetadataRow[] = [
-    { key: "Type", value: memory.type },
-    { key: "Scope", value: scope ?? "unknown" },
-    ...(memory.agent_name ? [{ key: "Agent", value: memory.agent_name }] : []),
-    { key: "Modified", value: formatDateTime(memory.mod_time) },
+    { key: "Type", value: memory.type, tone: "mono" },
+    { key: "Scope", value: resolvedScope, tone: "mono" },
+    ...(memory.agent_name
+      ? [{ key: "Agent", value: memory.agent_name, tone: "mono" as const }]
+      : []),
+    { key: "Modified", value: formatKnowledgeDateTime(memory.mod_time), tone: "plain" as const },
   ];
 
-  return (
-    <div className="flex flex-1 flex-col overflow-y-auto p-6" data-testid="knowledge-detail-panel">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3">
-          <h2 className="text-base font-semibold text-[color:var(--color-text-primary)]">
-            {memory.name}
-          </h2>
-          <DetailTypeBadge type={memory.type} />
-        </div>
+  const handleConfirmDelete = () => {
+    onDelete(memory.filename);
+    setConfirmOpen(false);
+  };
 
-        {/* Status line */}
-        <div className="mt-2 flex items-center gap-2">
-          <span className="size-2 rounded-full bg-[color:var(--color-success)]" />
-          <span className="text-xs text-[color:var(--color-text-secondary)]">Active</span>
-          <span className="text-xs text-[color:var(--color-text-tertiary)]">{memory.filename}</span>
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+      data-testid="knowledge-detail-panel"
+    >
+      <header className="flex flex-col gap-3 border-b border-[color:var(--color-divider)] px-6 py-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color:var(--color-surface-elevated)] text-[color:var(--color-accent)]"
+            >
+              <BookOpen className="size-4" />
+            </span>
+            <div className="flex min-w-0 flex-col">
+              <h2 className="truncate text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]">
+                {memory.name}
+              </h2>
+              <span className="truncate font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                {memory.filename}
+              </span>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <MonoBadge data-testid="detail-type-badge" tone={typeTone}>
+              {memory.type}
+            </MonoBadge>
+            <MonoBadge data-testid="detail-scope-badge" tone={scopeTone}>
+              {knowledgeScopeLabel(scopeForTone)}
+            </MonoBadge>
+          </div>
         </div>
+        <div className="flex items-center gap-2">
+          <StatusDot tone="success" />
+          <span className="text-[13px] text-[color:var(--color-text-secondary)]">Active</span>
+          <span className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+            Updated {formatKnowledgeRelativeTime(memory.mod_time)}
+          </span>
+        </div>
+      </header>
+
+      <div className="flex flex-col gap-6 px-6 py-5">
+        {memory.description ? (
+          <Section label="Description">
+            <p className="text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
+              {memory.description}
+            </p>
+          </Section>
+        ) : null}
+
+        {content ? (
+          <Section label="Content">
+            <CodeBlock code={content} copyable data-testid="content-preview" showPrompt={false} />
+          </Section>
+        ) : null}
+
+        <Section label="Metadata">
+          <dl
+            className="flex flex-col divide-y divide-[color:var(--color-divider)] rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]"
+            data-testid="metadata-table"
+          >
+            {metadataRows.map(row => (
+              <div
+                className="flex items-center justify-between gap-3 px-4 py-2.5"
+                data-testid={`metadata-row-${row.key}`}
+                key={row.key}
+              >
+                <dt className="font-mono text-[11px] uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+                  {row.key}
+                </dt>
+                <dd className="min-w-0 text-right">
+                  {row.tone === "mono" ? (
+                    <MonoBadge>{row.value}</MonoBadge>
+                  ) : (
+                    <span className="text-[13px] text-[color:var(--color-text-primary)]">
+                      {row.value}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Section>
       </div>
 
-      {/* Description */}
-      {memory.description && (
-        <div className="mb-6">
-          <h3 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-            Description
-          </h3>
-          <p className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
-            {memory.description}
-          </p>
-        </div>
-      )}
-
-      {/* Content preview */}
-      {content && <ContentPreviewCard content={content} />}
-
-      {/* Actions */}
-      <div className="mt-6 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => onDelete(memory.filename)}
-          disabled={isDeletePending}
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-transparent px-5 text-sm font-medium text-[color:var(--color-danger)] transition-colors hover:bg-[color:var(--color-hover)] disabled:opacity-50"
+      <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-[color:var(--color-divider)] px-6 py-4">
+        <Button
           data-testid="delete-memory-btn"
+          disabled={isDeletePending}
+          onClick={() => setConfirmOpen(true)}
+          size="sm"
+          type="button"
+          variant="outline"
         >
           <Trash2 className="size-3.5" />
           Delete
-        </button>
-        <button
-          type="button"
-          disabled
+        </Button>
+        <Button
           aria-disabled="true"
-          title="CLI deep links are not implemented yet"
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-transparent px-5 text-sm font-medium text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-hover)]"
           data-testid="view-in-cli-btn"
+          disabled
+          size="sm"
+          title="CLI deep links are not implemented yet"
+          type="button"
+          variant="ghost"
         >
           <ExternalLink className="size-3.5" />
           View in CLI
-        </button>
-      </div>
+        </Button>
+      </footer>
 
-      {/* Metadata */}
-      <div className="mt-6">
-        <h3 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-          Metadata
-        </h3>
-        <MetadataTable rows={metadataRows} />
-      </div>
+      <KnowledgeDeleteDialog
+        filename={memory.filename}
+        isPending={isDeletePending}
+        onConfirm={handleConfirmDelete}
+        onOpenChange={setConfirmOpen}
+        open={confirmOpen}
+        scope={resolvedScope}
+      />
     </div>
   );
 }

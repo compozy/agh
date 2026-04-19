@@ -30,3 +30,17 @@ export { useConsolidateMemory, useDeleteMemory } from "./hooks/use-knowledge-act
 // Components
 export { KnowledgeListPanel } from "./components/knowledge-list-panel";
 export { KnowledgeDetailPanel } from "./components/knowledge-detail-panel";
+export { KnowledgeDeleteDialog } from "./components/knowledge-delete-dialog";
+
+// Lib
+export {
+  compareKnowledgeScope,
+  deriveScopeFromFilename,
+  formatKnowledgeDateTime,
+  formatKnowledgeRelativeTime,
+  knowledgeScopeLabel,
+  knowledgeScopeShortLabel,
+  memoryScopeTone,
+  memoryTypeTone,
+  type KnowledgeScope,
+} from "./lib/knowledge-formatters";

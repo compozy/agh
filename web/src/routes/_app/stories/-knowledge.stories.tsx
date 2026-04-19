@@ -13,7 +13,7 @@ import {
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
     "routes/app/knowledge",
-    "Route stories for knowledge memory browsing with the real shell, covering tab filters, list empties and detail loading states."
+    "Route stories for knowledge memory browsing with the real shell, covering tab filters, empty states, detail loading, and the delete confirmation dialog."
   ),
 };
 
@@ -36,6 +36,7 @@ export const WorkspaceTab: Story = {
   args: {},
   parameters: appRouteParameters("/knowledge"),
   render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByTestId("tab-workspace"));
@@ -74,4 +75,40 @@ export const ContentLoading: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Detail panel error state when the memory content fetch fails.
+ */
+export const ContentError: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/knowledge"),
+    ...storybookMswParameters({
+      knowledge: [
+        http.get("/api/memory/:filename", () =>
+          HttpResponse.json({ error: "boom" }, { status: 500 })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Delete confirmation dialog opened from the detail panel delete button.
+ */
+export const DeleteDialog: Story = {
+  args: {},
+  parameters: appRouteParameters("/knowledge"),
+  render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const deleteBtn = await canvas.findByTestId("delete-memory-btn");
+    await userEvent.click(deleteBtn);
+    await expect(
+      within(canvasElement.ownerDocument.body).findByTestId("knowledge-delete-dialog")
+    ).resolves.toBeDefined();
+  },
 };
