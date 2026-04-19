@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Session domain inspector panel
 type: frontend
 complexity: medium
@@ -43,12 +43,12 @@ Introduce the right-hand inspector panel on the Session page — a 320px fixed c
 
 ## Subtasks
 
-- [ ] 22.1 Audit existing session hooks to confirm Trace, Usage, Memory, and Files data are already exposed; list any gaps and open a focused follow-up rather than extending this task.
-- [ ] 22.2 Build `session-inspector.tsx` shell with the four-section stacked layout bound to the hooks.
-- [ ] 22.3 Build the `Tabs`-based compact layout triggered by the CSS viewport threshold.
-- [ ] 22.4 Mount the inspector inside `web/src/routes/_app/session.$id.tsx` at 320px fixed width to the right of the thread.
-- [ ] 22.5 Write or add Storybook stories: all four sections populated, each section empty, compact (tabbed) layout, narrow-viewport drawer.
-- [ ] 22.6 Run `make web-lint`, `make web-typecheck`, `make web-test`, and smoke the live route.
+- [x] 22.1 Audit existing session hooks to confirm Trace, Usage, Memory, and Files data are already exposed; list any gaps and open a focused follow-up rather than extending this task.
+- [x] 22.2 Build `session-inspector.tsx` shell with the four-section stacked layout bound to the hooks.
+- [x] 22.3 Build the `Tabs`-based compact layout triggered by the CSS viewport threshold.
+- [x] 22.4 Mount the inspector inside `web/src/routes/_app/session.$id.tsx` at 320px fixed width to the right of the thread.
+- [x] 22.5 Write or add Storybook stories: all four sections populated, each section empty, compact (tabbed) layout, narrow-viewport drawer.
+- [x] 22.6 Run `make web-lint`, `make web-typecheck`, `make web-test`, and smoke the live route.
 
 ## Implementation Details
 
@@ -61,6 +61,9 @@ See TechSpec "Impact Analysis" — Phase 4 Session domain. DESIGN.md §4 covers 
 - `web/src/systems/session/hooks/use-session-chat.ts` — usage + file-read accounting.
 - `web/src/systems/session/hooks/use-session-history.ts` — historical trace rows.
 - `web/src/routes/_app/session.$id.tsx` — mount point.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4 "Metric Cards" + "Section"` — right-panel composition spec.
+  - `docs/design/web-inspiration/src/pages-session.jsx` — right 320px inspector (Trace + Usage + Memory + Files).
 
 ### Dependent Files
 
