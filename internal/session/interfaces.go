@@ -31,11 +31,17 @@ type PromptOpts struct {
 	PromptMeta acp.PromptMeta
 }
 
-// NetworkPeerCapability is the brief runtime-owned capability projection shared
-// with the network join lifecycle.
+// NetworkPeerCapability is the runtime-owned capability projection shared with
+// the network join lifecycle for brief and rich discovery.
 type NetworkPeerCapability struct {
-	ID      string
-	Summary string
+	ID                string
+	Summary           string
+	Outcome           string
+	ContextNeeded     []string
+	ArtifactsExpected []string
+	ExecutionOutline  []string
+	Constraints       []string
+	Examples          []string
 }
 
 // NetworkPeerJoin describes one daemon-local peer registration request for the

@@ -6,15 +6,18 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	sessionpkg "github.com/pedronauck/agh/internal/session"
 )
 
 // LocalPeer is one daemon-local peer joined to one runtime channel.
 type LocalPeer struct {
-	SessionID string
-	PeerID    string
-	Channel   string
-	PeerCard  PeerCard
-	JoinedAt  time.Time
+	SessionID         string
+	PeerID            string
+	Channel           string
+	PeerCard          PeerCard
+	CapabilityCatalog []sessionpkg.NetworkPeerCapability
+	JoinedAt          time.Time
 }
 
 // RemotePeerEntry is one cached remote peer advertisement.
@@ -120,6 +123,19 @@ func (r *PeerRegistry) RegisterLocal(
 	card PeerCard,
 	joinedAt time.Time,
 ) (LocalPeer, error) {
+	return r.RegisterLocalWithCapabilityCatalog(sessionID, channel, card, nil, joinedAt)
+}
+
+// RegisterLocalWithCapabilityCatalog upserts one local peer membership keyed by
+// session ID, optionally retaining the runtime-owned rich capability catalog for
+// explicit whois discovery.
+func (r *PeerRegistry) RegisterLocalWithCapabilityCatalog(
+	sessionID string,
+	channel string,
+	card PeerCard,
+	capabilityCatalog []sessionpkg.NetworkPeerCapability,
+	joinedAt time.Time,
+) (LocalPeer, error) {
 	if r == nil {
 		return LocalPeer{}, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
 	}
@@ -142,11 +158,12 @@ func (r *PeerRegistry) RegisterLocal(
 	joinedAt = joinedAt.UTC()
 
 	local := LocalPeer{
-		SessionID: trimmedSessionID,
-		PeerID:    normalizedCard.PeerID,
-		Channel:   trimmedChannel,
-		PeerCard:  normalizedCard,
-		JoinedAt:  joinedAt,
+		SessionID:         trimmedSessionID,
+		PeerID:            normalizedCard.PeerID,
+		Channel:           trimmedChannel,
+		PeerCard:          normalizedCard,
+		CapabilityCatalog: cloneNetworkPeerCapabilityCatalog(capabilityCatalog),
+		JoinedAt:          joinedAt,
 	}
 
 	r.mu.Lock()
@@ -520,11 +537,12 @@ func cloneStringList(values []string) []string {
 
 func cloneLocalPeer(local LocalPeer) LocalPeer {
 	return LocalPeer{
-		SessionID: strings.TrimSpace(local.SessionID),
-		PeerID:    strings.TrimSpace(local.PeerID),
-		Channel:   strings.TrimSpace(local.Channel),
-		PeerCard:  clonePeerCard(local.PeerCard),
-		JoinedAt:  local.JoinedAt.UTC(),
+		SessionID:         strings.TrimSpace(local.SessionID),
+		PeerID:            strings.TrimSpace(local.PeerID),
+		Channel:           strings.TrimSpace(local.Channel),
+		PeerCard:          clonePeerCard(local.PeerCard),
+		CapabilityCatalog: cloneNetworkPeerCapabilityCatalog(local.CapabilityCatalog),
+		JoinedAt:          local.JoinedAt.UTC(),
 	}
 }
 

@@ -402,18 +402,7 @@ func normalizeJoinChannelRequest(
 }
 
 func cloneJoinCapabilities(capabilities []sessionpkg.NetworkPeerCapability) []sessionpkg.NetworkPeerCapability {
-	if len(capabilities) == 0 {
-		return []sessionpkg.NetworkPeerCapability{}
-	}
-
-	cloned := make([]sessionpkg.NetworkPeerCapability, 0, len(capabilities))
-	for _, capability := range capabilities {
-		cloned = append(cloned, sessionpkg.NetworkPeerCapability{
-			ID:      strings.TrimSpace(capability.ID),
-			Summary: strings.TrimSpace(capability.Summary),
-		})
-	}
-	return cloned
+	return cloneNetworkPeerCapabilityCatalog(capabilities)
 }
 
 func (m *Manager) prepareJoinLocalPeer(
@@ -433,7 +422,13 @@ func (m *Manager) prepareJoinLocalPeer(
 	if err != nil {
 		return LocalPeer{}, false, err
 	}
-	local, err := m.peers.RegisterLocal(request.sessionID, request.channel, card, m.now())
+	local, err := m.peers.RegisterLocalWithCapabilityCatalog(
+		request.sessionID,
+		request.channel,
+		card,
+		request.capabilities,
+		m.now(),
+	)
 	if err != nil {
 		return LocalPeer{}, false, err
 	}

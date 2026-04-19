@@ -275,3 +275,17 @@ func decodeCapabilityBriefPayload(t *testing.T, raw json.RawMessage) []capabilit
 	}
 	return brief
 }
+
+func decodeWhoisCapabilityCatalogPayload(t *testing.T, raw json.RawMessage) whoisCapabilityCatalogPayload {
+	t.Helper()
+
+	if len(raw) == 0 {
+		return whoisCapabilityCatalogPayload{}
+	}
+
+	var payload whoisCapabilityCatalogPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(whois capability catalog) error = %v", err)
+	}
+	return payload
+}

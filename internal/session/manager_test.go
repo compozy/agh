@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -461,7 +462,7 @@ func TestJoinNetworkPeerHandlesNoOpConditionsAndCapabilityProjection(t *testing.
 		if got, want := call.channel, "builders"; got != want {
 			t.Fatalf("join channel = %q, want %q", got, want)
 		}
-		if !slices.Equal(call.capabilities, capabilities) {
+		if !reflect.DeepEqual(call.capabilities, capabilities) {
 			t.Fatalf("join capabilities = %#v, want %#v", call.capabilities, capabilities)
 		}
 	})

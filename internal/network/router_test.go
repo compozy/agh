@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -307,6 +309,391 @@ func TestRouterWhoisRequestGeneratesResponse(t *testing.T) {
 	body := decoded.(WhoisBody)
 	if body.PeerCard == nil || body.PeerCard.PeerID != responder.PeerID {
 		t.Fatalf("response peer_card = %#v, want peer %q", body.PeerCard, responder.PeerID)
+	}
+	if len(response.Ext) != 0 {
+		t.Fatalf("response.Ext = %#v, want lean whois response with no rich ext", response.Ext)
+	}
+}
+
+func TestRouterWhoisRichCapabilityDiscoveryReturnsCapabilityCatalog(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 19, 6, 0, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+
+	responder := mustPeerCard(t, "reviewer.sess-rich")
+	catalog := []sessionpkg.NetworkPeerCapability{
+		{
+			ID:                "review-pr",
+			Summary:           "Review pull requests",
+			Outcome:           "Actionable review findings with risk assessment",
+			ContextNeeded:     []string{"pull request link", "acceptance criteria"},
+			ArtifactsExpected: []string{"review summary"},
+			ExecutionOutline:  []string{"inspect diff", "run focused checks"},
+			Constraints:       []string{"no speculative blockers"},
+			Examples:          []string{"backend regression review"},
+		},
+		{
+			ID:      "draft-spec",
+			Summary: "Draft technical specifications",
+			Outcome: "A reviewed implementation plan",
+		},
+	}
+	if _, err := registry.RegisterLocalWithCapabilityCatalog(
+		"sess-rich",
+		"builders",
+		responder,
+		catalog,
+		now,
+	); err != nil {
+		t.Fatalf("RegisterLocalWithCapabilityCatalog() error = %v", err)
+	}
+
+	transport := &spyRouterTransport{}
+	router, err := NewRouter(registry, transport, DefaultMaxReplayAge, WithRouterClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewRouter() error = %v", err)
+	}
+
+	requestPayload, err := json.Marshal(Envelope{
+		Protocol: ProtocolV0,
+		ID:       "msg_whois_rich_request",
+		Kind:     KindWhois,
+		Channel:  "builders",
+		From:     "coder.sess-a",
+		To:       stringPtr(responder.PeerID),
+		TS:       now.Unix(),
+		Body: mustRawJSON(t, WhoisBody{
+			Type: WhoisTypeRequest,
+		}),
+		Ext: ExtensionMap{
+			whoisIncludeExtKey: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(whois rich request) error = %v", err)
+	}
+
+	result, err := router.Receive(context.Background(), requestPayload)
+	if err != nil {
+		t.Fatalf("Receive(whois rich request) error = %v", err)
+	}
+	if got, want := len(result.Generated), 1; got != want {
+		t.Fatalf("len(rich whois responses) = %d, want %d", got, want)
+	}
+	response := result.Generated[0]
+	payload := decodeWhoisCapabilityCatalogPayload(t, response.Ext[whoisCapabilityCatalogExtKey])
+	wantPayload := whoisCapabilityCatalogPayload{
+		Capabilities: []whoisCapabilityCatalogEntry{
+			{
+				ID:                "review-pr",
+				Summary:           "Review pull requests",
+				Outcome:           "Actionable review findings with risk assessment",
+				ContextNeeded:     []string{"pull request link", "acceptance criteria"},
+				ArtifactsExpected: []string{"review summary"},
+				ExecutionOutline:  []string{"inspect diff", "run focused checks"},
+				Constraints:       []string{"no speculative blockers"},
+				Examples:          []string{"backend regression review"},
+			},
+			{
+				ID:      "draft-spec",
+				Summary: "Draft technical specifications",
+				Outcome: "A reviewed implementation plan",
+			},
+		},
+	}
+	if !reflect.DeepEqual(payload, wantPayload) {
+		t.Fatalf("rich capability catalog = %#v, want %#v", payload, wantPayload)
+	}
+}
+
+func TestRouterWhoisRichCapabilityDiscoveryFiltersRequestedIDsInCatalogOrder(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 19, 6, 10, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+
+	responder := mustPeerCard(t, "reviewer.sess-filtered")
+	catalog := []sessionpkg.NetworkPeerCapability{
+		{ID: "review-pr", Summary: "Review pull requests", Outcome: "Actionable feedback"},
+		{ID: "draft-spec", Summary: "Draft technical specifications", Outcome: "A reviewed implementation plan"},
+	}
+	if _, err := registry.RegisterLocalWithCapabilityCatalog(
+		"sess-filtered",
+		"builders",
+		responder,
+		catalog,
+		now,
+	); err != nil {
+		t.Fatalf("RegisterLocalWithCapabilityCatalog() error = %v", err)
+	}
+
+	router, err := NewRouter(
+		registry,
+		&spyRouterTransport{},
+		DefaultMaxReplayAge,
+		WithRouterClock(func() time.Time { return now }),
+	)
+	if err != nil {
+		t.Fatalf("NewRouter() error = %v", err)
+	}
+
+	requestPayload, err := json.Marshal(Envelope{
+		Protocol: ProtocolV0,
+		ID:       "msg_whois_filtered_request",
+		Kind:     KindWhois,
+		Channel:  "builders",
+		From:     "coder.sess-a",
+		To:       stringPtr(responder.PeerID),
+		TS:       now.Unix(),
+		Body:     mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
+		Ext: ExtensionMap{
+			whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+			whoisCapabilityIDsExtKey: mustRawJSON(t, []string{"draft-spec"}),
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(filtered whois request) error = %v", err)
+	}
+
+	result, err := router.Receive(context.Background(), requestPayload)
+	if err != nil {
+		t.Fatalf("Receive(filtered whois request) error = %v", err)
+	}
+	response := result.Generated[0]
+	payload := decodeWhoisCapabilityCatalogPayload(t, response.Ext[whoisCapabilityCatalogExtKey])
+	wantPayload := whoisCapabilityCatalogPayload{
+		Capabilities: []whoisCapabilityCatalogEntry{{
+			ID:      "draft-spec",
+			Summary: "Draft technical specifications",
+			Outcome: "A reviewed implementation plan",
+		}},
+	}
+	if !reflect.DeepEqual(payload, wantPayload) {
+		t.Fatalf("filtered capability catalog = %#v, want %#v", payload, wantPayload)
+	}
+}
+
+func TestRouterWhoisRichCapabilityDiscoveryReturnsEmptyCatalogForUnknownIDsOrMissingCatalog(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 19, 6, 20, 0, 0, time.UTC)
+	tests := []struct {
+		name          string
+		capabilityIDs []string
+		registerFunc  func(t *testing.T, registry *PeerRegistry, now time.Time) string
+	}{
+		{
+			name:          "unknown capability id",
+			capabilityIDs: []string{"missing-capability"},
+			registerFunc: func(t *testing.T, registry *PeerRegistry, now time.Time) string {
+				t.Helper()
+
+				responder := mustPeerCard(t, "reviewer.sess-unknown-id")
+				if _, err := registry.RegisterLocalWithCapabilityCatalog(
+					"sess-unknown-id",
+					"builders",
+					responder,
+					[]sessionpkg.NetworkPeerCapability{{
+						ID:      "review-pr",
+						Summary: "Review pull requests",
+						Outcome: "Actionable feedback",
+					}},
+					now,
+				); err != nil {
+					t.Fatalf("RegisterLocalWithCapabilityCatalog() error = %v", err)
+				}
+				return responder.PeerID
+			},
+		},
+		{
+			name: "no capability catalog",
+			registerFunc: func(t *testing.T, registry *PeerRegistry, now time.Time) string {
+				t.Helper()
+
+				responder := mustPeerCard(t, "reviewer.sess-no-catalog")
+				if _, err := registry.RegisterLocal("sess-no-catalog", "builders", responder, now); err != nil {
+					t.Fatalf("RegisterLocal() error = %v", err)
+				}
+				return responder.PeerID
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+			if err != nil {
+				t.Fatalf("NewPeerRegistry() error = %v", err)
+			}
+			peerID := tc.registerFunc(t, registry, now)
+
+			router, err := NewRouter(
+				registry,
+				&spyRouterTransport{},
+				DefaultMaxReplayAge,
+				WithRouterClock(func() time.Time { return now }),
+			)
+			if err != nil {
+				t.Fatalf("NewRouter() error = %v", err)
+			}
+
+			requestPayload, err := json.Marshal(Envelope{
+				Protocol: ProtocolV0,
+				ID:       "msg_whois_empty_request",
+				Kind:     KindWhois,
+				Channel:  "builders",
+				From:     "coder.sess-a",
+				To:       stringPtr(peerID),
+				TS:       now.Unix(),
+				Body:     mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
+				Ext: ExtensionMap{
+					whoisIncludeExtKey: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+				},
+			})
+			if err != nil {
+				t.Fatalf("json.Marshal(empty rich whois request) error = %v", err)
+			}
+			if tc.capabilityIDs != nil {
+				var env Envelope
+				if err := json.Unmarshal(requestPayload, &env); err != nil {
+					t.Fatalf("json.Unmarshal(empty rich whois request) error = %v", err)
+				}
+				env.Ext[whoisCapabilityIDsExtKey] = mustRawJSON(t, tc.capabilityIDs)
+				requestPayload, err = json.Marshal(env)
+				if err != nil {
+					t.Fatalf("json.Marshal(empty rich whois request with ids) error = %v", err)
+				}
+			}
+
+			result, err := router.Receive(context.Background(), requestPayload)
+			if err != nil {
+				t.Fatalf("Receive(empty rich whois request) error = %v", err)
+			}
+			response := result.Generated[0]
+			payload := decodeWhoisCapabilityCatalogPayload(t, response.Ext[whoisCapabilityCatalogExtKey])
+			wantPayload := whoisCapabilityCatalogPayload{Capabilities: []whoisCapabilityCatalogEntry{}}
+			if !reflect.DeepEqual(payload, wantPayload) {
+				t.Fatalf("empty capability catalog = %#v, want %#v", payload, wantPayload)
+			}
+		})
+	}
+}
+
+func TestRouterWhoisRequestIgnoresUnknownAGHExtKeys(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 19, 6, 30, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+
+	responder := mustPeerCard(t, "reviewer.sess-unknown-ext")
+	if _, err := registry.RegisterLocal("sess-unknown-ext", "builders", responder, now); err != nil {
+		t.Fatalf("RegisterLocal() error = %v", err)
+	}
+
+	router, err := NewRouter(
+		registry,
+		&spyRouterTransport{},
+		DefaultMaxReplayAge,
+		WithRouterClock(func() time.Time { return now }),
+	)
+	if err != nil {
+		t.Fatalf("NewRouter() error = %v", err)
+	}
+
+	requestPayload, err := json.Marshal(Envelope{
+		Protocol: ProtocolV0,
+		ID:       "msg_whois_unknown_ext",
+		Kind:     KindWhois,
+		Channel:  "builders",
+		From:     "coder.sess-a",
+		To:       stringPtr(responder.PeerID),
+		TS:       now.Unix(),
+		Body:     mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
+		Ext: ExtensionMap{
+			"agh.unknown": mustRawJSON(t, map[string]any{"note": "ignored"}),
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(unknown ext request) error = %v", err)
+	}
+
+	result, err := router.Receive(context.Background(), requestPayload)
+	if err != nil {
+		t.Fatalf("Receive(unknown ext request) error = %v", err)
+	}
+	if got, want := len(result.Generated), 1; got != want {
+		t.Fatalf("len(unknown ext responses) = %d, want %d", got, want)
+	}
+	if len(result.Generated[0].Ext) != 0 {
+		t.Fatalf("response.Ext = %#v, want lean response for ignored AGH ext key", result.Generated[0].Ext)
+	}
+}
+
+func TestRouterWhoisRichCapabilityDiscoveryRejectsOversizedResponse(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 19, 6, 40, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+
+	responder := mustPeerCard(t, "reviewer.sess-oversized")
+	if _, err := registry.RegisterLocalWithCapabilityCatalog(
+		"sess-oversized",
+		"builders",
+		responder,
+		[]sessionpkg.NetworkPeerCapability{{
+			ID:      "review-pr",
+			Summary: "Review pull requests",
+			Outcome: strings.Repeat("x", maxProtocolEnvelopeBytes),
+		}},
+		now,
+	); err != nil {
+		t.Fatalf("RegisterLocalWithCapabilityCatalog() error = %v", err)
+	}
+
+	transport := &spyRouterTransport{}
+	router, err := NewRouter(registry, transport, DefaultMaxReplayAge, WithRouterClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewRouter() error = %v", err)
+	}
+
+	requestPayload, err := json.Marshal(Envelope{
+		Protocol: ProtocolV0,
+		ID:       "msg_whois_oversized_request",
+		Kind:     KindWhois,
+		Channel:  "builders",
+		From:     "coder.sess-a",
+		To:       stringPtr(responder.PeerID),
+		TS:       now.Unix(),
+		Body:     mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
+		Ext: ExtensionMap{
+			whoisIncludeExtKey: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(oversized rich whois request) error = %v", err)
+	}
+
+	_, err = router.Receive(context.Background(), requestPayload)
+	if !errors.Is(err, ErrEnvelopeTooLarge) {
+		t.Fatalf("Receive(oversized rich whois request) error = %v, want ErrEnvelopeTooLarge", err)
+	}
+	if got := transport.Count(); got != 0 {
+		t.Fatalf("transport publish count = %d, want 0 after oversized rich whois rejection", got)
 	}
 }
 

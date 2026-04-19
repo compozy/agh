@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -272,14 +273,18 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 	}
 
 	t.Run("Should build local peer card from capability-aware runtime input", func(t *testing.T) {
+		capabilities := []sessionpkg.NetworkPeerCapability{{
+			ID:                "review-pr",
+			Summary:           "Review pull requests",
+			Outcome:           "Actionable review findings",
+			ContextNeeded:     []string{"pull request link"},
+			ArtifactsExpected: []string{"review summary"},
+		}}
 		local, alreadyJoined, err := manager.prepareJoinLocalPeer(context.Background(), joinChannelRequest{
-			sessionID: "sess-capabilities",
-			peerID:    "reviewer.sess-capabilities",
-			channel:   "builders",
-			capabilities: []sessionpkg.NetworkPeerCapability{{
-				ID:      "review-pr",
-				Summary: "Review pull requests",
-			}},
+			sessionID:    "sess-capabilities",
+			peerID:       "reviewer.sess-capabilities",
+			channel:      "builders",
+			capabilities: capabilities,
 		})
 		if err != nil {
 			t.Fatalf("prepareJoinLocalPeer() error = %v", err)
@@ -289,6 +294,9 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		}
 		if got, want := local.PeerCard.Capabilities, []string{"review-pr"}; !slices.Equal(got, want) {
 			t.Fatalf("local peer capabilities = %#v, want %#v", got, want)
+		}
+		if !reflect.DeepEqual(local.CapabilityCatalog, capabilities) {
+			t.Fatalf("local capability catalog = %#v, want %#v", local.CapabilityCatalog, capabilities)
 		}
 		if got := decodeCapabilityBriefPayload(
 			t,
@@ -309,6 +317,9 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		}
 		if got, want := stored.PeerCard.Capabilities, []string{"review-pr"}; !slices.Equal(got, want) {
 			t.Fatalf("stored peer capabilities = %#v, want %#v", got, want)
+		}
+		if !reflect.DeepEqual(stored.CapabilityCatalog, capabilities) {
+			t.Fatalf("stored capability catalog = %#v, want %#v", stored.CapabilityCatalog, capabilities)
 		}
 		if got := decodeCapabilityBriefPayload(
 			t,
@@ -345,6 +356,12 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		}
 		if local.PeerCard.Ext != nil && local.PeerCard.Ext[capabilityBriefExtKey] != nil {
 			t.Fatalf("local peer ext = %#v, want omitted capability brief key", local.PeerCard.Ext)
+		}
+		if local.CapabilityCatalog == nil {
+			t.Fatal("local capability catalog = nil, want deterministic empty slice")
+		}
+		if got := len(local.CapabilityCatalog); got != 0 {
+			t.Fatalf("local capability catalog len = %d, want 0", got)
 		}
 	})
 }

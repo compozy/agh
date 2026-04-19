@@ -421,7 +421,12 @@ func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 	  "ext": {
 	    "unknown.vendor": {"nested": [1, true, "x"]},
 	    "agh.workflow": {"ticket": "NET-42"},
-	    "agh.handoff": {"turn": 3}
+	    "agh.handoff": {"turn": 3},
+	    "agh.capability_catalog": {
+	      "capabilities": [
+	        {"id": "review-pr", "summary": "Review pull requests", "outcome": "Actionable review findings"}
+	      ]
+	    }
 	  }
 	}`)
 

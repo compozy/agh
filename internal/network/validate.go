@@ -25,6 +25,8 @@ var (
 	ErrInvalidKind = errors.New("network: invalid kind")
 	// ErrInvalidBody reports a malformed or invalid kind-specific body.
 	ErrInvalidBody = errors.New("network: invalid body")
+	// ErrEnvelopeTooLarge reports an envelope exceeding the protocol size limit.
+	ErrEnvelopeTooLarge = errors.New("network: envelope too large")
 	// ErrExpired reports an envelope that is already expired.
 	ErrExpired = errors.New("network: expired")
 	// ErrReplayTooOld reports an envelope outside the receiver replay window.

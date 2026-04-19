@@ -5,6 +5,7 @@ package session
 import (
 	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -146,10 +147,13 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 		t.Fatalf("first join peer_id = %q, want %q", got, want)
 	}
 	wantCapabilities := []NetworkPeerCapability{{
-		ID:      "review-pr",
-		Summary: "Review pull requests",
+		ID:                "review-pr",
+		Summary:           "Review pull requests",
+		Outcome:           "Deliver actionable pull request feedback",
+		ContextNeeded:     []string{"Pull request diff", "Acceptance criteria"},
+		ArtifactsExpected: []string{"Review summary"},
 	}}
-	if !slices.Equal(firstJoin.capabilities, wantCapabilities) {
+	if !reflect.DeepEqual(firstJoin.capabilities, wantCapabilities) {
 		t.Fatalf("first join capabilities = %#v, want %#v", firstJoin.capabilities, wantCapabilities)
 	}
 
@@ -177,7 +181,7 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 	if got, want := secondJoin.peerID, "coder."+resumed.ID; got != want {
 		t.Fatalf("second join peer_id = %q, want %q", got, want)
 	}
-	if !slices.Equal(secondJoin.capabilities, wantCapabilities) {
+	if !reflect.DeepEqual(secondJoin.capabilities, wantCapabilities) {
 		t.Fatalf("second join capabilities = %#v, want %#v", secondJoin.capabilities, wantCapabilities)
 	}
 

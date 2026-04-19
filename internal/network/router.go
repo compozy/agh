@@ -577,51 +577,98 @@ func (r *Router) handleWhois(
 		}
 		return result, nil
 	case WhoisTypeRequest:
-		var responders []LocalPeer
-		if envelope.IsDirected() {
-			if hasDirectedTarget {
-				responders = append(responders, directedTarget)
-			}
-		} else {
-			responders = r.peers.MatchLocalPeers(envelope.Channel, whois.Query)
-		}
-
-		for _, responder := range responders {
-			payload, marshalErr := marshalEnvelopeBody(
-				WhoisBody{Type: WhoisTypeResponse, PeerCard: &responder.PeerCard},
-			)
-			if marshalErr != nil {
-				return RouteResult{}, marshalErr
-			}
-			reply := Envelope{
-				Protocol: ProtocolV0,
-				ID:       store.NewID("msg"),
-				Kind:     KindWhois,
-				Channel:  envelope.Channel,
-				From:     responder.PeerID,
-				To:       ptrString(envelope.From),
-				ReplyTo:  ptrString(envelope.ID),
-				TS:       now.Unix(),
-				Body:     payload,
-				Proof:    nil,
-			}
-			if err := ValidateEnvelope(reply, ValidateOptions{Now: now, MaxReplayAge: r.maxReplayAge}); err != nil {
-				return RouteResult{}, err
-			}
-			result.Generated = append(result.Generated, reply)
-		}
-		if len(result.Generated) > 0 {
-			if err := r.publishGenerated(ctx, result.Generated); err != nil {
-				return RouteResult{}, err
-			}
-		}
-		return result, nil
+		return r.handleWhoisRequest(ctx, envelope, result, whois, directedTarget, hasDirectedTarget, now)
 	default:
 		reason := ReasonCodeMalformed
 		result.Rejected = true
 		result.ReasonCode = &reason
 		return result, nil
 	}
+}
+
+func (r *Router) handleWhoisRequest(
+	ctx context.Context,
+	envelope Envelope,
+	result RouteResult,
+	whois WhoisBody,
+	directedTarget LocalPeer,
+	hasDirectedTarget bool,
+	now time.Time,
+) (RouteResult, error) {
+	discoveryRequest := parseWhoisCapabilityDiscoveryRequest(envelope.Ext)
+	responders := r.whoisRequestResponders(envelope, whois, directedTarget, hasDirectedTarget)
+
+	for _, responder := range responders {
+		reply, err := r.buildWhoisResponseEnvelope(envelope, responder, discoveryRequest, now)
+		if err != nil {
+			return RouteResult{}, err
+		}
+		result.Generated = append(result.Generated, reply)
+	}
+	if len(result.Generated) > 0 {
+		if err := r.publishGenerated(ctx, result.Generated); err != nil {
+			return RouteResult{}, err
+		}
+	}
+	return result, nil
+}
+
+func (r *Router) whoisRequestResponders(
+	envelope Envelope,
+	whois WhoisBody,
+	directedTarget LocalPeer,
+	hasDirectedTarget bool,
+) []LocalPeer {
+	if envelope.IsDirected() {
+		if hasDirectedTarget {
+			return []LocalPeer{directedTarget}
+		}
+		return nil
+	}
+	return r.peers.MatchLocalPeers(envelope.Channel, whois.Query)
+}
+
+func (r *Router) buildWhoisResponseEnvelope(
+	request Envelope,
+	responder LocalPeer,
+	discoveryRequest whoisCapabilityDiscoveryRequest,
+	now time.Time,
+) (Envelope, error) {
+	payload, err := marshalEnvelopeBody(WhoisBody{
+		Type:     WhoisTypeResponse,
+		PeerCard: &responder.PeerCard,
+	})
+	if err != nil {
+		return Envelope{}, err
+	}
+	responseExt, err := buildWhoisCapabilityCatalogResponseExt(
+		discoveryRequest,
+		responder.CapabilityCatalog,
+	)
+	if err != nil {
+		return Envelope{}, err
+	}
+
+	reply := Envelope{
+		Protocol: ProtocolV0,
+		ID:       store.NewID("msg"),
+		Kind:     KindWhois,
+		Channel:  request.Channel,
+		From:     responder.PeerID,
+		To:       ptrString(request.From),
+		ReplyTo:  ptrString(request.ID),
+		TS:       now.Unix(),
+		Body:     payload,
+		Proof:    nil,
+		Ext:      responseExt,
+	}
+	if err := ValidateEnvelope(reply, ValidateOptions{Now: now, MaxReplayAge: r.maxReplayAge}); err != nil {
+		return Envelope{}, err
+	}
+	if err := ensureEnvelopeSizeLimit(reply); err != nil {
+		return Envelope{}, err
+	}
+	return reply, nil
 }
 
 func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error) {
