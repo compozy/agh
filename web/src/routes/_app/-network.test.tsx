@@ -428,7 +428,7 @@ describe("NetworkPage", () => {
     mockNetworkChannels = undefined;
     const { rerender } = render(<NetworkPage />);
 
-    expect(screen.getByTestId("workspace-page-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("network-shell")).toBeInTheDocument();
     expect(screen.getByTestId("network-channels-list-loading")).toBeInTheDocument();
     expect(screen.getByTestId("network-channel-loading")).toBeInTheDocument();
 
@@ -449,7 +449,7 @@ describe("NetworkPage", () => {
 
     await user.click(screen.getByTestId("network-tab-peers"));
 
-    expect(screen.getByTestId("workspace-page-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("network-shell")).toBeInTheDocument();
     expect(screen.getByTestId("network-peers-list-loading")).toBeInTheDocument();
     expect(screen.getByTestId("network-peer-loading")).toBeInTheDocument();
 
@@ -522,7 +522,8 @@ describe("NetworkPage", () => {
     expect(screen.getByTestId("network-peers-list-panel")).toBeInTheDocument();
     const detailPanel = screen.getByTestId("network-peer-detail-panel");
     expect(detailPanel).toBeInTheDocument();
-    expect(within(detailPanel).getByText("Peer Identity")).toBeInTheDocument();
+    expect(within(detailPanel).getByText("Capabilities")).toBeInTheDocument();
+    expect(within(detailPanel).getByText("Channels")).toBeInTheDocument();
     expect(within(detailPanel).getByText("Message Statistics")).toBeInTheDocument();
     expect(within(detailPanel).getAllByText("polybot-main").length).toBeGreaterThan(0);
     expect(within(detailPanel).getByText("general")).toBeInTheDocument();

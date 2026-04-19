@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Network domain (channels + peers)
 type: frontend
 complexity: high
@@ -44,13 +44,13 @@ Rewrite `web/src/systems/network/**` as a pure visual refresh over `@agh/ui` pri
 
 ## Subtasks
 
-- [ ] 23.1 Audit current components + `useNetworkPage` view-model to map every prop, state branch, and test id that must survive the rewrite.
-- [ ] 23.2 Rewrite the route `network.tsx` around `PageHeader` + `Pills` + `SplitPane`, removing `WorkspacePageShell`, `PillButton`, `MetricStrip`, and every `@/components/design-system` import.
-- [ ] 23.3 Rewrite `network-channels-list-panel.tsx` and `network-peers-list-panel.tsx` as `SearchInput` + list rows using `StatusDot` + `MonoBadge` + `KindChip`, with `Empty` states for no-results and errors.
-- [ ] 23.4 Rewrite `network-channel-detail-panel.tsx` with three `Section` blocks (wire trace, members, messages), `Table` for wire trace, `CodeBlock` for payloads.
-- [ ] 23.5 Rewrite `network-peer-detail-panel.tsx` with `Section` blocks for capabilities, channels, and stats (`Metric` row).
-- [ ] 23.6 Rewrite `network-create-channel-dialog.tsx` on the `@agh/ui` `Dialog` + `Field` primitives and `network-empty-state.tsx` on `Empty`.
-- [ ] 23.7 Update or rewrite `web/src/systems/network/components/stories/**` and generate Playwright visual baselines covering default / loading / error / empty / network-disabled states for both tabs.
+- [x] 23.1 Audit current components + `useNetworkPage` view-model to map every prop, state branch, and test id that must survive the rewrite.
+- [x] 23.2 Rewrite the route `network.tsx` around `PageHeader` + `Pills` + `SplitPane`, removing `WorkspacePageShell`, `PillButton`, `MetricStrip`, and every `@/components/design-system` import.
+- [x] 23.3 Rewrite `network-channels-list-panel.tsx` and `network-peers-list-panel.tsx` as `SearchInput` + list rows using `StatusDot` + `MonoBadge` + `KindChip`, with `Empty` states for no-results and errors.
+- [x] 23.4 Rewrite `network-channel-detail-panel.tsx` with three `Section` blocks (wire trace, members, messages), `Table` for wire trace, `CodeBlock` for payloads.
+- [x] 23.5 Rewrite `network-peer-detail-panel.tsx` with `Section` blocks for capabilities, channels, and stats (`Metric` row).
+- [x] 23.6 Rewrite `network-create-channel-dialog.tsx` on the `@agh/ui` `Dialog` + `Field` primitives and `network-empty-state.tsx` on `Empty`.
+- [x] 23.7 Update or rewrite `web/src/systems/network/components/stories/**` and generate Playwright visual baselines covering default / loading / error / empty / network-disabled states for both tabs.
 
 ## Implementation Details
 
@@ -65,6 +65,10 @@ See TechSpec §"Impact Analysis" — `web/src/systems/network/**` is a Phase 5 v
 - `web/src/systems/network/components/network-peer-detail-panel.tsx` — rewrite on `Section` + `Metric` + `KindChip` list.
 - `web/src/systems/network/components/network-create-channel-dialog.tsx` — rewrite on `Dialog` + `Field`.
 - `web/src/systems/network/components/network-empty-state.tsx` — rewrite on `Empty`.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4` — tabbed split-pane spec, `KindChip` for protocol kinds.
+  - `docs/design/web-inspiration/src/pages-network.jsx` — detailed Network page mock.
+  - `docs/design/web-inspiration/src/pages-core.jsx` — `NetworkPage` tab shell composition.
 
 ### Dependent Files
 

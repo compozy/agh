@@ -24,6 +24,14 @@ export const Default: Story = {
   ),
 };
 
+export const Loading: Story = {
+  render: () => (
+    <PanelSurface>
+      <NetworkPeerDetailPanel error={null} isLoading peer={undefined} />
+    </PanelSurface>
+  ),
+};
+
 export const NotFound: Story = {
   render: () => (
     <PanelSurface>

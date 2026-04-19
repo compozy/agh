@@ -30,6 +30,34 @@ export const Default: Story = {
   ),
 };
 
+export const Loading: Story = {
+  render: () => (
+    <PanelSurface>
+      <NetworkChannelDetailPanel
+        channel={undefined}
+        error={null}
+        isLoading
+        isMessagesLoading={false}
+        messages={[]}
+      />
+    </PanelSurface>
+  ),
+};
+
+export const NoMessages: Story = {
+  render: () => (
+    <PanelSurface>
+      <NetworkChannelDetailPanel
+        channel={networkChannelFixture}
+        error={null}
+        isLoading={false}
+        isMessagesLoading={false}
+        messages={[]}
+      />
+    </PanelSurface>
+  ),
+};
+
 export const NotFound: Story = {
   render: () => (
     <PanelSurface>

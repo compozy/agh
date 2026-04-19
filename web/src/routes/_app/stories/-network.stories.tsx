@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -9,7 +9,7 @@ import {
   appRouteParameters,
   createRouteStoryMeta,
 } from "@/storybook/route-story";
-import { networkStatusFixture } from "@/systems/network/mocks";
+import { networkChannelsFixture, networkStatusFixture } from "@/systems/network/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
@@ -36,11 +36,35 @@ export const Default: Story = {
 export const PeersTab: Story = {
   args: {},
   parameters: appRouteParameters("/network"),
+  tags: ["play-fn"],
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByTestId("network-tab-peers"));
-    await expect(canvas.findByTestId("network-peers-list-panel")).resolves.toBeDefined();
+    await waitFor(() => expect(canvas.getByTestId("network-peers-list-panel")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(canvas.queryByTestId("network-channels-list-panel")).not.toBeInTheDocument()
+    );
+  },
+};
+
+/**
+ * Select a channel in the list and assert the wire trace table renders.
+ */
+export const SelectChannel: Story = {
+  args: {},
+  parameters: appRouteParameters("/network"),
+  tags: ["play-fn"],
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const firstChannel = networkChannelsFixture.channels[0]!;
+    await userEvent.click(
+      await canvas.findByTestId(`network-channel-item-${firstChannel.channel}`)
+    );
+    await waitFor(() =>
+      expect(canvas.getByTestId("network-channel-wire-trace")).toBeInTheDocument()
+    );
   },
 };
 
@@ -74,6 +98,19 @@ export const Disabled: Story = {
 };
 
 /**
+ * Disabled state: SplitPane MUST NOT mount, only the Empty disabled state is shown.
+ */
+export const DisabledSplitPaneAbsent: Story = {
+  ...Disabled,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByTestId("network-disabled-state")).toBeInTheDocument());
+    await waitFor(() => expect(canvas.queryByTestId("network-split-pane")).not.toBeInTheDocument());
+  },
+};
+
+/**
  * Empty channels branch when the workspace has network enabled but no channels yet.
  */
 export const EmptyChannels: Story = {
@@ -88,11 +125,30 @@ export const EmptyChannels: Story = {
 };
 
 /**
+ * Error branch when the channels list request fails.
+ */
+export const ChannelsError: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/network"),
+    ...storybookMswParameters({
+      network: [
+        http.get("/api/network/channels", () =>
+          HttpResponse.json({ error: "Network service unavailable" }, { status: 503 })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
  * Channel creation dialog opened from the primary page CTA.
  */
 export const CreateChannel: Story = {
   args: {},
   parameters: appRouteParameters("/network"),
+  tags: ["play-fn"],
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
