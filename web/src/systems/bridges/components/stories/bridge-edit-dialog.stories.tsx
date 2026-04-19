@@ -41,12 +41,10 @@ function BridgeEditDialogHarness({
 }
 
 export const Default: Story = {
-  args: {},
   render: () => <BridgeEditDialogHarness />,
 };
 
-export const Error: Story = {
-  args: {},
+export const InvalidProviderConfig: Story = {
   render: () => (
     <BridgeEditDialogHarness
       initialDraft={{
