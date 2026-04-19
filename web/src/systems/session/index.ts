@@ -114,3 +114,16 @@ export {
   type ProcessingIndicatorProps,
 } from "./components/processing-indicator";
 export { PermissionPrompt, type PermissionPromptProps } from "./components/permission-prompt";
+export {
+  SessionInspector,
+  SessionInspectorDrawer,
+  deriveFileReads,
+  deriveTraceEvents,
+  type InspectorFileEntry,
+  type InspectorMemoryDoc,
+  type InspectorTraceEvent,
+  type InspectorTraceKind,
+  type InspectorTraceStatus,
+  type InspectorUsage,
+  type SessionInspectorProps,
+} from "./components/session-inspector";

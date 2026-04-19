@@ -28,4 +28,13 @@ if (typeof window !== "undefined") {
 
   window.ResizeObserver = ResizeObserverMock;
   window.scrollTo = () => {};
+
+  if (typeof Element !== "undefined" && !Element.prototype.getAnimations) {
+    Element.prototype.getAnimations = function getAnimations() {
+      return [];
+    };
+  }
+  if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = function scrollIntoView() {};
+  }
 }

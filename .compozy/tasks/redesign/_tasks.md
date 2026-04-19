@@ -25,7 +25,7 @@
 | 19 | Rewrite Tasks domain forms and run detail route                       | completed | medium     | task_17                               |
 | 20 | Rewrite Session domain message thread                                 | completed | high       | task_10, task_13, task_14             |
 | 21 | Rewrite Session domain composer                                       | completed | medium     | task_20                               |
-| 22 | Rewrite Session domain inspector panel                                | pending | medium     | task_20                               |
+| 22 | Rewrite Session domain inspector panel                                | completed | medium     | task_20                               |
 | 23 | Rewrite Network domain (channels + peers)                             | pending | high       | task_13, task_14                      |
 | 24 | Rewrite Automation domain (jobs + triggers)                           | pending | high       | task_13, task_14                      |
 | 25 | Rewrite Bridges domain (list + detail)                                | pending | medium     | task_13, task_14                      |
