@@ -1,6 +1,6 @@
 import { Outlet, createFileRoute, Link, useMatchRoute } from "@tanstack/react-router";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@agh/ui";
 import {
   SETTINGS_ROOT_PATH,
   SETTINGS_SECTIONS,
@@ -33,11 +33,11 @@ function SettingsSectionNav() {
   return (
     <nav
       aria-label="Settings sections"
-      className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface)]"
+      className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)]"
       data-testid="settings-section-nav"
     >
       <div className="px-4 pb-2 pt-5">
-        <span className="font-mono text-[0.6rem] uppercase tracking-[0.22em] text-[color:var(--color-text-label)]">
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--color-text-label)]">
           Settings
         </span>
       </div>

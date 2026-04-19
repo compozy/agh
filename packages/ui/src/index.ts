@@ -24,6 +24,7 @@ export {
   AlertDescription,
   AlertAction,
   alertVariants,
+  type AlertProps,
 } from "./components/alert";
 export {
   Progress,

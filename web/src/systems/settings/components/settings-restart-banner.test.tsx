@@ -31,17 +31,21 @@ describe("SettingsRestartBanner", () => {
     expect(screen.queryByTestId("settings-page-general-restart-banner")).not.toBeInTheDocument();
   });
 
-  it("renders the restart-required warning state with a trigger button when required", () => {
+  it("renders warning tone with the restart-required message and trigger button", () => {
     const restart = makeRestart({ isRestartRequired: true });
     render(<SettingsRestartBanner slug="memory" restart={restart} />);
 
     const banner = screen.getByTestId("settings-page-memory-restart-banner");
     expect(banner).toHaveAttribute("data-tone", "warning");
+    expect(banner).toHaveAttribute("role", "status");
+    expect(screen.getByTestId("settings-page-memory-restart-banner-message")).toHaveTextContent(
+      "Changes saved. Restart the daemon to apply."
+    );
     fireEvent.click(screen.getByTestId("settings-page-memory-restart-banner-trigger"));
     expect(restart.trigger).toHaveBeenCalled();
   });
 
-  it("renders the polling state without a trigger button while the restart is running", () => {
+  it("renders polling tone (info) without the trigger button and with status suffix", () => {
     render(
       <SettingsRestartBanner
         slug="observability"
@@ -54,15 +58,20 @@ describe("SettingsRestartBanner", () => {
       />
     );
 
+    const banner = screen.getByTestId("settings-page-observability-restart-banner");
+    expect(banner).toHaveAttribute("data-tone", "info");
     expect(
       screen.getByTestId("settings-page-observability-restart-banner-message")
     ).toHaveTextContent("Restarting daemon · stopping");
+    expect(screen.getByTestId("settings-page-observability-restart-banner-op")).toHaveTextContent(
+      "op_1"
+    );
     expect(
       screen.queryByTestId("settings-page-observability-restart-banner-trigger")
     ).not.toBeInTheDocument();
   });
 
-  it("renders the failure banner with the failure reason and a dismiss action", () => {
+  it("renders the danger tone with the failure reason suffix and role=alert", () => {
     const restart = makeRestart({
       isRestartRequired: true,
       isFailed: true,
@@ -72,22 +81,31 @@ describe("SettingsRestartBanner", () => {
 
     const banner = screen.getByTestId("settings-page-general-restart-banner");
     expect(banner).toHaveAttribute("data-tone", "danger");
+    expect(banner).toHaveAttribute("role", "alert");
     expect(banner).toHaveTextContent("helper exited non-zero");
 
     fireEvent.click(screen.getByTestId("settings-page-general-restart-banner-dismiss"));
     expect(restart.dismiss).toHaveBeenCalled();
   });
 
-  it("renders the success banner once the restart completes", () => {
-    render(
-      <SettingsRestartBanner
-        slug="general"
-        restart={makeRestart({ isRestartRequired: true, isSuccessful: true })}
-      />
-    );
+  it("renders the success tone with the Dismiss button", () => {
+    const restart = makeRestart({ isRestartRequired: true, isSuccessful: true });
+    render(<SettingsRestartBanner slug="general" restart={restart} />);
 
     const banner = screen.getByTestId("settings-page-general-restart-banner");
     expect(banner).toHaveAttribute("data-tone", "success");
     expect(banner).toHaveTextContent("Daemon restarted successfully");
+    expect(screen.getByTestId("settings-page-general-restart-banner-dismiss")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("settings-page-general-restart-banner-dismiss"));
+    expect(restart.dismiss).toHaveBeenCalled();
+  });
+
+  it("omits the Dismiss button when the banner is only in the warning state", () => {
+    render(
+      <SettingsRestartBanner slug="general" restart={makeRestart({ isRestartRequired: true })} />
+    );
+    expect(
+      screen.queryByTestId("settings-page-general-restart-banner-dismiss")
+    ).not.toBeInTheDocument();
   });
 });
