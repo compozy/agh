@@ -30,7 +30,7 @@
 | 24 | Rewrite Automation domain (jobs + triggers)                           | completed | high       | task_13, task_14                      |
 | 25 | Rewrite Bridges domain (list + detail)                                | completed | medium     | task_13, task_14                      |
 | 26 | Rewrite Knowledge domain (list + detail)                              | completed | medium     | task_13, task_14                      |
-| 27 | Rewrite Skills domain (installed + marketplace)                       | pending | medium     | task_13, task_14                      |
+| 27 | Rewrite Skills domain (installed + marketplace)                       | completed | medium     | task_13, task_14                      |
 | 28 | Rewrite Workspace onboarding and Agent sidebar integrations           | pending | medium     | task_13, task_14                      |
 | 29 | Rewrite Daemon status and home dashboard                              | pending | low        | task_13, task_14                      |
 | 30 | Rewrite Settings shell (save-bar, page-actions, restart-banner)       | pending | medium     | task_13, task_14                      |
