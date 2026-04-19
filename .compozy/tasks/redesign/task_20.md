@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Session domain message thread
 type: frontend
 complexity: high
@@ -44,12 +44,12 @@ Rewrite the scrollable message thread in `web/src/systems/session/components/**`
 
 ## Subtasks
 
-- [ ] 20.1 Audit `web/src/systems/session/components/` and map each file to the `@agh/ui` primitives it will consume.
-- [ ] 20.2 Rewrite `message-bubble.tsx` as a thin composition over `ChatMessageBubble`, preserving role-aware meta + copy button + thinking block.
-- [ ] 20.3 Rewrite `tool-call-card.tsx` + `tool-group-section.tsx` + each `tool-renderers/*-content.tsx` on top of `@agh/ui` `ToolCallCard` and `CodeBlock` for diffs.
-- [ ] 20.4 Rewrite `chat-view.tsx` (virtualized list) and `chat-header.tsx` against new primitives; keep virtualizer wiring intact.
-- [ ] 20.5 Update or add Storybook stories covering: empty thread, single user+agent turn, tool call (running/done/error), diff, long mixed thread, streaming in-flight.
-- [ ] 20.6 Run `make web-lint`, `make web-typecheck`, `make web-test`, and dev-mode smoke against a live session.
+- [x] 20.1 Audit `web/src/systems/session/components/` and map each file to the `@agh/ui` primitives it will consume.
+- [x] 20.2 Rewrite `message-bubble.tsx` as a thin composition over `ChatMessageBubble`, preserving role-aware meta + copy button + thinking block.
+- [x] 20.3 Rewrite `tool-call-card.tsx` + `tool-group-section.tsx` + each `tool-renderers/*-content.tsx` on top of `@agh/ui` `ToolCallCard` and `CodeBlock` for diffs.
+- [x] 20.4 Rewrite `chat-view.tsx` (virtualized list) and `chat-header.tsx` against new primitives; keep virtualizer wiring intact.
+- [x] 20.5 Update or add Storybook stories covering: empty thread, single user+agent turn, tool call (running/done/error), diff, long mixed thread, streaming in-flight.
+- [x] 20.6 Run `make web-lint`, `make web-typecheck`, `make web-test`, and dev-mode smoke against a live session.
 
 ## Implementation Details
 
@@ -64,6 +64,10 @@ See TechSpec "Impact Analysis" — `web/src/systems/session/**` is a Phase 4 vis
 - `web/src/systems/session/components/processing-indicator.tsx` — streaming loader row.
 - `web/src/systems/session/components/chat-header.tsx` — session header (status + resume/stop).
 - `web/src/systems/session/components/tool-renderers/*.tsx` — per-tool content renderers (bash, edit, read, search, write, generic) consumed inside the new `ToolCallCard` body.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4 "Chat Components"` — bubble + agent-label + tool-call visual spec.
+  - `docs/design/web-inspiration/src/pages-session.jsx` — `SessionPage` scrollable thread with all 5 message roles (system, user, agent, tool, diff).
+  - `docs/design/web-inspiration/src/primitives.jsx` — agent glyph + status dot patterns.
 
 ### Dependent Files
 

@@ -66,9 +66,24 @@ export interface AgentEventPayload {
   raw?: unknown;
 }
 
-export const uiMessageRoles = ["user", "assistant", "tool_call", "tool_result", "system"] as const;
+export const uiMessageRoles = [
+  "user",
+  "assistant",
+  "tool_call",
+  "tool_result",
+  "system",
+  "diff",
+] as const;
 
 export type UIMessageRole = (typeof uiMessageRoles)[number];
+
+export interface UIMessageDiff {
+  language?: string;
+  content: string;
+  path?: string;
+  additions?: number;
+  removals?: number;
+}
 
 export interface UIMessage {
   id: string;
@@ -81,6 +96,7 @@ export interface UIMessage {
   thinking?: string;
   thinkingComplete?: boolean;
   isStreaming?: boolean;
+  diff?: UIMessageDiff;
   timestamp: number;
 }
 

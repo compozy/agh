@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { StatusDot } from "@agh/ui";
+
 export interface ProcessingIndicatorProps {
   className?: string;
 }
@@ -29,12 +31,22 @@ export function ProcessingIndicator({ className }: ProcessingIndicatorProps) {
   return (
     <div className={className} data-testid="processing-indicator">
       <div className="flex items-center gap-2 py-2 pl-5">
-        <span className="inline-flex items-center gap-[3px]">
-          <span className="size-1 rounded-full bg-[color:var(--color-text-tertiary)]/30 animate-pulse" />
-          <span className="size-1 rounded-full bg-[color:var(--color-text-tertiary)]/30 animate-pulse [animation-delay:200ms]" />
-          <span className="size-1 rounded-full bg-[color:var(--color-text-tertiary)]/30 animate-pulse [animation-delay:400ms]" />
+        <span className="inline-flex items-center gap-1">
+          <StatusDot size="sm" tone="neutral" pulse className="opacity-60" />
+          <StatusDot
+            size="sm"
+            tone="neutral"
+            pulse
+            className="opacity-60 [animation-delay:200ms]"
+          />
+          <StatusDot
+            size="sm"
+            tone="neutral"
+            pulse
+            className="opacity-60 [animation-delay:400ms]"
+          />
         </span>
-        <span className="text-[11px] text-[color:var(--color-text-tertiary)]/70">
+        <span className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
           Working for <WorkingTimer />
         </span>
       </div>

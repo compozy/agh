@@ -3,9 +3,13 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 import type { UIMessage } from "../types";
 
-vi.mock("@/lib/utils", () => ({
-  cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
-}));
+vi.mock("@/lib/utils", async importActual => {
+  const actual = await importActual<typeof import("@/lib/utils")>();
+  return {
+    ...actual,
+    cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
+  };
+});
 
 vi.mock("@agh/ui", async () => {
   const actual = await vi.importActual<typeof import("@agh/ui")>("@agh/ui");
@@ -41,6 +45,14 @@ function makeToolMessage(overrides: Partial<UIMessage> = {}): UIMessage {
   };
 }
 
+function queryPrimitiveRoot(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-slot="tool-call-card"]');
+}
+
+function queryStatusBadge(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-slot="tool-call-card-status"]');
+}
+
 describe("ToolCallCard", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -51,15 +63,16 @@ describe("ToolCallCard", () => {
     vi.useRealTimers();
   });
 
-  it("renders with card styling (border and surface background)", () => {
+  it("renders the primitive card shell with surface bg + token radius", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
-    const trigger = screen.getByTestId("tool-card-trigger");
-    expect(trigger.className).toMatch(/border-\[color:var\(--color-divider\)\]/);
-    expect(trigger.className).toMatch(/bg-\[color:var\(--color-surface\)\]/);
-    expect(trigger.className).toContain("rounded-lg");
+    const root = queryPrimitiveRoot();
+    expect(root).not.toBeNull();
+    expect(root?.className).toMatch(/bg-\[color:var\(--color-surface\)\]/);
+    expect(root?.className).toMatch(/border-\[color:var\(--color-divider\)\]/);
+    expect(root?.className).toContain("rounded-[var(--radius-md)]");
   });
 
-  it("renders terminal icon for tool", () => {
+  it("renders a tool icon in the primitive header", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
     expect(screen.getByTestId("tool-call-icon")).toBeInTheDocument();
   });
@@ -71,23 +84,26 @@ describe("ToolCallCard", () => {
     expect(executing).toHaveTextContent("Reading...");
   });
 
-  it("renders RUNNING status badge with accent color for executing tool", () => {
+  it("renders RUNNING status badge with accent tone for executing tool", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
-    const badge = screen.getByTestId("tool-status-badge-running");
-    expect(badge).toHaveTextContent("Running");
-    expect(badge.className).toMatch(/bg-\[color:var\(--color-accent-tint\)\]/);
-    expect(badge.className).toMatch(/text-\[color:var\(--color-accent\)\]/);
+    const badge = queryStatusBadge();
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toBe("RUNNING");
+    expect(badge?.getAttribute("data-tone")).toBe("accent");
+    expect(badge?.className).toMatch(/bg-\[color:var\(--color-accent-tint\)\]/);
+    expect(queryPrimitiveRoot()?.getAttribute("data-status")).toBe("running");
   });
 
-  it("renders DONE status badge with green color for completed tool", () => {
+  it("renders DONE status badge with success tone for completed tool", () => {
     render(<ToolCallCard message={makeToolMessage({ toolResult: { content: "file content" } })} />);
-    const badge = screen.getByTestId("tool-status-badge-done");
-    expect(badge).toHaveTextContent("Done");
-    expect(badge.className).toMatch(/bg-\[color:var\(--color-success-tint\)\]/);
-    expect(badge.className).toMatch(/text-\[color:var\(--color-success\)\]/);
+    const badge = queryStatusBadge();
+    expect(badge?.textContent).toBe("DONE");
+    expect(badge?.getAttribute("data-tone")).toBe("success");
+    expect(badge?.className).toMatch(/bg-\[color:var\(--color-success-tint\)\]/);
+    expect(queryPrimitiveRoot()?.getAttribute("data-status")).toBe("done");
   });
 
-  it("renders ERROR status badge with red color for failed tool", () => {
+  it("renders ERROR status badge with danger tone and danger-toned card border for failed tool", () => {
     render(
       <ToolCallCard
         message={makeToolMessage({
@@ -96,10 +112,13 @@ describe("ToolCallCard", () => {
         })}
       />
     );
-    const badge = screen.getByTestId("tool-status-badge-error");
-    expect(badge).toHaveTextContent("Error");
-    expect(badge.className).toMatch(/bg-\[color:var\(--color-danger-tint\)\]/);
-    expect(badge.className).toMatch(/text-\[color:var\(--color-danger\)\]/);
+    const badge = queryStatusBadge();
+    expect(badge?.textContent).toBe("ERROR");
+    expect(badge?.getAttribute("data-tone")).toBe("danger");
+    expect(badge?.className).toMatch(/bg-\[color:var\(--color-danger-tint\)\]/);
+    const root = queryPrimitiveRoot();
+    expect(root?.getAttribute("data-status")).toBe("error");
+    expect(root?.className).toContain("data-[status=error]:border-[color:var(--color-danger)]/40");
   });
 
   it("renders success state with past-tense label for completed tool", () => {
