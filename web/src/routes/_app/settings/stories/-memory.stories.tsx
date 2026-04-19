@@ -3,6 +3,7 @@ import { delay, http, HttpResponse } from "msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
+import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
 import {
   StorybookRestartBannerSetup,
   StorybookRouteCanvas,
@@ -28,6 +29,24 @@ export const Default: Story = {
   args: {},
   parameters: appRouteParameters("/settings/memory"),
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Dirty shell state — the global memory directory has been edited so the save-bar
+ * reads Unsaved changes + the Save button enables.
+ */
+export const Dirty: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/memory"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookFieldDirtySetup
+        testId="settings-page-memory-global-dir-input"
+        value="~/.agh/memory-dirty"
+      />
+    </>
+  ),
 };
 
 /**

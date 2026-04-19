@@ -221,4 +221,18 @@ describe("SkillsSettingsPage", () => {
       "server exploded"
     );
   });
+
+  it("renders the @agh/ui Empty card when no skills are disabled", () => {
+    pageState.envelope = {
+      ...envelope,
+      disabled_count: 0,
+      config: { ...envelope.config, disabled_skills: [] },
+    };
+    pageState.draft = { ...envelope.config, disabled_skills: [] };
+    render(<SkillsSettingsPage />);
+    const empty = screen.getByTestId("settings-page-skills-disabled-empty");
+    expect(empty).toBeInTheDocument();
+    expect(empty).toHaveAttribute("data-slot", "empty");
+    expect(empty).toHaveTextContent("No skills installed");
+  });
 });

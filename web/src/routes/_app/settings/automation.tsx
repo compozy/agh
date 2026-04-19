@@ -2,7 +2,7 @@ import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Switch } from "@agh/ui";
+import { Input, Switch } from "@agh/ui";
 import { useSettingsAutomationPage } from "@/hooks/routes/use-settings-automation-page";
 import type { SettingsAutomationSection } from "@/systems/settings";
 import {
@@ -188,8 +188,8 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
         description="Used for cron schedule resolution"
         hint="IANA"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56 font-mono"
             data-testid="settings-page-automation-timezone-input"
             value={draft.timezone ?? ""}
             placeholder="UTC"
@@ -210,10 +210,10 @@ function LimitsSection({ draft, setDraft }: DraftSectionProps) {
         description="Caps the number of jobs running simultaneously"
         hint="DEFAULT"
         control={
-          <input
+          <Input
             type="number"
             min={0}
-            className="h-8 w-24 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+            className="w-24"
             data-testid="settings-page-automation-max-concurrent-input"
             value={draft.max_concurrent_jobs}
             onChange={event =>
@@ -232,10 +232,10 @@ function LimitsSection({ draft, setDraft }: DraftSectionProps) {
         hint="DEFAULT"
         control={
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="number"
               min={0}
-              className="h-8 w-24 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+              className="w-24"
               data-testid="settings-page-automation-fire-limit-max-input"
               value={draft.default_fire_limit.max}
               onChange={event =>
@@ -252,8 +252,8 @@ function LimitsSection({ draft, setDraft }: DraftSectionProps) {
               fires
             </span>
             <span className="text-xs text-[color:var(--color-text-tertiary)]">per</span>
-            <input
-              className="h-8 w-24 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+            <Input
+              className="w-24 font-mono"
               data-testid="settings-page-automation-fire-limit-window-input"
               value={draft.default_fire_limit.window ?? ""}
               placeholder="1m"

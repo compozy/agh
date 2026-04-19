@@ -1,7 +1,24 @@
-import { AlertCircle, Check, KeyRound, Loader2, Plus, X } from "lucide-react";
+import { AlertCircle, Check, Database, KeyRound, Loader2, Plus, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Button, Pill } from "@agh/ui";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  Button,
+  Empty,
+  Input,
+  MonoBadge,
+  Pill,
+  StatusDot,
+  type StatusDotTone,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@agh/ui";
 
 import {
   useSettingsProvidersPage,
@@ -108,13 +125,12 @@ function ProvidersSettingsPage() {
       />
 
       {page.providers.length === 0 ? (
-        <div
-          className="rounded-md border border-dashed border-[color:var(--color-divider)] px-4 py-8 text-center text-sm text-[color:var(--color-text-tertiary)]"
+        <Empty
+          icon={Database}
+          title="No providers configured"
+          description='Use "New provider" to add an overlay entry to your config.'
           data-testid="settings-page-providers-empty"
-        >
-          No providers are defined. Use &ldquo;New provider&rdquo; to add one to your config
-          overlay.
-        </div>
+        />
       ) : (
         <ProvidersTable
           providers={page.providers}
@@ -160,18 +176,30 @@ function ProvidersTable({
       className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
       data-testid="settings-page-providers-list"
     >
-      <table className="w-full border-collapse text-sm">
-        <thead className="bg-[color:var(--color-surface-elevated)] text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-          <tr>
-            <th className="px-4 py-2.5 text-left">Provider</th>
-            <th className="px-4 py-2.5 text-left">Command</th>
-            <th className="px-4 py-2.5 text-left">Default model</th>
-            <th className="px-4 py-2.5 text-left">API key env</th>
-            <th className="px-4 py-2.5 text-left">Source</th>
-            <th className="px-4 py-2.5 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[color:var(--color-divider)]">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-[color:var(--color-surface-elevated)]">
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Provider
+            </TableHead>
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Command
+            </TableHead>
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Default model
+            </TableHead>
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              API key env
+            </TableHead>
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Source
+            </TableHead>
+            <TableHead className="w-[1%] text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Actions
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {providers.map(provider => (
             <ProviderRow
               key={provider.name}
@@ -180,8 +208,8 @@ function ProvidersTable({
               onDelete={onDelete}
             />
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -201,12 +229,12 @@ function ProviderRow({
   const tone = providerStateTone(provider);
 
   return (
-    <tr data-testid={`settings-page-providers-row-${provider.name}`}>
-      <td className="px-4 py-3">
+    <TableRow data-testid={`settings-page-providers-row-${provider.name}`}>
+      <TableCell>
         <div className="flex items-center gap-2.5">
-          <span
-            className={`inline-flex size-2 shrink-0 rounded-full ${tone.dot}`}
-            aria-hidden="true"
+          <StatusDot
+            tone={tone.tone}
+            size="md"
             data-testid={`settings-page-providers-row-${provider.name}-status`}
             data-tone={tone.label}
           />
@@ -215,20 +243,20 @@ function ProviderRow({
           </span>
           {provider.default ? <Pill variant="accent">DEFAULT</Pill> : null}
         </div>
-      </td>
-      <td
-        className="px-4 py-3 font-mono text-xs text-[color:var(--color-text-secondary)]"
+      </TableCell>
+      <TableCell
+        className="font-mono text-xs text-[color:var(--color-text-secondary)]"
         data-testid={`settings-page-providers-row-${provider.name}-command`}
       >
         {provider.settings.command ?? <EmptyCell />}
-      </td>
-      <td
-        className="px-4 py-3 font-mono text-xs text-[color:var(--color-text-secondary)]"
+      </TableCell>
+      <TableCell
+        className="font-mono text-xs text-[color:var(--color-text-secondary)]"
         data-testid={`settings-page-providers-row-${provider.name}-model`}
       >
         {provider.settings.default_model ?? <EmptyCell />}
-      </td>
-      <td className="px-4 py-3 font-mono text-xs">
+      </TableCell>
+      <TableCell className="font-mono text-xs">
         <div className="flex items-center gap-2">
           <span
             className="text-[color:var(--color-text-secondary)]"
@@ -237,23 +265,23 @@ function ProviderRow({
             {provider.settings.api_key_env ?? <EmptyCell />}
           </span>
           {provider.settings.api_key_env ? (
-            <Pill
-              variant={provider.api_key_env_present ? "success" : "accent"}
+            <MonoBadge
+              tone={provider.api_key_env_present ? "success" : "warning"}
               data-testid={`settings-page-providers-row-${provider.name}-api-key-state`}
             >
               {provider.api_key_env_present ? "SET" : "MISSING"}
-            </Pill>
+            </MonoBadge>
           ) : null}
         </div>
-      </td>
-      <td className="px-4 py-3">
+      </TableCell>
+      <TableCell>
         <SettingsSourceBadge
           data-testid={`settings-page-providers-row-${provider.name}-source`}
           source={source}
           shadowed={shadowed}
         />
-      </td>
-      <td className="px-4 py-3">
+      </TableCell>
+      <TableCell>
         <div className="flex items-center justify-end gap-2">
           <Button
             type="button"
@@ -280,8 +308,8 @@ function ProviderRow({
             Delete
           </Button>
         </div>
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -289,14 +317,17 @@ function EmptyCell() {
   return <span className="text-[color:var(--color-text-label)]">—</span>;
 }
 
-function providerStateTone(provider: SettingsProviderEntry) {
+function providerStateTone(provider: SettingsProviderEntry): {
+  tone: StatusDotTone;
+  label: string;
+} {
   if (!provider.command_available) {
-    return { dot: "bg-[color:var(--color-warning)]", label: "binary-missing" };
+    return { tone: "warning", label: "binary-missing" };
   }
   if (!provider.api_key_env_present && provider.settings.api_key_env) {
-    return { dot: "bg-[color:var(--color-warning)]", label: "unconfigured" };
+    return { tone: "warning", label: "unconfigured" };
   }
-  return { dot: "bg-[color:var(--color-text-tertiary)]", label: "installed" };
+  return { tone: "success", label: "installed" };
 }
 
 interface ProviderEditorProps {
@@ -381,8 +412,8 @@ function ProviderEditor({
           }
           hint={isCreate ? "REQUIRED" : "LOCKED"}
           control={
-            <input
-              className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)] disabled:opacity-60"
+            <Input
+              className="w-56 font-mono disabled:opacity-60"
               data-testid="settings-providers-editor-name-input"
               value={draft.name}
               placeholder="e.g. claude"
@@ -397,8 +428,8 @@ function ProviderEditor({
           description="Executable used to launch the ACP subprocess."
           hint="OVERLAY"
           control={
-            <input
-              className="h-8 w-72 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+            <Input
+              className="w-72 font-mono"
               data-testid="settings-providers-editor-command-input"
               value={draft.command}
               placeholder="npx @agentclientprotocol/claude-agent-acp@latest"
@@ -412,8 +443,8 @@ function ProviderEditor({
           description="Sent to the provider when an agent does not specify one."
           hint="OPTIONAL"
           control={
-            <input
-              className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+            <Input
+              className="w-56 font-mono"
               data-testid="settings-providers-editor-model-input"
               value={draft.default_model}
               placeholder="gpt-5-turbo"
@@ -431,8 +462,8 @@ function ProviderEditor({
           control={
             <div className="flex items-center gap-2">
               <KeyRound className="size-3.5 text-[color:var(--color-text-tertiary)]" />
-              <input
-                className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+              <Input
+                className="w-56 font-mono"
                 data-testid="settings-providers-editor-api-key-input"
                 value={draft.api_key_env}
                 placeholder="ANTHROPIC_API_KEY"
@@ -504,12 +535,6 @@ function ActionResultBanner({
   onDismiss: () => void;
 }) {
   const isSaved = action.kind === "saved";
-  const tone = isSaved ? "success" : "info";
-  const toneClasses =
-    tone === "success"
-      ? "border-[color:var(--color-success)] bg-[color:var(--color-success-tint)] text-[color:var(--color-success)]"
-      : "border-[color:var(--color-info)] bg-[color:var(--color-info-tint)] text-[color:var(--color-info)]";
-
   const restartBadge = action.result.restart_required
     ? "restart required to apply"
     : "applied immediately";
@@ -521,25 +546,25 @@ function ActionResultBanner({
       : `Deleted overlay for "${action.name}" · ${restartBadge}.`;
 
   return (
-    <div
-      className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-xs ${toneClasses}`}
+    <Alert
+      variant={isSaved ? "success" : "info"}
+      role="status"
       data-testid="settings-page-providers-action-result"
       data-kind={action.kind}
-      role="status"
     >
-      <span className="flex items-center gap-2">
-        <Check className="size-3.5" />
-        <span>{message}</span>
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onDismiss}
-        data-testid="settings-page-providers-action-result-dismiss"
-      >
-        <X className="size-3.5" />
-      </Button>
-    </div>
+      <Check className="size-3.5" />
+      <AlertDescription className="text-xs">{message}</AlertDescription>
+      <AlertAction>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onDismiss}
+          data-testid="settings-page-providers-action-result-dismiss"
+        >
+          <X className="size-3.5" />
+        </Button>
+      </AlertAction>
+    </Alert>
   );
 }
