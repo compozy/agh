@@ -22,7 +22,7 @@
 | 16 | Wire Playwright visual snapshot baseline for web/                     | completed | medium     | task_11, task_13, task_14             |
 | 17 | Rewrite Tasks domain list + detail panel                              | completed | high       | task_13, task_14                      |
 | 18 | Rewrite Tasks domain Kanban, Dashboard, Inbox views                   | completed | high       | task_17                               |
-| 19 | Rewrite Tasks domain forms and run detail route                       | pending | medium     | task_17                               |
+| 19 | Rewrite Tasks domain forms and run detail route                       | completed | medium     | task_17                               |
 | 20 | Rewrite Session domain message thread                                 | pending | high       | task_10, task_13, task_14             |
 | 21 | Rewrite Session domain composer                                       | pending | medium     | task_20                               |
 | 22 | Rewrite Session domain inspector panel                                | pending | medium     | task_20                               |

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Tasks domain forms and run detail route
 type: frontend
 complexity: medium
@@ -43,12 +43,12 @@ Rewrite the remaining Tasks-domain surfaces — the create modal, edit route, an
 
 ## Subtasks
 
-- [ ] 19.1 Rewrite `tasks-create-modal.tsx` on `Dialog` + form primitives; verify `use-tasks-create-modal-form.ts` callers see the same prop shape.
-- [ ] 19.2 Rewrite `task-editor-surface.tsx` on the same form primitives + `PageHeader` for `/tasks/$id/edit`.
-- [ ] 19.3 Rewrite `task-run-detail-header.tsx` + `task-run-detail-panels.tsx` + `task-run-detail-session-link.tsx` on `PageHeader`, `Section`, `Metric`, `CodeBlock`, `Table`.
-- [ ] 19.4 Update the three route files (`tasks.new.tsx`, `tasks.$id.edit.tsx`, `tasks.$id.runs.$runId.tsx`) to render the rewritten components; keep loaders and search-param schemas unchanged.
-- [ ] 19.5 Rewrite Storybook stories for the modal, editor surface, and run detail covering empty/pending/success/error/validation-error states.
-- [ ] 19.6 Run `make verify` and `pnpm test:visual`; commit Playwright baselines for `/tasks/new`, `/tasks/$id/edit`, and `/tasks/$id/runs/$runId`.
+- [x] 19.1 Rewrite `tasks-create-modal.tsx` on `Dialog` + form primitives; verify `use-tasks-create-modal-form.ts` callers see the same prop shape.
+- [x] 19.2 Rewrite `task-editor-surface.tsx` on the same form primitives + `PageHeader` for `/tasks/$id/edit`.
+- [x] 19.3 Rewrite `task-run-detail-header.tsx` + `task-run-detail-panels.tsx` + `task-run-detail-session-link.tsx` on `PageHeader`, `Section`, `Metric`, `CodeBlock`, `Table`.
+- [x] 19.4 Update the three route files (`tasks.new.tsx`, `tasks.$id.edit.tsx`, `tasks.$id.runs.$runId.tsx`) to render the rewritten components; keep loaders and search-param schemas unchanged.
+- [x] 19.5 Rewrite Storybook stories for the modal, editor surface, and run detail covering empty/pending/success/error/validation-error states.
+- [x] 19.6 Run `make verify` and `pnpm test:visual`; commit Playwright baselines for `/tasks/new`, `/tasks/$id/edit`, and `/tasks/$id/runs/$runId`.
 
 ## Implementation Details
 
@@ -74,6 +74,10 @@ Field set for the create modal and editor (unchanged from today):
 - `web/src/routes/_app/tasks.new.tsx` — mounts the create modal.
 - `web/src/routes/_app/tasks.$id.edit.tsx` — mounts the editor surface.
 - `web/src/routes/_app/tasks.$id.runs.$runId.tsx` — mounts the run detail panels.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4` — Dialog + Field + Input + Textarea + Combobox specs.
+  - `docs/design/web-inspiration/src/pages-core.jsx` — detail/runs layout chrome (PageHeader + Section + Table) that the run detail route reuses.
+  - `docs/design/design-system/preview/components-inputs.html` — form input visual reference.
 
 ### Dependent Files
 

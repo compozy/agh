@@ -7,19 +7,32 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  Field,
+  FieldDescription,
+  FieldLabel,
   Input,
+  NativeSelect,
+  NativeSelectOption,
   Pill,
+  Pills,
+  Section,
+  type PillsItem,
   Textarea,
 } from "@agh/ui";
 
 import type { CreateTaskDraftInput } from "@/hooks/routes/use-tasks-page";
+import { pillVariantFromTone } from "@/lib/pill-variant";
 import type { TaskOwnerKind, TaskPriority, TaskScope } from "../types";
 import { TASK_TEMPLATES, type TaskTemplate, type TaskTemplateId } from "../lib/task-templates";
 import { useTasksCreateModalForm } from "./use-tasks-create-modal-form";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
-const PRIORITY_OPTIONS: TaskPriority[] = ["low", "medium", "high", "urgent"];
-const SCOPE_OPTIONS: TaskScope[] = ["workspace", "global"];
+const PRIORITY_OPTIONS: PillsItem<TaskPriority>[] = [
+  { value: "low", label: "Low", testId: "tasks-create-modal-priority-low" },
+  { value: "medium", label: "Medium", testId: "tasks-create-modal-priority-medium" },
+  { value: "high", label: "High", testId: "tasks-create-modal-priority-high" },
+  { value: "urgent", label: "Urgent", testId: "tasks-create-modal-priority-urgent" },
+];
+
 const OWNER_KIND_OPTIONS: TaskOwnerKind[] = [
   "agent_session",
   "human",
@@ -29,7 +42,17 @@ const OWNER_KIND_OPTIONS: TaskOwnerKind[] = [
   "pool",
 ];
 
-const ATTEMPT_OPTIONS = [1, 2, 3, 5];
+const ATTEMPT_VALUES = ["1", "2", "3", "5", "default"] as const;
+type AttemptValue = (typeof ATTEMPT_VALUES)[number];
+
+const APPROVAL_OPTIONS: PillsItem<"none" | "manual">[] = [
+  { value: "none", label: "No approval", testId: "tasks-create-modal-approval-none" },
+  {
+    value: "manual",
+    label: "Human-in-the-loop",
+    testId: "tasks-create-modal-approval-manual",
+  },
+];
 
 export interface TasksCreateModalProps {
   open: boolean;
@@ -68,70 +91,73 @@ export function TasksCreateModal({
       ? "Will enqueue 1 run immediately on submit."
       : "Saves a draft. You can publish it later from the task list.");
 
+  const templateItems: PillsItem<TaskTemplateId>[] = TASK_TEMPLATES.map(option => ({
+    value: option.id,
+    label: option.label,
+    testId: `tasks-create-modal-template-${option.id}`,
+  }));
+
+  const scopeItems: PillsItem<TaskScope>[] = [
+    {
+      value: "workspace",
+      label: workspaceName ? `Workspace · ${workspaceName}` : "Workspace",
+      testId: "tasks-create-modal-scope-workspace",
+    },
+    { value: "global", label: "Global", testId: "tasks-create-modal-scope-global" },
+  ];
+
+  const attemptsValue: AttemptValue =
+    draft.maxAttempts === null ? "default" : (String(draft.maxAttempts) as AttemptValue);
+
+  const attemptItems: PillsItem<AttemptValue>[] = [
+    { value: "1", label: "1", testId: "tasks-create-modal-attempts-1" },
+    { value: "2", label: "2", testId: "tasks-create-modal-attempts-2" },
+    { value: "3", label: "3", testId: "tasks-create-modal-attempts-3" },
+    { value: "5", label: "5", testId: "tasks-create-modal-attempts-5" },
+    { value: "default", label: "Default", testId: "tasks-create-modal-attempts-default" },
+  ];
+
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="max-w-[calc(100%-2rem)] gap-0 border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-0 text-[color:var(--color-text-primary)] ring-0 sm:max-w-[36rem]"
+        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-[38rem]"
         data-testid="tasks-create-modal"
       >
-        <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] text-[color:var(--color-accent)]">
-              <Plus className="size-4" />
-            </span>
-            <div>
-              <DialogTitle>New task</DialogTitle>
-              <DialogDescription
-                className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]"
-                data-testid="tasks-create-modal-template-label"
-              >
-                Starting from {template.label} template
-              </DialogDescription>
-            </div>
+        <DialogHeader className="flex-row items-center gap-3 border-b border-[color:var(--color-divider)] px-5 py-4">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] text-[color:var(--color-accent)]">
+            <Plus className="size-4" />
+          </span>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <DialogTitle>New task</DialogTitle>
+            <DialogDescription data-testid="tasks-create-modal-template-label">
+              Starting from {template.label} template
+            </DialogDescription>
           </div>
         </DialogHeader>
 
         <form className="flex max-h-[min(85vh,960px)] flex-col" onSubmit={form.submitForm}>
-          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            <div data-testid="tasks-create-modal-template-pills">
-              <p className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-                Template
-              </p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {TASK_TEMPLATES.map(option => {
-                  const active = option.id === templateId;
-                  return (
-                    <button
-                      aria-pressed={active}
-                      className={
-                        active
-                          ? "rounded-full border border-[color:var(--color-accent)] bg-[color:var(--color-accent)] px-3 py-1 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-accent-ink)]"
-                          : "rounded-full border border-[color:var(--color-divider)] bg-transparent px-3 py-1 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-text-label)] hover:text-[color:var(--color-text-primary)]"
-                      }
-                      data-testid={`tasks-create-modal-template-${option.id}`}
-                      key={option.id}
-                      onClick={() => onTemplateChange(option.id)}
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+            <Section label="Template">
+              <Pills
+                aria-label="Task template"
+                className="flex-wrap"
+                data-testid="tasks-create-modal-template-pills"
+                items={templateItems}
+                onChange={next => onTemplateChange(next)}
+                size="sm"
+                value={templateId}
+              />
+            </Section>
 
-            <div className="space-y-2">
-              <label
-                className="flex items-center justify-between text-xs text-[color:var(--color-text-secondary)]"
-                htmlFor="tasks-create-title"
-              >
-                <span>Title</span>
-                <span className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-text-tertiary)]">
+            <Field>
+              <div className="flex items-center justify-between gap-3">
+                <FieldLabel htmlFor="tasks-create-title">Title</FieldLabel>
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-tertiary)]">
                   Required
                 </span>
-              </label>
+              </div>
               <Input
-                className="h-10 border-[color:var(--color-divider)] bg-[color:var(--color-canvas)]"
+                className="h-10"
                 data-testid="tasks-create-modal-title"
                 id="tasks-create-title"
                 onChange={form.updateText("title")}
@@ -139,184 +165,148 @@ export function TasksCreateModal({
                 required
                 value={draft.title}
               />
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <label
-                className="text-xs text-[color:var(--color-text-secondary)]"
-                htmlFor="tasks-create-description"
-              >
-                Description
-              </label>
+            <Field>
+              <FieldLabel htmlFor="tasks-create-description">Description</FieldLabel>
               <Textarea
-                className="min-h-[96px] border-[color:var(--color-divider)] bg-[color:var(--color-canvas)]"
+                className="min-h-[96px]"
                 data-testid="tasks-create-modal-description"
                 id="tasks-create-description"
                 onChange={form.updateText("description")}
                 placeholder="Describe the task contract for the agent."
                 value={draft.description}
               />
+            </Field>
+
+            <div className="grid gap-5 md:grid-cols-2">
+              <Field>
+                <FieldLabel>Scope</FieldLabel>
+                <Pills
+                  aria-label="Task scope"
+                  className="w-full flex-wrap"
+                  items={scopeItems}
+                  onChange={form.updateScope}
+                  size="sm"
+                  value={draft.scope}
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel>Priority</FieldLabel>
+                <Pills
+                  aria-label="Task priority"
+                  className="w-full flex-wrap"
+                  data-testid="tasks-create-modal-priorities"
+                  items={PRIORITY_OPTIONS}
+                  onChange={form.updatePriority}
+                  size="sm"
+                  value={draft.priority}
+                />
+              </Field>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <FieldGroup label="Scope">
-                <div className="flex gap-1.5">
-                  {SCOPE_OPTIONS.map(option => (
-                    <button
-                      aria-pressed={draft.scope === option}
-                      className={
-                        draft.scope === option
-                          ? "flex-1 rounded-lg border border-[color:var(--color-accent)] bg-[color:var(--color-accent-tint)] px-3 py-2 text-xs font-medium text-[color:var(--color-text-primary)]"
-                          : "flex-1 rounded-lg border border-[color:var(--color-divider)] px-3 py-2 text-xs text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-text-label)]"
-                      }
-                      data-testid={`tasks-create-modal-scope-${option}`}
-                      key={option}
-                      onClick={() => form.updateScope(option)}
-                      type="button"
-                    >
-                      {option === "workspace"
-                        ? `Workspace${workspaceName ? ` · ${workspaceName}` : ""}`
-                        : "Global"}
-                    </button>
-                  ))}
-                </div>
-              </FieldGroup>
-
-              <FieldGroup label="Priority">
-                <div className="flex flex-wrap gap-1.5" data-testid="tasks-create-modal-priorities">
-                  {PRIORITY_OPTIONS.map(option => (
-                    <button
-                      aria-pressed={draft.priority === option}
-                      className={
-                        draft.priority === option
-                          ? "rounded-lg border border-[color:var(--color-accent)] bg-[color:var(--color-accent-tint)] px-3 py-2 text-xs font-medium text-[color:var(--color-text-primary)]"
-                          : "rounded-lg border border-[color:var(--color-divider)] px-3 py-2 text-xs text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-text-label)]"
-                      }
-                      data-testid={`tasks-create-modal-priority-${option}`}
-                      key={option}
-                      onClick={() => form.updatePriority(option)}
-                      type="button"
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </FieldGroup>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <FieldGroup label="Owner">
-                <select
+            <div className="grid gap-5 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="tasks-create-owner-kind">Owner</FieldLabel>
+                <NativeSelect
                   aria-label="Owner kind"
-                  className="h-10 w-full rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] px-3 text-sm text-[color:var(--color-text-primary)]"
+                  className="w-full"
                   data-testid="tasks-create-modal-owner-kind"
+                  id="tasks-create-owner-kind"
                   onChange={event => form.updateOwnerKind(event.target.value as TaskOwnerKind | "")}
                   value={draft.ownerKind}
                 >
-                  <option value="">Unassigned</option>
+                  <NativeSelectOption value="">Unassigned</NativeSelectOption>
                   {OWNER_KIND_OPTIONS.map(kind => (
-                    <option key={kind} value={kind}>
+                    <NativeSelectOption key={kind} value={kind}>
                       {kind}
-                    </option>
+                    </NativeSelectOption>
                   ))}
-                </select>
+                </NativeSelect>
                 <Input
-                  className="mt-2 h-10 border-[color:var(--color-divider)] bg-[color:var(--color-canvas)]"
+                  className="h-10"
                   data-testid="tasks-create-modal-owner-ref"
                   onChange={form.updateText("ownerRef")}
                   placeholder="Owner reference (e.g. agent name)"
                   value={draft.ownerRef}
                 />
-              </FieldGroup>
+              </Field>
 
-              <FieldGroup label="Attempts">
-                <div className="flex flex-wrap gap-1.5" data-testid="tasks-create-modal-attempts">
-                  {ATTEMPT_OPTIONS.map(option => (
-                    <button
-                      aria-pressed={draft.maxAttempts === option}
-                      className={
-                        draft.maxAttempts === option
-                          ? "rounded-lg border border-[color:var(--color-accent)] bg-[color:var(--color-accent-tint)] px-3 py-2 text-xs font-medium text-[color:var(--color-text-primary)]"
-                          : "rounded-lg border border-[color:var(--color-divider)] px-3 py-2 text-xs text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-text-label)]"
-                      }
-                      data-testid={`tasks-create-modal-attempts-${option}`}
-                      key={option}
-                      onClick={() => form.updateMaxAttempts(option)}
-                      type="button"
-                    >
-                      {option}
-                    </button>
-                  ))}
-                  <button
-                    aria-pressed={draft.maxAttempts === null}
-                    className={
-                      draft.maxAttempts === null
-                        ? "rounded-lg border border-[color:var(--color-accent)] bg-[color:var(--color-accent-tint)] px-3 py-2 text-xs font-medium text-[color:var(--color-text-primary)]"
-                        : "rounded-lg border border-[color:var(--color-divider)] px-3 py-2 text-xs text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-text-label)]"
+              <Field>
+                <FieldLabel>Attempts</FieldLabel>
+                <Pills
+                  aria-label="Max attempts"
+                  className="w-full flex-wrap"
+                  data-testid="tasks-create-modal-attempts"
+                  items={attemptItems}
+                  onChange={next => {
+                    if (next === "default") {
+                      form.updateMaxAttempts(null);
+                      return;
                     }
-                    data-testid="tasks-create-modal-attempts-default"
-                    onClick={() => form.updateMaxAttempts(null)}
-                    type="button"
-                  >
-                    default
-                  </button>
-                </div>
-              </FieldGroup>
+                    form.updateMaxAttempts(Number(next));
+                  }}
+                  size="sm"
+                  value={attemptsValue}
+                />
+              </Field>
             </div>
 
-            <FieldGroup label="Parent task (optional)">
+            <Field>
+              <FieldLabel htmlFor="tasks-create-parent">Parent task</FieldLabel>
+              <FieldDescription>Optional — link this task to an existing parent.</FieldDescription>
               <Input
-                className="h-10 border-[color:var(--color-divider)] bg-[color:var(--color-canvas)]"
+                className="h-10"
                 data-testid="tasks-create-modal-parent"
+                id="tasks-create-parent"
                 onChange={form.updateText("parentTaskId")}
                 placeholder="Search by identifier or task id"
                 value={draft.parentTaskId}
               />
-            </FieldGroup>
+            </Field>
 
-            <FieldGroup label="Approval">
-              <div className="flex gap-1.5" data-testid="tasks-create-modal-approval">
-                {(["none", "manual"] as const).map(option => (
-                  <button
-                    aria-pressed={draft.approvalPolicy === option}
-                    className={
-                      draft.approvalPolicy === option
-                        ? "flex-1 rounded-lg border border-[color:var(--color-accent)] bg-[color:var(--color-accent-tint)] px-3 py-2 text-xs font-medium text-[color:var(--color-text-primary)]"
-                        : "flex-1 rounded-lg border border-[color:var(--color-divider)] px-3 py-2 text-xs text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-text-label)]"
-                    }
-                    data-testid={`tasks-create-modal-approval-${option}`}
-                    key={option}
-                    onClick={() => form.updateApprovalPolicy(option)}
-                    type="button"
-                  >
-                    {option === "manual" ? "Human-in-the-loop" : "No approval"}
-                  </button>
-                ))}
-              </div>
-            </FieldGroup>
+            <Field>
+              <FieldLabel>Approval</FieldLabel>
+              <Pills
+                aria-label="Approval policy"
+                className="w-full flex-wrap"
+                data-testid="tasks-create-modal-approval"
+                items={APPROVAL_OPTIONS}
+                onChange={form.updateApprovalPolicy}
+                size="sm"
+                value={draft.approvalPolicy}
+              />
+            </Field>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <FieldGroup label="Network channel (optional)">
+            <div className="grid gap-5 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="tasks-create-network">Network channel</FieldLabel>
+                <FieldDescription>Optional ingress channel.</FieldDescription>
                 <Input
-                  className="h-10 border-[color:var(--color-divider)] bg-[color:var(--color-canvas)]"
+                  className="h-10"
                   data-testid="tasks-create-modal-network-channel"
+                  id="tasks-create-network"
                   onChange={form.updateText("networkChannel")}
                   placeholder="ingress channel"
                   value={draft.networkChannel}
                 />
-              </FieldGroup>
-              <FieldGroup label="Identifier override (optional)">
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="tasks-create-identifier">Identifier override</FieldLabel>
+                <FieldDescription>Optional — replace the auto-generated id.</FieldDescription>
                 <Input
-                  className="h-10 border-[color:var(--color-divider)] bg-[color:var(--color-canvas)]"
+                  className="h-10"
                   data-testid="tasks-create-modal-identifier"
+                  id="tasks-create-identifier"
                   onChange={form.updateText("identifier")}
                   placeholder="TASK-123"
                   value={draft.identifier}
                 />
-              </FieldGroup>
+              </Field>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-3 py-2 text-xs text-[color:var(--color-text-secondary)]">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-3 py-2 text-[13px] text-[color:var(--color-text-secondary)]">
               <span data-testid="tasks-create-modal-notice">{noticeText}</span>
               <Pill
                 variant={pillVariantFromTone(
@@ -354,21 +344,5 @@ export function TasksCreateModal({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-interface FieldGroupProps {
-  label: string;
-  children: React.ReactNode;
-}
-
-function FieldGroup({ label, children }: FieldGroupProps) {
-  return (
-    <div className="space-y-2">
-      <p className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-        {label}
-      </p>
-      {children}
-    </div>
   );
 }
