@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Automation domain (jobs + triggers)
 type: frontend
 complexity: high
@@ -44,13 +44,13 @@ Rewrite `web/src/systems/automation/**` as a pure visual refresh over `@agh/ui` 
 
 ## Subtasks
 
-- [ ] 24.1 Audit current components + `useAutomationPage` view-model and list every prop, state branch, and test id to preserve.
-- [ ] 24.2 Rewrite `automation.tsx` around `PageHeader` + kind/scope `Pills` + `SplitPane`, removing `PillButton` and all ad hoc header markup.
-- [ ] 24.3 Rewrite `automation-list-panel.tsx` as `SearchInput` + list rows using `StatusDot` + `MonoBadge`, with `Empty` states for no-results and errors.
-- [ ] 24.4 Rewrite `automation-detail-panel.tsx` as conditional job/trigger detail with `Section` + `Metric` + `Table` + `StatusDot` + `Pills` for run status filters; replace the local `Empty*` imports from `@/components/ui/empty` with the `@agh/ui` `Empty` primitive.
-- [ ] 24.5 Rewrite `automation-editor-dialog.tsx` on the `@agh/ui` `Dialog`, composing `automation-job-form.tsx` and `automation-trigger-form.tsx` on `Field` primitives.
-- [ ] 24.6 Rewrite `automation-run-history.tsx` on `Table` + `StatusDot` + `KindChip` (trigger source) and drop any `Pill` usage from `design-system`.
-- [ ] 24.7 Update or rewrite `web/src/systems/automation/components/stories/**` and generate Playwright visual baselines covering default / loading / error / empty states for both tabs plus the editor dialog (create + edit).
+- [x] 24.1 Audit current components + `useAutomationPage` view-model and list every prop, state branch, and test id to preserve.
+- [x] 24.2 Rewrite `automation.tsx` around `PageHeader` + kind/scope `Pills` + `SplitPane`, removing `PillButton` and all ad hoc header markup.
+- [x] 24.3 Rewrite `automation-list-panel.tsx` as `SearchInput` + list rows using `StatusDot` + `MonoBadge`, with `Empty` states for no-results and errors.
+- [x] 24.4 Rewrite `automation-detail-panel.tsx` as conditional job/trigger detail with `Section` + `Metric` + `Table` + `StatusDot` + `Pills` for run status filters; replace the local `Empty*` imports from `@/components/ui/empty` with the `@agh/ui` `Empty` primitive.
+- [x] 24.5 Rewrite `automation-editor-dialog.tsx` on the `@agh/ui` `Dialog`, composing `automation-job-form.tsx` and `automation-trigger-form.tsx` on `Field` primitives.
+- [x] 24.6 Rewrite `automation-run-history.tsx` on `Table` + `StatusDot` + `KindChip` (trigger source) and drop any `Pill` usage from `design-system`.
+- [x] 24.7 Update or rewrite `web/src/systems/automation/components/stories/**` and generate Playwright visual baselines covering default / loading / error / empty states for both tabs plus the editor dialog (create + edit).
 
 ## Implementation Details
 
@@ -65,6 +65,9 @@ See TechSpec §"Impact Analysis" — `web/src/systems/automation/**` is a Phase 
 - `web/src/systems/automation/components/automation-job-form.tsx` — rewrite on `Field` primitives.
 - `web/src/systems/automation/components/automation-trigger-form.tsx` — rewrite on `Field` primitives.
 - `web/src/systems/automation/components/automation-run-history.tsx` — rewrite on `Table` + `StatusDot` + `KindChip`.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4` — Tabs + SplitPane + Table spec.
+  - `docs/design/web-inspiration/src/pages-core.jsx` — `AutomationPage` jobs + triggers tabs.
 
 ### Dependent Files
 
@@ -94,17 +97,17 @@ See TechSpec §"Impact Analysis" — `web/src/systems/automation/**` is a Phase 
 ## Tests
 
 - Unit tests:
-  - [ ] Toggling the kind `Pills` from jobs to triggers invokes `handleTabChange("triggers")` and swaps the list rows.
-  - [ ] Toggling the scope `Pills` to `workspace` invokes `handleScopeChange("workspace")` and filters the list to workspace-scoped rows.
-  - [ ] `AutomationListPanel` with `isLoading=true` renders the skeleton rows rather than the `Empty` state.
-  - [ ] `AutomationDetailPanel` with a job renders a `Metric` row whose "success rate" tile reflects the computed percentage from the fixture.
-  - [ ] `AutomationDetailPanel` with a trigger renders the hook `Section` with the trigger source as a `KindChip` and the event name in a `MonoBadge`.
-  - [ ] `AutomationRunHistory` with zero runs renders the `Empty` state and never mounts the `Table`.
-  - [ ] `AutomationEditorDialog` with invalid form state renders the submit button disabled and calls `onSubmit` only when every required `Field` is valid.
+  - [x] Toggling the kind `Pills` from jobs to triggers invokes `handleTabChange("triggers")` and swaps the list rows.
+  - [x] Toggling the scope `Pills` to `workspace` invokes `handleScopeChange("workspace")` and filters the list to workspace-scoped rows.
+  - [x] `AutomationListPanel` with `isLoading=true` renders the skeleton rows rather than the `Empty` state.
+  - [x] `AutomationDetailPanel` with a job renders a `Metric` row whose "success rate" tile reflects the computed percentage from the fixture.
+  - [x] `AutomationDetailPanel` with a trigger renders the hook `Section` with the trigger source as a `KindChip` and the event name in a `MonoBadge`.
+  - [x] `AutomationRunHistory` with zero runs renders the `Empty` state and never mounts the `Table`.
+  - [x] `AutomationEditorDialog` with invalid form state renders the submit button disabled and calls `onSubmit` only when every required `Field` is valid.
 - Integration tests:
-  - [ ] Storybook `play()` opens the editor dialog via the primary action button, fills the job form, and asserts `onSubmit` receives the expected payload.
-  - [ ] Storybook `play()` selects a trigger row and asserts the detail panel renders the trigger hook `Section` plus run history `Table`.
-  - [ ] Storybook `play()` with a fetch-error fixture asserts the list panel renders the `Empty` error state with a retry affordance.
+  - [x] Storybook `play()` opens the editor dialog via the primary action button, fills the job form, and asserts `onSubmit` receives the expected payload.
+  - [x] Storybook `play()` selects a trigger row and asserts the detail panel renders the trigger hook `Section` plus run history `Table`.
+  - [x] Storybook `play()` with a fetch-error fixture asserts the list panel renders the `Empty` error state with a retry affordance.
 - Test coverage target: >=80%
 - All tests must pass
 

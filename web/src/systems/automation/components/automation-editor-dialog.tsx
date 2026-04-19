@@ -1,6 +1,4 @@
-import { X } from "lucide-react";
-
-import { Button, Dialog, DialogClose, DialogContent } from "@agh/ui";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@agh/ui";
 
 import { AutomationJobForm } from "./automation-job-form";
 import { AutomationTriggerForm } from "./automation-trigger-form";
@@ -31,56 +29,70 @@ interface AutomationEditorDialogProps {
   editor: AutomationDialogEditorState | null;
 }
 
+function jobDialogCopy(mode: "create" | "edit") {
+  return {
+    title: mode === "create" ? "Create job" : "Edit job",
+    description: "Scheduled jobs dispatch prompts to agents on a time-based cadence.",
+  };
+}
+
+function triggerDialogCopy(mode: "create" | "edit") {
+  return {
+    title: mode === "create" ? "Create trigger" : "Edit trigger",
+    description: "Event-driven triggers react to daemon events, webhooks, and extension signals.",
+  };
+}
+
 export function AutomationEditorDialog({ activeWorkspaceId, editor }: AutomationEditorDialogProps) {
+  const isOpen = editor !== null;
+  const copy = editor
+    ? editor.kind === "jobs"
+      ? jobDialogCopy(editor.mode)
+      : triggerDialogCopy(editor.mode)
+    : { title: "", description: "" };
+
   return (
     <Dialog
-      open={editor !== null}
       onOpenChange={open => {
-        if (!open) {
-          editor?.onCancel();
-        }
+        if (!open) editor?.onCancel();
       }}
+      open={isOpen}
     >
-      {editor ? (
-        <DialogContent
-          className="max-h-[min(84vh,960px)] max-w-[min(100%-2rem,880px)] overflow-hidden border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-0 text-[color:var(--color-text-primary)]"
-          showCloseButton={false}
-        >
-          <DialogClose
-            render={
-              <Button
-                className="absolute top-4 right-4 z-10 text-[color:var(--color-text-tertiary)] hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]"
-                size="icon-sm"
-                variant="ghost"
+      <DialogContent
+        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-[44rem]"
+        data-testid="automation-editor-dialog"
+      >
+        {editor ? (
+          <>
+            <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
+              <DialogTitle>{copy.title}</DialogTitle>
+              <DialogDescription>{copy.description}</DialogDescription>
+            </DialogHeader>
+
+            {editor.kind === "jobs" ? (
+              <AutomationJobForm
+                activeWorkspaceId={activeWorkspaceId}
+                draft={editor.draft}
+                isPending={editor.isPending}
+                mode={editor.mode}
+                onCancel={editor.onCancel}
+                onChange={editor.onChange}
+                onSubmit={editor.onSubmit}
               />
-            }
-          >
-            <X className="size-4" />
-            <span className="sr-only">Close editor</span>
-          </DialogClose>
-          {editor.kind === "jobs" ? (
-            <AutomationJobForm
-              activeWorkspaceId={activeWorkspaceId}
-              draft={editor.draft}
-              isPending={editor.isPending}
-              mode={editor.mode}
-              onCancel={editor.onCancel}
-              onChange={editor.onChange}
-              onSubmit={editor.onSubmit}
-            />
-          ) : (
-            <AutomationTriggerForm
-              activeWorkspaceId={activeWorkspaceId}
-              draft={editor.draft}
-              isPending={editor.isPending}
-              mode={editor.mode}
-              onCancel={editor.onCancel}
-              onChange={editor.onChange}
-              onSubmit={editor.onSubmit}
-            />
-          )}
-        </DialogContent>
-      ) : null}
+            ) : (
+              <AutomationTriggerForm
+                activeWorkspaceId={activeWorkspaceId}
+                draft={editor.draft}
+                isPending={editor.isPending}
+                mode={editor.mode}
+                onCancel={editor.onCancel}
+                onChange={editor.onChange}
+                onSubmit={editor.onSubmit}
+              />
+            )}
+          </>
+        ) : null}
+      </DialogContent>
     </Dialog>
   );
 }

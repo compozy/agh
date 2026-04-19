@@ -52,6 +52,7 @@ describe("AutomationJobForm", () => {
     const { onCancel, onChange, onSubmit } = renderJobForm();
 
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
+    expect(screen.getByTestId("submit-job-form")).toHaveTextContent("Create Job");
     expect(screen.getByText("Enabled on create")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("job-name-input"), {
@@ -97,7 +98,7 @@ describe("AutomationJobForm", () => {
     fireEvent.change(screen.getByTestId("job-fire-limit-window"), {
       target: { value: "2h" },
     });
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByTestId("job-enabled-toggle"));
 
     expect(screen.getByTestId("submit-job-form")).toBeEnabled();
 
@@ -170,7 +171,6 @@ describe("AutomationJobForm", () => {
       mode: "edit",
     });
 
-    expect(screen.getByText("Edit Job")).toBeInTheDocument();
     expect(screen.getByText("Enabled")).toBeInTheDocument();
     expect(screen.getByTestId("submit-job-form")).toHaveTextContent("Saving...");
 

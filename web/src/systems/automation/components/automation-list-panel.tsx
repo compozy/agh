@@ -1,15 +1,12 @@
-import { Search } from "lucide-react";
+import { AlertCircle, Clock3, Loader2, Zap } from "lucide-react";
 
-import { Pill } from "@agh/ui";
+import { Empty, MonoBadge, SearchInput, StatusDot } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
 import {
   automationScopeLabel,
-  automationScopeTone,
-  automationSemanticTone,
   automationSourceLabel,
-  automationSourceTone,
+  automationStatusTone,
   describeSchedule,
   formatAutomationListSummary,
   formatPromptPreview,
@@ -24,6 +21,8 @@ import type {
 
 interface AutomationListPanelProps {
   activeWorkspaceName?: string;
+  errorMessage?: string | null;
+  isLoading?: boolean;
   jobs: AutomationJob[];
   kind: AutomationKind;
   onSearchChange: (query: string) => void;
@@ -35,127 +34,123 @@ interface AutomationListPanelProps {
   triggers: AutomationTrigger[];
 }
 
-function AutomationTag({
-  children,
-  tone,
-}: {
-  children: string;
-  tone: "amber" | "danger" | "green" | "neutral" | "violet";
-}) {
-  return (
-    <Pill className="border-none" variant={pillVariantFromTone(tone)}>
-      {children}
-    </Pill>
-  );
+function sourceBadgeTone(source: AutomationJob["source"]): "accent" | "neutral" {
+  return source === "dynamic" ? "accent" : "neutral";
 }
 
-function JobListItem({
-  isSelected,
-  job,
-  onSelect,
-}: {
+function scopeBadgeTone(scope: AutomationJob["scope"]): "info" | "neutral" {
+  return scope === "workspace" ? "info" : "neutral";
+}
+
+interface JobListItemProps {
   isSelected: boolean;
   job: AutomationJob;
   onSelect: () => void;
-}) {
+}
+
+function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
+  const enabledTone = automationStatusTone(job.enabled ? "enabled" : "disabled");
+
   return (
     <button
+      aria-pressed={isSelected}
       className={cn(
-        "relative flex w-full flex-col gap-2 border-b border-[color:rgba(58,58,60,0.5)] px-4 py-3 text-left transition-colors",
-        "hover:bg-[color:var(--color-surface)]",
+        "relative flex w-full flex-col gap-2 border-b border-[color:var(--color-divider)] px-4 py-3 text-left transition-colors",
+        "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
         isSelected && "bg-[color:var(--color-surface)]"
       )}
+      data-state={isSelected ? "selected" : undefined}
       data-testid={`automation-item-${job.id}`}
       onClick={onSelect}
       type="button"
     >
       {isSelected ? (
         <span
+          aria-hidden="true"
           className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-[color:var(--color-accent)]"
           data-testid="automation-active-indicator"
         />
       ) : null}
 
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[0.95rem] font-medium text-[color:var(--color-text-primary)]">
+        <div className="flex min-w-0 items-center gap-2">
+          <StatusDot tone={enabledTone} />
+          <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
             {job.name}
-          </p>
-          <p className="mt-0.5 truncate text-sm text-[color:var(--color-text-secondary)]">
-            {describeSchedule(job.schedule)}
-          </p>
+          </span>
         </div>
-        <span className="shrink-0 font-mono text-[0.66rem] uppercase tracking-[0.1em] text-[color:var(--color-accent)]">
+        <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.1em] text-[color:var(--color-accent)]">
           {formatRelativeTime(job.next_run)}
         </span>
       </div>
 
+      <p className="truncate text-[12px] text-[color:var(--color-text-secondary)]">
+        {describeSchedule(job.schedule)}
+      </p>
+
       <div className="flex flex-wrap items-center gap-1.5">
-        <AutomationTag tone={automationSemanticTone(job.enabled ? "enabled" : "disabled")}>
-          {job.enabled ? "ENABLED" : "DISABLED"}
-        </AutomationTag>
-        <AutomationTag tone={automationScopeTone(job.scope)}>
-          {automationScopeLabel(job.scope)}
-        </AutomationTag>
-        <AutomationTag tone={automationSourceTone(job.source)}>
+        <MonoBadge tone={sourceBadgeTone(job.source)}>
           {automationSourceLabel(job.source)}
-        </AutomationTag>
+        </MonoBadge>
+        <MonoBadge tone={scopeBadgeTone(job.scope)}>{automationScopeLabel(job.scope)}</MonoBadge>
       </div>
     </button>
   );
 }
 
-function TriggerListItem({
-  isSelected,
-  onSelect,
-  trigger,
-}: {
+interface TriggerListItemProps {
   isSelected: boolean;
   onSelect: () => void;
   trigger: AutomationTrigger;
-}) {
+}
+
+function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps) {
+  const enabledTone = automationStatusTone(trigger.enabled ? "enabled" : "disabled");
+
   return (
     <button
+      aria-pressed={isSelected}
       className={cn(
-        "relative flex w-full flex-col gap-2 border-b border-[color:rgba(58,58,60,0.5)] px-4 py-3 text-left transition-colors",
-        "hover:bg-[color:var(--color-surface)]",
+        "relative flex w-full flex-col gap-2 border-b border-[color:var(--color-divider)] px-4 py-3 text-left transition-colors",
+        "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
         isSelected && "bg-[color:var(--color-surface)]"
       )}
+      data-state={isSelected ? "selected" : undefined}
       data-testid={`automation-item-${trigger.id}`}
       onClick={onSelect}
       type="button"
     >
       {isSelected ? (
         <span
+          aria-hidden="true"
           className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-[color:var(--color-accent)]"
           data-testid="automation-active-indicator"
         />
       ) : null}
 
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[0.95rem] font-medium text-[color:var(--color-text-primary)]">
+        <div className="flex min-w-0 items-center gap-2">
+          <StatusDot tone={enabledTone} />
+          <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
             {trigger.name}
-          </p>
-          <p className="mt-0.5 truncate text-sm text-[color:var(--color-text-secondary)]">
-            {formatPromptPreview(trigger.prompt)}
-          </p>
+          </span>
         </div>
-        <span className="shrink-0 font-mono text-[0.66rem] tracking-[0.06em] text-[color:var(--color-info)]">
+        <MonoBadge className="shrink-0 normal-case" tone="info">
           {trigger.event}
-        </span>
+        </MonoBadge>
       </div>
 
+      <p className="line-clamp-2 text-[12px] text-[color:var(--color-text-secondary)]">
+        {formatPromptPreview(trigger.prompt)}
+      </p>
+
       <div className="flex flex-wrap items-center gap-1.5">
-        <AutomationTag tone={automationSemanticTone(trigger.enabled ? "enabled" : "disabled")}>
-          {trigger.enabled ? "ENABLED" : "DISABLED"}
-        </AutomationTag>
-        <AutomationTag tone={automationScopeTone(trigger.scope)}>
-          {automationScopeLabel(trigger.scope)}
-        </AutomationTag>
-        <AutomationTag tone={automationSourceTone(trigger.source)}>
+        <MonoBadge tone={sourceBadgeTone(trigger.source)}>
           {automationSourceLabel(trigger.source)}
-        </AutomationTag>
+        </MonoBadge>
+        <MonoBadge tone={scopeBadgeTone(trigger.scope)}>
+          {automationScopeLabel(trigger.scope)}
+        </MonoBadge>
       </div>
     </button>
   );
@@ -163,6 +158,8 @@ function TriggerListItem({
 
 export function AutomationListPanel({
   activeWorkspaceName,
+  errorMessage = null,
+  isLoading = false,
   jobs,
   kind,
   onSearchChange,
@@ -174,7 +171,9 @@ export function AutomationListPanel({
   triggers,
 }: AutomationListPanelProps) {
   const items = kind === "jobs" ? jobs : triggers;
-  const emptyLabel = kind === "jobs" ? "No jobs found" : "No triggers found";
+  const isEmpty = items.length === 0;
+  const EmptyIcon = kind === "jobs" ? Clock3 : Zap;
+  const emptyTitle = kind === "jobs" ? "No jobs found" : "No triggers found";
   const summary = formatAutomationListSummary({
     activeWorkspaceName,
     kind,
@@ -185,59 +184,81 @@ export function AutomationListPanel({
   });
 
   return (
-    <aside
-      className="flex w-[320px] shrink-0 flex-col border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]"
-      data-testid="automation-list-panel"
-    >
-      <div className="space-y-3 border-b border-[color:var(--color-divider)] px-3 py-4">
-        <label className="flex h-9 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3">
-          <Search className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]" />
-          <span className="sr-only">Search automation items</span>
-          <input
-            className="min-w-0 flex-1 bg-transparent text-sm text-[color:var(--color-text-primary)] outline-none placeholder:text-[color:var(--color-text-tertiary)]"
-            data-testid="automation-search-input"
-            onChange={event => onSearchChange(event.target.value)}
-            placeholder={kind === "jobs" ? "Search jobs..." : "Search triggers..."}
-            type="text"
-            value={searchQuery}
-          />
-        </label>
+    <aside className="flex min-h-0 flex-1 flex-col" data-testid="automation-list-panel">
+      <div className="space-y-2 border-b border-[color:var(--color-divider)] p-3">
+        <SearchInput
+          data-testid="automation-search-input"
+          onChange={onSearchChange}
+          placeholder={kind === "jobs" ? "Search jobs…" : "Search triggers…"}
+          value={searchQuery}
+        />
         <p
-          className="text-sm text-[color:var(--color-text-secondary)]"
+          className="text-[12px] text-[color:var(--color-text-secondary)]"
           data-testid="automation-list-summary"
         >
           {summary}
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {items.length === 0 ? (
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {isLoading && isEmpty ? (
           <div
-            className="flex min-h-full items-center justify-center px-6 py-10 text-center text-sm text-[color:var(--color-text-secondary)]"
+            className="flex min-h-full items-center justify-center px-6 py-10"
+            data-testid="automation-list-loading"
+          >
+            <Loader2
+              aria-hidden="true"
+              className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+            />
+          </div>
+        ) : errorMessage && isEmpty ? (
+          <div
+            className="flex min-h-full items-center justify-center p-4"
+            data-testid="automation-list-error"
+          >
+            <Empty
+              className="max-w-sm"
+              description={errorMessage}
+              icon={AlertCircle}
+              title={kind === "jobs" ? "Unable to load jobs" : "Unable to load triggers"}
+            />
+          </div>
+        ) : isEmpty ? (
+          <div
+            className="flex min-h-full items-center justify-center p-4"
             data-testid="automation-list-empty"
           >
-            {emptyLabel}
+            <Empty
+              className="max-w-sm"
+              description={
+                searchQuery.trim() !== ""
+                  ? "Try a different search term or adjust the scope filter."
+                  : kind === "jobs"
+                    ? "Create your first job to dispatch prompts on a schedule."
+                    : "Create your first trigger to react to daemon events and webhooks."
+              }
+              icon={EmptyIcon}
+              title={emptyTitle}
+            />
           </div>
+        ) : kind === "jobs" ? (
+          jobs.map(job => (
+            <JobListItem
+              isSelected={job.id === selectedId}
+              job={job}
+              key={job.id}
+              onSelect={() => onSelect(job.id)}
+            />
+          ))
         ) : (
-          <>
-            {kind === "jobs"
-              ? jobs.map(job => (
-                  <JobListItem
-                    isSelected={job.id === selectedId}
-                    job={job}
-                    key={job.id}
-                    onSelect={() => onSelect(job.id)}
-                  />
-                ))
-              : triggers.map(trigger => (
-                  <TriggerListItem
-                    isSelected={trigger.id === selectedId}
-                    key={trigger.id}
-                    onSelect={() => onSelect(trigger.id)}
-                    trigger={trigger}
-                  />
-                ))}
-          </>
+          triggers.map(trigger => (
+            <TriggerListItem
+              isSelected={trigger.id === selectedId}
+              key={trigger.id}
+              onSelect={() => onSelect(trigger.id)}
+              trigger={trigger}
+            />
+          ))
         )}
       </div>
     </aside>
