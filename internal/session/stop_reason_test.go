@@ -214,11 +214,14 @@ func TestRequestStopWithCauseFinalizesAlreadyExitedProcess(t *testing.T) {
 func TestPrepareStopWithCauseWrapsStageFailures(t *testing.T) {
 	t.Parallel()
 
+	hookErr := errors.New("hook boom")
+
 	tests := []struct {
-		name      string
-		setup     func(t *testing.T) (*Manager, *Session, context.Context)
-		wantStage string
-		wantErr   error
+		name          string
+		setup         func(t *testing.T) (*Manager, *Session, context.Context)
+		wantStage     string
+		wantErr       error
+		wantPathError bool
 	}{
 		{
 			name: "Should wrap pre-stop hook failures",
@@ -230,13 +233,14 @@ func TestPrepareStopWithCauseWrapsStageFailures(t *testing.T) {
 						_ context.Context,
 						payload hookspkg.SessionPreStopPayload,
 					) (hookspkg.SessionPreStopPayload, error) {
-						return payload, errors.New("hook boom")
+						return payload, hookErr
 					},
 				}
 				h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 				return h.manager, createSession(t, h), testutil.Context(t)
 			},
 			wantStage: "prepare stop pre-stop hooks",
+			wantErr:   hookErr,
 		},
 		{
 			name: "Should wrap state synchronization failures",
@@ -269,7 +273,8 @@ func TestPrepareStopWithCauseWrapsStageFailures(t *testing.T) {
 				session.mu.Unlock()
 				return h.manager, session, testutil.Context(t)
 			},
-			wantStage: "prepare stop metadata write",
+			wantStage:     "prepare stop metadata write",
+			wantPathError: true,
 		},
 		{
 			name: "Should wrap prompt setup wait failures",
@@ -304,6 +309,12 @@ func TestPrepareStopWithCauseWrapsStageFailures(t *testing.T) {
 			}
 			if tc.wantErr != nil && !errors.Is(err, tc.wantErr) {
 				t.Fatalf("prepareStopWithCause() error = %v, want wrapped %v", err, tc.wantErr)
+			}
+			if tc.wantPathError {
+				var pathErr *os.PathError
+				if !errors.As(err, &pathErr) {
+					t.Fatalf("prepareStopWithCause() error = %v, want wrapped *os.PathError", err)
+				}
 			}
 		})
 	}

@@ -563,8 +563,9 @@ type AddTaskDependencyRequest struct {
 
 // EnqueueTaskRunRequest is the shared run-enqueue request payload.
 type EnqueueTaskRunRequest struct {
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-	NetworkChannel string `json:"network_channel,omitempty"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	NetworkChannel string          `json:"network_channel,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
 // ClaimTaskRunRequest is the shared run-claim request payload.

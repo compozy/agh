@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -2581,11 +2582,30 @@ func (m *Service) recordTaskEvent(
 		m.emitTaskLiveEventBestEffort(postCommitCtx, event.ID)
 		return nil
 	}
-	if m.eventObserver != nil {
-		m.eventObserver.OnTaskEvent(postCommitCtx, record)
-	}
+	m.notifyTaskObserverBestEffort(postCommitCtx, record)
 	m.emitTaskLiveRecordBestEffort(postCommitCtx, record)
 	return nil
+}
+
+func (m *Service) notifyTaskObserverBestEffort(ctx context.Context, record EventRecord) {
+	if m == nil || m.eventObserver == nil {
+		return
+	}
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			slog.Error(
+				"task: task event observer panicked during post-commit notification",
+				"panic", recovered,
+				"event_id", record.Event.ID,
+				"task_id", record.Event.TaskID,
+				"run_id", record.Event.RunID,
+				"event_type", record.Event.EventType,
+			)
+		}
+	}()
+
+	m.eventObserver.OnTaskEvent(ctx, record)
 }
 
 func marshalTaskEventPayload(payload any) (json.RawMessage, error) {

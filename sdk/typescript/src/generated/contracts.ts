@@ -2395,6 +2395,7 @@ export interface TaskRunEnqueueParams {
   task_id: string;
   idempotency_key?: string;
   network_channel?: string;
+  metadata?: JSONValue;
 }
 
 export interface TaskRunFailParams {

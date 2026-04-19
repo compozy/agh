@@ -742,6 +742,7 @@ func enqueueTaskRunFromRequest(taskID string, req apicontract.EnqueueTaskRunRequ
 		TaskID:         strings.TrimSpace(taskID),
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
 		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
+		Metadata:       cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("enqueue_run"); err != nil {
 		return taskpkg.EnqueueRun{}, invalidParamsRPCError(err)

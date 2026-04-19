@@ -2030,6 +2030,7 @@ func newDetachedHarnessTaskRuntimeForTest(
 	if err != nil {
 		t.Fatalf("newHarnessReentryBridge() error = %v", err)
 	}
+	t.Cleanup(reentry.shutdown)
 	manager, err := taskpkg.NewManager(
 		taskpkg.WithStore(db),
 		taskpkg.WithSessionExecutor(sessionBridge),

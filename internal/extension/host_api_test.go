@@ -3537,9 +3537,24 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		decodeResult(t, result, &run)
 		return run
 	}
+	assertMetadataPhase := func(label string, raw json.RawMessage, want string) {
+		t.Helper()
+
+		var decoded map[string]any
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatalf("%s metadata unmarshal error = %v", label, err)
+		}
+		got, ok := decoded["phase"].(string)
+		if !ok || got != want {
+			t.Fatalf("%s metadata phase = %v, want %q", label, decoded["phase"], want)
+		}
+	}
 
 	completedTask := createTask("Completed run task")
-	completedQueued := enqueueRun(completedTask.ID, "enqueue-complete", nil)
+	completedQueued := enqueueRun(completedTask.ID, "enqueue-complete", map[string]any{
+		"phase": "extension",
+	})
+	assertMetadataPhase("tasks/runs/enqueue", completedQueued.Metadata, "extension")
 	completedClaimed := claimRun(completedQueued.ID, "claim-complete")
 	if got, want := completedClaimed.Status, taskpkg.TaskRunStatusClaimed; got != want {
 		t.Fatalf("tasks/runs/claim status = %q, want %q", got, want)
@@ -3666,15 +3681,6 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		t.Fatalf("tasks/runs[0].session_id = %q, want %q", got, want)
 	}
 
-	storedRun, err := env.registry.GetTaskRun(testutil.Context(t), completedQueued.ID)
-	if err != nil {
-		t.Fatalf("registry.GetTaskRun(%q) error = %v", completedQueued.ID, err)
-	}
-	storedRun.Metadata = json.RawMessage(`{"phase":"extension"}`)
-	if err := env.registry.UpdateTaskRun(testutil.Context(t), storedRun); err != nil {
-		t.Fatalf("registry.UpdateTaskRun(%q) error = %v", completedQueued.ID, err)
-	}
-
 	runsWithMetadataResult, err := env.call(t, "ext-runs", "tasks/runs", map[string]any{
 		"id":         completedTask.ID,
 		"status":     taskpkg.TaskRunStatusCompleted,
@@ -3690,9 +3696,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	if got, want := len(runsWithMetadata), 1; got != want {
 		t.Fatalf("len(tasks/runs metadata list) = %d, want %d", got, want)
 	}
-	if got := string(runsWithMetadata[0].Metadata); !strings.Contains(got, `"phase":"extension"`) {
-		t.Fatalf("tasks/runs metadata = %s, want extension marker", got)
-	}
+	assertMetadataPhase("tasks/runs list", runsWithMetadata[0].Metadata, "extension")
 }
 
 func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {

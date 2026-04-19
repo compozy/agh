@@ -17513,6 +17513,7 @@ export interface operations {
       content: {
         "application/json": {
           idempotency_key?: string;
+          metadata?: unknown;
           network_channel?: string;
         };
       };
