@@ -57,6 +57,19 @@ func TestAgentResourceCodecRejectsInvalidSpecs(t *testing.T) {
 			},
 			wantErr: "agent.mcp_servers[0]",
 		},
+		{
+			name: "ShouldRejectInvalidCapabilityCatalog",
+			spec: AgentDef{
+				Name:   "coder",
+				Prompt: "You are helpful.",
+				Capabilities: &CapabilityCatalog{
+					Capabilities: []CapabilityDef{{
+						ID: "build-site",
+					}},
+				},
+			},
+			wantErr: "agent.capabilities",
+		},
 	}
 
 	for _, tt := range tests {
@@ -92,6 +105,16 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		Name:   " coder ",
 		Prompt: " Build things. ",
 		Tools:  []string{" github.search ", "", "github.search", " * "},
+		Capabilities: &CapabilityCatalog{
+			Capabilities: []CapabilityDef{{
+				ID:                " build-site ",
+				Summary:           " Build the landing page. ",
+				Outcome:           " A finished landing page. ",
+				ContextNeeded:     []string{" repo ", "", " brand brief "},
+				ExecutionOutline:  []string{" inspect ", " build "},
+				ArtifactsExpected: []string{" final page "},
+			}},
+		},
 		MCPServers: []MCPServer{{
 			Name:    " github ",
 			Command: " npx ",
@@ -121,5 +144,23 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 	}
 	if got.MCPServers[0].Name != "github" || got.MCPServers[0].Command != "npx" {
 		t.Fatalf("MCPServers = %#v, want trimmed name/command", got.MCPServers)
+	}
+	if got.Capabilities == nil || len(got.Capabilities.Capabilities) != 1 {
+		t.Fatalf("Capabilities = %#v, want one normalized capability", got.Capabilities)
+	}
+	if got.Capabilities.Capabilities[0].ID != "build-site" {
+		t.Fatalf("Capabilities[0].ID = %q, want build-site", got.Capabilities.Capabilities[0].ID)
+	}
+	if want := []string{
+		"repo",
+		"brand brief",
+	}; strings.Join(
+		got.Capabilities.Capabilities[0].ContextNeeded,
+		",",
+	) != strings.Join(
+		want,
+		",",
+	) {
+		t.Fatalf("ContextNeeded = %#v, want %#v", got.Capabilities.Capabilities[0].ContextNeeded, want)
 	}
 }

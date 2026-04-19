@@ -975,15 +975,16 @@ func validateAndEncodeSkill(
 
 func cloneAgentDef(agent aghconfig.AgentDef) aghconfig.AgentDef {
 	return aghconfig.AgentDef{
-		Name:        strings.TrimSpace(agent.Name),
-		Provider:    strings.TrimSpace(agent.Provider),
-		Command:     strings.TrimSpace(agent.Command),
-		Model:       strings.TrimSpace(agent.Model),
-		Tools:       slices.Clone(agent.Tools),
-		Permissions: strings.TrimSpace(agent.Permissions),
-		MCPServers:  cloneMCPServers(agent.MCPServers),
-		Hooks:       cloneHookDecls(agent.Hooks),
-		Prompt:      strings.TrimSpace(agent.Prompt),
+		Name:         strings.TrimSpace(agent.Name),
+		Provider:     strings.TrimSpace(agent.Provider),
+		Command:      strings.TrimSpace(agent.Command),
+		Model:        strings.TrimSpace(agent.Model),
+		Tools:        slices.Clone(agent.Tools),
+		Permissions:  strings.TrimSpace(agent.Permissions),
+		MCPServers:   cloneMCPServers(agent.MCPServers),
+		Hooks:        cloneHookDecls(agent.Hooks),
+		Capabilities: agent.Capabilities.Clone(),
+		Prompt:       strings.TrimSpace(agent.Prompt),
 	}
 }
 

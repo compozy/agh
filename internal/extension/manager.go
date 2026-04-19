@@ -2194,6 +2194,7 @@ func cloneMCPServer(server aghconfig.MCPServer) aghconfig.MCPServer {
 func cloneAgentDef(agent aghconfig.AgentDef) aghconfig.AgentDef {
 	cloned := agent
 	cloned.Tools = slices.Clone(agent.Tools)
+	cloned.Capabilities = agent.Capabilities.Clone()
 	cloned.MCPServers = make([]aghconfig.MCPServer, 0, len(agent.MCPServers))
 	for _, server := range agent.MCPServers {
 		cloned.MCPServers = append(cloned.MCPServers, cloneMCPServer(server))

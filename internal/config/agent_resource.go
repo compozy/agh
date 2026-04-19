@@ -40,6 +40,13 @@ func validateAgentResourceSpec(
 		Hooks:       cloneHookDecls(spec.Hooks),
 		Prompt:      strings.TrimSpace(spec.Prompt),
 	}
+	if spec.Capabilities != nil {
+		capabilities, err := normalizeCapabilityCatalog(spec.Capabilities, "agent.capabilities")
+		if err != nil {
+			return AgentDef{}, errors.Join(resources.ErrValidation, err)
+		}
+		normalized.Capabilities = capabilities
+	}
 	for idx := range normalized.MCPServers {
 		normalized.MCPServers[idx].Name = strings.TrimSpace(normalized.MCPServers[idx].Name)
 		normalized.MCPServers[idx].Command = strings.TrimSpace(normalized.MCPServers[idx].Command)

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"strings"
@@ -90,19 +89,7 @@ func LoadMCPServersJSONFile(path string) ([]MCPServer, error) {
 }
 
 func ensureJSONEOF(decoder *json.Decoder, source string) error {
-	if decoder == nil {
-		return errors.New("config: JSON decoder is required")
-	}
-
-	var trailing json.RawMessage
-	if err := decoder.Decode(&trailing); err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		return fmt.Errorf("config: decode MCP JSON %q: %w", source, err)
-	}
-
-	return fmt.Errorf("config: decode MCP JSON %q: unexpected trailing JSON value", source)
+	return ensureJSONDocumentEOF(decoder, source, "MCP JSON")
 }
 
 func decodeStrictMCPJSONCollection(raw json.RawMessage, dest any) error {

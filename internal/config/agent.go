@@ -15,15 +15,16 @@ import (
 
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
-	Name        string              `yaml:"name"                  toml:"name"`
-	Provider    string              `yaml:"provider"              toml:"provider"`
-	Command     string              `yaml:"command,omitempty"     toml:"command,omitempty"`
-	Model       string              `yaml:"model,omitempty"       toml:"model,omitempty"`
-	Tools       []string            `yaml:"tools,omitempty"       toml:"tools,omitempty"`
-	Permissions string              `yaml:"permissions,omitempty" toml:"permissions,omitempty"`
-	MCPServers  []MCPServer         `yaml:"mcp_servers,omitempty" toml:"mcp_servers,omitempty"`
-	Hooks       []hookspkg.HookDecl `yaml:"hooks,omitempty"       toml:"hooks,omitempty"`
-	Prompt      string              `yaml:"-"`
+	Name         string              `yaml:"name"                  toml:"name"`
+	Provider     string              `yaml:"provider"              toml:"provider"`
+	Command      string              `yaml:"command,omitempty"     toml:"command,omitempty"`
+	Model        string              `yaml:"model,omitempty"       toml:"model,omitempty"`
+	Tools        []string            `yaml:"tools,omitempty"       toml:"tools,omitempty"`
+	Permissions  string              `yaml:"permissions,omitempty" toml:"permissions,omitempty"`
+	MCPServers   []MCPServer         `yaml:"mcp_servers,omitempty" toml:"mcp_servers,omitempty"`
+	Hooks        []hookspkg.HookDecl `yaml:"hooks,omitempty"       toml:"hooks,omitempty"`
+	Capabilities *CapabilityCatalog  `yaml:"-"                     toml:"-"                     json:"capabilities,omitempty"`
+	Prompt       string              `yaml:"-"`
 }
 
 type parsedAgentDef struct {
@@ -95,6 +96,11 @@ func LoadAgentDefFile(path string) (AgentDef, error) {
 	if err := mergeAgentMCPSidecar(filepath.Dir(path), &agent); err != nil {
 		return AgentDef{}, fmt.Errorf("load agent file %q MCP JSON: %w", path, err)
 	}
+	capabilities, err := LoadAgentCapabilities(filepath.Dir(path))
+	if err != nil {
+		return AgentDef{}, fmt.Errorf("load agent file %q capability catalog: %w", path, err)
+	}
+	agent.Capabilities = capabilities
 	if err := agent.Validate(); err != nil {
 		return AgentDef{}, fmt.Errorf("validate agent file %q: %w", path, err)
 	}
@@ -262,6 +268,9 @@ func (a AgentDef) Validate() error {
 		if err := hookspkg.ValidateHookDecl(hook); err != nil {
 			return fmt.Errorf("agent.hooks[%d]: %w", i, err)
 		}
+	}
+	if _, err := normalizeCapabilityCatalog(a.Capabilities, "agent.capabilities"); err != nil {
+		return err
 	}
 
 	return nil

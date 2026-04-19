@@ -1,0 +1,201 @@
+package config
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+func TestLoadAgentDefFileLoadsCapabilityCatalogAndMCPSidecar(t *testing.T) {
+	t.Parallel()
+
+	agentDir := filepath.Join(t.TempDir(), "coder")
+	agentPath := filepath.Join(agentDir, agentDefName)
+	writeFile(t, agentPath, `---
+name: coder
+provider: claude
+mcp_servers:
+  - name: inline-only
+    command: inline-only-command
+---
+
+Prompt.
+`)
+	writeFile(t, filepath.Join(agentDir, MCPJSONName), `{
+  "mcpServers": {
+    "sidecar-only": {
+      "command": "sidecar-only-command"
+    }
+  }
+}`)
+	writeFile(t, filepath.Join(agentDir, capabilityCatalogTOMLName), `
+[[capabilities]]
+id = "build-site"
+summary = "Build the landing page."
+outcome = "A finished landing page."
+execution_outline = ["inspect", "build"]
+`)
+
+	agent, err := LoadAgentDefFile(agentPath)
+	if err != nil {
+		t.Fatalf("LoadAgentDefFile() error = %v", err)
+	}
+	if got, want := len(agent.MCPServers), 2; got != want {
+		t.Fatalf("len(MCPServers) = %d, want %d", got, want)
+	}
+	if agent.Capabilities == nil {
+		t.Fatal("LoadAgentDefFile() Capabilities = nil, want loaded catalog")
+	}
+	if got, want := len(agent.Capabilities.Capabilities), 1; got != want {
+		t.Fatalf("len(Capabilities) = %d, want %d", got, want)
+	}
+	if got, want := agent.Capabilities.Capabilities[0].ID, "build-site"; got != want {
+		t.Fatalf("Capabilities[0].ID = %q, want %q", got, want)
+	}
+}
+
+func TestLoadWorkspaceAgentDefsPreservesPrecedenceWithCapabilities(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	root := t.TempDir()
+	additional := t.TempDir()
+
+	writeAgentDefinition(
+		t,
+		filepath.Join(root, DirName, AgentsDirName, "coder", agentDefName),
+		"coder",
+		"claude",
+		"workspace",
+	)
+	writeAgentDefinition(
+		t,
+		filepath.Join(additional, DirName, AgentsDirName, "coder", agentDefName),
+		"coder",
+		"claude",
+		"additional",
+	)
+	writeFile(
+		t,
+		filepath.Join(additional, DirName, AgentsDirName, "coder", capabilityCatalogDirName, "build-site.toml"),
+		`
+id = "build-site"
+summary = "Build the landing page."
+outcome = "A finished landing page."
+`,
+	)
+
+	writeAgentDefinition(
+		t,
+		filepath.Join(additional, DirName, AgentsDirName, "pairer", agentDefName),
+		"pairer",
+		"claude",
+		"additional-pair",
+	)
+	writeFile(t, filepath.Join(additional, DirName, AgentsDirName, "pairer", capabilityCatalogTOMLName), `
+[[capabilities]]
+id = "review-copy"
+summary = "Review conversion copy."
+outcome = "A prioritized copy review."
+`)
+
+	writeAgentDefinition(
+		t,
+		filepath.Join(homePaths.AgentsDir, "reviewer", agentDefName),
+		"reviewer",
+		"claude",
+		"global-review",
+	)
+	writeFile(t, filepath.Join(homePaths.AgentsDir, "reviewer", capabilityCatalogJSONName), `{
+  "capabilities": [
+    {
+      "id": "triage-pr",
+      "summary": "Triage pull request feedback.",
+      "outcome": "A prioritized remediation plan."
+    }
+  ]
+}`)
+
+	agents, err := LoadWorkspaceAgentDefs(root, []string{additional}, homePaths)
+	if err != nil {
+		t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
+	}
+
+	coder := findAgentByName(t, agents, "coder")
+	if got, want := coder.Model, "workspace"; got != want {
+		t.Fatalf("coder.Model = %q, want %q", got, want)
+	}
+	if coder.Capabilities != nil {
+		t.Fatalf(
+			"coder.Capabilities = %#v, want nil because winning workspace definition has no catalog",
+			coder.Capabilities,
+		)
+	}
+
+	pairer := findAgentByName(t, agents, "pairer")
+	if pairer.Capabilities == nil || len(pairer.Capabilities.Capabilities) != 1 {
+		t.Fatalf("pairer.Capabilities = %#v, want single loaded capability", pairer.Capabilities)
+	}
+	if got, want := pairer.Capabilities.Capabilities[0].ID, "review-copy"; got != want {
+		t.Fatalf("pairer capability ID = %q, want %q", got, want)
+	}
+
+	reviewer := findAgentByName(t, agents, "reviewer")
+	if reviewer.Capabilities == nil || len(reviewer.Capabilities.Capabilities) != 1 {
+		t.Fatalf("reviewer.Capabilities = %#v, want single loaded capability", reviewer.Capabilities)
+	}
+	if got, want := reviewer.Capabilities.Capabilities[0].ID, "triage-pr"; got != want {
+		t.Fatalf("reviewer capability ID = %q, want %q", got, want)
+	}
+}
+
+func TestLoadWorkspaceAgentDefsLoadsAgentsWithoutCapabilityCatalog(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	root := t.TempDir()
+	writeAgentDefinition(
+		t,
+		filepath.Join(root, DirName, AgentsDirName, "coder", agentDefName),
+		"coder",
+		"claude",
+		"workspace",
+	)
+
+	agents, err := LoadWorkspaceAgentDefs(root, nil, homePaths)
+	if err != nil {
+		t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
+	}
+	if got, want := len(agents), 1; got != want {
+		t.Fatalf("len(LoadWorkspaceAgentDefs()) = %d, want %d", got, want)
+	}
+	if agents[0].Capabilities != nil {
+		t.Fatalf("agents[0].Capabilities = %#v, want nil for missing catalog", agents[0].Capabilities)
+	}
+}
+
+func findAgentByName(t *testing.T, agents []AgentDef, name string) AgentDef {
+	t.Helper()
+
+	for _, agent := range agents {
+		if agent.Name == name {
+			return agent
+		}
+	}
+
+	t.Fatalf("agent %q not found in %#v", name, agents)
+	return AgentDef{}
+}
