@@ -27,7 +27,7 @@ export const Default: Story = {
             Filter
           </Button>
         }
-        icon={<Book className="size-4" />}
+        icon={Book}
         meta={
           <Button size="sm">
             <Plus className="size-4" />
