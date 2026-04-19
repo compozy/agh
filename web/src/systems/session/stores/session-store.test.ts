@@ -20,6 +20,7 @@ describe("session-store", () => {
       messages: [],
       isStreaming: false,
       pendingPermission: null,
+      drafts: {},
     });
   });
 
@@ -151,6 +152,7 @@ describe("session-store", () => {
           action: "exec",
           resource: "cmd",
         },
+        drafts: { "session-1": { text: "draft" } },
       });
 
       useSessionStore.getState().clearSession();
@@ -160,6 +162,52 @@ describe("session-store", () => {
       expect(state.messages).toHaveLength(0);
       expect(state.isStreaming).toBe(false);
       expect(state.pendingPermission).toBeNull();
+      expect(state.drafts).toEqual({});
+    });
+  });
+
+  describe("setDraft + clearDraft", () => {
+    it("stores a draft for a session and merges patches", () => {
+      useSessionStore.getState().setDraft("session-a", { text: "Hello" });
+      useSessionStore.getState().setDraft("session-a", { skillId: "no-workarounds" });
+
+      const draft = useSessionStore.getState().drafts["session-a"];
+      expect(draft.text).toBe("Hello");
+      expect(draft.skillId).toBe("no-workarounds");
+    });
+
+    it("keeps drafts isolated per session", () => {
+      useSessionStore.getState().setDraft("session-a", { text: "Alpha draft" });
+      useSessionStore.getState().setDraft("session-b", { text: "Bravo draft" });
+
+      const drafts = useSessionStore.getState().drafts;
+      expect(drafts["session-a"].text).toBe("Alpha draft");
+      expect(drafts["session-b"].text).toBe("Bravo draft");
+    });
+
+    it("removes the entry when the draft becomes empty", () => {
+      useSessionStore.getState().setDraft("session-a", { text: "Hello" });
+      useSessionStore.getState().setDraft("session-a", { text: "" });
+
+      expect(useSessionStore.getState().drafts["session-a"]).toBeUndefined();
+    });
+
+    it("clearDraft drops the entry", () => {
+      useSessionStore.getState().setDraft("session-a", { text: "Hello", skillId: "x" });
+      useSessionStore.getState().clearDraft("session-a");
+
+      expect(useSessionStore.getState().drafts["session-a"]).toBeUndefined();
+    });
+  });
+
+  describe("setActiveSession draft preservation", () => {
+    it("keeps drafts alive across session switches", () => {
+      useSessionStore.getState().setDraft("session-a", { text: "Unsent thought" });
+      useSessionStore.getState().setActiveSession("session-a", []);
+      useSessionStore.getState().setActiveSession("session-b", []);
+      useSessionStore.getState().setActiveSession("session-a", []);
+
+      expect(useSessionStore.getState().drafts["session-a"]?.text).toBe("Unsent thought");
     });
   });
 });

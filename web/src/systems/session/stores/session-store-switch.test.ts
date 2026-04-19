@@ -19,6 +19,7 @@ describe("session-store session switch", () => {
       messages: [],
       isStreaming: false,
       pendingPermission: null,
+      drafts: {},
     });
   });
 

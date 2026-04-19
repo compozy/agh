@@ -56,7 +56,15 @@ function SessionPage() {
           onResolved={page.handlePermissionResolved}
         />
       )}
-      {page.canPrompt && <MessageComposer onSend={page.sendMessage} disabled={page.isDisabled} />}
+      {page.canPrompt && (
+        <MessageComposer
+          sessionId={id}
+          onSend={page.handleSend}
+          disabled={page.isDisabled}
+          skills={page.skills}
+          channels={page.channels}
+        />
+      )}
     </div>
   );
 }
