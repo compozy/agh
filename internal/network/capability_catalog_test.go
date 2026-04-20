@@ -18,14 +18,14 @@ func TestParseWhoisCapabilityDiscoveryRequestCapabilityFilterPresence(t *testing
 		wantNil           bool
 	}{
 		{
-			name: "filter absent",
+			name: "ShouldLeaveCapabilityIDsNilWhenFilterIsAbsent",
 			ext: ExtensionMap{
 				whoisIncludeExtKey: mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 			},
 			wantNil: true,
 		},
 		{
-			name: "filter malformed json",
+			name: "ShouldReturnExplicitEmptyCapabilityIDsWhenFilterJSONIsMalformed",
 			ext: ExtensionMap{
 				whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 				whoisCapabilityIDsExtKey: json.RawMessage(`{"id":"review-pr"}`),
@@ -33,7 +33,7 @@ func TestParseWhoisCapabilityDiscoveryRequestCapabilityFilterPresence(t *testing
 			wantCapabilityIDs: []string{},
 		},
 		{
-			name: "filter empty list",
+			name: "ShouldReturnExplicitEmptyCapabilityIDsWhenFilterIsAnEmptyList",
 			ext: ExtensionMap{
 				whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 				whoisCapabilityIDsExtKey: mustRawJSON(t, []string{}),
@@ -41,7 +41,7 @@ func TestParseWhoisCapabilityDiscoveryRequestCapabilityFilterPresence(t *testing
 			wantCapabilityIDs: []string{},
 		},
 		{
-			name: "filter blank values",
+			name: "ShouldDropBlankCapabilityIDsFromTheFilter",
 			ext: ExtensionMap{
 				whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 				whoisCapabilityIDsExtKey: mustRawJSON(t, []string{" ", "\n"}),
@@ -49,7 +49,7 @@ func TestParseWhoisCapabilityDiscoveryRequestCapabilityFilterPresence(t *testing
 			wantCapabilityIDs: []string{},
 		},
 		{
-			name: "filter normalized values",
+			name: "ShouldNormalizeCapabilityIDsFromTheFilter",
 			ext: ExtensionMap{
 				whoisIncludeExtKey:       mustRawJSON(t, []string{whoisCapabilityCatalogIncludeItem}),
 				whoisCapabilityIDsExtKey: mustRawJSON(t, []string{" review-pr ", "draft-spec"}),
@@ -96,7 +96,7 @@ func TestProjectWhoisCapabilityCatalogDistinguishesAbsentAndExplicitEmptyFilters
 		want          []whoisCapabilityCatalogEntry
 	}{
 		{
-			name:          "filter absent returns full catalog",
+			name:          "ShouldReturnTheFullCatalogWhenTheFilterIsAbsent",
 			capabilityIDs: nil,
 			want: []whoisCapabilityCatalogEntry{
 				{ID: "review-pr", Summary: "Review pull requests", Outcome: "Actionable review findings"},
@@ -104,12 +104,12 @@ func TestProjectWhoisCapabilityCatalogDistinguishesAbsentAndExplicitEmptyFilters
 			},
 		},
 		{
-			name:          "explicit empty filter returns empty projection",
+			name:          "ShouldReturnAnEmptyProjectionWhenTheFilterIsExplicitlyEmpty",
 			capabilityIDs: []string{},
 			want:          []whoisCapabilityCatalogEntry{},
 		},
 		{
-			name:          "filter values returns matching entries in catalog order",
+			name:          "ShouldReturnMatchingEntriesInCatalogOrderWhenTheFilterHasValues",
 			capabilityIDs: []string{"draft-spec"},
 			want: []whoisCapabilityCatalogEntry{
 				{ID: "draft-spec", Summary: "Draft technical specifications", Outcome: "Reviewed implementation plan"},

@@ -212,11 +212,11 @@ func TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog(t *testi
 	})
 
 	now := time.Date(2026, 4, 19, 6, 50, 0, 0, time.UTC)
-	registryA, err := NewPeerRegistry(50 * time.Millisecond)
+	registryA, err := NewPeerRegistry(time.Second)
 	if err != nil {
 		t.Fatalf("NewPeerRegistry(A) error = %v", err)
 	}
-	registryB, err := NewPeerRegistry(50 * time.Millisecond)
+	registryB, err := NewPeerRegistry(time.Second)
 	if err != nil {
 		t.Fatalf("NewPeerRegistry(B) error = %v", err)
 	}
@@ -337,11 +337,11 @@ func TestDirectedWhoisRichDiscoveryFilteringRefreshesRemotePresence(t *testing.T
 		_ = transport.Shutdown(context.Background())
 	})
 
-	registryA, err := NewPeerRegistry(50 * time.Millisecond)
+	registryA, err := NewPeerRegistry(time.Second)
 	if err != nil {
 		t.Fatalf("NewPeerRegistry(A) error = %v", err)
 	}
-	registryB, err := NewPeerRegistry(50 * time.Millisecond)
+	registryB, err := NewPeerRegistry(time.Second)
 	if err != nil {
 		t.Fatalf("NewPeerRegistry(B) error = %v", err)
 	}

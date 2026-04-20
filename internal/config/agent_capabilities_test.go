@@ -128,31 +128,64 @@ outcome = "A prioritized copy review."
 		t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
 	}
 
-	coder := findAgentByName(t, agents, "coder")
-	if got, want := coder.Model, "workspace"; got != want {
-		t.Fatalf("coder.Model = %q, want %q", got, want)
-	}
-	if coder.Capabilities != nil {
-		t.Fatalf(
-			"coder.Capabilities = %#v, want nil because winning workspace definition has no catalog",
-			coder.Capabilities,
-		)
+	tests := []struct {
+		name      string
+		agentName string
+		assert    func(t *testing.T, agent AgentDef)
+	}{
+		{
+			name:      "ShouldPreferWorkspaceDefinitionForCoderWithoutCapabilityFallback",
+			agentName: "coder",
+			assert: func(t *testing.T, agent AgentDef) {
+				t.Helper()
+
+				if got, want := agent.Model, "workspace"; got != want {
+					t.Fatalf("coder.Model = %q, want %q", got, want)
+				}
+				if agent.Capabilities != nil {
+					t.Fatalf(
+						"coder.Capabilities = %#v, want nil because winning workspace definition has no catalog",
+						agent.Capabilities,
+					)
+				}
+			},
+		},
+		{
+			name:      "ShouldLoadAdditionalDirectoryCapabilitiesForPairer",
+			agentName: "pairer",
+			assert: func(t *testing.T, agent AgentDef) {
+				t.Helper()
+
+				if agent.Capabilities == nil || len(agent.Capabilities.Capabilities) != 1 {
+					t.Fatalf("pairer.Capabilities = %#v, want single loaded capability", agent.Capabilities)
+				}
+				if got, want := agent.Capabilities.Capabilities[0].ID, "review-copy"; got != want {
+					t.Fatalf("pairer capability ID = %q, want %q", got, want)
+				}
+			},
+		},
+		{
+			name:      "ShouldLoadGlobalCapabilitiesForReviewer",
+			agentName: "reviewer",
+			assert: func(t *testing.T, agent AgentDef) {
+				t.Helper()
+
+				if agent.Capabilities == nil || len(agent.Capabilities.Capabilities) != 1 {
+					t.Fatalf("reviewer.Capabilities = %#v, want single loaded capability", agent.Capabilities)
+				}
+				if got, want := agent.Capabilities.Capabilities[0].ID, "triage-pr"; got != want {
+					t.Fatalf("reviewer capability ID = %q, want %q", got, want)
+				}
+			},
+		},
 	}
 
-	pairer := findAgentByName(t, agents, "pairer")
-	if pairer.Capabilities == nil || len(pairer.Capabilities.Capabilities) != 1 {
-		t.Fatalf("pairer.Capabilities = %#v, want single loaded capability", pairer.Capabilities)
-	}
-	if got, want := pairer.Capabilities.Capabilities[0].ID, "review-copy"; got != want {
-		t.Fatalf("pairer capability ID = %q, want %q", got, want)
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	reviewer := findAgentByName(t, agents, "reviewer")
-	if reviewer.Capabilities == nil || len(reviewer.Capabilities.Capabilities) != 1 {
-		t.Fatalf("reviewer.Capabilities = %#v, want single loaded capability", reviewer.Capabilities)
-	}
-	if got, want := reviewer.Capabilities.Capabilities[0].ID, "triage-pr"; got != want {
-		t.Fatalf("reviewer capability ID = %q, want %q", got, want)
+			tc.assert(t, findAgentByName(t, agents, tc.agentName))
+		})
 	}
 }
 
