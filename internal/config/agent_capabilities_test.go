@@ -3,6 +3,7 @@ package config
 import (
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -33,7 +34,9 @@ Prompt.
 id = "build-site"
 summary = "Build the landing page."
 outcome = "A finished landing page."
+version = "1.0.0"
 execution_outline = ["inspect", "build"]
+requirements = ["workspace-write", "review-guidelines"]
 `)
 
 	agent, err := LoadAgentDefFile(agentPath)
@@ -51,6 +54,82 @@ execution_outline = ["inspect", "build"]
 	}
 	if got, want := agent.Capabilities.Capabilities[0].ID, "build-site"; got != want {
 		t.Fatalf("Capabilities[0].ID = %q, want %q", got, want)
+	}
+	if got, want := agent.Capabilities.Capabilities[0].Version, "1.0.0"; got != want {
+		t.Fatalf("Capabilities[0].Version = %q, want %q", got, want)
+	}
+	if got, want := agent.Capabilities.Capabilities[0].Requirements, []string{
+		"review-guidelines",
+		"workspace-write",
+	}; !reflect.DeepEqual(
+		got,
+		want,
+	) {
+		t.Fatalf("Capabilities[0].Requirements = %#v, want %#v", got, want)
+	}
+	if !strings.HasPrefix(agent.Capabilities.Capabilities[0].Digest, "sha256:") {
+		t.Fatalf("Capabilities[0].Digest = %q, want sha256 digest", agent.Capabilities.Capabilities[0].Digest)
+	}
+}
+
+func TestLoadAgentDefFileNormalizesEquivalentTOMLAndJSONCapabilitiesToSameRuntimeShape(t *testing.T) {
+	t.Parallel()
+
+	makeAgent := func(t *testing.T, dir string) string {
+		t.Helper()
+
+		agentPath := filepath.Join(dir, agentDefName)
+		writeFile(t, agentPath, `---
+name: coder
+provider: claude
+---
+
+Prompt.
+`)
+		return agentPath
+	}
+
+	tomlDir := filepath.Join(t.TempDir(), "toml-agent")
+	jsonDir := filepath.Join(t.TempDir(), "json-agent")
+	tomlAgentPath := makeAgent(t, tomlDir)
+	jsonAgentPath := makeAgent(t, jsonDir)
+
+	writeFile(t, filepath.Join(tomlDir, capabilityCatalogTOMLName), `
+[[capabilities]]
+id = "review-copy"
+summary = " Review conversion copy. "
+outcome = " A prioritized copy review. "
+version = " 1.2.0 "
+context_needed = [" brief ", " analytics "]
+requirements = [" workspace-write ", "review-guidelines"]
+`)
+	writeFile(t, filepath.Join(jsonDir, capabilityCatalogJSONName), `{
+  "capabilities": [
+    {
+      "id": "review-copy",
+      "summary": "Review conversion copy.",
+      "outcome": "A prioritized copy review.",
+      "version": "1.2.0",
+      "context_needed": ["brief", "analytics"],
+      "requirements": ["review-guidelines", "workspace-write"]
+    }
+  ]
+}`)
+
+	tomlAgent, err := LoadAgentDefFile(tomlAgentPath)
+	if err != nil {
+		t.Fatalf("LoadAgentDefFile(TOML) error = %v", err)
+	}
+	jsonAgent, err := LoadAgentDefFile(jsonAgentPath)
+	if err != nil {
+		t.Fatalf("LoadAgentDefFile(JSON) error = %v", err)
+	}
+	if !reflect.DeepEqual(tomlAgent.Capabilities, jsonAgent.Capabilities) {
+		t.Fatalf(
+			"capabilities differ after normalization:\nTOML: %#v\nJSON: %#v",
+			tomlAgent.Capabilities,
+			jsonAgent.Capabilities,
+		)
 	}
 }
 
@@ -232,9 +311,11 @@ func TestAgentDefValidateNormalizesCapabilitiesInPlace(t *testing.T) {
 				ID:                " build-site ",
 				Summary:           " Build the landing page. ",
 				Outcome:           " A finished landing page. ",
+				Version:           " 1.0.0 ",
 				ContextNeeded:     []string{" repo ", "", " brand brief "},
 				ExecutionOutline:  []string{" inspect ", "", " build "},
 				ArtifactsExpected: []string{" final page ", ""},
+				Requirements:      []string{" workspace-write ", "review-guidelines"},
 			}},
 		},
 	}
@@ -257,6 +338,9 @@ func TestAgentDefValidateNormalizesCapabilitiesInPlace(t *testing.T) {
 	if got, want := capability.Outcome, "A finished landing page."; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
 	}
+	if got, want := capability.Version, "1.0.0"; got != want {
+		t.Fatalf("Version = %q, want %q", got, want)
+	}
 	if got, want := capability.ContextNeeded, []string{"repo", "brand brief"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("ContextNeeded = %#v, want %#v", got, want)
 	}
@@ -265,6 +349,18 @@ func TestAgentDefValidateNormalizesCapabilitiesInPlace(t *testing.T) {
 	}
 	if got, want := capability.ArtifactsExpected, []string{"final page"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("ArtifactsExpected = %#v, want %#v", got, want)
+	}
+	if got, want := capability.Requirements, []string{
+		"review-guidelines",
+		"workspace-write",
+	}; !reflect.DeepEqual(
+		got,
+		want,
+	) {
+		t.Fatalf("Requirements = %#v, want %#v", got, want)
+	}
+	if !strings.HasPrefix(capability.Digest, "sha256:") {
+		t.Fatalf("Digest = %q, want sha256 digest", capability.Digest)
 	}
 }
 

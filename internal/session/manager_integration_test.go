@@ -96,6 +96,33 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 	if err != nil {
 		t.Fatalf("ResolveEnvironment() error = %v", err)
 	}
+	capabilityAgent := aghconfig.AgentDef{
+		Name:     "coder",
+		Provider: "claude",
+		Prompt:   "You are a coding assistant.",
+		Capabilities: &aghconfig.CapabilityCatalog{
+			Capabilities: []aghconfig.CapabilityDef{{
+				ID:      "review-pr",
+				Summary: "Review pull requests",
+				Outcome: "Deliver actionable pull request feedback",
+				Version: "1.0.0",
+				ContextNeeded: []string{
+					"Pull request diff",
+					"Acceptance criteria",
+				},
+				ArtifactsExpected: []string{
+					"Review summary",
+				},
+				Requirements: []string{
+					"workspace-write",
+					"review-guidelines",
+				},
+			}},
+		},
+	}
+	if err := capabilityAgent.Validate(); err != nil {
+		t.Fatalf("capabilityAgent.Validate() error = %v", err)
+	}
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:      h.workspaceID,
@@ -109,25 +136,7 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",
 			},
-			{
-				Name:     "coder",
-				Provider: "claude",
-				Prompt:   "You are a coding assistant.",
-				Capabilities: &aghconfig.CapabilityCatalog{
-					Capabilities: []aghconfig.CapabilityDef{{
-						ID:      "review-pr",
-						Summary: "Review pull requests",
-						Outcome: "Deliver actionable pull request feedback",
-						ContextNeeded: []string{
-							"Pull request diff",
-							"Acceptance criteria",
-						},
-						ArtifactsExpected: []string{
-							"Review summary",
-						},
-					}},
-				},
-			},
+			capabilityAgent,
 		},
 		Environment: resolvedEnvironment,
 	})
@@ -156,8 +165,11 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 		ID:                "review-pr",
 		Summary:           "Review pull requests",
 		Outcome:           "Deliver actionable pull request feedback",
+		Version:           "1.0.0",
+		Digest:            capabilityAgent.Capabilities.Capabilities[0].Digest,
 		ContextNeeded:     []string{"Pull request diff", "Acceptance criteria"},
 		ArtifactsExpected: []string{"Review summary"},
+		Requirements:      []string{"review-guidelines", "workspace-write"},
 	}}
 	if !reflect.DeepEqual(firstJoin.capabilities, wantCapabilities) {
 		t.Fatalf("first join capabilities = %#v, want %#v", firstJoin.capabilities, wantCapabilities)
@@ -227,6 +239,101 @@ func TestManagerIntegrationCapabilityAwareJoinKeepsMissingCatalogProjectionEmpty
 	if got := len(join.capabilities); got != 0 {
 		t.Fatalf("join capabilities len = %d, want 0", got)
 	}
+}
+
+func TestManagerIntegrationCapabilityProjectionDoesNotAliasSourceCatalog(t *testing.T) {
+	h := newHarness(t)
+
+	resolvedEnvironment, err := h.cfg.ResolveEnvironment(h.cfg.Defaults.Environment)
+	if err != nil {
+		t.Fatalf("ResolveEnvironment() error = %v", err)
+	}
+	capabilityAgent := aghconfig.AgentDef{
+		Name:     "coder",
+		Provider: "claude",
+		Prompt:   "You are a coding assistant.",
+		Capabilities: &aghconfig.CapabilityCatalog{
+			Capabilities: []aghconfig.CapabilityDef{{
+				ID:               "review-pr",
+				Summary:          "Review pull requests",
+				Outcome:          "Deliver actionable pull request feedback",
+				Version:          "1.0.0",
+				ContextNeeded:    []string{"Pull request diff", "Acceptance criteria"},
+				ExecutionOutline: []string{"inspect", "comment"},
+				Requirements:     []string{"workspace-write", "review-guidelines"},
+			}},
+		},
+	}
+	if err := capabilityAgent.Validate(); err != nil {
+		t.Fatalf("capabilityAgent.Validate() error = %v", err)
+	}
+	sourceBefore := capabilityAgent.Capabilities.Clone()
+
+	h.manager.SetNetworkPeerLifecycle(&mutatingNetworkPeerLifecycle{})
+	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{
+			{
+				Name:     aghconfig.DefaultAgentName,
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			},
+			capabilityAgent,
+		},
+		Environment: resolvedEnvironment,
+	})
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "networked",
+		Workspace: h.workspaceID,
+		Channel:   "builders",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	if !reflect.DeepEqual(capabilityAgent.Capabilities, sourceBefore) {
+		t.Fatalf(
+			"source capability catalog mutated through join projection:\nbefore=%#v\nafter=%#v",
+			sourceBefore,
+			capabilityAgent.Capabilities,
+		)
+	}
+}
+
+type mutatingNetworkPeerLifecycle struct{}
+
+func (m *mutatingNetworkPeerLifecycle) JoinChannel(_ context.Context, join NetworkPeerJoin) error {
+	if len(join.Capabilities) == 0 {
+		return nil
+	}
+
+	join.Capabilities[0].Summary = "mutated summary"
+	join.Capabilities[0].Digest = "sha256:mutated"
+	if len(join.Capabilities[0].ContextNeeded) > 0 {
+		join.Capabilities[0].ContextNeeded[0] = "mutated context"
+	}
+	if len(join.Capabilities[0].ExecutionOutline) > 0 {
+		join.Capabilities[0].ExecutionOutline[0] = "mutated execution outline"
+	}
+	if len(join.Capabilities[0].Requirements) > 0 {
+		join.Capabilities[0].Requirements[0] = "mutated requirement"
+	}
+
+	return nil
+}
+
+func (m *mutatingNetworkPeerLifecycle) LeaveChannel(context.Context, string) error {
+	return nil
 }
 
 func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {

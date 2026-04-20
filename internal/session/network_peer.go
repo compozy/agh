@@ -17,11 +17,14 @@ func networkPeerCapabilities(catalog *aghconfig.CapabilityCatalog) []NetworkPeer
 			ID:                capability.ID,
 			Summary:           capability.Summary,
 			Outcome:           capability.Outcome,
+			Version:           capability.Version,
+			Digest:            capability.Digest,
 			ContextNeeded:     capability.ContextNeeded,
 			ArtifactsExpected: capability.ArtifactsExpected,
 			ExecutionOutline:  capability.ExecutionOutline,
 			Constraints:       capability.Constraints,
 			Examples:          capability.Examples,
+			Requirements:      capability.Requirements,
 		}))
 	}
 	return projected
@@ -44,11 +47,14 @@ func cloneNetworkPeerCapability(capability NetworkPeerCapability) NetworkPeerCap
 		ID:                strings.TrimSpace(capability.ID),
 		Summary:           strings.TrimSpace(capability.Summary),
 		Outcome:           strings.TrimSpace(capability.Outcome),
+		Version:           strings.TrimSpace(capability.Version),
+		Digest:            strings.TrimSpace(capability.Digest),
 		ContextNeeded:     cloneNetworkPeerCapabilityStrings(capability.ContextNeeded),
 		ArtifactsExpected: cloneNetworkPeerCapabilityStrings(capability.ArtifactsExpected),
 		ExecutionOutline:  cloneNetworkPeerCapabilityStrings(capability.ExecutionOutline),
 		Constraints:       cloneNetworkPeerCapabilityStrings(capability.Constraints),
 		Examples:          cloneNetworkPeerCapabilityStrings(capability.Examples),
+		Requirements:      cloneNetworkPeerCapabilityStrings(capability.Requirements),
 	}
 }
 
