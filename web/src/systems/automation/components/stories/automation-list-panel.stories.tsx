@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import { useAutomationPage } from "@/hooks/routes/use-automation-page";
+import { useAutomationJobsPage } from "@/hooks/routes/use-automation-page";
 import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 import { automationJobFixtures, automationTriggerFixtures } from "@/systems/automation/mocks";
@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function AutomationListPanelFromPage() {
-  const page = useAutomationPage();
+  const page = useAutomationJobsPage();
 
   return (
     <PanelSurface className="max-w-[340px]">

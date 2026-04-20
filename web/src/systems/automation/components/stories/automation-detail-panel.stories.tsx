@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import { useAutomationPage } from "@/hooks/routes/use-automation-page";
+import { useAutomationJobsPage } from "@/hooks/routes/use-automation-page";
 import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 import { automationRunFixtures, primaryAutomationTriggerFixture } from "@/systems/automation/mocks";
@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function AutomationDetailPanelFromPage() {
-  const page = useAutomationPage();
+  const page = useAutomationJobsPage();
 
   return (
     <PanelSurface>
@@ -81,9 +81,6 @@ export const TriggerHook: Story = {
   render: () => <AutomationDetailPanelFromPage />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Panels render via the useAutomationPage view-model which starts on the jobs tab.
-    // To reach triggers we rely on the list panel adjacent to us, but the story renders
-    // only the detail — so assert the jobs detail is visible first.
     await userEvent.tab();
     await expect(canvas.findByTestId("automation-detail-panel")).resolves.toBeDefined();
   },

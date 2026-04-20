@@ -110,5 +110,6 @@ export { AutomationDetailPanel } from "./components/automation-detail-panel";
 export { AutomationEditorDialog } from "./components/automation-editor-dialog";
 export { AutomationJobForm } from "./components/automation-job-form";
 export { AutomationListPanel } from "./components/automation-list-panel";
+export { AutomationOperationsPage } from "./components/automation-operations-page";
 export { AutomationRunHistory } from "./components/automation-run-history";
 export { AutomationTriggerForm } from "./components/automation-trigger-form";

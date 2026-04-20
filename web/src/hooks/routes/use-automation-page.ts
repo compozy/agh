@@ -26,59 +26,53 @@ import {
   useUpdateAutomationTrigger,
 } from "@/systems/automation";
 import type {
-  AutomationJob,
   AutomationRun,
   AutomationScopeFilter,
-  AutomationTrigger,
   CreateAutomationJobRequest,
   CreateAutomationTriggerRequest,
 } from "@/systems/automation";
 import { useActiveWorkspace } from "@/systems/workspace";
 
-type AutomationTab = "jobs" | "triggers";
-
-type AutomationEditorState =
+type JobEditorState =
   | {
       draft: CreateAutomationJobRequest;
-      kind: "jobs";
-      mode: "create";
-    }
-  | {
-      draft: CreateAutomationTriggerRequest;
-      kind: "triggers";
       mode: "create";
     }
   | {
       draft: CreateAutomationJobRequest;
       id: string;
-      kind: "jobs";
       mode: "edit";
+    };
+
+type TriggerEditorState =
+  | {
+      draft: CreateAutomationTriggerRequest;
+      mode: "create";
     }
   | {
       draft: CreateAutomationTriggerRequest;
       id: string;
-      kind: "triggers";
       mode: "edit";
     };
 
 function buildEmptyState({
-  activeTab,
   hasQuery,
+  kind,
   onCreate,
 }: {
-  activeTab: AutomationTab;
   hasQuery: boolean;
+  kind: "jobs" | "triggers";
   onCreate: () => void;
 }) {
   if (hasQuery) {
     return {
       description: "Try a different search term or adjust the current scope filter.",
       icon: "search" as const,
-      title: activeTab === "jobs" ? "No jobs found" : "No triggers found",
+      title: kind === "jobs" ? "No jobs found" : "No triggers found",
     };
   }
 
-  if (activeTab === "jobs") {
+  if (kind === "jobs") {
     return {
       actionLabel: "Create Job",
       description:
@@ -99,18 +93,21 @@ function buildEmptyState({
   };
 }
 
-function useAutomationPage() {
+function resolveSelectedId<T extends { id: string }>(selectedId: string | null, items: T[]) {
+  if (selectedId && items.some(item => item.id === selectedId)) {
+    return selectedId;
+  }
+
+  return items[0]?.id ?? null;
+}
+
+function useAutomationPageBase() {
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
-
-  const [activeTab, setActiveTab] = useState<AutomationTab>("jobs");
   const [scopeFilter, setScopeFilter] = useState<AutomationScopeFilter>("all");
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [editor, setEditor] = useState<AutomationEditorState | null>(null);
-  const [queuedRun, setQueuedRun] = useState<{ jobId: string; run: AutomationRun } | null>(null);
-
   const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const scopedWorkspaceId =
     scopeFilter === "workspace" ? (activeWorkspaceId ?? undefined) : undefined;
 
@@ -123,163 +120,98 @@ function useAutomationPage() {
     [scopeFilter, scopedWorkspaceId]
   );
 
-  const jobsQuery = useAutomationJobs(listFilters);
-  const triggersQuery = useAutomationTriggers(listFilters);
+  return {
+    activeWorkspace,
+    activeWorkspaceId,
+    deferredSearchQuery,
+    listFilters,
+    scopeFilter,
+    searchQuery,
+    selectedId,
+    setScopeFilter,
+    setSearchQuery,
+    setSelectedId,
+  };
+}
 
+function useAutomationJobsPage() {
+  const page = useAutomationPageBase();
+  const [editor, setEditor] = useState<JobEditorState | null>(null);
+  const [queuedRun, setQueuedRun] = useState<{ jobId: string; run: AutomationRun } | null>(null);
+
+  const jobsQuery = useAutomationJobs(page.listFilters);
   const jobs = jobsQuery.data ?? [];
-  const triggers = triggersQuery.data ?? [];
-
   const visibleJobs = useMemo(
-    () => sortAutomationJobs(filterAutomationJobs(jobs, deferredSearchQuery)),
-    [deferredSearchQuery, jobs]
+    () => sortAutomationJobs(filterAutomationJobs(jobs, page.deferredSearchQuery)),
+    [jobs, page.deferredSearchQuery]
   );
-  const visibleTriggers = useMemo(
-    () => sortAutomationTriggers(filterAutomationTriggers(triggers, deferredSearchQuery)),
-    [deferredSearchQuery, triggers]
+  const effectiveSelectedJobId = useMemo(
+    () => resolveSelectedId(page.selectedId, visibleJobs),
+    [page.selectedId, visibleJobs]
   );
-
-  const currentList = activeTab === "jobs" ? visibleJobs : visibleTriggers;
-  const currentTotalCount = activeTab === "jobs" ? jobs.length : triggers.length;
-  const currentListLoading = activeTab === "jobs" ? jobsQuery.isLoading : triggersQuery.isLoading;
-  const currentListError = activeTab === "jobs" ? jobsQuery.error : triggersQuery.error;
-
-  const effectiveSelectedJobId = useMemo(() => {
-    if (selectedJobId && visibleJobs.some(job => job.id === selectedJobId)) {
-      return selectedJobId;
-    }
-
-    return visibleJobs[0]?.id ?? null;
-  }, [selectedJobId, visibleJobs]);
-
-  const effectiveSelectedTriggerId = useMemo(() => {
-    if (selectedTriggerId && visibleTriggers.some(trigger => trigger.id === selectedTriggerId)) {
-      return selectedTriggerId;
-    }
-
-    return visibleTriggers[0]?.id ?? null;
-  }, [selectedTriggerId, visibleTriggers]);
 
   const jobDetailQuery = useAutomationJob(effectiveSelectedJobId ?? "", {
-    enabled: activeTab === "jobs" && Boolean(effectiveSelectedJobId),
+    enabled: Boolean(effectiveSelectedJobId),
   });
-  const triggerDetailQuery = useAutomationTrigger(effectiveSelectedTriggerId ?? "", {
-    enabled: activeTab === "triggers" && Boolean(effectiveSelectedTriggerId),
-  });
-
   const jobRunsQuery = useAutomationJobRuns(
     effectiveSelectedJobId ?? "",
     { limit: 10 },
-    { enabled: activeTab === "jobs" && Boolean(effectiveSelectedJobId) }
-  );
-  const triggerRunsQuery = useAutomationTriggerRuns(
-    effectiveSelectedTriggerId ?? "",
-    { limit: 10 },
-    { enabled: activeTab === "triggers" && Boolean(effectiveSelectedTriggerId) }
+    { enabled: Boolean(effectiveSelectedJobId) }
   );
 
   const createJobMutation = useCreateAutomationJob();
   const updateJobMutation = useUpdateAutomationJob();
   const deleteJobMutation = useDeleteAutomationJob();
   const triggerJobMutation = useTriggerAutomationJob();
-  const createTriggerMutation = useCreateAutomationTrigger();
-  const updateTriggerMutation = useUpdateAutomationTrigger();
-  const deleteTriggerMutation = useDeleteAutomationTrigger();
-
-  const selectedItem =
-    activeTab === "jobs"
-      ? (jobDetailQuery.data ??
-        visibleJobs.find(job => job.id === effectiveSelectedJobId) ??
-        jobs.find(job => job.id === effectiveSelectedJobId))
-      : (triggerDetailQuery.data ??
-        visibleTriggers.find(trigger => trigger.id === effectiveSelectedTriggerId) ??
-        triggers.find(trigger => trigger.id === effectiveSelectedTriggerId));
 
   const selectedJob =
-    activeTab === "jobs" ? (selectedItem as AutomationJob | undefined) : undefined;
-  const selectedTrigger =
-    activeTab === "triggers" ? (selectedItem as AutomationTrigger | undefined) : undefined;
+    jobDetailQuery.data ??
+    visibleJobs.find(job => job.id === effectiveSelectedJobId) ??
+    jobs.find(job => job.id === effectiveSelectedJobId);
 
   const displayedRuns = useMemo(() => {
-    if (activeTab === "jobs") {
-      const baseRuns = jobRunsQuery.data ?? [];
-      if (
-        queuedRun &&
-        queuedRun.jobId === effectiveSelectedJobId &&
-        !baseRuns.some(run => run.id === queuedRun.run.id)
-      ) {
-        return [queuedRun.run, ...baseRuns];
-      }
-
-      return baseRuns;
+    const runs = jobRunsQuery.data ?? [];
+    if (
+      queuedRun &&
+      queuedRun.jobId === effectiveSelectedJobId &&
+      !runs.some(run => run.id === queuedRun.run.id)
+    ) {
+      return [queuedRun.run, ...runs];
     }
 
-    return triggerRunsQuery.data ?? [];
-  }, [activeTab, effectiveSelectedJobId, jobRunsQuery.data, queuedRun, triggerRunsQuery.data]);
-
-  const runsLoading = activeTab === "jobs" ? jobRunsQuery.isLoading : triggerRunsQuery.isLoading;
-  const runsError = activeTab === "jobs" ? jobRunsQuery.error : triggerRunsQuery.error;
-
-  const handleTabChange = (nextTab: AutomationTab) => {
-    startTransition(() => {
-      setActiveTab(nextTab);
-      setEditor(null);
-      setSearchQuery("");
-      setQueuedRun(null);
-    });
-  };
+    return runs;
+  }, [effectiveSelectedJobId, jobRunsQuery.data, queuedRun]);
 
   const handleScopeChange = (nextScope: AutomationScopeFilter) => {
     startTransition(() => {
-      setScopeFilter(nextScope);
+      page.setScopeFilter(nextScope);
+      page.setSelectedId(null);
       setEditor(null);
-      setSelectedJobId(null);
-      setSelectedTriggerId(null);
       setQueuedRun(null);
     });
   };
 
   const handleCreate = () => {
-    setEditor(
-      activeTab === "jobs"
-        ? {
-            draft: createAutomationJobDraft(activeWorkspaceId),
-            kind: "jobs",
-            mode: "create",
-          }
-        : {
-            draft: createAutomationTriggerDraft(activeWorkspaceId),
-            kind: "triggers",
-            mode: "create",
-          }
-    );
+    setEditor({
+      draft: createAutomationJobDraft(page.activeWorkspaceId),
+      mode: "create",
+    });
   };
 
   const handleEdit = () => {
-    if (!selectedItem) {
+    if (!selectedJob) {
       return;
     }
 
-    setEditor(
-      activeTab === "jobs" && selectedJob
-        ? {
-            draft: automationJobToDraft(selectedJob),
-            id: selectedJob.id,
-            kind: "jobs",
-            mode: "edit",
-          }
-        : selectedTrigger
-          ? {
-              draft: automationTriggerToDraft(selectedTrigger),
-              id: selectedTrigger.id,
-              kind: "triggers",
-              mode: "edit",
-            }
-          : null
-    );
+    setEditor({
+      draft: automationJobToDraft(selectedJob),
+      id: selectedJob.id,
+      mode: "edit",
+    });
   };
 
-  const handleSubmitJob = async () => {
-    if (!editor || editor.kind !== "jobs") {
+  const handleSubmit = async () => {
+    if (!editor) {
       return;
     }
 
@@ -296,7 +228,7 @@ function useAutomationPage() {
               id: editor.id,
             });
 
-      setSelectedJobId(job.id);
+      page.setSelectedId(job.id);
       setEditor(null);
       toast.success(
         editor.mode === "create" ? `Created job ${job.name}.` : `Updated job ${job.name}.`
@@ -306,8 +238,195 @@ function useAutomationPage() {
     }
   };
 
-  const handleSubmitTrigger = async () => {
-    if (!editor || editor.kind !== "triggers") {
+  const handleDelete = async () => {
+    if (!selectedJob) {
+      return;
+    }
+
+    try {
+      await deleteJobMutation.mutateAsync({ id: selectedJob.id });
+      page.setSelectedId(null);
+      setQueuedRun(null);
+      toast.success(`Deleted ${selectedJob.name}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete automation job");
+    }
+  };
+
+  const handleToggleEnabled = async (enabled: boolean) => {
+    if (!selectedJob) {
+      return;
+    }
+
+    try {
+      await updateJobMutation.mutateAsync({
+        data: { enabled },
+        id: selectedJob.id,
+      });
+      toast.success(`${enabled ? "Enabled" : "Disabled"} ${selectedJob.name}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update automation state");
+    }
+  };
+
+  const handleTriggerNow = async () => {
+    if (!selectedJob) {
+      return;
+    }
+
+    try {
+      const run = await triggerJobMutation.mutateAsync({ id: selectedJob.id });
+      setQueuedRun({ jobId: selectedJob.id, run });
+      toast.success(`Queued run ${run.id}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to trigger automation job");
+    }
+  };
+
+  const emptyState =
+    visibleJobs.length === 0
+      ? buildEmptyState({
+          hasQuery: page.deferredSearchQuery.trim() !== "",
+          kind: "jobs",
+          onCreate: handleCreate,
+        })
+      : null;
+
+  const listPanelProps = {
+    activeWorkspaceName: page.activeWorkspace?.name,
+    errorMessage: jobsQuery.error?.message ?? null,
+    isLoading: jobsQuery.isLoading,
+    jobs: visibleJobs,
+    kind: "jobs" as const,
+    onSearchChange: page.setSearchQuery,
+    onSelect: (id: string) =>
+      startTransition(() => {
+        page.setSelectedId(id);
+        setQueuedRun(null);
+      }),
+    scopeFilter: page.scopeFilter,
+    searchQuery: page.searchQuery,
+    selectedId: effectiveSelectedJobId,
+    totalCount: jobs.length,
+    triggers: [],
+  };
+
+  const detailPanelProps = {
+    emptyState,
+    error: jobDetailQuery.error,
+    isDeleting: deleteJobMutation.isPending,
+    isLoading: jobDetailQuery.isLoading,
+    isTogglePending: updateJobMutation.isPending,
+    isTriggerPending: triggerJobMutation.isPending,
+    item: selectedJob,
+    kind: "jobs" as const,
+    onDelete: () => {
+      void handleDelete();
+    },
+    onEdit: handleEdit,
+    onToggleEnabled: (enabled: boolean) => {
+      void handleToggleEnabled(enabled);
+    },
+    onTriggerNow: () => {
+      void handleTriggerNow();
+    },
+    runs: displayedRuns,
+    runsError: jobRunsQuery.error,
+    runsLoading: jobRunsQuery.isLoading,
+  };
+
+  const editorDialogProps = {
+    activeWorkspaceId: page.activeWorkspaceId,
+    editor: editor
+      ? {
+          ...editor,
+          kind: "jobs" as const,
+          isPending: createJobMutation.isPending || updateJobMutation.isPending,
+          onCancel: () => setEditor(null),
+          onChange: (draft: CreateAutomationJobRequest) =>
+            setEditor(current => (current ? { ...current, draft } : current)),
+          onSubmit: () => {
+            void handleSubmit();
+          },
+        }
+      : null,
+  };
+
+  return {
+    currentTotalCount: jobs.length,
+    detailPanelProps,
+    editorDialogProps,
+    handleCreate,
+    handleScopeChange,
+    initialError: jobsQuery.error && jobs.length === 0 ? jobsQuery.error : null,
+    isInitialLoading: jobsQuery.isLoading && jobs.length === 0,
+    listPanelProps,
+    scopeFilter: page.scopeFilter,
+  };
+}
+
+function useAutomationTriggersPage() {
+  const page = useAutomationPageBase();
+  const [editor, setEditor] = useState<TriggerEditorState | null>(null);
+
+  const triggersQuery = useAutomationTriggers(page.listFilters);
+  const triggers = triggersQuery.data ?? [];
+  const visibleTriggers = useMemo(
+    () => sortAutomationTriggers(filterAutomationTriggers(triggers, page.deferredSearchQuery)),
+    [page.deferredSearchQuery, triggers]
+  );
+  const effectiveSelectedTriggerId = useMemo(
+    () => resolveSelectedId(page.selectedId, visibleTriggers),
+    [page.selectedId, visibleTriggers]
+  );
+
+  const triggerDetailQuery = useAutomationTrigger(effectiveSelectedTriggerId ?? "", {
+    enabled: Boolean(effectiveSelectedTriggerId),
+  });
+  const triggerRunsQuery = useAutomationTriggerRuns(
+    effectiveSelectedTriggerId ?? "",
+    { limit: 10 },
+    { enabled: Boolean(effectiveSelectedTriggerId) }
+  );
+
+  const createTriggerMutation = useCreateAutomationTrigger();
+  const updateTriggerMutation = useUpdateAutomationTrigger();
+  const deleteTriggerMutation = useDeleteAutomationTrigger();
+
+  const selectedTrigger =
+    triggerDetailQuery.data ??
+    visibleTriggers.find(trigger => trigger.id === effectiveSelectedTriggerId) ??
+    triggers.find(trigger => trigger.id === effectiveSelectedTriggerId);
+
+  const handleScopeChange = (nextScope: AutomationScopeFilter) => {
+    startTransition(() => {
+      page.setScopeFilter(nextScope);
+      page.setSelectedId(null);
+      setEditor(null);
+    });
+  };
+
+  const handleCreate = () => {
+    setEditor({
+      draft: createAutomationTriggerDraft(page.activeWorkspaceId),
+      mode: "create",
+    });
+  };
+
+  const handleEdit = () => {
+    if (!selectedTrigger) {
+      return;
+    }
+
+    setEditor({
+      draft: automationTriggerToDraft(selectedTrigger),
+      id: selectedTrigger.id,
+      mode: "edit",
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!editor) {
       return;
     }
 
@@ -324,7 +443,7 @@ function useAutomationPage() {
               id: editor.id,
             });
 
-      setSelectedTriggerId(trigger.id);
+      page.setSelectedId(trigger.id);
       setEditor(null);
       toast.success(
         editor.mode === "create"
@@ -337,106 +456,71 @@ function useAutomationPage() {
   };
 
   const handleDelete = async () => {
-    if (!selectedItem) {
+    if (!selectedTrigger) {
       return;
     }
 
     try {
-      if (activeTab === "jobs") {
-        await deleteJobMutation.mutateAsync({ id: selectedItem.id });
-        setSelectedJobId(null);
-        setQueuedRun(null);
-      } else {
-        await deleteTriggerMutation.mutateAsync({ id: selectedItem.id });
-        setSelectedTriggerId(null);
-      }
-
-      toast.success(`Deleted ${selectedItem.name}.`);
+      await deleteTriggerMutation.mutateAsync({ id: selectedTrigger.id });
+      page.setSelectedId(null);
+      toast.success(`Deleted ${selectedTrigger.name}.`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete automation");
+      toast.error(error instanceof Error ? error.message : "Failed to delete automation trigger");
     }
   };
 
   const handleToggleEnabled = async (enabled: boolean) => {
-    if (!selectedItem) {
+    if (!selectedTrigger) {
       return;
     }
 
     try {
-      if (activeTab === "jobs") {
-        await updateJobMutation.mutateAsync({
-          data: { enabled },
-          id: selectedItem.id,
-        });
-      } else {
-        await updateTriggerMutation.mutateAsync({
-          data: { enabled },
-          id: selectedItem.id,
-        });
-      }
-
-      toast.success(`${enabled ? "Enabled" : "Disabled"} ${selectedItem.name}.`);
+      await updateTriggerMutation.mutateAsync({
+        data: { enabled },
+        id: selectedTrigger.id,
+      });
+      toast.success(`${enabled ? "Enabled" : "Disabled"} ${selectedTrigger.name}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update automation state");
     }
   };
 
-  const handleTriggerNow = async () => {
-    if (activeTab !== "jobs" || !selectedItem) {
-      return;
-    }
-
-    try {
-      const run = await triggerJobMutation.mutateAsync({ id: selectedItem.id });
-      setQueuedRun({ jobId: selectedItem.id, run });
-      toast.success(`Queued run ${run.id}.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to trigger automation job");
-    }
-  };
-
-  const hasVisibleSearchQuery = deferredSearchQuery.trim() !== "";
   const emptyState =
-    currentList.length === 0
+    visibleTriggers.length === 0
       ? buildEmptyState({
-          activeTab,
-          hasQuery: hasVisibleSearchQuery,
+          hasQuery: page.deferredSearchQuery.trim() !== "",
+          kind: "triggers",
           onCreate: handleCreate,
         })
       : null;
 
   const listPanelProps = {
-    activeWorkspaceName: activeWorkspace?.name,
-    errorMessage: currentListError?.message ?? null,
-    isLoading: currentListLoading,
-    jobs: visibleJobs,
-    kind: activeTab,
-    onSearchChange: setSearchQuery,
+    activeWorkspaceName: page.activeWorkspace?.name,
+    errorMessage: triggersQuery.error?.message ?? null,
+    isLoading: triggersQuery.isLoading,
+    jobs: [],
+    kind: "triggers" as const,
+    onSearchChange: page.setSearchQuery,
     onSelect: (id: string) =>
       startTransition(() => {
-        if (activeTab === "jobs") {
-          setSelectedJobId(id);
-          setQueuedRun(null);
-        } else {
-          setSelectedTriggerId(id);
-        }
+        page.setSelectedId(id);
       }),
-    scopeFilter,
-    searchQuery,
-    selectedId: activeTab === "jobs" ? effectiveSelectedJobId : effectiveSelectedTriggerId,
-    totalCount: currentTotalCount,
+    scopeFilter: page.scopeFilter,
+    searchQuery: page.searchQuery,
+    selectedId: effectiveSelectedTriggerId,
+    totalCount: triggers.length,
     triggers: visibleTriggers,
   };
 
   const detailPanelProps = {
     emptyState,
-    error: activeTab === "jobs" ? jobDetailQuery.error : triggerDetailQuery.error,
-    isDeleting: deleteJobMutation.isPending || deleteTriggerMutation.isPending,
-    isLoading: activeTab === "jobs" ? jobDetailQuery.isLoading : triggerDetailQuery.isLoading,
-    isTogglePending: updateJobMutation.isPending || updateTriggerMutation.isPending,
-    isTriggerPending: triggerJobMutation.isPending,
-    item: selectedItem,
-    kind: activeTab,
+    error: triggerDetailQuery.error,
+    isDeleting: deleteTriggerMutation.isPending,
+    isLoading: triggerDetailQuery.isLoading,
+    isTogglePending: updateTriggerMutation.isPending,
+    isTriggerPending: false,
+    item: selectedTrigger,
+    kind: "triggers" as const,
     onDelete: () => {
       void handleDelete();
     },
@@ -444,56 +528,40 @@ function useAutomationPage() {
     onToggleEnabled: (enabled: boolean) => {
       void handleToggleEnabled(enabled);
     },
-    onTriggerNow: () => {
-      void handleTriggerNow();
-    },
-    runs: displayedRuns,
-    runsError,
-    runsLoading,
+    onTriggerNow: () => undefined,
+    runs: triggerRunsQuery.data ?? [],
+    runsError: triggerRunsQuery.error,
+    runsLoading: triggerRunsQuery.isLoading,
   };
 
   const editorDialogProps = {
-    activeWorkspaceId,
+    activeWorkspaceId: page.activeWorkspaceId,
     editor: editor
-      ? editor.kind === "jobs"
-        ? {
-            ...editor,
-            isPending: createJobMutation.isPending || updateJobMutation.isPending,
-            onCancel: () => setEditor(null),
-            onChange: (draft: CreateAutomationJobRequest) =>
-              setEditor(current => (current?.kind === "jobs" ? { ...current, draft } : current)),
-            onSubmit: () => {
-              void handleSubmitJob();
-            },
-          }
-        : {
-            ...editor,
-            isPending: createTriggerMutation.isPending || updateTriggerMutation.isPending,
-            onCancel: () => setEditor(null),
-            onChange: (draft: CreateAutomationTriggerRequest) =>
-              setEditor(current =>
-                current?.kind === "triggers" ? { ...current, draft } : current
-              ),
-            onSubmit: () => {
-              void handleSubmitTrigger();
-            },
-          }
+      ? {
+          ...editor,
+          kind: "triggers" as const,
+          isPending: createTriggerMutation.isPending || updateTriggerMutation.isPending,
+          onCancel: () => setEditor(null),
+          onChange: (draft: CreateAutomationTriggerRequest) =>
+            setEditor(current => (current ? { ...current, draft } : current)),
+          onSubmit: () => {
+            void handleSubmit();
+          },
+        }
       : null,
   };
 
   return {
-    activeTab,
-    currentTotalCount,
+    currentTotalCount: triggers.length,
     detailPanelProps,
     editorDialogProps,
     handleCreate,
     handleScopeChange,
-    handleTabChange,
-    initialError: currentListError && currentTotalCount === 0 ? currentListError : null,
-    isInitialLoading: currentListLoading && currentTotalCount === 0,
+    initialError: triggersQuery.error && triggers.length === 0 ? triggersQuery.error : null,
+    isInitialLoading: triggersQuery.isLoading && triggers.length === 0,
     listPanelProps,
-    scopeFilter,
+    scopeFilter: page.scopeFilter,
   };
 }
 
-export { useAutomationPage };
+export { useAutomationJobsPage, useAutomationTriggersPage };

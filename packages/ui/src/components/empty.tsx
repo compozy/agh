@@ -52,7 +52,7 @@ function Empty({ icon, title, titleAs, description, action, className, ...props 
     <div
       data-slot="empty"
       className={cn(
-        "flex w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-6 py-10 text-center",
+        "flex w-full flex-col items-center justify-center gap-3 rounded-xl text-center",
         className
       )}
       {...props}

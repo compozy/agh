@@ -54,9 +54,14 @@ function createStubStorybookRouter(
     path: "session/$id",
     component: Story,
   });
-  const automationRoute = createRoute({
+  const jobsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "automation",
+    path: "jobs",
+    component: Story,
+  });
+  const triggersRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "triggers",
     component: Story,
   });
   const bridgesRoute = createRoute({
@@ -79,16 +84,46 @@ function createStubStorybookRouter(
     path: "skills",
     component: Story,
   });
+  const tasksRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "tasks",
+    component: Story,
+  });
+  const taskNewRoute = createRoute({
+    getParentRoute: () => tasksRoute,
+    path: "new",
+    component: Story,
+  });
+  const taskDetailRoute = createRoute({
+    getParentRoute: () => tasksRoute,
+    path: "$id",
+    component: Story,
+  });
+  const taskEditRoute = createRoute({
+    getParentRoute: () => taskDetailRoute,
+    path: "edit",
+    component: Story,
+  });
+  const taskRunDetailRoute = createRoute({
+    getParentRoute: () => taskDetailRoute,
+    path: "runs/$runId",
+    component: Story,
+  });
 
   return createRouter({
     routeTree: rootRoute.addChildren([
       storyRoute,
       sessionRoute,
-      automationRoute,
+      jobsRoute,
+      triggersRoute,
       bridgesRoute,
       networkRoute,
       knowledgeRoute,
       skillsRoute,
+      tasksRoute.addChildren([
+        taskNewRoute,
+        taskDetailRoute.addChildren([taskEditRoute, taskRunDetailRoute]),
+      ]),
     ]),
     history: createMemoryHistory({
       initialEntries: options?.initialEntries ?? ["/"],

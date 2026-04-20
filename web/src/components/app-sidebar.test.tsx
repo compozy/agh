@@ -269,11 +269,32 @@ describe("AppSidebar", () => {
       expect(label.className).toContain("uppercase");
     });
 
+    it("renders the workspace navigation in the expected order", () => {
+      renderSidebar(makeProps());
+      const nav = screen.getByTestId("sidebar-nav");
+      const workspaceLinks = Array.from(
+        nav.querySelectorAll<HTMLAnchorElement>('a[data-testid^="nav-"]')
+      )
+        .map(link => link.getAttribute("data-testid"))
+        .filter((testId): testId is string => testId !== null && testId !== "nav-settings");
+
+      expect(workspaceLinks).toEqual([
+        "nav-network",
+        "nav-tasks",
+        "nav-bridges",
+        "nav-jobs",
+        "nav-triggers",
+        "nav-knowledge",
+        "nav-skills",
+      ]);
+    });
+
     it.each([
-      ["tasks", "/tasks"],
-      ["automation", "/automation"],
-      ["bridges", "/bridges"],
       ["network", "/network"],
+      ["tasks", "/tasks"],
+      ["bridges", "/bridges"],
+      ["jobs", "/jobs"],
+      ["triggers", "/triggers"],
       ["knowledge", "/knowledge"],
       ["skills", "/skills"],
     ])("renders %s nav item linking to %s", (testKey, href) => {
@@ -287,9 +308,10 @@ describe("AppSidebar", () => {
     });
 
     it.each([
-      ["automation", "/automation"],
-      ["bridges", "/bridges"],
       ["network", "/network"],
+      ["bridges", "/bridges"],
+      ["jobs", "/jobs"],
+      ["triggers", "/triggers"],
       ["knowledge", "/knowledge"],
       ["skills", "/skills"],
     ])("renders 3px accent bar on active %s nav", (testKey, path) => {
@@ -319,7 +341,8 @@ describe("AppSidebar", () => {
     it("does not show active indicators when no route matches", () => {
       renderSidebar(makeProps());
       expect(screen.queryByTestId("nav-active-tasks")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("nav-active-automation")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("nav-active-jobs")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("nav-active-triggers")).not.toBeInTheDocument();
       expect(screen.queryByTestId("nav-active-settings")).not.toBeInTheDocument();
     });
   });

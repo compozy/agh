@@ -98,8 +98,29 @@ describe("web Storybook config", () => {
     await router.navigate({ to: "/session/$id", params: { id: "sess-storybook" } });
     expect(router.state.location.pathname).toBe("/session/sess-storybook");
 
-    await router.navigate({ to: "/automation" });
-    expect(router.state.location.pathname).toBe("/automation");
+    await router.navigate({ to: "/jobs" });
+    expect(router.state.location.pathname).toBe("/jobs");
+
+    await router.navigate({ to: "/triggers" });
+    expect(router.state.location.pathname).toBe("/triggers");
+
+    await router.navigate({ to: "/tasks" });
+    expect(router.state.location.pathname).toBe("/tasks");
+
+    await router.navigate({ to: "/tasks/new", search: () => ({ template: undefined }) });
+    expect(router.state.location.pathname).toBe("/tasks/new");
+
+    await router.navigate({ to: "/tasks/$id", params: { id: "task_001" } });
+    expect(router.state.location.pathname).toBe("/tasks/task_001");
+
+    await router.navigate({ to: "/tasks/$id/edit", params: { id: "task_001" } });
+    expect(router.state.location.pathname).toBe("/tasks/task_001/edit");
+
+    await router.navigate({
+      to: "/tasks/$id/runs/$runId",
+      params: { id: "task_001", runId: "run_001" },
+    });
+    expect(router.state.location.pathname).toBe("/tasks/task_001/runs/run_001");
   });
 
   it("creates an app router rooted in the real route tree for nested settings stories", async () => {

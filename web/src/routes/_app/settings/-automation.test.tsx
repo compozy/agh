@@ -23,7 +23,10 @@ const envelope = {
     last_synced_at: "2026-04-17T10:00:00Z",
     next_fire: "2026-04-17T12:00:00Z",
   },
-  links: [{ label: "automation", path: "/automation" }],
+  links: [
+    { label: "jobs", path: "/jobs" },
+    { label: "triggers", path: "/triggers" },
+  ],
 };
 
 type Envelope = typeof envelope;
@@ -179,10 +182,16 @@ describe("AutomationSettingsPage", () => {
     );
   });
 
-  it("deep-links to the operational Automation route", () => {
+  it("deep-links to the operational jobs and triggers routes", () => {
     render(<AutomationSettingsPage />);
-    const link = screen.getByTestId("settings-page-automation-link-automation");
-    expect(link).toHaveAttribute("href", "/automation");
+    expect(screen.getByTestId("settings-page-automation-link-jobs")).toHaveAttribute(
+      "href",
+      "/jobs"
+    );
+    expect(screen.getByTestId("settings-page-automation-link-triggers")).toHaveAttribute(
+      "href",
+      "/triggers"
+    );
   });
 
   it("renders the restart banner when the restart state reports visible", () => {

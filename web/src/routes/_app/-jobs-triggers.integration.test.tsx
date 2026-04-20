@@ -169,7 +169,8 @@ vi.mock("@/systems/automation", async () => {
   };
 });
 
-import { Route } from "./automation";
+import { Route as JobsRoute } from "./jobs";
+import { Route as TriggersRoute } from "./triggers";
 
 function makeJob(overrides: Partial<AutomationJob> = {}): AutomationJob {
   return {
@@ -226,87 +227,86 @@ function makeRun(overrides: Partial<AutomationRun> = {}): AutomationRun {
   };
 }
 
-const AutomationPage = (Route as unknown as { component: () => React.ReactNode }).component;
+const JobsPage = (JobsRoute as unknown as { component: () => React.ReactNode }).component;
+const TriggersPage = (TriggersRoute as unknown as { component: () => React.ReactNode }).component;
 
-describe("Automation route integration", () => {
-  beforeEach(() => {
-    vi.useRealTimers();
-    mockJobs = [makeJob()];
-    mockJobsLoading = false;
-    mockJobsError = null;
-    mockTriggers = [makeTrigger()];
-    mockTriggersLoading = false;
-    mockTriggersError = null;
-    mockJobDetail = makeJob();
-    mockJobDetailLoading = false;
-    mockJobDetailError = null;
-    mockTriggerDetail = makeTrigger();
-    mockTriggerDetailLoading = false;
-    mockTriggerDetailError = null;
-    mockJobRuns = [makeRun()];
-    mockJobRunsLoading = false;
-    mockJobRunsError = null;
-    mockTriggerRuns = [
-      makeRun({ id: "run_trigger", job_id: undefined, trigger_id: "trg_push_review" }),
-    ];
-    mockTriggerRunsLoading = false;
-    mockTriggerRunsError = null;
+beforeEach(() => {
+  vi.useRealTimers();
+  mockJobs = [makeJob()];
+  mockJobsLoading = false;
+  mockJobsError = null;
+  mockTriggers = [makeTrigger()];
+  mockTriggersLoading = false;
+  mockTriggersError = null;
+  mockJobDetail = makeJob();
+  mockJobDetailLoading = false;
+  mockJobDetailError = null;
+  mockTriggerDetail = makeTrigger();
+  mockTriggerDetailLoading = false;
+  mockTriggerDetailError = null;
+  mockJobRuns = [makeRun()];
+  mockJobRunsLoading = false;
+  mockJobRunsError = null;
+  mockTriggerRuns = [
+    makeRun({ id: "run_trigger", job_id: undefined, trigger_id: "trg_push_review" }),
+  ];
+  mockTriggerRunsLoading = false;
+  mockTriggerRunsError = null;
 
-    mockCreateJobPending = false;
-    mockUpdateJobPending = false;
-    mockDeleteJobPending = false;
-    mockTriggerJobPending = false;
-    mockCreateTriggerPending = false;
-    mockUpdateTriggerPending = false;
-    mockDeleteTriggerPending = false;
+  mockCreateJobPending = false;
+  mockUpdateJobPending = false;
+  mockDeleteJobPending = false;
+  mockTriggerJobPending = false;
+  mockCreateTriggerPending = false;
+  mockUpdateTriggerPending = false;
+  mockDeleteTriggerPending = false;
 
-    mockCreateJobMutateAsync.mockReset();
-    mockUpdateJobMutateAsync.mockReset();
-    mockDeleteJobMutateAsync.mockReset();
-    mockTriggerJobMutateAsync.mockReset();
-    mockCreateTriggerMutateAsync.mockReset();
-    mockUpdateTriggerMutateAsync.mockReset();
-    mockDeleteTriggerMutateAsync.mockReset();
-    toast.success.mockReset();
-    toast.error.mockReset();
+  mockCreateJobMutateAsync.mockReset();
+  mockUpdateJobMutateAsync.mockReset();
+  mockDeleteJobMutateAsync.mockReset();
+  mockTriggerJobMutateAsync.mockReset();
+  mockCreateTriggerMutateAsync.mockReset();
+  mockUpdateTriggerMutateAsync.mockReset();
+  mockDeleteTriggerMutateAsync.mockReset();
+  toast.success.mockReset();
+  toast.error.mockReset();
 
-    mockCreateJobMutateAsync.mockResolvedValue(
-      makeJob({ id: "job_created", name: "nightly-docs" })
-    );
-    mockCreateTriggerMutateAsync.mockResolvedValue(
-      makeTrigger({ id: "trg_created", name: "qa-trigger-browser", event: "ext.test.qa" })
-    );
-    mockTriggerJobMutateAsync.mockResolvedValue(
-      makeRun({
-        ended_at: undefined,
-        id: "run_queued",
-        started_at: "2026-04-11T11:00:00Z",
-        status: "running",
-      })
-    );
-  });
+  mockCreateJobMutateAsync.mockResolvedValue(makeJob({ id: "job_created", name: "nightly-docs" }));
+  mockCreateTriggerMutateAsync.mockResolvedValue(
+    makeTrigger({ id: "trg_created", name: "qa-trigger-browser", event: "ext.test.qa" })
+  );
+  mockTriggerJobMutateAsync.mockResolvedValue(
+    makeRun({
+      ended_at: undefined,
+      id: "run_queued",
+      started_at: "2026-04-11T11:00:00Z",
+      status: "running",
+    })
+  );
+});
 
-  it("renders loading and error states from the active list query", () => {
+describe("Jobs route integration", () => {
+  it("renders loading and error states from the jobs list query", () => {
     mockJobsLoading = true;
     mockJobs = [];
-    const { rerender } = render(<AutomationPage />);
+    const { rerender } = render(<JobsPage />);
 
-    expect(screen.getByTestId("automation-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("jobs-loading")).toBeInTheDocument();
 
     mockJobsLoading = false;
     mockJobs = [];
     mockJobsError = new Error("boom");
-    rerender(<AutomationPage />);
+    rerender(<JobsPage />);
 
-    expect(screen.getByTestId("automation-error")).toHaveTextContent("boom");
+    expect(screen.getByTestId("jobs-error")).toHaveTextContent("boom");
   });
 
   it("renders the jobs list, schedule detail, and run history from mocked hooks", () => {
-    render(<AutomationPage />);
+    render(<JobsPage />);
 
     const detailPanel = screen.getByTestId("automation-detail-panel");
 
-    expect(screen.getByText("Automation")).toBeInTheDocument();
+    expect(screen.getByTestId("jobs-shell-title")).toHaveTextContent("Jobs");
     expect(screen.getByTestId("automation-list-panel")).toBeInTheDocument();
     expect(screen.getByTestId("automation-item-job_daily_review")).toBeInTheDocument();
     expect(within(detailPanel).getByText("daily-review")).toBeInTheDocument();
@@ -315,25 +315,11 @@ describe("Automation route integration", () => {
     expect(screen.getByTestId("automation-run-run_001")).toBeInTheDocument();
   });
 
-  it("switches to trigger management and shows trigger activation content", async () => {
-    const user = userEvent.setup();
-    render(<AutomationPage />);
-
-    await user.click(screen.getByTestId("automation-kind-triggers"));
-
-    const detailPanel = screen.getByTestId("automation-detail-panel");
-
-    expect(screen.getByTestId("automation-item-trg_push_review")).toBeInTheDocument();
-    expect(within(detailPanel).getByRole("heading", { name: "push-review" })).toBeInTheDocument();
-    expect(within(detailPanel).getAllByText("ext.github.push")).toHaveLength(2);
-    expect(within(detailPanel).getByText("Dispatches to")).toBeInTheDocument();
-  });
-
   it("opens a create job modal and submits a workspace-scoped payload", async () => {
     const user = userEvent.setup();
-    render(<AutomationPage />);
+    render(<JobsPage />);
 
-    await user.click(screen.getByTestId("create-automation-btn"));
+    await user.click(screen.getByTestId("create-job-btn"));
 
     expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
 
@@ -362,12 +348,107 @@ describe("Automation route integration", () => {
     });
   });
 
+  it("uses the original job id when the visible selection changes during edit", async () => {
+    const user = userEvent.setup();
+    mockUpdateJobMutateAsync.mockResolvedValue(
+      makeJob({ id: "job_daily_review", name: "daily-review-updated" })
+    );
+
+    const { rerender } = render(<JobsPage />);
+
+    await user.click(screen.getByTestId("edit-automation-btn"));
+    fireEvent.change(screen.getByTestId("job-name-input"), {
+      target: { value: "daily-review-updated" },
+    });
+
+    mockJobs = [
+      makeJob({
+        id: "job_release_notes",
+        name: "release-notes",
+        prompt: "Review the release notes.",
+      }),
+    ];
+    rerender(<JobsPage />);
+
+    await user.click(screen.getByTestId("submit-job-form"));
+
+    await waitFor(() => {
+      expect(mockUpdateJobMutateAsync).toHaveBeenCalledWith({
+        data: expect.objectContaining({ name: "daily-review-updated" }),
+        id: "job_daily_review",
+      });
+    });
+  });
+
+  it("renders the no-runs state when the selected job has not executed yet", () => {
+    mockJobRuns = [];
+
+    render(<JobsPage />);
+
+    expect(screen.getByText("No runs recorded yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Runs will appear here after the first scheduled or manual execution.")
+    ).toBeInTheDocument();
+  });
+
+  it("renders the empty jobs state when no jobs exist", () => {
+    mockJobs = [];
+    mockJobDetail = undefined;
+    mockJobRuns = [];
+
+    render(<JobsPage />);
+
+    expect(screen.getByText("No jobs configured")).toBeInTheDocument();
+  });
+
+  it("queues a manual run and prepends it to run history", async () => {
+    const user = userEvent.setup();
+    render(<JobsPage />);
+
+    await user.click(screen.getByTestId("trigger-job-btn"));
+
+    await waitFor(() => {
+      expect(mockTriggerJobMutateAsync).toHaveBeenCalledWith({ id: "job_daily_review" });
+      expect(toast.success).toHaveBeenCalledWith("Queued run run_queued.");
+      expect(screen.getByTestId("automation-run-run_queued")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("Triggers route integration", () => {
+  it("renders loading and error states from the triggers list query", () => {
+    mockTriggersLoading = true;
+    mockTriggers = [];
+    const { rerender } = render(<TriggersPage />);
+
+    expect(screen.getByTestId("triggers-loading")).toBeInTheDocument();
+
+    mockTriggersLoading = false;
+    mockTriggers = [];
+    mockTriggersError = new Error("boom");
+    rerender(<TriggersPage />);
+
+    expect(screen.getByTestId("triggers-error")).toHaveTextContent("boom");
+  });
+
+  it("renders the triggers list, event detail, and run history from mocked hooks", () => {
+    render(<TriggersPage />);
+
+    const detailPanel = screen.getByTestId("automation-detail-panel");
+
+    expect(screen.getByTestId("triggers-shell-title")).toHaveTextContent("Triggers");
+    expect(screen.getByTestId("automation-item-trg_push_review")).toBeInTheDocument();
+    expect(within(detailPanel).getByRole("heading", { name: "push-review" })).toBeInTheDocument();
+    expect(within(detailPanel).getAllByText("ext.github.push")).toHaveLength(2);
+    expect(within(detailPanel).getByText("Dispatches to")).toBeInTheDocument();
+    expect(screen.getByTestId("automation-run-run_trigger")).toBeInTheDocument();
+  });
+
   it("opens a create trigger modal and submits a valid retry-none payload", async () => {
     const user = userEvent.setup();
-    render(<AutomationPage />);
+    render(<TriggersPage />);
 
-    await user.click(screen.getByTestId("automation-kind-triggers"));
-    await user.click(screen.getByTestId("create-automation-btn"));
+    await user.click(screen.getByTestId("create-trigger-btn"));
 
     fireEvent.change(screen.getByTestId("trigger-name-input"), {
       target: { value: "qa-trigger-browser" },
@@ -399,77 +480,13 @@ describe("Automation route integration", () => {
     });
   });
 
-  it("uses the original job id when the visible selection changes during edit", async () => {
-    const user = userEvent.setup();
-    mockUpdateJobMutateAsync.mockResolvedValue(
-      makeJob({ id: "job_daily_review", name: "daily-review-updated" })
-    );
-
-    const { rerender } = render(<AutomationPage />);
-
-    await user.click(screen.getByTestId("edit-automation-btn"));
-    fireEvent.change(screen.getByTestId("job-name-input"), {
-      target: { value: "daily-review-updated" },
-    });
-
-    mockJobs = [
-      makeJob({
-        id: "job_release_notes",
-        name: "release-notes",
-        prompt: "Review the release notes.",
-      }),
-    ];
-    rerender(<AutomationPage />);
-
-    await user.click(screen.getByTestId("submit-job-form"));
-
-    await waitFor(() => {
-      expect(mockUpdateJobMutateAsync).toHaveBeenCalledWith({
-        data: expect.objectContaining({ name: "daily-review-updated" }),
-        id: "job_daily_review",
-      });
-    });
-  });
-
-  it("renders the no-runs state when the selected job has not executed yet", () => {
-    mockJobRuns = [];
-
-    render(<AutomationPage />);
-
-    expect(screen.getByText("No runs recorded yet")).toBeInTheDocument();
-    expect(
-      screen.getByText("Runs will appear here after the first scheduled or manual execution.")
-    ).toBeInTheDocument();
-  });
-
-  it("renders jobs and triggers empty states when no automation exists", async () => {
-    const user = userEvent.setup();
-    mockJobs = [];
-    mockJobDetail = undefined;
-    mockJobRuns = [];
+  it("renders the empty triggers state when no triggers exist", () => {
     mockTriggers = [];
     mockTriggerDetail = undefined;
     mockTriggerRuns = [];
 
-    render(<AutomationPage />);
-
-    expect(screen.getByText("No jobs configured")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("automation-kind-triggers"));
+    render(<TriggersPage />);
 
     expect(screen.getByText("No triggers configured")).toBeInTheDocument();
-  });
-
-  it("queues a manual run and prepends it to run history", async () => {
-    const user = userEvent.setup();
-    render(<AutomationPage />);
-
-    await user.click(screen.getByTestId("trigger-job-btn"));
-
-    await waitFor(() => {
-      expect(mockTriggerJobMutateAsync).toHaveBeenCalledWith({ id: "job_daily_review" });
-      expect(toast.success).toHaveBeenCalledWith("Queued run run_queued.");
-      expect(screen.getByTestId("automation-run-run_queued")).toBeInTheDocument();
-    });
   });
 });

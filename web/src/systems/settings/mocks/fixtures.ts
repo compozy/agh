@@ -100,7 +100,10 @@ export const settingsAutomationSectionFixture: SettingsAutomationSection = {
     last_synced_at: "2026-04-17T10:00:00Z",
     next_fire: "2026-04-17T12:00:00Z",
   },
-  links: [{ label: "automation", path: "/automation" }],
+  links: [
+    { label: "jobs", path: "/jobs" },
+    { label: "triggers", path: "/triggers" },
+  ],
 };
 
 export const settingsMemorySectionFixture: SettingsMemorySection = {

@@ -29,6 +29,7 @@ describe("storybook msw helpers", () => {
     expect(mergedGroups.bridges).toEqual(composeStorybookHandlerGroup("bridges", bridgesOverride));
     expect(mergedGroups.network).toBe(storybookSystemHandlerGroups.network);
     expect(mergedGroups.settings).toBe(storybookSystemHandlerGroups.settings);
+    expect(mergedGroups.tasks).toBe(storybookSystemHandlerGroups.tasks);
   });
 
   it("preserves untouched handlers inside an overridden group while replacing matching endpoints", () => {
@@ -58,6 +59,7 @@ describe("storybook msw helpers", () => {
       ...storybookSystemHandlerGroups.session,
       ...storybookSystemHandlerGroups.settings,
       ...storybookSystemHandlerGroups.skill,
+      ...storybookSystemHandlerGroups.tasks,
       ...storybookSystemHandlerGroups.workspace,
     ]);
   });

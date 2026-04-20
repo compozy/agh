@@ -129,12 +129,20 @@ function OperationalLinksRow() {
         data-testid="settings-page-automation-operational-links"
       >
         <Link
-          to="/automation"
+          to="/jobs"
           className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
-          data-testid="settings-page-automation-link-automation"
+          data-testid="settings-page-automation-link-jobs"
         >
           <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
-          Open Automation
+          Open Jobs
+        </Link>
+        <Link
+          to="/triggers"
+          className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
+          data-testid="settings-page-automation-link-triggers"
+        >
+          <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+          Open Triggers
         </Link>
       </div>
     </SettingsSectionCard>

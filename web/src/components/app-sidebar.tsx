@@ -3,6 +3,7 @@ import {
   Book,
   Bot,
   ChevronRight,
+  Clock3,
   ListChecks,
   Loader2,
   Network,
@@ -11,6 +12,7 @@ import {
   Terminal,
   Waypoints,
   Wrench,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -299,10 +301,11 @@ function AgentList({
 }
 
 const WORKSPACE_NAV_ITEMS: NavItemProps[] = [
-  { to: "/tasks", icon: ListChecks, label: "Tasks", fuzzy: true },
-  { to: "/automation", icon: Bot, label: "Automation" },
-  { to: "/bridges", icon: Waypoints, label: "Bridges" },
   { to: "/network", icon: Network, label: "Network" },
+  { to: "/tasks", icon: ListChecks, label: "Tasks", fuzzy: true },
+  { to: "/bridges", icon: Waypoints, label: "Bridges" },
+  { to: "/jobs", icon: Clock3, label: "Jobs" },
+  { to: "/triggers", icon: Zap, label: "Triggers" },
   { to: "/knowledge", icon: Book, label: "Knowledge" },
   { to: "/skills", icon: Wrench, label: "Skills" },
 ];
