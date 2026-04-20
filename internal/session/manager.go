@@ -539,12 +539,13 @@ func (m *Manager) claimFinalization(session *Session) (bool, <-chan struct{}) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if done, ok := m.finalizing[session.ID]; ok {
+		return false, done
+	}
+
 	current, ok := m.sessions[session.ID]
 	if !ok || current != session {
 		return false, nil
-	}
-	if done, ok := m.finalizing[session.ID]; ok {
-		return false, done
 	}
 
 	done := make(chan struct{})

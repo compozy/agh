@@ -23,6 +23,7 @@ const (
 	taskEventRunEnqueued          = "task.run_enqueued"
 	taskEventRunForceStopped      = "task.run_force_stopped"
 	taskEventRunRecovered         = "task.run_recovered"
+	taskHealthStatusOK            = "ok"
 	taskHealthStatusWarn          = "warn"
 )
 
@@ -624,7 +625,7 @@ func (o *Observer) taskHealthFromSnapshot(
 		}
 	}
 
-	status := "ok"
+	status := taskHealthStatusOK
 	if len(stuckRuns) > 0 || activeOrphans > 0 {
 		status = taskHealthStatusWarn
 	}
@@ -828,15 +829,15 @@ func taskDashboardQueueFromRows(
 
 	if queue.Total > 0 && threshold > 0 && time.Duration(queue.OldestQueueAgeMilli)*time.Millisecond >= threshold {
 		queue.BacklogWarning = true
-		queue.BacklogStatus = "warn"
+		queue.BacklogStatus = taskHealthStatusWarn
 	} else {
-		queue.BacklogStatus = "ok"
+		queue.BacklogStatus = taskHealthStatusOK
 	}
 	if now != nil && !queue.OldestQueuedAt.IsZero() {
 		queue.OldestQueueAgeMilli = safeSince(now(), queue.OldestQueuedAt).Milliseconds()
 		if queue.Total > 0 && threshold > 0 && time.Duration(queue.OldestQueueAgeMilli)*time.Millisecond >= threshold {
 			queue.BacklogWarning = true
-			queue.BacklogStatus = "warn"
+			queue.BacklogStatus = taskHealthStatusWarn
 		}
 	}
 
@@ -846,10 +847,10 @@ func taskDashboardQueueFromRows(
 func taskDashboardHealthFromHealth(health TaskHealth, queueBacklog bool) TaskDashboardHealth {
 	status := health.Status
 	if queueBacklog {
-		status = "warn"
+		status = taskHealthStatusWarn
 	}
 	if strings.TrimSpace(status) == "" {
-		status = "ok"
+		status = taskHealthStatusOK
 	}
 
 	return TaskDashboardHealth{
@@ -1378,9 +1379,9 @@ func dashboardStatusForCount(count int) string {
 
 func dashboardStatusForAny(warn bool) string {
 	if warn {
-		return "warn"
+		return taskHealthStatusWarn
 	}
-	return "ok"
+	return taskHealthStatusOK
 }
 
 func dashboardActiveRunRank(status taskpkg.RunStatus) int {

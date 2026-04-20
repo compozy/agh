@@ -20,6 +20,7 @@ const (
 	subprocessCaptureLimitBytes  = 8 * 1024
 	subprocessCaptureTruncate    = "...[truncated]"
 	subprocessShutdownGrace      = 250 * time.Millisecond
+	subprocessProcessGroupWait   = time.Second
 )
 
 var subprocessEnvAllowlist = []string{
@@ -166,10 +167,16 @@ func runSubprocessCommand(ctx context.Context, cmd *exec.Cmd) error {
 
 		select {
 		case err := <-waitCh:
-			return errors.Join(terminateErr, err)
+			return errors.Join(terminateErr, err, forceSubprocessCommandExit(cmd, subprocessProcessGroupWait))
 		case <-timer.C:
 			killErr := killSubprocessCommand(cmd)
-			return errors.Join(terminateErr, killErr, <-waitCh)
+			waitErr := <-waitCh
+			return errors.Join(
+				terminateErr,
+				killErr,
+				waitErr,
+				forceSubprocessCommandExit(cmd, subprocessProcessGroupWait),
+			)
 		}
 	}
 }

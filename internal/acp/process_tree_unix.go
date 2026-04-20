@@ -3,19 +3,15 @@
 package acp
 
 import (
-	"errors"
 	"os/exec"
 	"syscall"
+	"time"
+
+	"github.com/pedronauck/agh/internal/procutil"
 )
 
 func configureManagedCommand(cmd *exec.Cmd) {
-	if cmd == nil {
-		return
-	}
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{}
-	}
-	cmd.SysProcAttr.Setpgid = true
+	procutil.ConfigureCommandProcessGroup(cmd)
 }
 
 func terminateManagedProcess(cmd *exec.Cmd) error {
@@ -27,14 +23,9 @@ func killManagedProcess(cmd *exec.Cmd) error {
 }
 
 func signalManagedProcess(cmd *exec.Cmd, sig syscall.Signal) error {
-	if cmd == nil || cmd.Process == nil || cmd.Process.Pid <= 0 {
-		return nil
-	}
-	if err := syscall.Kill(-cmd.Process.Pid, sig); err != nil {
-		if errors.Is(err, syscall.ESRCH) {
-			return nil
-		}
-		return err
-	}
-	return nil
+	return procutil.SignalCommandProcessGroup(cmd, sig)
+}
+
+func forceManagedProcessGroupExit(cmd *exec.Cmd, timeout time.Duration) error {
+	return procutil.KillCommandProcessGroupAndWait(cmd, timeout)
 }

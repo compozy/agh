@@ -712,15 +712,7 @@ func (d *reconcileDriver) runPass(
 ) reconcilePassResult {
 	startedAt := d.now()
 
-	timeout := d.defaultTimeout
-	if override, ok := d.kindTimeouts[kind]; ok && override > 0 {
-		timeout = override
-	}
-
-	passCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	input, err := d.buildProjectionInput(passCtx, kind)
+	input, err := d.buildProjectionInput(ctx, kind)
 	if err != nil {
 		return reconcilePassResult{
 			reason:   reason,
@@ -728,6 +720,14 @@ func (d *reconcileDriver) runPass(
 			err:      err,
 		}
 	}
+
+	timeout := d.defaultTimeout
+	if override, ok := d.kindTimeouts[kind]; ok && override > 0 {
+		timeout = override
+	}
+
+	passCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	projector := d.projectors[kind]
 	plan, err := projector.Build(passCtx, input)
