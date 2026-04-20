@@ -172,7 +172,10 @@ func existingCapabilityCatalogFile(path string) (bool, error) {
 		}
 		return false, fmt.Errorf("config: stat capability catalog file %q: %w", path, err)
 	}
-	return !info.IsDir(), nil
+	if info.IsDir() {
+		return false, fmt.Errorf("config: capability catalog file %q must be a file", path)
+	}
+	return true, nil
 }
 
 func existingCapabilityCatalogDir(path string) (bool, error) {
@@ -183,7 +186,10 @@ func existingCapabilityCatalogDir(path string) (bool, error) {
 		}
 		return false, fmt.Errorf("config: stat capability catalog directory %q: %w", path, err)
 	}
-	return info.IsDir(), nil
+	if !info.IsDir() {
+		return false, fmt.Errorf("config: capability catalog directory %q must be a directory", path)
+	}
+	return true, nil
 }
 
 func loadCapabilityCatalogFile(path string) (*CapabilityCatalog, error) {

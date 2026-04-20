@@ -45,7 +45,14 @@ func parseWhoisCapabilityDiscoveryRequest(ext ExtensionMap) whoisCapabilityDisco
 		return request
 	}
 
+	if _, ok := ext[whoisCapabilityIDsExtKey]; !ok {
+		return request
+	}
+
 	request.capabilityIDs = decodeExtensionStringList(ext, whoisCapabilityIDsExtKey)
+	if request.capabilityIDs == nil {
+		request.capabilityIDs = []string{}
+	}
 	return request
 }
 
@@ -75,6 +82,9 @@ func projectWhoisCapabilityCatalog(
 	capabilityIDs []string,
 ) []whoisCapabilityCatalogEntry {
 	if len(capabilityCatalog) == 0 {
+		return []whoisCapabilityCatalogEntry{}
+	}
+	if capabilityIDs != nil && len(capabilityIDs) == 0 {
 		return []whoisCapabilityCatalogEntry{}
 	}
 

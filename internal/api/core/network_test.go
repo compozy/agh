@@ -1568,6 +1568,8 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 	})
 
 	t.Run("Should return not found when a channel has no presence or history", func(t *testing.T) {
+		t.Parallel()
+
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{
@@ -1602,9 +1604,16 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 		if resp.Code != http.StatusNotFound {
 			t.Fatalf("channel messages code = %d, want %d", resp.Code, http.StatusNotFound)
 		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !strings.Contains(payload.Error, "network channel not found") {
+			t.Fatalf("channel messages payload = %#v, want network channel not found error", payload)
+		}
 	})
 
 	t.Run("Should reject invalid channel message limits", func(t *testing.T) {
+		t.Parallel()
+
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{},
@@ -1620,6 +1629,11 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders/messages?limit=abc", nil)
 		if resp.Code != http.StatusBadRequest {
 			t.Fatalf("channel messages code = %d, want %d", resp.Code, http.StatusBadRequest)
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !strings.Contains(payload.Error, `invalid integer "abc"`) {
+			t.Fatalf("channel messages payload = %#v, want invalid integer error", payload)
 		}
 	})
 }

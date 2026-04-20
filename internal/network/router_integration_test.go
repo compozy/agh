@@ -14,6 +14,8 @@ import (
 )
 
 func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(testutil.Context(t), 10*time.Second)
 	defer cancel()
 
@@ -114,6 +116,8 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 }
 
 func TestHeartbeatExpiryAndFreshGreetRecovery(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(testutil.Context(t), 10*time.Second)
 	defer cancel()
 
@@ -194,6 +198,8 @@ func TestHeartbeatExpiryAndFreshGreetRecovery(t *testing.T) {
 }
 
 func TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(testutil.Context(t), 10*time.Second)
 	defer cancel()
 
@@ -318,6 +324,8 @@ func TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog(t *testi
 }
 
 func TestDirectedWhoisRichDiscoveryFilteringRefreshesRemotePresence(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(testutil.Context(t), 10*time.Second)
 	defer cancel()
 

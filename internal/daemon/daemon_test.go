@@ -4418,6 +4418,28 @@ type fakeNetworkJoinCall struct {
 	capabilities []session.NetworkPeerCapability
 }
 
+func cloneFakeNetworkPeerCapabilities(capabilities []session.NetworkPeerCapability) []session.NetworkPeerCapability {
+	if capabilities == nil {
+		return nil
+	}
+
+	cloned := make([]session.NetworkPeerCapability, 0, len(capabilities))
+	for _, capability := range capabilities {
+		cloned = append(cloned, session.NetworkPeerCapability{
+			ID:                capability.ID,
+			Summary:           capability.Summary,
+			Outcome:           capability.Outcome,
+			ContextNeeded:     append([]string(nil), capability.ContextNeeded...),
+			ArtifactsExpected: append([]string(nil), capability.ArtifactsExpected...),
+			ExecutionOutline:  append([]string(nil), capability.ExecutionOutline...),
+			Constraints:       append([]string(nil), capability.Constraints...),
+			Examples:          append([]string(nil), capability.Examples...),
+		})
+	}
+
+	return cloned
+}
+
 func (f *fakeNetworkRuntime) Send(_ context.Context, req network.SendRequest) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -4468,7 +4490,7 @@ func (f *fakeNetworkRuntime) JoinChannel(_ context.Context, join session.Network
 		sessionID:    join.SessionID,
 		peerID:       join.PeerID,
 		channel:      join.Channel,
-		capabilities: append([]session.NetworkPeerCapability(nil), join.Capabilities...),
+		capabilities: cloneFakeNetworkPeerCapabilities(join.Capabilities),
 	})
 	return nil
 }
@@ -4493,6 +4515,63 @@ func (f *fakeNetworkRuntime) Shutdown(context.Context) error {
 		f.onShutdown()
 	}
 	return f.shutdownErr
+}
+
+func TestFakeNetworkRuntimeJoinChannelDeepClonesCapabilities(t *testing.T) {
+	t.Parallel()
+
+	runtime := &fakeNetworkRuntime{}
+	join := session.NetworkPeerJoin{
+		SessionID: "sess-1",
+		PeerID:    "peer-1",
+		Channel:   "channel-1",
+		Capabilities: []session.NetworkPeerCapability{{
+			ID:                "review-pr",
+			Summary:           "Review pull requests",
+			Outcome:           "Review feedback",
+			ContextNeeded:     []string{"repo", "diff"},
+			ArtifactsExpected: []string{"comments"},
+			ExecutionOutline:  []string{"inspect", "comment"},
+			Constraints:       []string{"stay scoped"},
+			Examples:          []string{"review PR #49"},
+		}},
+	}
+
+	if err := runtime.JoinChannel(testutil.Context(t), join); err != nil {
+		t.Fatalf("JoinChannel() error = %v", err)
+	}
+
+	join.Capabilities[0].ContextNeeded[0] = "mutated"
+	join.Capabilities[0].ArtifactsExpected[0] = "mutated"
+	join.Capabilities[0].ExecutionOutline[0] = "mutated"
+	join.Capabilities[0].Constraints[0] = "mutated"
+	join.Capabilities[0].Examples[0] = "mutated"
+
+	runtime.mu.Lock()
+	recorded := runtime.joinCalls[0]
+	runtime.mu.Unlock()
+
+	if got, want := recorded.capabilities[0].ContextNeeded, []string{"repo", "diff"}; !slices.Equal(got, want) {
+		t.Fatalf("recorded ContextNeeded = %#v, want %#v", got, want)
+	}
+	if got, want := recorded.capabilities[0].ArtifactsExpected, []string{"comments"}; !slices.Equal(got, want) {
+		t.Fatalf("recorded ArtifactsExpected = %#v, want %#v", got, want)
+	}
+	if got, want := recorded.capabilities[0].ExecutionOutline, []string{
+		"inspect",
+		"comment",
+	}; !slices.Equal(
+		got,
+		want,
+	) {
+		t.Fatalf("recorded ExecutionOutline = %#v, want %#v", got, want)
+	}
+	if got, want := recorded.capabilities[0].Constraints, []string{"stay scoped"}; !slices.Equal(got, want) {
+		t.Fatalf("recorded Constraints = %#v, want %#v", got, want)
+	}
+	if got, want := recorded.capabilities[0].Examples, []string{"review PR #49"}; !slices.Equal(got, want) {
+		t.Fatalf("recorded Examples = %#v, want %#v", got, want)
+	}
 }
 
 type fakeObserver struct {

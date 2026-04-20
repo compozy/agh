@@ -269,8 +269,12 @@ func (a AgentDef) Validate() error {
 			return fmt.Errorf("agent.hooks[%d]: %w", i, err)
 		}
 	}
-	if _, err := normalizeCapabilityCatalog(a.Capabilities, "agent.capabilities"); err != nil {
+	normalizedCapabilities, err := normalizeCapabilityCatalog(a.Capabilities, "agent.capabilities")
+	if err != nil {
 		return err
+	}
+	if a.Capabilities != nil {
+		*a.Capabilities = *normalizedCapabilities
 	}
 
 	return nil

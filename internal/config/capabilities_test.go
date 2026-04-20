@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -241,6 +242,84 @@ outcome = "A finished landing page."
 	}
 	if !strings.Contains(err.Error(), "multiple capability catalog files") {
 		t.Fatalf("LoadAgentCapabilities() error = %q, want multiple file context", err.Error())
+	}
+}
+
+func TestLoadAgentCapabilitiesRejectsReservedPathTypeMismatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		setupPath  func(t *testing.T, agentDir string) string
+		wantErr    string
+		wantTarget string
+	}{
+		{
+			name: "ShouldRejectDirectoryAtTOMLCatalogPath",
+			setupPath: func(t *testing.T, agentDir string) string {
+				t.Helper()
+
+				path := filepath.Join(agentDir, capabilityCatalogTOMLName)
+				if err := os.Mkdir(path, 0o755); err != nil {
+					t.Fatalf("os.Mkdir(%q) error = %v", path, err)
+				}
+				return path
+			},
+			wantErr:    "must be a file",
+			wantTarget: capabilityCatalogTOMLName,
+		},
+		{
+			name: "ShouldRejectDirectoryAtJSONCatalogPath",
+			setupPath: func(t *testing.T, agentDir string) string {
+				t.Helper()
+
+				path := filepath.Join(agentDir, capabilityCatalogJSONName)
+				if err := os.Mkdir(path, 0o755); err != nil {
+					t.Fatalf("os.Mkdir(%q) error = %v", path, err)
+				}
+				return path
+			},
+			wantErr:    "must be a file",
+			wantTarget: capabilityCatalogJSONName,
+		},
+		{
+			name: "ShouldRejectFileAtCatalogDirectoryPath",
+			setupPath: func(t *testing.T, agentDir string) string {
+				t.Helper()
+
+				path := filepath.Join(agentDir, capabilityCatalogDirName)
+				writeFile(t, path, "not-a-directory")
+				return path
+			},
+			wantErr:    "must be a directory",
+			wantTarget: capabilityCatalogDirName,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			agentDir := t.TempDir()
+			targetPath := tt.setupPath(t, agentDir)
+
+			catalog, err := LoadAgentCapabilities(agentDir)
+			if err == nil {
+				t.Fatal("LoadAgentCapabilities() error = nil, want wrong-type path failure")
+			}
+			if catalog != nil {
+				t.Fatalf("LoadAgentCapabilities() catalog = %#v, want nil on error", catalog)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("LoadAgentCapabilities() error = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), targetPath) {
+				t.Fatalf("LoadAgentCapabilities() error = %q, want path %q", err.Error(), targetPath)
+			}
+			if !strings.Contains(err.Error(), tt.wantTarget) {
+				t.Fatalf("LoadAgentCapabilities() error = %q, want reserved target %q", err.Error(), tt.wantTarget)
+			}
+		})
 	}
 }
 

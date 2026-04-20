@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -184,6 +185,53 @@ func TestLoadWorkspaceAgentDefsLoadsAgentsWithoutCapabilityCatalog(t *testing.T)
 	}
 	if agents[0].Capabilities != nil {
 		t.Fatalf("agents[0].Capabilities = %#v, want nil for missing catalog", agents[0].Capabilities)
+	}
+}
+
+func TestAgentDefValidateNormalizesCapabilitiesInPlace(t *testing.T) {
+	t.Parallel()
+
+	agent := AgentDef{
+		Name:   "coder",
+		Prompt: "You write reliable code.",
+		Capabilities: &CapabilityCatalog{
+			Capabilities: []CapabilityDef{{
+				ID:                " build-site ",
+				Summary:           " Build the landing page. ",
+				Outcome:           " A finished landing page. ",
+				ContextNeeded:     []string{" repo ", "", " brand brief "},
+				ExecutionOutline:  []string{" inspect ", "", " build "},
+				ArtifactsExpected: []string{" final page ", ""},
+			}},
+		},
+	}
+
+	if err := agent.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	if agent.Capabilities == nil || len(agent.Capabilities.Capabilities) != 1 {
+		t.Fatalf("Capabilities = %#v, want one normalized capability", agent.Capabilities)
+	}
+
+	capability := agent.Capabilities.Capabilities[0]
+	if got, want := capability.ID, "build-site"; got != want {
+		t.Fatalf("ID = %q, want %q", got, want)
+	}
+	if got, want := capability.Summary, "Build the landing page."; got != want {
+		t.Fatalf("Summary = %q, want %q", got, want)
+	}
+	if got, want := capability.Outcome, "A finished landing page."; got != want {
+		t.Fatalf("Outcome = %q, want %q", got, want)
+	}
+	if got, want := capability.ContextNeeded, []string{"repo", "brand brief"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ContextNeeded = %#v, want %#v", got, want)
+	}
+	if got, want := capability.ExecutionOutline, []string{"inspect", "build"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ExecutionOutline = %#v, want %#v", got, want)
+	}
+	if got, want := capability.ArtifactsExpected, []string{"final page"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ArtifactsExpected = %#v, want %#v", got, want)
 	}
 }
 
