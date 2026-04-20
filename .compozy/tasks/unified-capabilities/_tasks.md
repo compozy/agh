@@ -6,7 +6,7 @@
 
 | # | Title | Status | Complexity | Dependencies |
 |---|-------|--------|------------|--------------|
-| 01 | Unified Capability Schema, Canonicalization, and Session Projection | pending | high | — |
+| 01 | Unified Capability Schema, Canonicalization, and Session Projection | completed | high | — |
 | 02 | Replace Recipe Wire Kind with Capability Envelopes | pending | high | task_01 |
 | 03 | Preserve Recipe Operational Semantics Under Capability | pending | high | task_02 |
 | 04 | Align Discovery, Peer Details, and API Contracts with Unified Capabilities | pending | high | task_01, task_03 |
