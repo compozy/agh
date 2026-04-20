@@ -5,6 +5,7 @@
         "message-kinds",
         "interactions",
         "peer-discovery",
+        "capability-discovery",
         "recipes",
         "delivery",
         "examples",

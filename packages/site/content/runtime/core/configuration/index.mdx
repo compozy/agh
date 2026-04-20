@@ -14,6 +14,7 @@ for the change you actually want.
 | Machine-wide defaults | `~/.agh/config.toml` | The daemon, default provider, permissions mode, HTTP bind address, automation defaults, or marketplace trust should change for every workspace on one machine. |
 | One workspace | `<workspace>/.agh/config.toml` | A repository needs different defaults, limits, or permissions than the rest of the machine. |
 | One agent | `AGENT.md` | A specific agent needs a different prompt, provider, permission mode, or MCP attachment. |
+| One agent's advertised capabilities | [capability catalog](/runtime/core/agents/capabilities) next to `AGENT.md` | Other peers need outcome-oriented discovery metadata about what that agent can do. |
 | One skill | `SKILL.md` | You are defining reusable instructions, optional MCP metadata, or skill-owned hooks. |
 | MCP server configuration | `mcp.json` | MCP declarations are easier to manage as JSON sidecars than inline frontmatter. |
 | Provider credentials | environment variables | The daemon must inherit API keys or other runtime secrets before it starts agent subprocesses. |
@@ -24,9 +25,10 @@ for the change you actually want.
 1. [config.toml Reference](/runtime/core/configuration/config-toml)
 2. [File Locations](/runtime/core/configuration/file-locations)
 3. [AGENT.md Reference](/runtime/core/configuration/agent-md)
-4. [SKILL.md Reference](/runtime/core/configuration/skill-md)
-5. [mcp.json Reference](/runtime/core/configuration/mcp-json)
-6. [Environment Variables](/runtime/core/configuration/env-vars)
+4. [Agent Capabilities](/runtime/core/agents/capabilities)
+5. [SKILL.md Reference](/runtime/core/configuration/skill-md)
+6. [mcp.json Reference](/runtime/core/configuration/mcp-json)
+7. [Environment Variables](/runtime/core/configuration/env-vars)
 
 That order mirrors how operators usually troubleshoot AGH: global defaults first, path resolution
-second, then file-format specifics.
+second, then file-format specifics and agent sidecars.

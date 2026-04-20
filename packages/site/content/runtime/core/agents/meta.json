@@ -1,5 +1,5 @@
 {
     "title": "Agents",
     "icon": "FileText",
-    "pages": ["definitions", "providers", "spawning"]
+    "pages": ["definitions", "capabilities", "providers", "spawning"]
 }

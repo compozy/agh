@@ -185,3 +185,31 @@ decisions, such as `test.run`, `code.patch`, or `git.diff.review`.
 Receivers MUST treat capability claims as advisory. A claim does not prove a peer can perform the
 work safely, completely, or with authorization. Trust and authorization belong to runtime policy and
 future trust profiles, not v0 discovery alone.
+
+### Brief projection
+
+When a peer has a local capability catalog, the Peer Card MAY also carry a brief projection under
+`ext["agh.capabilities_brief"]`. Each entry is an object with `id` and `summary`, and its order
+matches `capabilities` entry-by-entry.
+
+```json
+{
+  "capabilities": ["build-site", "review-copy"],
+  "ext": {
+    "agh.capabilities_brief": [
+      { "id": "build-site", "summary": "Build the landing page." },
+      { "id": "review-copy", "summary": "Review conversion copy." }
+    ]
+  }
+}
+```
+
+When a peer has no catalog, `capabilities` MUST still be `[]` and `agh.capabilities_brief` MUST be
+omitted entirely.
+
+### Rich discovery
+
+The full catalog never appears in `peer_card.ext`. Callers that want outcomes, constraints, or
+context hints MUST send a `whois` request with `ext["agh.include"] = ["capability_catalog"]` and
+read the response from the envelope-level `ext["agh.capability_catalog"]`. See
+[Capability Discovery](/protocol/capability-discovery) for the full wire contract.

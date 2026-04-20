@@ -305,6 +305,18 @@ permissions: approve-reads
 Provide concise assistance grounded in the active workspace.
 ```
 
+## Recognized Sidecars
+
+An agent directory accepts two kinds of sidecars next to `AGENT.md`:
+
+| Sidecar                                 | Purpose                                                   | Reference                                                       |
+| --------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------- |
+| `mcp.json`                              | Declare MCP servers in JSON form.                         | [MCP Sidecar](#mcp-sidecar) below.                              |
+| `capabilities.toml` / `capabilities.json` or `capabilities/*.toml` / `capabilities/*.json` | Declare outcome-oriented capabilities advertised to network peers. | [Agent Capabilities](/runtime/core/agents/capabilities). |
+
+Sidecars are loaded independently. Exactly one capability layout (single-file or directory) is
+allowed per agent; mixing layouts is a hard error.
+
 ## MCP Sidecar
 
 Place `mcp.json` next to `AGENT.md` when MCP definitions are generated or easier to maintain as

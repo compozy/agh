@@ -4,13 +4,18 @@ description: The current AGENT.md format, discovery order, runtime defaults, and
 ---
 
 An agent definition tells AGH which agent to start and what startup prompt to give it. The
-definition is a directory with an `AGENT.md` file:
+definition is a directory with an `AGENT.md` file and optional sidecars:
 
 ```text
 ~/.agh/agents/code-reviewer/
   AGENT.md
   mcp.json
+  capabilities.toml
 ```
+
+`mcp.json` declares MCP servers in JSON form, and `capabilities.toml` (or a `capabilities/`
+directory) declares outcome-oriented offerings advertised to other peers. See
+[Agent Capabilities](/runtime/core/agents/capabilities) for the catalog format.
 
 `AGENT.md` is a Markdown file with required frontmatter and a required body. AGH parses the
 frontmatter into runtime configuration, then uses the Markdown body as the startup system prompt.
@@ -208,6 +213,8 @@ are resolved by the runtime systems, not by agent frontmatter.
 
 ## Related pages
 
+- [Agent Capabilities](/runtime/core/agents/capabilities) covers the optional capability catalog
+  sidecar that sits next to `AGENT.md` and feeds network discovery.
 - [Providers](/runtime/core/agents/providers) lists every built-in provider and the provider config
   shape.
 - [Spawning](/runtime/core/agents/spawning) follows the ACP subprocess startup path.
