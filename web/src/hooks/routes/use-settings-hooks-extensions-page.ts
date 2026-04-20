@@ -234,7 +234,13 @@ export function useSettingsHooksExtensionsPage() {
     return { total, enabled };
   }, [extensions]);
 
+  const canMutateHooks = transportParity?.settings_http !== false;
+  const canMutatePolicy = transportParity?.settings_http !== false;
   const canMutateExtensions = transportParity?.extensions_http !== false;
+
+  const handleRetry = useCallback(() => {
+    void Promise.all([query.refetch(), extensionsQuery.refetch()]);
+  }, [extensionsQuery, query]);
 
   return {
     isLoading: query.isLoading,
@@ -247,6 +253,7 @@ export function useSettingsHooksExtensionsPage() {
     pendingHookName,
     toggleHookEnabled,
     hookError: errorMessage(hookMutation.error),
+    canMutateHooks,
 
     extensions,
     extensionsCounts,
@@ -263,10 +270,12 @@ export function useSettingsHooksExtensionsPage() {
     isSavingPolicy: policyMutation.isPending,
     savePolicyError: errorMessage(policyMutation.error),
     policyWarnings: policyMutation.data?.warnings,
+    canMutatePolicy,
     handleSavePolicy,
     handleResetPolicy,
     updatePolicyDraft: updateDraft,
     toggleAllowedKind,
+    handleRetry,
 
     lastAction,
     dismissLastAction,

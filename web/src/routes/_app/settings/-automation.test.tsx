@@ -23,7 +23,10 @@ const envelope = {
     last_synced_at: "2026-04-17T10:00:00Z",
     next_fire: "2026-04-17T12:00:00Z",
   },
-  links: [{ label: "automation", path: "/automation" }],
+  links: [
+    { label: "jobs", path: "/jobs" },
+    { label: "triggers", path: "/triggers" },
+  ],
 };
 
 type Envelope = typeof envelope;
@@ -151,7 +154,7 @@ describe("AutomationSettingsPage", () => {
     );
     expect(screen.getByTestId("settings-page-automation-runtime-jobs")).toHaveTextContent("3 / 5");
     expect(screen.getByTestId("settings-page-automation-timezone-input")).toHaveValue("UTC");
-    expect(screen.getByTestId("settings-page-automation-max-concurrent-input")).toHaveValue(8);
+    expect(screen.getByTestId("settings-page-automation-max-concurrent-input")).toHaveValue("8");
     expect(screen.getByTestId("settings-page-automation-fire-limit-window-input")).toHaveValue(
       "1m"
     );
@@ -159,10 +162,9 @@ describe("AutomationSettingsPage", () => {
 
   it("wires save bar buttons to the restart-required page handlers", () => {
     pageState.isDirty = true;
-    pageState.lastAppliedLabel = "Saved · restart required to apply";
     render(<AutomationSettingsPage />);
-    expect(screen.getByTestId("settings-page-automation-save-applied")).toHaveTextContent(
-      "restart required"
+    expect(screen.getByTestId("settings-page-automation-save-dirty")).toHaveTextContent(
+      "Unsaved changes"
     );
 
     fireEvent.click(screen.getByTestId("settings-page-automation-save"));
@@ -172,10 +174,24 @@ describe("AutomationSettingsPage", () => {
     expect(pageState.handleReset).toHaveBeenCalledTimes(1);
   });
 
-  it("deep-links to the operational Automation route", () => {
+  it("surfaces the last-applied label when the save bar has a success message", () => {
+    pageState.lastAppliedLabel = "Saved · restart required to apply";
     render(<AutomationSettingsPage />);
-    const link = screen.getByTestId("settings-page-automation-link-automation");
-    expect(link).toHaveAttribute("href", "/automation");
+    expect(screen.getByTestId("settings-page-automation-save-applied")).toHaveTextContent(
+      "restart required"
+    );
+  });
+
+  it("deep-links to the operational jobs and triggers routes", () => {
+    render(<AutomationSettingsPage />);
+    expect(screen.getByTestId("settings-page-automation-link-jobs")).toHaveAttribute(
+      "href",
+      "/jobs"
+    );
+    expect(screen.getByTestId("settings-page-automation-link-triggers")).toHaveAttribute(
+      "href",
+      "/triggers"
+    );
   });
 
   it("renders the restart banner when the restart state reports visible", () => {

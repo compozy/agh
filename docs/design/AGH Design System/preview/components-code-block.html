@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Code Block</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+      }
+      .block {
+        background: #0e0e0f;
+        border: 1px solid #3c3a39;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        border-bottom: 1px solid #3c3a39;
+      }
+      .cap {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #636366;
+      }
+      .copy {
+        color: #636366;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+      }
+      pre {
+        margin: 0;
+        padding: 14px 16px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        line-height: 1.7;
+        color: #e5e5e7;
+        overflow-x: auto;
+      }
+      .p {
+        color: #e8572a;
+        user-select: none;
+      }
+      .c {
+        color: #636366;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="block">
+      <div class="head">
+        <span class="cap">agh network</span>
+        <button class="copy">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect width="14" height="14" x="8" y="8" rx="2" />
+            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+          </svg>
+        </button>
+      </div>
+      <pre><span class="c"># discover peers, send one task</span>
+<span class="p">$ </span>agh network status
+<span class="p">$ </span>agh network peers
+<span class="p">$ </span>agh network send reviewer --kind direct \
+    --body '{"task":"review PR #482"}'</pre>
+    </div>
+  </body>
+</html>

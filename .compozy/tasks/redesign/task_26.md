@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Knowledge domain (list + detail)
 type: frontend
 complexity: medium
@@ -43,13 +43,13 @@ Rewrite `web/src/systems/knowledge/**` as a split-pane view of markdown knowledg
 
 ## Subtasks
 
-- [ ] 26.1 Audit `web/src/systems/knowledge/components/**`, `routes/_app/knowledge.tsx`, and the `useKnowledgePage` hook to catalogue every prop and behavior that must survive the rewrite.
-- [ ] 26.2 Rewrite `knowledge-list-panel.tsx` on `SplitPane.list` using `SearchInput`, `Pills`, grouped list rows with `MonoBadge` for type + scope.
-- [ ] 26.3 Rewrite `knowledge-detail-panel.tsx` on `SplitPane.detail` with `PageHeader`, `Section`, `CodeBlock` preview, metadata rows, and `Button` actions; gate delete behind a `Dialog` confirmation.
-- [ ] 26.4 Rewrite `routes/_app/knowledge.tsx` to compose `SplitPane` + the new panels; remove the `WorkspacePageShell` wrapper once header slots move into `PageHeader`.
-- [ ] 26.5 Update or add Storybook stories for list, detail, loading, error, empty-selection, and scope-filtered states.
-- [ ] 26.6 Regenerate Playwright visual snapshot baselines for `/knowledge` (empty, populated, detail-open, delete-dialog).
-- [ ] 26.7 Run `make web-lint`, `make web-typecheck`, `make web-test`, and `make verify`.
+- [x] 26.1 Audit `web/src/systems/knowledge/components/**`, `routes/_app/knowledge.tsx`, and the `useKnowledgePage` hook to catalogue every prop and behavior that must survive the rewrite.
+- [x] 26.2 Rewrite `knowledge-list-panel.tsx` on `SplitPane.list` using `SearchInput`, `Pills`, grouped list rows with `MonoBadge` for type + scope.
+- [x] 26.3 Rewrite `knowledge-detail-panel.tsx` on `SplitPane.detail` with `PageHeader`, `Section`, `CodeBlock` preview, metadata rows, and `Button` actions; gate delete behind a `Dialog` confirmation.
+- [x] 26.4 Rewrite `routes/_app/knowledge.tsx` to compose `SplitPane` + the new panels; remove the `WorkspacePageShell` wrapper once header slots move into `PageHeader`.
+- [x] 26.5 Update or add Storybook stories for list, detail, loading, error, empty-selection, and scope-filtered states.
+- [x] 26.6 Regenerate Playwright visual snapshot baselines for `/knowledge` (empty, populated, detail-open, delete-dialog).
+- [x] 26.7 Run `make web-lint`, `make web-typecheck`, `make web-test`, and `make verify`.
 
 ## Implementation Details
 
@@ -63,6 +63,9 @@ Follow TechSpec "Impact Analysis" row `web/src/systems/knowledge/**` — visual-
 - `web/src/routes/_app/knowledge.tsx` — thin route composition rewrite.
 - `web/src/hooks/routes/use-knowledge-page.ts` — unchanged consumer of the new panels.
 - `packages/ui/src/components/{split-pane,page-header,pills,search-input,mono-badge,section,code-block,empty,dialog}.tsx` — primitives consumed.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4` — markdown preview + metadata section spec.
+  - `docs/design/web-inspiration/src/pages-core.jsx` — `KnowledgePage` split-pane composition.
 
 ### Dependent Files
 
@@ -88,17 +91,17 @@ Follow TechSpec "Impact Analysis" row `web/src/systems/knowledge/**` — visual-
 ## Tests
 
 - Unit tests:
-  - [ ] `KnowledgeListPanel` renders grouped sections ordered GLOBAL before WORKSPACE.
-  - [ ] `SearchInput` filters rows by name, description, and type (case-insensitive).
-  - [ ] `Pills` scope filter (`all` / `global` / `workspace`) updates selection and calls `setActiveTab`.
-  - [ ] Selecting a row emits `onSelectMemory` with the clicked filename and renders the `3px` accent indicator.
-  - [ ] `KnowledgeDetailPanel` renders `Empty` state when no memory is selected.
-  - [ ] `KnowledgeDetailPanel` renders the markdown preview inside `CodeBlock` and `MonoBadge` chips for type + scope.
-  - [ ] Delete button opens the `Dialog` confirm and calls `onDelete(filename)` on confirm; disabled while `isDeletePending`.
+  - [x] `KnowledgeListPanel` renders grouped sections ordered GLOBAL before WORKSPACE.
+  - [x] `SearchInput` filters rows by name, description, and type (case-insensitive).
+  - [x] `Pills` scope filter (`all` / `global` / `workspace`) updates selection and calls `setActiveTab`.
+  - [x] Selecting a row emits `onSelectMemory` with the clicked filename and renders the `3px` accent indicator.
+  - [x] `KnowledgeDetailPanel` renders `Empty` state when no memory is selected.
+  - [x] `KnowledgeDetailPanel` renders the markdown preview inside `CodeBlock` and `MonoBadge` chips for type + scope.
+  - [x] Delete button opens the `Dialog` confirm and calls `onDelete(filename)` on confirm; disabled while `isDeletePending`.
 - Integration tests:
-  - [ ] Storybook `play()` types a query into `SearchInput` and asserts filtered rows render.
-  - [ ] Storybook `play()` selects a row and asserts the detail panel renders the preview, metadata, and enabled delete button.
-  - [ ] Playwright visual snapshot match for `/knowledge` empty, populated, detail-open, and delete-dialog states.
+  - [x] Storybook `play()` types a query into `SearchInput` and asserts filtered rows render.
+  - [x] Storybook `play()` selects a row and asserts the detail panel renders the preview, metadata, and enabled delete button.
+  - [x] Playwright visual snapshot match for `/knowledge` empty, populated, detail-open, and delete-dialog states.
 - Test coverage target: >=80%
 - All tests must pass
 

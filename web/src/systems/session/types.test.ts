@@ -97,8 +97,15 @@ describe("session contract types", () => {
     }>();
 
     expectTypeOf<UIMessageRole>().toEqualTypeOf<
-      "user" | "assistant" | "tool_call" | "tool_result" | "system"
+      "user" | "assistant" | "tool_call" | "tool_result" | "system" | "diff"
     >();
-    expect(uiMessageRoles).toEqual(["user", "assistant", "tool_call", "tool_result", "system"]);
+    expect(uiMessageRoles).toEqual([
+      "user",
+      "assistant",
+      "tool_call",
+      "tool_result",
+      "system",
+      "diff",
+    ]);
   });
 });

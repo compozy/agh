@@ -1,9 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Skeleton } from "@agh/ui";
 import { http, HttpResponse } from "msw";
+import { expect, fn, userEvent, within } from "storybook/test";
 
-import { useAutomationPage } from "@/hooks/routes/use-automation-page";
+import { useAutomationJobsPage } from "@/hooks/routes/use-automation-page";
+import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
+import { automationJobFixtures, automationTriggerFixtures } from "@/systems/automation/mocks";
 
 import { AutomationListPanel } from "../automation-list-panel";
 
@@ -18,38 +20,11 @@ const meta: Meta<typeof AutomationListPanel> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function AutomationListLoadingState() {
-  return (
-    <PanelSurface className="max-w-[320px]">
-      <aside className="flex w-[320px] flex-col border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4">
-        <div className="space-y-3">
-          <Skeleton className="h-9 w-full rounded-lg" />
-          <Skeleton className="h-16 w-full rounded-xl" />
-          <Skeleton className="h-16 w-full rounded-xl" />
-          <Skeleton className="h-16 w-full rounded-xl" />
-        </div>
-      </aside>
-    </PanelSurface>
-  );
-}
-
 function AutomationListPanelFromPage() {
-  const page = useAutomationPage();
-
-  if (page.isInitialLoading) {
-    return <AutomationListLoadingState />;
-  }
-
-  if (page.initialError) {
-    return (
-      <PanelSurface className="max-w-[320px] items-center justify-center px-6 text-center text-sm text-[color:var(--color-danger)]">
-        {page.initialError.message}
-      </PanelSurface>
-    );
-  }
+  const page = useAutomationJobsPage();
 
   return (
-    <PanelSurface className="max-w-[320px]">
+    <PanelSurface className="max-w-[340px]">
       <AutomationListPanel {...page.listPanelProps} />
     </PanelSurface>
   );
@@ -61,22 +36,72 @@ export const Default: Story = {
 
 export const Empty: Story = {
   parameters: {
-    msw: {
-      handlers: [http.get("/api/automation/jobs", () => HttpResponse.json({ jobs: [] }))],
-    },
+    ...storybookMswParameters({
+      automation: [http.get("/api/automation/jobs", () => HttpResponse.json({ jobs: [] }))],
+    }),
   },
   render: () => <AutomationListPanelFromPage />,
 };
 
 export const Error: Story = {
   parameters: {
-    msw: {
-      handlers: [
+    ...storybookMswParameters({
+      automation: [
         http.get("/api/automation/jobs", () =>
           HttpResponse.json({ error: "automation unavailable" }, { status: 500 })
         ),
       ],
-    },
+    }),
   },
   render: () => <AutomationListPanelFromPage />,
+};
+
+export const TriggersDefault: Story = {
+  render: () => (
+    <PanelSurface className="max-w-[340px]">
+      <AutomationListPanel
+        activeWorkspaceName="storybook"
+        jobs={automationJobFixtures}
+        kind="triggers"
+        onSearchChange={fn()}
+        onSelect={fn()}
+        scopeFilter="all"
+        searchQuery=""
+        selectedId={automationTriggerFixtures[0]?.id ?? null}
+        totalCount={automationTriggerFixtures.length}
+        triggers={automationTriggerFixtures}
+      />
+    </PanelSurface>
+  ),
+};
+
+export const TriggersEmpty: Story = {
+  render: () => (
+    <PanelSurface className="max-w-[340px]">
+      <AutomationListPanel
+        activeWorkspaceName="storybook"
+        jobs={[]}
+        kind="triggers"
+        onSearchChange={fn()}
+        onSelect={fn()}
+        scopeFilter="all"
+        searchQuery=""
+        selectedId={null}
+        totalCount={0}
+        triggers={[]}
+      />
+    </PanelSurface>
+  ),
+};
+
+export const SearchFilter: Story = {
+  tags: ["play-fn"],
+  render: () => <AutomationListPanelFromPage />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const search = await canvas.findByTestId("automation-search-input");
+    await userEvent.clear(search);
+    await userEvent.type(search, "daily");
+    await expect(canvas.findByTestId("automation-item-job_daily_review")).resolves.toBeDefined();
+  },
 };

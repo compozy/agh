@@ -8,24 +8,23 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { createElement, useState, type ReactNode } from "react";
+import { Fragment, createElement, useState, type ReactNode } from "react";
 import { initialize, mswLoader } from "msw-storybook-addon";
 
 import "../src/styles.css";
-import { handlers as agentHandlers } from "@/systems/agent/mocks";
-import { handlers as daemonHandlers } from "@/systems/daemon/mocks";
-import { handlers as knowledgeHandlers } from "@/systems/knowledge/mocks";
-import { handlers as networkHandlers } from "@/systems/network/mocks";
-import { handlers as sessionHandlers } from "@/systems/session/mocks";
-import { handlers as skillHandlers } from "@/systems/skill/mocks";
-import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
-import { handlers as automationHandlers } from "@/systems/automation/mocks";
-import { handlers as bridgeHandlers } from "@/systems/bridges/mocks";
+import { routeTree } from "@/routeTree.gen";
+import { storybookSystemHandlerGroups, storybookSystemHandlers } from "@/storybook/msw";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
+import { useSessionStore } from "@/systems/session/hooks/use-session-store";
+import { useSidebarStore } from "@/hooks/use-sidebar-store";
 
 initialize({ onUnhandledRequest: "bypass" });
 
 type StoryRenderer = () => ReactNode;
+export type StorybookRouterMode = "app" | "stub";
 type StorybookRouterOptions = {
+  kind?: StorybookRouterMode;
   initialEntries?: string[];
 };
 
@@ -40,7 +39,7 @@ export function createStorybookQueryClient() {
   });
 }
 
-export function createStorybookRouter(
+function createStubStorybookRouter(
   Story: StoryRenderer = () => null,
   options?: StorybookRouterOptions
 ) {
@@ -55,9 +54,14 @@ export function createStorybookRouter(
     path: "session/$id",
     component: Story,
   });
-  const automationRoute = createRoute({
+  const jobsRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "automation",
+    path: "jobs",
+    component: Story,
+  });
+  const triggersRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "triggers",
     component: Story,
   });
   const bridgesRoute = createRoute({
@@ -80,21 +84,86 @@ export function createStorybookRouter(
     path: "skills",
     component: Story,
   });
+  const tasksRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "tasks",
+    component: Story,
+  });
+  const taskNewRoute = createRoute({
+    getParentRoute: () => tasksRoute,
+    path: "new",
+    component: Story,
+  });
+  const taskDetailRoute = createRoute({
+    getParentRoute: () => tasksRoute,
+    path: "$id",
+    component: Story,
+  });
+  const taskEditRoute = createRoute({
+    getParentRoute: () => taskDetailRoute,
+    path: "edit",
+    component: Story,
+  });
+  const taskRunDetailRoute = createRoute({
+    getParentRoute: () => taskDetailRoute,
+    path: "runs/$runId",
+    component: Story,
+  });
 
   return createRouter({
     routeTree: rootRoute.addChildren([
       storyRoute,
       sessionRoute,
-      automationRoute,
+      jobsRoute,
+      triggersRoute,
       bridgesRoute,
       networkRoute,
       knowledgeRoute,
       skillsRoute,
+      tasksRoute.addChildren([
+        taskNewRoute,
+        taskDetailRoute.addChildren([taskEditRoute, taskRunDetailRoute]),
+      ]),
     ]),
     history: createMemoryHistory({
       initialEntries: options?.initialEntries ?? ["/"],
     }),
   });
+}
+
+function createAppStorybookRouter(queryClient: QueryClient, options?: StorybookRouterOptions) {
+  return createRouter({
+    routeTree,
+    context: {
+      queryClient,
+    },
+    history: createMemoryHistory({
+      initialEntries: options?.initialEntries ?? ["/"],
+    }),
+    defaultPreload: "intent",
+    scrollRestoration: true,
+    defaultStructuralSharing: true,
+    defaultPreloadStaleTime: 0,
+  });
+}
+
+export function createStorybookRouter(
+  Story: StoryRenderer = () => null,
+  options?: StorybookRouterOptions,
+  queryClient?: QueryClient
+) {
+  if (options?.kind === "app") {
+    return createAppStorybookRouter(queryClient ?? createStorybookQueryClient(), options);
+  }
+
+  return createStubStorybookRouter(Story, options);
+}
+
+function resetStorybookAppState() {
+  useSidebarStore.setState({ collapsed: false });
+  useActiveWorkspaceStore.getState().clearSelectedWorkspaceId();
+  useSessionStore.getState().clearSession();
+  resetSettingsRestartStore();
 }
 
 function StorybookQueryClientBoundary({ children }: { children: ReactNode }) {
@@ -103,16 +172,33 @@ function StorybookQueryClientBoundary({ children }: { children: ReactNode }) {
   return createElement(QueryClientProvider, { client: queryClient }, children);
 }
 
-function StorybookRouterBoundary({
+function StorybookProvidersBoundary({
   Story,
-  initialEntries,
+  routerOptions,
 }: {
   Story: StoryRenderer;
-  initialEntries?: string[];
+  routerOptions?: StorybookRouterOptions;
 }) {
-  const [router] = useState(() => createStorybookRouter(Story, { initialEntries }));
+  const [queryClient] = useState(createStorybookQueryClient);
+  const [router] = useState(() => {
+    if (routerOptions?.kind === "app") {
+      resetStorybookAppState();
+    }
+    return createStorybookRouter(Story, routerOptions, queryClient);
+  });
 
-  return createElement(RouterProvider, { router });
+  return createElement(
+    QueryClientProvider,
+    { client: queryClient },
+    routerOptions?.kind === "app"
+      ? createElement(
+          Fragment,
+          null,
+          createElement(Story),
+          createElement(RouterProvider, { router })
+        )
+      : createElement(RouterProvider, { router })
+  );
 }
 
 export const themeDecorator = withThemeByClassName({
@@ -130,24 +216,14 @@ export const routerDecorator = (
   Story: StoryRenderer,
   context?: { parameters?: { router?: StorybookRouterOptions } }
 ) =>
-  createElement(StorybookRouterBoundary, {
+  createElement(StorybookProvidersBoundary, {
     Story,
-    initialEntries: context?.parameters?.router?.initialEntries,
+    routerOptions: context?.parameters?.router,
   });
 
-export const storybookDecorators = [themeDecorator, queryClientDecorator, routerDecorator];
+export const storybookDecorators = [themeDecorator, routerDecorator];
 export const storybookLoaders = [mswLoader];
-export const storybookSystemHandlers = [
-  ...agentHandlers,
-  ...automationHandlers,
-  ...bridgeHandlers,
-  ...daemonHandlers,
-  ...knowledgeHandlers,
-  ...networkHandlers,
-  ...sessionHandlers,
-  ...skillHandlers,
-  ...workspaceHandlers,
-];
+export { storybookSystemHandlerGroups, storybookSystemHandlers };
 
 const preview: Preview = {
   decorators: storybookDecorators,
@@ -160,7 +236,7 @@ const preview: Preview = {
       expanded: true,
     },
     msw: {
-      handlers: storybookSystemHandlers,
+      handlers: storybookSystemHandlerGroups,
     },
   },
 };

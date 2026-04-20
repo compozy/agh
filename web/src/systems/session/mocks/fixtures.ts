@@ -288,6 +288,28 @@ export const systemMessageFixture: UIMessage = {
   timestamp: Date.parse("2026-04-17T16:02:00Z"),
 };
 
+export const diffMessageFixture: UIMessage = {
+  id: "msg_diff_001",
+  role: "diff",
+  content: "",
+  diff: {
+    language: "diff",
+    path: "packages/runtime/src/session/stream.ts",
+    additions: 4,
+    removals: 38,
+    content: [
+      "@@ session/stream.ts @@",
+      "-  for (const ev of tool.events) {",
+      "-    const key = ev.turnId;",
+      "-    groups[key] ??= { turn: key, events: [] };",
+      "-    groups[key].events.push(ev);",
+      "-  }",
+      "+  const groups = groupToolCallsByTurn(tool.events);",
+    ].join("\n"),
+  },
+  timestamp: Date.parse("2026-04-17T16:12:00Z"),
+};
+
 export const uiMessageFixtures: UIMessage[] = [
   userMessageFixture,
   assistantMessageFixture,

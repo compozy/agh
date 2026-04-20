@@ -1,47 +1,21 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useDeleteMemory, useMemories, useMemory } from "@/systems/knowledge";
+import {
+  filterKnowledgeMemories,
+  sortKnowledgeMemories,
+} from "@/systems/knowledge/lib/knowledge-list";
 import type { MemoryScope } from "@/systems/knowledge/types";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { deriveScopeFromFilename } from "@/systems/knowledge/lib/knowledge-formatters";
 
 type Tab = "all" | "global" | "workspace";
-
-function deriveScope(filename: string): Exclude<MemoryScope, undefined> {
-  if (filename.startsWith("workspace/") || filename.startsWith("ws/")) {
-    return "workspace";
-  }
-
-  return "global";
-}
-
-function formatDreamStatus(lastConsolidation?: string): string {
-  if (!lastConsolidation) {
-    return "Dream: status unavailable";
-  }
-
-  try {
-    const date = new Date(lastConsolidation);
-    const diffMs = Date.now() - date.getTime();
-    const diffH = Math.floor(diffMs / (1000 * 60 * 60));
-    if (diffH < 1) {
-      return "Dream: <1h ago";
-    }
-
-    if (diffH < 24) {
-      return `Dream: ${diffH}h ago`;
-    }
-
-    const diffD = Math.floor(diffH / 24);
-    return `Dream: ${diffD}d ago`;
-  } catch {
-    return "Dream: unknown";
-  }
-}
 
 function useKnowledgePage() {
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteTargetFilename, setDeleteTargetFilename] = useState<string | null>(null);
 
   const { activeWorkspaceId } = useActiveWorkspace();
   const scopeFilter = activeTab === "all" ? undefined : activeTab;
@@ -51,23 +25,31 @@ function useKnowledgePage() {
     isLoading,
     error,
   } = useMemories(scopeFilter, activeWorkspaceId || undefined);
-  const deleteMutation = useDeleteMemory();
+  const {
+    error: deleteMutationError,
+    isPending: isDeletePending,
+    mutateAsync: deleteMemory,
+    reset: resetDeleteMutation,
+  } = useDeleteMemory();
+  const visibleMemories = useMemo(() => {
+    return sortKnowledgeMemories(filterKnowledgeMemories(memories ?? [], searchQuery));
+  }, [memories, searchQuery]);
 
   const effectiveSelectedFilename = useMemo(() => {
-    if (selectedFilename && memories?.some(memory => memory.filename === selectedFilename)) {
+    if (selectedFilename && visibleMemories.some(memory => memory.filename === selectedFilename)) {
       return selectedFilename;
     }
 
-    return memories?.[0]?.filename ?? null;
-  }, [selectedFilename, memories]);
+    return visibleMemories[0]?.filename ?? null;
+  }, [selectedFilename, visibleMemories]);
 
   const selectedMemory = useMemo(
-    () => memories?.find(memory => memory.filename === effectiveSelectedFilename),
-    [memories, effectiveSelectedFilename]
+    () => visibleMemories.find(memory => memory.filename === effectiveSelectedFilename),
+    [visibleMemories, effectiveSelectedFilename]
   );
 
-  const selectedScope = effectiveSelectedFilename
-    ? deriveScope(effectiveSelectedFilename)
+  const selectedScope = selectedMemory
+    ? (deriveScopeFromFilename(selectedMemory.filename) as Exclude<MemoryScope, undefined>)
     : undefined;
   const {
     data: selectedContent,
@@ -75,30 +57,53 @@ function useKnowledgePage() {
     error: contentError,
   } = useMemory(selectedScope, effectiveSelectedFilename ?? "", activeWorkspaceId || undefined);
 
-  const handleDelete = (filename: string) => {
-    if (!selectedScope) {
+  useEffect(() => {
+    if (!deleteTargetFilename || isDeletePending) {
       return;
     }
 
-    deleteMutation.mutate({
-      scope: selectedScope,
+    if (selectedMemory?.filename === deleteTargetFilename) {
+      return;
+    }
+
+    resetDeleteMutation();
+    setDeleteTargetFilename(null);
+  }, [deleteTargetFilename, isDeletePending, resetDeleteMutation, selectedMemory?.filename]);
+
+  const handleDelete = async (filename: string) => {
+    const scope =
+      selectedMemory?.filename === filename ? selectedScope : deriveScopeFromFilename(filename);
+    if (!scope) {
+      return;
+    }
+
+    setDeleteTargetFilename(filename);
+    resetDeleteMutation();
+    await deleteMemory({
+      scope,
       filename,
       workspace: activeWorkspaceId || undefined,
     });
+    setDeleteTargetFilename(null);
   };
 
   return {
     activeTab,
     contentError,
-    dreamStatusLabel: formatDreamStatus(),
     effectiveSelectedFilename,
     error,
     handleDelete,
     isContentLoading: isContentLoading && effectiveSelectedFilename !== null,
-    isDeletePending: deleteMutation.isPending,
+    isDeletePending,
+    deleteError:
+      deleteTargetFilename === selectedMemory?.filename && deleteMutationError
+        ? deleteMutationError instanceof Error
+          ? deleteMutationError.message
+          : "Failed to delete knowledge entry"
+        : null,
     isLoading,
-    memoryCount: memories?.length ?? 0,
-    memories: memories ?? [],
+    memoryCount: visibleMemories.length,
+    memories: visibleMemories,
     searchQuery,
     selectedContent,
     selectedMemory,

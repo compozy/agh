@@ -3056,6 +3056,7 @@ func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
 	}
 	if info == nil {
 		t.Fatal("daemonNetworkInfo(runtime status) = nil, want populated diagnostics")
+		return
 	}
 	if !info.Enabled || info.Status != network.StatusRunning || info.ListenerHost != "127.0.0.1" ||
 		info.ListenerPort != 4222 {

@@ -2,8 +2,18 @@ import { AlertCircle, ExternalLink, Loader2, Wrench } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 
-import { Button } from "@agh/ui";
-import { Switch } from "@/components/ui/switch";
+import {
+  Button,
+  Empty,
+  Input,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@agh/ui";
 import { useSettingsSkillsPage } from "@/hooks/routes/use-settings-skills-page";
 import type { SettingsSkillsSection } from "@/systems/settings";
 import {
@@ -46,6 +56,9 @@ function SkillsSettingsPage() {
           <p className="text-sm text-[color:var(--color-text-tertiary)]">
             {page.error?.message ?? "Failed to load skills settings"}
           </p>
+          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -163,38 +176,58 @@ function DisabledSkillsSection({
       }
     >
       {candidates.length === 0 ? (
-        <p
-          className="text-xs text-[color:var(--color-text-tertiary)]"
+        <Empty
+          icon={Wrench}
+          title="No skills installed"
+          description="Manage availability from the Skills operational page; nothing has been disabled yet."
           data-testid="settings-page-skills-disabled-empty"
-        >
-          No skills have been disabled. Manage availability from the Skills operational page.
-        </p>
+        />
       ) : (
-        <ul className="flex flex-col gap-2" data-testid="settings-page-skills-disabled-list">
-          {candidates.map(name => {
-            const isDisabled = disabled.includes(name);
-            return (
-              <li
-                key={name}
-                className="flex items-center justify-between gap-3 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-2"
-                data-testid={`settings-page-skills-disabled-item-${name}`}
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  <Wrench className="size-3.5 text-[color:var(--color-text-tertiary)]" />
-                  <span className="truncate text-sm text-[color:var(--color-text-primary)]">
+        <div
+          className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
+          data-testid="settings-page-skills-disabled-list"
+        >
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-[color:var(--color-surface-elevated)]">
+                <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+                  Skill
+                </TableHead>
+                <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+                  Identifier
+                </TableHead>
+                <TableHead className="w-[1%] text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+                  Disabled
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {candidates.map(name => (
+                <TableRow key={name} data-testid={`settings-page-skills-disabled-item-${name}`}>
+                  <TableCell>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Wrench className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+                      <span className="truncate text-sm text-[color:var(--color-text-primary)]">
+                        {name}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-[color:var(--color-text-secondary)]">
                     {name}
-                  </span>
-                </div>
-                <Switch
-                  data-testid={`settings-page-skills-disabled-toggle-${name}`}
-                  checked={isDisabled}
-                  onCheckedChange={() => onToggle(name)}
-                  aria-label={`Toggle ${name}`}
-                />
-              </li>
-            );
-          })}
-        </ul>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Switch
+                      data-testid={`settings-page-skills-disabled-toggle-${name}`}
+                      checked={disabled.includes(name)}
+                      onCheckedChange={() => onToggle(name)}
+                      aria-label={`Toggle ${name}`}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </SettingsSectionCard>
   );
@@ -260,8 +293,8 @@ function PolicySection({
         description="How often the registry re-scans sources"
         hint="DEFAULT"
         control={
-          <input
-            className="h-8 w-32 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-32 font-mono"
             data-testid="settings-page-skills-poll-interval-input"
             value={draft.poll_interval ?? ""}
             placeholder="5m"
@@ -275,8 +308,8 @@ function PolicySection({
         description="Identifier of the marketplace publisher"
         hint="CONFIG.TOML"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56"
             data-testid="settings-page-skills-marketplace-registry-input"
             value={draft.marketplace.registry ?? ""}
             onChange={event =>
@@ -294,8 +327,8 @@ function PolicySection({
         description="Override the registry's default endpoint"
         hint="OPTIONAL"
         control={
-          <input
-            className="h-8 w-72 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-72 font-mono"
             data-testid="settings-page-skills-marketplace-base-url-input"
             value={draft.marketplace.base_url ?? ""}
             placeholder="https://"
@@ -342,8 +375,8 @@ function AllowListField({ label, description, testId, value, onChange }: AllowLi
       description={description}
       hint="LIST"
       control={
-        <input
-          className="h-8 w-72 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+        <Input
+          className="w-72 font-mono"
           data-testid={`${testId}-input`}
           value={value.join(", ")}
           placeholder="none"
@@ -385,34 +418,45 @@ function SaveControls({
   onReset,
 }: SaveControlsProps) {
   const disabled = !isDirty || isSaving;
+  const liveRegion = error ? "assertive" : "polite";
+
   return (
     <div
       className="flex items-center gap-2"
       data-testid={`settings-page-skills-${slug}-controls`}
       data-dirty={isDirty ? "true" : "false"}
     >
-      {error ? (
-        <span
-          className="text-xs text-[color:var(--color-danger)]"
-          data-testid={`settings-page-skills-${slug}-error`}
-        >
-          {error}
-        </span>
-      ) : warnings && warnings.length > 0 ? (
-        <span
-          className="text-xs text-[color:var(--color-warning)]"
-          data-testid={`settings-page-skills-${slug}-warning`}
-        >
-          {warnings.join(" · ")}
-        </span>
-      ) : lastAppliedLabel ? (
-        <span
-          className="text-xs text-[color:var(--color-text-tertiary)]"
-          data-testid={`settings-page-skills-${slug}-applied`}
-        >
-          {lastAppliedLabel}
-        </span>
-      ) : null}
+      <div className="min-w-0" role="status" aria-live={liveRegion}>
+        {error ? (
+          <span
+            className="text-xs text-[color:var(--color-danger)]"
+            data-testid={`settings-page-skills-${slug}-error`}
+          >
+            {error}
+          </span>
+        ) : warnings && warnings.length > 0 ? (
+          <span
+            className="text-xs text-[color:var(--color-warning)]"
+            data-testid={`settings-page-skills-${slug}-warning`}
+          >
+            {warnings.join(" · ")}
+          </span>
+        ) : isDirty ? (
+          <span
+            className="text-xs text-[color:var(--color-text-tertiary)]"
+            data-testid={`settings-page-skills-${slug}-dirty`}
+          >
+            Unsaved changes
+          </span>
+        ) : lastAppliedLabel ? (
+          <span
+            className="text-xs text-[color:var(--color-text-tertiary)]"
+            data-testid={`settings-page-skills-${slug}-applied`}
+          >
+            {lastAppliedLabel}
+          </span>
+        ) : null}
+      </div>
       <Button
         type="button"
         variant="ghost"

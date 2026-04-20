@@ -8,12 +8,6 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 
-vi.mock("lucide-react", () => ({
-  Settings: ({ "data-testid": testId }: { "data-testid"?: string }) => (
-    <span data-testid={testId ?? "icon-settings"}>settings-icon</span>
-  ),
-}));
-
 import { Route } from "./index";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,7 +18,7 @@ describe("SettingsIndexPage", () => {
     render(<SettingsIndexPage />);
 
     expect(screen.getByTestId("settings-index-placeholder")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-index-icon")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-index-empty")).toBeInTheDocument();
     expect(screen.getByText("Select a settings section")).toBeInTheDocument();
     expect(screen.getByText("Choose a section from the left to configure AGH")).toBeInTheDocument();
   });

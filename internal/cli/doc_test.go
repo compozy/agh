@@ -35,6 +35,7 @@ func TestNewDocCommand_DefaultOutputDir(t *testing.T) {
 	flag := cmd.Flags().Lookup("output-dir")
 	if flag == nil {
 		t.Fatal("doc command should have --output-dir flag")
+		return
 	}
 	if flag.DefValue != defaultCLIDocsDir {
 		t.Errorf("default output-dir = %q, want %q", flag.DefValue, defaultCLIDocsDir)

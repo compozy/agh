@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 title: Rewrite Session domain composer
 type: frontend
 complexity: medium
@@ -42,12 +42,12 @@ Rewrite the session composer that sits at the bottom of the Session page — the
 
 ## Subtasks
 
-- [ ] 21.1 Inventory the current `message-composer.tsx` behaviors (send, keyboard, disabled, auto-grow) and the store reads it needs to become draft-aware.
-- [ ] 21.2 Rebuild the composer shell using `@agh/ui` primitives with the new visual spec.
-- [ ] 21.3 Wire the attach `Popover`, skill `Combobox`, and channel `Combobox`; surface the selected values back to `onSend`'s payload shape.
-- [ ] 21.4 Wire draft persistence through the session store so drafts survive route changes.
-- [ ] 21.5 Write or update Storybook stories: empty, typing, disabled, with attach open, with skill picker open, with channel picker open.
-- [ ] 21.6 Run `make web-lint`, `make web-typecheck`, `make web-test`, and smoke the live route.
+- [x] 21.1 Inventory the current `message-composer.tsx` behaviors (send, keyboard, disabled, auto-grow) and the store reads it needs to become draft-aware.
+- [x] 21.2 Rebuild the composer shell using `@agh/ui` primitives with the new visual spec.
+- [x] 21.3 Wire the attach `Popover`, skill `Combobox`, and channel `Combobox`; surface the selected values back to `onSend`'s payload shape.
+- [x] 21.4 Wire draft persistence through the session store so drafts survive route changes.
+- [x] 21.5 Write or update Storybook stories: empty, typing, disabled, with attach open, with skill picker open, with channel picker open.
+- [x] 21.6 Run `make web-lint`, `make web-typecheck`, `make web-test`, and smoke the live route.
 
 ## Implementation Details
 
@@ -58,6 +58,10 @@ See TechSpec "Impact Analysis" — Phase 4 Session domain. DESIGN.md §4 "Chat I
 - `web/src/systems/session/components/message-composer.tsx` — rewrite target.
 - `web/src/systems/session/stores/session-store.ts` — draft storage.
 - `web/src/systems/session/hooks/use-session-chat.ts` — send entrypoint consumed by the composer.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4 "Chat Input"` — composer container + send button spec.
+  - `docs/design/web-inspiration/src/pages-session.jsx` — composer bar section (textarea + inline pills + send).
+  - `docs/design/design-system/preview/components-inputs.html` — textarea styling baseline.
 
 ### Dependent Files
 
@@ -84,16 +88,16 @@ See TechSpec "Impact Analysis" — Phase 4 Session domain. DESIGN.md §4 "Chat I
 ## Tests
 
 - Unit tests:
-  - [ ] Typing text and pressing `Enter` calls `onSend` once with the trimmed text, and clears the textarea.
-  - [ ] Pressing `Shift+Enter` inserts a newline and does NOT call `onSend`.
-  - [ ] Submitting whitespace-only text does NOT call `onSend`.
-  - [ ] When `disabled` is true, clicking the send button and pressing `Enter` both no-op and the send button renders with `opacity-50 cursor-not-allowed`.
-  - [ ] The textarea auto-grows up to 200px and stops growing past the cap.
-  - [ ] Selecting a skill through the skill `Combobox` attaches `{ skillId }` to the next `onSend` payload.
-  - [ ] Typed draft text persists after unmount/remount via the session store read.
+  - [x] Typing text and pressing `Enter` calls `onSend` once with the trimmed text, and clears the textarea.
+  - [x] Pressing `Shift+Enter` inserts a newline and does NOT call `onSend`.
+  - [x] Submitting whitespace-only text does NOT call `onSend`.
+  - [x] When `disabled` is true, clicking the send button and pressing `Enter` both no-op and the send button renders with `opacity-50 cursor-not-allowed`.
+  - [x] The textarea auto-grows up to 200px and stops growing past the cap.
+  - [x] Selecting a skill through the skill `Combobox` attaches `{ skillId }` to the next `onSend` payload.
+  - [x] Typed draft text persists after unmount/remount via the session store read.
 - Integration tests:
-  - [ ] Storybook interaction opens the attach `Popover`, picks a file, closes the popover, and asserts the attach pill shows the file name.
-  - [ ] Storybook interaction focuses the textarea, asserts the container border switches to `--color-accent`, blurs, asserts it returns to divider color.
+  - [x] Storybook interaction opens the attach `Popover`, picks a file, closes the popover, and asserts the attach pill shows the file name.
+  - [x] Storybook interaction focuses the textarea, asserts the container border switches to `--color-accent`, blurs, asserts it returns to divider color.
 - Test coverage target: >=80%
 - All tests must pass
 

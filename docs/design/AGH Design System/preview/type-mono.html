@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mono + Eyebrows</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+      .tag {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: #636366;
+        min-width: 120px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .eyeAccent {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: #e8572a;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .eyeTertiary {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: #636366;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+      }
+      .code {
+        font-family: var(--font-mono);
+        color: #e5e5e7;
+        background: rgba(44, 44, 46, 0.78);
+        border: 1px solid #3c3a39;
+        border-radius: 8px;
+        padding: 3px 8px;
+        font-size: 13px;
+      }
+      .shell {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        line-height: 1.7;
+        color: #e5e5e7;
+      }
+      .shell .p {
+        color: #e8572a;
+        user-select: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <span class="tag">Eyebrow · accent</span
+      ><span class="eyeAccent">AGH NETWORK — THE DIFFERENTIATOR</span>
+    </div>
+    <div class="row">
+      <span class="tag">Eyebrow · doc</span><span class="eyeTertiary">AGH RUNTIME · OVERVIEW</span>
+    </div>
+    <div class="row">
+      <span class="tag">Inline code</span><code class="code">agh-network/v0</code>
+    </div>
+    <div class="row">
+      <span class="tag">Shell line</span
+      ><span class="shell"><span class="p">$ </span>agh daemon start</span>
+    </div>
+  </body>
+</html>

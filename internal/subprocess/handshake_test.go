@@ -128,6 +128,7 @@ func TestCloneInitializeBridgeRuntimeDoesNotAliasManagedInstanceState(t *testing
 	cloned := CloneInitializeBridgeRuntime(src)
 	if cloned == nil {
 		t.Fatal("CloneInitializeBridgeRuntime() = nil, want non-nil")
+		return
 	}
 
 	src.ManagedInstances[0].Instance.ID = "mutated"

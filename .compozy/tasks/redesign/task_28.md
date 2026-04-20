@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Workspace onboarding and Agent sidebar integrations
 type: frontend
 complexity: medium
@@ -44,13 +44,13 @@ Rewrite `web/src/systems/workspace/**` (workspace onboarding screen, setup dialo
 
 ## Subtasks
 
-- [ ] 28.1 Audit `systems/workspace/components/**` and `systems/agent/components/**` plus the consuming hooks and stores to catalogue surviving props and behaviors.
-- [ ] 28.2 Rewrite `workspace-setup.tsx` — onboarding full-page layout + dialog variant — on `Dialog` / `Section` / `Field` / `Pills` / `Button`; keep the global-vs-manual split.
-- [ ] 28.3 Rewrite `workspace-selector.tsx` as a rail composition on `Avatar` + `StatusDot` + `Pills`, wired to `active-workspace-store.ts`; rewrite `workspace-page-shell.tsx` on `PageHeader` + `Section`.
-- [ ] 28.4 Rewrite `agent-sidebar-group.tsx` and `agent-icon.tsx` on the new `@agh/ui` sidebar primitives + tokenized glyph.
-- [ ] 28.5 Update or add Storybook stories: onboarding default, onboarding with path error, setup dialog open, workspace selector (empty / single / many / active), agent group (collapsed / expanded / no-sessions / disabled-new-session).
-- [ ] 28.6 Regenerate Playwright visual snapshot baselines for workspace onboarding + setup-dialog + app-sidebar-with-agent-tree states.
-- [ ] 28.7 Run `make web-lint`, `make web-typecheck`, `make web-test`, and `make verify`.
+- [x] 28.1 Audit `systems/workspace/components/**` and `systems/agent/components/**` plus the consuming hooks and stores to catalogue surviving props and behaviors.
+- [x] 28.2 Rewrite `workspace-setup.tsx` — onboarding full-page layout + dialog variant — on `Dialog` / `Section` / `Field` / `Pills` / `Button`; keep the global-vs-manual split.
+- [x] 28.3 Rewrite `workspace-selector.tsx` as a rail composition on `Avatar` + `StatusDot` + `Pills`, wired to `active-workspace-store.ts`; rewrite `workspace-page-shell.tsx` on `PageHeader` + `Section`.
+- [x] 28.4 Rewrite `agent-sidebar-group.tsx` and `agent-icon.tsx` on the new `@agh/ui` sidebar primitives + tokenized glyph.
+- [x] 28.5 Update or add Storybook stories: onboarding default, onboarding with path error, setup dialog open, workspace selector (empty / single / many / active), agent group (collapsed / expanded / no-sessions / disabled-new-session).
+- [x] 28.6 Regenerate Playwright visual snapshot baselines for workspace onboarding + setup-dialog + app-sidebar-with-agent-tree states.
+- [x] 28.7 Run `make web-lint`, `make web-typecheck`, `make web-test`, and `make verify`.
 
 ## Implementation Details
 
@@ -90,18 +90,18 @@ Follow TechSpec "Impact Analysis" row `web/src/systems/workspace/**, daemon/**, 
 ## Tests
 
 - Unit tests:
-  - [ ] `WorkspaceOnboarding` renders onboarding hero, home card, and manual-path card; calls `onWorkspaceResolved(id)` after a successful submit.
-  - [ ] `WorkspaceSetupDialog` opens via `open` prop, closes on success, and routes the same submit paths as onboarding.
-  - [ ] Manual path `Field` shows `manualError` text and an error-tone state when validation fails.
-  - [ ] "Use global workspace" `Button` is disabled when `globalUnavailableReason` is set, enabled otherwise.
-  - [ ] `WorkspaceSelector` renders one `Avatar` per workspace, highlights the active one, and calls `setActiveWorkspace(id)` on click.
-  - [ ] `AgentSidebarGroup` renders the agent name + provider glyph, expands/collapses on trigger click, and shows the `No sessions` empty label when no children are passed.
-  - [ ] `AgentSidebarGroup` "+" action calls `onNewSession(agent.name)` and is disabled when `newSessionDisabled`.
-  - [ ] `AgentIcon` renders distinct glyphs for each supported provider.
+  - [x] `WorkspaceOnboarding` renders onboarding hero, home card, and manual-path card; calls `onWorkspaceResolved(id)` after a successful submit.
+  - [x] `WorkspaceSetupDialog` opens via `open` prop, closes on success, and routes the same submit paths as onboarding.
+  - [x] Manual path `Field` shows `manualError` text and an error-tone state when validation fails.
+  - [x] "Use global workspace" `Button` is disabled when `globalUnavailableReason` is set, enabled otherwise.
+  - [x] `WorkspaceSelector` renders one `Avatar` per workspace, highlights the active one, and calls `setActiveWorkspace(id)` on click.
+  - [x] `AgentSidebarGroup` renders the agent name + provider glyph, expands/collapses on trigger click, and shows the `No sessions` empty label when no children are passed.
+  - [x] `AgentSidebarGroup` "+" action calls `onNewSession(agent.name)` and is disabled when `newSessionDisabled`.
+  - [x] `AgentIcon` renders distinct glyphs for each supported provider.
 - Integration tests:
-  - [ ] Storybook `play()` submits a manual workspace path and asserts `onWorkspaceResolved` fires.
-  - [ ] Storybook `play()` expands the agent group and asserts rendered sessions from the children slot.
-  - [ ] Playwright visual snapshot match for workspace onboarding, setup dialog, and sidebar with agent tree expanded.
+  - [x] Storybook `play()` submits a manual workspace path and asserts `onWorkspaceResolved` fires.
+  - [x] Storybook `play()` expands the agent group and asserts rendered sessions from the children slot.
+  - [x] Playwright visual snapshot match for workspace onboarding, setup dialog, and sidebar with agent tree expanded.
 - Test coverage target: >=80%
 - All tests must pass
 

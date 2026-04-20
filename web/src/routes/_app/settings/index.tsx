@@ -1,6 +1,8 @@
 import { Settings } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { Empty } from "@agh/ui";
+
 export const Route = createFileRoute("/_app/settings/")({
   component: SettingsIndexPage,
 });
@@ -8,21 +10,16 @@ export const Route = createFileRoute("/_app/settings/")({
 function SettingsIndexPage() {
   return (
     <div
-      className="flex flex-1 items-center justify-center"
+      className="flex flex-1 items-center justify-center p-8"
       data-testid="settings-index-placeholder"
     >
-      <div className="flex flex-col items-center gap-3">
-        <Settings
-          className="size-10 text-[color:var(--color-text-tertiary)]"
-          data-testid="settings-index-icon"
-        />
-        <p className="text-[15px] font-medium text-[color:var(--color-text-secondary)]">
-          Select a settings section
-        </p>
-        <p className="text-[13px] text-[color:var(--color-text-tertiary)]">
-          Choose a section from the left to configure AGH
-        </p>
-      </div>
+      <Empty
+        icon={Settings}
+        title="Select a settings section"
+        description="Choose a section from the left to configure AGH"
+        data-testid="settings-index-empty"
+        className="max-w-md"
+      />
     </div>
   );
 }

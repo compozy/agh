@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyBrowserRuntimeSeed,
@@ -36,11 +36,16 @@ const browserLifecycleFixture = path.resolve(
   "browser_session_lifecycle_fixture.json"
 );
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("browser runtime seed helpers", () => {
   it("writes fixture-backed mock agent definitions into the isolated browser runtime home", async () => {
     const homeDir = await mkdtemp(path.join(os.tmpdir(), "agh-browser-runtime-home-"));
     await mkdir(path.join(homeDir, "agents"), { recursive: true });
     await mkdir(path.join(homeDir, "logs"), { recursive: true });
+    vi.stubEnv("AGH_TEST_ACPMOCK_DRIVER_BIN", "/tmp/acpmock-driver");
 
     await seedBrowserRuntimeHome(
       {

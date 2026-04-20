@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Buttons</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        font-family: "Inter", sans-serif;
+        font-weight: 500;
+        font-size: 13px;
+        border-radius: 8px;
+        padding: 0 14px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.15s;
+        text-decoration: none;
+        color: #e5e5e7;
+      }
+      .primary {
+        background: #e8572a;
+        color: #17110f;
+        padding: 0 20px;
+        height: 40px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .primary:hover {
+        background: #d14e25;
+      }
+      .outline {
+        background: transparent;
+        border-color: #3c3a39;
+        color: #e5e5e7;
+        padding: 0 20px;
+        height: 40px;
+        font-size: 14px;
+      }
+      .outline:hover {
+        border-color: #e8572a;
+        color: #e8572a;
+      }
+      .secondary {
+        background: #2e2c2b;
+        color: #e5e5e7;
+      }
+      .ghost {
+        background: transparent;
+        color: #8e8e93;
+      }
+      .ghost:hover {
+        background: #353332;
+        color: #e5e5e7;
+      }
+      .destructive {
+        background: rgba(255, 69, 58, 0.18);
+        color: #ff453a;
+      }
+      .icon {
+        height: 32px;
+        width: 32px;
+        padding: 0;
+        justify-content: center;
+        border-radius: 9999px;
+        background: transparent;
+        color: #8e8e93;
+        border: 1px solid #3c3a39;
+      }
+      .tag {
+        font-family: var(--font-mono);
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #636366;
+        min-width: 96px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <span class="tag">CTA row</span>
+      <a class="btn primary">Install the runtime</a>
+      <a class="btn outline">See the network</a>
+    </div>
+    <div class="row">
+      <span class="tag">Sizes</span>
+      <button class="btn primary" style="height: 28px; padding: 0 12px; font-size: 13px">
+        Default
+      </button>
+      <button class="btn" style="background: #2e2c2b; color: #e5e5e7; height: 32px">
+        Secondary
+      </button>
+      <button class="btn ghost" style="height: 32px">Ghost</button>
+      <button class="btn destructive" style="height: 32px">Destructive</button>
+      <button class="icon">GH</button>
+    </div>
+  </body>
+</html>

@@ -2,7 +2,7 @@ import { Link, useMatchRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
 import { Badge } from "@agh/ui";
-import { SidebarMenuSubButton, SidebarMenuSubItem } from "@/components/ui/sidebar";
+
 import { cn } from "@/lib/utils";
 import type { SessionPayload, SessionState } from "../types";
 
@@ -55,12 +55,16 @@ function SessionSidebarItem({
   const displayTitle = session.name || session.id.slice(0, 8);
 
   return (
-    <SidebarMenuSubItem>
-      <SidebarMenuSubButton
-        size="sm"
-        isActive={isActive}
-        render={<Link to="/session/$id" params={{ id: session.id }} />}
-        className={cn("items-start gap-2 py-2", isActive && "font-medium")}
+    <li data-slot="session-sidebar-item" className="relative">
+      <Link
+        to="/session/$id"
+        params={{ id: session.id }}
+        data-active={isActive}
+        data-testid="sidebar-sub-button"
+        className={cn(
+          "flex min-w-0 items-start gap-2 rounded-md px-2 py-2 text-xs text-muted-foreground transition-colors hover:bg-[color:var(--color-hover)] hover:text-foreground data-[active=true]:bg-[color:var(--color-surface-panel)] data-[active=true]:text-foreground focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:outline-none",
+          isActive && "font-medium"
+        )}
       >
         <div className="min-w-0 flex-1">
           <span className="truncate text-xs">{displayTitle}</span>
@@ -93,8 +97,8 @@ function SessionSidebarItem({
           )}
           <StateBadge state={session.state} />
         </span>
-      </SidebarMenuSubButton>
-    </SidebarMenuSubItem>
+      </Link>
+    </li>
   );
 }
 

@@ -1,17 +1,20 @@
 import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
-import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Switch } from "@/components/ui/switch";
+import { Button, MonoBadge, Switch } from "@agh/ui";
 import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
 import type { SettingsObservabilitySection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsNumberInput,
   SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
   SettingsSaveBar,
   SettingsSectionCard,
+  SettingsStatGrid,
+  SettingsStatItem,
   SettingsStatusLine,
 } from "@/systems/settings/components";
 
@@ -21,6 +24,7 @@ export const Route = createFileRoute("/_app/settings/observability")({
 
 type ObservabilityConfig = SettingsObservabilitySection["config"];
 type LogTailMeta = SettingsObservabilitySection["log_tail"];
+type Runtime = SettingsObservabilitySection["runtime"];
 
 const GB = 1024 * 1024 * 1024;
 const MB = 1024 * 1024;
@@ -35,6 +39,19 @@ function formatBytes(bytes: number): string {
 
 function ObservabilitySettingsPage() {
   const page = useSettingsObservabilityPage();
+  const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
+  const setValidationError = useCallback(
+    (key: string) => (message: string | null) => {
+      setValidationErrors(current =>
+        current[key] === message ? current : { ...current, [key]: message }
+      );
+    },
+    []
+  );
+  const isInvalid = useMemo(
+    () => Object.values(validationErrors).some(message => message !== null),
+    [validationErrors]
+  );
 
   if (page.isLoading) {
     return (
@@ -58,6 +75,9 @@ function ObservabilitySettingsPage() {
           <p className="text-sm text-[color:var(--color-text-tertiary)]">
             {page.error?.message ?? "Failed to load observability settings"}
           </p>
+          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -92,6 +112,7 @@ function ObservabilitySettingsPage() {
         <SettingsSaveBar
           slug="observability"
           isDirty={page.isDirty}
+          isInvalid={isInvalid}
           isSaving={page.isSaving}
           error={page.saveError}
           warnings={page.warnings}
@@ -101,6 +122,12 @@ function ObservabilitySettingsPage() {
         />
       }
     >
+      <OverviewMetrics
+        activeSessions={runtime.active_sessions}
+        activeAgents={runtime.active_agents}
+        totalStorage={totalStorage}
+        cap={cap}
+      />
       <CaptureSection
         draft={draft}
         setDraft={setDraft}
@@ -108,10 +135,61 @@ function ObservabilitySettingsPage() {
         globalBytes={runtime.global_db_size_bytes}
         sessionBytes={runtime.session_db_size_bytes}
         cap={cap}
+        validationErrors={validationErrors}
+        setValidationError={setValidationError}
       />
-      <TranscriptsSection draft={draft} setDraft={setDraft} />
-      <LogTailSection logTail={logTail} />
+      <TranscriptsSection
+        draft={draft}
+        setDraft={setDraft}
+        validationErrors={validationErrors}
+        setValidationError={setValidationError}
+      />
+      <LogTailSection logTail={logTail} runtime={runtime} />
     </SettingsPageShell>
+  );
+}
+
+interface OverviewMetricsProps {
+  activeSessions: number;
+  activeAgents: number;
+  totalStorage: number;
+  cap: number;
+}
+
+function OverviewMetrics({
+  activeSessions,
+  activeAgents,
+  totalStorage,
+  cap,
+}: OverviewMetricsProps) {
+  const capPercent = cap > 0 ? Math.min(100, Math.round((totalStorage / cap) * 100)) : 0;
+  return (
+    <SettingsSectionCard eyebrow="Runtime" note="live capture volume">
+      <SettingsStatGrid>
+        <SettingsStatItem
+          label="Active sessions"
+          value={String(activeSessions)}
+          testId="settings-page-observability-metric-sessions"
+        />
+        <SettingsStatItem
+          label="Active agents"
+          value={String(activeAgents)}
+          testId="settings-page-observability-metric-agents"
+        />
+        <SettingsStatItem
+          label="Storage used"
+          value={formatBytes(totalStorage)}
+          detail={`of ${formatBytes(cap)}`}
+          testId="settings-page-observability-metric-storage"
+        />
+        <SettingsStatItem
+          label="Capacity"
+          value={`${capPercent}%`}
+          detail="of soft cap"
+          testId="settings-page-observability-metric-capacity"
+        />
+      </SettingsStatGrid>
+    </SettingsSectionCard>
   );
 }
 
@@ -125,6 +203,8 @@ interface CaptureSectionProps extends DraftSectionProps {
   globalBytes: number;
   sessionBytes: number;
   cap: number;
+  validationErrors: Record<string, string | null>;
+  setValidationError: (key: string) => (message: string | null) => void;
 }
 
 function CaptureSection({
@@ -134,18 +214,20 @@ function CaptureSection({
   globalBytes,
   sessionBytes,
   cap,
+  validationErrors,
+  setValidationError,
 }: CaptureSectionProps) {
   return (
     <SettingsSectionCard
       eyebrow="Capture"
       note="events, transcripts, logs"
       headerAction={
-        <span
-          className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]"
+        <MonoBadge
+          tone={capPercent > 85 ? "warning" : "neutral"}
           data-testid="settings-page-observability-cap-percent"
         >
           {capPercent}% of cap
-        </span>
+        </MonoBadge>
       }
     >
       <SettingsFieldRow
@@ -165,14 +247,18 @@ function CaptureSection({
           label="Retention"
           testId="settings-page-observability-retention-days"
           value={draft.retention_days}
+          errorMessage={validationErrors.retentionDays ?? undefined}
           suffix="days"
+          onValidityChange={setValidationError("retentionDays")}
           onChange={value => setDraft({ ...draft, retention_days: value })}
         />
         <NumberField
           label="Max global bytes"
           testId="settings-page-observability-max-global-bytes"
           value={draft.max_global_bytes}
+          errorMessage={validationErrors.maxGlobalBytes ?? undefined}
           suffix="bytes"
+          onValidityChange={setValidationError("maxGlobalBytes")}
           onChange={value => setDraft({ ...draft, max_global_bytes: value })}
         />
       </div>
@@ -181,7 +267,15 @@ function CaptureSection({
   );
 }
 
-function TranscriptsSection({ draft, setDraft }: DraftSectionProps) {
+function TranscriptsSection({
+  draft,
+  setDraft,
+  validationErrors,
+  setValidationError,
+}: DraftSectionProps & {
+  validationErrors: Record<string, string | null>;
+  setValidationError: (key: string) => (message: string | null) => void;
+}) {
   return (
     <SettingsSectionCard eyebrow="Transcripts" note="full replay of agent I/O">
       <SettingsFieldRow
@@ -206,7 +300,9 @@ function TranscriptsSection({ draft, setDraft }: DraftSectionProps) {
           label="Segment size"
           testId="settings-page-observability-segment-bytes"
           value={draft.transcripts.segment_bytes}
+          errorMessage={validationErrors.segmentBytes ?? undefined}
           suffix="bytes"
+          onValidityChange={setValidationError("segmentBytes")}
           onChange={value =>
             setDraft({
               ...draft,
@@ -218,7 +314,9 @@ function TranscriptsSection({ draft, setDraft }: DraftSectionProps) {
           label="Max per session"
           testId="settings-page-observability-transcripts-max-bytes"
           value={draft.transcripts.max_bytes_per_session}
+          errorMessage={validationErrors.maxBytesPerSession ?? undefined}
           suffix="bytes"
+          onValidityChange={setValidationError("maxBytesPerSession")}
           onChange={value =>
             setDraft({
               ...draft,
@@ -234,7 +332,8 @@ function TranscriptsSection({ draft, setDraft }: DraftSectionProps) {
   );
 }
 
-function LogTailSection({ logTail }: { logTail: LogTailMeta }) {
+function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: Runtime }) {
+  void runtime;
   return (
     <SettingsSectionCard eyebrow="Log tail" note="daemon log stream">
       <div
@@ -275,23 +374,33 @@ interface NumberFieldProps {
   testId: string;
   value: number;
   suffix?: string;
+  errorMessage?: string;
+  onValidityChange: (message: string | null) => void;
   onChange: (value: number) => void;
 }
 
-function NumberField({ label, testId, value, suffix, onChange }: NumberFieldProps) {
+function NumberField({
+  label,
+  testId,
+  value,
+  suffix,
+  errorMessage,
+  onValidityChange,
+  onChange,
+}: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
       <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
         {label}
       </span>
       <div className="flex items-center gap-2">
-        <input
-          type="number"
+        <SettingsNumberInput
+          className="w-full"
           min={0}
-          className="h-8 w-full rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
           data-testid={testId}
           value={value}
-          onChange={event => onChange(Number(event.target.value || 0))}
+          onValidityChange={onValidityChange}
+          onValueChange={onChange}
         />
         {suffix ? (
           <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
@@ -299,6 +408,9 @@ function NumberField({ label, testId, value, suffix, onChange }: NumberFieldProp
           </span>
         ) : null}
       </div>
+      {errorMessage ? (
+        <span className="text-xs text-[color:var(--color-danger)]">{errorMessage}</span>
+      ) : null}
     </div>
   );
 }

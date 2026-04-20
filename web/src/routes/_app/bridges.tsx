@@ -1,8 +1,7 @@
 import { AlertCircle, Loader2, Plus, Waypoints } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PillButton } from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { Button, Empty, PageHeader, Pills, SplitPane } from "@agh/ui";
 import {
   BridgeCreateDialog,
   BridgeDetailPanel,
@@ -12,7 +11,6 @@ import {
   BridgeTestDeliveryDialog,
 } from "@/systems/bridges";
 import { useBridgesPage } from "@/hooks/routes/use-bridges-page";
-import { WorkspacePageShell } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/bridges")({
   component: BridgesPage,
@@ -23,67 +21,83 @@ function BridgesPage() {
 
   if (page.isInitialLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center" data-testid="bridges-loading">
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center"
+        data-testid="bridges-loading"
+      >
+        <Loader2
+          aria-hidden="true"
+          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+        />
       </div>
     );
   }
 
   if (page.fatalError) {
     return (
-      <div className="flex flex-1 items-center justify-center" data-testid="bridges-error">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
-            {page.fatalError.message ?? "Failed to load bridges"}
-          </p>
-        </div>
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+        data-testid="bridges-error"
+      >
+        <Empty
+          className="max-w-md"
+          description={page.fatalError.message ?? "Failed to load bridges"}
+          icon={AlertCircle}
+          title="Unable to load bridges"
+        />
       </div>
     );
   }
 
+  const primaryAction = (
+    <Button
+      data-testid="create-bridge-btn"
+      disabled={!page.canCreateBridge}
+      onClick={page.openCreateDialog}
+      size="sm"
+      type="button"
+      variant="outline"
+    >
+      <Plus className="size-3.5" />
+      Bridge
+    </Button>
+  );
+
+  const controls = (
+    <Pills
+      aria-label="Bridge scope"
+      data-testid="bridge-scope-pills"
+      items={[
+        { value: "all", label: "ALL", testId: "bridge-scope-all" },
+        { value: "global", label: "GLOBAL", testId: "bridge-scope-global" },
+        { value: "workspace", label: "WORKSPACE", testId: "bridge-scope-workspace" },
+      ]}
+      onChange={page.selectScope}
+      value={page.activeScope}
+    />
+  );
+
   return (
     <>
-      <WorkspacePageShell
-        title="Bridges"
-        icon={<Waypoints className="size-4" />}
-        count={page.totalBridgeCount}
-        controls={
-          <div className="flex items-center gap-1.5" data-testid="bridge-scope-pills">
-            {(["all", "global", "workspace"] as const).map(scope => (
-              <PillButton
-                key={scope}
-                active={page.activeScope === scope}
-                data-testid={`bridge-scope-${scope}`}
-                onClick={() => page.selectScope(scope)}
-              >
-                {scope.toUpperCase()}
-              </PillButton>
-            ))}
-          </div>
-        }
-        meta={
-          <Button
-            data-testid="create-bridge-btn"
-            disabled={!page.canCreateBridge}
-            onClick={page.openCreateDialog}
-            size="lg"
-            type="button"
-          >
-            <Plus className="size-4" />
-            Bridge
-          </Button>
-        }
-      >
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="bridges-shell">
+        <PageHeader
+          count={page.totalBridgeCount}
+          controls={controls}
+          icon={() => <Waypoints className="size-3.5" data-testid="bridges-shell-icon" />}
+          meta={primaryAction}
+          title={<span data-testid="bridges-shell-title">Bridges</span>}
+        />
+
         {page.totalBridgeCount === 0 ? (
           <BridgeEmptyState onCreate={page.openCreateDialog} providers={page.providers} />
         ) : (
-          <>
-            <BridgeListPanel {...page.listPanelProps} />
-            <BridgeDetailPanel {...page.detailPanelProps} />
-          </>
+          <SplitPane
+            data-testid="bridges-split-pane"
+            detail={<BridgeDetailPanel {...page.detailPanelProps} />}
+            list={<BridgeListPanel {...page.listPanelProps} />}
+          />
         )}
-      </WorkspacePageShell>
+      </div>
 
       <BridgeCreateDialog {...page.createDialogProps} />
       <BridgeEditDialog {...page.editDialogProps} />

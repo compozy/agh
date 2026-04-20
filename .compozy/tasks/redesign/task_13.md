@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite app-sidebar on @agh/ui Sidebar
 type: refactor
 complexity: high
@@ -43,12 +43,12 @@ Rewrite `web/src/components/app-sidebar.tsx` as a thin composition over `@agh/ui
 
 ## Subtasks
 
-- [ ] 13.1 Audit the existing `app-sidebar.tsx` and the sidebar store to understand what state + behavior must survive the rewrite.
-- [ ] 13.2 Compose the new `app-sidebar.tsx` on top of `@agh/ui` `Sidebar` with the four slots.
-- [ ] 13.3 Wire active route highlighting via TanStack Router's `useMatchRoute` or equivalent.
-- [ ] 13.4 Wire workspace switching + agent tree expand/collapse via the existing stores.
-- [ ] 13.5 Write or update Storybook stories for the composed `AppSidebar` covering: default, collapsed, no workspaces, many workspaces, disconnected state.
-- [ ] 13.6 Run `make verify` and verify the dev server loads every top-level route.
+- [x] 13.1 Audit the existing `app-sidebar.tsx` and the sidebar store to understand what state + behavior must survive the rewrite.
+- [x] 13.2 Compose the new `app-sidebar.tsx` on top of `@agh/ui` `Sidebar` with the four slots.
+- [x] 13.3 Wire active route highlighting via TanStack Router's `useMatchRoute` or equivalent.
+- [x] 13.4 Wire workspace switching + agent tree expand/collapse via the existing stores.
+- [x] 13.5 Write or update Storybook stories for the composed `AppSidebar` covering: default, collapsed, no workspaces, many workspaces, disconnected state.
+- [x] 13.6 Run `make verify` and verify the dev server loads every top-level route.
 
 ## Implementation Details
 

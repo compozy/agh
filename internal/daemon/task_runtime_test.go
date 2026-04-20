@@ -282,6 +282,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 			}
 			if recovery == nil {
 				t.Fatal("planTaskRunRecovery() = nil, want recovery action")
+				return
 			}
 			if got, want := recovery.Action, tc.wantAction; got != want {
 				t.Fatalf("recovery.Action = %q, want %q", got, want)
@@ -498,6 +499,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 	}
 	if first == nil {
 		t.Fatal("submitDetachedHarnessWork(first) = nil, want submission")
+		return
 	}
 	if first.ExistingTask {
 		t.Fatal("submitDetachedHarnessWork(first).ExistingTask = true, want false")
@@ -512,6 +514,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 	}
 	if second == nil {
 		t.Fatal("submitDetachedHarnessWork(duplicate) = nil, want submission")
+		return
 	}
 	if !second.ExistingTask || !second.ExistingRun {
 		t.Fatalf("duplicate submission flags = task:%v run:%v, want both true", second.ExistingTask, second.ExistingRun)
@@ -1501,7 +1504,14 @@ func testHarnessReentryBridgeHelperCoverage(t *testing.T) {
 		},
 	}
 
-	if _, err := newHarnessReentryBridge(nil, resolver, nil, db, sessions, discardLogger()); err == nil {
+	if _, err := newHarnessReentryBridge(
+		nilTaskRuntimeContext(),
+		resolver,
+		nil,
+		db,
+		sessions,
+		discardLogger(),
+	); err == nil {
 		t.Fatal("newHarnessReentryBridge(nil ctx) error = nil, want validation error")
 	}
 	if _, err := newHarnessReentryBridge(context.Background(), nil, nil, db, sessions, discardLogger()); err == nil {

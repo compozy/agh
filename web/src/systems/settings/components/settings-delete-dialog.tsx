@@ -1,14 +1,14 @@
 import { AlertCircle, Loader2, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button } from "@agh/ui";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@agh/ui";
 
 interface SettingsDeleteDialogProps {
   open: boolean;

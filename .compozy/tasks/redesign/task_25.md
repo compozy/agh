@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Bridges domain (list + detail)
 type: frontend
 complexity: medium
@@ -43,13 +43,13 @@ Rewrite `web/src/systems/bridges/**` as a pure visual refresh over `@agh/ui` pri
 
 ## Subtasks
 
-- [ ] 25.1 Audit current components + `useBridgesPage` view-model and list every prop, state branch, and test id to preserve.
-- [ ] 25.2 Rewrite `bridges.tsx` around `PageHeader` + scope `Pills` + `SplitPane`, removing `WorkspacePageShell` and `PillButton`.
-- [ ] 25.3 Rewrite `bridge-list-panel.tsx` as `SearchInput` + grouped list rows using `StatusDot` + provider `KindChip`, with `Empty` states for no-results and errors.
-- [ ] 25.4 Rewrite `bridge-detail-panel.tsx` as `Section` blocks with a four-tile `Metric` row and event stream `Table`.
-- [ ] 25.5 Rewrite `bridge-create-dialog.tsx`, `bridge-edit-dialog.tsx`, and `bridge-test-delivery-dialog.tsx` on `@agh/ui` `Dialog` + `Field`.
-- [ ] 25.6 Rewrite `bridge-empty-state.tsx` + `bridge-provider-card.tsx` on `Empty` and shared primitives.
-- [ ] 25.7 Update or rewrite `web/src/systems/bridges/components/stories/**` and generate Playwright visual baselines covering default / empty / error / each dialog state.
+- [x] 25.1 Audit current components + `useBridgesPage` view-model and list every prop, state branch, and test id to preserve.
+- [x] 25.2 Rewrite `bridges.tsx` around `PageHeader` + scope `Pills` + `SplitPane`, removing `WorkspacePageShell` and `PillButton`.
+- [x] 25.3 Rewrite `bridge-list-panel.tsx` as `SearchInput` + grouped list rows using `StatusDot` + provider `KindChip`, with `Empty` states for no-results and errors.
+- [x] 25.4 Rewrite `bridge-detail-panel.tsx` as `Section` blocks with a four-tile `Metric` row and event stream `Table`.
+- [x] 25.5 Rewrite `bridge-create-dialog.tsx`, `bridge-edit-dialog.tsx`, and `bridge-test-delivery-dialog.tsx` on `@agh/ui` `Dialog` + `Field`.
+- [x] 25.6 Rewrite `bridge-empty-state.tsx` + `bridge-provider-card.tsx` on `Empty` and shared primitives.
+- [x] 25.7 Update or rewrite `web/src/systems/bridges/components/stories/**` and generate Playwright visual baselines covering default / empty / error / each dialog state.
 
 ## Implementation Details
 
@@ -65,6 +65,9 @@ See TechSpec §"Impact Analysis" — `web/src/systems/bridges/**` is a Phase 5 v
 - `web/src/systems/bridges/components/bridge-test-delivery-dialog.tsx` — rewrite on `@agh/ui` `Dialog` + `Field`.
 - `web/src/systems/bridges/components/bridge-empty-state.tsx` — rewrite on `Empty`.
 - `web/src/systems/bridges/components/bridge-provider-card.tsx` — rewrite or absorb into the empty-state composition.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4` — list-detail card + metric tile spec.
+  - `docs/design/web-inspiration/src/pages-core.jsx` — `BridgesPage` list + detail + 4-metric row.
 
 ### Dependent Files
 

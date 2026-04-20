@@ -33,6 +33,7 @@
   --color-accent-hover: #d14e25;
   --color-accent-strong: #f6874f;
   --color-accent-dim: #e8572a59;
+  --color-accent-tint-strong: #e8572a3d;
   --color-success: #30d158;
   --color-danger: #ff453a;
   --color-warning: #ffd60a;
@@ -45,6 +46,15 @@
   /* Shared mono/diagram constants */
   --tracking-mono: 0.06em;
   --radius-diagram: 12px;
+  --radius-chip: 5px;
+  --radius-mono-badge: 6px;
+
+  /* Motion */
+  --duration-fast: 100ms;
+  --duration-base: 150ms;
+  --duration-slow: 200ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Badge tints (15% opacity) */
   --color-accent-tint: #e8572a26;
@@ -100,6 +110,9 @@
 @theme inline {
   --font-sans: "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
   --font-mono: "JetBrains Mono", "Courier New", monospace;
+  --font-display: "Playfair Display", "Inter Variable", serif;
+  --font-wordmark:
+    "NuixyberNext", "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);

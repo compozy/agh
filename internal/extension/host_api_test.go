@@ -266,6 +266,7 @@ func TestHostAPIHandlerEnvironmentInfoReturnsRuntimeState(t *testing.T) {
 	meta := sess.Info().Environment
 	if meta == nil {
 		t.Fatal("session environment = nil, want prepared environment")
+		return
 	}
 
 	result, err := env.call(t, "ext-env-info", "environment/info", map[string]string{"session_id": sess.ID})
@@ -2276,6 +2277,7 @@ func TestHostAPIContextHelpersCloneBridgeAndResourceSession(t *testing.T) {
 	storedRuntime := hostAPIBridgeRuntimeFromContext(ctx)
 	if storedRuntime == nil {
 		t.Fatal("hostAPIBridgeRuntimeFromContext(ctx) = nil, want runtime")
+		return
 	}
 	if got, want := storedRuntime.ManagedInstances[0].Instance.ID, "brg-1"; got != want {
 		t.Fatalf("storedRuntime.ManagedInstances[0].Instance.ID = %q, want %q", got, want)

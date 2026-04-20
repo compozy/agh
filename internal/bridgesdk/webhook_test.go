@@ -225,6 +225,7 @@ func TestFixedWindowRateLimiterEvictsExpiredKeys(t *testing.T) {
 	limiter := NewFixedWindowRateLimiter(1, time.Minute)
 	if limiter == nil {
 		t.Fatal("NewFixedWindowRateLimiter() = nil, want non-nil")
+		return
 	}
 	limiter.now = func() time.Time { return now }
 

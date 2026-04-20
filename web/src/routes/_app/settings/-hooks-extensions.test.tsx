@@ -130,6 +130,7 @@ type PageState = {
   pendingHookName: string | null;
   toggleHookEnabled: ReturnType<typeof vi.fn>;
   hookError: string | null;
+  canMutateHooks: boolean;
   extensions: SettingsExtensionEntry[];
   extensionsCounts: { total: number; enabled: number };
   extensionsLoading: boolean;
@@ -143,10 +144,12 @@ type PageState = {
   isSavingPolicy: boolean;
   savePolicyError: string | null;
   policyWarnings: string[] | undefined;
+  canMutatePolicy: boolean;
   handleSavePolicy: ReturnType<typeof vi.fn>;
   handleResetPolicy: ReturnType<typeof vi.fn>;
   updatePolicyDraft: ReturnType<typeof vi.fn>;
   toggleAllowedKind: ReturnType<typeof vi.fn>;
+  handleRetry: ReturnType<typeof vi.fn>;
   lastAction:
     | null
     | { kind: "saved"; result: { restart_required: boolean } }
@@ -174,6 +177,7 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     pendingHookName: null,
     toggleHookEnabled: vi.fn(),
     hookError: null,
+    canMutateHooks: true,
     extensions: [extensionEntry],
     extensionsCounts: { total: 1, enabled: 1 },
     extensionsLoading: false,
@@ -187,10 +191,12 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     isSavingPolicy: false,
     savePolicyError: null,
     policyWarnings: undefined,
+    canMutatePolicy: true,
     handleSavePolicy: vi.fn(),
     handleResetPolicy: vi.fn(),
     updatePolicyDraft: vi.fn(),
     toggleAllowedKind: vi.fn(),
+    handleRetry: vi.fn(),
     lastAction: null,
     dismissLastAction: vi.fn(),
     restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
@@ -234,6 +240,8 @@ describe("HooksExtensionsSettingsPage", () => {
     expect(screen.getByTestId("settings-page-hooks-extensions-error")).toHaveTextContent(
       "hooks boom"
     );
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(pageState.handleRetry).toHaveBeenCalledTimes(1);
   });
 
   it("renders the status line with combined hook and extension counts", () => {
@@ -296,6 +304,23 @@ describe("HooksExtensionsSettingsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("disables hook toggles when settings mutation parity is false", () => {
+    pageState = makeState({
+      canMutateHooks: false,
+      transportParity: {
+        known: true,
+        settings_http: false,
+        settings_uds: true,
+        extensions_http: true,
+        extensions_uds: true,
+      },
+    });
+    render(<HooksExtensionsSettingsPage />);
+    expect(
+      screen.getByTestId("settings-page-hooks-extensions-hooks-row-slack-notify-toggle")
+    ).toHaveAttribute("aria-disabled", "true");
+  });
+
   it("invokes toggleExtensionEnabled when the extension switch is toggled off", () => {
     render(<HooksExtensionsSettingsPage />);
     fireEvent.click(
@@ -352,6 +377,32 @@ describe("HooksExtensionsSettingsPage", () => {
     expect(banner).toHaveAttribute("data-kind", "extension-toggled");
     expect(banner).toHaveTextContent('Extension "daytona" disabled');
     expect(banner).toHaveTextContent("applied immediately");
+  });
+
+  it("renders the @agh/ui Empty cards when no hooks and no extensions are registered", () => {
+    pageState = makeState({
+      hooks: [],
+      hooksCounts: { total: 0, enabled: 0 },
+      extensions: [],
+      extensionsCounts: { total: 0, enabled: 0 },
+    });
+    render(<HooksExtensionsSettingsPage />);
+    const hooksEmpty = screen.getByTestId("settings-page-hooks-extensions-hooks-empty");
+    expect(hooksEmpty).toHaveAttribute("data-slot", "empty");
+    expect(hooksEmpty).toHaveTextContent("No hooks registered");
+    const extensionsEmpty = screen.getByTestId("settings-page-hooks-extensions-extensions-empty");
+    expect(extensionsEmpty).toHaveAttribute("data-slot", "empty");
+    expect(extensionsEmpty).toHaveTextContent("No extensions installed");
+  });
+
+  it("renders the action banner through @agh/ui Alert with role=status", () => {
+    pageState = makeState({
+      lastAction: { kind: "extension-toggled", name: "daytona", enabled: true },
+    });
+    render(<HooksExtensionsSettingsPage />);
+    const banner = screen.getByTestId("settings-page-hooks-extensions-action-result");
+    expect(banner).toHaveAttribute("data-slot", "alert");
+    expect(banner).toHaveAttribute("role", "status");
   });
 
   it("renders allowed-kinds chips as active when selected in the draft", () => {

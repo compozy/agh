@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Brand Wordmark</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .mark {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .word {
+        font-family: "NuixyberNext", "Inter", sans-serif;
+        font-size: 36px;
+        letter-spacing: -0.03em;
+        color: #e5e5e7;
+        line-height: 1;
+      }
+      .word.accent {
+        color: #e8572a;
+      }
+      .alpha {
+        border: 1px solid #3c3a39;
+        border-radius: 3px;
+        padding: 1px 6px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 9px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: #8e8e93;
+      }
+      .meta {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #636366;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="mark"><span class="word">agh</span><span class="alpha">Alpha</span></div>
+    <div class="mark">
+      <span class="word accent">agh</span
+      ><span class="alpha" style="border-color: #e8572a; color: #e8572a">v0</span>
+    </div>
+    <div class="meta">NuixyberNext Regular (fallback Inter) · all-lowercase · never italicized</div>
+  </body>
+</html>

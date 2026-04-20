@@ -1,3 +1,5 @@
+import { Tabs, TabsList, TabsTrigger } from "@agh/ui";
+
 import type { TaskDetailPanel } from "@/hooks/routes/use-task-detail-page";
 import { cn } from "@/lib/utils";
 
@@ -14,39 +16,34 @@ export interface TasksDetailTabsProps {
   onChange: (next: TaskDetailPanel) => void;
 }
 
+/**
+ * Detail panel tab bar — `@agh/ui` `Tabs` (Base UI primitive) rendered as a
+ * line-variant bar with optional count badges + pulsing live indicator per tab.
+ */
 export function TasksDetailTabs({ items, active, onChange }: TasksDetailTabsProps) {
   return (
-    <div
+    <Tabs
       aria-label="Task detail panels"
-      className="flex items-center gap-6 border-b border-[color:var(--color-divider)] px-6"
+      className="border-b border-[color:var(--color-divider)] px-4"
       data-testid="tasks-detail-tabs"
-      role="tablist"
+      onValueChange={value => onChange(value as TaskDetailPanel)}
+      value={active}
     >
-      {items.map(item => {
-        const isActive = item.id === active;
-        return (
-          <button
-            aria-selected={isActive}
-            className={cn(
-              "group relative flex items-center gap-2 py-3 text-sm transition-colors",
-              isActive
-                ? "text-[color:var(--color-text-primary)]"
-                : "text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"
-            )}
+      <TabsList variant="line" className="h-10">
+        {items.map(item => (
+          <TabsTrigger
+            className="gap-2"
             data-testid={`tasks-detail-tab-${item.id}`}
             key={item.id}
-            onClick={() => onChange(item.id)}
-            role="tab"
-            type="button"
+            value={item.id}
           >
             <span>{item.label}</span>
             {typeof item.count === "number" ? (
               <span
                 className={cn(
-                  "inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1.5 font-mono text-[0.64rem]",
-                  isActive
-                    ? "bg-[color:var(--color-surface-elevated)] text-[color:var(--color-text-primary)]"
-                    : "bg-[color:var(--color-surface)] text-[color:var(--color-text-secondary)]"
+                  "inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1.5 font-mono text-[10px]",
+                  "bg-[color:var(--color-surface)] text-[color:var(--color-text-secondary)]",
+                  "group-data-[active=true]:bg-[color:var(--color-surface-elevated)] group-data-[active=true]:text-[color:var(--color-text-primary)]"
                 )}
                 data-testid={`tasks-detail-tab-count-${item.id}`}
               >
@@ -55,22 +52,16 @@ export function TasksDetailTabs({ items, active, onChange }: TasksDetailTabsProp
             ) : null}
             {item.live ? (
               <span
-                className="inline-flex h-5 items-center gap-1 rounded-md bg-[color:var(--color-accent-tint)] px-1.5 font-mono text-[0.6rem] uppercase tracking-[0.16em] text-[color:var(--color-accent)]"
+                className="inline-flex h-5 items-center gap-1 rounded-md bg-[color:var(--color-accent-tint)] px-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)]"
                 data-testid={`tasks-detail-tab-live-${item.id}`}
               >
                 <span className="size-1.5 animate-pulse rounded-full bg-[color:var(--color-accent)]" />
                 Live
               </span>
             ) : null}
-            {isActive ? (
-              <span
-                aria-hidden="true"
-                className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-[color:var(--color-accent)]"
-              />
-            ) : null}
-          </button>
-        );
-      })}
-    </div>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
 }

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Wire Playwright visual snapshot baseline for web/
 type: infra
 complexity: medium
@@ -43,11 +43,11 @@ Extend the Playwright visual harness from task 11 to cover the `web/` app: basel
 
 ## Subtasks
 
-- [ ] 16.1 Extend Playwright config for web visual tests.
-- [ ] 16.2 Write visual spec covering the new shell (sidebar, header) across top-level routes.
-- [ ] 16.3 Enumerate and snapshot each `*.stories.tsx` file in `web/`.
-- [ ] 16.4 Generate and commit baselines; wire CI job.
-- [ ] 16.5 Add `pnpm test:visual:web` script.
+- [x] 16.1 Extend Playwright config for web visual tests.
+- [x] 16.2 Write visual spec covering the new shell (sidebar, header) across top-level routes.
+- [x] 16.3 Enumerate and snapshot each `*.stories.tsx` file in `web/`.
+- [x] 16.4 Generate and commit baselines; wire CI job.
+- [x] 16.5 Add `pnpm test:visual:web` script.
 
 ## Implementation Details
 
@@ -61,6 +61,9 @@ See ADR-005 for the visual parity rationale. TechSpec "Monitoring and Observabil
 - `web/src/routes/**` — route sources for URL enumeration.
 - `web/src/storybook/route-story.tsx` — the existing route-story wrapper used for stories.
 - `packages/ui/tests/visual.spec.ts` — helpers to reuse (if shared) or inspired patterns.
+- **Design references** (read-only, do not edit):
+  - `docs/design/web-inspiration/src/app.jsx` — authoritative list of routes to snapshot.
+  - `docs/design/web-inspiration/styles/app.css` — layout skeleton that the baseline captures in the shell frame.
 
 ### Dependent Files
 

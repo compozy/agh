@@ -30,7 +30,9 @@ describe("route tree — settings subtree", () => {
     const appRoute = findChildById(routeTree as unknown as RouteLike, "/_app");
     const siblings = getChildren(appRoute as RouteLike).map(node => node.options?.id);
 
-    expect(siblings).toEqual(expect.arrayContaining(["/automation", "/network", "/skills", "/"]));
+    expect(siblings).toEqual(
+      expect.arrayContaining(["/jobs", "/triggers", "/network", "/skills", "/"])
+    );
     expect(siblings).toContain("/settings");
   });
 });

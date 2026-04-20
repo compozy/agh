@@ -99,7 +99,7 @@ describe("AutomationTriggerForm", () => {
     fireEvent.change(screen.getByTestId("trigger-fire-limit-window"), {
       target: { value: "3h" },
     });
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByTestId("trigger-enabled-toggle"));
 
     expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
 
@@ -177,7 +177,6 @@ describe("AutomationTriggerForm", () => {
       mode: "edit",
     });
 
-    expect(screen.getByText("Edit Trigger")).toBeInTheDocument();
     expect(screen.getByTestId("submit-trigger-form")).toHaveTextContent("Saving...");
 
     fireEvent.submit(screen.getByTestId("automation-trigger-form"));

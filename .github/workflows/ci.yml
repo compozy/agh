@@ -38,38 +38,70 @@ jobs:
 
       - name: Filter paths
         id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            backend:
-              - '**/*.go'
-              - 'go.mod'
-              - 'go.sum'
-              - 'Makefile'
-              - 'magefile.go'
-              - '.golangci.yml'
-              - '.github/**'
-              - '.goreleaser.yml'
-              - 'cliff.toml'
-              - '.release-notes/**'
-              - 'RELEASE_NOTES.md'
-              - 'cmd/**'
-              - 'internal/**'
-              - 'openapi/**'
-            web:
-              - 'web/**'
-              - '.bun-version'
-              - '.oxfmtrc.json'
-              - '.oxlintrc.json'
-              - 'bun.lock'
-              - 'package.json'
-              - 'packages/**'
-              - 'scripts/**'
-              - 'sdk/**'
-              - 'tsconfig.json'
-              - 'tsconfig.base.json'
-              - 'turbo.json'
-              - 'vitest.config.ts'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          backend=false
+          web=false
+          zero_sha='0000000000000000000000000000000000000000'
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            backend=true
+            web=true
+          else
+            if [[ "$EVENT_NAME" == "pull_request" && -n "$PR_BASE_SHA" && -n "$PR_HEAD_SHA" ]]; then
+              changed_files=$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")
+            elif [[ -n "${PUSH_BEFORE_SHA:-}" && "$PUSH_BEFORE_SHA" != "$zero_sha" ]]; then
+              changed_files=$(git diff --name-only "$PUSH_BEFORE_SHA" "$CURRENT_SHA")
+            else
+              changed_files=$(git ls-tree -r --name-only "$CURRENT_SHA")
+            fi
+
+            while IFS= read -r file; do
+              [[ -z "$file" ]] && continue
+
+              case "$file" in
+                *.go|go.mod|go.sum|Makefile|.golangci.yml|.goreleaser.yml|cliff.toml|RELEASE_NOTES.md)
+                  backend=true
+                  ;;
+              esac
+
+              case "$file" in
+                .github/*|.release-notes/*|cmd/*|internal/*|openapi/*)
+                  backend=true
+                  ;;
+              esac
+
+              case "$file" in
+                .bun-version|.oxfmtrc.json|.oxlintrc.json|bun.lock|package.json|tsconfig.json|tsconfig.base.json|turbo.json|vitest.config.ts)
+                  web=true
+                  ;;
+              esac
+
+              case "$file" in
+                web/*|packages/*|scripts/*|sdk/*)
+                  web=true
+                  ;;
+              esac
+            done <<< "$changed_files"
+          fi
+
+          relevant=false
+          if [[ "$backend" == "true" || "$web" == "true" ]]; then
+            relevant=true
+          fi
+
+          {
+            echo "backend=$backend"
+            echo "web=$web"
+            echo "relevant=$relevant"
+          } >> "$GITHUB_OUTPUT"
 
   verify:
     name: Verify (fmt, lint, unit, build)

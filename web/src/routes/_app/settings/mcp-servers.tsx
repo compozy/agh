@@ -1,9 +1,26 @@
-import { AlertCircle, Check, Loader2, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, Loader2, Plus, Server, Trash2, X } from "lucide-react";
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Button } from "@agh/ui";
-import { Pill } from "@/components/design-system";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  Button,
+  Empty,
+  Input,
+  MonoBadge,
+  NativeSelect,
+  NativeSelectOption,
+  Pills,
+  StatusDot,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@agh/ui";
 import {
   useSettingsMCPServersPage,
   type MCPDraft,
@@ -12,7 +29,6 @@ import {
   type MCPLastAction,
   type MCPScopeSelection,
 } from "@/hooks/routes/use-settings-mcp-servers-page";
-import { cn } from "@/lib/utils";
 import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "@/systems/settings";
 import {
   SettingsCollectionHeader,
@@ -126,14 +142,16 @@ function MCPServersSettingsPage() {
       />
 
       {page.servers.length === 0 ? (
-        <div
-          className="rounded-md border border-dashed border-[color:var(--color-divider)] px-4 py-8 text-center text-sm text-[color:var(--color-text-tertiary)]"
+        <Empty
+          icon={Server}
+          title="No MCP servers configured"
+          description={
+            page.selection.scope === "global"
+              ? 'Use "Add server" to create an entry in mcp.json or config.'
+              : "No workspace overrides defined. Add one to shadow the global definition for this workspace."
+          }
           data-testid="settings-page-mcp-servers-empty"
-        >
-          {page.selection.scope === "global"
-            ? "No MCP servers defined globally. Use “Add server” to create one in mcp.json or config."
-            : "No workspace overrides defined. Add one to shadow the global definition for this workspace."}
-        </div>
+        />
       ) : (
         <MCPServersTable servers={page.servers} onEdit={page.openEdit} onDelete={page.openDelete} />
       )}
@@ -167,6 +185,8 @@ function MCPServersSettingsPage() {
   );
 }
 
+type ScopeValue = "global" | `ws:${string}`;
+
 interface ScopeSelectorProps {
   selection: MCPScopeSelection;
   availableScopes: readonly ("global" | "workspace")[];
@@ -185,35 +205,44 @@ function ScopeSelector({
   onSelectWorkspace,
 }: ScopeSelectorProps) {
   const workspaceScopeAvailable = availableScopes.includes("workspace");
-  const selectedWorkspaceId = selection.scope === "workspace" ? selection.workspaceId : null;
+  const currentValue: ScopeValue =
+    selection.scope === "workspace" ? (`ws:${selection.workspaceId}` as ScopeValue) : "global";
+
+  const items: Array<{ value: ScopeValue; label: React.ReactNode; testId: string }> = [
+    {
+      value: "global",
+      label: <ScopeLabel primary="Global" mono="~/.agh/mcp.json" />,
+      testId: "settings-page-mcp-servers-scope-global",
+    },
+  ];
+  if (workspaceScopeAvailable) {
+    for (const workspace of workspaces) {
+      items.push({
+        value: `ws:${workspace.id}` as ScopeValue,
+        label: <ScopeLabel primary={workspace.name} mono="overrides" />,
+        testId: `settings-page-mcp-servers-scope-workspace-${workspace.id}`,
+      });
+    }
+  }
 
   return (
     <div
       className="flex flex-wrap items-center gap-2"
       data-testid="settings-page-mcp-servers-scope-row"
     >
-      <ScopeChip
-        active={selection.scope === "global"}
-        onClick={onSelectGlobal}
-        testId="settings-page-mcp-servers-scope-global"
-      >
-        <span className="font-medium">Global</span>
-        <span className="font-mono text-[0.62rem] text-[color:var(--color-text-tertiary)]">
-          ~/.agh/mcp.json
-        </span>
-      </ScopeChip>
-      {workspaceScopeAvailable
-        ? workspaces.map(workspace => (
-            <ScopeChip
-              key={workspace.id}
-              active={selectedWorkspaceId === workspace.id}
-              onClick={() => onSelectWorkspace(workspace.id)}
-              testId={`settings-page-mcp-servers-scope-workspace-${workspace.id}`}
-            >
-              <WorkspaceScopeLabel workspace={workspace} />
-            </ScopeChip>
-          ))
-        : null}
+      <Pills<ScopeValue>
+        items={items}
+        value={currentValue}
+        size="sm"
+        aria-label="Catalog scope"
+        onChange={next => {
+          if (next === "global") {
+            onSelectGlobal();
+            return;
+          }
+          onSelectWorkspace(next.slice(3));
+        }}
+      />
       {workspaceScopeAvailable && workspaces.length === 0 && !isLoadingWorkspaces ? (
         <span
           className="font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]"
@@ -226,47 +255,14 @@ function ScopeSelector({
   );
 }
 
-function WorkspaceScopeLabel({ workspace }: { workspace: WorkspacePayload }) {
-  const initial = workspace.name.charAt(0).toUpperCase() || "W";
+function ScopeLabel({ primary, mono }: { primary: string; mono: string }) {
   return (
-    <span className="flex items-center gap-2">
-      <span className="flex size-5 items-center justify-center rounded-sm bg-[color:var(--color-accent-tint)] font-mono text-[0.6rem] uppercase text-[color:var(--color-accent)]">
-        {initial}
-      </span>
-      <span className="font-medium">{workspace.name}</span>
-      <span className="font-mono text-[0.62rem] text-[color:var(--color-text-tertiary)]">
-        overrides
+    <span className="inline-flex items-center gap-2">
+      <span className="font-medium">{primary}</span>
+      <span className="font-mono text-[10px] normal-case tracking-[0.04em] text-[color:var(--color-text-tertiary)]">
+        {mono}
       </span>
     </span>
-  );
-}
-
-function ScopeChip({
-  active,
-  onClick,
-  children,
-  testId,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  testId?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-testid={testId}
-      data-active={active ? "true" : "false"}
-      className={cn(
-        "flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors",
-        active
-          ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent-tint)] text-[color:var(--color-text-primary)]"
-          : "border-[color:var(--color-divider)] bg-[color:var(--color-surface)] text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-divider-strong)]"
-      )}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -284,18 +280,30 @@ function MCPServersTable({
       className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
       data-testid="settings-page-mcp-servers-list"
     >
-      <table className="w-full border-collapse text-sm">
-        <thead className="bg-[color:var(--color-surface-elevated)] text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-          <tr>
-            <th className="px-4 py-2.5 text-left">Name</th>
-            <th className="px-4 py-2.5 text-left">Command</th>
-            <th className="px-4 py-2.5 text-left">Source</th>
-            <th className="px-4 py-2.5 text-right">Env</th>
-            <th className="px-4 py-2.5 text-right">Args</th>
-            <th className="px-4 py-2.5 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[color:var(--color-divider)]">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-[color:var(--color-surface-elevated)]">
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Name
+            </TableHead>
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Command
+            </TableHead>
+            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Source
+            </TableHead>
+            <TableHead className="text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Env
+            </TableHead>
+            <TableHead className="text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Args
+            </TableHead>
+            <TableHead className="w-[1%] text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+              Actions
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {servers.map(server => (
             <MCPServerRow
               key={`${server.name}-${server.source_metadata.effective_source.kind}`}
@@ -304,8 +312,8 @@ function MCPServersTable({
               onDelete={onDelete}
             />
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -325,38 +333,46 @@ function MCPServerRow({
   const argsCount = server.args?.length ?? 0;
 
   return (
-    <tr data-testid={`settings-page-mcp-servers-row-${server.name}`}>
-      <td className="px-4 py-3">
-        <span className="font-mono text-sm text-[color:var(--color-text-primary)]">
-          {server.name}
-        </span>
-      </td>
-      <td
-        className="px-4 py-3 font-mono text-xs text-[color:var(--color-text-secondary)]"
+    <TableRow data-testid={`settings-page-mcp-servers-row-${server.name}`}>
+      <TableCell>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <StatusDot
+            tone="success"
+            size="md"
+            data-testid={`settings-page-mcp-servers-row-${server.name}-status`}
+            data-tone="configured"
+          />
+          <span className="font-mono text-sm text-[color:var(--color-text-primary)]">
+            {server.name}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell
+        className="font-mono text-xs text-[color:var(--color-text-secondary)]"
         data-testid={`settings-page-mcp-servers-row-${server.name}-command`}
       >
         {server.command}
-      </td>
-      <td className="px-4 py-3">
+      </TableCell>
+      <TableCell>
         <SettingsSourceBadge
           data-testid={`settings-page-mcp-servers-row-${server.name}-source`}
           source={source}
           shadowed={shadowed}
         />
-      </td>
-      <td
-        className="px-4 py-3 text-right font-mono text-xs text-[color:var(--color-text-secondary)]"
+      </TableCell>
+      <TableCell
+        className="text-right font-mono text-xs text-[color:var(--color-text-secondary)]"
         data-testid={`settings-page-mcp-servers-row-${server.name}-env`}
       >
         {envCount}
-      </td>
-      <td
-        className="px-4 py-3 text-right font-mono text-xs text-[color:var(--color-text-secondary)]"
+      </TableCell>
+      <TableCell
+        className="text-right font-mono text-xs text-[color:var(--color-text-secondary)]"
         data-testid={`settings-page-mcp-servers-row-${server.name}-args`}
       >
         {argsCount}
-      </td>
-      <td className="px-4 py-3">
+      </TableCell>
+      <TableCell>
         <div className="flex items-center justify-end gap-2">
           <Button
             type="button"
@@ -377,8 +393,8 @@ function MCPServerRow({
             Delete
           </Button>
         </div>
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -471,8 +487,8 @@ function MCPServerEditor({
           }
           hint={isCreate ? "REQUIRED" : "LOCKED"}
           control={
-            <input
-              className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)] disabled:opacity-60"
+            <Input
+              className="w-56 font-mono disabled:opacity-60"
               data-testid="settings-mcp-servers-editor-name-input"
               value={draft.name}
               placeholder="e.g. filesystem"
@@ -487,8 +503,8 @@ function MCPServerEditor({
           description="Executable that speaks MCP over stdio (command + args)."
           hint="REQUIRED"
           control={
-            <input
-              className="h-8 w-72 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+            <Input
+              className="w-72 font-mono"
               data-testid="settings-mcp-servers-editor-command-input"
               value={draft.command}
               placeholder="npx -y @modelcontextprotocol/server-filesystem"
@@ -551,10 +567,6 @@ function TargetSelector({
     return "Auto replaces the current highest-precedence definition in the selected scope.";
   }, [entry, isCreate, scope]);
 
-  const selectId = isCreate
-    ? "settings-mcp-servers-editor-target-create"
-    : "settings-mcp-servers-editor-target-edit";
-
   return (
     <SettingsFieldRow
       data-testid="settings-mcp-servers-editor-target"
@@ -563,19 +575,18 @@ function TargetSelector({
       hint={scope === "workspace" ? "WORKSPACE" : "GLOBAL"}
       control={
         <div className="flex flex-col gap-1">
-          <select
-            id={selectId}
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+          <NativeSelect
+            className="w-56 font-mono"
             data-testid="settings-mcp-servers-editor-target-input"
             value={target}
             onChange={event => onChange(event.target.value as SettingsMCPServerTarget)}
           >
             {availableTargets.map(candidate => (
-              <option key={candidate} value={candidate}>
+              <NativeSelectOption key={candidate} value={candidate}>
                 {targetLabel(candidate)}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
           {entry ? (
             <div
               className="flex flex-wrap items-center gap-1 text-[0.62rem] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]"
@@ -583,9 +594,9 @@ function TargetSelector({
             >
               <span>allowed:</span>
               {entry.source_metadata.available_targets.map(available => (
-                <Pill key={available} emphasis="muted" kind="state" tone="neutral">
+                <MonoBadge key={available} tone="neutral">
                   {targetWriteLabel(available)}
-                </Pill>
+                </MonoBadge>
               ))}
             </div>
           ) : null}
@@ -623,9 +634,10 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
           data-testid="settings-mcp-servers-editor-args-list"
         >
           {args.map((arg, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: args list is ordered and stable per edit
             <div key={index} className="flex items-center gap-2">
-              <input
-                className="h-8 flex-1 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-xs text-[color:var(--color-text-primary)]"
+              <Input
+                className="flex-1 font-mono"
                 data-testid={`settings-mcp-servers-editor-args-input-${index}`}
                 value={arg}
                 placeholder={`arg[${index}]`}
@@ -682,9 +694,10 @@ function EnvEditor({
           data-testid="settings-mcp-servers-editor-env-list"
         >
           {env.map((pair, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: env list is ordered and stable per edit
             <div key={index} className="flex items-center gap-2">
-              <input
-                className="h-8 w-44 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-xs text-[color:var(--color-text-primary)]"
+              <Input
+                className="w-44 font-mono"
                 data-testid={`settings-mcp-servers-editor-env-key-${index}`}
                 value={pair.key}
                 placeholder="KEY"
@@ -694,8 +707,8 @@ function EnvEditor({
                   onChange(next);
                 }}
               />
-              <input
-                className="h-8 flex-1 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-xs text-[color:var(--color-text-primary)]"
+              <Input
+                className="flex-1 font-mono"
                 data-testid={`settings-mcp-servers-editor-env-value-${index}`}
                 value={pair.value}
                 placeholder="value"
@@ -812,19 +825,19 @@ function MCPServerDeleteDialog({
               >
                 target
               </label>
-              <select
+              <NativeSelect
                 id="settings-mcp-servers-delete-target-input"
-                className="h-7 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-xs text-[color:var(--color-text-primary)]"
+                className="w-56 font-mono"
                 data-testid="settings-mcp-servers-delete-target-input"
                 value={selectedTarget}
                 onChange={event => onTargetChange(event.target.value as SettingsMCPServerTarget)}
               >
                 {availableTargets.map(candidate => (
-                  <option key={candidate} value={candidate}>
+                  <NativeSelectOption key={candidate} value={candidate}>
                     {targetLabel(candidate)}
-                  </option>
+                  </NativeSelectOption>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
           </div>
         ) : null
@@ -848,11 +861,6 @@ function ActionResultBanner({
   onDismiss: () => void;
 }) {
   const isSaved = action.kind === "saved";
-  const tone = isSaved ? "success" : "info";
-  const toneClasses =
-    tone === "success"
-      ? "border-[color:var(--color-success)] bg-[color:var(--color-success-tint)] text-[color:var(--color-success)]"
-      : "border-[color:var(--color-info)] bg-[color:var(--color-info-tint)] text-[color:var(--color-info)]";
   const restartBadge = action.result.restart_required
     ? "restart required to apply"
     : "applied immediately";
@@ -867,25 +875,25 @@ function ActionResultBanner({
       : `Deleted "${action.name}" · no other sources remained · ${restartBadge}.`;
 
   return (
-    <div
-      className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-xs ${toneClasses}`}
+    <Alert
+      variant={isSaved ? "success" : "info"}
+      role="status"
       data-testid="settings-page-mcp-servers-action-result"
       data-kind={action.kind}
-      role="status"
     >
-      <span className="flex items-center gap-2">
-        <Check className="size-3.5" />
-        <span>{message}</span>
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onDismiss}
-        data-testid="settings-page-mcp-servers-action-result-dismiss"
-      >
-        <X className="size-3.5" />
-      </Button>
-    </div>
+      <Check className="size-3.5" />
+      <AlertDescription className="text-xs">{message}</AlertDescription>
+      <AlertAction>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onDismiss}
+          data-testid="settings-page-mcp-servers-action-result-dismiss"
+        >
+          <X className="size-3.5" />
+        </Button>
+      </AlertAction>
+    </Alert>
   );
 }

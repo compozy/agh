@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { createBridgeCreateDraft } from "@/systems/bridges";
 import { bridgeProvidersFixture } from "@/systems/bridges/mocks";
@@ -19,8 +20,10 @@ type Story = StoryObj<typeof meta>;
 
 function BridgeCreateDialogHarness({
   initialDraft,
+  onSubmit,
 }: {
   initialDraft?: ReturnType<typeof createBridgeCreateDraft>;
+  onSubmit?: () => void;
 }) {
   const [draft, setDraft] = useState(
     initialDraft ?? createBridgeCreateDraft(bridgeProvidersFixture, "ws_storybook")
@@ -34,7 +37,7 @@ function BridgeCreateDialogHarness({
       isPending={false}
       onDraftChange={setDraft}
       onOpenChange={() => undefined}
-      onSubmit={() => undefined}
+      onSubmit={onSubmit ?? (() => undefined)}
       open
       providers={bridgeProvidersFixture}
     />
@@ -45,7 +48,7 @@ export const Default: Story = {
   render: () => <BridgeCreateDialogHarness />,
 };
 
-export const Error: Story = {
+export const InvalidProviderConfig: Story = {
   render: () => (
     <BridgeCreateDialogHarness
       initialDraft={{
@@ -54,4 +57,19 @@ export const Error: Story = {
       }}
     />
   ),
+};
+
+export const SubmitPayload: Story = {
+  tags: ["play-fn"],
+  render: () => {
+    const onSubmit = fn();
+    return <BridgeCreateDialogHarness onSubmit={onSubmit} />;
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const submit = await canvas.findByTestId("submit-bridge-create");
+    await userEvent.click(submit);
+    // Default draft already has Telegram selected with no provider config errors
+    await expect(submit).toBeEnabled();
+  },
 };

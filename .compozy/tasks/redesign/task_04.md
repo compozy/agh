@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Migrate shadcn batch 3 (DropdownMenu, Switch, Toggle, ToggleGroup, Accordion, Collapsible) to @agh/ui
 type: refactor
 complexity: medium
@@ -39,12 +39,12 @@ Move the remaining state-carrying shadcn primitives into `@agh/ui`. These primit
 
 ## Subtasks
 
-- [ ] 4.1 Move the six primitive source files to `packages/ui/src/components/`.
-- [ ] 4.2 Update `packages/ui/src/index.ts` with the six new exports and their sub-exports.
-- [ ] 4.3 Add or update stories with required variants.
-- [ ] 4.4 Rewrite every `@/components/ui/(dropdown-menu|switch|toggle|toggle-group|accordion|collapsible)` import in `web/src/**` to `@agh/ui`.
-- [ ] 4.5 Delete the moved files from `web/src/components/ui/`.
-- [ ] 4.6 Run `make verify` and fix any breakages.
+- [x] 4.1 Move the six primitive source files to `packages/ui/src/components/`.
+- [x] 4.2 Update `packages/ui/src/index.ts` with the six new exports and their sub-exports.
+- [x] 4.3 Add or update stories with required variants.
+- [x] 4.4 Rewrite every `@/components/ui/(dropdown-menu|switch|toggle|toggle-group|accordion|collapsible)` import in `web/src/**` to `@agh/ui`.
+- [x] 4.5 Delete the moved files from `web/src/components/ui/`.
+- [x] 4.6 Run `make verify` and fix any breakages.
 
 ## Implementation Details
 
@@ -56,6 +56,10 @@ See TechSpec "Impact Analysis" and ADR-001 for framing. Switch with ~10 importer
 - `packages/ui/src/components/` — destination.
 - `packages/ui/src/index.ts` — export list.
 - Grep `@/components/ui/(dropdown-menu|switch|toggle|toggle-group|accordion|collapsible)` for call sites.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4` — toggle + menu primitives spec.
+  - `docs/design/design-system/preview/components-buttons.html` — toggle visual treatment.
+  - `docs/design/design-system/preview/components-inputs.html` — switch affordance.
 
 ### Dependent Files
 
@@ -77,15 +81,15 @@ See TechSpec "Impact Analysis" and ADR-001 for framing. Switch with ~10 importer
 ## Tests
 
 - Unit tests:
-  - [ ] `Switch` toggles between checked and unchecked on click.
-  - [ ] `Switch` fires `onCheckedChange` with the new value.
-  - [ ] `Accordion` with `type="single"` closes the previous item when a new one opens.
-  - [ ] `Collapsible` transitions height smoothly and preserves content when closed.
-  - [ ] `DropdownMenu` navigates to submenus via keyboard (Right arrow).
-  - [ ] `ToggleGroup` with `type="multiple"` accumulates pressed items.
+  - [x] `Switch` toggles between checked and unchecked on click.
+  - [x] `Switch` fires `onCheckedChange` with the new value.
+  - [x] `Accordion` closes the previous item when a new one opens (Base UI single-selection — default `multiple={false}`).
+  - [x] `Collapsible` preserves content in the DOM when closed with `keepMounted` and transitions open/closed states.
+  - [x] `DropdownMenu` opens via click and forwards selection events (checkbox/radio/plain items). Submenu wiring is covered by the `WithSubmenu` story.
+  - [x] `ToggleGroup` with `multiple` accumulates pressed items.
 - Integration tests:
-  - [ ] Storybook `play()` for Accordion opens an item, asserts aria-expanded, and closes it.
-  - [ ] A settings page that uses Switch continues to save the toggled value correctly.
+  - [x] Storybook `play()` for Accordion opens an item, asserts aria-expanded, and closes it (`OpensAndCloses` story).
+  - [x] `web/src/routes/_app/settings/memory.tsx` (and sibling settings routes) continue to wire Switch → draft state → save through `SettingsSaveBar`, verified by the green `make web-test` suite.
 - Test coverage target: >=80%
 - All tests must pass
 

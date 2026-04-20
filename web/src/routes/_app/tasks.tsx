@@ -1,8 +1,7 @@
 import { Outlet, createFileRoute, useChildMatches, useNavigate } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { ListChecks, Plus } from "lucide-react";
 
-import { PillButton } from "@/components/design-system";
-import { Button } from "@agh/ui";
+import { Button, Empty, Pills, SplitPane } from "@agh/ui";
 import {
   TasksDashboardView,
   TasksDetailPreviewPanel,
@@ -53,64 +52,93 @@ function TasksRoute() {
     void navigate({ search: () => ({ template: undefined }), to: "/tasks/new" });
   };
 
+  const handleCloseDetail = () => {
+    page.setSelectedTaskId(null);
+    if (hasChildMatch) {
+      void navigate({ to: "/tasks" });
+    }
+  };
+
+  const listNode = (
+    <TasksListPanel
+      errorMessage={page.listError?.message ?? null}
+      isLoading={page.listLoading}
+      isPublishPending={page.isPublishPending}
+      onCreateTask={openCreateRoute}
+      onPublishTask={page.handlePublishTask}
+      onSearchChange={page.setSearchQuery}
+      onSelectTask={taskId => {
+        page.setSelectedTaskId(taskId);
+        void navigate({ params: { id: taskId }, to: "/tasks/$id" });
+      }}
+      searchQuery={page.searchQuery}
+      selectedTaskId={routedTaskId ?? page.effectiveSelectedTaskId}
+      statusFilter={page.statusFilter}
+      tasks={page.visibleTasks}
+      totalCount={page.tasksCount}
+    />
+  );
+
+  const hasSelectedTask = hasChildMatch || page.selectedTask !== null;
+  const detailNode = hasChildMatch ? (
+    <Outlet />
+  ) : page.selectedTask ? (
+    <TasksDetailPreviewPanel
+      detail={detailQuery.data ?? null}
+      errorMessage={detailQuery.error?.message ?? null}
+      isLoading={detailQuery.isLoading && !detailQuery.data}
+      isPublishPending={page.isPublishPending}
+      onPublishTask={page.handlePublishTask}
+      task={page.selectedTask}
+    />
+  ) : null;
+
+  const detailEmpty = (
+    <div
+      className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+      data-testid="tasks-detail-empty-slot"
+    >
+      <Empty
+        icon={ListChecks}
+        title="Select a task"
+        description="Pick an item from the list to see its runs, dependencies, and preview."
+      />
+    </div>
+  );
+
   return (
     <TasksPageShell
       controls={
-        <div className="flex items-center gap-1.5" data-testid="tasks-mode-pills">
-          <PillButton
-            active={surfaceMode === "list"}
-            data-testid="tasks-mode-list"
-            onClick={() => handleModeSelect("list")}
-          >
-            List
-          </PillButton>
-          <PillButton
-            active={surfaceMode === "kanban"}
-            data-testid="tasks-mode-kanban"
-            onClick={() => handleModeSelect("kanban")}
-          >
-            Kanban
-          </PillButton>
-          <PillButton
-            active={surfaceMode === "dashboard"}
-            data-testid="tasks-mode-dashboard"
-            onClick={() => handleModeSelect("dashboard")}
-          >
-            Dashboard
-          </PillButton>
-          <PillButton
-            active={surfaceMode === "inbox"}
-            data-testid="tasks-mode-inbox"
-            onClick={() => handleModeSelect("inbox")}
-          >
-            Inbox
-            {page.inbox && page.inbox.unread_total > 0 ? (
-              <span
-                className="ml-1.5 inline-flex size-4 items-center justify-center rounded-full bg-[color:var(--color-warning)] text-[0.58rem] font-semibold text-[color:var(--color-accent-ink)]"
-                data-testid="tasks-mode-inbox-unread"
-              >
-                {page.inbox.unread_total}
-              </span>
-            ) : null}
-          </PillButton>
-        </div>
+        <Pills
+          data-testid="tasks-mode-pills"
+          value={surfaceMode}
+          onChange={handleModeSelect}
+          items={[
+            { value: "list", label: "List", testId: "tasks-mode-list" },
+            { value: "kanban", label: "Kanban", testId: "tasks-mode-kanban" },
+            { value: "dashboard", label: "Dashboard", testId: "tasks-mode-dashboard" },
+            {
+              value: "inbox",
+              label: "Inbox",
+              badge: page.inbox?.unread_total ?? 0,
+              testId: "tasks-mode-inbox",
+            },
+          ]}
+        />
       }
       count={shellCount}
       meta={
-        <div className="flex items-center gap-1.5">
-          <Button
-            className="border-[color:var(--color-divider)] bg-transparent text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
-            data-testid="tasks-open-create"
-            disabled={isCreateRoute}
-            onClick={openCreateRoute}
-            size="lg"
-            type="button"
-            variant="outline"
-          >
-            <Plus className="size-4" />
-            Task
-          </Button>
-        </div>
+        <Button
+          data-testid="tasks-open-create"
+          disabled={isCreateRoute}
+          onClick={openCreateRoute}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          <Plus className="size-3.5" />
+          Task
+        </Button>
       }
     >
       {surfaceMode === "dashboard" ? (
@@ -161,37 +189,14 @@ function TasksRoute() {
           selectedTaskId={routedTaskId ?? page.effectiveSelectedTaskId}
         />
       ) : (
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          <TasksListPanel
-            errorMessage={page.listError?.message ?? null}
-            isLoading={page.listLoading}
-            isPublishPending={page.isPublishPending}
-            onCreateTask={openCreateRoute}
-            onPublishTask={page.handlePublishTask}
-            onSearchChange={page.setSearchQuery}
-            onSelectTask={taskId => {
-              page.setSelectedTaskId(taskId);
-              void navigate({ params: { id: taskId }, to: "/tasks/$id" });
-            }}
-            searchQuery={page.searchQuery}
-            selectedTaskId={routedTaskId ?? page.effectiveSelectedTaskId}
-            statusFilter={page.statusFilter}
-            tasks={page.visibleTasks}
-            totalCount={page.tasksCount}
-          />
-          {hasChildMatch ? (
-            <Outlet />
-          ) : (
-            <TasksDetailPreviewPanel
-              detail={detailQuery.data ?? null}
-              errorMessage={detailQuery.error?.message ?? null}
-              isLoading={detailQuery.isLoading && !detailQuery.data}
-              isPublishPending={page.isPublishPending}
-              onPublishTask={page.handlePublishTask}
-              task={page.selectedTask}
-            />
-          )}
-        </div>
+        <SplitPane
+          data-testid="tasks-split-pane"
+          detail={hasSelectedTask ? detailNode : undefined}
+          detailEmpty={detailEmpty}
+          list={listNode}
+          listWidth={340}
+          onDetailClose={handleCloseDetail}
+        />
       )}
     </TasksPageShell>
   );

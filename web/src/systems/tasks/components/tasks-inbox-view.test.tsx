@@ -85,11 +85,12 @@ describe("TasksInboxView", () => {
     fireEvent.change(screen.getByTestId("tasks-inbox-search"), { target: { value: "rotate" } });
     expect(props.onSearchChange).toHaveBeenCalledWith("rotate");
 
-    const checkbox = screen
+    const toggle = screen
       .getByTestId("tasks-inbox-unread-toggle")
-      .querySelector("input") as HTMLInputElement;
-    fireEvent.click(checkbox);
-    expect(props.onToggleUnread).toHaveBeenCalledWith(true);
+      .querySelector("[role=switch]") as HTMLElement;
+    fireEvent.click(toggle);
+    expect(props.onToggleUnread).toHaveBeenCalledTimes(1);
+    expect(props.onToggleUnread.mock.calls[0]?.[0]).toBe(true);
   });
 
   it("renders loading, error, and empty states", () => {

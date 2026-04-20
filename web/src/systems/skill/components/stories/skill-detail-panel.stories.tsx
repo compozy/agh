@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useEffect } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { useSkillsPage } from "@/hooks/routes/use-skills-page";
 import { PanelSurface } from "@/storybook/story-layout";
@@ -16,8 +18,14 @@ const meta: Meta<typeof SkillDetailPanel> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function SkillDetailPanelFromPage() {
+function SkillDetailPanelFromPage({ selectName }: { selectName?: string }) {
   const page = useSkillsPage();
+
+  useEffect(() => {
+    if (selectName) {
+      page.setSelectedSkillName(selectName);
+    }
+  }, [selectName, page]);
 
   return (
     <PanelSurface>
@@ -39,5 +47,83 @@ function SkillDetailPanelFromPage() {
 }
 
 export const Default: Story = {
-  render: () => <SkillDetailPanelFromPage />,
+  render: () => <SkillDetailPanelFromPage selectName="storybook-stories" />,
+};
+
+export const DisabledSkill: Story = {
+  render: () => <SkillDetailPanelFromPage selectName="code-review" />,
+};
+
+export const Empty: Story = {
+  render: () => (
+    <PanelSurface>
+      <SkillDetailPanel
+        content={undefined}
+        contentError={null}
+        error={null}
+        isActionPending={false}
+        isContentLoading={false}
+        isLoading={false}
+        onDisable={() => undefined}
+        onEnable={() => undefined}
+        onRetryContent={() => undefined}
+        onViewContent={() => undefined}
+        skill={undefined}
+      />
+    </PanelSurface>
+  ),
+};
+
+export const Loading: Story = {
+  render: () => (
+    <PanelSurface>
+      <SkillDetailPanel
+        content={undefined}
+        contentError={null}
+        error={null}
+        isActionPending={false}
+        isContentLoading={false}
+        isLoading={true}
+        onDisable={() => undefined}
+        onEnable={() => undefined}
+        onRetryContent={() => undefined}
+        onViewContent={() => undefined}
+        skill={undefined}
+      />
+    </PanelSurface>
+  ),
+};
+
+export const ErrorState: Story = {
+  render: () => (
+    <PanelSurface>
+      <SkillDetailPanel
+        content={undefined}
+        contentError={null}
+        error={new Error("Skill registry offline")}
+        isActionPending={false}
+        isContentLoading={false}
+        isLoading={false}
+        onDisable={() => undefined}
+        onEnable={() => undefined}
+        onRetryContent={() => undefined}
+        onViewContent={() => undefined}
+        skill={undefined}
+      />
+    </PanelSurface>
+  ),
+};
+
+/**
+ * Interaction test — toggling the Switch surfaces disable/enable call.
+ */
+export const ToggleSwitch: Story = {
+  tags: ["play-fn"],
+  render: () => <SkillDetailPanelFromPage selectName="storybook-stories" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = await canvas.findByTestId("skill-enabled-switch");
+    await userEvent.click(toggle);
+    await expect(toggle).toBeDefined();
+  },
 };

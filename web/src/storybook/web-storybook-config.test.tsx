@@ -19,6 +19,7 @@ const {
   queryClientDecorator,
   routerDecorator,
   storybookDecorators,
+  storybookSystemHandlerGroups,
   storybookLoaders,
   storybookSystemHandlers,
   themeDecorator,
@@ -61,13 +62,11 @@ describe("web Storybook config", () => {
     expect(webPreview.loaders).toEqual(storybookLoaders);
     expect(storybookLoaders).toEqual([mswLoader]);
     expect(webPreview.decorators).toEqual(storybookDecorators);
-    expect(webPreview.parameters?.msw?.handlers).toEqual(storybookSystemHandlers);
+    expect(webPreview.parameters?.msw?.handlers).toEqual(storybookSystemHandlerGroups);
     expect(storybookSystemHandlers.length).toBeGreaterThan(0);
     expect(storybookDecorators.filter(decorator => decorator === themeDecorator)).toHaveLength(1);
-    expect(
-      storybookDecorators.filter(decorator => decorator === queryClientDecorator)
-    ).toHaveLength(1);
     expect(storybookDecorators.filter(decorator => decorator === routerDecorator)).toHaveLength(1);
+    expect(storybookDecorators).not.toContain(queryClientDecorator);
   });
 
   it("creates story-scoped query clients with retry disabled and infinite stale time", () => {
@@ -99,13 +98,59 @@ describe("web Storybook config", () => {
     await router.navigate({ to: "/session/$id", params: { id: "sess-storybook" } });
     expect(router.state.location.pathname).toBe("/session/sess-storybook");
 
-    await router.navigate({ to: "/automation" });
-    expect(router.state.location.pathname).toBe("/automation");
+    await router.navigate({ to: "/jobs" });
+    expect(router.state.location.pathname).toBe("/jobs");
+
+    await router.navigate({ to: "/triggers" });
+    expect(router.state.location.pathname).toBe("/triggers");
+
+    await router.navigate({ to: "/tasks" });
+    expect(router.state.location.pathname).toBe("/tasks");
+
+    await router.navigate({ to: "/tasks/new", search: () => ({ template: undefined }) });
+    expect(router.state.location.pathname).toBe("/tasks/new");
+
+    await router.navigate({ to: "/tasks/$id", params: { id: "task_001" } });
+    expect(router.state.location.pathname).toBe("/tasks/task_001");
+
+    await router.navigate({ to: "/tasks/$id/edit", params: { id: "task_001" } });
+    expect(router.state.location.pathname).toBe("/tasks/task_001/edit");
+
+    await router.navigate({
+      to: "/tasks/$id/runs/$runId",
+      params: { id: "task_001", runId: "run_001" },
+    });
+    expect(router.state.location.pathname).toBe("/tasks/task_001/runs/run_001");
   });
 
-  it("renders stories through the router decorator stub", async () => {
-    render(routerDecorator(() => createElement("div", { "data-testid": "router-story" }, "Story")));
+  it("creates an app router rooted in the real route tree for nested settings stories", async () => {
+    const router = createStorybookRouter(
+      undefined,
+      {
+        kind: "app",
+        initialEntries: ["/settings/providers"],
+      },
+      createStorybookQueryClient()
+    );
+
+    await router.load();
+
+    expect(router.state.location.pathname).toBe("/settings/providers");
+  });
+
+  it("renders stories through the router decorator stub with a query client available", async () => {
+    render(
+      routerDecorator(() =>
+        createElement(
+          "div",
+          null,
+          createElement("div", { "data-testid": "router-story" }, "Story"),
+          createElement(QueryClientProbe)
+        )
+      )
+    );
 
     expect(await screen.findByTestId("router-story")).toHaveTextContent("Story");
+    expect(await screen.findByTestId("query-client-defaults")).toHaveTextContent("false|Infinity");
   });
 });

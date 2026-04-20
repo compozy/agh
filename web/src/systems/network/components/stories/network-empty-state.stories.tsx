@@ -22,7 +22,7 @@ export const Default: Story = {
       <NetworkEmptyState
         actionLabel="Create Channel"
         description="Create your first channel to coordinate multiple agents inside the active workspace."
-        icon={<Hash className="size-5" />}
+        icon={Hash}
         onAction={() => undefined}
         testId="network-empty-story"
         title="No channels yet"

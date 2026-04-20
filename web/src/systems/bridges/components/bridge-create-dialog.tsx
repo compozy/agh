@@ -1,25 +1,26 @@
 import { Loader2 } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
-import { Button, Input } from "@agh/ui";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Field,
   FieldContent,
   FieldDescription,
   FieldGroup,
   FieldSet,
   FieldTitle,
-} from "@/components/ui/field";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+  Input,
+  MonoBadge,
+  NativeSelect,
+  NativeSelectOption,
+  Section,
+  Switch,
+  Textarea,
+} from "@agh/ui";
 
 import {
   buildBridgeProviderKey,
@@ -70,7 +71,7 @@ export function BridgeCreateDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="max-w-[calc(100%-2rem)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-0 text-[color:var(--color-text-primary)] sm:max-w-4xl"
+        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-4xl"
         showCloseButton={false}
       >
         <form
@@ -81,35 +82,30 @@ export function BridgeCreateDialog({
             onSubmit();
           }}
         >
-          <DialogHeader className="space-y-2 px-6 pt-6">
+          <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
             <DialogTitle>Create Bridge</DialogTitle>
-            <DialogDescription className="text-[color:var(--color-text-secondary)]">
+            <DialogDescription>
               Select an installed provider, configure provider-owned runtime settings separately
               from delivery defaults, and scope the bridge globally or to the active workspace.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="flex-1 overflow-y-auto px-5 py-5">
             <FieldSet className="gap-6">
-              <section className="space-y-3">
-                <div className="space-y-1">
-                  <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-                    Provider
-                  </p>
-                  <p className="text-sm text-[color:var(--color-text-secondary)]">
-                    Only providers with healthy runtime state can be selected for bridge creation.
-                  </p>
-                </div>
+              <Section label="Provider">
+                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                  Only providers with healthy runtime state can be selected for bridge creation.
+                </p>
                 {providers.length === 0 ? (
                   <div
-                    className="rounded-xl border border-dashed border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-8 text-center text-sm leading-6 text-[color:var(--color-text-secondary)]"
+                    className="mt-3 rounded-[var(--radius-md)] border border-dashed border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-5 py-8 text-center text-[13px] leading-6 text-[color:var(--color-text-secondary)]"
                     data-testid="bridge-provider-empty"
                   >
                     No bridge providers are currently available. Install or enable a bridge adapter
                     extension before creating a new bridge.
                   </div>
                 ) : (
-                  <div className="grid gap-3 lg:grid-cols-2">
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     {providers.map(provider => (
                       <BridgeProviderCard
                         key={buildBridgeProviderKey(provider)}
@@ -130,78 +126,65 @@ export function BridgeCreateDialog({
                     ))}
                   </div>
                 )}
-              </section>
+              </Section>
 
               {selectedProvider ? (
-                <section
-                  className="space-y-4 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4"
-                  data-testid="bridge-provider-runtime-section"
-                >
-                  <div className="space-y-1">
-                    <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-                      Provider runtime
-                    </p>
-                    <p className="text-sm text-[color:var(--color-text-secondary)]">
-                      Provider-owned runtime configuration, DM policy, and secret requirements stay
-                      separate from generic routing and delivery defaults.
-                    </p>
-                  </div>
+                <Section data-testid="bridge-provider-runtime-section" label="Provider runtime">
+                  <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                    Provider-owned runtime configuration, DM policy, and secret requirements stay
+                    separate from generic routing and delivery defaults.
+                  </p>
 
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
-                      <p className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
                         Config schema
                       </p>
                       <p
-                        className="mt-2 text-sm text-[color:var(--color-text-primary)]"
+                        className="mt-2 text-[13px] text-[color:var(--color-text-primary)]"
                         data-testid="bridge-provider-config-schema"
                       >
                         {describeBridgeProviderConfigSchema(selectedProvider.config_schema)}
                       </p>
                     </div>
 
-                    <div className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
+                    <div className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
                           Secret slots
                         </p>
-                        <Pill kind="tag" tone="neutral">
-                          {selectedProvider.secret_slots?.length ?? 0}
-                        </Pill>
+                        <MonoBadge>{selectedProvider.secret_slots?.length ?? 0}</MonoBadge>
                       </div>
                       {selectedProvider.secret_slots?.length ? (
                         <ul className="mt-3 space-y-2" data-testid="bridge-provider-secret-slots">
                           {selectedProvider.secret_slots.map(slot => (
                             <li
                               key={slot.name}
-                              className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-3 py-2"
+                              className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-3 py-2"
                             >
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono text-[0.7rem] uppercase tracking-[0.12em] text-[color:var(--color-text-primary)]">
+                                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-text-primary)]">
                                   {slot.name}
                                 </span>
-                                <Pill
-                                  kind="tag"
-                                  tone={slot.required === false ? "neutral" : "amber"}
-                                >
-                                  {slot.required === false ? "optional" : "required"}
-                                </Pill>
+                                <MonoBadge tone={slot.required === false ? "neutral" : "warning"}>
+                                  {slot.required === false ? "OPTIONAL" : "REQUIRED"}
+                                </MonoBadge>
                               </div>
-                              <p className="mt-2 text-xs leading-relaxed text-[color:var(--color-text-secondary)]">
+                              <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-text-secondary)]">
                                 {describeBridgeSecretSlot(slot)}
                               </p>
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="mt-3 text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+                        <p className="mt-3 text-[13px] leading-relaxed text-[color:var(--color-text-secondary)]">
                           This provider does not declare secret slot requirements in its manifest.
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <FieldGroup className="gap-4">
+                  <FieldGroup className="mt-4 gap-4">
                     <Field>
                       <FieldContent>
                         <FieldTitle>DM policy</FieldTitle>
@@ -252,19 +235,19 @@ export function BridgeCreateDialog({
                       />
                       {providerConfigError ? (
                         <p
-                          className="text-sm text-[color:var(--color-danger)]"
+                          className="text-[13px] text-[color:var(--color-danger)]"
                           data-testid="bridge-provider-config-error"
                         >
                           {providerConfigError}
                         </p>
                       ) : (
-                        <p className="text-xs leading-relaxed text-[color:var(--color-text-tertiary)]">
+                        <p className="text-[12px] leading-relaxed text-[color:var(--color-text-tertiary)]">
                           Hint: {describeBridgeProviderConfigSchema(selectedProvider.config_schema)}
                         </p>
                       )}
                     </Field>
                   </FieldGroup>
-                </section>
+                </Section>
               ) : null}
 
               <FieldGroup className="grid gap-4 lg:grid-cols-2">
@@ -314,19 +297,15 @@ export function BridgeCreateDialog({
                 </Field>
               </FieldGroup>
 
-              <section className="space-y-4 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4">
-                <div className="space-y-1">
-                  <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-                    Routing policy
-                  </p>
-                  <p className="text-sm text-[color:var(--color-text-secondary)]">
-                    {describeBridgeRoutingPolicy(draft.routingPolicy)}
-                  </p>
-                </div>
-                <FieldGroup className="gap-3">
+              <Section label="Routing policy">
+                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                  {describeBridgeRoutingPolicy(draft.routingPolicy)}
+                </p>
+                <FieldGroup className="mt-3 gap-3">
                   <Field orientation="horizontal">
                     <Switch
                       checked={draft.routingPolicy.include_peer}
+                      data-testid="bridge-routing-include-peer"
                       onCheckedChange={checked =>
                         onDraftChange({
                           ...draft,
@@ -347,6 +326,7 @@ export function BridgeCreateDialog({
                   <Field orientation="horizontal">
                     <Switch
                       checked={draft.routingPolicy.include_group}
+                      data-testid="bridge-routing-include-group"
                       onCheckedChange={checked =>
                         onDraftChange({
                           ...draft,
@@ -367,6 +347,7 @@ export function BridgeCreateDialog({
                   <Field orientation="horizontal">
                     <Switch
                       checked={draft.routingPolicy.include_thread}
+                      data-testid="bridge-routing-include-thread"
                       onCheckedChange={checked =>
                         onDraftChange({
                           ...draft,
@@ -385,18 +366,13 @@ export function BridgeCreateDialog({
                     </FieldContent>
                   </Field>
                 </FieldGroup>
-              </section>
+              </Section>
 
-              <section className="space-y-4 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4">
-                <div className="space-y-1">
-                  <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-                    Delivery defaults
-                  </p>
-                  <p className="text-sm text-[color:var(--color-text-secondary)]">
-                    These defaults are applied when resolving outbound delivery targets.
-                  </p>
-                </div>
-                <FieldGroup className="grid gap-4 lg:grid-cols-2">
+              <Section label="Delivery defaults">
+                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                  These defaults are applied when resolving outbound delivery targets.
+                </p>
+                <FieldGroup className="mt-3 grid gap-4 lg:grid-cols-2">
                   <Field>
                     <FieldContent>
                       <FieldTitle>Mode</FieldTitle>
@@ -482,29 +458,23 @@ export function BridgeCreateDialog({
                     />
                   </Field>
                 </FieldGroup>
-              </section>
+              </Section>
             </FieldSet>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-6 py-4">
-            <Button
-              className="border-[color:var(--color-divider)] bg-transparent text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
-              onClick={() => onOpenChange(false)}
-              size="lg"
-              type="button"
-              variant="outline"
-            >
+          <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+            <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
               Cancel
             </Button>
             <Button
               data-testid="submit-bridge-create"
               disabled={!canSubmit || isPending}
-              size="lg"
+              size="sm"
               type="submit"
             >
               {isPending ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="size-3.5 animate-spin" />
                   Creating…
                 </>
               ) : (

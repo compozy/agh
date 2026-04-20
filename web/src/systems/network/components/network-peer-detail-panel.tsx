@@ -1,8 +1,20 @@
-import { AlertCircle, Hash, Link2, Loader2, Network, Radio, Workflow } from "lucide-react";
+import { AlertCircle, Loader2, Network } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
 
-import { Pill } from "@/components/design-system";
+import {
+  Empty,
+  KindChip,
+  Metric,
+  MonoBadge,
+  Pill,
+  Section,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@agh/ui";
 
 import {
   formatNetworkDateTime,
@@ -20,151 +32,174 @@ interface NetworkPeerDetailPanelProps {
   peer: NetworkPeerDetail | undefined;
 }
 
-function DetailRow({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
+function DetailStateFallback({ children, testId }: { children: React.ReactNode; testId: string }) {
   return (
-    <div className="flex items-center gap-3 border-b border-[color:var(--color-divider)] px-4 py-3 last:border-b-0">
-      <span className="flex size-4 shrink-0 items-center justify-center text-[color:var(--color-text-tertiary)]">
-        {icon}
-      </span>
-      <span className="w-28 shrink-0 font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-        {label}
-      </span>
-      <div className="min-w-0 flex-1 text-sm text-[color:var(--color-text-primary)]">{value}</div>
+    <div className="flex min-h-0 flex-1 items-center justify-center p-6" data-testid={testId}>
+      {children}
     </div>
   );
 }
 
-function PeerMetric({ detail, label, value }: { detail: string; label: string; value: string }) {
-  const metricSlug = label.toLowerCase().replaceAll(" ", "-");
+interface PeerMetricProps {
+  detail: string;
+  label: string;
+  value: string;
+}
+
+function PeerMetric({ detail, label, value }: PeerMetricProps) {
+  const slug = label.toLowerCase().replaceAll(" ", "-");
 
   return (
-    <div
-      className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
-      data-testid={`network-peer-metric-${metricSlug}`}
-    >
-      <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-        {label}
-      </p>
-      <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[color:var(--color-text-primary)]">
-        {value}
-      </p>
-      <p className="mt-1 text-sm text-[color:var(--color-text-secondary)]">{detail}</p>
-    </div>
+    <Metric
+      data-testid={`network-peer-metric-${slug}`}
+      detail={detail}
+      label={label}
+      value={value}
+    />
   );
 }
 
 export function NetworkPeerDetailPanel({ error, isLoading, peer }: NetworkPeerDetailPanelProps) {
   if (isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center" data-testid="network-peer-loading">
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
-      </div>
+      <DetailStateFallback testId="network-peer-loading">
+        <Loader2
+          aria-hidden="true"
+          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+        />
+      </DetailStateFallback>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-1 items-center justify-center" data-testid="network-peer-error">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-tertiary)]">
-            {error.message ?? "Failed to load peer details"}
-          </p>
-        </div>
-      </div>
+      <DetailStateFallback testId="network-peer-error">
+        <Empty
+          className="max-w-md"
+          icon={AlertCircle}
+          title="Unable to load peer"
+          description={error.message ?? "Failed to load peer details"}
+        />
+      </DetailStateFallback>
     );
   }
 
   if (!peer) {
     return (
-      <div className="flex flex-1 items-center justify-center" data-testid="network-peer-empty">
-        <p className="max-w-md text-center text-sm leading-relaxed text-[color:var(--color-text-tertiary)]">
-          Select a peer to inspect identity, current channel, and message metrics.
-        </p>
-      </div>
+      <DetailStateFallback testId="network-peer-empty">
+        <Empty
+          className="max-w-md"
+          icon={Network}
+          title="Select a peer"
+          description="Inspect capabilities, joined channels, and delivery metrics for any visible peer."
+        />
+      </DetailStateFallback>
     );
   }
 
   const displayName = getPeerDisplayName(peer);
   const typeLabel = getPeerTypeLabel({ local: peer.local ?? false });
+  const capabilities = peer.peer_card?.capabilities ?? [];
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
       data-testid="network-peer-detail-panel"
     >
-      <div className="space-y-5">
-        <section className="border-b border-[color:var(--color-divider)] pb-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex size-8 items-center justify-center rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] text-[color:var(--color-text-secondary)]">
-              <Network className="size-4" />
-            </div>
-            <h2 className="text-xl font-semibold text-[color:var(--color-text-primary)]">
-              {displayName}
-            </h2>
-            <Pill emphasis="strong" kind="state" tone={peer.local ? "amber" : "neutral"}>
-              {typeLabel}
-            </Pill>
-            {peer.session_id ? (
-              <Link
-                className="ml-auto inline-flex h-8 items-center rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-3 text-sm font-medium text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-surface-panel)]"
-                params={{ id: peer.session_id }}
-                to="/session/$id"
-              >
-                View Session
-              </Link>
-            ) : null}
-          </div>
-          <p className="mt-3 text-sm text-[color:var(--color-text-secondary)]">
-            {getPeerHeartbeatLabel(peer)}
-          </p>
-        </section>
+      <header className="border-b border-[color:var(--color-divider)] px-6 py-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="inline-flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] text-[color:var(--color-text-secondary)]"
+          >
+            <Network className="size-4" />
+          </span>
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]">
+            {displayName}
+          </h2>
+          <Pill variant={peer.local ? "accent" : "default"}>{typeLabel}</Pill>
+          <MonoBadge>{peer.peer_id}</MonoBadge>
+          {peer.session_id ? (
+            <Link
+              className="ml-auto inline-flex h-8 items-center rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-3 text-[13px] font-medium text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-hover)]"
+              params={{ id: peer.session_id }}
+              to="/session/$id"
+            >
+              View Session
+            </Link>
+          ) : null}
+        </div>
+        <p className="mt-2 text-[13px] text-[color:var(--color-text-secondary)]">
+          {getPeerHeartbeatLabel(peer)}
+        </p>
+      </header>
 
-        <section className="space-y-3">
-          <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-            Peer Identity
-          </p>
-          <div className="overflow-hidden rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]">
-            <DetailRow icon={<Hash className="size-3.5" />} label="peer id" value={peer.peer_id} />
-            <DetailRow
-              icon={<Radio className="size-3.5" />}
-              label="display name"
-              value={displayName}
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+        <Section label="Capabilities" right={<MonoBadge>{capabilities.length}</MonoBadge>}>
+          {capabilities.length === 0 ? (
+            <Empty
+              icon={Network}
+              title="No capabilities advertised"
+              description="This peer's card does not advertise any runtime capabilities."
             />
-            <DetailRow icon={<Workflow className="size-3.5" />} label="type" value={typeLabel} />
-            <DetailRow
-              icon={<Link2 className="size-3.5" />}
-              label="session"
-              value={peer.session_id ?? "No local session bound"}
-            />
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <div className="flex items-center gap-2">
-            <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-              Channel
-            </p>
-            <Pill emphasis="strong" kind="state" tone="neutral">
-              {peer.channel ? "1" : "0"}
-            </Pill>
-          </div>
-          {peer.channel ? (
-            <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-2 text-sm text-[color:var(--color-text-primary)]">
-              <Hash className="size-4 text-[color:var(--color-text-tertiary)]" />
-              <span>{peer.channel}</span>
-            </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-4 text-sm text-[color:var(--color-text-secondary)]">
-              This peer is visible but did not report an active channel membership.
+            <div
+              className="flex flex-wrap items-center gap-1.5"
+              data-testid="network-peer-capabilities"
+            >
+              {capabilities.map(capability => (
+                <KindChip
+                  data-testid={`network-peer-capability-${capability}`}
+                  key={capability}
+                  kind={capability}
+                />
+              ))}
             </div>
           )}
-        </section>
+        </Section>
 
-        <section className="space-y-3">
-          <p className="font-mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-            Message Statistics
-          </p>
+        <Section label="Channels" right={<MonoBadge>{peer.channel ? 1 : 0}</MonoBadge>}>
+          {peer.channel ? (
+            <div className="overflow-hidden rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                      Channel
+                    </TableHead>
+                    <TableHead className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                      Joined
+                    </TableHead>
+                    <TableHead className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                      Last seen
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow data-testid={`network-peer-channel-${peer.channel}`}>
+                    <TableCell className="font-mono text-[13px] text-[color:var(--color-text-primary)]">
+                      {peer.channel}
+                    </TableCell>
+                    <TableCell className="text-[13px] text-[color:var(--color-text-secondary)]">
+                      {formatNetworkDateTime(peer.joined_at)}
+                    </TableCell>
+                    <TableCell className="text-[13px] text-[color:var(--color-text-secondary)]">
+                      {formatNetworkDateTime(peer.last_seen)}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <Empty
+              icon={Network}
+              title="No channel membership"
+              description="This peer is visible but did not report an active channel membership."
+            />
+          )}
+        </Section>
+
+        <Section label="Message Statistics">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <PeerMetric
               detail="total"
@@ -187,10 +222,10 @@ export function NetworkPeerDetailPanel({ error, isLoading, peer }: NetworkPeerDe
               value={formatNetworkNumber(peer.metrics.delivered ?? 0)}
             />
           </div>
-        </section>
+        </Section>
 
-        <p className="text-xs text-[color:var(--color-text-tertiary)]">
-          Last updated: {formatNetworkDateTime(peer.last_seen)}
+        <p className="font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+          Last updated · {formatNetworkDateTime(peer.last_seen)}
         </p>
       </div>
     </section>

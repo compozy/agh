@@ -674,6 +674,7 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 
 func (p *AgentProcess) waitForExit() {
 	var waitErr error
+	var groupWaitErr error
 	switch {
 	case p.handle != nil:
 		waitErr = p.handle.Wait()
@@ -681,11 +682,17 @@ func (p *AgentProcess) waitForExit() {
 		waitErr = p.managed.Wait()
 	case p.cmd != nil:
 		waitErr = p.cmd.Wait()
+		if p.stopWasRequested() {
+			groupWaitErr = forceManagedProcessGroupExit(p.cmd, time.Second)
+		}
 	default:
 		waitErr = nil
 	}
 	if p.stopWasRequested() {
 		waitErr = nil
+		if groupWaitErr != nil {
+			waitErr = fmt.Errorf("acp: wait for subprocess tree exit: %w", groupWaitErr)
+		}
 	} else if waitErr != nil {
 		waitErr = fmt.Errorf("acp: subprocess exited: %w", attachStderr(waitErr, p.Stderr()))
 	}

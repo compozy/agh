@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Migrate shadcn batch 2 (Combobox, Command, Select, ScrollArea, Tabs) to @agh/ui
 type: refactor
 complexity: medium
@@ -39,12 +39,12 @@ Move the selection-family shadcn primitives out of `web/src/components/ui/` and 
 
 ## Subtasks
 
-- [ ] 3.1 Move the five primitive source files to `packages/ui/src/components/`.
-- [ ] 3.2 Update `packages/ui/src/index.ts` with the five new exports plus any associated sub-exports (e.g., `SelectGroup`, `CommandItem`).
-- [ ] 3.3 Add or update stories with the required variants above.
-- [ ] 3.4 Rewrite every `@/components/ui/(combobox|command|select|scroll-area|tabs)` import in `web/src/**` to `@agh/ui`.
-- [ ] 3.5 Delete the moved files from `web/src/components/ui/`.
-- [ ] 3.6 Run `make verify` and fix any breakages.
+- [x] 3.1 Move the five primitive source files to `packages/ui/src/components/`.
+- [x] 3.2 Update `packages/ui/src/index.ts` with the five new exports plus any associated sub-exports (e.g., `SelectGroup`, `CommandItem`).
+- [x] 3.3 Add or update stories with the required variants above.
+- [x] 3.4 Rewrite every `@/components/ui/(combobox|command|select|scroll-area|tabs)` import in `web/src/**` to `@agh/ui`.
+- [x] 3.5 Delete the moved files from `web/src/components/ui/`.
+- [x] 3.6 Run `make verify` and fix any breakages.
 
 ## Implementation Details
 
@@ -57,6 +57,10 @@ See TechSpec "Impact Analysis" and ADR-001 for context. Combobox is currently a 
 - `packages/ui/src/index.ts` — export list.
 - `packages/ui/src/components/stories/` — destination for stories.
 - Grep `@/components/ui/(combobox|command|select|scroll-area|tabs)` for all call sites.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4` — selection primitives spec.
+  - `docs/design/design-system/preview/components-inputs.html` — input shape + focus treatment.
+  - `docs/design/design-system/preview/components-nav.html` — tabs + navigation pills reference.
 
 ### Dependent Files
 
@@ -78,14 +82,14 @@ See TechSpec "Impact Analysis" and ADR-001 for context. Combobox is currently a 
 ## Tests
 
 - Unit tests:
-  - [ ] `Combobox` in multi-select mode accumulates selections and emits the correct array on change.
-  - [ ] `Command` filters items as the user types and selects the highlighted item on Enter.
-  - [ ] `Select` opens, navigates with Arrow keys, and closes on Escape.
-  - [ ] `ScrollArea` renders a custom track/thumb when content overflows.
-  - [ ] `Tabs` orients horizontally by default and honors `orientation="vertical"`.
+  - [x] `Combobox` in multi-select mode accumulates selections and emits the correct array on change.
+  - [x] `Command` filters items as the user types and selects the highlighted item on Enter.
+  - [x] `Select` opens, navigates with Arrow keys, and closes on Escape.
+  - [x] `ScrollArea` renders a custom track/thumb when content overflows.
+  - [x] `Tabs` orients horizontally by default and honors `orientation="vertical"`.
 - Integration tests:
-  - [ ] Storybook `play()` for `Command` filters a canned dataset and selects an item via keyboard.
-  - [ ] One existing domain screen using `Combobox` renders its test suite unchanged after the import rewrite.
+  - [x] Storybook `play()` for `Command` filters a canned dataset and selects an item via keyboard.
+  - [x] One existing domain screen using `Combobox` renders its test suite unchanged after the import rewrite.
 - Test coverage target: >=80%
 - All tests must pass
 

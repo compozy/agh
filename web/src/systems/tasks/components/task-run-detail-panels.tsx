@@ -1,7 +1,18 @@
 import { Link } from "@tanstack/react-router";
 
-import { Pill } from "@/components/design-system";
+import {
+  CodeBlock,
+  Metric,
+  MonoBadge,
+  Pill,
+  Section,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+} from "@agh/ui";
 
+import { pillVariantFromTone } from "@/lib/pill-variant";
 import { taskRunStatusTone } from "../lib/task-formatters";
 import type { TaskRunDetailView } from "../types";
 
@@ -9,11 +20,24 @@ export interface TaskRunIdentityPanelProps {
   run: TaskRunDetailView;
 }
 
-function SidePanelLabel({ children }: { children: string }) {
+function IdentityRow({
+  label,
+  children,
+  testId,
+}: {
+  label: string;
+  children: React.ReactNode;
+  testId?: string;
+}) {
   return (
-    <span className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-      {children}
-    </span>
+    <TableRow>
+      <TableCell className="w-[140px] pl-4 align-middle font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+        {label}
+      </TableCell>
+      <TableCell className="pr-4 align-middle text-[13px] text-[color:var(--color-text-primary)]">
+        <span data-testid={testId}>{children}</span>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -22,83 +46,54 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
   const session = run.session;
 
   return (
-    <section
-      aria-label="Run identity"
-      className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-4"
-      data-testid="task-run-detail-identity"
-    >
-      <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-        Run Identity
-      </h3>
-      <dl className="mt-3 flex flex-col gap-2 text-sm">
-        <div className="flex items-center justify-between gap-4">
-          <SidePanelLabel>Run ID</SidePanelLabel>
-          <span
-            className="truncate font-mono text-[0.78rem] text-[color:var(--color-text-primary)]"
-            data-testid="task-run-detail-identity-run"
-          >
-            {record.id}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <SidePanelLabel>Status</SidePanelLabel>
-          <Pill emphasis="strong" kind="state" tone={taskRunStatusTone(record.status)}>
-            {record.status}
-          </Pill>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <SidePanelLabel>Attempt</SidePanelLabel>
-          <span
-            className="text-[color:var(--color-text-primary)]"
-            data-testid="task-run-detail-identity-attempt"
-          >
-            {record.attempt}
-          </span>
-        </div>
-        {record.idempotency_key ? (
-          <div className="flex items-center justify-between gap-4">
-            <SidePanelLabel>Idempotency</SidePanelLabel>
-            <span
-              className="truncate font-mono text-[0.78rem] text-[color:var(--color-text-primary)]"
-              data-testid="task-run-detail-identity-idempotency"
-            >
-              {record.idempotency_key}
-            </span>
-          </div>
-        ) : null}
-        {record.claimed_by?.ref ? (
-          <div className="flex items-center justify-between gap-4">
-            <SidePanelLabel>Claimed By</SidePanelLabel>
-            <span
-              className="text-[color:var(--color-text-primary)]"
-              data-testid="task-run-detail-identity-claimed-by"
-            >
-              {record.claimed_by.ref}
-            </span>
-          </div>
-        ) : null}
-        <div className="flex items-center justify-between gap-4">
-          <SidePanelLabel>Session</SidePanelLabel>
-          {session?.session_id ? (
-            <Link
-              className="font-mono text-[0.78rem] text-[color:var(--color-accent)] hover:underline"
-              data-testid="task-run-detail-session-link"
-              params={{ id: session.session_id }}
-              to="/session/$id"
-            >
-              {session.session_id}
-            </Link>
-          ) : (
-            <span
-              className="text-[color:var(--color-text-tertiary)]"
-              data-testid="task-run-detail-session-missing"
-            >
-              None
-            </span>
-          )}
-        </div>
-      </dl>
-    </section>
+    <Section aria-label="Run identity" data-testid="task-run-detail-identity" label="Run identity">
+      <div className="rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]">
+        <Table className="text-[13px]">
+          <TableBody>
+            <IdentityRow label="Run ID" testId="task-run-detail-identity-run">
+              <MonoBadge>{record.id}</MonoBadge>
+            </IdentityRow>
+            <IdentityRow label="Status">
+              <Pill variant={pillVariantFromTone(taskRunStatusTone(record.status))}>
+                {record.status}
+              </Pill>
+            </IdentityRow>
+            <IdentityRow label="Attempt" testId="task-run-detail-identity-attempt">
+              {record.attempt}
+            </IdentityRow>
+            {record.idempotency_key ? (
+              <IdentityRow label="Idempotency" testId="task-run-detail-identity-idempotency">
+                <MonoBadge>{record.idempotency_key}</MonoBadge>
+              </IdentityRow>
+            ) : null}
+            {record.claimed_by?.ref ? (
+              <IdentityRow label="Claimed by" testId="task-run-detail-identity-claimed-by">
+                {record.claimed_by.ref}
+              </IdentityRow>
+            ) : null}
+            <IdentityRow label="Session">
+              {session?.session_id ? (
+                <Link
+                  className="font-mono text-[12px] text-[color:var(--color-accent)] hover:underline"
+                  data-testid="task-run-detail-session-link"
+                  params={{ id: session.session_id }}
+                  to="/session/$id"
+                >
+                  {session.session_id}
+                </Link>
+              ) : (
+                <span
+                  className="text-[color:var(--color-text-tertiary)]"
+                  data-testid="task-run-detail-session-missing"
+                >
+                  None
+                </span>
+              )}
+            </IdentityRow>
+          </TableBody>
+        </Table>
+      </div>
+    </Section>
   );
 }
 
@@ -164,63 +159,42 @@ export function TaskRunProgressPanel({ run }: TaskRunProgressPanelProps) {
   const elapsed = formatElapsed(record.started_at, record.ended_at);
 
   return (
-    <section
-      aria-label="Run progress"
-      className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-4"
-      data-testid="task-run-detail-progress"
-    >
-      <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-        Progress
-      </h3>
-      <dl className="mt-3 flex flex-col gap-2 text-sm">
-        <MetricRow
+    <Section aria-label="Run progress" data-testid="task-run-detail-progress" label="Progress">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Metric
+          data-testid="task-run-detail-progress-tool-calls"
           label="Tool calls"
           value={formatCount(summary?.tool_call_count)}
-          testId="task-run-detail-progress-tool-calls"
         />
-        <MetricRow
-          label="Input tokens"
-          value={formatCount(summary?.input_tokens)}
-          testId="task-run-detail-progress-input-tokens"
-        />
-        <MetricRow
-          label="Output tokens"
-          value={formatCount(summary?.output_tokens)}
-          testId="task-run-detail-progress-output-tokens"
-        />
-        <MetricRow
-          label="Total tokens"
-          value={formatCount(summary?.total_tokens)}
-          testId="task-run-detail-progress-total-tokens"
-        />
-        <MetricRow
+        <Metric
+          data-testid="task-run-detail-progress-turns"
           label="Turns"
           value={formatCount(summary?.turn_count)}
-          testId="task-run-detail-progress-turns"
         />
-        <MetricRow label="Elapsed" value={elapsed} testId="task-run-detail-progress-elapsed" />
-        <MetricRow
+        <Metric
+          data-testid="task-run-detail-progress-input-tokens"
+          label="Input tokens"
+          value={formatCount(summary?.input_tokens)}
+        />
+        <Metric
+          data-testid="task-run-detail-progress-output-tokens"
+          label="Output tokens"
+          value={formatCount(summary?.output_tokens)}
+        />
+        <Metric
+          data-testid="task-run-detail-progress-total-tokens"
+          label="Total tokens"
+          value={formatCount(summary?.total_tokens)}
+        />
+        <Metric data-testid="task-run-detail-progress-elapsed" label="Elapsed" value={elapsed} />
+        <Metric
+          className="sm:col-span-2"
+          data-testid="task-run-detail-progress-cost"
           label="Cost"
           value={formatCost(summary?.total_cost, summary?.cost_currency)}
-          testId="task-run-detail-progress-cost"
         />
-      </dl>
-    </section>
-  );
-}
-
-interface MetricRowProps {
-  label: string;
-  value: string;
-  testId: string;
-}
-
-function MetricRow({ label, value, testId }: MetricRowProps) {
-  return (
-    <div className="flex items-center justify-between gap-4" data-testid={testId}>
-      <SidePanelLabel>{label}</SidePanelLabel>
-      <span className="text-[color:var(--color-text-primary)]">{value}</span>
-    </div>
+      </div>
+    </Section>
   );
 }
 
@@ -237,59 +211,58 @@ export function TaskRunActivityPanel({ run }: TaskRunActivityPanelProps) {
   const result = record.result;
 
   return (
-    <section
-      aria-label="Run activity"
-      className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-4"
-      data-testid="task-run-detail-activity"
-    >
-      <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-        Activity
-      </h3>
-      <dl className="mt-3 flex flex-col gap-3 text-sm">
-        {lastEventType ? (
-          <div className="flex items-center justify-between gap-4">
-            <SidePanelLabel>Last event</SidePanelLabel>
-            <span
-              className="truncate font-mono text-[0.78rem] text-[color:var(--color-text-primary)]"
-              data-testid="task-run-detail-activity-event"
-            >
-              {lastEventType}
-            </span>
+    <Section aria-label="Run activity" data-testid="task-run-detail-activity" label="Activity">
+      <div className="flex flex-col gap-3 rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-4">
+        <dl className="flex flex-col gap-2 text-[13px]">
+          {lastEventType ? (
+            <div className="flex items-center justify-between gap-3">
+              <dt className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+                Last event
+              </dt>
+              <dd>
+                <MonoBadge data-testid="task-run-detail-activity-event">{lastEventType}</MonoBadge>
+              </dd>
+            </div>
+          ) : null}
+          {lastActivityAt ? (
+            <div className="flex items-center justify-between gap-3">
+              <dt className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]">
+                Last activity
+              </dt>
+              <dd
+                className="text-[color:var(--color-text-primary)]"
+                data-testid="task-run-detail-activity-timestamp"
+              >
+                {lastActivityAt}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+        {error ? (
+          <div
+            className="rounded-md border border-[color:var(--color-danger)] bg-[color:var(--color-danger-tint)] px-3 py-2"
+            data-testid="task-run-detail-activity-error"
+          >
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-danger)]">
+              Error
+            </p>
+            <p className="mt-1 text-[13px] text-[color:var(--color-danger)]">{error}</p>
           </div>
         ) : null}
-        {lastActivityAt ? (
-          <div className="flex items-center justify-between gap-4">
-            <SidePanelLabel>Last activity</SidePanelLabel>
-            <span
-              className="text-[color:var(--color-text-primary)]"
-              data-testid="task-run-detail-activity-timestamp"
-            >
-              {lastActivityAt}
-            </span>
+        {result !== undefined && result !== null ? (
+          <div data-testid="task-run-detail-activity-result">
+            <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+              Result
+            </p>
+            <CodeBlock
+              code={JSON.stringify(result, null, 2)}
+              copyable={false}
+              language="json"
+              showPrompt={false}
+            />
           </div>
         ) : null}
-      </dl>
-      {error ? (
-        <div
-          className="mt-3 rounded-md border border-[color:var(--color-danger)] bg-[color:var(--color-danger-tint)] px-3 py-2"
-          data-testid="task-run-detail-activity-error"
-        >
-          <p className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-danger)]">
-            Error
-          </p>
-          <p className="mt-1 text-sm text-[color:var(--color-danger)]">{error}</p>
-        </div>
-      ) : null}
-      {result !== undefined && result !== null ? (
-        <details className="mt-3" data-testid="task-run-detail-activity-result">
-          <summary className="cursor-pointer font-mono text-[0.6rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-            Result
-          </summary>
-          <pre className="mt-2 max-h-48 overflow-auto rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] px-3 py-2 font-mono text-[0.72rem] text-[color:var(--color-text-primary)]">
-            {JSON.stringify(result, null, 2)}
-          </pre>
-        </details>
-      ) : null}
-    </section>
+      </div>
+    </Section>
   );
 }

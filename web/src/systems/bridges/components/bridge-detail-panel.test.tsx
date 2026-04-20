@@ -136,6 +136,62 @@ describe("BridgeDetailPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders exactly four metric tiles with the required labels", () => {
+    render(
+      <BridgeDetailPanel
+        bridge={makeBridge()}
+        error={null}
+        health={makeHealth({ delivery_backlog: 4, route_count: 2 })}
+        isLoading={false}
+        isRoutesLoading={false}
+        onOpenTestDelivery={vi.fn()}
+        routes={[]}
+      />
+    );
+
+    expect(screen.getByTestId("bridge-metric-events-24h")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-metric-success-rate")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-metric-last-delivery")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-metric-active-routes")).toBeInTheDocument();
+
+    const tiles = document.querySelectorAll('[data-slot="metric"]');
+    expect(tiles).toHaveLength(4);
+  });
+
+  it("renders the Empty event stream when no routes are present", () => {
+    render(
+      <BridgeDetailPanel
+        bridge={makeBridge()}
+        error={null}
+        health={makeHealth()}
+        isLoading={false}
+        isRoutesLoading={false}
+        onOpenTestDelivery={vi.fn()}
+        routes={[]}
+      />
+    );
+
+    expect(screen.getByTestId("bridge-routes-empty")).toHaveTextContent("No routes");
+  });
+
+  it("renders disabled status with danger StatusDot and disables Send Test", () => {
+    render(
+      <BridgeDetailPanel
+        bridge={makeBridge({ enabled: false, status: "disabled" })}
+        error={null}
+        health={makeHealth({ status: "disabled" })}
+        isLoading={false}
+        isRoutesLoading={false}
+        onOpenTestDelivery={vi.fn()}
+        routes={[]}
+      />
+    );
+
+    expect(screen.getByTestId("open-test-delivery-btn")).toBeDisabled();
+    const dangerDot = document.querySelector('[data-slot="status-dot"][data-tone="danger"]');
+    expect(dangerDot).not.toBeNull();
+  });
+
   it("renders lifecycle actions and secret binding controls", async () => {
     const user = userEvent.setup();
     const onOpenEdit = vi.fn();
@@ -178,7 +234,7 @@ describe("BridgeDetailPanel", () => {
 
     expect(screen.getByTestId("bridge-restart-required")).toBeInTheDocument();
     expect(screen.getByTestId("disable-bridge-btn")).toBeInTheDocument();
-    expect(screen.getByTestId("bridge-secret-binding-bot_token")).toHaveTextContent("bound");
+    expect(screen.getByTestId("bridge-secret-binding-bot_token")).toHaveTextContent("BOUND");
 
     await user.click(screen.getByTestId("edit-bridge-btn"));
     await user.click(screen.getByTestId("restart-bridge-btn"));

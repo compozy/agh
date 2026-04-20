@@ -680,6 +680,7 @@ func (t *managedTerminal) appendOutput(p []byte) {
 
 func (t *managedTerminal) wait() {
 	err := t.cmd.Wait()
+	groupWaitErr := forceManagedProcessGroupExit(t.cmd, 250*time.Millisecond)
 	exitStatus := &acpsdk.TerminalExitStatus{}
 	if t.cmd.ProcessState != nil {
 		exitCode := t.cmd.ProcessState.ExitCode()
@@ -689,6 +690,10 @@ func (t *managedTerminal) wait() {
 	}
 	if err != nil && exitStatus.ExitCode == nil {
 		signalText := err.Error()
+		exitStatus.Signal = &signalText
+	}
+	if groupWaitErr != nil && exitStatus.Signal == nil {
+		signalText := groupWaitErr.Error()
 		exitStatus.Signal = &signalText
 	}
 

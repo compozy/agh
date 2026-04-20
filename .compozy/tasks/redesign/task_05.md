@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 title: Add Sidebar + SplitPane primitives to @agh/ui
 type: frontend
 complexity: high
@@ -42,11 +42,11 @@ Introduce two new structural primitives to `@agh/ui`: `Sidebar` (workspace rail 
 
 ## Subtasks
 
-- [ ] 5.1 Implement `Sidebar` with slotted rail/header/nav/footer.
-- [ ] 5.2 Implement `SplitPane` with list/detail columns, empty state fallback, and responsive collapse.
-- [ ] 5.3 Export both + write stories covering expanded/collapsed, selected/empty, narrow viewport.
-- [ ] 5.4 Delete `web/src/components/ui/sidebar.tsx` and rewrite the ~5 importers to the new `@agh/ui` export.
-- [ ] 5.5 Verify `make verify` passes.
+- [x] 5.1 Implement `Sidebar` with slotted rail/header/nav/footer.
+- [x] 5.2 Implement `SplitPane` with list/detail columns, empty state fallback, and responsive collapse.
+- [x] 5.3 Export both + write stories covering expanded/collapsed, selected/empty, narrow viewport.
+- [x] 5.4 Delete `web/src/components/ui/sidebar.tsx` and rewrite the ~5 importers to the new `@agh/ui` export.
+- [x] 5.5 Verify `make verify` passes (note: pre-existing unrelated failure in `tasks-empty-state.test.tsx` — flagged in shared memory as open risk; task 05 introduces no new regressions).
 
 ## Implementation Details
 

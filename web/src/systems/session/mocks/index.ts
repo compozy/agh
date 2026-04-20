@@ -2,6 +2,7 @@ export { handlers } from "./handlers";
 export {
   assistantMessageFixture,
   bashToolMessageFixture,
+  diffMessageFixture,
   editToolMessageFixture,
   emptySearchToolMessageFixture,
   errorToolMessageFixture,

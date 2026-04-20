@@ -62,6 +62,57 @@ describe("BridgeEditDialog", () => {
     expect(screen.getByTestId("submit-bridge-edit")).toBeDisabled();
   });
 
+  it("shows the provider-default option when allowed and a pending submit label", () => {
+    render(
+      <BridgeEditDialog
+        allowProviderDefaultDmPolicy
+        bridgeName="Support"
+        draft={baseDraft}
+        isPending
+        onDraftChange={vi.fn()}
+        onOpenChange={vi.fn()}
+        onSubmit={vi.fn()}
+        open
+        provider={makeProvider()}
+      />
+    );
+
+    const dmSelect = screen.getByTestId("bridge-edit-dm-policy-select");
+    expect(dmSelect).toContainHTML('value=""');
+
+    expect(screen.getByTestId("submit-bridge-edit")).toHaveTextContent(/Saving/);
+    expect(screen.getByTestId("submit-bridge-edit")).toBeDisabled();
+  });
+
+  it("updates delivery defaults thread and group ids", async () => {
+    const user = userEvent.setup();
+
+    function Wrapper() {
+      const [draft, setDraft] = useState<BridgeUpdateDraft>(baseDraft);
+      return (
+        <BridgeEditDialog
+          allowProviderDefaultDmPolicy={false}
+          bridgeName="Support"
+          draft={draft}
+          isPending={false}
+          onDraftChange={setDraft}
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          open
+          provider={makeProvider()}
+        />
+      );
+    }
+
+    render(<Wrapper />);
+
+    await user.type(screen.getByTestId("bridge-edit-delivery-thread-input"), "thread_ttt");
+    await user.type(screen.getByTestId("bridge-edit-delivery-group-input"), "group_ggg");
+
+    expect(screen.getByTestId("bridge-edit-delivery-thread-input")).toHaveValue("thread_ttt");
+    expect(screen.getByTestId("bridge-edit-delivery-group-input")).toHaveValue("group_ggg");
+  });
+
   it("updates the mutable bridge fields", async () => {
     const user = userEvent.setup();
 

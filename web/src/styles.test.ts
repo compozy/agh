@@ -145,8 +145,12 @@ describe("Design Token System — styles.css", () => {
     expect(tokens).toMatch(/--font-mono:.*"JetBrains Mono"/);
   });
 
-  it("does NOT declare --font-display", () => {
-    expect(tokens).not.toMatch(/--font-display/);
+  it("declares --font-display with Playfair Display", () => {
+    expect(tokens).toMatch(/--font-display:.*"Playfair Display"/);
+  });
+
+  it("declares --font-wordmark with NuixyberNext", () => {
+    expect(tokens).toMatch(/--font-wordmark:[\s\S]*?"NuixyberNext"/);
   });
 
   it("imports @fontsource-variable/inter", () => {

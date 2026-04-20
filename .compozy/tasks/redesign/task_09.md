@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add CodeBlock primitive
 type: frontend
 complexity: low
@@ -41,9 +41,9 @@ Introduce the `CodeBlock` primitive in `@agh/ui` per DESIGN.md §4: canvas-deep 
 
 ## Subtasks
 
-- [ ] 9.1 Implement `CodeBlock` with prompt coloring + copy button state.
-- [ ] 9.2 Export from `packages/ui/src/index.ts`.
-- [ ] 9.3 Write story with the four required variants.
+- [x] 9.1 Implement `CodeBlock` with prompt coloring + copy button state.
+- [x] 9.2 Export from `packages/ui/src/index.ts`.
+- [x] 9.3 Write story with the four required variants.
 
 ## Implementation Details
 
@@ -54,7 +54,10 @@ DESIGN.md §4 "Code Block" specifies the exact container, font, prompt, and copy
 - `packages/ui/src/components/code-block.tsx` — new.
 - `packages/ui/src/index.ts` — add export.
 - `packages/ui/src/components/stories/code-block.stories.tsx` — new.
-- DESIGN.md §4 — visual spec.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4 "Code Block"` — container bg, radius, prompt coloring, copy affordance.
+  - `docs/design/design-system/preview/components-code-block.html` — canonical visual card; baseline for the copy button + language label treatment.
+  - `docs/design/web-inspiration/src/pages-core.jsx` — shell prompt usage inside Tasks preview panels (example of the `$ ` + accent prompt).
 
 ### Dependent Files
 

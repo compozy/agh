@@ -3,7 +3,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CenteredSurface } from "@/storybook/story-layout";
 import {
   bashToolMessageFixture,
+  editToolMessageFixture,
   errorToolMessageFixture,
+  readToolMessageFixture,
   runningBashToolMessageFixture,
 } from "@/systems/session/mocks";
 
@@ -40,6 +42,22 @@ export const Done: Story = {
   render: () => (
     <ToolCallCardFrame>
       <ToolCallCard message={bashToolMessageFixture} />
+    </ToolCallCardFrame>
+  ),
+};
+
+export const DoneRead: Story = {
+  render: () => (
+    <ToolCallCardFrame>
+      <ToolCallCard message={readToolMessageFixture} />
+    </ToolCallCardFrame>
+  ),
+};
+
+export const DoneEdit: Story = {
+  render: () => (
+    <ToolCallCardFrame>
+      <ToolCallCard message={editToolMessageFixture} />
     </ToolCallCardFrame>
   ),
 };

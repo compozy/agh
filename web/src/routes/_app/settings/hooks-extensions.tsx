@@ -1,9 +1,28 @@
-import { AlertCircle, AlertTriangle, Check, Loader2, Puzzle, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Check, Loader2, Puzzle, Webhook, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
-import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button } from "@agh/ui";
-import { Switch } from "@/components/ui/switch";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  Button,
+  Empty,
+  Input,
+  MonoBadge,
+  NativeSelect,
+  NativeSelectOption,
+  StatusDot,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  cn,
+  pillToggleVariants,
+} from "@agh/ui";
 import { useSettingsHooksExtensionsPage } from "@/hooks/routes/use-settings-hooks-extensions-page";
 import type {
   SettingsExtensionEntry,
@@ -13,6 +32,7 @@ import type {
 } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsNumberInput,
   SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
@@ -63,6 +83,9 @@ function HooksExtensionsSettingsPage() {
           <p className="text-sm text-[color:var(--color-text-tertiary)]">
             {page.error?.message ?? "Failed to load hooks & extensions settings"}
           </p>
+          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -101,6 +124,7 @@ function HooksExtensionsSettingsPage() {
         hooks={hooks}
         pendingHookName={page.pendingHookName}
         hookError={page.hookError}
+        canMutate={page.canMutateHooks}
         onToggle={page.toggleHookEnabled}
       />
 
@@ -123,6 +147,7 @@ function HooksExtensionsSettingsPage() {
         isSaving={page.isSavingPolicy}
         error={page.savePolicyError}
         warnings={page.policyWarnings}
+        canMutate={page.canMutatePolicy}
         onSave={page.handleSavePolicy}
         onReset={page.handleResetPolicy}
       />
@@ -137,34 +162,55 @@ function TransportParityBanner({
 }) {
   if (!parity || !parity.known) return null;
   if (parity.extensions_http && parity.settings_http) return null;
+  const unavailable = describeUnavailableHttpOperations(parity);
 
   return (
-    <div
-      className="flex items-start gap-3 rounded-md border border-[color:var(--color-warning)] bg-[color:var(--color-warning-tint)] px-3 py-2 text-xs text-[color:var(--color-warning)]"
-      data-testid="settings-page-hooks-extensions-transport-parity"
+    <Alert
+      variant="warning"
       role="status"
+      data-testid="settings-page-hooks-extensions-transport-parity"
     >
-      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-      <div className="flex flex-col gap-0.5">
-        <span className="font-medium">Some operations are unavailable over HTTP</span>
-        <span>
-          HTTP is bound outside the loopback host. Extension enable/disable and policy edits stay
-          available over UDS but return 403 on HTTP. Use the CLI or rebind to loopback to edit from
-          the web app.
-        </span>
-      </div>
-    </div>
+      <AlertTriangle className="size-3.5" />
+      <AlertDescription className="text-xs">
+        <span className="font-medium text-[color:var(--color-warning)]">
+          Some operations are unavailable over HTTP.
+        </span>{" "}
+        HTTP is bound outside the loopback host. {unavailable} stay available over UDS but return
+        403 on HTTP. Use the CLI or rebind to loopback to edit from the web app.
+      </AlertDescription>
+    </Alert>
   );
+}
+
+function describeUnavailableHttpOperations(parity: SettingsHooksExtensionsTransportParity): string {
+  const operations: string[] = [];
+  if (parity.settings_http === false) {
+    operations.push("Hook toggles and policy edits");
+  }
+  if (parity.extensions_http === false) {
+    operations.push("Extension enable/disable");
+  }
+
+  if (operations.length === 0) return "These operations";
+  if (operations.length === 1) return operations[0];
+  return `${operations.slice(0, -1).join(", ")} and ${operations.at(-1)}`;
 }
 
 interface HooksSectionProps {
   hooks: SettingsHookEntry[];
   pendingHookName: string | null;
   hookError: string | null;
+  canMutate: boolean;
   onToggle: (entry: SettingsHookEntry, nextEnabled: boolean) => void;
 }
 
-function HooksSection({ hooks, pendingHookName, hookError, onToggle }: HooksSectionProps) {
+function HooksSection({
+  hooks,
+  pendingHookName,
+  hookError,
+  canMutate,
+  onToggle,
+}: HooksSectionProps) {
   return (
     <SettingsSectionCard
       data-testid="settings-page-hooks-extensions-hooks-section"
@@ -180,39 +226,49 @@ function HooksSection({ hooks, pendingHookName, hookError, onToggle }: HooksSect
         </span>
       ) : null}
       {hooks.length === 0 ? (
-        <div
-          className="rounded-md border border-dashed border-[color:var(--color-divider)] px-4 py-8 text-center text-sm text-[color:var(--color-text-tertiary)]"
+        <Empty
+          icon={Webhook}
+          title="No hooks registered"
+          description="Add a hook declaration to ~/.agh/config.toml or a workspace overlay to register one."
           data-testid="settings-page-hooks-extensions-hooks-empty"
-        >
-          No hook declarations found in config. Add one to <code>~/.agh/config.toml</code> or a
-          workspace overlay to register a hook.
-        </div>
+        />
       ) : (
         <div
           className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
           data-testid="settings-page-hooks-extensions-hooks-list"
         >
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-[color:var(--color-surface-elevated)] text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-              <tr>
-                <th className="px-4 py-2.5 text-left">Name</th>
-                <th className="px-4 py-2.5 text-left">Event</th>
-                <th className="px-4 py-2.5 text-left">Mode</th>
-                <th className="px-4 py-2.5 text-left">Matcher</th>
-                <th className="px-4 py-2.5 text-right">Enabled</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[color:var(--color-divider)]">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-[color:var(--color-surface-elevated)]">
+                <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+                  Name
+                </TableHead>
+                <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+                  Event
+                </TableHead>
+                <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+                  Mode
+                </TableHead>
+                <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+                  Matcher
+                </TableHead>
+                <TableHead className="w-[1%] text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
+                  Enabled
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {hooks.map(entry => (
                 <HookRow
                   key={entry.name}
                   entry={entry}
                   pending={pendingHookName === entry.name}
+                  canMutate={canMutate}
                   onToggle={onToggle}
                 />
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </SettingsSectionCard>
@@ -222,10 +278,12 @@ function HooksSection({ hooks, pendingHookName, hookError, onToggle }: HooksSect
 function HookRow({
   entry,
   pending,
+  canMutate,
   onToggle,
 }: {
   entry: SettingsHookEntry;
   pending: boolean;
+  canMutate: boolean;
   onToggle: (entry: SettingsHookEntry, nextEnabled: boolean) => void;
 }) {
   const declaration = entry.declaration;
@@ -234,8 +292,8 @@ function HookRow({
   const mode = declaration.mode === "sync" ? "blocking" : (declaration.mode ?? "async");
 
   return (
-    <tr data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}`}>
-      <td className="px-4 py-3">
+    <TableRow data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}`}>
+      <TableCell>
         <div className="flex flex-col gap-0.5">
           <span className="font-mono text-sm text-[color:var(--color-text-primary)]">
             {entry.name}
@@ -246,22 +304,20 @@ function HookRow({
             </span>
           ) : null}
         </div>
-      </td>
-      <td className="px-4 py-3">
-        <span className="font-mono text-xs text-[color:var(--color-text-primary)]">
-          {declaration.event}
-        </span>
-      </td>
-      <td className="px-4 py-3 font-mono text-xs text-[color:var(--color-text-secondary)]">
+      </TableCell>
+      <TableCell>
+        <MonoBadge tone="info">{declaration.event}</MonoBadge>
+      </TableCell>
+      <TableCell className="font-mono text-xs text-[color:var(--color-text-secondary)]">
         {mode}
-      </td>
-      <td
-        className="px-4 py-3 font-mono text-xs text-[color:var(--color-text-secondary)]"
+      </TableCell>
+      <TableCell
+        className="font-mono text-xs text-[color:var(--color-text-secondary)]"
         data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}-matcher`}
       >
         {matcherSummary || "—"}
-      </td>
-      <td className="px-4 py-3">
+      </TableCell>
+      <TableCell>
         <div className="flex items-center justify-end gap-2">
           {pending ? (
             <Loader2 className="size-3.5 animate-spin text-[color:var(--color-text-tertiary)]" />
@@ -269,13 +325,13 @@ function HookRow({
           <Switch
             data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}-toggle`}
             checked={enabled}
-            disabled={pending}
+            disabled={pending || !canMutate}
             onCheckedChange={checked => onToggle(entry, checked)}
             aria-label={`Toggle hook ${entry.name}`}
           />
         </div>
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -327,13 +383,12 @@ function ExtensionsSection({
           Loading extensions…
         </div>
       ) : extensions.length === 0 ? (
-        <div
-          className="rounded-md border border-dashed border-[color:var(--color-divider)] px-4 py-8 text-center text-sm text-[color:var(--color-text-tertiary)]"
+        <Empty
+          icon={Puzzle}
+          title="No extensions installed"
+          description="Install an extension with `agh extensions install` to see it here."
           data-testid="settings-page-hooks-extensions-extensions-empty"
-        >
-          No extensions installed. Install an extension with <code>agh extensions install</code> to
-          see it here.
-        </div>
+        />
       ) : (
         <ul
           className="flex flex-col gap-2"
@@ -365,14 +420,14 @@ function ExtensionRow({
   canMutate: boolean;
   onToggle: (entry: SettingsExtensionEntry, nextEnabled: boolean) => void;
 }) {
-  const healthColor =
+  const healthTone: "success" | "warning" | "danger" | "neutral" =
     entry.health === "healthy"
-      ? "text-[color:var(--color-success)]"
+      ? "success"
       : entry.health === "degraded"
-        ? "text-[color:var(--color-warning)]"
+        ? "warning"
         : entry.health === "unhealthy"
-          ? "text-[color:var(--color-danger)]"
-          : "text-[color:var(--color-text-tertiary)]";
+          ? "danger"
+          : "neutral";
 
   return (
     <li
@@ -380,20 +435,15 @@ function ExtensionRow({
       data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}`}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <Puzzle className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]" />
+        <StatusDot tone={healthTone} size="md" pulse={entry.health === "degraded"} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate font-mono text-sm text-[color:var(--color-text-primary)]">
             {entry.name}
           </span>
-          <span className="font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]">
-            {entry.state || (entry.enabled ? "running" : "stopped")}
-            {entry.version ? ` · v${entry.version}` : ""}
-            {entry.health ? (
-              <>
-                {" · "}
-                <span className={healthColor}>{entry.health}</span>
-              </>
-            ) : null}
+          <span className="flex flex-wrap items-center gap-1.5 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]">
+            <span>{entry.state || (entry.enabled ? "running" : "stopped")}</span>
+            {entry.version ? <MonoBadge tone="neutral">v{entry.version}</MonoBadge> : null}
+            {entry.health ? <MonoBadge tone={healthTone}>{entry.health}</MonoBadge> : null}
           </span>
           {entry.last_error ? (
             <span
@@ -429,6 +479,7 @@ interface PolicySectionProps {
   isSaving: boolean;
   error: string | null;
   warnings?: string[];
+  canMutate: boolean;
   onSave: () => void;
   onReset: () => void;
 }
@@ -441,9 +492,24 @@ function PolicySection({
   isSaving,
   error,
   warnings,
+  canMutate,
   onSave,
   onReset,
 }: PolicySectionProps) {
+  const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
+  const setValidationError = useCallback(
+    (key: string) => (message: string | null) => {
+      setValidationErrors(current =>
+        current[key] === message ? current : { ...current, [key]: message }
+      );
+    },
+    []
+  );
+  const isInvalid = useMemo(
+    () => Object.values(validationErrors).some(message => message !== null),
+    [validationErrors]
+  );
+
   return (
     <SettingsSectionCard
       data-testid="settings-page-hooks-extensions-policy-section"
@@ -453,6 +519,8 @@ function PolicySection({
         <SaveControls
           isDirty={isDirty}
           isSaving={isSaving}
+          isInvalid={isInvalid}
+          canMutate={canMutate}
           error={error}
           warnings={warnings}
           onSave={onSave}
@@ -466,10 +534,11 @@ function PolicySection({
         description="Identifier of the marketplace publisher"
         hint="CONFIG.TOML"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56"
             data-testid="settings-page-hooks-extensions-policy-registry-input"
             value={draft.marketplace.registry ?? ""}
+            disabled={!canMutate}
             onChange={event =>
               setDraft({
                 ...draft,
@@ -485,11 +554,12 @@ function PolicySection({
         description="Override the registry's default endpoint"
         hint="OPTIONAL"
         control={
-          <input
-            className="h-8 w-72 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-72 font-mono"
             data-testid="settings-page-hooks-extensions-policy-base-url-input"
             value={draft.marketplace.base_url ?? ""}
             placeholder="https://"
+            disabled={!canMutate}
             onChange={event =>
               setDraft({
                 ...draft,
@@ -501,6 +571,7 @@ function PolicySection({
       />
       <AllowedKindsField
         selected={draft.resources.allowed_kinds ?? []}
+        disabled={!canMutate}
         onToggle={onToggleAllowedKind}
       />
       <SettingsFieldRow
@@ -509,10 +580,11 @@ function PolicySection({
         description="Broadest scope an extension may claim"
         hint="SCOPE"
         control={
-          <select
-            className="h-8 w-40 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+          <NativeSelect
+            className="w-40 font-mono"
             data-testid="settings-page-hooks-extensions-policy-max-scope-input"
             value={draft.resources.max_scope ?? "workspace"}
+            disabled={!canMutate}
             onChange={event =>
               setDraft({
                 ...draft,
@@ -524,11 +596,11 @@ function PolicySection({
             }
           >
             {MAX_SCOPE_OPTIONS.map(option => (
-              <option key={option} value={option}>
+              <NativeSelectOption key={option} value={option}>
                 {option}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         }
       />
       <RateLimitRow
@@ -536,6 +608,13 @@ function PolicySection({
         label="Snapshot rate limit"
         description="Published snapshots per window (queue = burst)"
         value={draft.resources.snapshot_rate_limit}
+        errorMessage={combineErrorMessages(
+          validationErrors.snapshotRateRequests,
+          validationErrors.snapshotRateQueue
+        )}
+        canMutate={canMutate}
+        onRequestsValidityChange={setValidationError("snapshotRateRequests")}
+        onQueueValidityChange={setValidationError("snapshotRateQueue")}
         onChange={next =>
           setDraft({
             ...draft,
@@ -548,6 +627,13 @@ function PolicySection({
         label="Operator write rate limit"
         description="Operator writes per window (queue = burst)"
         value={draft.resources.operator_write_rate_limit}
+        errorMessage={combineErrorMessages(
+          validationErrors.operatorRateRequests,
+          validationErrors.operatorRateQueue
+        )}
+        canMutate={canMutate}
+        onRequestsValidityChange={setValidationError("operatorRateRequests")}
+        onQueueValidityChange={setValidationError("operatorRateQueue")}
         onChange={next =>
           setDraft({
             ...draft,
@@ -561,9 +647,11 @@ function PolicySection({
 
 function AllowedKindsField({
   selected,
+  disabled,
   onToggle,
 }: {
   selected: string[];
+  disabled: boolean;
   onToggle: (kind: string) => void;
 }) {
   return (
@@ -583,14 +671,11 @@ function AllowedKindsField({
               <button
                 key={kind}
                 type="button"
+                disabled={disabled}
                 onClick={() => onToggle(kind)}
                 data-testid={`settings-page-hooks-extensions-policy-allowed-kinds-${kind}`}
                 data-active={active ? "true" : "false"}
-                className={
-                  active
-                    ? "rounded-full border border-[color:var(--color-success)] bg-[color:var(--color-success-tint)] px-2.5 py-0.5 font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[color:var(--color-success)]"
-                    : "rounded-full border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2.5 py-0.5 font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)] hover:border-[color:var(--color-divider-strong)]"
-                }
+                className={cn(pillToggleVariants({ active, size: "sm" }))}
               >
                 {kind}
               </button>
@@ -604,17 +689,30 @@ function AllowedKindsField({
 
 type RateLimit = PolicyConfig["resources"]["snapshot_rate_limit"];
 
+function combineErrorMessages(...messages: Array<string | null | undefined>): string | undefined {
+  const visible = messages.filter(Boolean);
+  return visible.length > 0 ? visible.join(" ") : undefined;
+}
+
 function RateLimitRow({
   testId,
   label,
   description,
   value,
+  errorMessage,
+  canMutate,
+  onRequestsValidityChange,
+  onQueueValidityChange,
   onChange,
 }: {
   testId: string;
   label: string;
   description: string;
   value: RateLimit;
+  errorMessage?: string;
+  canMutate: boolean;
+  onRequestsValidityChange: (message: string | null) => void;
+  onQueueValidityChange: (message: string | null) => void;
   onChange: (next: RateLimit) => void;
 }) {
   return (
@@ -622,33 +720,43 @@ function RateLimitRow({
       data-testid={testId}
       label={label}
       description={description}
+      error={errorMessage}
       hint="LIMIT"
       control={
         <div className="flex items-center gap-1.5">
-          <NumberInput
-            testId={`${testId}-requests`}
+          <SettingsNumberInput
+            min={0}
+            className="w-16 font-mono"
+            data-testid={`${testId}-requests`}
             value={value.requests}
             placeholder="reqs"
-            onChange={next => onChange({ ...value, requests: next })}
+            disabled={!canMutate}
+            onValidityChange={onRequestsValidityChange}
+            onValueChange={next => onChange({ ...value, requests: next })}
           />
           <span className="font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
             per
           </span>
-          <input
-            className="h-8 w-20 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-xs text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-20 font-mono"
             data-testid={`${testId}-window`}
             value={value.window}
             placeholder="5m"
+            disabled={!canMutate}
             onChange={event => onChange({ ...value, window: event.target.value })}
           />
           <span className="font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
             queue
           </span>
-          <NumberInput
-            testId={`${testId}-queue`}
+          <SettingsNumberInput
+            min={0}
+            className="w-16 font-mono"
+            data-testid={`${testId}-queue`}
             value={value.queue}
             placeholder="queue"
-            onChange={next => onChange({ ...value, queue: next })}
+            disabled={!canMutate}
+            onValidityChange={onQueueValidityChange}
+            onValueChange={next => onChange({ ...value, queue: next })}
           />
         </div>
       }
@@ -656,65 +764,72 @@ function RateLimitRow({
   );
 }
 
-function NumberInput({
-  testId,
-  value,
-  placeholder,
-  onChange,
-}: {
-  testId: string;
-  value: number;
-  placeholder: string;
-  onChange: (next: number) => void;
-}) {
-  return (
-    <input
-      className="h-8 w-16 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-xs text-[color:var(--color-text-primary)]"
-      data-testid={testId}
-      type="number"
-      min={0}
-      value={value}
-      placeholder={placeholder}
-      onChange={event => {
-        const parsed = Number.parseInt(event.target.value, 10);
-        onChange(Number.isFinite(parsed) ? parsed : 0);
-      }}
-    />
-  );
-}
-
 interface SaveControlsProps {
   isDirty: boolean;
   isSaving: boolean;
+  isInvalid: boolean;
+  canMutate: boolean;
   error: string | null;
   warnings?: string[];
   onSave: () => void;
   onReset: () => void;
 }
 
-function SaveControls({ isDirty, isSaving, error, warnings, onSave, onReset }: SaveControlsProps) {
-  const disabled = !isDirty || isSaving;
+function SaveControls({
+  isDirty,
+  isSaving,
+  isInvalid,
+  canMutate,
+  error,
+  warnings,
+  onSave,
+  onReset,
+}: SaveControlsProps) {
+  const disabled = !isDirty || isSaving || isInvalid || !canMutate;
   return (
     <div
       className="flex items-center gap-2"
       data-testid="settings-page-hooks-extensions-policy-controls"
       data-dirty={isDirty ? "true" : "false"}
     >
-      {error ? (
-        <span
-          className="text-xs text-[color:var(--color-danger)]"
-          data-testid="settings-page-hooks-extensions-policy-error"
-        >
-          {error}
-        </span>
-      ) : warnings && warnings.length > 0 ? (
-        <span
-          className="text-xs text-[color:var(--color-warning)]"
-          data-testid="settings-page-hooks-extensions-policy-warning"
-        >
-          {warnings.join(" · ")}
-        </span>
-      ) : null}
+      <div className="min-w-0" role="status" aria-live={error ? "assertive" : "polite"}>
+        {error ? (
+          <span
+            className="text-xs text-[color:var(--color-danger)]"
+            data-testid="settings-page-hooks-extensions-policy-error"
+          >
+            {error}
+          </span>
+        ) : warnings && warnings.length > 0 ? (
+          <span
+            className="text-xs text-[color:var(--color-warning)]"
+            data-testid="settings-page-hooks-extensions-policy-warning"
+          >
+            {warnings.join(" · ")}
+          </span>
+        ) : !canMutate ? (
+          <span
+            className="text-xs text-[color:var(--color-warning)]"
+            data-testid="settings-page-hooks-extensions-policy-unavailable"
+          >
+            Policy edits are unavailable over HTTP
+          </span>
+        ) : isInvalid ? (
+          <span
+            className="text-xs text-[color:var(--color-warning)]"
+            data-testid="settings-page-hooks-extensions-policy-invalid"
+          >
+            Resolve validation errors before saving
+          </span>
+        ) : isDirty ? (
+          <span
+            className="text-xs text-[color:var(--color-text-tertiary)]"
+            data-testid="settings-page-hooks-extensions-policy-dirty"
+          >
+            Unsaved changes
+          </span>
+        ) : null}
+      </div>
       <Button
         type="button"
         variant="ghost"
@@ -748,32 +863,27 @@ function ActionResultBanner({
   onDismiss: () => void;
 }) {
   const { message, tone } = describeAction(action);
-  const toneClasses =
-    tone === "success"
-      ? "border-[color:var(--color-success)] bg-[color:var(--color-success-tint)] text-[color:var(--color-success)]"
-      : "border-[color:var(--color-info)] bg-[color:var(--color-info-tint)] text-[color:var(--color-info)]";
-
   return (
-    <div
-      className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-xs ${toneClasses}`}
+    <Alert
+      variant={tone === "success" ? "success" : "info"}
+      role="status"
       data-testid="settings-page-hooks-extensions-action-result"
       data-kind={action.kind}
-      role="status"
     >
-      <span className="flex items-center gap-2">
-        <Check className="size-3.5" />
-        <span>{message}</span>
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onDismiss}
-        data-testid="settings-page-hooks-extensions-action-result-dismiss"
-      >
-        <X className="size-3.5" />
-      </Button>
-    </div>
+      <Check className="size-3.5" />
+      <AlertDescription className="text-xs">{message}</AlertDescription>
+      <AlertAction>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onDismiss}
+          data-testid="settings-page-hooks-extensions-action-result-dismiss"
+        >
+          <X className="size-3.5" />
+        </Button>
+      </AlertAction>
+    </Alert>
   );
 }
 

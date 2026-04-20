@@ -155,6 +155,31 @@ describe("AutomationDetailPanel", () => {
     expect(screen.queryByText("Cron schedule")).not.toBeInTheDocument();
   });
 
+  it("renders the job success-rate Metric with the computed percentage from the fixture runs", () => {
+    renderPanel({
+      item: jobFixture,
+      runs: [
+        runFixture,
+        { ...runFixture, id: "run_002", status: "completed" as const },
+        { ...runFixture, id: "run_003", status: "failed" as const },
+      ],
+    });
+
+    const successRate = screen.getByTestId("automation-job-metric-success-rate");
+    expect(successRate).toHaveTextContent("67%");
+  });
+
+  it("renders the trigger hook Section with a KindChip for the source", () => {
+    renderPanel({
+      item: { ...triggerFixture, source: "dynamic" as const, event: "ext.github.push" },
+      kind: "triggers",
+      runs: [],
+    });
+
+    const kindChip = document.querySelector('[data-slot="kind-chip"][data-kind="ext.github.push"]');
+    expect(kindChip).not.toBeNull();
+  });
+
   it("renders config trigger details without mutable actions", () => {
     renderPanel({
       item: triggerFixture,

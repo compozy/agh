@@ -12,13 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppTriggersRouteImport } from './routes/_app/triggers'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppSkillsRouteImport } from './routes/_app/skills'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppNetworkRouteImport } from './routes/_app/network'
 import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
+import { Route as AppJobsRouteImport } from './routes/_app/jobs'
 import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
-import { Route as AppAutomationRouteImport } from './routes/_app/automation'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
 import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
@@ -50,6 +51,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTriggersRoute = AppTriggersRouteImport.update({
+  id: '/triggers',
+  path: '/triggers',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTasksRoute = AppTasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
@@ -75,14 +81,14 @@ const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
   path: '/knowledge',
   getParentRoute: () => AppRoute,
 } as any)
+const AppJobsRoute = AppJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppBridgesRoute = AppBridgesRouteImport.update({
   id: '/bridges',
   path: '/bridges',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAutomationRoute = AppAutomationRouteImport.update({
-  id: '/automation',
-  path: '/automation',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
@@ -171,13 +177,14 @@ const AppTasksIdRunsRunIdRoute = AppTasksIdRunsRunIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
-  '/automation': typeof AppAutomationRoute
   '/bridges': typeof AppBridgesRoute
+  '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/network': typeof AppNetworkRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/skills': typeof AppSkillsRoute
   '/tasks': typeof AppTasksRouteWithChildren
+  '/triggers': typeof AppTriggersRoute
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/environments': typeof AppSettingsEnvironmentsRoute
@@ -197,12 +204,13 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
-  '/automation': typeof AppAutomationRoute
   '/bridges': typeof AppBridgesRoute
+  '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/network': typeof AppNetworkRoute
   '/skills': typeof AppSkillsRoute
   '/tasks': typeof AppTasksRouteWithChildren
+  '/triggers': typeof AppTriggersRoute
   '/': typeof AppIndexRoute
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
@@ -225,13 +233,14 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
-  '/_app/automation': typeof AppAutomationRoute
   '/_app/bridges': typeof AppBridgesRoute
+  '/_app/jobs': typeof AppJobsRoute
   '/_app/knowledge': typeof AppKnowledgeRoute
   '/_app/network': typeof AppNetworkRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/skills': typeof AppSkillsRoute
   '/_app/tasks': typeof AppTasksRouteWithChildren
+  '/_app/triggers': typeof AppTriggersRoute
   '/_app/': typeof AppIndexRoute
   '/_app/session/$id': typeof AppSessionIdRoute
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
@@ -255,13 +264,14 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/design-system'
-    | '/automation'
     | '/bridges'
+    | '/jobs'
     | '/knowledge'
     | '/network'
     | '/settings'
     | '/skills'
     | '/tasks'
+    | '/triggers'
     | '/session/$id'
     | '/settings/automation'
     | '/settings/environments'
@@ -281,12 +291,13 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/design-system'
-    | '/automation'
     | '/bridges'
+    | '/jobs'
     | '/knowledge'
     | '/network'
     | '/skills'
     | '/tasks'
+    | '/triggers'
     | '/'
     | '/session/$id'
     | '/settings/automation'
@@ -308,13 +319,14 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/design-system'
-    | '/_app/automation'
     | '/_app/bridges'
+    | '/_app/jobs'
     | '/_app/knowledge'
     | '/_app/network'
     | '/_app/settings'
     | '/_app/skills'
     | '/_app/tasks'
+    | '/_app/triggers'
     | '/_app/'
     | '/_app/session/$id'
     | '/_app/settings/automation'
@@ -362,6 +374,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/triggers': {
+      id: '/_app/triggers'
+      path: '/triggers'
+      fullPath: '/triggers'
+      preLoaderRoute: typeof AppTriggersRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tasks': {
       id: '/_app/tasks'
       path: '/tasks'
@@ -397,18 +416,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppKnowledgeRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/jobs': {
+      id: '/_app/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof AppJobsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/bridges': {
       id: '/_app/bridges'
       path: '/bridges'
       fullPath: '/bridges'
       preLoaderRoute: typeof AppBridgesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/automation': {
-      id: '/_app/automation'
-      path: '/automation'
-      fullPath: '/automation'
-      preLoaderRoute: typeof AppAutomationRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/': {
@@ -587,25 +606,27 @@ const AppTasksRouteWithChildren = AppTasksRoute._addFileChildren(
 )
 
 interface AppRouteChildren {
-  AppAutomationRoute: typeof AppAutomationRoute
   AppBridgesRoute: typeof AppBridgesRoute
+  AppJobsRoute: typeof AppJobsRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppNetworkRoute: typeof AppNetworkRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppSkillsRoute: typeof AppSkillsRoute
   AppTasksRoute: typeof AppTasksRouteWithChildren
+  AppTriggersRoute: typeof AppTriggersRoute
   AppIndexRoute: typeof AppIndexRoute
   AppSessionIdRoute: typeof AppSessionIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppAutomationRoute: AppAutomationRoute,
   AppBridgesRoute: AppBridgesRoute,
+  AppJobsRoute: AppJobsRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppNetworkRoute: AppNetworkRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppSkillsRoute: AppSkillsRoute,
   AppTasksRoute: AppTasksRouteWithChildren,
+  AppTriggersRoute: AppTriggersRoute,
   AppIndexRoute: AppIndexRoute,
   AppSessionIdRoute: AppSessionIdRoute,
 }

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite Settings pages batch 2 (mcp-servers, hooks-extensions, observability, environments, network)
 type: frontend
 complexity: high
@@ -46,13 +46,13 @@ Rewrite the five remaining Phase 6 sub-route pages `/settings/mcp-servers`, `/se
 
 > Subtasks below describe sub-routes, not individual files — each sub-route owns its route file plus any in-file section subcomponents. No new component files land in `web/src/systems/settings/components/`.
 
-- [ ] 32.1 Rewrite `/settings/mcp-servers` — server `Table` (name, command, transport, status `Pills`), add-server `Dialog` with `Field` + `Combobox` for transport, per-row edit / delete actions, `Empty` state.
-- [ ] 32.2 Rewrite `/settings/hooks-extensions` — hook groups (`Section` per hook kind), enabled `Switch`, inline script `Input`, add-hook `Dialog`, `Empty` state when no hooks are registered.
-- [ ] 32.3 Rewrite `/settings/observability` — metric grid (sessions, events, rate) through `SettingsStatGrid` + `Metric`; log-level `NativeSelect`; OTLP endpoint `Field`; restart-banner wiring.
-- [ ] 32.4 Rewrite `/settings/environments` — environment `Table` (name, scope, var count, default `Switch`), add / edit `Dialog` with variable editor, restart-banner wiring when defaults change, `Empty` state.
-- [ ] 32.5 Rewrite `/settings/network` — bind-address / port `Field`s, TLS `Switch`, allowed-origins `Pills` input, CORS `NativeSelect`; restart-banner wiring on any submit.
-- [ ] 32.6 Update the matching `*.stories.tsx` files under `web/src/routes/_app/settings/stories/` to consume the new components and exercise idle + dirty + loading + empty states.
-- [ ] 32.7 Regenerate Playwright snapshot baselines per sub-route (idle + dirty minimum; add empty for `mcp-servers`, `hooks-extensions`, `environments`).
+- [x] 32.1 Rewrite `/settings/mcp-servers` — server `Table` (name, command, transport, status `Pills`), add-server `Dialog` with `Field` + `Combobox` for transport, per-row edit / delete actions, `Empty` state.
+- [x] 32.2 Rewrite `/settings/hooks-extensions` — hook groups (`Section` per hook kind), enabled `Switch`, inline script `Input`, add-hook `Dialog`, `Empty` state when no hooks are registered.
+- [x] 32.3 Rewrite `/settings/observability` — metric grid (sessions, events, rate) through `SettingsStatGrid` + `Metric`; log-level `NativeSelect`; OTLP endpoint `Field`; restart-banner wiring.
+- [x] 32.4 Rewrite `/settings/environments` — environment `Table` (name, scope, var count, default `Switch`), add / edit `Dialog` with variable editor, restart-banner wiring when defaults change, `Empty` state.
+- [x] 32.5 Rewrite `/settings/network` — bind-address / port `Field`s, TLS `Switch`, allowed-origins `Pills` input, CORS `NativeSelect`; restart-banner wiring on any submit.
+- [x] 32.6 Update the matching `*.stories.tsx` files under `web/src/routes/_app/settings/stories/` to consume the new components and exercise idle + dirty + loading + empty states.
+- [x] 32.7 Regenerate Playwright snapshot baselines per sub-route (idle + dirty minimum; add empty for `mcp-servers`, `hooks-extensions`, `environments`).
 
 ## Implementation Details
 

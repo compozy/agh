@@ -2,16 +2,21 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-import { Pill, PillButton } from "@/components/design-system";
-import { Button } from "@agh/ui";
-
 import {
-  AutomationCheckbox,
-  AutomationField,
-  AutomationFormSection,
-  AutomationInput,
-  AutomationTextarea,
-} from "./automation-form-primitives";
+  Button,
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+  Input,
+  MonoBadge,
+  Pills,
+  Section,
+  Switch,
+  Textarea,
+} from "@agh/ui";
+
 import { retryDraftForStrategy } from "../lib/automation-drafts";
 import type { AutomationTriggerFilter, CreateAutomationTriggerRequest } from "../types";
 
@@ -26,10 +31,7 @@ interface AutomationTriggerFormProps {
 }
 
 function formatFilterText(filter?: AutomationTriggerFilter): string {
-  if (!filter || Object.keys(filter).length === 0) {
-    return "";
-  }
-
+  if (!filter || Object.keys(filter).length === 0) return "";
   return Object.entries(filter)
     .map(([key, value]) => `${key}=${value}`)
     .join("\n");
@@ -48,9 +50,7 @@ function parseFilterText(text: string): AutomationTriggerFilter {
       }
 
       const key = line.slice(0, separatorIndex).trim();
-      if (key === "") {
-        return accumulator;
-      }
+      if (key === "") return accumulator;
 
       accumulator[key] = line.slice(separatorIndex + 1).trim();
       return accumulator;
@@ -78,9 +78,7 @@ export function AutomationTriggerForm({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canSubmit || isPending) {
-      return;
-    }
+    if (!canSubmit || isPending) return;
     onSubmit();
   };
 
@@ -90,149 +88,140 @@ export function AutomationTriggerForm({
       data-testid="automation-trigger-form"
       onSubmit={handleSubmit}
     >
-      <div className="border-b border-[color:var(--color-divider)] px-6 py-5">
-        <div className="max-w-2xl space-y-1 pr-12">
-          <h2 className="text-lg font-semibold text-[color:var(--color-text-primary)]">
-            {mode === "create" ? "Create Trigger" : "Edit Trigger"}
-          </h2>
-          <p className="text-sm text-[color:var(--color-text-secondary)]">
-            Event-driven triggers react to daemon events, webhooks, and extension signals.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-        <AutomationFormSection
-          description="Choose the event source, the destination agent, and the prompt template."
-          title="Core"
-        >
-          <div className="grid gap-4 md:grid-cols-2">
-            <AutomationField label="Name">
-              <AutomationInput
-                data-testid="trigger-name-input"
-                onChange={event => onChange({ ...draft, name: event.target.value })}
-                placeholder="review-on-stop"
-                value={draft.name}
-              />
-            </AutomationField>
-            <AutomationField label="Agent">
-              <AutomationInput
-                data-testid="trigger-agent-input"
-                onChange={event => onChange({ ...draft, agent_name: event.target.value })}
-                placeholder="reviewer"
-                value={draft.agent_name}
-              />
-            </AutomationField>
-          </div>
-          <AutomationField label="Event">
-            <AutomationInput
-              data-testid="trigger-event-input"
-              onChange={event => onChange({ ...draft, event: event.target.value })}
-              placeholder="session.stopped or webhook"
-              value={draft.event}
-            />
-          </AutomationField>
-          <div className="space-y-2">
-            <span className="text-sm font-medium text-[color:var(--color-text-primary)]">
-              Scope
-            </span>
-            <div className="flex flex-wrap items-center gap-2">
-              <PillButton
-                active={draft.scope === "global"}
-                data-testid="trigger-scope-global"
-                onClick={() =>
-                  onChange({
-                    ...draft,
-                    scope: "global",
-                    workspace_id: undefined,
-                  })
-                }
-              >
-                GLOBAL
-              </PillButton>
-              <PillButton
-                active={draft.scope === "workspace"}
-                data-testid="trigger-scope-workspace"
-                onClick={() =>
-                  onChange({
-                    ...draft,
-                    scope: "workspace",
-                    workspace_id: activeWorkspaceId ?? draft.workspace_id,
-                  })
-                }
-              >
-                WORKSPACE
-              </PillButton>
+      <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+        <Section label="Core">
+          <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="trigger-name">Name</FieldLabel>
+                <Input
+                  data-testid="trigger-name-input"
+                  id="trigger-name"
+                  onChange={event => onChange({ ...draft, name: event.target.value })}
+                  placeholder="review-on-stop"
+                  value={draft.name}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="trigger-agent">Agent</FieldLabel>
+                <Input
+                  data-testid="trigger-agent-input"
+                  id="trigger-agent"
+                  onChange={event => onChange({ ...draft, agent_name: event.target.value })}
+                  placeholder="reviewer"
+                  value={draft.agent_name}
+                />
+              </Field>
             </div>
-          </div>
-          <AutomationField label="Prompt template">
-            <div className="space-y-3">
+            <Field>
+              <FieldLabel htmlFor="trigger-event">Event</FieldLabel>
+              <Input
+                data-testid="trigger-event-input"
+                id="trigger-event"
+                onChange={event => onChange({ ...draft, event: event.target.value })}
+                placeholder="session.stopped or webhook"
+                value={draft.event}
+              />
+            </Field>
+            <Field>
+              <FieldTitle>Scope</FieldTitle>
+              <Pills
+                aria-label="Scope"
+                items={[
+                  { value: "global", label: "GLOBAL", testId: "trigger-scope-global" },
+                  { value: "workspace", label: "WORKSPACE", testId: "trigger-scope-workspace" },
+                ]}
+                onChange={next => {
+                  if (next === "global") {
+                    onChange({ ...draft, scope: "global", workspace_id: undefined });
+                  } else {
+                    onChange({
+                      ...draft,
+                      scope: "workspace",
+                      workspace_id: activeWorkspaceId ?? draft.workspace_id,
+                    });
+                  }
+                }}
+                value={draft.scope}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="trigger-prompt">Prompt template</FieldLabel>
               <div className="flex flex-wrap items-center gap-2">
-                <Pill emphasis="strong" kind="state" tone="violet">
-                  GO TEMPLATE
-                </Pill>
-                <span className="text-xs text-[color:var(--color-text-tertiary)]">
+                <MonoBadge tone="info">GO TEMPLATE</MonoBadge>
+                <span className="text-[12px] text-[color:var(--color-text-tertiary)]">
                   Variables: .EventName, .Source, .Data, .Timestamp
                 </span>
               </div>
-              <AutomationTextarea
+              <Textarea
                 data-testid="trigger-prompt-input"
+                id="trigger-prompt"
                 onChange={event => onChange({ ...draft, prompt: event.target.value })}
                 placeholder="Review the session {{ .Data.session_id }} for agent {{ .Data.agent_name }}."
+                rows={4}
                 value={draft.prompt}
               />
-            </div>
-          </AutomationField>
-        </AutomationFormSection>
+            </Field>
+          </div>
+        </Section>
 
-        <AutomationFormSection
-          description="Optional exact-match filters narrow which activations should dispatch."
-          title="Activation"
-        >
-          <AutomationField hint="One key=value pair per line." label="Filter rules">
-            <AutomationTextarea
-              data-testid="trigger-filter-input"
-              onChange={event =>
-                onChange({
-                  ...draft,
-                  filter: parseFilterText(event.target.value),
-                })
-              }
-              placeholder={"data.branch=main\ndata.author=pedro"}
-              value={formatFilterText(draft.filter)}
-            />
-          </AutomationField>
-          {draft.event === "webhook" ? (
-            <div className="grid gap-4 md:grid-cols-3">
-              <AutomationField label="Webhook endpoint slug">
-                <AutomationInput
-                  data-testid="trigger-endpoint-slug-input"
-                  onChange={event => onChange({ ...draft, endpoint_slug: event.target.value })}
-                  placeholder="repo-push"
-                  value={draft.endpoint_slug ?? ""}
-                />
-              </AutomationField>
-              <AutomationField label="Webhook id">
-                <AutomationInput
-                  data-testid="trigger-webhook-id-input"
-                  onChange={event => onChange({ ...draft, webhook_id: event.target.value })}
-                  placeholder="wbh_repo_push"
-                  value={draft.webhook_id ?? ""}
-                />
-              </AutomationField>
-              <AutomationField label="Webhook secret">
-                <AutomationInput
-                  data-testid="trigger-webhook-secret-input"
-                  onChange={event => onChange({ ...draft, webhook_secret: event.target.value })}
-                  placeholder="shared-secret"
-                  value={draft.webhook_secret ?? ""}
-                />
-              </AutomationField>
-            </div>
-          ) : null}
-        </AutomationFormSection>
+        <Section label="Activation">
+          <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+            <Field>
+              <FieldLabel htmlFor="trigger-filter">Filter rules</FieldLabel>
+              <Textarea
+                data-testid="trigger-filter-input"
+                id="trigger-filter"
+                onChange={event =>
+                  onChange({
+                    ...draft,
+                    filter: parseFilterText(event.target.value),
+                  })
+                }
+                placeholder={"data.branch=main\ndata.author=pedro"}
+                rows={3}
+                value={formatFilterText(draft.filter)}
+              />
+              <FieldDescription>One key=value pair per line.</FieldDescription>
+            </Field>
+            {draft.event === "webhook" ? (
+              <div className="grid gap-4 md:grid-cols-3">
+                <Field>
+                  <FieldLabel htmlFor="trigger-endpoint-slug">Endpoint slug</FieldLabel>
+                  <Input
+                    data-testid="trigger-endpoint-slug-input"
+                    id="trigger-endpoint-slug"
+                    onChange={event => onChange({ ...draft, endpoint_slug: event.target.value })}
+                    placeholder="repo-push"
+                    value={draft.endpoint_slug ?? ""}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="trigger-webhook-id">Webhook id</FieldLabel>
+                  <Input
+                    data-testid="trigger-webhook-id-input"
+                    id="trigger-webhook-id"
+                    onChange={event => onChange({ ...draft, webhook_id: event.target.value })}
+                    placeholder="wbh_repo_push"
+                    value={draft.webhook_id ?? ""}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="trigger-webhook-secret">Webhook secret</FieldLabel>
+                  <Input
+                    data-testid="trigger-webhook-secret-input"
+                    id="trigger-webhook-secret"
+                    onChange={event => onChange({ ...draft, webhook_secret: event.target.value })}
+                    placeholder="shared-secret"
+                    value={draft.webhook_secret ?? ""}
+                  />
+                </Field>
+              </div>
+            ) : null}
+          </div>
+        </Section>
 
-        <section className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+        <section className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
           <button
             className="flex w-full items-center justify-between gap-3 text-left"
             data-testid="trigger-governance-toggle"
@@ -241,15 +230,21 @@ export function AutomationTriggerForm({
           >
             <span className="flex items-center gap-2">
               {governanceExpanded ? (
-                <ChevronDown className="size-4 text-[color:var(--color-text-label)]" />
+                <ChevronDown
+                  aria-hidden="true"
+                  className="size-4 text-[color:var(--color-text-tertiary)]"
+                />
               ) : (
-                <ChevronRight className="size-4 text-[color:var(--color-text-label)]" />
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 text-[color:var(--color-text-tertiary)]"
+                />
               )}
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--color-text-label)]">
+              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
                 Governance
               </span>
             </span>
-            <span className="text-sm text-[color:var(--color-text-secondary)]">
+            <span className="text-[13px] text-[color:var(--color-text-secondary)]">
               Optional retry and rate limit settings
             </span>
           </button>
@@ -257,34 +252,31 @@ export function AutomationTriggerForm({
           {governanceExpanded ? (
             <div className="mt-4 space-y-4">
               <div className="grid gap-4 md:grid-cols-3">
-                <AutomationField label="Retry policy">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PillButton
-                      active={retry.strategy === "none"}
-                      data-testid="trigger-retry-strategy-none"
-                      onClick={() =>
-                        onChange({ ...draft, retry: retryDraftForStrategy("none", retry) })
-                      }
-                      size="dense"
-                    >
-                      NONE
-                    </PillButton>
-                    <PillButton
-                      active={retry.strategy === "backoff"}
-                      data-testid="trigger-retry-strategy-backoff"
-                      onClick={() =>
-                        onChange({ ...draft, retry: retryDraftForStrategy("backoff", retry) })
-                      }
-                      size="dense"
-                    >
-                      BACKOFF
-                    </PillButton>
-                  </div>
-                </AutomationField>
-                <AutomationField label="Max retries">
-                  <AutomationInput
+                <Field>
+                  <FieldTitle>Retry policy</FieldTitle>
+                  <Pills
+                    aria-label="Retry policy"
+                    items={[
+                      { value: "none", label: "NONE", testId: "trigger-retry-strategy-none" },
+                      {
+                        value: "backoff",
+                        label: "BACKOFF",
+                        testId: "trigger-retry-strategy-backoff",
+                      },
+                    ]}
+                    onChange={next =>
+                      onChange({ ...draft, retry: retryDraftForStrategy(next, retry) })
+                    }
+                    size="sm"
+                    value={retry.strategy}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="trigger-retry-max">Max retries</FieldLabel>
+                  <Input
                     data-testid="trigger-retry-max"
                     disabled={retry.strategy !== "backoff"}
+                    id="trigger-retry-max"
                     min={0}
                     onChange={event =>
                       onChange({
@@ -298,11 +290,13 @@ export function AutomationTriggerForm({
                     type="number"
                     value={retry.strategy === "backoff" ? retry.max_retries : 0}
                   />
-                </AutomationField>
-                <AutomationField label="Base delay">
-                  <AutomationInput
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="trigger-retry-delay">Base delay</FieldLabel>
+                  <Input
                     data-testid="trigger-retry-delay"
                     disabled={retry.strategy !== "backoff"}
+                    id="trigger-retry-delay"
                     onChange={event =>
                       onChange({
                         ...draft,
@@ -315,12 +309,14 @@ export function AutomationTriggerForm({
                     placeholder="2s"
                     value={retry.strategy === "backoff" ? retry.base_delay : ""}
                   />
-                </AutomationField>
+                </Field>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <AutomationField label="Max fires">
-                  <AutomationInput
+                <Field>
+                  <FieldLabel htmlFor="trigger-fire-limit-max">Max fires</FieldLabel>
+                  <Input
                     data-testid="trigger-fire-limit-max"
+                    id="trigger-fire-limit-max"
                     min={1}
                     onChange={event =>
                       onChange({
@@ -334,10 +330,12 @@ export function AutomationTriggerForm({
                     type="number"
                     value={draft.fire_limit?.max ?? 12}
                   />
-                </AutomationField>
-                <AutomationField label="Window">
-                  <AutomationInput
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="trigger-fire-limit-window">Window</FieldLabel>
+                  <Input
                     data-testid="trigger-fire-limit-window"
+                    id="trigger-fire-limit-window"
                     onChange={event =>
                       onChange({
                         ...draft,
@@ -350,35 +348,34 @@ export function AutomationTriggerForm({
                     placeholder="1h"
                     value={draft.fire_limit?.window ?? "1h"}
                   />
-                </AutomationField>
+                </Field>
               </div>
-              <AutomationCheckbox
-                checked={draft.enabled ?? true}
-                description="Disabled triggers stay visible but ignore matching activation envelopes."
-                label="Trigger enabled"
-                onCheckedChange={checked => onChange({ ...draft, enabled: checked })}
-                testId="trigger-enabled-toggle"
-              />
+              <Field orientation="horizontal">
+                <Switch
+                  checked={draft.enabled ?? true}
+                  data-testid="trigger-enabled-toggle"
+                  onCheckedChange={checked => onChange({ ...draft, enabled: checked })}
+                />
+                <FieldContent>
+                  <FieldTitle>Trigger enabled</FieldTitle>
+                  <FieldDescription>
+                    Disabled triggers stay visible but ignore matching activation envelopes.
+                  </FieldDescription>
+                </FieldContent>
+              </Field>
             </div>
           ) : null}
         </section>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-6 py-4">
-        <Button
-          className="border-[color:var(--color-divider)] bg-transparent text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
-          onClick={onCancel}
-          size="lg"
-          type="button"
-          variant="outline"
-        >
+      <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+        <Button onClick={onCancel} type="button" variant="outline">
           Cancel
         </Button>
         <Button
           className="min-w-36"
           data-testid="submit-trigger-form"
           disabled={!canSubmit || isPending}
-          size="lg"
           type="submit"
         >
           {isPending ? "Saving..." : mode === "create" ? "Create Trigger" : "Save Changes"}

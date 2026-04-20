@@ -10,6 +10,7 @@ reviews:
   sequence_diagrams: true
   profile: "chill"
   path_filters:
+    - "!docs/design/**/*"
     - "!**/*.md"
     - "!**/*.yaml"
     - "!**/*.yml"

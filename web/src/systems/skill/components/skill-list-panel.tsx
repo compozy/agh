@@ -1,13 +1,18 @@
-import { Search } from "lucide-react";
+import { AlertCircle, Loader2, Wrench } from "lucide-react";
 import { useMemo } from "react";
 
+import { Empty, MonoBadge, SearchInput, StatusDot } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
+import {
+  compareSkillSource,
+  filterSkillsByQuery,
+  skillSourceLabel,
+  skillSourceShortLabel,
+  skillSourceTone,
+  skillStatusTone,
+} from "../lib/skill-formatters";
 import type { SkillPayload } from "../types";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 interface SkillGroup {
   source: string;
@@ -21,90 +26,84 @@ interface SkillListPanelProps {
   onSelectSkill: (name: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  isLoading?: boolean;
+  errorMessage?: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const SOURCE_ORDER: Record<string, number> = {
-  bundled: 0,
-  workspace: 1,
-  marketplace: 2,
-  user: 3,
-  additional: 4,
-};
-
 function groupSkillsBySource(skills: SkillPayload[]): SkillGroup[] {
-  const groups: Record<string, SkillPayload[]> = {};
+  const buckets = new Map<string, SkillPayload[]>();
   for (const skill of skills) {
-    const src = skill.source;
-    if (!groups[src]) groups[src] = [];
-    groups[src].push(skill);
+    const list = buckets.get(skill.source);
+    if (list) {
+      list.push(skill);
+    } else {
+      buckets.set(skill.source, [skill]);
+    }
   }
-
-  return Object.entries(groups)
-    .sort(([a], [b]) => (SOURCE_ORDER[a] ?? 99) - (SOURCE_ORDER[b] ?? 99))
+  return Array.from(buckets.entries())
+    .sort(([left], [right]) => compareSkillSource(left, right))
     .map(([source, items]) => ({
       source,
-      label: source.toUpperCase(),
-      skills: items.sort((a, b) => a.name.localeCompare(b.name)),
+      label: skillSourceLabel(source),
+      skills: items.slice().sort((a, b) => a.name.localeCompare(b.name)),
     }));
 }
 
-// ---------------------------------------------------------------------------
-// Skill List Item
-// ---------------------------------------------------------------------------
-
-function SkillListItem({
-  skill,
-  isSelected,
-  onSelect,
-}: {
+interface SkillListItemProps {
   skill: SkillPayload;
   isSelected: boolean;
   onSelect: () => void;
-}) {
+}
+
+function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
   return (
     <button
-      onClick={onSelect}
+      aria-pressed={isSelected}
       className={cn(
-        "relative flex w-full items-center gap-2 border-b border-[color:rgba(58,58,60,0.45)] px-3 py-2 text-left transition-colors",
-        "hover:bg-[color:var(--color-surface)]",
+        "relative flex w-full flex-col gap-1.5 border-b border-[color:var(--color-divider)] px-4 py-3 text-left transition-colors",
+        "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
         isSelected && "bg-[color:var(--color-surface)]"
       )}
+      data-state={isSelected ? "selected" : undefined}
       data-testid={`skill-item-${skill.name}`}
+      onClick={onSelect}
+      type="button"
     >
-      {isSelected && (
+      {isSelected ? (
         <span
-          className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          aria-hidden="true"
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-[color:var(--color-accent)]"
           data-testid="skill-active-indicator"
         />
-      )}
-      <span
-        className={cn(
-          "size-2 shrink-0 rounded-full",
-          skill.enabled
-            ? "bg-[color:var(--color-success)]"
-            : "bg-[color:var(--color-text-tertiary)]"
-        )}
-        data-testid={`skill-status-dot-${skill.name}`}
-      />
-      <span className="flex-1 truncate text-sm font-medium text-[color:var(--color-text-primary)]">
-        {skill.name}
-      </span>
-      {skill.version && (
-        <span className="shrink-0 text-xs text-[color:var(--color-text-tertiary)]">
-          {skill.version}
+      ) : null}
+      <div className="flex items-center gap-2">
+        <StatusDot
+          data-testid={`skill-status-dot-${skill.name}`}
+          tone={skillStatusTone(skill.enabled)}
+        />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+          {skill.name}
         </span>
-      )}
+        {skill.version ? (
+          <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+            v{skill.version}
+          </span>
+        ) : null}
+      </div>
+      {skill.description ? (
+        <span className="truncate text-[12px] text-[color:var(--color-text-secondary)]">
+          {skill.description}
+        </span>
+      ) : null}
+      <MonoBadge
+        data-testid={`skill-source-badge-${skill.name}`}
+        tone={skillSourceTone(skill.source)}
+      >
+        {skillSourceShortLabel(skill.source)}
+      </MonoBadge>
     </button>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Skill List Panel
-// ---------------------------------------------------------------------------
 
 function SkillListPanel({
   skills,
@@ -112,69 +111,89 @@ function SkillListPanel({
   onSelectSkill,
   searchQuery,
   onSearchChange,
+  isLoading = false,
+  errorMessage = null,
 }: SkillListPanelProps) {
-  const filtered = useMemo(() => {
-    if (!searchQuery) return skills;
-    const q = searchQuery.toLowerCase();
-    return skills.filter(
-      s => s.name.toLowerCase().includes(q) || (s.description ?? "").toLowerCase().includes(q)
-    );
-  }, [skills, searchQuery]);
-
+  const filtered = useMemo(() => filterSkillsByQuery(skills, searchQuery), [skills, searchQuery]);
   const groups = useMemo(() => groupSkillsBySource(filtered), [filtered]);
+  const isEmpty = filtered.length === 0;
 
   return (
-    <div
-      className="flex w-[280px] shrink-0 flex-col border-r border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]"
-      data-testid="skill-list-panel"
-    >
-      {/* Search input */}
+    <aside className="flex min-h-0 flex-1 flex-col" data-testid="skill-list-panel">
       <div className="border-b border-[color:var(--color-divider)] p-3">
-        <div className="flex items-center gap-2 rounded-lg bg-[color:var(--color-surface)] px-3 py-2">
-          <Search className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]" />
-          <input
-            type="text"
-            placeholder="Search skills..."
-            value={searchQuery}
-            onChange={e => onSearchChange(e.target.value)}
-            className="w-full bg-transparent text-sm text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-tertiary)] outline-none"
-            data-testid="skill-search-input"
-          />
-        </div>
+        <SearchInput
+          aria-label="Search installed skills"
+          data-testid="skill-search-input"
+          onChange={onSearchChange}
+          placeholder="Filter skills…"
+          value={searchQuery}
+        />
       </div>
 
-      {/* Grouped skill list */}
-      <div className="flex-1 overflow-y-auto">
-        {groups.length === 0 && (
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {isLoading && isEmpty ? (
           <div
-            className="px-3 py-6 text-center text-sm text-[color:var(--color-text-tertiary)]"
+            className="flex min-h-full items-center justify-center px-6 py-10"
+            data-testid="skill-list-loading"
+          >
+            <Loader2
+              aria-hidden="true"
+              className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+            />
+          </div>
+        ) : errorMessage && isEmpty ? (
+          <div
+            className="flex min-h-full items-center justify-center p-4"
+            data-testid="skill-list-error"
+          >
+            <Empty
+              className="max-w-sm"
+              description={errorMessage}
+              icon={AlertCircle}
+              title="Unable to load skills"
+            />
+          </div>
+        ) : isEmpty ? (
+          <div
+            className="flex min-h-full items-center justify-center p-4"
             data-testid="skill-list-empty"
           >
-            No skills found
+            <Empty
+              className="max-w-sm"
+              description={
+                searchQuery.trim() !== "" ? "Try a different search term." : "No skills found"
+              }
+              icon={Wrench}
+              title="No skills found"
+            />
           </div>
-        )}
-        {groups.map(group => (
-          <div key={group.source} data-testid={`skill-group-${group.source}`}>
-            <div className="flex items-center justify-between px-3 pb-1 pt-3">
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-                {group.label}
-              </span>
-              <span className="font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
-                {group.skills.length}
-              </span>
-            </div>
-            {group.skills.map(skill => (
-              <SkillListItem
-                key={skill.name}
-                skill={skill}
-                isSelected={skill.name === selectedSkillName}
-                onSelect={() => onSelectSkill(skill.name)}
-              />
+        ) : (
+          <div data-testid="skill-list-groups">
+            {groups.map(group => (
+              <div data-testid={`skill-group-${group.source}`} key={group.source}>
+                <div
+                  className="flex items-center justify-between gap-2 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-4 py-2"
+                  data-testid={`skill-group-header-${group.source}`}
+                >
+                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                    {group.label}
+                  </span>
+                  <MonoBadge>{group.skills.length}</MonoBadge>
+                </div>
+                {group.skills.map(skill => (
+                  <SkillListItem
+                    isSelected={skill.name === selectedSkillName}
+                    key={skill.name}
+                    onSelect={() => onSelectSkill(skill.name)}
+                    skill={skill}
+                  />
+                ))}
+              </div>
             ))}
           </div>
-        ))}
+        )}
       </div>
-    </div>
+    </aside>
   );
 }
 

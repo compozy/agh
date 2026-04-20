@@ -11,7 +11,7 @@ describe("TasksPageShell", () => {
       </TasksPageShell>
     );
 
-    expect(screen.getByRole("heading", { level: 1, name: "Tasks" })).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-shell-title")).toHaveTextContent("Tasks");
     expect(screen.getByTestId("tasks-shell-icon")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-shell-body")).toContainElement(
       screen.getByTestId("tasks-shell-content")

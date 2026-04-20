@@ -10,7 +10,14 @@ const alertVariants = cva(
       variant: {
         default: "bg-card text-card-foreground",
         destructive:
-          "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+          "border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger-tint)] text-[color:var(--color-danger)] *:data-[slot=alert-description]:text-[color:var(--color-danger)]/90",
+        warning:
+          "border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning-tint)] text-[color:var(--color-warning)] *:data-[slot=alert-description]:text-[color:var(--color-warning)]/90",
+        success:
+          "border-[color:var(--color-success)]/40 bg-[color:var(--color-success-tint)] text-[color:var(--color-success)] *:data-[slot=alert-description]:text-[color:var(--color-success)]/90",
+        info: "border-[color:var(--color-info)]/40 bg-[color:var(--color-info-tint)] text-[color:var(--color-info)] *:data-[slot=alert-description]:text-[color:var(--color-info)]/90",
+        accent:
+          "border-[color:var(--color-accent)]/40 bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)] *:data-[slot=alert-description]:text-[color:var(--color-accent)]/90",
       },
     },
     defaultVariants: {
@@ -19,15 +26,14 @@ const alertVariants = cva(
   }
 );
 
-function Alert({
-  className,
-  variant,
-  ...props
-}: React.ComponentProps<"div"> & VariantProps<typeof alertVariants>) {
+type AlertProps = React.ComponentProps<"div"> & VariantProps<typeof alertVariants>;
+
+function Alert({ className, variant, role = "alert", ...props }: AlertProps) {
   return (
     <div
       data-slot="alert"
-      role="alert"
+      data-variant={variant ?? "default"}
+      role={role}
       className={cn(alertVariants({ variant }), className)}
       {...props}
     />
@@ -52,7 +58,7 @@ function AlertDescription({ className, ...props }: React.ComponentProps<"div">) 
     <div
       data-slot="alert-description"
       className={cn(
-        "text-sm text-balance text-muted-foreground md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
+        "text-sm text-balance md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
         className
       )}
       {...props}
@@ -67,3 +73,4 @@ function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 export { Alert, AlertTitle, AlertDescription, AlertAction, alertVariants };
+export type { AlertProps };

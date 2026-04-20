@@ -1,12 +1,13 @@
 import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Switch } from "@/components/ui/switch";
+import { Button, Input, Switch } from "@agh/ui";
 import { useSettingsAutomationPage } from "@/hooks/routes/use-settings-automation-page";
 import type { SettingsAutomationSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsNumberInput,
   SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
@@ -26,6 +27,19 @@ type AutomationRuntime = SettingsAutomationSection["runtime"];
 
 function AutomationSettingsPage() {
   const page = useSettingsAutomationPage();
+  const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
+  const setValidationError = useCallback(
+    (key: string) => (message: string | null) => {
+      setValidationErrors(current =>
+        current[key] === message ? current : { ...current, [key]: message }
+      );
+    },
+    []
+  );
+  const isInvalid = useMemo(
+    () => Object.values(validationErrors).some(message => message !== null),
+    [validationErrors]
+  );
 
   if (page.isLoading) {
     return (
@@ -49,6 +63,9 @@ function AutomationSettingsPage() {
           <p className="text-sm text-[color:var(--color-text-tertiary)]">
             {page.error?.message ?? "Failed to load automation settings"}
           </p>
+          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -81,6 +98,7 @@ function AutomationSettingsPage() {
         <SettingsSaveBar
           slug="automation"
           isDirty={page.isDirty}
+          isInvalid={isInvalid}
           isSaving={page.isSaving}
           error={page.saveError}
           warnings={page.warnings}
@@ -93,7 +111,12 @@ function AutomationSettingsPage() {
       <OperationalLinksRow />
       <ManagerSummarySection runtime={runtime} />
       <EngineSection draft={draft} setDraft={setDraft} />
-      <LimitsSection draft={draft} setDraft={setDraft} />
+      <LimitsSection
+        draft={draft}
+        setDraft={setDraft}
+        validationErrors={validationErrors}
+        setValidationError={setValidationError}
+      />
     </SettingsPageShell>
   );
 }
@@ -106,12 +129,20 @@ function OperationalLinksRow() {
         data-testid="settings-page-automation-operational-links"
       >
         <Link
-          to="/automation"
+          to="/jobs"
           className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
-          data-testid="settings-page-automation-link-automation"
+          data-testid="settings-page-automation-link-jobs"
         >
           <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
-          Open Automation
+          Open Jobs
+        </Link>
+        <Link
+          to="/triggers"
+          className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
+          data-testid="settings-page-automation-link-triggers"
+        >
+          <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+          Open Triggers
         </Link>
       </div>
     </SettingsSectionCard>
@@ -188,8 +219,8 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
         description="Used for cron schedule resolution"
         hint="IANA"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56 font-mono"
             data-testid="settings-page-automation-timezone-input"
             value={draft.timezone ?? ""}
             placeholder="UTC"
@@ -201,25 +232,34 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
   );
 }
 
-function LimitsSection({ draft, setDraft }: DraftSectionProps) {
+function LimitsSection({
+  draft,
+  setDraft,
+  validationErrors,
+  setValidationError,
+}: DraftSectionProps & {
+  validationErrors: Record<string, string | null>;
+  setValidationError: (key: string) => (message: string | null) => void;
+}) {
   return (
     <SettingsSectionCard eyebrow="Limits" note="resource caps">
       <SettingsFieldRow
         data-testid="settings-page-automation-max-concurrent"
         label="Max concurrent jobs"
         description="Caps the number of jobs running simultaneously"
+        error={validationErrors.maxConcurrentJobs ?? undefined}
         hint="DEFAULT"
         control={
-          <input
-            type="number"
+          <SettingsNumberInput
             min={0}
-            className="h-8 w-24 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+            className="w-24"
             data-testid="settings-page-automation-max-concurrent-input"
             value={draft.max_concurrent_jobs}
-            onChange={event =>
+            onValidityChange={setValidationError("maxConcurrentJobs")}
+            onValueChange={value =>
               setDraft({
                 ...draft,
-                max_concurrent_jobs: Number(event.target.value || 0),
+                max_concurrent_jobs: value,
               })
             }
           />
@@ -229,21 +269,22 @@ function LimitsSection({ draft, setDraft }: DraftSectionProps) {
         data-testid="settings-page-automation-fire-limit-max"
         label="Default fire limit"
         description="Maximum invocations per window for new triggers"
+        error={validationErrors.defaultFireLimitMax ?? undefined}
         hint="DEFAULT"
         control={
           <div className="flex items-center gap-2">
-            <input
-              type="number"
+            <SettingsNumberInput
               min={0}
-              className="h-8 w-24 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+              className="w-24"
               data-testid="settings-page-automation-fire-limit-max-input"
               value={draft.default_fire_limit.max}
-              onChange={event =>
+              onValidityChange={setValidationError("defaultFireLimitMax")}
+              onValueChange={value =>
                 setDraft({
                   ...draft,
                   default_fire_limit: {
                     ...draft.default_fire_limit,
-                    max: Number(event.target.value || 0),
+                    max: value,
                   },
                 })
               }
@@ -252,8 +293,8 @@ function LimitsSection({ draft, setDraft }: DraftSectionProps) {
               fires
             </span>
             <span className="text-xs text-[color:var(--color-text-tertiary)]">per</span>
-            <input
-              className="h-8 w-24 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 font-mono text-sm text-[color:var(--color-text-primary)]"
+            <Input
+              className="w-24 font-mono"
               data-testid="settings-page-automation-fire-limit-window-input"
               value={draft.default_fire_limit.window ?? ""}
               placeholder="1m"

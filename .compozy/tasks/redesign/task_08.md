@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Close web/src/components/ui/ — migrate remaining shadcn primitives and delete folder
 type: refactor
 complexity: high
@@ -45,12 +45,12 @@ Migrate the last remaining primitives in `web/src/components/ui/` (Avatar, Bread
 
 ## Subtasks
 
-- [ ] 8.1 Move the ten primitive source files to `packages/ui/src/components/`.
-- [ ] 8.2 Update `packages/ui/src/index.ts` with all ten new exports and any sub-exports (FieldError, InputGroupAddon, ItemMedia, etc.).
-- [ ] 8.3 Add or update stories for each.
-- [ ] 8.4 Rewrite every remaining `@/components/ui/*` import in `web/src/**` to `@agh/ui` (after tasks 02–04, 06 only these ten paths should remain).
-- [ ] 8.5 Delete the entire `web/src/components/ui/` directory and clean up any tsconfig path aliases that pointed to it.
-- [ ] 8.6 Verify `rg "@/components/ui/" web/src` returns zero matches and `make verify` passes.
+- [x] 8.1 Move the ten primitive source files to `packages/ui/src/components/`.
+- [x] 8.2 Update `packages/ui/src/index.ts` with all ten new exports and any sub-exports (FieldError, InputGroupAddon, ItemMedia, etc.).
+- [x] 8.3 Add or update stories for each.
+- [x] 8.4 Rewrite every remaining `@/components/ui/*` import in `web/src/**` to `@agh/ui` (after tasks 02–04, 06 only these ten paths should remain).
+- [x] 8.5 Delete the entire `web/src/components/ui/` directory and clean up any tsconfig path aliases that pointed to it.
+- [x] 8.6 Verify `rg "@/components/ui/" web/src` returns zero matches and `make verify` passes.
 
 ## Implementation Details
 
@@ -63,6 +63,10 @@ See ADR-001 for the closure rationale and TechSpec "Impact Analysis" for the fol
 - `packages/ui/src/index.ts` — export list.
 - `web/tsconfig.json` — path aliases (check for `@/components/ui/*`).
 - Grep `@/components/ui/(avatar|breadcrumb|button-group|field|input-group|item|native-select|textarea|sonner|direction)`.
+- **Design references** (read-only, do not edit):
+  - `DESIGN.md §4` — field + breadcrumb specs.
+  - `docs/design/design-system/preview/components-inputs.html` — Field + Textarea + InputGroup visual reference.
+  - `docs/design/design-system/preview/components-buttons.html` — ButtonGroup reference.
 
 ### Dependent Files
 
@@ -85,18 +89,18 @@ See ADR-001 for the closure rationale and TechSpec "Impact Analysis" for the fol
 ## Tests
 
 - Unit tests:
-  - [ ] `Field` renders its label, description, error state with correct `aria-describedby` wiring.
-  - [ ] `InputGroup` places prefix + suffix addons without clipping the input.
-  - [ ] `Avatar` falls back to initials when image load fails.
-  - [ ] `ButtonGroup` renders separators between direct Button children.
-  - [ ] `Item` composes media + content + actions + separator in the declared slot order.
-  - [ ] `NativeSelect` forwards value + onChange correctly.
-  - [ ] `Textarea` supports `rows` + autoresize if enabled.
-  - [ ] `Sonner` toast API (`toast.success`, `toast.error`) mounts at the configured position.
-  - [ ] `Direction` provider forwards `dir` to Radix components.
+  - [x] `Field` renders its label, description, error state with correct `aria-describedby` wiring.
+  - [x] `InputGroup` places prefix + suffix addons without clipping the input.
+  - [x] `Avatar` falls back to initials when image load fails.
+  - [x] `ButtonGroup` renders separators between direct Button children.
+  - [x] `Item` composes media + content + actions + separator in the declared slot order.
+  - [x] `NativeSelect` forwards value + onChange correctly.
+  - [x] `Textarea` supports `rows` + autoresize if enabled.
+  - [x] `Sonner` toast API (`toast.success`, `toast.error`) mounts at the configured position.
+  - [x] `Direction` provider forwards `dir` to Radix components.
 - Integration tests:
-  - [ ] Storybook `play()` triggers a `Sonner.toast.error` and asserts the toast renders with danger tone.
-  - [ ] A settings form using Field + Switch continues to save unchanged after the import rewrite.
+  - [x] Storybook `play()` triggers a `Sonner.toast.error` and asserts the toast renders with danger tone.
+  - [x] A settings form using Field + Switch continues to save unchanged after the import rewrite.
 - Test coverage target: >=80%
 - All tests must pass
 

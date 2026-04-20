@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Primary Colors</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 24px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 14px;
+      }
+      .sw {
+        height: 84px;
+        border-radius: 12px;
+        border: 1px solid var(--color-divider);
+        display: flex;
+        align-items: flex-end;
+        padding: 10px;
+        position: relative;
+      }
+      .sw .hex {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--color-text-primary);
+        letter-spacing: 0.04em;
+      }
+      .lbl {
+        margin-top: 8px;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--color-text-tertiary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid">
+      <div>
+        <div class="sw" style="background: #e8572a; border-color: #e8572a">
+          <span class="hex" style="color: #17110f">#E8572A</span>
+        </div>
+        <div class="lbl">Accent</div>
+      </div>
+      <div>
+        <div class="sw" style="background: #d14e25"><span class="hex">#D14E25</span></div>
+        <div class="lbl">Accent · hover</div>
+      </div>
+      <div>
+        <div class="sw" style="background: #f6874f">
+          <span class="hex" style="color: #17110f">#F6874F</span>
+        </div>
+        <div class="lbl">Accent · strong</div>
+      </div>
+      <div>
+        <div class="sw" style="background: #e8572a26">
+          <span class="hex" style="color: #e8572a">#E8572A26</span>
+        </div>
+        <div class="lbl">Accent · tint 15%</div>
+      </div>
+      <div>
+        <div class="sw" style="background: #17110f"><span class="hex">#17110F</span></div>
+        <div class="lbl">Accent · ink</div>
+      </div>
+      <div>
+        <div class="sw" style="background: #e8572a59"><span class="hex">#E8572A59</span></div>
+        <div class="lbl">Accent · dim</div>
+      </div>
+    </div>
+  </body>
+</html>

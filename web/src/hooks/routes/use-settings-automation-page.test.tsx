@@ -45,7 +45,10 @@ const automationEnvelope: SettingsAutomationSection = {
     trigger_enabled: 1,
     trigger_total: 2,
   },
-  links: [{ label: "automation", path: "/automation" }],
+  links: [
+    { label: "jobs", path: "/jobs" },
+    { label: "triggers", path: "/triggers" },
+  ],
 };
 
 function createWrapper() {

@@ -737,6 +737,7 @@ func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 		}`))
 		if result == nil {
 			t.Fatal("buildToolResult() = nil, want populated result")
+			return
 		}
 		if got := result.Stdout; got != "workspace\n" {
 			t.Fatalf("Stdout = %q, want %q", got, "workspace\n")

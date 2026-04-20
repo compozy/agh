@@ -134,6 +134,10 @@ export function useSettingsSkillsPage() {
     [draft]
   );
 
+  const handleRetry = useCallback(() => {
+    void query.refetch();
+  }, [query]);
+
   return {
     isLoading: query.isLoading,
     error: query.error,
@@ -155,6 +159,7 @@ export function useSettingsSkillsPage() {
     policyWarnings: policyMutation.data?.warnings,
     lastDisabledLabel,
     lastPolicyLabel,
+    handleRetry,
     restart: page.restart,
   };
 }

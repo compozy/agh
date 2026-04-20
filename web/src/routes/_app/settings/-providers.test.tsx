@@ -228,14 +228,17 @@ describe("ProvidersSettingsPage", () => {
     expect(pageState.openDelete).toHaveBeenCalledWith(claudeEntry);
   });
 
-  it("renders the empty state when the catalog is empty", () => {
+  it("renders the @agh/ui Empty card when the catalog is empty", () => {
     pageState = makeState({
       providers: [],
       envelope: { providers: [] },
       counts: { total: 0, installed: 0, binaryMissing: 0, unconfigured: 0 },
     });
     render(<ProvidersSettingsPage />);
-    expect(screen.getByTestId("settings-page-providers-empty")).toBeInTheDocument();
+    const empty = screen.getByTestId("settings-page-providers-empty");
+    expect(empty).toBeInTheDocument();
+    expect(empty).toHaveAttribute("data-slot", "empty");
+    expect(empty).toHaveTextContent("No providers configured");
   });
 
   it("renders the edit dialog seeded from the editor state", () => {

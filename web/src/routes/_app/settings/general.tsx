@@ -1,12 +1,13 @@
 import { AlertCircle, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
-import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { PillButton } from "@/components/design-system";
+import { Button, Input, Pills } from "@agh/ui";
 import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
 import type { SettingsGeneralSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsNumberInput,
   SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
@@ -44,6 +45,19 @@ function formatSessionTimeout(seconds: number): string {
 
 function GeneralSettingsPage() {
   const page = useSettingsGeneralPage();
+  const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
+  const setValidationError = useCallback(
+    (key: string) => (message: string | null) => {
+      setValidationErrors(current =>
+        current[key] === message ? current : { ...current, [key]: message }
+      );
+    },
+    []
+  );
+  const isInvalid = useMemo(
+    () => Object.values(validationErrors).some(message => message !== null),
+    [validationErrors]
+  );
 
   if (page.isLoading) {
     return (
@@ -67,6 +81,9 @@ function GeneralSettingsPage() {
           <p className="text-sm text-[color:var(--color-text-tertiary)]">
             {page.error?.message ?? "Failed to load general settings"}
           </p>
+          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -100,6 +117,7 @@ function GeneralSettingsPage() {
         <SettingsSaveBar
           slug="general"
           isDirty={page.isDirty}
+          isInvalid={isInvalid}
           isSaving={page.isSaving}
           error={page.saveError}
           warnings={page.warnings}
@@ -112,7 +130,12 @@ function GeneralSettingsPage() {
       <RuntimeSection envelope={envelope} />
       <DefaultsSection draft={draft} setDraft={setDraft} />
       <PermissionsSection draft={draft} setDraft={setDraft} />
-      <SessionSection draft={draft} setDraft={setDraft} />
+      <SessionSection
+        draft={draft}
+        setDraft={setDraft}
+        timeoutError={validationErrors.sessionTimeout ?? undefined}
+        onTimeoutValidityChange={setValidationError("sessionTimeout")}
+      />
     </SettingsPageShell>
   );
 }
@@ -161,8 +184,8 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
         description="Used when a new session doesn't specify one"
         hint="CONFIG.TOML"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56"
             data-testid="settings-page-general-default-agent-input"
             value={draft.defaults.agent}
             onChange={event =>
@@ -178,10 +201,10 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
         data-testid="settings-page-general-default-provider"
         label="Default provider"
         description="LLM backend agents spawn against"
-        hint="CONFIG.TOML"
+        hint="OPTIONAL"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56"
             data-testid="settings-page-general-default-provider-input"
             value={draft.defaults.provider ?? ""}
             placeholder="auto"
@@ -200,8 +223,8 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
         description="Execution profile for new workspaces"
         hint="DEFAULT"
         control={
-          <input
-            className="h-8 w-56 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+          <Input
+            className="w-56 font-mono"
             data-testid="settings-page-general-default-environment-input"
             value={draft.defaults.environment ?? ""}
             placeholder="local"
@@ -221,25 +244,17 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
 function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
   return (
     <SettingsSectionCard eyebrow="Permissions" note="tool approval policy">
-      <div
-        className="flex flex-wrap gap-2"
+      <Pills
         data-testid="settings-page-general-permissions-group"
-        role="radiogroup"
         aria-label="Tool approval policy"
-      >
-        {PERMISSION_MODES.map(mode => (
-          <PillButton
-            key={mode}
-            role="radio"
-            aria-checked={draft.permissions.mode === mode}
-            active={draft.permissions.mode === mode}
-            data-testid={`settings-page-general-permission-${mode}`}
-            onClick={() => setDraft({ ...draft, permissions: { mode } })}
-          >
-            {mode}
-          </PillButton>
-        ))}
-      </div>
+        value={draft.permissions.mode}
+        onChange={mode => setDraft({ ...draft, permissions: { mode } })}
+        items={PERMISSION_MODES.map(mode => ({
+          value: mode,
+          label: mode,
+          testId: `settings-page-general-permission-${mode}`,
+        }))}
+      />
       <p className="text-xs text-[color:var(--color-text-tertiary)]">
         {describePermissionMode(draft.permissions.mode)}
       </p>
@@ -247,26 +262,35 @@ function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
   );
 }
 
-function SessionSection({ draft, setDraft }: DraftSectionProps) {
+function SessionSection({
+  draft,
+  setDraft,
+  timeoutError,
+  onTimeoutValidityChange,
+}: DraftSectionProps & {
+  timeoutError?: string;
+  onTimeoutValidityChange: (message: string | null) => void;
+}) {
   return (
     <SettingsSectionCard eyebrow="Session" note="runtime limits">
       <SettingsFieldRow
         data-testid="settings-page-general-session-timeout"
         label="Session timeout"
         description="0 disables force-close"
-        hint="DEFAULT"
+        error={timeoutError}
+        hint="SECONDS"
         control={
           <div className="flex items-center gap-2">
-            <input
-              type="number"
+            <SettingsNumberInput
               min={0}
-              className="h-8 w-24 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-2 text-sm text-[color:var(--color-text-primary)]"
+              className="w-28"
               data-testid="settings-page-general-session-timeout-input"
               value={parseSessionTimeoutSeconds(draft.session_timeout)}
-              onChange={event =>
+              onValidityChange={onTimeoutValidityChange}
+              onValueChange={value =>
                 setDraft({
                   ...draft,
-                  session_timeout: formatSessionTimeout(Number(event.target.value || 0)),
+                  session_timeout: formatSessionTimeout(value),
                 })
               }
             />

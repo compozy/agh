@@ -1,7 +1,13 @@
 import { memo } from "react";
 import { AlertCircle, ChevronRight } from "lucide-react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  ToolCallCard as PrimitiveToolCallCard,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 import { useToolCallCard } from "../hooks/use-tool-call-card";
 import { toolToneClass } from "../lib/tool-labels";
@@ -17,107 +23,94 @@ export const ToolCallCard = memo(
     const card = useToolCallCard(message);
     const Icon = card.Icon;
 
-    const statusBadge =
-      card.status === "running" ? (
-        <span
-          className="shrink-0 rounded-full bg-[color:var(--color-accent-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-accent)]"
-          data-testid="tool-status-badge-running"
-        >
-          Running
-        </span>
-      ) : card.status === "error" ? (
-        <span
-          className="shrink-0 rounded-full bg-[color:var(--color-danger-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-danger)]"
-          data-testid="tool-status-badge-error"
-        >
-          Error
-        </span>
+    const iconNode = card.isError ? (
+      <AlertCircle
+        aria-hidden="true"
+        data-slot="tool-call-card-icon"
+        data-testid="tool-call-icon"
+        className="size-3.5 shrink-0 text-[color:var(--color-danger)]"
+      />
+    ) : (
+      <Icon
+        aria-hidden="true"
+        data-slot="tool-call-card-icon"
+        data-testid="tool-call-icon"
+        className={cn(
+          "size-3.5 shrink-0",
+          card.isRunning
+            ? "text-[color:var(--color-accent)]"
+            : "text-[color:var(--color-text-tertiary)]"
+        )}
+      />
+    );
+
+    const toneClass = toolToneClass(card.tone);
+
+    const pathNode = card.summary ? (
+      card.showSummaryTooltip ? (
+        <Tooltip>
+          <TooltipTrigger className={cn("min-w-0 cursor-default truncate", toneClass)}>
+            {card.summary}
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-[min(56rem,calc(100vw-2rem))] px-0 py-0">
+            <div className="overflow-x-auto px-2 py-1.5 font-mono text-[11px] whitespace-nowrap">
+              {card.fullSummary}
+            </div>
+          </TooltipContent>
+        </Tooltip>
       ) : (
-        <span
-          className="shrink-0 rounded-full bg-[color:var(--color-success-tint)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--color-success)]"
-          data-testid="tool-status-badge-done"
-        >
-          Done
-        </span>
-      );
+        <span className={cn("min-w-0 truncate", toneClass)}>{card.summary}</span>
+      )
+    ) : null;
 
     return (
-      <div className="min-w-0" data-testid="tool-call-card">
+      <div className="group min-w-0" data-testid="tool-call-card">
         <button
           type="button"
           onClick={card.handleToggle}
-          className={cn(
-            "group flex w-full items-center gap-2.5 rounded-lg border px-3 py-2",
-            "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
-            "text-[13px] transition-colors cursor-pointer overflow-hidden",
-            "hover:border-[color:var(--color-hover)]"
-          )}
           aria-expanded={card.expanded}
           data-testid="tool-card-trigger"
-        >
-          {card.isError ? (
-            <AlertCircle
-              className="size-3.5 shrink-0 text-[color:var(--color-danger)]"
-              data-testid="tool-call-icon"
-            />
-          ) : (
-            <Icon
-              className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]"
-              data-testid="tool-call-icon"
-            />
+          className={cn(
+            "block w-full cursor-pointer text-left outline-none",
+            "focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40 focus-visible:ring-offset-0",
+            "rounded-[var(--radius-md)]"
           )}
-
-          <span
-            className={cn(
-              "shrink-0 whitespace-nowrap font-medium",
-              card.isError
-                ? "text-[color:var(--color-danger)]"
-                : "text-[color:var(--color-text-primary)]"
-            )}
-            data-testid={card.labelTestId}
-          >
-            {card.label}
-          </span>
-
-          {card.summary && card.showSummaryTooltip ? (
-            <Tooltip>
-              <TooltipTrigger
-                className={cn("min-w-0 cursor-default truncate", toolToneClass(card.tone))}
-              >
-                {card.summary}
-              </TooltipTrigger>
-              <TooltipContent
-                side="bottom"
-                className="max-w-[min(56rem,calc(100vw-2rem))] px-0 py-0"
-              >
-                <div className="overflow-x-auto px-2 py-1.5 font-mono text-[11px] whitespace-nowrap">
-                  {card.fullSummary}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          ) : card.summary ? (
-            <span className={cn("min-w-0 truncate", toolToneClass(card.tone))}>{card.summary}</span>
-          ) : null}
-
-          <div className="ml-auto flex items-center gap-2">
-            {statusBadge}
-            {card.hasResult && (
-              <ChevronRight
+        >
+          <PrimitiveToolCallCard
+            toolName={
+              <span
+                data-testid={card.labelTestId}
                 className={cn(
-                  "size-3 shrink-0 text-[color:var(--color-text-tertiary)]",
-                  "opacity-0 transition-all duration-200 group-hover:opacity-100",
-                  card.expanded && "rotate-90"
+                  card.isError
+                    ? "text-[color:var(--color-danger)]"
+                    : "text-[color:var(--color-text-primary)]"
                 )}
-              />
-            )}
-          </div>
+              >
+                {card.label}
+              </span>
+            }
+            filePath={pathNode ?? undefined}
+            status={card.status}
+            icon={iconNode}
+            className={cn("transition-colors hover:border-[color:var(--color-hover)]")}
+          />
+          {card.hasResult ? (
+            <ChevronRight
+              aria-hidden="true"
+              data-slot="tool-call-card-chevron"
+              className={cn("sr-only", card.expanded && "rotate-90")}
+            />
+          ) : null}
         </button>
 
-        {card.expanded && card.hasResult && (
-          <div className="mt-1 mb-2" data-testid="tool-card-expanded">
+        {card.expanded && card.hasResult ? (
+          <div
+            className="mt-1 mb-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)] p-3"
+            data-testid="tool-card-expanded"
+          >
             <ExpandedToolContent message={message} />
           </div>
-        )}
+        ) : null}
       </div>
     );
   },

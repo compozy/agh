@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -147,7 +147,6 @@ describe("BridgeCreateDialog", () => {
   });
 
   it("updates the generic form controls and supports pending plus cancel states", async () => {
-    const user = userEvent.setup();
     const onOpenChange = vi.fn();
 
     function Wrapper() {
@@ -174,15 +173,26 @@ describe("BridgeCreateDialog", () => {
 
     render(<Wrapper />);
 
-    await user.clear(screen.getByTestId("bridge-display-name-input"));
-    await user.type(screen.getByTestId("bridge-display-name-input"), "Ops bridge");
-    await user.selectOptions(screen.getByTestId("bridge-scope-select"), "global");
-    await user.click(screen.getAllByRole("switch")[1]);
-    await user.selectOptions(screen.getByTestId("bridge-delivery-mode-select"), "direct-send");
-    await user.type(screen.getByTestId("bridge-delivery-peer-input"), "peer_123");
-    await user.type(screen.getByTestId("bridge-delivery-thread-input"), "thread_123");
-    await user.type(screen.getByTestId("bridge-delivery-group-input"), "group_123");
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.change(screen.getByTestId("bridge-display-name-input"), {
+      target: { value: "Ops bridge" },
+    });
+    fireEvent.change(screen.getByTestId("bridge-scope-select"), {
+      target: { value: "global" },
+    });
+    fireEvent.click(screen.getAllByRole("switch")[1]);
+    fireEvent.change(screen.getByTestId("bridge-delivery-mode-select"), {
+      target: { value: "direct-send" },
+    });
+    fireEvent.change(screen.getByTestId("bridge-delivery-peer-input"), {
+      target: { value: "peer_123" },
+    });
+    fireEvent.change(screen.getByTestId("bridge-delivery-thread-input"), {
+      target: { value: "thread_123" },
+    });
+    fireEvent.change(screen.getByTestId("bridge-delivery-group-input"), {
+      target: { value: "group_123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(screen.getByTestId("bridge-display-name-input")).toHaveValue("Ops bridge");
     expect(screen.getByTestId("bridge-scope-select")).toHaveValue("global");

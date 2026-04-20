@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-
-import type { ConnectionStatus } from "@/components/design-system/connection-indicator";
+import type { ConnectionStatus } from "@agh/ui";
 
 import type { HealthPayload } from "../types";
 import { daemonHealthOptions } from "../lib/query-options";
@@ -15,7 +14,9 @@ export function useDaemonHealth(): DaemonHealthResult {
   const query = useQuery(daemonHealthOptions());
 
   let connectionStatus: ConnectionStatus;
-  if (query.isSuccess) {
+  if (query.isPending || (query.isFetching && !query.data)) {
+    connectionStatus = "reconnecting";
+  } else if (query.isSuccess) {
     connectionStatus = "connected";
   } else if (query.isFetching && query.isError) {
     connectionStatus = "reconnecting";

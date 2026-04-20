@@ -6,6 +6,7 @@ import { ChatHeader } from "@/systems/session/components/chat-header";
 import { ChatView } from "@/systems/session/components/chat-view";
 import { MessageComposer } from "@/systems/session/components/message-composer";
 import { PermissionPrompt } from "@/systems/session/components/permission-prompt";
+import { SessionInspector } from "@/systems/session/components/session-inspector";
 
 export const Route = createFileRoute("/_app/session/$id")({
   component: SessionPage,
@@ -37,26 +38,37 @@ function SessionPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <ChatHeader
-        session={page.session}
-        onStop={page.handleStop}
-        onResume={page.handleResume}
-        workspaceName={page.workspaceName}
-      />
-      <ChatView
-        messages={page.messages}
-        isStreaming={page.isStreaming}
-        agentName={page.session.agent_name}
-      />
-      {page.pendingPermission && (
-        <PermissionPrompt
-          permission={page.pendingPermission}
-          sessionId={id}
-          onResolved={page.handlePermissionResolved}
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <ChatHeader
+          session={page.session}
+          onStop={page.handleStop}
+          onResume={page.handleResume}
+          workspaceName={page.workspaceName}
         />
-      )}
-      {page.canPrompt && <MessageComposer onSend={page.sendMessage} disabled={page.isDisabled} />}
+        <ChatView
+          messages={page.messages}
+          isStreaming={page.isStreaming}
+          agentName={page.session.agent_name}
+        />
+        {page.pendingPermission && (
+          <PermissionPrompt
+            permission={page.pendingPermission}
+            sessionId={id}
+            onResolved={page.handlePermissionResolved}
+          />
+        )}
+        {page.canPrompt && (
+          <MessageComposer
+            sessionId={id}
+            onSend={page.handleSend}
+            disabled={page.isDisabled}
+            skills={page.skills}
+            channels={page.channels}
+          />
+        )}
+      </div>
+      <SessionInspector messages={page.messages} />
     </div>
   );
 }

@@ -20,6 +20,7 @@ const (
 	defaultMaxMessageBytes     = 10 << 20
 	defaultShutdownTimeout     = 10 * time.Second
 	defaultPostSignalGrace     = 250 * time.Millisecond
+	defaultProcessGroupWait    = time.Second
 	defaultHealthFailureThresh = 2
 
 	initializeMethod = "initialize"
@@ -357,6 +358,7 @@ func (p *Process) Shutdown(ctx context.Context) error {
 	p.setState(processStateDraining)
 
 	var errs []error
+	var stopCtxErr error
 	if p.transport != nil && p.currentState() != processStateStopped {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), p.shutdownTimeout)
 		defer cancel()
@@ -376,9 +378,11 @@ func (p *Process) Shutdown(ctx context.Context) error {
 	}
 
 	if waitErr := p.waitWithContext(ctx, p.shutdownTimeout); waitErr == nil {
-		return errors.Join(append(errs, p.Wait())...)
+		return joinShutdownResult(errs, p.Wait(), stopCtxErr)
 	} else if !errors.Is(waitErr, context.DeadlineExceeded) {
 		return errors.Join(append(errs, waitErr)...)
+	} else if ctxErr := ctx.Err(); ctxErr != nil {
+		stopCtxErr = ctxErr
 	}
 
 	if err := terminateManagedProcess(p.cmd); err != nil {
@@ -386,9 +390,11 @@ func (p *Process) Shutdown(ctx context.Context) error {
 	}
 
 	if waitErr := p.waitWithContext(ctx, p.postSignalGrace); waitErr == nil {
-		return errors.Join(append(errs, p.Wait())...)
+		return joinShutdownResult(errs, p.Wait(), stopCtxErr)
 	} else if !errors.Is(waitErr, context.DeadlineExceeded) {
 		return errors.Join(append(errs, waitErr)...)
+	} else if ctxErr := ctx.Err(); ctxErr != nil {
+		stopCtxErr = ctxErr
 	}
 
 	if err := killManagedProcess(p.cmd); err != nil {
@@ -397,18 +403,34 @@ func (p *Process) Shutdown(ctx context.Context) error {
 
 	select {
 	case <-p.Done():
-		return errors.Join(append(errs, p.Wait())...)
+		return joinShutdownResult(errs, p.Wait(), stopCtxErr)
 	case <-ctx.Done():
 		return errors.Join(append(errs, ctx.Err())...)
 	}
+}
+
+func joinShutdownResult(errs []error, waitErr error, stopCtxErr error) error {
+	joined := errors.Join(append(errs, waitErr)...)
+	if stopCtxErr == nil {
+		return joined
+	}
+	return errors.Join(joined, stopCtxErr)
 }
 
 func (p *Process) waitForExit() {
 	waitErr := p.cmd.Wait()
 	p.cancelLifecycle()
 
+	var groupWaitErr error
+	if p.stopWasRequested() {
+		groupWaitErr = forceManagedProcessGroupExit(p.cmd, defaultProcessGroupWait)
+	}
+
 	if p.stopWasRequested() {
 		waitErr = nil
+		if groupWaitErr != nil {
+			waitErr = fmt.Errorf("subprocess: wait for process tree exit: %w", groupWaitErr)
+		}
 	} else if waitErr != nil {
 		waitErr = fmt.Errorf("subprocess: process exited: %w", attachStderr(waitErr, p.Stderr()))
 	}

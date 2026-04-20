@@ -1,8 +1,6 @@
-import { Pill } from "@/components/design-system";
+import { KindChip, MonoBadge, type MonoBadgeTone } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import {
-  bridgeProviderHealthTone,
-  bridgeProviderStateTone,
   buildBridgeProviderKey,
   isBridgeProviderSelectable,
 } from "@/systems/bridges/lib/bridge-formatters";
@@ -14,6 +12,32 @@ interface BridgeProviderCardProps {
   selected?: boolean;
 }
 
+function healthBadgeTone(health?: string): MonoBadgeTone {
+  switch (health) {
+    case "healthy":
+      return "success";
+    case "unhealthy":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function stateBadgeTone(state?: string): MonoBadgeTone {
+  switch (state) {
+    case "active":
+      return "success";
+    case "error":
+      return "danger";
+    case "registered":
+      return "info";
+    case "enabled":
+      return "warning";
+    default:
+      return "neutral";
+  }
+}
+
 export function BridgeProviderCard({
   onSelect,
   provider,
@@ -23,41 +47,30 @@ export function BridgeProviderCard({
   const content = (
     <>
       <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h3 className="text-sm font-medium text-[color:var(--color-text-primary)]">
+        <div className="min-w-0 space-y-1">
+          <h3 className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
             {provider.display_name}
           </h3>
-          <p className="font-mono text-[0.65rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-            {provider.platform} / {provider.extension_name}
-          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <KindChip kind={provider.platform} />
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+              {provider.extension_name}
+            </span>
+          </div>
         </div>
-        <Pill emphasis="strong" kind="state" tone={bridgeProviderHealthTone(provider.health)}>
-          {provider.health}
-        </Pill>
+        <MonoBadge tone={healthBadgeTone(provider.health)}>{provider.health}</MonoBadge>
       </div>
 
-      {provider.description ? (
-        <p className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
-          {provider.description}
-        </p>
-      ) : (
-        <p className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
-          Bridge adapter installed and ready for instance configuration.
-        </p>
-      )}
+      <p className="text-[12px] leading-relaxed text-[color:var(--color-text-secondary)]">
+        {provider.description ?? "Bridge adapter installed and ready for instance configuration."}
+      </p>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Pill kind="tag" tone={bridgeProviderStateTone(provider.state)}>
-          {provider.state}
-        </Pill>
-        {!selectable && (
-          <Pill kind="tag" tone="danger">
-            unavailable
-          </Pill>
-        )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <MonoBadge tone={stateBadgeTone(provider.state)}>{provider.state}</MonoBadge>
+        {!selectable ? <MonoBadge tone="danger">UNAVAILABLE</MonoBadge> : null}
       </div>
 
-      <p className="text-xs leading-relaxed text-[color:var(--color-text-tertiary)]">
+      <p className="text-[11px] leading-relaxed text-[color:var(--color-text-tertiary)]">
         {provider.health_message ||
           (selectable
             ? "This provider can be used to create a bridge instance."
@@ -67,7 +80,7 @@ export function BridgeProviderCard({
   );
 
   const className = cn(
-    "flex w-full flex-col gap-3 rounded-xl border bg-[color:var(--color-surface)] p-4 text-left transition-colors",
+    "flex w-full flex-col gap-3 rounded-[var(--radius-md)] border bg-[color:var(--color-surface)] p-4 text-left transition-colors",
     selected
       ? "border-[color:var(--color-accent)] bg-[color:var(--color-surface-elevated)]"
       : "border-[color:var(--color-divider)]",

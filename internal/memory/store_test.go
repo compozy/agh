@@ -1020,6 +1020,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		}
 		if firstReindex == nil {
 			t.Fatal("catalog.lastReindex() = nil, want timestamp after initial reindex")
+			return
 		}
 
 		stats, err := store.HealthStats(context.Background(), []string{workspaceRoot})
@@ -1036,6 +1037,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		}
 		if secondReindex == nil {
 			t.Fatal("catalog.lastReindex() = nil, want timestamp after health check")
+			return
 		}
 		if !secondReindex.Equal(*firstReindex) {
 			t.Fatalf(

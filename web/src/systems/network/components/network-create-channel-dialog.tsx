@@ -1,15 +1,21 @@
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Users } from "lucide-react";
 import type { FormEvent } from "react";
 
-import { Button, Input } from "@agh/ui";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+  Empty,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  MonoBadge,
+  Section,
+} from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { AgentIcon, type AgentPayload } from "@/systems/agent";
 
@@ -42,18 +48,19 @@ export function NetworkCreateChannelDialog({
 }: NetworkCreateChannelDialogProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canSubmit || isSubmitting) return;
     onSubmit();
   };
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="max-w-[28rem] gap-0 border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-0 text-[color:var(--color-text-primary)] ring-0"
+        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-[30rem]"
         data-testid="network-create-channel-dialog"
       >
         <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
-          <DialogTitle>Create Channel</DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
+          <DialogTitle>Create channel</DialogTitle>
+          <DialogDescription>
             {workspaceName
               ? `Spawn one new session per selected agent inside ${workspaceName}.`
               : "Create a materialized network channel by spawning one new session per selected agent."}
@@ -61,41 +68,39 @@ export function NetworkCreateChannelDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="space-y-5 px-5 py-4">
-            <div className="space-y-2">
-              <label
-                className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]"
-                htmlFor="network-channel-name"
-              >
-                Channel name
-              </label>
+          <div className="space-y-5 px-5 py-5">
+            <Field>
+              <FieldLabel htmlFor="network-channel-name">Channel name</FieldLabel>
+              <FieldDescription>
+                Dot-notation encouraged — e.g. coord.core, ops.alerts.
+              </FieldDescription>
               <Input
-                className="h-9 border-[color:var(--color-divider)] bg-[color:var(--color-canvas)]"
+                className="h-10 font-mono"
                 data-testid="network-channel-name-input"
                 id="network-channel-name"
                 onChange={event => onChannelNameChange(event.target.value)}
-                placeholder="e.g., deployments"
+                placeholder="e.g. deployments"
                 value={draft.channelName}
               />
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
-                  Add agents
-                </p>
-                <span className="text-xs text-[color:var(--color-text-tertiary)]">
+            <Section
+              label="Add agents"
+              right={
+                <MonoBadge data-testid="network-selected-agents-count">
                   {draft.selectedAgentNames.length} selected
-                </span>
-              </div>
-
-              <div className="overflow-hidden rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]">
-                {agents.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-[color:var(--color-text-secondary)]">
-                    No local agents available in this workspace.
-                  </div>
-                ) : (
-                  agents.map(agent => {
+                </MonoBadge>
+              }
+            >
+              {agents.length === 0 ? (
+                <Empty
+                  icon={Users}
+                  title="No agents available"
+                  description="This workspace has no local agents to invite."
+                />
+              ) : (
+                <div className="overflow-hidden rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]">
+                  {agents.map(agent => {
                     const isSelected = draft.selectedAgentNames.includes(agent.name);
 
                     return (
@@ -103,7 +108,7 @@ export function NetworkCreateChannelDialog({
                         aria-pressed={isSelected}
                         className={cn(
                           "flex w-full items-center gap-3 border-b border-[color:var(--color-divider)] px-4 py-3 text-left transition-colors last:border-b-0",
-                          "hover:bg-[color:var(--color-surface)]",
+                          "hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]",
                           isSelected && "bg-[color:var(--color-surface)]"
                         )}
                         data-testid={`network-agent-option-${agent.name}`}
@@ -112,6 +117,7 @@ export function NetworkCreateChannelDialog({
                         type="button"
                       >
                         <span
+                          aria-hidden="true"
                           className={cn(
                             "flex size-4 shrink-0 items-center justify-center rounded border",
                             isSelected
@@ -125,27 +131,27 @@ export function NetworkCreateChannelDialog({
                           className="size-4 text-[color:var(--color-text-tertiary)]"
                           provider={agent.provider}
                         />
-                        <span className="min-w-0 flex-1 truncate text-sm text-[color:var(--color-text-primary)]">
+                        <span className="min-w-0 flex-1 truncate text-[13px] text-[color:var(--color-text-primary)]">
                           {agent.name}
                         </span>
-                        <span className="shrink-0 font-mono text-[0.64rem] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]">
+                        <MonoBadge tone={isSelected ? "accent" : "default"}>
                           {agent.provider}
-                        </span>
+                        </MonoBadge>
                       </button>
                     );
-                  })
-                )}
-              </div>
+                  })}
+                </div>
+              )}
 
               {!workspaceName ? (
-                <p className="text-xs leading-relaxed text-[color:var(--color-warning)]">
+                <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-warning)]">
                   Select an active workspace before creating a channel.
                 </p>
               ) : null}
-            </div>
+            </Section>
           </div>
 
-          <DialogFooter className="border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
             <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
               Cancel
             </Button>
@@ -154,10 +160,10 @@ export function NetworkCreateChannelDialog({
               disabled={!canSubmit || isSubmitting}
               type="submit"
             >
-              {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
-              Create Channel
+              {isSubmitting ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
+              Create channel
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

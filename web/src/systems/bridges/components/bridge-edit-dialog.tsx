@@ -1,25 +1,26 @@
 import { Loader2 } from "lucide-react";
 
-import { Pill } from "@/components/design-system";
-import { Button, Input } from "@agh/ui";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Field,
   FieldContent,
   FieldDescription,
   FieldGroup,
   FieldSet,
   FieldTitle,
-} from "@/components/ui/field";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+  Input,
+  MonoBadge,
+  NativeSelect,
+  NativeSelectOption,
+  Section,
+  Switch,
+  Textarea,
+} from "@agh/ui";
 
 import {
   describeBridgeDmPolicy,
@@ -58,7 +59,7 @@ export function BridgeEditDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="max-w-[calc(100%-2rem)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-0 text-[color:var(--color-text-primary)] sm:max-w-3xl"
+        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-3xl"
         showCloseButton={false}
       >
         <form
@@ -69,15 +70,15 @@ export function BridgeEditDialog({
             onSubmit();
           }}
         >
-          <DialogHeader className="space-y-2 px-6 pt-6">
+          <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
             <DialogTitle>Edit Bridge</DialogTitle>
-            <DialogDescription className="text-[color:var(--color-text-secondary)]">
+            <DialogDescription>
               Update mutable bridge settings for {bridgeName ?? "the selected bridge"} and restart
               the runtime after saving to apply provider-owned changes.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="flex-1 overflow-y-auto px-5 py-5">
             <FieldSet className="gap-6">
               <FieldGroup className="grid gap-4 lg:grid-cols-2">
                 <Field>
@@ -127,36 +128,29 @@ export function BridgeEditDialog({
                 </Field>
               </FieldGroup>
 
-              <section className="space-y-4 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4">
-                <div className="space-y-1">
-                  <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-                    Provider runtime
-                  </p>
-                  <p className="text-sm text-[color:var(--color-text-secondary)]">
-                    Provider-owned runtime settings remain separate from generic delivery defaults.
-                  </p>
-                </div>
+              <Section label="Provider runtime">
+                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                  Provider-owned runtime settings remain separate from generic delivery defaults.
+                </p>
 
-                <div className="rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
-                  <p className="font-mono text-[0.64rem] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                <div className="mt-3 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
                     Config schema
                   </p>
-                  <p className="mt-2 text-sm text-[color:var(--color-text-primary)]">
+                  <p className="mt-2 text-[13px] text-[color:var(--color-text-primary)]">
                     {describeBridgeProviderConfigSchema(provider?.config_schema)}
                   </p>
                   {provider?.secret_slots?.length ? (
                     <div className="mt-3 flex items-center gap-2">
-                      <Pill kind="tag" tone="neutral">
-                        {provider.secret_slots.length}
-                      </Pill>
-                      <p className="text-xs text-[color:var(--color-text-secondary)]">
+                      <MonoBadge>{provider.secret_slots.length}</MonoBadge>
+                      <p className="text-[12px] text-[color:var(--color-text-secondary)]">
                         Secret slots are managed inline from the detail panel.
                       </p>
                     </div>
                   ) : null}
                 </div>
 
-                <Field>
+                <Field className="mt-4">
                   <FieldContent>
                     <FieldTitle>Provider config</FieldTitle>
                     <FieldDescription>
@@ -180,28 +174,24 @@ export function BridgeEditDialog({
                   />
                   {providerConfigError ? (
                     <p
-                      className="text-sm text-[color:var(--color-danger)]"
+                      className="text-[13px] text-[color:var(--color-danger)]"
                       data-testid="bridge-edit-provider-config-error"
                     >
                       {providerConfigError}
                     </p>
                   ) : null}
                 </Field>
-              </section>
+              </Section>
 
-              <section className="space-y-4 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4">
-                <div className="space-y-1">
-                  <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-                    Routing policy
-                  </p>
-                  <p className="text-sm text-[color:var(--color-text-secondary)]">
-                    {describeBridgeRoutingPolicy(draft.routingPolicy)}
-                  </p>
-                </div>
-                <FieldGroup className="gap-3">
+              <Section label="Routing policy">
+                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                  {describeBridgeRoutingPolicy(draft.routingPolicy)}
+                </p>
+                <FieldGroup className="mt-3 gap-3">
                   <Field orientation="horizontal">
                     <Switch
                       checked={draft.routingPolicy.include_peer}
+                      data-testid="bridge-edit-routing-include-peer"
                       onCheckedChange={checked =>
                         onDraftChange({
                           ...draft,
@@ -222,6 +212,7 @@ export function BridgeEditDialog({
                   <Field orientation="horizontal">
                     <Switch
                       checked={draft.routingPolicy.include_group}
+                      data-testid="bridge-edit-routing-include-group"
                       onCheckedChange={checked =>
                         onDraftChange({
                           ...draft,
@@ -242,6 +233,7 @@ export function BridgeEditDialog({
                   <Field orientation="horizontal">
                     <Switch
                       checked={draft.routingPolicy.include_thread}
+                      data-testid="bridge-edit-routing-include-thread"
                       onCheckedChange={checked =>
                         onDraftChange({
                           ...draft,
@@ -260,18 +252,13 @@ export function BridgeEditDialog({
                     </FieldContent>
                   </Field>
                 </FieldGroup>
-              </section>
+              </Section>
 
-              <section className="space-y-4 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-4">
-                <div className="space-y-1">
-                  <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--color-text-label)]">
-                    Delivery defaults
-                  </p>
-                  <p className="text-sm text-[color:var(--color-text-secondary)]">
-                    These defaults are applied when resolving outbound delivery targets.
-                  </p>
-                </div>
-                <FieldGroup className="grid gap-4 lg:grid-cols-2">
+              <Section label="Delivery defaults">
+                <p className="text-[13px] text-[color:var(--color-text-secondary)]">
+                  These defaults are applied when resolving outbound delivery targets.
+                </p>
+                <FieldGroup className="mt-3 grid gap-4 lg:grid-cols-2">
                   <Field>
                     <FieldContent>
                       <FieldTitle>Mode</FieldTitle>
@@ -357,29 +344,23 @@ export function BridgeEditDialog({
                     />
                   </Field>
                 </FieldGroup>
-              </section>
+              </Section>
             </FieldSet>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-6 py-4">
-            <Button
-              className="border-[color:var(--color-divider)] bg-transparent text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
-              onClick={() => onOpenChange(false)}
-              size="lg"
-              type="button"
-              variant="outline"
-            >
+          <div className="flex items-center justify-end gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-5 py-3">
+            <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="outline">
               Cancel
             </Button>
             <Button
               data-testid="submit-bridge-edit"
               disabled={!canSubmit || isPending}
-              size="lg"
+              size="sm"
               type="submit"
             >
               {isPending ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="size-3.5 animate-spin" />
                   Saving…
                 </>
               ) : (

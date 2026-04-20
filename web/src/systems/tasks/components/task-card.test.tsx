@@ -32,8 +32,8 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 }
 
 describe("TaskCard", () => {
-  it("renders enriched task data including identifier, status, owner, attempt and counts", () => {
-    render(<TaskCard task={buildTask()} />);
+  it("renders enriched task data including identifier, status dot, owner, attempt and counts", () => {
+    const { container } = render(<TaskCard task={buildTask()} />);
 
     expect(screen.getByTestId("task-card-task_001")).toBeInTheDocument();
     expect(screen.getByText("TASK-1")).toBeInTheDocument();
@@ -42,7 +42,12 @@ describe("TaskCard", () => {
     expect(screen.getByTestId("task-card-attempt-task_001")).toHaveTextContent("attempt 2 of 3");
     expect(screen.getByTestId("task-card-children-task_001")).toHaveTextContent("2 children");
     expect(screen.getByTestId("task-card-deps-task_001")).toHaveTextContent("1 dep");
-    expect(screen.getByText("In Progress")).toBeInTheDocument();
+    // Status is rendered as a pulsing accent dot for in_progress tasks.
+    const dot = container.querySelector('[data-slot="status-dot"]');
+    expect(dot).not.toBeNull();
+    expect(dot).toHaveAttribute("data-tone", "accent");
+    expect(dot).toHaveAttribute("data-pulse", "true");
+    // Priority pill remains textual.
     expect(screen.getByText("High")).toBeInTheDocument();
   });
 

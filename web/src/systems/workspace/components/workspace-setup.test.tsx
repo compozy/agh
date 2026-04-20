@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { UIProvider } from "@agh/ui";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WorkspaceOnboarding } from "./workspace-setup";
+import { WorkspaceOnboarding, WorkspaceSetupDialog } from "./workspace-setup";
 
 const { mockMutateAsync, mockToastSuccess, mockToastError, mockDaemonStatusState } = vi.hoisted(
   () => ({
@@ -33,6 +34,32 @@ vi.mock("../hooks/use-workspaces", () => ({
   }),
 }));
 
+function renderOnboarding(onWorkspaceResolved = vi.fn()) {
+  return render(
+    <UIProvider reducedMotion="always">
+      <WorkspaceOnboarding onWorkspaceResolved={onWorkspaceResolved} />
+    </UIProvider>
+  );
+}
+
+function renderDialog(props: Partial<React.ComponentProps<typeof WorkspaceSetupDialog>> = {}) {
+  const onOpenChange = props.onOpenChange ?? vi.fn();
+  const onWorkspaceResolved = props.onWorkspaceResolved ?? vi.fn();
+  const open = props.open ?? true;
+
+  const utils = render(
+    <UIProvider reducedMotion="always">
+      <WorkspaceSetupDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        onWorkspaceResolved={onWorkspaceResolved}
+      />
+    </UIProvider>
+  );
+
+  return { ...utils, onOpenChange, onWorkspaceResolved };
+}
+
 describe("WorkspaceOnboarding", () => {
   beforeEach(() => {
     mockDaemonStatusState.data = { user_home_dir: "/Users/pedro" };
@@ -40,6 +67,23 @@ describe("WorkspaceOnboarding", () => {
     mockMutateAsync.mockReset();
     mockToastSuccess.mockReset();
     mockToastError.mockReset();
+  });
+
+  it("renders onboarding hero + global + manual cards", () => {
+    renderOnboarding();
+
+    const onboarding = screen.getByTestId("workspace-onboarding");
+    expect(onboarding).toBeInTheDocument();
+    expect(onboarding.className).toContain("flex-1");
+    expect(onboarding.className).toContain("overflow-y-auto");
+    expect(onboarding.className).not.toContain("min-h-screen");
+    expect(
+      screen.getByRole("heading", {
+        name: "Start AGH with a real workspace, not an empty shell.",
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-setup-global-card")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-setup-manual-card")).toBeInTheDocument();
   });
 
   it("resolves the global workspace from daemon user_home_dir", async () => {
@@ -55,8 +99,8 @@ describe("WorkspaceOnboarding", () => {
       updated_at: "2026-04-10T12:00:00Z",
     });
 
-    render(<WorkspaceOnboarding onWorkspaceResolved={onWorkspaceResolved} />);
-    await user.click(screen.getByRole("button", { name: "Use global workspace" }));
+    renderOnboarding(onWorkspaceResolved);
+    await user.click(screen.getByTestId("workspace-use-global"));
 
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledWith({ path: "/Users/pedro" });
@@ -70,16 +114,16 @@ describe("WorkspaceOnboarding", () => {
     mockDaemonStatusState.data = undefined;
     mockDaemonStatusState.isLoading = false;
 
-    render(<WorkspaceOnboarding onWorkspaceResolved={vi.fn()} />);
+    renderOnboarding();
 
-    expect(screen.getByRole("button", { name: "Use global workspace" })).toBeDisabled();
-    expect(
-      screen.getByText("Daemon status unavailable. Connect AGH to use your global workspace.")
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-use-global")).toBeDisabled();
+    expect(screen.getByTestId("workspace-global-meta").textContent).toContain(
+      "Daemon status unavailable"
+    );
   });
 
   it("stacks onboarding setup cards into a single constrained options rail", () => {
-    render(<WorkspaceOnboarding onWorkspaceResolved={vi.fn()} />);
+    renderOnboarding();
 
     const optionsRail = screen.getByTestId("workspace-setup-options");
     expect(optionsRail.className).toContain("flex-col");
@@ -90,10 +134,10 @@ describe("WorkspaceOnboarding", () => {
   it("rejects relative manual paths before calling resolve", async () => {
     const user = userEvent.setup();
 
-    render(<WorkspaceOnboarding onWorkspaceResolved={vi.fn()} />);
+    renderOnboarding();
 
     await user.type(screen.getByLabelText("Workspace path"), "projects/agh");
-    await user.click(screen.getByRole("button", { name: "Register workspace" }));
+    await user.click(screen.getByTestId("workspace-register-manual"));
 
     expect(screen.getByTestId("workspace-path-error")).toHaveTextContent(
       "Workspace path must be absolute."
@@ -114,10 +158,10 @@ describe("WorkspaceOnboarding", () => {
       updated_at: "2026-04-10T12:00:00Z",
     });
 
-    render(<WorkspaceOnboarding onWorkspaceResolved={onWorkspaceResolved} />);
+    renderOnboarding(onWorkspaceResolved);
 
     await user.type(screen.getByLabelText("Workspace path"), "/Users/pedro/Dev/projects/agh");
-    await user.click(screen.getByRole("button", { name: "Register workspace" }));
+    await user.click(screen.getByTestId("workspace-register-manual"));
 
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledWith({
@@ -127,5 +171,52 @@ describe("WorkspaceOnboarding", () => {
 
     expect(onWorkspaceResolved).toHaveBeenCalledWith("ws_project");
     expect(mockToastSuccess).toHaveBeenCalledWith("Workspace ready: agh");
+  });
+});
+
+describe("WorkspaceSetupDialog", () => {
+  beforeEach(() => {
+    mockDaemonStatusState.data = { user_home_dir: "/Users/pedro" };
+    mockDaemonStatusState.isLoading = false;
+    mockMutateAsync.mockReset();
+    mockToastSuccess.mockReset();
+    mockToastError.mockReset();
+  });
+
+  it("renders a portaled dialog when `open` is true", () => {
+    renderDialog({ open: true });
+    expect(screen.getByTestId("workspace-setup-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-setup-dialog-body")).toBeInTheDocument();
+    expect(screen.getByText("Add workspace")).toBeInTheDocument();
+  });
+
+  it("does not mount the dialog body when `open` is false", () => {
+    renderDialog({ open: false });
+    expect(screen.queryByTestId("workspace-setup-dialog-body")).not.toBeInTheDocument();
+  });
+
+  it("closes via onOpenChange after a successful workspace registration", async () => {
+    const user = userEvent.setup();
+
+    mockMutateAsync.mockResolvedValue({
+      id: "ws_home",
+      root_dir: "/Users/pedro",
+      add_dirs: [],
+      name: "pedro",
+      created_at: "2026-04-10T12:00:00Z",
+      updated_at: "2026-04-10T12:00:00Z",
+    });
+
+    const { onOpenChange, onWorkspaceResolved } = renderDialog({ open: true });
+
+    await user.click(screen.getByTestId("workspace-use-global"));
+
+    await waitFor(() => {
+      expect(onWorkspaceResolved).toHaveBeenCalledWith("ws_home");
+    });
+
+    await waitFor(() => {
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
   });
 });

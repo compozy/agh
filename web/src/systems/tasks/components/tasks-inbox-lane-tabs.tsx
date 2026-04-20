@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@agh/ui";
 
 import type { InboxLaneFilter } from "@/hooks/routes/use-tasks-page";
 
@@ -29,75 +29,68 @@ export function TasksInboxLaneTabs({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-1.5 border-b border-[color:var(--color-divider)] px-4 py-2.5"
+      className="border-b border-[color:var(--color-divider)] px-4 py-2.5"
       data-testid="tasks-inbox-lane-tabs"
-      role="tablist"
     >
-      <LaneTab
-        active={value === "all"}
-        count={inbox?.total ?? 0}
-        label="All"
-        onSelect={() => onChange("all")}
-        testId="tasks-inbox-lane-all"
-        unread={inbox?.unread_total ?? 0}
-      />
-      {lanes.map(lane => {
-        const counts = groupCounts.get(lane);
-        const label = taskInboxLaneLabel(lane);
-
-        return (
-          <LaneTab
-            active={value === lane}
-            count={counts?.count ?? 0}
-            key={lane}
-            label={label}
-            onSelect={() => onChange(lane)}
-            testId={`tasks-inbox-lane-${lane}`}
-            unread={counts?.unread ?? 0}
-          />
-        );
-      })}
+      <Tabs
+        onValueChange={next => onChange(next as InboxLaneFilter)}
+        orientation="horizontal"
+        value={value}
+      >
+        <TabsList className="h-8 overflow-x-auto" variant="line">
+          <TabsTrigger
+            className="flex-none gap-2 font-mono text-[11px] uppercase tracking-[0.12em]"
+            data-testid="tasks-inbox-lane-all"
+            value="all"
+          >
+            <span>All</span>
+            <LaneCount testId="tasks-inbox-lane-all-count" value={inbox?.total ?? 0} />
+            {(inbox?.unread_total ?? 0) > 0 ? (
+              <span
+                className="size-1.5 rounded-full bg-[color:var(--color-warning)]"
+                data-testid="tasks-inbox-lane-all-unread"
+              />
+            ) : null}
+          </TabsTrigger>
+          {lanes.map(lane => {
+            const counts = groupCounts.get(lane);
+            const label = taskInboxLaneLabel(lane);
+            return (
+              <TabsTrigger
+                className="flex-none gap-2 font-mono text-[11px] uppercase tracking-[0.12em]"
+                data-testid={`tasks-inbox-lane-${lane}`}
+                key={lane}
+                value={lane}
+              >
+                <span>{label}</span>
+                <LaneCount testId={`tasks-inbox-lane-${lane}-count`} value={counts?.count ?? 0} />
+                {(counts?.unread ?? 0) > 0 ? (
+                  <span
+                    className="size-1.5 rounded-full bg-[color:var(--color-warning)]"
+                    data-testid={`tasks-inbox-lane-${lane}-unread`}
+                  />
+                ) : null}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+      </Tabs>
     </div>
   );
 }
 
-interface LaneTabProps {
-  label: string;
-  count: number;
-  unread: number;
-  active: boolean;
-  onSelect: () => void;
+interface LaneCountProps {
+  value: number;
   testId: string;
 }
 
-function LaneTab({ label, count, unread, active, onSelect, testId }: LaneTabProps) {
+function LaneCount({ value, testId }: LaneCountProps) {
   return (
-    <button
-      aria-selected={active}
-      className={cn(
-        "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono text-[0.64rem] uppercase tracking-[0.14em] transition-colors",
-        active
-          ? "border-[color:var(--color-divider)] bg-[color:var(--color-surface)] text-[color:var(--color-text-primary)]"
-          : "border-transparent text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-divider)] hover:text-[color:var(--color-text-primary)]"
-      )}
+    <span
+      className="rounded-md bg-[color:var(--color-surface)] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[color:var(--color-text-primary)]"
       data-testid={testId}
-      onClick={onSelect}
-      role="tab"
-      type="button"
     >
-      <span>{label}</span>
-      <span
-        className="rounded-md bg-[color:var(--color-surface)] px-1.5 py-0.5 text-[0.58rem] font-semibold text-[color:var(--color-text-primary)]"
-        data-testid={`${testId}-count`}
-      >
-        {count}
-      </span>
-      {unread > 0 ? (
-        <span
-          className="size-1.5 rounded-full bg-[color:var(--color-warning)]"
-          data-testid={`${testId}-unread`}
-        />
-      ) : null}
-    </button>
+      {value}
+    </span>
   );
 }

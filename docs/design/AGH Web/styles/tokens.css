@@ -1,0 +1,245 @@
+/*
+ * AGH Design System — colors and type tokens.
+ * Pulled directly from packages/ui/src/tokens.css and packages/site/app/global.css
+ * in compozy/agh @ main.
+ *
+ * AGH is dark-mode only. `color-scheme: dark;` and the whole system is tuned for
+ * a near-black canvas with a single warm accent (#E8572A).
+ */
+
+/* =============================================================
+ * FONTS
+ * Inter Variable — UI sans (weights 400–600 used)
+ * Playfair Display — editorial display serif for home h1/h2
+ * JetBrains Mono — mono, used heavily for eyebrows / code
+ * NuixyberNext — wordmark only (the "agh" logo lockup)
+ * ============================================================= */
+@font-face {
+  font-family: "NuixyberNext";
+  src: url("./fonts/NuixyberNext-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* -----------------------------------------------------------
+   * BASE COLORS
+   * ----------------------------------------------------------- */
+
+  /* Backgrounds — warm near-black, layered surfaces */
+  --color-canvas: #141312;
+  --color-canvas-deep: #0e0e0f;
+  --color-surface: #1e1c1b;
+  --color-surface-panel: #181716;
+  --color-surface-elevated: #2e2c2b;
+  --color-divider: #3c3a39;
+  --color-line: #3c3a39;
+  --color-hover: #353332;
+  --color-disabled: #4a4847;
+
+  /* Text (iOS/Apple-style neutrals) */
+  --color-text-primary: #e5e5e7;
+  --color-text-secondary: #8e8e93;
+  --color-text-tertiary: #636366;
+  --color-text-label: #98989d;
+
+  /* Accent — AGH "warm operator" orange */
+  --color-accent: #e8572a;
+  --color-accent-ink: #17110f; /* text on accent bg */
+  --color-accent-hover: #d14e25;
+  --color-accent-strong: #f6874f;
+  --color-accent-dim: #e8572a59; /* ~35% alpha */
+
+  /* Semantic */
+  --color-success: #30d158;
+  --color-danger: #ff453a;
+  --color-warning: #ffd60a;
+  --color-info: #bf5af2;
+
+  /* Tints — 15% alpha over base */
+  --color-accent-tint: #e8572a26;
+  --color-success-tint: #30d15826;
+  --color-danger-tint: #ff453a26;
+  --color-warning-tint: #ffd60a26;
+  --color-info-tint: #bf5af226;
+  --color-neutral-tint: #63636626;
+
+  /* -----------------------------------------------------------
+   * TYPE
+   * ----------------------------------------------------------- */
+  --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: "Playfair Display", "Inter Variable", serif;
+  --font-mono: "JetBrains Mono", "Courier New", monospace;
+  --font-wordmark: "NuixyberNext", var(--font-sans);
+
+  --tracking-mono: 0.06em;
+  --tracking-eyebrow: 0.16em; /* doc masthead eyebrows */
+
+  /* -----------------------------------------------------------
+   * RADII & STRUCTURE
+   * ----------------------------------------------------------- */
+  --radius: 0.5rem; /* 8px — shadcn base */
+  --radius-sm: calc(var(--radius) - 2px); /* 6px */
+  --radius-md: var(--radius); /* 8px */
+  --radius-lg: calc(var(--radius) + 4px); /* 12px */
+  --radius-xl: calc(var(--radius) + 12px); /* 20px */
+  --radius-diagram: 12px; /* cards / diagrams / code blocks */
+  --radius-chip: 5px; /* kind chips */
+  --radius-mono-badge: 6px; /* mono badges */
+
+  --site-layout-width: 1200px;
+  --site-doc-layout-width: 96rem;
+  --site-doc-sidebar-width: 16rem;
+  --site-doc-toc-width: 14rem;
+}
+
+/* =============================================================
+ * SEMANTIC TYPE
+ * Map base tokens to document-level roles. Mirrors the usage
+ * found across landing + docs (site-home h1/h2 use Playfair;
+ * docs h1 uses sans; all eyebrows use mono uppercase).
+ * ============================================================= */
+
+body,
+.ds-body {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)), var(--color-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Display — home page hero + section headers. Serif. */
+.ds-display,
+.site-home h1,
+.site-home h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+  color: var(--color-text-primary);
+}
+
+.ds-h1-hero {
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 6.5vw, 5.4rem);
+  line-height: 0.96;
+  letter-spacing: -0.035em;
+  font-weight: 400;
+}
+
+.ds-h1-doc {
+  font-family: var(--font-sans);
+  font-size: clamp(2.55rem, 4.7vw, 4rem);
+  line-height: 0.94;
+  letter-spacing: -0.05em;
+  font-weight: 600;
+}
+
+.ds-h2 {
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 4.6vw, 3.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  font-weight: 400;
+}
+
+.ds-h2-doc {
+  font-family: var(--font-sans);
+  font-size: clamp(1.7rem, 3vw, 2.45rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  border-top: 1px solid var(--color-divider);
+  padding-top: 1rem;
+}
+
+.ds-h3 {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.ds-lead {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  max-width: 58ch;
+}
+
+.ds-body-doc {
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--color-text-secondary);
+  max-width: 72ch;
+}
+
+.ds-p {
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+  max-width: 62ch;
+}
+.ds-small {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+/* Eyebrow — the ubiquitous uppercase mono label above titles.
+   Examples from the codebase: "What you get", "Sessions",
+   "AGH Network — the differentiator". */
+.ds-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-mono);
+  color: var(--color-text-tertiary);
+}
+
+.ds-eyebrow--accent {
+  color: var(--color-accent);
+}
+
+/* Code / mono inline */
+.ds-code,
+code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+/* Selection */
+::selection {
+  background: rgba(232, 87, 42, 0.28);
+  color: var(--color-text-primary);
+}
+
+/* Links */
+a {
+  color: var(--color-text-primary);
+  text-underline-offset: 0.24em;
+  transition: color 0.15s ease;
+}
+a:hover {
+  color: var(--color-accent);
+}
+
+/* Reduced motion — respected globally (from global.css) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

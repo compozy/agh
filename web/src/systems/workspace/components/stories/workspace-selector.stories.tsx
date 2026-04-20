@@ -1,9 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Skeleton } from "@agh/ui";
-import { http, HttpResponse } from "msw";
 
 import { CenteredSurface } from "@/storybook/story-layout";
-import { useWorkspaces } from "@/systems/workspace";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 import { WorkspaceSelector } from "../workspace-selector";
 
@@ -18,44 +16,92 @@ const meta: Meta<typeof WorkspaceSelector> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function WorkspaceSelectorFromQuery() {
-  const query = useWorkspaces();
+const SINGLE: WorkspacePayload[] = [
+  {
+    id: "ws_home",
+    root_dir: "/Users/pedro",
+    add_dirs: [],
+    name: "home",
+    created_at: "2026-04-10T12:00:00Z",
+    updated_at: "2026-04-10T12:00:00Z",
+  },
+];
 
-  if (query.isLoading) {
-    return (
-      <CenteredSurface>
-        <div className="w-[22rem] space-y-2">
-          <Skeleton className="h-9 w-full rounded-lg" />
-          <Skeleton className="h-5 w-32 rounded-md" />
-        </div>
-      </CenteredSurface>
-    );
-  }
+const MANY: WorkspacePayload[] = [
+  SINGLE[0],
+  {
+    id: "ws_agh",
+    root_dir: "/Users/pedro/Dev/agh",
+    add_dirs: [],
+    name: "agh",
+    created_at: "2026-04-10T12:00:00Z",
+    updated_at: "2026-04-10T12:00:00Z",
+  },
+  {
+    id: "ws_kit",
+    root_dir: "/Users/pedro/Dev/design-kit",
+    add_dirs: [],
+    name: "design-kit",
+    created_at: "2026-04-10T12:00:00Z",
+    updated_at: "2026-04-10T12:00:00Z",
+  },
+];
 
-  const workspaces = query.data ?? [];
-
+function Frame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface>
-      <div className="w-[22rem]">
-        <WorkspaceSelector
-          onValueChange={() => undefined}
-          value={workspaces[0]?.id ?? null}
-          workspaces={workspaces}
-        />
-      </div>
+      <div className="w-[22rem]">{children}</div>
     </CenteredSurface>
   );
 }
 
-export const Default: Story = {
-  render: () => <WorkspaceSelectorFromQuery />,
+export const Empty: Story = {
+  render: () => (
+    <Frame>
+      <WorkspaceSelector
+        workspaces={[]}
+        activeWorkspaceId={null}
+        onSelectWorkspace={() => undefined}
+      />
+    </Frame>
+  ),
 };
 
-export const Empty: Story = {
-  parameters: {
-    msw: {
-      handlers: [http.get("/api/workspaces", () => HttpResponse.json({ workspaces: [] }))],
-    },
-  },
-  render: () => <WorkspaceSelectorFromQuery />,
+export const Single: Story = {
+  render: () => (
+    <Frame>
+      <WorkspaceSelector
+        workspaces={SINGLE}
+        activeWorkspaceId={SINGLE[0].id}
+        globalWorkspaceId={SINGLE[0].id}
+        onSelectWorkspace={() => undefined}
+      />
+    </Frame>
+  ),
+};
+
+export const Many: Story = {
+  render: () => (
+    <Frame>
+      <WorkspaceSelector
+        workspaces={MANY}
+        activeWorkspaceId={null}
+        globalWorkspaceId="ws_home"
+        onSelectWorkspace={() => undefined}
+      />
+    </Frame>
+  ),
+};
+
+export const Active: Story = {
+  render: () => (
+    <Frame>
+      <WorkspaceSelector
+        workspaces={MANY}
+        activeWorkspaceId="ws_agh"
+        globalWorkspaceId="ws_home"
+        onSelectWorkspace={() => undefined}
+      />
+    </Frame>
+  ),
 };

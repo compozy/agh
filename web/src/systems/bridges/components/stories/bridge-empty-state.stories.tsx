@@ -16,10 +16,36 @@ const meta: Meta<typeof BridgeEmptyState> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
+export const WithProviders: Story = {
   render: () => (
     <PanelSurface>
       <BridgeEmptyState onCreate={() => undefined} providers={bridgeProvidersFixture} />
+    </PanelSurface>
+  ),
+};
+
+export const WithoutProviders: Story = {
+  render: () => (
+    <PanelSurface>
+      <BridgeEmptyState onCreate={() => undefined} providers={[]} />
+    </PanelSurface>
+  ),
+};
+
+export const AllProvidersUnavailable: Story = {
+  render: () => (
+    <PanelSurface>
+      <BridgeEmptyState
+        onCreate={() => undefined}
+        providers={[
+          {
+            ...bridgeProvidersFixture[0],
+            enabled: false,
+            health: "unhealthy",
+            health_message: "Runtime health checks are failing for this provider.",
+          },
+        ]}
+      />
     </PanelSurface>
   ),
 };

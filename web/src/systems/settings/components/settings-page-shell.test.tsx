@@ -3,8 +3,28 @@ import { describe, expect, it } from "vitest";
 
 import { SettingsPageShell } from "./settings-page-shell";
 import { SettingsSaveBar } from "./settings-save-bar";
+import { SettingsSectionCard } from "./settings-section-card";
 
 describe("SettingsPageShell", () => {
+  it("renders the SETTINGS eyebrow + H1 title + actions slot", () => {
+    render(
+      <SettingsPageShell
+        slug="general"
+        title="General"
+        actions={<button data-testid="header-action">Restart</button>}
+      >
+        <p>body</p>
+      </SettingsPageShell>
+    );
+
+    const eyebrow = screen.getByTestId("settings-page-general-eyebrow");
+    expect(eyebrow).toHaveTextContent("Settings / General");
+    expect(screen.getByRole("heading", { level: 1, name: "General" })).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-general-actions")).toContainElement(
+      screen.getByTestId("header-action")
+    );
+  });
+
   it("renders the banner, scroll body, and footer as separate layout bands", () => {
     render(
       <SettingsPageShell
@@ -61,5 +81,71 @@ describe("SettingsPageShell", () => {
 
     expect(within(body).queryByTestId("settings-page-network-save-bar")).not.toBeInTheDocument();
     expect(footer).toContainElement(screen.getByTestId("settings-page-network-save-bar"));
+  });
+
+  it("omits the banner slot and footer when no content is provided", () => {
+    render(
+      <SettingsPageShell slug="memory" title="Memory">
+        <span>body</span>
+      </SettingsPageShell>
+    );
+
+    expect(screen.queryByTestId("settings-page-memory-banner-slot")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("settings-page-memory-footer")).not.toBeInTheDocument();
+  });
+
+  it("renders a status line region when provided", () => {
+    render(
+      <SettingsPageShell
+        slug="general"
+        title="General"
+        statusLine={<span data-testid="shell-status">daemon ok</span>}
+      >
+        <span>body</span>
+      </SettingsPageShell>
+    );
+
+    expect(screen.getByTestId("settings-page-general-status")).toContainElement(
+      screen.getByTestId("shell-status")
+    );
+  });
+
+  it("allows overriding the eyebrow prefix", () => {
+    render(
+      <SettingsPageShell slug="general" title="General" eyebrow="Admin">
+        <span>body</span>
+      </SettingsPageShell>
+    );
+
+    expect(screen.getByTestId("settings-page-general-eyebrow")).toHaveTextContent(
+      "Admin / General"
+    );
+  });
+
+  it("uses the mono tracking token and responsive shell spacing", () => {
+    render(
+      <SettingsPageShell slug="general" title="General">
+        <span>body</span>
+      </SettingsPageShell>
+    );
+
+    const eyebrow = screen.getByTestId("settings-page-general-eyebrow");
+    const header = screen.getByTestId("settings-page-general-header");
+    const body = screen.getByTestId("settings-page-general-body");
+
+    expect(eyebrow.className).toContain("tracking-[var(--tracking-mono)]");
+    expect(header.className).toContain("px-4");
+    expect(header.className).toContain("sm:px-6");
+    expect(body.className).toContain("md:px-8");
+  });
+
+  it("uses the mono tracking token for section-card eyebrows", () => {
+    render(
+      <SettingsSectionCard eyebrow="Runtime">
+        <span>content</span>
+      </SettingsSectionCard>
+    );
+
+    expect(screen.getByText("Runtime").className).toContain("tracking-[var(--tracking-mono)]");
   });
 });

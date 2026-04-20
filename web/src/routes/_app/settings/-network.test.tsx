@@ -153,16 +153,15 @@ describe("NetworkSettingsPage", () => {
     expect(screen.getByTestId("settings-page-network-runtime-local-peers")).toHaveTextContent("2");
     expect(screen.getByTestId("settings-page-network-runtime-channels")).toHaveTextContent("4");
     expect(screen.getByTestId("settings-page-network-default-channel-input")).toHaveValue("agh");
-    expect(screen.getByTestId("settings-page-network-port-input")).toHaveValue(4222);
-    expect(screen.getByTestId("settings-page-network-max-queue-depth")).toHaveValue(1024);
+    expect(screen.getByTestId("settings-page-network-port-input")).toHaveValue("4222");
+    expect(screen.getByTestId("settings-page-network-max-queue-depth")).toHaveValue("1024");
   });
 
   it("wires save bar buttons to the restart-required page handlers", () => {
     pageState.isDirty = true;
-    pageState.lastAppliedLabel = "Saved · restart required to apply";
     render(<NetworkSettingsPage />);
-    expect(screen.getByTestId("settings-page-network-save-applied")).toHaveTextContent(
-      "restart required"
+    expect(screen.getByTestId("settings-page-network-save-dirty")).toHaveTextContent(
+      "Unsaved changes"
     );
 
     fireEvent.click(screen.getByTestId("settings-page-network-save"));
@@ -170,6 +169,14 @@ describe("NetworkSettingsPage", () => {
 
     fireEvent.click(screen.getByTestId("settings-page-network-reset"));
     expect(pageState.handleReset).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces the last-applied label when the save bar has a success message", () => {
+    pageState.lastAppliedLabel = "Saved · restart required to apply";
+    render(<NetworkSettingsPage />);
+    expect(screen.getByTestId("settings-page-network-save-applied")).toHaveTextContent(
+      "restart required"
+    );
   });
 
   it("deep-links to the operational Network route", () => {
