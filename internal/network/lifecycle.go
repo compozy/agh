@@ -106,7 +106,7 @@ type LifecycleResult struct {
 
 // OpenInteraction opens a new interaction from the first directed message.
 func OpenInteraction(env Envelope, at time.Time) (Interaction, error) {
-	if env.Kind != KindDirect && env.Kind != KindRecipe {
+	if env.Kind != KindDirect && env.Kind != KindCapability {
 		return Interaction{}, fmt.Errorf("%w: opening message kind=%q", ErrInvalidField, env.Kind)
 	}
 	if env.To == nil {
@@ -167,7 +167,7 @@ func normalizeInteractionTime(at time.Time) time.Time {
 func openInteractionResult(env Envelope, at time.Time) (LifecycleResult, error) {
 	opened, err := OpenInteraction(env, at)
 	if err != nil {
-		if env.Kind != KindDirect && env.Kind != KindRecipe {
+		if env.Kind != KindDirect && env.Kind != KindCapability {
 			return LifecycleResult{}, fmt.Errorf("%w: kind=%q", ErrInteractionNotFound, env.Kind)
 		}
 		return LifecycleResult{}, err
@@ -215,7 +215,7 @@ func validateInteractionIdentity(current Interaction, env Envelope) error {
 }
 
 func validateInteractionDirection(current Interaction, env Envelope) error {
-	if env.Kind != KindDirect && env.Kind != KindRecipe {
+	if env.Kind != KindDirect && env.Kind != KindCapability {
 		return nil
 	}
 	if env.To == nil {
@@ -246,7 +246,7 @@ func terminalInteractionResult(interaction Interaction, env Envelope) (Lifecycle
 			Interaction: interaction,
 			Action:      LifecycleActionIgnored,
 		}, true
-	case KindDirect, KindRecipe:
+	case KindDirect, KindCapability:
 		reason := ReasonCodeInteractionClosed
 		return LifecycleResult{
 			Interaction: interaction,
@@ -260,8 +260,8 @@ func terminalInteractionResult(interaction Interaction, env Envelope) (Lifecycle
 
 func applyActiveInteractionEnvelope(interaction Interaction, env Envelope, at time.Time) (LifecycleResult, error) {
 	switch env.Kind {
-	case KindDirect, KindRecipe:
-		return applyDirectOrRecipe(interaction, at), nil
+	case KindDirect, KindCapability:
+		return applyDirectOrCapability(interaction, at), nil
 	case KindReceipt:
 		receipt, err := decodeLifecycleBody[ReceiptBody](env, "receipt")
 		if err != nil {
@@ -279,7 +279,7 @@ func applyActiveInteractionEnvelope(interaction Interaction, env Envelope, at ti
 	}
 }
 
-func applyDirectOrRecipe(interaction Interaction, at time.Time) LifecycleResult {
+func applyDirectOrCapability(interaction Interaction, at time.Time) LifecycleResult {
 	if interaction.State == StateNeedsInput {
 		interaction.State = StateWorking
 		interaction.UpdatedAt = at

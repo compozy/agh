@@ -89,7 +89,7 @@ func TestPeerRegistryAccessorsAndChannelSummaries(t *testing.T) {
 		DisplayName:         &displayName,
 		ProfilesSupported:   []string{ProtocolV0},
 		Capabilities:        []string{"chat.review"},
-		ArtifactsSupported:  []string{"recipe"},
+		ArtifactsSupported:  []string{"capability"},
 		TrustModesSupported: []string{"unverified"},
 	}
 	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {

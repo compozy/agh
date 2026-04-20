@@ -295,6 +295,9 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		if got, want := local.PeerCard.Capabilities, []string{"review-pr"}; !slices.Equal(got, want) {
 			t.Fatalf("local peer capabilities = %#v, want %#v", got, want)
 		}
+		if got, want := local.PeerCard.ArtifactsSupported, []string{"capability"}; !slices.Equal(got, want) {
+			t.Fatalf("local peer artifacts_supported = %#v, want %#v", got, want)
+		}
 		if !reflect.DeepEqual(local.CapabilityCatalog, capabilities) {
 			t.Fatalf("local capability catalog = %#v, want %#v", local.CapabilityCatalog, capabilities)
 		}
@@ -317,6 +320,9 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		}
 		if got, want := stored.PeerCard.Capabilities, []string{"review-pr"}; !slices.Equal(got, want) {
 			t.Fatalf("stored peer capabilities = %#v, want %#v", got, want)
+		}
+		if got, want := stored.PeerCard.ArtifactsSupported, []string{"capability"}; !slices.Equal(got, want) {
+			t.Fatalf("stored peer artifacts_supported = %#v, want %#v", got, want)
 		}
 		if !reflect.DeepEqual(stored.CapabilityCatalog, capabilities) {
 			t.Fatalf("stored capability catalog = %#v, want %#v", stored.CapabilityCatalog, capabilities)
@@ -353,6 +359,9 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		}
 		if got := len(local.PeerCard.Capabilities); got != 0 {
 			t.Fatalf("local peer capabilities len = %d, want 0", got)
+		}
+		if got, want := local.PeerCard.ArtifactsSupported, []string{"capability"}; !slices.Equal(got, want) {
+			t.Fatalf("local peer artifacts_supported = %#v, want %#v", got, want)
 		}
 		if local.PeerCard.Ext != nil && local.PeerCard.Ext[capabilityBriefExtKey] != nil {
 			t.Fatalf("local peer ext = %#v, want omitted capability brief key", local.PeerCard.Ext)

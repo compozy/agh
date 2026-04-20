@@ -909,6 +909,73 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 	}
 }
 
+func TestRouterReceiveRejectsCapabilityDigestMismatchBeforeDelivery(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 10, 13, 17, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+	local := mustPeerCard(t, "reviewer.sess-b")
+	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {
+		t.Fatalf("RegisterLocal(local) error = %v", err)
+	}
+
+	transport := &spyRouterTransport{}
+	router, err := NewRouter(
+		registry,
+		transport,
+		DefaultMaxReplayAge,
+		WithRouterClock(func() time.Time { return now }),
+	)
+	if err != nil {
+		t.Fatalf("NewRouter() error = %v", err)
+	}
+
+	payload, err := json.Marshal(Envelope{
+		Protocol:      ProtocolV0,
+		ID:            "msg_capability_bad_digest",
+		Kind:          KindCapability,
+		Channel:       "builders",
+		From:          "coder.sess-a",
+		To:            stringPtr(local.PeerID),
+		InteractionID: stringPtr("int_capability_bad_digest"),
+		TS:            now.Unix(),
+		Body: mustRawJSON(t, CapabilityBody{
+			Capability: CapabilityEnvelopePayload{
+				ID:               "review-fix",
+				Summary:          "Review fix flow",
+				Outcome:          "A reusable review fix workflow.",
+				Version:          "1.0.0",
+				Digest:           "sha256:not-the-canonical-digest",
+				ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
+				Requirements:     []string{"workspace-write"},
+			},
+		}),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(capability mismatch) error = %v", err)
+	}
+
+	result, err := router.Receive(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("Receive(capability mismatch) error = %v", err)
+	}
+	if !result.Rejected || result.ReasonCode == nil || *result.ReasonCode != ReasonCodeVerificationFailed {
+		t.Fatalf("capability mismatch result = %#v, want rejected verification_failed", result)
+	}
+	if got := len(result.Deliveries); got != 0 {
+		t.Fatalf("len(capability mismatch deliveries) = %d, want 0", got)
+	}
+	if got := len(result.Generated); got != 0 {
+		t.Fatalf("len(capability mismatch generated) = %d, want 0", got)
+	}
+	if got := transport.Count(); got != 0 {
+		t.Fatalf("transport publish count = %d, want 0", got)
+	}
+}
+
 func TestRouterReceiveExpiredDirectGeneratesExpiredReceipt(t *testing.T) {
 	t.Parallel()
 
@@ -1112,7 +1179,7 @@ func TestInteractionValidationErrors(t *testing.T) {
 	}
 }
 
-func TestRouterDirectedRecipeOpensInteractionForReceiptAndTrace(t *testing.T) {
+func TestRouterDirectedCapabilityOpensInteractionForReceiptAndTrace(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 10, 13, 37, 0, 0, time.UTC)
@@ -1139,52 +1206,51 @@ func TestRouterDirectedRecipeOpensInteractionForReceiptAndTrace(t *testing.T) {
 		t.Fatalf("NewRouter() error = %v", err)
 	}
 
-	recipePayload, err := json.Marshal(Envelope{
+	capabilityPayload, err := json.Marshal(Envelope{
 		Protocol:      ProtocolV0,
-		ID:            "msg_recipe_open",
-		Kind:          KindRecipe,
+		ID:            "msg_capability_open",
+		Kind:          KindCapability,
 		Channel:       "builders",
 		From:          alpha.PeerID,
 		To:            stringPtr(delta.PeerID),
-		InteractionID: stringPtr("int_recipe_open"),
+		InteractionID: stringPtr("int_capability_open"),
 		TS:            now.Unix(),
-		Body: mustRawJSON(t, map[string]any{
-			"recipe": map[string]any{
-				"recipe_id":    "review-fix",
-				"version":      "1.0.0",
-				"content_type": "text/markdown",
-				"digest":       "sha256:abc123",
-				"inline":       "# Review fix flow",
-			},
+		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
+			ID:               "review-fix",
+			Summary:          "Review fix flow",
+			Outcome:          "A reusable review fix workflow.",
+			Version:          "1.0.0",
+			ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
+			Requirements:     []string{"workspace-write"},
 		}),
 	})
 	if err != nil {
-		t.Fatalf("json.Marshal(recipe) error = %v", err)
+		t.Fatalf("json.Marshal(capability) error = %v", err)
 	}
 
-	result, err := router.Receive(context.Background(), recipePayload)
+	result, err := router.Receive(context.Background(), capabilityPayload)
 	if err != nil {
-		t.Fatalf("Receive(recipe) error = %v", err)
+		t.Fatalf("Receive(capability) error = %v", err)
 	}
 	if got, want := len(result.Deliveries), 1; got != want {
-		t.Fatalf("len(recipe deliveries) = %d, want %d", got, want)
+		t.Fatalf("len(capability deliveries) = %d, want %d", got, want)
 	}
 	if got, want := result.Deliveries[0].SessionID, "sess-delta"; got != want {
-		t.Fatalf("recipe delivery session = %q, want %q", got, want)
+		t.Fatalf("capability delivery session = %q, want %q", got, want)
 	}
 
 	receiptPayload, err := json.Marshal(Envelope{
 		Protocol:      ProtocolV0,
-		ID:            "msg_recipe_receipt",
+		ID:            "msg_capability_receipt",
 		Kind:          KindReceipt,
 		Channel:       "builders",
 		From:          delta.PeerID,
 		To:            stringPtr(alpha.PeerID),
-		InteractionID: stringPtr("int_recipe_open"),
-		ReplyTo:       stringPtr("msg_recipe_open"),
+		InteractionID: stringPtr("int_capability_open"),
+		ReplyTo:       stringPtr("msg_capability_open"),
 		TS:            now.Unix(),
 		Body: mustRawJSON(t, ReceiptBody{
-			ForID:  "msg_recipe_open",
+			ForID:  "msg_capability_open",
 			Status: ReceiptStatusAccepted,
 		}),
 	})
@@ -1194,27 +1260,27 @@ func TestRouterDirectedRecipeOpensInteractionForReceiptAndTrace(t *testing.T) {
 
 	receiptResult, err := router.Receive(context.Background(), receiptPayload)
 	if err != nil {
-		t.Fatalf("Receive(recipe receipt) error = %v", err)
+		t.Fatalf("Receive(capability receipt) error = %v", err)
 	}
 	if receiptResult.Ignored || receiptResult.Rejected {
-		t.Fatalf("recipe receipt result = %#v, want delivered receipt", receiptResult)
+		t.Fatalf("capability receipt result = %#v, want delivered receipt", receiptResult)
 	}
 	if got, want := len(receiptResult.Deliveries), 1; got != want {
-		t.Fatalf("len(recipe receipt deliveries) = %d, want %d", got, want)
+		t.Fatalf("len(capability receipt deliveries) = %d, want %d", got, want)
 	}
 	if got, want := receiptResult.Deliveries[0].SessionID, "sess-alpha"; got != want {
-		t.Fatalf("recipe receipt delivery session = %q, want %q", got, want)
+		t.Fatalf("capability receipt delivery session = %q, want %q", got, want)
 	}
 
 	tracePayload, err := json.Marshal(Envelope{
 		Protocol:      ProtocolV0,
-		ID:            "msg_recipe_trace",
+		ID:            "msg_capability_trace",
 		Kind:          KindTrace,
 		Channel:       "builders",
 		From:          delta.PeerID,
 		To:            stringPtr(alpha.PeerID),
-		InteractionID: stringPtr("int_recipe_open"),
-		ReplyTo:       stringPtr("msg_recipe_open"),
+		InteractionID: stringPtr("int_capability_open"),
+		ReplyTo:       stringPtr("msg_capability_open"),
 		TS:            now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
 			State: StateWorking,
@@ -1226,16 +1292,16 @@ func TestRouterDirectedRecipeOpensInteractionForReceiptAndTrace(t *testing.T) {
 
 	traceResult, err := router.Receive(context.Background(), tracePayload)
 	if err != nil {
-		t.Fatalf("Receive(recipe trace) error = %v", err)
+		t.Fatalf("Receive(capability trace) error = %v", err)
 	}
 	if traceResult.Ignored || traceResult.Rejected {
-		t.Fatalf("recipe trace result = %#v, want delivered trace", traceResult)
+		t.Fatalf("capability trace result = %#v, want delivered trace", traceResult)
 	}
 	if got, want := len(traceResult.Deliveries), 1; got != want {
-		t.Fatalf("len(recipe trace deliveries) = %d, want %d", got, want)
+		t.Fatalf("len(capability trace deliveries) = %d, want %d", got, want)
 	}
 	if got, want := traceResult.Deliveries[0].SessionID, "sess-alpha"; got != want {
-		t.Fatalf("recipe trace delivery session = %q, want %q", got, want)
+		t.Fatalf("capability trace delivery session = %q, want %q", got, want)
 	}
 }
 

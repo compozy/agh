@@ -32,7 +32,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			      "peer_id": "coder.sess-abc",
 			      "profiles_supported": ["agh-network/v0"],
 			      "capabilities": ["workspace.patch.apply"],
-			      "artifacts_supported": ["recipe"],
+			      "artifacts_supported": ["capability"],
 			      "trust_modes_supported": ["unverified"]
 			    }
 			  }
@@ -55,7 +55,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			      "peer_id": "reviewer.sess-xyz",
 			      "profiles_supported": ["agh-network/v0"],
 			      "capabilities": ["chat.review"],
-			      "artifacts_supported": ["recipe"],
+			      "artifacts_supported": ["capability"],
 			      "trust_modes_supported": ["unverified"]
 			    }
 			  }
@@ -103,26 +103,23 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			}`),
 		},
 		{
-			name: "recipe",
-			raw: []byte(`{
-			  "protocol": "agh-network/v0",
-			  "id": "msg_recipe_01",
-			  "kind": "recipe",
-			  "channel": "builders",
-			  "from": "curator.sess-123",
-			  "to": null,
-			  "ts": 1775822400,
-			  "body": {
-			    "recipe": {
-			      "recipe_id": "review-fix",
-			      "version": "1.0.0",
-			      "title": "Review Fix Flow",
-			      "content_type": "text/markdown",
-			      "digest": "sha256:abc123",
-			      "inline": "# Review Fix Flow"
-			    }
-			  }
-			}`),
+			name: "capability",
+			raw: mustEnvelopeBytes(t, Envelope{
+				Protocol: ProtocolV0,
+				ID:       "msg_capability_01",
+				Kind:     KindCapability,
+				Channel:  "builders",
+				From:     "curator.sess-123",
+				TS:       1775822400,
+				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
+					ID:               "review-fix",
+					Summary:          "Review Fix Flow",
+					Outcome:          "A reusable review fix workflow.",
+					Version:          "1.0.0",
+					ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
+					Requirements:     []string{"workspace-write"},
+				}),
+			}),
 		},
 		{
 			name: "receipt",
@@ -201,6 +198,16 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustEnvelopeBytes(t *testing.T, env Envelope) []byte {
+	t.Helper()
+
+	data, err := json.Marshal(env)
+	if err != nil {
+		t.Fatalf("json.Marshal(Envelope) error = %v", err)
+	}
+	return data
 }
 
 func envelopeSnapshot(env Envelope) map[string]any {

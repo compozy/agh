@@ -120,8 +120,8 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 		`"status":"accepted"`,
 		"--kind trace",
 		`"state":"working"`,
-		"--kind recipe",
-		`"recipe":{"recipe_id":"reply-recipe"`,
+		"--kind capability",
+		`"capability":{"id":"reply-workflow"`,
 		"Do not imitate protocol `receipt` or `trace` with `--kind direct`",
 		`--trace-id "trace-patch-42"`,
 		"See `agh network --help` for options.",
@@ -210,8 +210,8 @@ func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.
 	for _, snippet := range []string{
 		"--kind receipt",
 		"--kind trace",
-		"--kind recipe",
-		`"recipe":{"recipe_id":"reply-recipe"`,
+		"--kind capability",
+		`"capability":{"id":"reply-workflow"`,
 		`"for_id":"msg-direct-raw"`,
 	} {
 		if strings.Contains(rendered, snippet) {
@@ -259,7 +259,7 @@ func TestFormatNetworkMessageSayGuidanceOpensNewDirectInteraction(t *testing.T) 
 		`keep ` + "`--interaction-id \"int-summary-01\"`",
 		"# Protocol receipt",
 		"# Protocol trace",
-		"# Protocol recipe",
+		"# Protocol capability",
 	} {
 		if strings.Contains(rendered, snippet) {
 			t.Fatalf("rendered say guidance unexpectedly contained snippet %q:\n%s", snippet, rendered)
@@ -615,8 +615,23 @@ func TestPreviewForBodyVariants(t *testing.T) {
 		{name: "whois response", body: WhoisBody{Type: WhoisTypeResponse, Query: "review"}, want: ""},
 		{name: "say text", body: SayBody{Text: "broadcast"}, want: "broadcast"},
 		{name: "direct text", body: DirectBody{Text: "direct"}, want: "direct"},
-		{name: "recipe summary", body: RecipeBody{Recipe: Recipe{Summary: "summary", Title: "title"}}, want: "summary"},
-		{name: "recipe title fallback", body: RecipeBody{Recipe: Recipe{Title: "title"}}, want: "title"},
+		{
+			name: "capability summary",
+			body: CapabilityBody{
+				Capability: CapabilityEnvelopePayload{Summary: "summary", Outcome: "outcome", ID: "capability-id"},
+			},
+			want: "summary",
+		},
+		{
+			name: "capability outcome fallback",
+			body: CapabilityBody{Capability: CapabilityEnvelopePayload{Outcome: "outcome", ID: "capability-id"}},
+			want: "outcome",
+		},
+		{
+			name: "capability id fallback",
+			body: CapabilityBody{Capability: CapabilityEnvelopePayload{ID: "capability-id"}},
+			want: "capability-id",
+		},
 		{name: "receipt detail", body: ReceiptBody{Detail: &detail}, want: "receipt detail"},
 		{name: "receipt none", body: ReceiptBody{}, want: ""},
 		{name: "trace message", body: TraceBody{Message: "working"}, want: "working"},

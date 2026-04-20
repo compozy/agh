@@ -584,6 +584,12 @@ func canonicalizeCapabilityRequirements(requirements []string) []string {
 	return canonical
 }
 
+// CanonicalCapabilityDigest computes the runtime-owned digest for one
+// capability document after normalization.
+func CanonicalCapabilityDigest(capability CapabilityDef) (string, error) {
+	return computeCapabilityDigest(normalizeCapabilityDef(cloneCapabilityDef(capability)))
+}
+
 func computeCapabilityDigest(capability CapabilityDef) (string, error) {
 	payload, err := json.Marshal(canonicalCapabilityDigestPayload{
 		ID:                capability.ID,

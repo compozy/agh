@@ -9,7 +9,7 @@ import (
 func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 	t.Parallel()
 
-	validKinds := []Kind{KindGreet, KindWhois, KindSay, KindDirect, KindRecipe, KindReceipt, KindTrace}
+	validKinds := []Kind{KindGreet, KindWhois, KindSay, KindDirect, KindCapability, KindReceipt, KindTrace}
 	for _, kind := range validKinds {
 		t.Run("ShouldValidateKnownKind"+string(kind), func(t *testing.T) {
 			t.Parallel()
@@ -77,8 +77,8 @@ func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 	if got := (DirectBody{}).Kind(); got != KindDirect {
 		t.Fatalf("DirectBody.Kind() = %q, want %q", got, KindDirect)
 	}
-	if got := (RecipeBody{}).Kind(); got != KindRecipe {
-		t.Fatalf("RecipeBody.Kind() = %q, want %q", got, KindRecipe)
+	if got := (CapabilityBody{}).Kind(); got != KindCapability {
+		t.Fatalf("CapabilityBody.Kind() = %q, want %q", got, KindCapability)
 	}
 	if got := (ReceiptBody{}).Kind(); got != KindReceipt {
 		t.Fatalf("ReceiptBody.Kind() = %q, want %q", got, KindReceipt)
@@ -145,7 +145,7 @@ func TestAdditionalBodyValidationBranches(t *testing.T) {
 			"peer_id":               "reviewer.sess-xyz",
 			"profiles_supported":    []string{"agh-network/v0"},
 			"capabilities":          []string{"chat.review"},
-			"artifacts_supported":   []string{"recipe"},
+			"artifacts_supported":   []string{"capability"},
 			"trust_modes_supported": []string{"unverified"},
 		},
 	})); !errors.Is(err, ErrInvalidBody) {
@@ -156,7 +156,7 @@ func TestAdditionalBodyValidationBranches(t *testing.T) {
 		"peer_card": map[string]any{
 			"peer_id":               "reviewer.sess-xyz",
 			"capabilities":          []string{"chat.review"},
-			"artifacts_supported":   []string{"recipe"},
+			"artifacts_supported":   []string{"capability"},
 			"trust_modes_supported": []string{"unverified"},
 		},
 	})); !errors.Is(err, ErrInvalidBody) {
@@ -255,7 +255,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 				"peer_id":               "reviewer.sess-xyz",
 				"profiles_supported":    []string{"agh-network/v0"},
 				"capabilities":          []string{"workspace.patch.apply"},
-				"artifacts_supported":   []string{"recipe"},
+				"artifacts_supported":   []string{"capability"},
 				"trust_modes_supported": []string{"unverified"},
 			},
 		}),

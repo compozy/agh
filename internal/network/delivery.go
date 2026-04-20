@@ -31,15 +31,14 @@ var (
 			` only with a matching ` + "`reason_code`" + ".",
 		"If you send a protocol `trace`, the body must include a valid `state` such as " +
 			"`working`, `needs_input`, `completed`, `failed`, or `canceled`.",
-		"If you send a protocol `recipe`, the body must be nested as `{\"recipe\":{...}}` and " +
-			"include `recipe.recipe_id`, `recipe.version`, `recipe.content_type`, `recipe.digest`, " +
-			"and either `recipe.inline` or `recipe.uri`.",
+		"If you send a protocol `capability`, the body must be nested as `{\"capability\":{...}}` and " +
+			"include `capability.id`, `capability.summary`, `capability.outcome`, and a canonical `capability.digest`.",
 		"Do not imitate protocol `receipt` or `trace` with `--kind direct` plus " +
 			"`intent:\"receipt\"` or `intent:\"trace\"`. Use the real protocol kinds `receipt` and `trace`.",
 	}
 )
 
-const recipeBodyExample = `  --body '{"recipe":{"recipe_id":"reply-recipe","version":"1.0.0","title":"Reply Recipe","summary":"Compact inline checklist.","content_type":"text/markdown","digest":"sha256:replace-me","inline":"# Reply Recipe\n- Step 1\n- Step 2"}}' \`
+const capabilityBodyExample = `  --body '{"capability":{"id":"reply-workflow","summary":"Compact inline checklist.","outcome":"A reusable reply workflow.","version":"1.0.0","digest":"sha256:replace-me","execution_outline":["Inspect request","Draft response"],"requirements":["workspace-write"]}}' \`
 
 type deliveryPrompter interface {
 	PromptNetwork(
@@ -739,7 +738,7 @@ func writeReplyGuidance(builder *strings.Builder, envelope Envelope) {
 	if ctx.reuseInteraction {
 		ctx.writeProtocolReceiptExample(builder)
 		ctx.writeProtocolTraceExample(builder)
-		ctx.writeProtocolRecipeExample(builder)
+		ctx.writeProtocolCapabilityExample(builder)
 	}
 	writeGuidanceLine(builder, "```")
 	builder.WriteString("See `agh network --help` for options.")
@@ -870,19 +869,19 @@ func (c replyGuidanceContext) writeProtocolTraceExample(builder *strings.Builder
 	writeGuidanceLine(builder, "  -o json")
 }
 
-func (c replyGuidanceContext) writeProtocolRecipeExample(builder *strings.Builder) {
+func (c replyGuidanceContext) writeProtocolCapabilityExample(builder *strings.Builder) {
 	writeExampleSectionSeparator(builder)
-	writeGuidanceLine(builder, "# Protocol recipe")
+	writeGuidanceLine(builder, "# Protocol capability")
 	writeGuidanceLine(builder, "agh network send \\")
 	writeGuidanceLine(builder, `  --session "$AGH_SESSION_ID" \`)
 	writeQuotedFlagLine(builder, "  --channel ", c.envelope.Channel)
-	writeGuidanceLine(builder, "  --kind recipe \\")
+	writeGuidanceLine(builder, "  --kind capability \\")
 	writeQuotedFlagLine(builder, "  --to ", c.envelope.From)
 	writeQuotedFlagLine(builder, "  --interaction-id ", c.interactionID)
 	writeQuotedFlagLine(builder, "  --reply-to ", c.envelope.ID)
 	writeQuotedFlagLine(builder, "  --causation-id ", c.envelope.ID)
 	c.writeTraceFlag(builder)
-	writeGuidanceLine(builder, recipeBodyExample)
+	writeGuidanceLine(builder, capabilityBodyExample)
 	writeGuidanceLine(builder, "  -o json")
 }
 
@@ -914,7 +913,7 @@ func shouldReuseInboundInteraction(envelope Envelope) bool {
 	}
 
 	switch envelope.Kind {
-	case KindDirect, KindReceipt, KindTrace, KindRecipe:
+	case KindDirect, KindReceipt, KindTrace, KindCapability:
 		return true
 	default:
 		return false
@@ -934,11 +933,14 @@ func previewForBody(body Body) string {
 		return strings.TrimSpace(value.Text)
 	case DirectBody:
 		return strings.TrimSpace(value.Text)
-	case RecipeBody:
-		if summary := strings.TrimSpace(value.Recipe.Summary); summary != "" {
+	case CapabilityBody:
+		if summary := strings.TrimSpace(value.Capability.Summary); summary != "" {
 			return summary
 		}
-		return strings.TrimSpace(value.Recipe.Title)
+		if outcome := strings.TrimSpace(value.Capability.Outcome); outcome != "" {
+			return outcome
+		}
+		return strings.TrimSpace(value.Capability.ID)
 	case ReceiptBody:
 		if value.Detail != nil {
 			return strings.TrimSpace(*value.Detail)

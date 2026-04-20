@@ -14,23 +14,23 @@ const ProtocolV0 = "agh-network/v0"
 type Kind string
 
 const (
-	KindGreet   Kind = "greet"
-	KindWhois   Kind = "whois"
-	KindSay     Kind = "say"
-	KindDirect  Kind = "direct"
-	KindRecipe  Kind = "recipe"
-	KindReceipt Kind = "receipt"
-	KindTrace   Kind = "trace"
+	KindGreet      Kind = "greet"
+	KindWhois      Kind = "whois"
+	KindSay        Kind = "say"
+	KindDirect     Kind = "direct"
+	KindCapability Kind = "capability"
+	KindReceipt    Kind = "receipt"
+	KindTrace      Kind = "trace"
 )
 
 var validKinds = map[Kind]struct{}{
-	KindGreet:   {},
-	KindWhois:   {},
-	KindSay:     {},
-	KindDirect:  {},
-	KindRecipe:  {},
-	KindReceipt: {},
-	KindTrace:   {},
+	KindGreet:      {},
+	KindWhois:      {},
+	KindSay:        {},
+	KindDirect:     {},
+	KindCapability: {},
+	KindReceipt:    {},
+	KindTrace:      {},
 }
 
 // Validate reports whether the kind is one of the documented RFC values.
@@ -209,7 +209,7 @@ var (
 	_ Body = WhoisBody{}
 	_ Body = SayBody{}
 	_ Body = DirectBody{}
-	_ Body = RecipeBody{}
+	_ Body = CapabilityBody{}
 	_ Body = ReceiptBody{}
 	_ Body = TraceBody{}
 )
@@ -264,27 +264,27 @@ type DirectBody struct {
 // Kind returns the wire kind for the body.
 func (DirectBody) Kind() Kind { return KindDirect }
 
-// RecipeBody carries or advertises one recipe artifact.
-type RecipeBody struct {
-	Recipe Recipe `json:"recipe"`
+// CapabilityBody carries or advertises one transferable capability artifact.
+type CapabilityBody struct {
+	Capability CapabilityEnvelopePayload `json:"capability"`
 }
 
 // Kind returns the wire kind for the body.
-func (RecipeBody) Kind() Kind { return KindRecipe }
+func (CapabilityBody) Kind() Kind { return KindCapability }
 
-// Recipe is the portable recipe artifact format.
-type Recipe struct {
-	RecipeID     string   `json:"recipe_id"`
-	Version      string   `json:"version"`
-	Title        string   `json:"title"`
-	Summary      string   `json:"summary,omitempty"`
-	ContentType  string   `json:"content_type"`
-	Digest       string   `json:"digest"`
-	URI          string   `json:"uri,omitempty"`
-	Inline       string   `json:"inline,omitempty"`
-	Inputs       []string `json:"inputs,omitempty"`
-	Outputs      []string `json:"outputs,omitempty"`
-	Requirements []string `json:"requirements,omitempty"`
+// CapabilityEnvelopePayload is the transferable unified capability document.
+type CapabilityEnvelopePayload struct {
+	ID                string   `json:"id"`
+	Summary           string   `json:"summary"`
+	Outcome           string   `json:"outcome"`
+	Version           string   `json:"version,omitempty"`
+	Digest            string   `json:"digest"`
+	ContextNeeded     []string `json:"context_needed,omitempty"`
+	ArtifactsExpected []string `json:"artifacts_expected,omitempty"`
+	ExecutionOutline  []string `json:"execution_outline,omitempty"`
+	Constraints       []string `json:"constraints,omitempty"`
+	Examples          []string `json:"examples,omitempty"`
+	Requirements      []string `json:"requirements,omitempty"`
 }
 
 // ReceiptBody acknowledges or rejects protocol-level admission.

@@ -408,8 +408,8 @@ func (r *Router) dispatchReceivedEnvelope(ctx context.Context, state receiveStat
 	case KindSay:
 		state.result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(state.envelope.Channel), state.envelope)
 		return state.result, nil
-	case KindRecipe:
-		return r.handleReceivedRecipe(ctx, state)
+	case KindCapability:
+		return r.handleReceivedCapability(ctx, state)
 	case KindDirect, KindReceipt, KindTrace:
 		return r.handleReceivedLifecycle(ctx, state)
 	default:
@@ -431,7 +431,7 @@ func (r *Router) handleReceivedGreet(state receiveState) (RouteResult, error) {
 	return state.result, nil
 }
 
-func (r *Router) handleReceivedRecipe(ctx context.Context, state receiveState) (RouteResult, error) {
+func (r *Router) handleReceivedCapability(ctx context.Context, state receiveState) (RouteResult, error) {
 	result, deliver, err := r.applyReceiveLifecycle(ctx, state, false)
 	if err != nil {
 		return RouteResult{}, err
@@ -938,6 +938,8 @@ func reasonCodeForReceiveError(err error) ReasonCode {
 		return ReasonCodeExpired
 	case errors.Is(err, ErrInvalidKind):
 		return ReasonCodeUnsupportedKind
+	case errors.Is(err, ErrVerificationFailed):
+		return ReasonCodeVerificationFailed
 	default:
 		return ReasonCodeMalformed
 	}

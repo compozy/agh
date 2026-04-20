@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/network/rules"
 )
 
@@ -31,6 +33,9 @@ var (
 	ErrExpired = errors.New("network: expired")
 	// ErrReplayTooOld reports an envelope outside the receiver replay window.
 	ErrReplayTooOld = errors.New("network: replay window exceeded")
+	// ErrVerificationFailed reports a syntactically valid envelope whose
+	// integrity checks failed.
+	ErrVerificationFailed = errors.New("network: verification failed")
 )
 
 var (
@@ -236,8 +241,8 @@ func bodyDecoderForKind(kind Kind) (bodyDecoder, error) {
 		return func(raw json.RawMessage) (Body, error) {
 			return decodeNormalizedBody(raw, "direct", normalizeAndValidateDirectBody)
 		}, nil
-	case KindRecipe:
-		return decodeRecipeEnvelopeBody, nil
+	case KindCapability:
+		return decodeCapabilityEnvelopeBody, nil
 	case KindReceipt:
 		return func(raw json.RawMessage) (Body, error) {
 			return decodeNormalizedBody(raw, "receipt", normalizeAndValidateReceiptBody)
@@ -251,18 +256,18 @@ func bodyDecoderForKind(kind Kind) (bodyDecoder, error) {
 	}
 }
 
-func decodeRecipeEnvelopeBody(raw json.RawMessage) (Body, error) {
+func decodeCapabilityEnvelopeBody(raw json.RawMessage) (Body, error) {
 	object, err := validateJSONObject("body", raw)
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := object["recipe"]; !ok {
+	if _, ok := object["capability"]; !ok {
 		return nil, fmt.Errorf(
-			"%w: recipe body must wrap artifact fields inside \"recipe\", e.g. {\"recipe\":{...}}",
+			"%w: capability body must wrap artifact fields inside \"capability\", e.g. {\"capability\":{...}}",
 			ErrInvalidBody,
 		)
 	}
-	return decodeNormalizedBody(raw, "recipe", normalizeAndValidateRecipeBody)
+	return decodeNormalizedBody(raw, "capability", normalizeAndValidateCapabilityBody)
 }
 
 func decodeNormalizedBody[T Body](raw json.RawMessage, label string, normalize func(*T) error) (Body, error) {
@@ -411,30 +416,55 @@ func normalizeAndValidateDirectBody(body *DirectBody) error {
 	return nil
 }
 
-func normalizeAndValidateRecipeBody(body *RecipeBody) error {
-	body.Recipe.RecipeID = strings.TrimSpace(body.Recipe.RecipeID)
-	body.Recipe.Version = strings.TrimSpace(body.Recipe.Version)
-	body.Recipe.ContentType = strings.TrimSpace(body.Recipe.ContentType)
-	body.Recipe.Digest = strings.TrimSpace(body.Recipe.Digest)
-	body.Recipe.URI = strings.TrimSpace(body.Recipe.URI)
-	body.Recipe.Inputs = normalizeStringList(body.Recipe.Inputs)
-	body.Recipe.Outputs = normalizeStringList(body.Recipe.Outputs)
-	body.Recipe.Requirements = normalizeStringList(body.Recipe.Requirements)
+func normalizeAndValidateCapabilityBody(body *CapabilityBody) error {
+	body.Capability.ID = strings.TrimSpace(body.Capability.ID)
+	body.Capability.Summary = strings.TrimSpace(body.Capability.Summary)
+	body.Capability.Outcome = strings.TrimSpace(body.Capability.Outcome)
+	body.Capability.Version = strings.TrimSpace(body.Capability.Version)
+	body.Capability.Digest = strings.TrimSpace(body.Capability.Digest)
+	body.Capability.ContextNeeded = normalizeStringList(body.Capability.ContextNeeded)
+	body.Capability.ArtifactsExpected = normalizeStringList(body.Capability.ArtifactsExpected)
+	body.Capability.ExecutionOutline = normalizeStringList(body.Capability.ExecutionOutline)
+	body.Capability.Constraints = normalizeStringList(body.Capability.Constraints)
+	body.Capability.Examples = normalizeStringList(body.Capability.Examples)
+	body.Capability.Requirements = normalizeCapabilityRequirementList(body.Capability.Requirements)
 
-	if body.Recipe.RecipeID == "" {
-		return fmt.Errorf("%w: recipe.recipe_id is required", ErrInvalidBody)
+	switch {
+	case body.Capability.ID == "":
+		return fmt.Errorf("%w: capability.id is required", ErrInvalidBody)
+	case body.Capability.Summary == "":
+		return fmt.Errorf("%w: capability.summary is required", ErrInvalidBody)
+	case body.Capability.Outcome == "":
+		return fmt.Errorf("%w: capability.outcome is required", ErrInvalidBody)
+	case body.Capability.Digest == "":
+		return fmt.Errorf("%w: capability.digest is required", ErrInvalidBody)
 	}
-	if body.Recipe.Version == "" {
-		return fmt.Errorf("%w: recipe.version is required", ErrInvalidBody)
+	if err := validateCapabilityRequirements(body.Capability.Requirements, "capability.requirements"); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidBody, err)
 	}
-	if body.Recipe.ContentType == "" {
-		return fmt.Errorf("%w: recipe.content_type is required", ErrInvalidBody)
+
+	expectedDigest, err := aghconfig.CanonicalCapabilityDigest(aghconfig.CapabilityDef{
+		ID:                body.Capability.ID,
+		Summary:           body.Capability.Summary,
+		Outcome:           body.Capability.Outcome,
+		Version:           body.Capability.Version,
+		ContextNeeded:     slices.Clone(body.Capability.ContextNeeded),
+		ArtifactsExpected: slices.Clone(body.Capability.ArtifactsExpected),
+		ExecutionOutline:  slices.Clone(body.Capability.ExecutionOutline),
+		Constraints:       slices.Clone(body.Capability.Constraints),
+		Examples:          slices.Clone(body.Capability.Examples),
+		Requirements:      slices.Clone(body.Capability.Requirements),
+	})
+	if err != nil {
+		return fmt.Errorf("%w: compute capability digest: %w", ErrInvalidBody, err)
 	}
-	if body.Recipe.Digest == "" {
-		return fmt.Errorf("%w: recipe.digest is required", ErrInvalidBody)
-	}
-	if strings.TrimSpace(body.Recipe.URI) == "" && strings.TrimSpace(body.Recipe.Inline) == "" {
-		return fmt.Errorf("%w: recipe requires uri or inline", ErrInvalidBody)
+	if body.Capability.Digest != expectedDigest {
+		return fmt.Errorf(
+			"%w: capability.digest=%q does not match canonical digest %q",
+			ErrVerificationFailed,
+			body.Capability.Digest,
+			expectedDigest,
+		)
 	}
 
 	return nil
@@ -479,6 +509,43 @@ func normalizeAndValidateTraceBody(body *TraceBody) error {
 	if err := body.State.Validate(); err != nil {
 		return err
 	}
+	return nil
+}
+
+func normalizeCapabilityRequirementList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	normalized := make([]string, len(values))
+	for idx, value := range values {
+		normalized[idx] = strings.TrimSpace(value)
+	}
+	return normalized
+}
+
+func validateCapabilityRequirements(requirements []string, fieldPrefix string) error {
+	if len(requirements) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]int, len(requirements))
+	for idx, requirement := range requirements {
+		if requirement == "" {
+			return fmt.Errorf("%s[%d] is required", fieldPrefix, idx)
+		}
+		if priorIdx, ok := seen[requirement]; ok {
+			return fmt.Errorf(
+				"%s duplicate value %q after normalization at indexes %d and %d",
+				fieldPrefix,
+				requirement,
+				priorIdx,
+				idx,
+			)
+		}
+		seen[requirement] = idx
+	}
+
 	return nil
 }
 
