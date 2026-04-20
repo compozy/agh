@@ -51,7 +51,7 @@ export const Dirty: Story = {
 
 /**
  * Disabled-skills empty branch when nothing has been opted out — exercises
- * the @agh/ui Empty primitive for the no-skills baseline.
+ * the @agh/ui Empty primitive for the no-skills state.
  */
 export const DisabledEmpty: Story = {
   args: {},

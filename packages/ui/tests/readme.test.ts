@@ -128,13 +128,6 @@ describe("packages/ui README", () => {
         "### Reduced-motion gotchas",
         "## Motion vs. CSS decision rules",
         "## Story contribution rules",
-        "## Playwright snapshot workflow",
-        "### Generating baselines",
-        "### Updating baselines (intentional drift)",
-        "### Reviewing a failing snapshot",
-        "### Per-platform baselines + CI",
-        "### CI gate expectations",
-        "### Web-side harness (\`web/\`)",
         "## Anti-patterns",
         "## Quick reference",
       ]

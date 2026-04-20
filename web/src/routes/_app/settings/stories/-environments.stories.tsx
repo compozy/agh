@@ -32,7 +32,7 @@ export const Default: Story = {
 
 /**
  * Dirty editor state — the new-environment dialog is open with the name field
- * pre-filled so the Create button enables for the baseline.
+ * pre-filled so the Create button enables for the story.
  */
 export const Dirty: Story = {
   args: {},

@@ -30,8 +30,6 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       web: ${{ steps.filter.outputs.web }}
-      ui-visual: ${{ steps.filter.outputs.ui-visual }}
-      web-visual: ${{ steps.filter.outputs.web-visual }}
       relevant: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.web == 'true' }}
     steps:
       - uses: actions/checkout@v4
@@ -72,21 +70,6 @@ jobs:
               - 'tsconfig.base.json'
               - 'turbo.json'
               - 'vitest.config.ts'
-            ui-visual:
-              - 'packages/ui/**'
-              - '.bun-version'
-              - 'bun.lock'
-              - 'package.json'
-              - '.github/workflows/ci.yml'
-              - '.github/actions/setup-bun/**'
-            web-visual:
-              - 'web/**'
-              - 'packages/ui/**'
-              - '.bun-version'
-              - 'bun.lock'
-              - 'package.json'
-              - '.github/workflows/ci.yml'
-              - '.github/actions/setup-bun/**'
 
   verify:
     name: Verify (fmt, lint, unit, build)
@@ -162,85 +145,5 @@ jobs:
             web/test-results
             web/blob-report
             /tmp/agh-e2e-*
-          if-no-files-found: ignore
-          retention-days: 7
-
-  ui-visual:
-    name: UI visual snapshots (@agh/ui)
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
-    needs: changes
-    if: needs.changes.outputs.ui-visual == 'true'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Bun (web deps + Playwright)
-        uses: ./.github/actions/setup-bun
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-          install-playwright: "false"
-
-      - name: Install Playwright (chromium) for @agh/ui
-        working-directory: packages/ui
-        run: bunx playwright install --with-deps chromium
-
-      - name: Build Storybook bundle
-        working-directory: packages/ui
-        run: bun run build:visual
-
-      - name: Run visual snapshot suite
-        working-directory: packages/ui
-        run: bunx playwright test
-        env:
-          CI: "true"
-
-      - name: Upload visual diff artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-visual-artifacts
-          path: |
-            packages/ui/.tmp/playwright/test-results
-            packages/ui/.tmp/playwright/report
-          if-no-files-found: ignore
-          retention-days: 7
-
-  web-visual:
-    name: Web visual snapshots (web/)
-    runs-on: ubuntu-22.04
-    timeout-minutes: 25
-    needs: changes
-    if: needs.changes.outputs.web-visual == 'true'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Bun (web deps + Playwright)
-        uses: ./.github/actions/setup-bun
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-          install-playwright: "false"
-
-      - name: Install Playwright (chromium) for web
-        working-directory: web
-        run: bunx playwright install --with-deps chromium
-
-      - name: Build Storybook bundle
-        working-directory: web
-        run: bun run build:visual
-
-      - name: Run visual snapshot suite
-        working-directory: web
-        run: bunx playwright test --config playwright.visual.config.ts
-        env:
-          CI: "true"
-
-      - name: Upload visual diff artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-visual-artifacts
-          path: |
-            web/.tmp/playwright-visual/test-results
-            web/.tmp/playwright-visual/report
           if-no-files-found: ignore
           retention-days: 7

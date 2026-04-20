@@ -23,6 +23,7 @@ const (
 	taskEventRunEnqueued          = "task.run_enqueued"
 	taskEventRunForceStopped      = "task.run_force_stopped"
 	taskEventRunRecovered         = "task.run_recovered"
+	taskHealthStatusWarn          = "warn"
 )
 
 // TaskSummaryQuery filters the current task summary view.
@@ -625,7 +626,7 @@ func (o *Observer) taskHealthFromSnapshot(
 
 	status := "ok"
 	if len(stuckRuns) > 0 || activeOrphans > 0 {
-		status = "warn"
+		status = taskHealthStatusWarn
 	}
 
 	return TaskHealth{

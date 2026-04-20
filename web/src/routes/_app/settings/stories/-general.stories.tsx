@@ -27,7 +27,7 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * Default general settings page with runtime status and editable defaults.
- * Represents the `idle` shell state for the Playwright baseline gate.
+ * Represents the idle shell state for the route story.
  */
 export const Default: Story = {
   args: {},
@@ -89,7 +89,7 @@ export const Dirty: Story = {
 
 /**
  * Saving shell state — the PATCH endpoint hangs so the Save button shows the
- * spinner + Saving… label for the baseline.
+ * spinner + Saving… label for the story.
  */
 export const Saving: Story = {
   args: {},

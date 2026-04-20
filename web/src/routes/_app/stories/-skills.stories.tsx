@@ -64,8 +64,8 @@ export const InstalledEmpty: Story = {
 };
 
 /**
- * Detail panel populated — visually identical to InstalledPopulated thanks to
- * auto-selection, but retained as a distinct baseline for the detail state.
+ * Detail panel populated — functionally identical to InstalledPopulated thanks
+ * to auto-selection, but retained as a distinct story for the detail state.
  */
 export const DetailOpen: Story = {
   args: {},
@@ -74,8 +74,8 @@ export const DetailOpen: Story = {
 };
 
 /**
- * Marketplace tab active. Uses a minimal auto-click wrapper (not a Storybook
- * play function) so the visual-snapshot suite still captures the card grid.
+ * Marketplace tab active. Uses a minimal auto-click wrapper instead of a
+ * Storybook play function so the story opens directly in the marketplace state.
  */
 export const MarketplaceGrid: Story = {
   args: {},

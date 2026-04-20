@@ -13,9 +13,9 @@ type RestartOverrides = {
 };
 
 /**
- * Seeds the settings restart store with a specific phase. Useful for
- * Playwright baselines that need a deterministic banner tone without
- * relying on the real trigger + poll cycle.
+ * Seeds the settings restart store with a specific phase. Useful for story
+ * states that need a deterministic banner tone without relying on the real
+ * trigger + poll cycle.
  */
 export function StorybookRestartPhaseSetup({
   section,
@@ -95,7 +95,7 @@ export function StorybookGeneralDraftDirtySetup() {
 /**
  * Programmatically dirties a settings field by typing `value` into the
  * input matching `testId`. Generic version of `StorybookGeneralDraftDirtySetup`
- * — reusable across every settings sub-route's dirty baseline.
+ * — reusable across every settings sub-route's dirty story state.
  */
 export function StorybookFieldDirtySetup({ testId, value }: { testId: string; value: string }) {
   useEffect(() => {
@@ -128,7 +128,7 @@ export function StorybookFieldDirtySetup({ testId, value }: { testId: string; va
 
 /**
  * Dirties the draft and clicks Save, leaving the PATCH request suspended so
- * the save-bar reads isSaving=true for the baseline.
+ * the save-bar reads `isSaving=true` for the story.
  */
 export function StorybookGeneralSavingSetup() {
   useEffect(() => {

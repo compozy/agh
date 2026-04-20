@@ -19,8 +19,7 @@ Every rule below is derived from an accepted ADR. Open the ADR before challengin
 - [ADR-001: Consolidate UI primitives into @agh/ui](../../.compozy/tasks/redesign/adrs/adr-001.md) — single-package primitive policy and the import-direction rule (`web/src/** → @agh/ui`, never the reverse).
 - [ADR-002: Greenfield migration — delete without backwards-compat](../../.compozy/tasks/redesign/adrs/adr-002.md) — no compat shims, no feature flags. Old primitives leave with the PR that replaces them.
 - [ADR-003: Adopt `motion` for UI animations](../../.compozy/tasks/redesign/adrs/adr-003.md) — when to reach for `motion` vs when CSS suffices.
-- [ADR-004: Phased rollout](../../.compozy/tasks/redesign/adrs/adr-004.md) — why new primitives land with stories and snapshots on day one.
-- [ADR-005: Visual parity via Playwright snapshots](../../.compozy/tasks/redesign/adrs/adr-005.md) — per-story `toHaveScreenshot()` is the regression gate.
+- [ADR-004: Phased rollout](../../.compozy/tasks/redesign/adrs/adr-004.md) — why new primitives land with stories and tests from the start.
 
 ## When to add a primitive here vs. in `web/`
 
@@ -161,96 +160,14 @@ Quick heuristic: **Does the element mount or unmount? Does timing need to sync a
 
 ## Story contribution rules
 
-Every primitive ships with a colocated `<name>.stories.tsx` under [`./src/components/stories/`](./src/components/stories/). Stories are **both** the visual reference and the input to the Playwright snapshot suite, so the rules below are enforced at merge time.
+Every primitive ships with a colocated `<name>.stories.tsx` under [`./src/components/stories/`](./src/components/stories/). Stories are the canonical usage reference for reviewers and downstream consumers, so the rules below are enforced at merge time.
 
-- **Every variant has a story.** Size, tone, density, empty, loading, error. Missing variants are missing snapshots.
+- **Every variant has a story.** Size, tone, density, empty, loading, error. Missing variants mean missing coverage for reviewers and downstream consumers.
 - **Use real primitives, not fixtures.** Stories render the real component with inline props; mocks only replace data (MSW, fixtures).
-- **No `play()` that mutates state unless the story is explicitly excluded from the visual suite.** `play-fn`-tagged stories are skipped by Playwright because their side effects fight the snapshot frame.
+- **Interaction-only stories should be explicit.** If a story depends on a `play()` function to reach its interesting state, tag it with `play-fn` so the intent is obvious to reviewers.
 - **Dark background is implicit.** The preview is dark by default (`color-scheme: dark`); do not pass a background override.
 - **Tokens only — no hex/`rgb`/`hsl` literals.** Pull from `--color-*`, `--radius-*`, `--duration-*`, `--ease-*`, `--font-*`. Inventing a value is a review blocker.
 - **Tests colocate with the component.** `<name>.test.tsx` next to `<name>.tsx`. The package's Vitest project discovers `src/**/*.{test,spec}.{ts,tsx}` and `tests/**/*.test.{ts,tsx}` — see [`vitest.config.ts`](./vitest.config.ts).
-
-## Playwright snapshot workflow
-
-Visual regression is enforced per ADR-005. The harness runs Playwright against a **static Storybook build** served on `127.0.0.1:6007` by [`scripts/serve-storybook.ts`](./scripts/serve-storybook.ts). Configuration lives in [`playwright.config.ts`](./playwright.config.ts).
-
-### Generating baselines
-
-```sh
-# Local (macOS / darwin baselines)
-bun run --cwd packages/ui test:visual:install   # one-time: install Chromium
-bun run --cwd packages/ui test:visual           # build Storybook + run visual tests
-```
-
-First-time runs (and any story with no baseline yet) record a baseline PNG into `src/components/stories/__snapshots__/<story-id>-chromium-<platform>.png`. Subsequent runs compare against that baseline with `maxDiffPixelRatio: 0.001` (0.1%).
-
-### Updating baselines (intentional drift)
-
-Only when the visual change is **intentional** and reviewed in the PR body with a before/after.
-
-```sh
-bun run --cwd packages/ui test:visual:update
-```
-
-Commit the updated PNGs in the same commit as the code change — reviewers expect the baseline diff to accompany the primitive diff.
-
-### Reviewing a failing snapshot
-
-Playwright drops `*-actual.png`, `*-expected.png`, and `*-diff.png` next to the baseline on failure. Open the `diff` PNG first; if the drift is real, either fix the primitive or update the baseline. If the drift is font rendering, confirm your Chromium version matches CI before chasing it.
-
-### Per-platform baselines + CI
-
-- Baseline filenames embed `{projectName}-{platform}`, so macOS (dev) and Linux (CI) baselines coexist without clobbering. Only the darwin set is committed today.
-- The first `ui-visual` CI run on `ubuntu-22.04` needs `--update-snapshots` to seed the linux baselines. Do this as a one-off `workflow_dispatch` PR before depending on the visual gate as a merge blocker.
-- Local dev servers share the same static build path — do not run `bun run storybook` and `bun run test:visual` concurrently on the same port (`6007`).
-
-### CI gate expectations
-
-- `bun run --cwd packages/ui test` — unit + Vitest assertions. Zero failures.
-- `bun run --cwd packages/ui build-storybook` — Storybook builds cleanly.
-- `bun run --cwd packages/ui test:visual` — zero baseline drift (or intentional drift committed alongside the change).
-- Snapshot count must not decrease without a matching primitive deletion in the same PR.
-
-### Web-side harness (`web/`)
-
-`@agh/ui` re-exports its visual helpers via the `./testing/visual` subpath
-(`packages/ui/src/testing/visual-story-index.ts`) so the `web/` package can
-drive its own parallel visual suite. Config lives at
-[`web/playwright.visual.config.ts`](../../web/playwright.visual.config.ts); the
-spec lives at
-[`web/tests/visual/stories.spec.ts`](../../web/tests/visual/stories.spec.ts).
-
-- **Scope.** Every `web/src/**/*.stories.tsx` gets a baseline — primitive
-  compositions, route stories under `web/src/routes/_app/stories/`, domain
-  stories under `web/src/systems/<domain>/components/stories/`, and the
-  `/design-system` showcase story under
-  `web/src/components/stories/design-system-showcase.stories.tsx`.
-- **Baselines drift during Phase 3–6.** The Phase 2 baselines capture the
-  app-shell + pre-migration page interiors. Each domain task (Phase 3–6)
-  rewrites its components and commits the updated PNGs in the **same PR** as
-  the redesign diff, alongside a before/after in the PR body.
-- **Port 6008** to avoid clashing with `packages/ui` on port 6007 when both
-  visual suites run locally in parallel.
-- **Separate Playwright config.** `web/playwright.config.ts` still drives the
-  existing daemon-backed e2e suite under `web/e2e/`. Visual runs explicitly
-  pass `--config playwright.visual.config.ts` so the two lanes never collide.
-- **CI job `web-visual`.** Runs on `ubuntu-22.04` when `web/**` or
-  `packages/ui/**` change. The first CI run needs `--update-snapshots`
-  dispatched from a one-off workflow PR to seed the linux baselines, same as
-  the `ui-visual` job.
-
-Local commands:
-
-```sh
-# First-time (chromium install)
-bun run --cwd web test:visual:install
-
-# Build storybook + run the full snapshot suite
-bun run --cwd web test:visual
-
-# Intentional drift — reviewed in the PR body with before/after
-bun run --cwd web test:visual:update
-```
 
 ## Anti-patterns
 
@@ -260,17 +177,17 @@ These all fail review. They exist because they have all been tried.
 - **No AGH-specific defaults in primitive props.** `Sidebar` does not default to "Workspaces"; `Metric` does not default a tone to match the Tasks dashboard; `ChatMessageBubble` does not assume an agent name. Defaults stay generic or are required props.
 - **No `data-open:animate-*` keyframes next to `motion` exit animations.** Pick one per primitive. The sanctioned motion template (see workflow memory + ADR-003) uses `AnimatePresence` + `actionsRef`; re-introducing CSS keyframes alongside it double-animates.
 - **No `any`, no `@ts-expect-error`.** The public type surface is part of the contract. Inferred generics and narrowed discriminated unions replace escape hatches.
-- **No hex / `rgb()` / `hsl()` literals in primitive code or stories.** Use tokens. Drift caught by review + snapshots.
+- **No hex / `rgb()` / `hsl()` literals in primitive code or stories.** Use tokens. Drift is caught in review and Storybook.
 - **No `useReducedMotion()` in a primitive that lives under `UIProvider`.** Use `useReducedMotionConfig()` so the provider is authoritative.
-- **No new exports without a story, a test, and a snapshot.** All three land in the same PR.
+- **No new exports without a story and a test.** Both land in the same PR.
 - **No primitive that owns a TanStack query, a zustand store, or an SSE subscription.** That belongs in `web/src/systems/<domain>/`.
 
 ## Quick reference
 
-| Want to do this…                | Read this                                              |
-| ------------------------------- | ------------------------------------------------------ |
-| Add a new primitive             | This README + `DESIGN.md` + ADR-001                    |
-| Animate something               | ADR-003 + "Motion vs. CSS" above                       |
-| Update a baseline               | "Playwright snapshot workflow" above + ADR-005         |
-| Rename an existing export       | ADR-002 (no compat shims)                              |
-| Consume a primitive from `web/` | Import from `@agh/ui`; never from `packages/ui/src/**` |
+| Want to do this…                | Read this                                                  |
+| ------------------------------- | ---------------------------------------------------------- |
+| Add a new primitive             | This README + `DESIGN.md` + ADR-001                        |
+| Animate something               | ADR-003 + "Motion vs. CSS" above                           |
+| Add or revise stories           | "Story contribution rules" above + the relevant story file |
+| Rename an existing export       | ADR-002 (no compat shims)                                  |
+| Consume a primitive from `web/` | Import from `@agh/ui`; never from `packages/ui/src/**`     |

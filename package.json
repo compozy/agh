@@ -23,11 +23,13 @@
         "test:e2e:runtime": "make test-e2e-runtime",
         "test:e2e:web": "make test-e2e-web",
         "test:e2e": "make test-e2e",
-        "test:e2e:nightly": "make test-e2e-nightly"
+        "test:e2e:nightly": "make test-e2e-nightly",
+        "prs:scrape": "bun run scripts/scrape-prs.ts"
     },
     "devDependencies": {
         "@commitlint/cli": "^20.5.0",
         "@commitlint/config-conventional": "^20.5.0",
+        "@octokit/rest": "^22.0.1",
         "@types/node": "^25.6.0",
         "@typescript/native-preview": "^7.0.0-dev.20260417.1",
         "@vitest/coverage-v8": "^4.1.4",

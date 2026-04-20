@@ -32,7 +32,7 @@ export const Default: Story = {
 
 /**
  * Dirty editor state — the add-server dialog is open with the name field
- * pre-filled, matching the visual contract for "user is mid-edit in the editor".
+ * pre-filled, matching the mid-edit route state.
  */
 export const Dirty: Story = {
   args: {},

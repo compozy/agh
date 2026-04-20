@@ -77,8 +77,8 @@ export const Empty: Story = {
 };
 
 /**
- * Typing in the filter narrows the list. Tagged as play-fn so it is excluded
- * from the visual snapshot suite and used only as an interaction test.
+ * Typing in the filter narrows the list. Tagged as play-fn so the story is
+ * clearly marked as interaction-focused.
  */
 export const SearchFilter: Story = {
   tags: ["play-fn"],

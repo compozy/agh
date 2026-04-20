@@ -20,8 +20,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * The default showcase shot. Snapshotted by the web visual harness as the
- * baseline for the `/design-system` route outer frame.
+ * The default showcase state for the `/design-system` route outer frame.
  */
 export const Default: Story = {
   args: {},
