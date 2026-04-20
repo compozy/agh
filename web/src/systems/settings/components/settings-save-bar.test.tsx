@@ -55,6 +55,9 @@ describe("SettingsSaveBar", () => {
     );
 
     expect(screen.getByTestId("settings-page-general-save")).toBeDisabled();
+    expect(screen.getByTestId("settings-page-general-save-invalid")).toHaveTextContent(
+      "Resolve validation errors before saving"
+    );
   });
 
   it("shows the Saving label + spinner while saving and re-enables after isSaving flips to false", () => {
@@ -136,6 +139,56 @@ describe("SettingsSaveBar", () => {
 
     const applied = screen.getByTestId("settings-page-general-save-applied");
     expect(applied).toHaveTextContent("Applied 2m ago");
+  });
+
+  it("prioritizes dirty messaging over a stale applied label", () => {
+    render(
+      <SettingsSaveBar
+        slug="general"
+        isDirty={true}
+        isSaving={false}
+        lastAppliedLabel="Applied 2m ago"
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("settings-page-general-save-dirty")).toHaveTextContent(
+      "Unsaved changes"
+    );
+    expect(screen.queryByTestId("settings-page-general-save-applied")).not.toBeInTheDocument();
+  });
+
+  it("announces save state changes through a live region", () => {
+    render(
+      <SettingsSaveBar
+        slug="general"
+        isDirty={false}
+        isSaving={false}
+        lastAppliedLabel="Applied 2m ago"
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("uses the same responsive horizontal spacing as the settings shell", () => {
+    render(
+      <SettingsSaveBar
+        slug="general"
+        isDirty={false}
+        isSaving={false}
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+      />
+    );
+
+    const bar = screen.getByTestId("settings-page-general-save-bar");
+    expect(bar.className).toContain("px-4");
+    expect(bar.className).toContain("sm:px-6");
+    expect(bar.className).toContain("md:px-8");
   });
 
   it("fires onReset when Discard is clicked", () => {

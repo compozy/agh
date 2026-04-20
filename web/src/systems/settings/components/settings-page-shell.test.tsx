@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { SettingsPageShell } from "./settings-page-shell";
 import { SettingsSaveBar } from "./settings-save-bar";
+import { SettingsSectionCard } from "./settings-section-card";
 
 describe("SettingsPageShell", () => {
   it("renders the SETTINGS eyebrow + H1 title + actions slot", () => {
@@ -119,5 +120,32 @@ describe("SettingsPageShell", () => {
     expect(screen.getByTestId("settings-page-general-eyebrow")).toHaveTextContent(
       "Admin / General"
     );
+  });
+
+  it("uses the mono tracking token and responsive shell spacing", () => {
+    render(
+      <SettingsPageShell slug="general" title="General">
+        <span>body</span>
+      </SettingsPageShell>
+    );
+
+    const eyebrow = screen.getByTestId("settings-page-general-eyebrow");
+    const header = screen.getByTestId("settings-page-general-header");
+    const body = screen.getByTestId("settings-page-general-body");
+
+    expect(eyebrow.className).toContain("tracking-[var(--tracking-mono)]");
+    expect(header.className).toContain("px-4");
+    expect(header.className).toContain("sm:px-6");
+    expect(body.className).toContain("md:px-8");
+  });
+
+  it("uses the mono tracking token for section-card eyebrows", () => {
+    render(
+      <SettingsSectionCard eyebrow="Runtime">
+        <span>content</span>
+      </SettingsSectionCard>
+    );
+
+    expect(screen.getByText("Runtime").className).toContain("tracking-[var(--tracking-mono)]");
   });
 });

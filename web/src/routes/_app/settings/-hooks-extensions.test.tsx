@@ -130,6 +130,7 @@ type PageState = {
   pendingHookName: string | null;
   toggleHookEnabled: ReturnType<typeof vi.fn>;
   hookError: string | null;
+  canMutateHooks: boolean;
   extensions: SettingsExtensionEntry[];
   extensionsCounts: { total: number; enabled: number };
   extensionsLoading: boolean;
@@ -143,10 +144,12 @@ type PageState = {
   isSavingPolicy: boolean;
   savePolicyError: string | null;
   policyWarnings: string[] | undefined;
+  canMutatePolicy: boolean;
   handleSavePolicy: ReturnType<typeof vi.fn>;
   handleResetPolicy: ReturnType<typeof vi.fn>;
   updatePolicyDraft: ReturnType<typeof vi.fn>;
   toggleAllowedKind: ReturnType<typeof vi.fn>;
+  handleRetry: ReturnType<typeof vi.fn>;
   lastAction:
     | null
     | { kind: "saved"; result: { restart_required: boolean } }
@@ -174,6 +177,7 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     pendingHookName: null,
     toggleHookEnabled: vi.fn(),
     hookError: null,
+    canMutateHooks: true,
     extensions: [extensionEntry],
     extensionsCounts: { total: 1, enabled: 1 },
     extensionsLoading: false,
@@ -187,10 +191,12 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     isSavingPolicy: false,
     savePolicyError: null,
     policyWarnings: undefined,
+    canMutatePolicy: true,
     handleSavePolicy: vi.fn(),
     handleResetPolicy: vi.fn(),
     updatePolicyDraft: vi.fn(),
     toggleAllowedKind: vi.fn(),
+    handleRetry: vi.fn(),
     lastAction: null,
     dismissLastAction: vi.fn(),
     restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
@@ -234,6 +240,8 @@ describe("HooksExtensionsSettingsPage", () => {
     expect(screen.getByTestId("settings-page-hooks-extensions-error")).toHaveTextContent(
       "hooks boom"
     );
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(pageState.handleRetry).toHaveBeenCalledTimes(1);
   });
 
   it("renders the status line with combined hook and extension counts", () => {
@@ -294,6 +302,23 @@ describe("HooksExtensionsSettingsPage", () => {
     expect(
       screen.getByTestId("settings-page-hooks-extensions-transport-parity")
     ).toBeInTheDocument();
+  });
+
+  it("disables hook toggles when settings mutation parity is false", () => {
+    pageState = makeState({
+      canMutateHooks: false,
+      transportParity: {
+        known: true,
+        settings_http: false,
+        settings_uds: true,
+        extensions_http: true,
+        extensions_uds: true,
+      },
+    });
+    render(<HooksExtensionsSettingsPage />);
+    expect(
+      screen.getByTestId("settings-page-hooks-extensions-hooks-row-slack-notify-toggle")
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("invokes toggleExtensionEnabled when the extension switch is toggled off", () => {

@@ -138,6 +138,32 @@ describe("ChatMessageBubble", () => {
     expect(root?.className).toContain("justify-start");
   });
 
+  it.each(["agent", "tool", "diff"] as const)("Should honour align='right' for role='%s'", role => {
+    const { container } = render(
+      <ChatMessageBubble role={role} align="right" meta="META">
+        payload
+      </ChatMessageBubble>
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="chat-message"]');
+    const meta = container.querySelector<HTMLElement>('[data-slot="chat-message-meta"]');
+    expect(root?.getAttribute("data-align")).toBe("right");
+    expect(root?.className).toContain("items-end");
+    expect(root?.className).toContain("text-right");
+    expect(meta?.className).toContain("justify-end");
+  });
+
+  it("Should keep role='system' centered even when align is overridden", () => {
+    const { container } = render(
+      <ChatMessageBubble role="system" align="right">
+        Session resumed
+      </ChatMessageBubble>
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="chat-message"]');
+    expect(root?.getAttribute("data-align")).toBe("right");
+    expect(root?.className).toContain("items-center");
+    expect(root?.className).not.toContain("items-end");
+  });
+
   it("Should forward extra HTML props to the root", () => {
     const { container } = render(
       <ChatMessageBubble role="agent" className="ring-1" data-testid="m1">

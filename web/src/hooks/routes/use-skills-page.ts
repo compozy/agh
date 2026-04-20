@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { useNavigate } from "@tanstack/react-router";
 
 import {
   useDisableSkill,
@@ -11,40 +12,56 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 type Tab = "installed" | "marketplace";
 
-function useSkillsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("installed");
-  const [selectedSkillName, setSelectedSkillName] = useState<string | null>(null);
-  const [requestedSkillContentName, setRequestedSkillContentName] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+export interface SkillsRouteSearch {
+  tab?: Tab;
+  skill?: string;
+  content?: string;
+  q?: string;
+}
+
+function normalizeSearchValue(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function useSkillsPage(search: SkillsRouteSearch = {}) {
+  const navigate = useNavigate({ from: "/skills" });
 
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
 
-  const { data: skills, isLoading, error } = useSkills(workspaceId);
+  const activeTab = search.tab ?? "installed";
+  const selectedSkillName = search.skill ?? null;
+  const requestedSkillContentName = search.content ?? null;
+  const searchQuery = search.q ?? "";
+
+  const skillsQuery = useSkills(workspaceId);
+  const skills = skillsQuery.data ?? [];
+  const marketplaceSkills = useMemo(
+    () => skills.filter(skill => skill.source === "marketplace"),
+    [skills]
+  );
+
+  const effectiveSelectedName = useMemo(() => {
+    if (selectedSkillName && skills.some(skill => skill.name === selectedSkillName)) {
+      return selectedSkillName;
+    }
+
+    return skills[0]?.name ?? null;
+  }, [selectedSkillName, skills]);
+
   const {
     data: selectedSkill,
     isLoading: isLoadingDetail,
     error: detailError,
-  } = useSkill(selectedSkillName ?? "", workspaceId);
+  } = useSkill(effectiveSelectedName ?? "", workspaceId);
 
   const disableMutation = useDisableSkill();
   const enableMutation = useEnableSkill();
 
   const installedSkillNames = useMemo(() => {
-    if (!skills) {
-      return new Set<string>();
-    }
-
     return new Set(skills.map(skill => skill.name));
   }, [skills]);
-
-  const effectiveSelectedName = useMemo(() => {
-    if (selectedSkillName && skills?.some(skill => skill.name === selectedSkillName)) {
-      return selectedSkillName;
-    }
-
-    return skills?.[0]?.name ?? null;
-  }, [selectedSkillName, skills]);
 
   const shouldLoadSelectedContent =
     effectiveSelectedName !== null && requestedSkillContentName === effectiveSelectedName;
@@ -64,16 +81,66 @@ function useSkillsPage() {
     enableMutation.mutate({ name, workspace: workspaceId });
   };
 
+  const updateSearch = useCallback(
+    (updater: (current: SkillsRouteSearch) => SkillsRouteSearch) => {
+      void navigate({
+        search: current => updater((current as SkillsRouteSearch | undefined) ?? {}),
+        to: "/skills",
+      });
+    },
+    [navigate]
+  );
+
+  const setActiveTab = useCallback(
+    (nextTab: Tab) => {
+      updateSearch(current => ({
+        ...current,
+        tab: nextTab === "installed" ? undefined : nextTab,
+      }));
+    },
+    [updateSearch]
+  );
+
+  const setSelectedSkillName = useCallback(
+    (nextSkillName: string | null) => {
+      updateSearch(current => ({
+        ...current,
+        content: current.content === nextSkillName ? current.content : undefined,
+        skill: normalizeSearchValue(nextSkillName),
+      }));
+    },
+    [updateSearch]
+  );
+
+  const setSearchQuery = useCallback(
+    (nextQuery: string) => {
+      updateSearch(current => ({
+        ...current,
+        q: normalizeSearchValue(nextQuery),
+      }));
+    },
+    [updateSearch]
+  );
+
   const handleViewContent = (name: string) => {
-    setRequestedSkillContentName(name);
+    updateSearch(current => ({
+      ...current,
+      skill: normalizeSearchValue(name),
+      content: normalizeSearchValue(name),
+    }));
   };
 
   const handleRetryContent = () => {
     void refetchSkillContent();
   };
 
+  const hasSkills = skills.length > 0;
+  const error = skillsQuery.error && !hasSkills ? skillsQuery.error : null;
+  const backgroundError = skillsQuery.error && hasSkills ? skillsQuery.error : null;
+
   return {
     activeTab,
+    backgroundError,
     contentError: shouldLoadSelectedContent ? contentError : null,
     detailError,
     effectiveSelectedName,
@@ -85,18 +152,20 @@ function useSkillsPage() {
     installedSkillNames,
     isActionPending: disableMutation.isPending || enableMutation.isPending,
     isContentLoading: shouldLoadSelectedContent && isLoadingContent,
-    isLoading,
+    isLoading: skillsQuery.isLoading && !hasSkills,
     isLoadingDetail: isLoadingDetail && effectiveSelectedName !== null,
+    marketplaceSkillCount: marketplaceSkills.length,
+    marketplaceSkills,
     searchQuery,
     selectedSkill: effectiveSelectedName
-      ? (selectedSkill ?? skills?.find(skill => skill.name === effectiveSelectedName))
+      ? (selectedSkill ?? skills.find(skill => skill.name === effectiveSelectedName))
       : undefined,
     selectedSkillContent: shouldLoadSelectedContent ? selectedSkillContent : undefined,
     setActiveTab,
     setSearchQuery,
     setSelectedSkillName,
-    skillCount: skills?.length ?? 0,
-    skills: skills ?? [],
+    skillCount: skills.length,
+    skills,
   };
 }
 

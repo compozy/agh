@@ -30,6 +30,8 @@ function SearchInput({
   disabled,
   ...props
 }: SearchInputProps) {
+  const isControlled = value !== undefined;
+
   return (
     <div
       data-slot="search-input"
@@ -48,7 +50,7 @@ function SearchInput({
         type="search"
         data-slot="search-input-control"
         placeholder={placeholder}
-        value={value ?? ""}
+        {...(isControlled ? { value } : {})}
         onChange={event => onChange?.(event.target.value)}
         disabled={disabled}
         className={cn(

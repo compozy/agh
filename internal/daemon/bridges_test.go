@@ -129,6 +129,7 @@ func TestComposeBridgeRuntime(t *testing.T) {
 		runtime := d.composeBridgeRuntime(state, &bootCleanup{})
 		if runtime == nil {
 			t.Fatal("composeBridgeRuntime(globaldb) = nil, want non-nil")
+			return
 		}
 		if runtime.Broker() == nil {
 			t.Fatal("composeBridgeRuntime(globaldb) broker = nil, want non-nil")
@@ -580,6 +581,7 @@ func TestBridgeRuntimeListProviders(t *testing.T) {
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 		if runtime == nil {
 			t.Fatal("newBridgeRuntime() = nil, want non-nil")
+			return
 		}
 		if runtime.registry == nil {
 			t.Fatal("runtime.registry = nil, want extension registry")
@@ -748,6 +750,7 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		}
 		if launch == nil {
 			t.Fatal("ResolveBridgeRuntime() = nil, want non-nil")
+			return
 		}
 		managed, ok := launch.ManagedInstance(instance.ID)
 		if !ok {
@@ -981,6 +984,7 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		}
 		if launch == nil {
 			t.Fatal("ResolveBridgeRuntime() = nil, want non-nil")
+			return
 		}
 		if got, want := launch.ManagedBridgeInstanceIDs(), []string{first.ID, second.ID}; !slices.Equal(got, want) {
 			t.Fatalf("ResolveBridgeRuntime().ManagedBridgeInstanceIDs() = %#v, want %#v", got, want)

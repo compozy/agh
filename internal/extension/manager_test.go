@@ -1223,6 +1223,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	clone := manager.cloneExtension(ext)
 	if clone == nil {
 		t.Fatal("cloneExtension() = nil, want snapshot")
+		return
 	}
 
 	clone.Info.Capabilities.Provides[0] = "changed"
@@ -1477,6 +1478,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			runtime := hostAPIBridgeRuntimeFromContext(ctx)
 			if runtime == nil {
 				t.Fatal("hostAPIBridgeRuntimeFromContext(ctx) = nil, want runtime")
+				return nil, nil
 			}
 			if got := runtime.ManagedInstances[0].Instance.ID; got != "brg-wrap" {
 				t.Fatalf("runtime.ManagedInstances[0].Instance.ID = %q, want brg-wrap", got)

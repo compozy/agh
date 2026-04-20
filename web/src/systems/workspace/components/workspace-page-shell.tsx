@@ -11,6 +11,8 @@ interface WorkspacePageShellProps {
   children: ReactNode;
 }
 
+// Shared workspace-domain page scaffold exported through the workspace system barrel
+// for route composition, stories, and test harnesses that need a consistent shell.
 export function WorkspacePageShell({
   title,
   icon,

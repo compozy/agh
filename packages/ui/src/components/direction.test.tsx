@@ -9,7 +9,7 @@ function DirReader() {
 }
 
 describe("DirectionProvider", () => {
-  it("Should default descendants to ltr when wrapped in a DirectionProvider", () => {
+  it("Should pass through an explicit ltr direction to descendants", () => {
     const { getByTestId } = render(
       <DirectionProvider direction="ltr">
         <DirReader />

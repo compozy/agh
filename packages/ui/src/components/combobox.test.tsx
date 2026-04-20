@@ -134,6 +134,55 @@ describe("Combobox", () => {
     });
   });
 
+  it("Should use the elevated input surface and bordered popup in single-select mode", async () => {
+    const user = userEvent.setup();
+    render(<SingleExample />);
+
+    const inputGroup = document.querySelector(
+      "[data-slot='combobox-input-group']"
+    ) as HTMLElement | null;
+    const input = screen.getByLabelText("city");
+
+    expect(inputGroup).not.toBeNull();
+    expect(inputGroup?.className).toContain("h-9");
+    expect(inputGroup?.className).toContain("bg-[color:var(--color-surface-elevated)]");
+
+    await user.click(input);
+    await waitFor(() => expect(screen.getByText("Berlin")).toBeInTheDocument());
+
+    const content = document.body.querySelector(
+      "[data-slot='combobox-content']"
+    ) as HTMLElement | null;
+
+    expect(content).not.toBeNull();
+    expect(content?.className).toContain("border");
+    expect(content?.className).not.toContain("shadow");
+    expect(content?.className).not.toContain("ring-1");
+  });
+
+  it("Should render the input trigger button through the combobox trigger primitive", async () => {
+    const user = userEvent.setup();
+    render(<SingleExample />);
+
+    const trigger = document.querySelector<HTMLButtonElement>(
+      "[data-slot='combobox-input-trigger']"
+    );
+
+    expect(trigger).not.toBeNull();
+    expect(trigger?.querySelector("svg")).not.toBeNull();
+
+    await user.click(trigger!);
+    await waitFor(() => expect(screen.getByText("Berlin")).toBeInTheDocument());
+  });
+
+  it("Should use the elevated surface for chip-based combobox inputs", () => {
+    render(<MultiExample />);
+    const chips = document.querySelector("[data-slot='combobox-chips']") as HTMLElement | null;
+    expect(chips).not.toBeNull();
+    expect(chips?.className).toContain("min-h-9");
+    expect(chips?.className).toContain("bg-[color:var(--color-surface-elevated)]");
+  });
+
   it("Should expose useComboboxAnchor as a MutableRefObject", () => {
     let anchorRef: ReturnType<typeof useComboboxAnchor> | undefined;
     function Harness() {

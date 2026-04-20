@@ -59,6 +59,10 @@ export function useSettingsAutomationPage() {
         ? mutation.error.message
         : null;
 
+  const handleRetry = useCallback(() => {
+    void query.refetch();
+  }, [query]);
+
   return {
     isLoading: query.isLoading,
     error: query.error,
@@ -72,6 +76,7 @@ export function useSettingsAutomationPage() {
     saveError,
     warnings: mutation.data?.warnings,
     lastAppliedLabel,
+    handleRetry,
     restart: page.restart,
   };
 }

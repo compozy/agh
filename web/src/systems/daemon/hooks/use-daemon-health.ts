@@ -14,7 +14,9 @@ export function useDaemonHealth(): DaemonHealthResult {
   const query = useQuery(daemonHealthOptions());
 
   let connectionStatus: ConnectionStatus;
-  if (query.isSuccess) {
+  if (query.isPending || (query.isFetching && !query.data)) {
+    connectionStatus = "reconnecting";
+  } else if (query.isSuccess) {
     connectionStatus = "connected";
   } else if (query.isFetching && query.isError) {
     connectionStatus = "reconnecting";

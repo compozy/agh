@@ -4,6 +4,7 @@ export { SettingsEditorDialog } from "./settings-editor-dialog";
 export type { EditorMode } from "./settings-editor-dialog";
 export { SettingsPageActions } from "./settings-page-actions";
 export { SettingsFieldRow } from "./settings-field-row";
+export { SettingsNumberInput } from "./settings-number-input";
 export { SettingsPageShell } from "./settings-page-shell";
 export { SettingsRestartBanner } from "./settings-restart-banner";
 export type { RestartBannerState } from "./settings-restart-banner";

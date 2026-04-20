@@ -72,7 +72,11 @@ describe("WorkspaceOnboarding", () => {
   it("renders onboarding hero + global + manual cards", () => {
     renderOnboarding();
 
-    expect(screen.getByTestId("workspace-onboarding")).toBeInTheDocument();
+    const onboarding = screen.getByTestId("workspace-onboarding");
+    expect(onboarding).toBeInTheDocument();
+    expect(onboarding.className).toContain("flex-1");
+    expect(onboarding.className).toContain("overflow-y-auto");
+    expect(onboarding.className).not.toContain("min-h-screen");
     expect(
       screen.getByRole("heading", {
         name: "Start AGH with a real workspace, not an empty shell.",

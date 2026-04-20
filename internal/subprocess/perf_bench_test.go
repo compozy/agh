@@ -69,6 +69,7 @@ func BenchmarkCloneInitializeBridgeRuntime(b *testing.B) {
 		cloned := CloneInitializeBridgeRuntime(runtime)
 		if cloned == nil {
 			b.Fatal("CloneInitializeBridgeRuntime() = nil")
+			return
 		}
 		if len(cloned.ManagedInstances) != len(runtime.ManagedInstances) {
 			b.Fatalf(

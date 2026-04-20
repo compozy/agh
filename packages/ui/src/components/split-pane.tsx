@@ -52,8 +52,9 @@ function SplitPane({
 }: SplitPaneProps) {
   const narrow = useNarrowViewport(narrowBreakpoint);
   const hasDetail = isDetailPresent(detail);
-  const showList = !narrow || !hasDetail;
-  const showDetail = !narrow || hasDetail;
+  const stackNarrowDetail = narrow && hasDetail && onDetailClose === undefined;
+  const showList = stackNarrowDetail || !narrow || !hasDetail;
+  const showDetail = stackNarrowDetail || !narrow || hasDetail;
 
   const reducedMotion = useReducedMotionConfig();
   const duration = reducedMotion ? 0 : SPLIT_DETAIL_DURATION;
@@ -62,13 +63,16 @@ function SplitPane({
     <div
       data-slot="split-pane"
       data-narrow={narrow ? "true" : "false"}
-      className={cn("flex min-h-0 min-w-0 flex-1", className)}
+      className={cn("flex min-h-0 min-w-0 flex-1", stackNarrowDetail && "flex-col", className)}
       {...props}
     >
       {showList ? (
         <div
           data-slot="split-pane-list"
-          className="flex min-h-0 shrink-0 flex-col border-r border-border bg-[color:var(--color-canvas)]"
+          className={cn(
+            "flex min-h-0 shrink-0 flex-col bg-[color:var(--color-canvas)]",
+            stackNarrowDetail ? "border-b border-border" : "border-r border-border"
+          )}
           style={{ width: narrow ? "100%" : listWidth }}
         >
           {list}
@@ -79,7 +83,7 @@ function SplitPane({
           data-slot="split-pane-detail"
           className="flex min-h-0 min-w-0 flex-1 flex-col bg-[color:var(--color-canvas)]"
         >
-          {narrow && hasDetail ? (
+          {narrow && hasDetail && !stackNarrowDetail ? (
             <div
               data-slot="split-pane-detail-bar"
               className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2"

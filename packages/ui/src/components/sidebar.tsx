@@ -56,9 +56,12 @@ function Sidebar({
 }: SidebarProps) {
   const isControlled = collapsedProp !== undefined;
   const [uncontrolled, setUncontrolled] = React.useState(defaultCollapsed);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const panelRef = React.useRef<HTMLDivElement | null>(null);
   const userCollapsed = isControlled ? Boolean(collapsedProp) : uncontrolled;
   const narrow = useNarrowViewport(collapseBreakpoint);
-  const effectivelyCollapsed = userCollapsed || narrow;
+  const panelVisible = narrow ? mobileOpen : !userCollapsed;
+  const effectivelyCollapsed = !panelVisible;
 
   const reducedMotion = useReducedMotionConfig();
   const duration = reducedMotion ? 0 : SIDEBAR_MOTION_DURATION;
@@ -72,8 +75,49 @@ function Sidebar({
   );
 
   const handleToggle = React.useCallback(() => {
+    if (narrow) {
+      setMobileOpen(current => !current);
+      return;
+    }
+
     setCollapsed(!userCollapsed);
-  }, [setCollapsed, userCollapsed]);
+  }, [narrow, setCollapsed, userCollapsed]);
+
+  React.useEffect(() => {
+    if (!narrow && mobileOpen) {
+      setMobileOpen(false);
+    }
+  }, [mobileOpen, narrow]);
+
+  React.useEffect(() => {
+    if (!narrow || !mobileOpen || typeof window === "undefined") return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen, narrow]);
+
+  React.useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    panel.toggleAttribute("inert", effectivelyCollapsed);
+    if ("inert" in panel) {
+      panel.inert = effectivelyCollapsed;
+    }
+
+    return () => {
+      panel.removeAttribute("inert");
+      if ("inert" in panel) {
+        panel.inert = false;
+      }
+    };
+  }, [effectivelyCollapsed]);
 
   return (
     <aside
@@ -81,14 +125,23 @@ function Sidebar({
       data-state={effectivelyCollapsed ? "collapsed" : "expanded"}
       data-narrow={narrow ? "true" : "false"}
       className={cn(
-        "flex h-full shrink-0 border-r border-border bg-[color:var(--color-canvas-deep)]",
+        "relative flex h-full shrink-0 border-r border-border bg-[color:var(--color-canvas-deep)]",
         className
       )}
       {...props}
     >
+      {narrow && panelVisible ? (
+        <button
+          type="button"
+          aria-label="Close sidebar navigation"
+          onClick={() => setMobileOpen(false)}
+          className="absolute inset-y-0 left-[44px] z-40 bg-[rgba(0,0,0,0.5)]"
+          style={{ width: "100vw" }}
+        />
+      ) : null}
       <div
         data-slot="sidebar-rail"
-        className="flex shrink-0 flex-col items-center gap-1.5 border-r border-border py-3"
+        className="relative z-50 flex shrink-0 flex-col items-center gap-1.5 border-r border-border py-3"
         style={{ width: SIDEBAR_RAIL_WIDTH }}
       >
         {rail ? (
@@ -99,8 +152,14 @@ function Sidebar({
         <button
           type="button"
           data-slot="sidebar-collapse-trigger"
-          aria-label={collapseLabel}
-          aria-expanded={!effectivelyCollapsed}
+          aria-label={
+            narrow
+              ? panelVisible
+                ? "Close sidebar navigation"
+                : "Open sidebar navigation"
+              : collapseLabel
+          }
+          aria-expanded={panelVisible}
           onClick={handleToggle}
           className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[color:var(--color-hover)] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:outline-none"
         >
@@ -108,11 +167,16 @@ function Sidebar({
         </button>
       </div>
       <motion.div
+        ref={panelRef}
         data-slot="sidebar-panel"
         initial={false}
-        animate={{ width: effectivelyCollapsed ? 0 : panelWidth }}
+        animate={{ width: panelVisible ? panelWidth : 0 }}
         transition={{ duration, ease: SIDEBAR_MOTION_EASE }}
-        className="flex min-h-0 flex-col overflow-hidden bg-[color:var(--color-surface)]"
+        className={cn(
+          "flex min-h-0 flex-col overflow-hidden bg-[color:var(--color-surface)]",
+          panelVisible ? "visible pointer-events-auto" : "pointer-events-none invisible",
+          narrow && "absolute inset-y-0 left-[44px] z-50 border-r border-border"
+        )}
         aria-hidden={effectivelyCollapsed}
       >
         <div className="flex h-full min-h-0 flex-col" style={{ width: panelWidth, flexShrink: 0 }}>

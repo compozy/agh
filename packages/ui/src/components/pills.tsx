@@ -110,7 +110,7 @@ function Pills<V extends string = string>({
   return (
     <div
       data-slot="pills"
-      role="tablist"
+      role="group"
       className={cn("inline-flex flex-wrap items-center gap-1.5", className)}
       {...props}
     >
@@ -120,15 +120,16 @@ function Pills<V extends string = string>({
           <button
             key={item.value}
             type="button"
-            role="tab"
             data-slot="pills-item"
             data-value={item.value}
             data-active={isActive}
             data-testid={item.testId}
-            aria-selected={isActive}
             aria-pressed={isActive}
             disabled={item.disabled}
-            onClick={() => onChange(item.value)}
+            onClick={() => {
+              if (isActive) return;
+              onChange(item.value);
+            }}
             className={pillToggleVariants({ active: isActive, size })}
           >
             <span>{item.label}</span>

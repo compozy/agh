@@ -200,17 +200,17 @@ describe("useHomePage", () => {
     expect(result.current.daemonStatus.label).toBe("Degraded");
   });
 
-  it("returns a danger-tone disconnected descriptor when the health query fails", async () => {
+  it("returns a neutral reconnecting descriptor while the health query retries after failure", async () => {
     vi.mocked(fetchHealth).mockRejectedValue(new Error("network down"));
 
     const { result } = renderHook(() => useHomePage(), { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(result.current.daemonStatus.key).toBe("disconnected");
+      expect(result.current.daemonStatus.key).toBe("unknown");
     });
 
-    expect(result.current.connectionStatus).toBe("disconnected");
-    expect(result.current.daemonStatus.tone).toBe("danger");
+    expect(result.current.connectionStatus).toBe("reconnecting");
+    expect(result.current.daemonStatus.tone).toBe("neutral");
     expect(result.current.daemonVersion).toBeNull();
   });
 
@@ -240,6 +240,21 @@ describe("useHomePage", () => {
     expect(sessionsMetric?.value).toBe(String(HEALTH_FIXTURE.active_sessions));
     expect(sessionsMetric?.detail).toBeUndefined();
     expect(result.current.hasWorkspaces).toBe(false);
+  });
+
+  it("marks the active-session metric unavailable when the workspace sessions query fails", async () => {
+    vi.mocked(fetchSessions).mockRejectedValue(new Error("sessions unavailable"));
+
+    const { result } = renderHook(() => useHomePage(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    const sessionsMetric = result.current.metrics.find(metric => metric.key === "active-sessions");
+    expect(sessionsMetric?.value).toBe("—");
+    expect(sessionsMetric?.detail).toBe("unavailable for main");
+    expect(result.current.hasFatalError).toBe(false);
   });
 });
 

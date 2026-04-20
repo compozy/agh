@@ -1701,6 +1701,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 		if provenance == nil {
 			t.Fatal("ReadSidecar() = nil, want provenance")
+			return
 		}
 		if provenance.Version != "1.4.0" {
 			t.Fatalf("sidecar version = %q, want 1.4.0", provenance.Version)

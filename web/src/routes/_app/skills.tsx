@@ -1,16 +1,45 @@
 import { AlertCircle, Loader2, Wrench } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Empty, PageHeader, SplitPane, Tabs, TabsList, TabsTrigger } from "@agh/ui";
-import { useSkillsPage } from "@/hooks/routes/use-skills-page";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Empty,
+  PageHeader,
+  SplitPane,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@agh/ui";
+import { type SkillsRouteSearch, useSkillsPage } from "@/hooks/routes/use-skills-page";
 import { MarketplaceView, SkillDetailPanel, SkillListPanel } from "@/systems/skill";
 
+function normalizeSearchValue(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
+function validateSkillsSearch(search: Record<string, unknown>): SkillsRouteSearch {
+  return {
+    content: normalizeSearchValue(search.content),
+    q: normalizeSearchValue(search.q),
+    skill: normalizeSearchValue(search.skill),
+    tab: search.tab === "installed" || search.tab === "marketplace" ? search.tab : undefined,
+  };
+}
+
 export const Route = createFileRoute("/_app/skills")({
+  validateSearch: validateSkillsSearch,
   component: SkillsPage,
 });
 
 function SkillsPage() {
-  const page = useSkillsPage();
+  const page = useSkillsPage(Route.useSearch());
 
   if (page.isLoading) {
     return (
@@ -60,11 +89,27 @@ function SkillsPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="skills-shell">
       <PageHeader
-        count={page.skillCount}
+        count={page.activeTab === "marketplace" ? page.marketplaceSkillCount : page.skillCount}
         controls={controls}
         icon={() => <Wrench className="size-3.5" data-testid="skills-shell-icon" />}
         title={<span data-testid="skills-shell-title">Skills</span>}
       />
+      {page.backgroundError ? (
+        <div className="border-b border-[color:var(--color-divider)] px-6 py-3">
+          <Alert
+            className="border-[color:var(--color-warning)]/40"
+            data-testid="skills-background-error"
+            variant="warning"
+          >
+            <AlertCircle aria-hidden="true" className="size-4" />
+            <AlertTitle>Showing cached skills</AlertTitle>
+            <AlertDescription>
+              {page.backgroundError.message ??
+                "The latest skill refresh failed. Existing data remains available."}
+            </AlertDescription>
+          </Alert>
+        </div>
+      ) : null}
       {page.activeTab === "installed" ? (
         <SplitPane
           data-testid="skills-split-pane"
@@ -96,9 +141,11 @@ function SkillsPage() {
       ) : (
         <MarketplaceView
           installedSkillNames={page.installedSkillNames}
-          installUnavailableReason="Marketplace install is not implemented yet"
+          installUnavailableReason="The daemon API only exposes metadata for already installed marketplace skills here. Remote marketplace search and install are not available in this view yet."
           isInstalling={false}
-          skills={page.skills}
+          onSearchChange={page.setSearchQuery}
+          searchQuery={page.searchQuery}
+          skills={page.marketplaceSkills}
         />
       )}
     </div>

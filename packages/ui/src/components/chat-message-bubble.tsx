@@ -31,6 +31,9 @@ function ChatMessageBubble({
   ...props
 }: ChatMessageBubbleProps) {
   const resolvedAlign: ChatMessageAlign = align ?? (role === "user" ? "right" : "left");
+  const isRightAligned = resolvedAlign === "right";
+  const nonUserAlignClass = isRightAligned ? "items-end text-right" : "text-left";
+  const nonUserMetaAlignClass = isRightAligned ? "justify-end text-right" : "justify-start";
 
   if (role === "system") {
     return (
@@ -101,13 +104,16 @@ function ChatMessageBubble({
         data-slot="chat-message"
         data-role="agent"
         data-align={resolvedAlign}
-        className={cn("flex w-full flex-col gap-1.5", className)}
+        className={cn("flex w-full flex-col gap-1.5", nonUserAlignClass, className)}
         {...props}
       >
         {meta ? (
           <div
             data-slot="chat-message-meta"
-            className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]"
+            className={cn(
+              "flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]",
+              nonUserMetaAlignClass
+            )}
           >
             {meta}
           </div>
@@ -127,13 +133,16 @@ function ChatMessageBubble({
       data-slot="chat-message"
       data-role={role}
       data-align={resolvedAlign}
-      className={cn("flex w-full flex-col gap-1.5", className)}
+      className={cn("flex w-full flex-col gap-1.5", nonUserAlignClass, className)}
       {...props}
     >
       {meta ? (
         <div
           data-slot="chat-message-meta"
-          className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]"
+          className={cn(
+            "flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]",
+            nonUserMetaAlignClass
+          )}
         >
           {meta}
         </div>

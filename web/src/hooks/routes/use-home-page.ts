@@ -129,7 +129,11 @@ function useHomePage(): HomePageView {
     error: workspacesErrorObject,
   } = useActiveWorkspace();
   const { data: agents, isLoading: agentsLoading, error: agentsError } = useAgents();
-  const { data: sessions, isLoading: areSessionsLoading } = useSessions(activeWorkspaceId, {
+  const {
+    data: sessions,
+    isLoading: areSessionsLoading,
+    isError: sessionsError,
+  } = useSessions(activeWorkspaceId, {
     enabled: activeWorkspaceId !== null,
   });
 
@@ -138,12 +142,31 @@ function useHomePage(): HomePageView {
     [connectionStatus, health]
   );
 
-  const sessionsCount = useMemo(() => {
-    if (sessions && sessions.length >= 0) {
-      return sessions.length;
+  const activeSessionsMetric = useMemo<HomeMetricEntry>(() => {
+    if (activeWorkspaceId === null) {
+      return {
+        key: "active-sessions",
+        label: "Active Sessions",
+        value: String(health?.active_sessions ?? 0),
+      };
     }
-    return health?.active_sessions ?? 0;
-  }, [sessions, health]);
+
+    if (sessionsError) {
+      return {
+        key: "active-sessions",
+        label: "Active Sessions",
+        value: "—",
+        detail: activeWorkspace ? `unavailable for ${activeWorkspace.name}` : "unavailable",
+      };
+    }
+
+    return {
+      key: "active-sessions",
+      label: "Active Sessions",
+      value: String(sessions?.length ?? 0),
+      detail: activeWorkspace ? `in ${activeWorkspace.name}` : undefined,
+    };
+  }, [activeWorkspace, activeWorkspaceId, health?.active_sessions, sessions, sessionsError]);
 
   const agentsCount = agents?.length ?? 0;
   const workspacesCount = workspaces.length;
@@ -151,12 +174,7 @@ function useHomePage(): HomePageView {
 
   const metrics = useMemo<HomeMetricEntry[]>(
     () => [
-      {
-        key: "active-sessions",
-        label: "Active Sessions",
-        value: String(sessionsCount),
-        detail: activeWorkspace ? `in ${activeWorkspace.name}` : undefined,
-      },
+      activeSessionsMetric,
       {
         key: "workspaces",
         label: "Workspaces",
@@ -173,7 +191,7 @@ function useHomePage(): HomePageView {
         value: uptimeLabel,
       },
     ],
-    [sessionsCount, workspacesCount, agentsCount, uptimeLabel, activeWorkspace]
+    [activeSessionsMetric, workspacesCount, agentsCount, uptimeLabel]
   );
 
   const isLoading =

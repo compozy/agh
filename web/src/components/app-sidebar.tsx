@@ -7,7 +7,6 @@ import {
   Loader2,
   Network,
   Plus,
-  Search,
   Settings,
   Terminal,
   Waypoints,
@@ -22,7 +21,6 @@ import {
   CollapsibleTrigger,
   ConnectionIndicator,
   type ConnectionStatus,
-  Kbd,
   Sidebar,
   StatusDot,
   type StatusDotTone,
@@ -48,13 +46,14 @@ function RailSlot({
 }: RailSlotProps) {
   return (
     <div data-testid="icon-rail" className="flex flex-1 flex-col items-center gap-1.5">
-      <span
-        aria-label="AGH home"
+      <Link
+        to="/"
+        aria-label="Go to dashboard"
         data-testid="app-logo"
-        className="mb-1 inline-flex size-7 items-center justify-center rounded-md bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]"
+        className="mb-1 inline-flex size-7 items-center justify-center rounded-md bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)] transition-colors hover:bg-[color:var(--color-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-canvas-deep)]"
       >
         <Terminal aria-hidden="true" className="size-3.5" />
-      </span>
+      </Link>
       {workspaces?.map(workspace => {
         const isActive = workspace.id === activeWorkspaceId;
         const letter = workspace.name.charAt(0).toUpperCase() || "·";
@@ -97,21 +96,12 @@ interface HeaderSlotProps {
 
 function HeaderSlot({ activeWorkspace }: HeaderSlotProps) {
   return (
-    <>
-      <span
-        data-testid="sidebar-workspace-name"
-        className="flex-1 truncate text-[13px] font-medium text-[color:var(--color-text-primary)]"
-      >
-        {activeWorkspace?.name ?? ""}
-      </span>
-      <button
-        type="button"
-        aria-label="Search"
-        className="inline-flex size-6 items-center justify-center rounded-md text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
-      >
-        <Search aria-hidden="true" className="size-3.5" />
-      </button>
-    </>
+    <span
+      data-testid="sidebar-workspace-name"
+      className="flex-1 truncate text-[13px] font-medium text-[color:var(--color-text-primary)]"
+    >
+      {activeWorkspace?.name ?? ""}
+    </span>
   );
 }
 
@@ -338,12 +328,6 @@ function NavSlot({
 }: NavSlotProps) {
   return (
     <div data-testid="sidebar-nav" className="flex flex-col gap-1 px-2 py-3">
-      <div className="flex items-center gap-2 rounded-md bg-[color:var(--color-canvas-deep)] px-2 py-1.5 text-[12px] text-[color:var(--color-text-tertiary)]">
-        <Search aria-hidden="true" className="size-3" />
-        <span className="flex-1">Search…</span>
-        <Kbd className="text-[10px]">⌘K</Kbd>
-      </div>
-
       <SectionLabel>Agents</SectionLabel>
       <AgentList
         activeWorkspaceId={activeWorkspaceId}

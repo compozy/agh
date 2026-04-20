@@ -366,14 +366,14 @@ func (t *transport) sendError(id json.RawMessage, err *RPCError) error {
 }
 
 func (t *transport) closePending(reason error) {
+	if reason != nil {
+		t.process.recordTransportError(reason)
+	}
 	t.pendingMu.Lock()
 	defer t.pendingMu.Unlock()
 	for key, responseCh := range t.pending {
 		delete(t.pending, key)
 		close(responseCh)
-	}
-	if reason != nil {
-		t.process.recordTransportError(reason)
 	}
 }
 

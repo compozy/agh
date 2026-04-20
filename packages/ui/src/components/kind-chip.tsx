@@ -15,6 +15,7 @@ export interface KindChipProps extends Omit<React.ComponentProps<"span">, "child
 function KindChip({ kind, className, ...props }: KindChipProps) {
   return (
     <span
+      {...props}
       data-slot="kind-chip"
       data-kind={kind}
       className={cn(
@@ -23,7 +24,6 @@ function KindChip({ kind, className, ...props }: KindChipProps) {
         "bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)]",
         className
       )}
-      {...props}
     >
       {kind}
     </span>

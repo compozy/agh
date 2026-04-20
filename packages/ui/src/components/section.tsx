@@ -9,23 +9,30 @@ export interface SectionProps extends React.ComponentProps<"section"> {
   right?: React.ReactNode;
 }
 
+function hasSectionContent(content: React.ReactNode): boolean {
+  return content !== undefined && content !== null && content !== false;
+}
+
 /**
  * Section shell — mono eyebrow + optional right-aligned slot + children.
  * Mirrors `Section` in `docs/design/web-inspiration/src/primitives.jsx`.
  */
 function Section({ label, right, className, children, ...props }: SectionProps) {
+  const hasLabel = hasSectionContent(label);
+  const hasRight = hasSectionContent(right);
+
   return (
     <section
       data-slot="section"
       className={cn("flex min-w-0 flex-col gap-3", className)}
       {...props}
     >
-      {label !== undefined || right !== undefined ? (
+      {hasLabel || hasRight ? (
         <header
           data-slot="section-head"
           className="flex items-center justify-between gap-3 border-b border-[color:var(--color-divider)] pb-2"
         >
-          {label !== undefined ? (
+          {hasLabel ? (
             <h2
               data-slot="section-label"
               className="font-mono text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-label)]"
@@ -35,7 +42,7 @@ function Section({ label, right, className, children, ...props }: SectionProps) 
           ) : (
             <span />
           )}
-          {right !== undefined ? (
+          {hasRight ? (
             <div data-slot="section-right" className="flex items-center gap-2">
               {right}
             </div>

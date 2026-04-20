@@ -2,13 +2,18 @@ import { existsSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 
 const rootArg = process.argv[2] ?? ".tmp/storybook-static";
-const portArg = Number(process.argv[3] ?? process.env.AGH_UI_STORYBOOK_PORT ?? 6007);
+const rawPortArg = process.argv[3] ?? process.env.AGH_UI_STORYBOOK_PORT ?? "6007";
+const portArg = parsePortArg(rawPortArg);
 const hostArg = process.argv[4] ?? "127.0.0.1";
 
 const root = resolve(rootArg);
 if (!existsSync(root)) {
   console.error(`[serve-storybook] missing Storybook bundle at ${root}`);
   console.error(`[serve-storybook] run 'bun run build:visual' before serving`);
+  process.exit(1);
+}
+if (!statSync(root).isDirectory()) {
+  console.error(`[serve-storybook] Storybook bundle root must be a directory: ${root}`);
   process.exit(1);
 }
 
@@ -30,6 +35,15 @@ function guessContentType(path: string): string {
   const idx = path.lastIndexOf(".");
   const ext = idx >= 0 ? path.slice(idx).toLowerCase() : "";
   return mimeTypes.get(ext) ?? "application/octet-stream";
+}
+
+function parsePortArg(rawPort: string): number {
+  const port = Number(rawPort);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    console.error(`[serve-storybook] invalid port: ${rawPort}`);
+    process.exit(1);
+  }
+  return port;
 }
 
 function resolveRequestPath(pathname: string): string | null {

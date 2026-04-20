@@ -39,6 +39,12 @@ function PaletteExample({ onSelect = () => {} }: { onSelect?: (value: string) =>
 }
 
 describe("Command", () => {
+  it("Should hide the decorative search icon from assistive technologies", () => {
+    const { container } = render(<PaletteExample />);
+    const searchIcon = container.querySelector("[data-slot='command-input-group'] svg");
+    expect(searchIcon).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("Should filter items as the user types", async () => {
     const user = userEvent.setup();
     render(<PaletteExample />);

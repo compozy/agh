@@ -62,6 +62,7 @@ let pageState: {
   handleResetPolicy: ReturnType<typeof vi.fn>;
   handleSaveDisabled: ReturnType<typeof vi.fn>;
   handleSavePolicy: ReturnType<typeof vi.fn>;
+  handleRetry: ReturnType<typeof vi.fn>;
   restart: RestartBanner;
 };
 
@@ -126,6 +127,7 @@ beforeEach(() => {
     handleResetPolicy: vi.fn(),
     handleSaveDisabled: vi.fn(),
     handleSavePolicy: vi.fn(),
+    handleRetry: vi.fn(),
     restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
   };
 });
@@ -150,6 +152,8 @@ describe("SkillsSettingsPage", () => {
     pageState.draft = null;
     render(<SkillsSettingsPage />);
     expect(screen.getByTestId("settings-page-skills-error")).toHaveTextContent("skills boom");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(pageState.handleRetry).toHaveBeenCalledTimes(1);
   });
 
   it("renders disabled-skill items and marketplace fields separately from the status line", () => {
@@ -168,12 +172,20 @@ describe("SkillsSettingsPage", () => {
     expect(screen.getByTestId("settings-page-skills-allowed-mcp-input")).toHaveValue("mcp-one");
   });
 
-  it("wires disabled-skill save controls to the applied-now page handlers", () => {
-    pageState.isDisabledDirty = true;
+  it("shows the applied label for disabled skills when the draft is clean", () => {
     pageState.lastDisabledLabel = "Saved · applied immediately";
     render(<SkillsSettingsPage />);
     expect(screen.getByTestId("settings-page-skills-disabled-applied")).toHaveTextContent(
       "applied immediately"
+    );
+  });
+
+  it("wires disabled-skill save controls and prioritizes dirty state over stale labels", () => {
+    pageState.isDisabledDirty = true;
+    pageState.lastDisabledLabel = "Saved · applied immediately";
+    render(<SkillsSettingsPage />);
+    expect(screen.getByTestId("settings-page-skills-disabled-dirty")).toHaveTextContent(
+      "Unsaved changes"
     );
 
     fireEvent.click(screen.getByTestId("settings-page-skills-disabled-save"));
@@ -183,12 +195,20 @@ describe("SkillsSettingsPage", () => {
     expect(pageState.handleResetDisabled).toHaveBeenCalledTimes(1);
   });
 
-  it("wires policy save controls to restart-required page handlers with its own label", () => {
-    pageState.isPolicyDirty = true;
+  it("shows the applied label for policy settings when the draft is clean", () => {
     pageState.lastPolicyLabel = "Saved · restart required to apply";
     render(<SkillsSettingsPage />);
     expect(screen.getByTestId("settings-page-skills-policy-applied")).toHaveTextContent(
       "restart required"
+    );
+  });
+
+  it("wires policy save controls and prioritizes dirty state over stale labels", () => {
+    pageState.isPolicyDirty = true;
+    pageState.lastPolicyLabel = "Saved · restart required to apply";
+    render(<SkillsSettingsPage />);
+    expect(screen.getByTestId("settings-page-skills-policy-dirty")).toHaveTextContent(
+      "Unsaved changes"
     );
 
     fireEvent.click(screen.getByTestId("settings-page-skills-policy-save"));

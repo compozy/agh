@@ -1,12 +1,13 @@
 import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Input, Switch } from "@agh/ui";
+import { Button, Input, Switch } from "@agh/ui";
 import { useSettingsNetworkPage } from "@/hooks/routes/use-settings-network-page";
 import type { SettingsNetworkSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsNumberInput,
   SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
@@ -26,6 +27,19 @@ type NetworkRuntime = SettingsNetworkSection["runtime"];
 
 function NetworkSettingsPage() {
   const page = useSettingsNetworkPage();
+  const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
+  const setValidationError = useCallback(
+    (key: string) => (message: string | null) => {
+      setValidationErrors(current =>
+        current[key] === message ? current : { ...current, [key]: message }
+      );
+    },
+    []
+  );
+  const isInvalid = useMemo(
+    () => Object.values(validationErrors).some(message => message !== null),
+    [validationErrors]
+  );
 
   if (page.isLoading) {
     return (
@@ -49,6 +63,9 @@ function NetworkSettingsPage() {
           <p className="text-sm text-[color:var(--color-text-tertiary)]">
             {page.error?.message ?? "Failed to load network settings"}
           </p>
+          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -81,6 +98,7 @@ function NetworkSettingsPage() {
         <SettingsSaveBar
           slug="network"
           isDirty={page.isDirty}
+          isInvalid={isInvalid}
           isSaving={page.isSaving}
           error={page.saveError}
           warnings={page.warnings}
@@ -92,8 +110,18 @@ function NetworkSettingsPage() {
     >
       <OperationalLinksRow />
       <RuntimeStatusSection runtime={runtime} />
-      <ListenerSection draft={draft} setDraft={setDraft} />
-      <DeliverySection draft={draft} setDraft={setDraft} />
+      <ListenerSection
+        draft={draft}
+        setDraft={setDraft}
+        portError={validationErrors.port ?? undefined}
+        onPortValidityChange={setValidationError("port")}
+      />
+      <DeliverySection
+        draft={draft}
+        setDraft={setDraft}
+        validationErrors={validationErrors}
+        setValidationError={setValidationError}
+      />
     </SettingsPageShell>
   );
 }
@@ -177,7 +205,15 @@ interface DraftSectionProps {
   setDraft: Dispatch<SetStateAction<NetworkConfig | null>>;
 }
 
-function ListenerSection({ draft, setDraft }: DraftSectionProps) {
+function ListenerSection({
+  draft,
+  setDraft,
+  portError,
+  onPortValidityChange,
+}: DraftSectionProps & {
+  portError?: string;
+  onPortValidityChange: (message: string | null) => void;
+}) {
   return (
     <SettingsSectionCard eyebrow="Listener" note="topology requires restart">
       <SettingsFieldRow
@@ -196,15 +232,16 @@ function ListenerSection({ draft, setDraft }: DraftSectionProps) {
         data-testid="settings-page-network-port"
         label="Listener port"
         description="TCP port for the embedded network"
+        error={portError}
         hint="CONFIG.TOML"
         control={
-          <Input
+          <SettingsNumberInput
             className="w-28"
-            type="number"
             min={0}
             data-testid="settings-page-network-port-input"
             value={draft.port}
-            onChange={event => setDraft({ ...draft, port: Number(event.target.value || 0) })}
+            onValidityChange={onPortValidityChange}
+            onValueChange={value => setDraft({ ...draft, port: value })}
           />
         }
       />
@@ -227,35 +264,51 @@ function ListenerSection({ draft, setDraft }: DraftSectionProps) {
   );
 }
 
-function DeliverySection({ draft, setDraft }: DraftSectionProps) {
+function DeliverySection({
+  draft,
+  setDraft,
+  validationErrors,
+  setValidationError,
+}: DraftSectionProps & {
+  validationErrors: Record<string, string | null>;
+  setValidationError: (key: string) => (message: string | null) => void;
+}) {
   return (
     <SettingsSectionCard eyebrow="Delivery" note="queue limits and retention">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <NumberField
           label="Greet interval"
+          errorMessage={validationErrors.greetInterval ?? undefined}
           suffix="sec"
           testId="settings-page-network-greet-interval"
           value={draft.greet_interval}
+          onValidityChange={setValidationError("greetInterval")}
           onChange={value => setDraft({ ...draft, greet_interval: value })}
         />
         <NumberField
           label="Max payload"
+          errorMessage={validationErrors.maxPayload ?? undefined}
           suffix="bytes"
           testId="settings-page-network-max-payload"
           value={draft.max_payload}
+          onValidityChange={setValidationError("maxPayload")}
           onChange={value => setDraft({ ...draft, max_payload: value })}
         />
         <NumberField
           label="Max queue depth"
+          errorMessage={validationErrors.maxQueueDepth ?? undefined}
           testId="settings-page-network-max-queue-depth"
           value={draft.max_queue_depth}
+          onValidityChange={setValidationError("maxQueueDepth")}
           onChange={value => setDraft({ ...draft, max_queue_depth: value })}
         />
         <NumberField
           label="Max replay age"
+          errorMessage={validationErrors.maxReplayAge ?? undefined}
           suffix="sec"
           testId="settings-page-network-max-replay-age"
           value={draft.max_replay_age}
+          onValidityChange={setValidationError("maxReplayAge")}
           onChange={value => setDraft({ ...draft, max_replay_age: value })}
         />
       </div>
@@ -268,23 +321,33 @@ interface NumberFieldProps {
   testId: string;
   value: number;
   suffix?: string;
+  errorMessage?: string;
+  onValidityChange: (message: string | null) => void;
   onChange: (value: number) => void;
 }
 
-function NumberField({ label, testId, value, suffix, onChange }: NumberFieldProps) {
+function NumberField({
+  label,
+  testId,
+  value,
+  suffix,
+  errorMessage,
+  onValidityChange,
+  onChange,
+}: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
       <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
         {label}
       </span>
       <div className="flex items-center gap-2">
-        <Input
+        <SettingsNumberInput
           className="w-full"
-          type="number"
           min={0}
           data-testid={testId}
           value={value}
-          onChange={event => onChange(Number(event.target.value || 0))}
+          onValidityChange={onValidityChange}
+          onValueChange={onChange}
         />
         {suffix ? (
           <span className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
@@ -292,6 +355,9 @@ function NumberField({ label, testId, value, suffix, onChange }: NumberFieldProp
           </span>
         ) : null}
       </div>
+      {errorMessage ? (
+        <span className="text-xs text-[color:var(--color-danger)]">{errorMessage}</span>
+      ) : null}
     </div>
   );
 }

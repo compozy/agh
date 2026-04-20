@@ -164,6 +164,23 @@ describe("SplitPane", () => {
     expect(onDetailClose).toHaveBeenCalledTimes(1);
   });
 
+  it("Should fall back to a stacked narrow layout when no detail close handler is provided", () => {
+    installMatchMedia(q => q.includes("max-width"));
+    const { container } = render(
+      <SplitPane
+        list={<div data-testid="list">list</div>}
+        detail={<div data-testid="detail">detail</div>}
+      />
+    );
+
+    expect(screen.getByTestId("list")).toBeInTheDocument();
+    expect(screen.getByTestId("detail")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
+    expect(container.querySelector("[data-slot=split-pane-list]")).toHaveStyle({
+      width: "100%",
+    });
+  });
+
   it("Should show the list when narrow and no detail is selected", () => {
     installMatchMedia(q => q.includes("max-width"));
     render(

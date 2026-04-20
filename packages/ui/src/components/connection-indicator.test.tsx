@@ -30,6 +30,8 @@ describe("ConnectionIndicator", () => {
       const { container } = render(<ConnectionIndicator status={status} />);
       const root = container.querySelector<HTMLElement>('[data-slot="connection-indicator"]');
       expect(root?.getAttribute("data-status")).toBe(status);
+      expect(root?.getAttribute("role")).toBe("status");
+      expect(root?.getAttribute("aria-live")).toBe("polite");
       const dot = container.querySelector<HTMLElement>('[data-slot="status-dot"]');
       expect(dot?.getAttribute("data-tone")).toBe(tone);
       const labelNode = container.querySelector<HTMLElement>(

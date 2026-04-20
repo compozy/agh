@@ -253,7 +253,7 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
 
   return (
     <div
-      className="flex min-h-screen items-center justify-center bg-background px-6 py-10"
+      className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto bg-background px-6 py-6 lg:items-center lg:py-10"
       data-testid="workspace-onboarding"
     >
       <div className="w-full max-w-5xl rounded-[28px] border border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] p-6 sm:p-8 lg:p-10">

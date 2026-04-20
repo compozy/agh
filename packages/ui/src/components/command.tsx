@@ -58,7 +58,7 @@ function CommandInput({
         data-slot="command-input-group"
         className="flex h-8 w-full min-w-0 items-center gap-2 rounded-lg border border-input/30 bg-input/30 px-2 text-sm transition-colors outline-none focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
       >
-        <SearchIcon className="size-4 shrink-0 opacity-50" />
+        <SearchIcon aria-hidden="true" className="size-4 shrink-0 opacity-50" />
         <CommandPrimitive.Input
           data-slot="command-input"
           className={cn(

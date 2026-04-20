@@ -1,7 +1,7 @@
 import { AlertCircle, BookOpen, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Empty, PageHeader, Pills, SplitPane, StatusDot } from "@agh/ui";
+import { Empty, PageHeader, Pills, SplitPane } from "@agh/ui";
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
 import { KnowledgeDetailPanel, KnowledgeListPanel } from "@/systems/knowledge";
 
@@ -56,22 +56,12 @@ function KnowledgePage() {
     />
   );
 
-  const dreamMeta = (
-    <div className="flex items-center gap-1.5" data-testid="dream-status">
-      <StatusDot tone="neutral" />
-      <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-        {page.dreamStatusLabel}
-      </span>
-    </div>
-  );
-
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
       <PageHeader
         count={page.memoryCount}
         controls={controls}
         icon={() => <BookOpen className="size-3.5" data-testid="knowledge-shell-icon" />}
-        meta={dreamMeta}
         title={<span data-testid="knowledge-shell-title">Knowledge</span>}
       />
       <SplitPane
@@ -79,6 +69,7 @@ function KnowledgePage() {
         detail={
           <KnowledgeDetailPanel
             content={page.selectedContent}
+            deleteError={page.deleteError}
             error={page.contentError}
             isDeletePending={page.isDeletePending}
             isLoading={page.isContentLoading}

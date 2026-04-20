@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarImage } from "./avatar";
@@ -23,15 +23,38 @@ describe("Avatar", () => {
     expect(root?.getAttribute("data-size")).toBe("lg");
   });
 
-  it("Should render the image slot when provided", () => {
-    const { container } = render(
-      <Avatar>
-        <AvatarImage src="https://example.test/me.png" alt="me" />
-        <AvatarFallback>ME</AvatarFallback>
-      </Avatar>
-    );
-    const fallbackSlot = container.querySelector('[data-slot="avatar-fallback"]');
-    expect(fallbackSlot).not.toBeNull();
+  it("Should render the image slot when the avatar image loads successfully", async () => {
+    const OriginalImage = window.Image;
+
+    class LoadedImageMock {
+      onload: null | (() => void) = null;
+      onerror: null | (() => void) = null;
+      complete = false;
+      naturalWidth = 0;
+
+      set src(_value: string) {
+        this.complete = true;
+        this.naturalWidth = 64;
+        this.onload?.();
+      }
+    }
+
+    window.Image = LoadedImageMock as unknown as typeof Image;
+
+    try {
+      render(
+        <Avatar>
+          <AvatarImage src="https://example.test/me.png" alt="me" />
+          <AvatarFallback>ME</AvatarFallback>
+        </Avatar>
+      );
+
+      await waitFor(() =>
+        expect(screen.getByRole("img", { name: "me" })).toHaveAttribute("data-slot", "avatar-image")
+      );
+    } finally {
+      window.Image = OriginalImage;
+    }
   });
 
   it("Should render AvatarBadge as a positioned child", () => {

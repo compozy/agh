@@ -135,7 +135,7 @@ describe("ObservabilitySettingsPage", () => {
   it("renders config, DB metrics, and log-tail metadata from the envelope", () => {
     render(<ObservabilitySettingsPage />);
 
-    expect(screen.getByTestId("settings-page-observability-retention-days")).toHaveValue(7);
+    expect(screen.getByTestId("settings-page-observability-retention-days")).toHaveValue("7");
     expect(screen.getByTestId("settings-page-observability-storage-summary")).toHaveTextContent(
       "storage"
     );

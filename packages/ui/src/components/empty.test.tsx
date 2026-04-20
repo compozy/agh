@@ -24,6 +24,7 @@ describe("Empty", () => {
     expect(screen.getByText("Create a task to see it here.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New task" })).toBeInTheDocument();
     expect(screen.getByTestId("empty-custom-icon")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="empty-title"]')?.tagName).toBe("H3");
 
     const slots = Array.from(empty?.children ?? []).map(node => node.getAttribute("data-slot"));
     expect(slots).toEqual(["empty-icon", "empty-title", "empty-description", "empty-action"]);
@@ -38,6 +39,7 @@ describe("Empty", () => {
   it("Should fall back to a default icon when none is provided", () => {
     const { container } = render(<Empty title="Nothing here" />);
     const iconSlot = container.querySelector('[data-slot="empty-icon"]');
+    expect(iconSlot).not.toBeNull();
     expect(iconSlot?.querySelector("svg")).not.toBeNull();
   });
 
@@ -48,5 +50,26 @@ describe("Empty", () => {
     const iconSlot = container.querySelector('[data-slot="empty-icon"]');
     expect(iconSlot).not.toBeNull();
     expect(iconSlot?.querySelector('[data-testid="inline-icon"]')).not.toBeNull();
+  });
+
+  it("Should avoid wrapping composed title content in a heading by default", () => {
+    const { container } = render(
+      <Empty
+        title={
+          <div data-testid="empty-composed-title">
+            <span>Disconnected</span>
+          </div>
+        }
+      />
+    );
+
+    const titleSlot = container.querySelector('[data-slot="empty-title"]');
+    expect(titleSlot?.tagName).toBe("DIV");
+    expect(screen.getByTestId("empty-composed-title")).toBeInTheDocument();
+  });
+
+  it("Should allow callers to override the title element explicitly", () => {
+    const { container } = render(<Empty title="Nothing here" titleAs="h2" />);
+    expect(container.querySelector('[data-slot="empty-title"]')?.tagName).toBe("H2");
   });
 });

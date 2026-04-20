@@ -60,4 +60,15 @@ describe("MonoBadge", () => {
     expect(badge?.className).toContain(background);
     expect(badge?.className).toContain(text);
   });
+
+  it("Should preserve the requested slot while keeping the component tone marker stable", () => {
+    const { container } = render(
+      <MonoBadge tone="accent" data-slot="override-slot" data-tone="override-tone">
+        token
+      </MonoBadge>
+    );
+    const badge = container.querySelector<HTMLElement>('[data-slot="override-slot"]');
+    expect(badge).not.toBeNull();
+    expect(badge?.getAttribute("data-tone")).toBe("accent");
+  });
 });

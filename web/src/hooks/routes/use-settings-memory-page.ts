@@ -81,6 +81,10 @@ export function useSettingsMemoryPage() {
         ? mutation.error.message
         : null;
 
+  const handleRetry = useCallback(() => {
+    void query.refetch();
+  }, [query]);
+
   return {
     isLoading: query.isLoading,
     error: query.error,
@@ -97,6 +101,7 @@ export function useSettingsMemoryPage() {
     handleConsolidate,
     isConsolidating: consolidate.isPending,
     actionMessage,
+    handleRetry,
     restart: page.restart,
   };
 }

@@ -1,4 +1,4 @@
-import { AlertCircle, BookOpen, ExternalLink, Loader2, Trash2 } from "lucide-react";
+import { AlertCircle, BookOpen, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button, CodeBlock, Empty, MonoBadge, Section, StatusDot } from "@agh/ui";
@@ -21,8 +21,9 @@ interface KnowledgeDetailPanelProps {
   scope?: string;
   isLoading: boolean;
   error: Error | null;
-  onDelete: (filename: string) => void;
+  onDelete: (filename: string) => Promise<void>;
   isDeletePending: boolean;
+  deleteError?: string | null;
 }
 
 interface MetadataRow {
@@ -39,6 +40,7 @@ function KnowledgeDetailPanel({
   error,
   onDelete,
   isDeletePending,
+  deleteError,
 }: KnowledgeDetailPanelProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -102,9 +104,13 @@ function KnowledgeDetailPanel({
     { key: "Modified", value: formatKnowledgeDateTime(memory.mod_time), tone: "plain" as const },
   ];
 
-  const handleConfirmDelete = () => {
-    onDelete(memory.filename);
-    setConfirmOpen(false);
+  const handleConfirmDelete = async () => {
+    try {
+      await onDelete(memory.filename);
+      setConfirmOpen(false);
+    } catch {
+      // Error state is surfaced through `deleteError` and the dialog stays open.
+    }
   };
 
   return (
@@ -204,21 +210,18 @@ function KnowledgeDetailPanel({
           <Trash2 className="size-3.5" />
           Delete
         </Button>
-        <Button
-          aria-disabled="true"
-          data-testid="view-in-cli-btn"
-          disabled
-          size="sm"
-          title="CLI deep links are not implemented yet"
-          type="button"
-          variant="ghost"
-        >
-          <ExternalLink className="size-3.5" />
-          View in CLI
-        </Button>
+        {deleteError ? (
+          <span
+            className="text-xs text-[color:var(--color-danger)]"
+            data-testid="knowledge-delete-error"
+          >
+            {deleteError}
+          </span>
+        ) : null}
       </footer>
 
       <KnowledgeDeleteDialog
+        error={deleteError}
         filename={memory.filename}
         isPending={isDeletePending}
         onConfirm={handleConfirmDelete}

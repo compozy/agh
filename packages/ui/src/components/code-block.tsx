@@ -33,18 +33,20 @@ function CodeBlock({
   ...props
 }: CodeBlockProps) {
   const [copied, setCopied] = React.useState(false);
+  const [copyFeedbackKey, setCopyFeedbackKey] = React.useState(0);
 
   React.useEffect(() => {
-    if (!copied) return;
+    if (copyFeedbackKey === 0) return;
     const timer = setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
     return () => clearTimeout(timer);
-  }, [copied]);
+  }, [copyFeedbackKey]);
 
   const handleCopy = React.useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
+      setCopyFeedbackKey(value => value + 1);
     } catch {
       // Silently ignore — some browsers block clipboard access in insecure contexts.
     }

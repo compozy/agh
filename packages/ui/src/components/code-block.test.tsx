@@ -115,4 +115,37 @@ describe("CodeBlock", () => {
     expect(button.getAttribute("data-copied")).toBeNull();
     expect(button.querySelector("svg.lucide-copy")).not.toBeNull();
   });
+
+  it("Should restart the copy feedback timer when copy is clicked repeatedly", async () => {
+    vi.useFakeTimers();
+    const { container } = render(<CodeBlock code="agh start" />);
+    const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
+
+    await act(async () => {
+      fireEvent.click(button);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(button.getAttribute("data-copied")).toBe("true");
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    await act(async () => {
+      fireEvent.click(button);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(1499);
+    });
+    expect(button.getAttribute("data-copied")).toBe("true");
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(button.getAttribute("data-copied")).toBeNull();
+  });
 });

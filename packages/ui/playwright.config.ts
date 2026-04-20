@@ -7,8 +7,17 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const outDir = path.join(rootDir, ".tmp", "playwright");
 const snapshotDir = path.join(rootDir, "src", "components", "stories", "__snapshots__");
 
-const STORYBOOK_PORT = Number(process.env.AGH_UI_STORYBOOK_PORT ?? 6007);
+const rawStorybookPort = process.env.AGH_UI_STORYBOOK_PORT ?? "6007";
+const STORYBOOK_PORT = parseStorybookPort(rawStorybookPort);
 export const STORYBOOK_URL = `http://127.0.0.1:${STORYBOOK_PORT}`;
+
+function parseStorybookPort(rawPort: string): number {
+  const port = Number(rawPort);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`Invalid AGH_UI_STORYBOOK_PORT: ${rawPort}`);
+  }
+  return port;
+}
 
 export default defineConfig({
   testDir: "./tests/visual",
@@ -45,7 +54,6 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
     },
   ],
   webServer: {

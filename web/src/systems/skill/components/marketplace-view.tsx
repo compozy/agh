@@ -1,7 +1,10 @@
-import { Download, Wrench } from "lucide-react";
+import { AlertCircle, Download, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   Button,
   Card,
   CardContent,
@@ -29,6 +32,8 @@ interface MarketplaceViewProps {
   onInstall?: (name: string) => void;
   isInstalling: boolean;
   installUnavailableReason?: string;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
 }
 
 interface MarketplaceCardProps {
@@ -36,20 +41,12 @@ interface MarketplaceCardProps {
   isInstalled: boolean;
   onInstall?: () => void;
   isInstalling: boolean;
-  installUnavailableReason?: string;
 }
 
-function MarketplaceCard({
-  skill,
-  isInstalled,
-  onInstall,
-  isInstalling,
-  installUnavailableReason,
-}: MarketplaceCardProps) {
+function MarketplaceCard({ skill, isInstalled, onInstall, isInstalling }: MarketplaceCardProps) {
   const author = deriveSkillAuthor(skill);
   const tags = deriveSkillTags(skill);
   const downloads = skill.metadata?.downloads;
-  const installDisabled = isInstalling || !onInstall;
 
   return (
     <Card className="flex flex-col gap-3" data-testid={`marketplace-row-${skill.name}`} size="sm">
@@ -102,19 +99,27 @@ function MarketplaceCard({
           <MonoBadge data-testid={`installed-pill-${skill.name}`} tone="success">
             INSTALLED
           </MonoBadge>
-        ) : (
+        ) : onInstall ? (
           <Button
-            aria-disabled={installDisabled}
             data-testid={`install-btn-${skill.name}`}
-            disabled={installDisabled}
-            onClick={() => onInstall?.()}
+            disabled={isInstalling}
+            onClick={() => onInstall()}
             size="sm"
-            title={!onInstall ? installUnavailableReason : undefined}
             type="button"
             variant="outline"
           >
             Install
           </Button>
+        ) : (
+          <div
+            className="flex items-center gap-2 text-[11px] text-[color:var(--color-text-secondary)]"
+            data-testid={`catalog-state-${skill.name}`}
+          >
+            <MonoBadge data-testid={`readonly-pill-${skill.name}`} tone="neutral">
+              READ ONLY
+            </MonoBadge>
+            <span>Metadata only</span>
+          </div>
         )}
       </CardFooter>
     </Card>
@@ -127,9 +132,15 @@ function MarketplaceView({
   onInstall,
   isInstalling,
   installUnavailableReason,
+  searchQuery,
+  onSearchChange,
 }: MarketplaceViewProps) {
-  const [search, setSearch] = useState("");
+  const [localSearch, setLocalSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<MarketplaceCategory>("ALL");
+  const search = searchQuery ?? localSearch;
+  const handleSearchChange = onSearchChange ?? setLocalSearch;
+  const isBrowseOnly = !onInstall;
+  const hasFilters = search.trim() !== "" || activeCategory !== "ALL";
 
   const filtered = useMemo(() => {
     const byQuery = filterSkillsByQuery(skills, search);
@@ -139,10 +150,22 @@ function MarketplaceView({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="marketplace-view">
       <div className="flex flex-col gap-3 border-b border-[color:var(--color-divider)] px-4 py-3">
+        {isBrowseOnly && installUnavailableReason ? (
+          <Alert data-testid="marketplace-readonly-notice" variant="warning">
+            <AlertCircle aria-hidden="true" className="size-4" />
+            <AlertTitle>Installed marketplace metadata only</AlertTitle>
+            <AlertDescription>{installUnavailableReason}</AlertDescription>
+          </Alert>
+        ) : null}
         <SearchInput
+          aria-label={
+            isBrowseOnly ? "Filter installed marketplace skills" : "Search marketplace skills"
+          }
           data-testid="marketplace-search-input"
-          onChange={setSearch}
-          placeholder="Search skills on marketplace…"
+          onChange={handleSearchChange}
+          placeholder={
+            isBrowseOnly ? "Filter installed marketplace skills…" : "Search skills on marketplace…"
+          }
           value={search}
         />
         <Pills
@@ -167,12 +190,16 @@ function MarketplaceView({
             <Empty
               className="max-w-sm"
               description={
-                search.trim() !== "" || activeCategory !== "ALL"
-                  ? "No skills match the current filters."
-                  : "No skills found on the marketplace."
+                isBrowseOnly
+                  ? hasFilters
+                    ? "No installed marketplace skills match the current filters."
+                    : "No marketplace-installed skills are available in this workspace yet."
+                  : hasFilters
+                    ? "No skills match the current filters."
+                    : "No skills found on the marketplace."
               }
               icon={Wrench}
-              title="No skills found"
+              title={isBrowseOnly ? "No marketplace-installed skills" : "No skills found"}
             />
           </div>
         ) : (
@@ -182,7 +209,6 @@ function MarketplaceView({
           >
             {filtered.map(skill => (
               <MarketplaceCard
-                installUnavailableReason={installUnavailableReason}
                 isInstalled={installedSkillNames.has(skill.name)}
                 isInstalling={isInstalling}
                 key={skill.name}

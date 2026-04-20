@@ -1,6 +1,6 @@
 import { AlertCircle, AlertTriangle, Check, Loader2, Puzzle, Webhook, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
-import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
 import {
   Alert,
@@ -32,6 +32,7 @@ import type {
 } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsNumberInput,
   SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
@@ -82,6 +83,9 @@ function HooksExtensionsSettingsPage() {
           <p className="text-sm text-[color:var(--color-text-tertiary)]">
             {page.error?.message ?? "Failed to load hooks & extensions settings"}
           </p>
+          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -120,6 +124,7 @@ function HooksExtensionsSettingsPage() {
         hooks={hooks}
         pendingHookName={page.pendingHookName}
         hookError={page.hookError}
+        canMutate={page.canMutateHooks}
         onToggle={page.toggleHookEnabled}
       />
 
@@ -142,6 +147,7 @@ function HooksExtensionsSettingsPage() {
         isSaving={page.isSavingPolicy}
         error={page.savePolicyError}
         warnings={page.policyWarnings}
+        canMutate={page.canMutatePolicy}
         onSave={page.handleSavePolicy}
         onReset={page.handleResetPolicy}
       />
@@ -156,6 +162,7 @@ function TransportParityBanner({
 }) {
   if (!parity || !parity.known) return null;
   if (parity.extensions_http && parity.settings_http) return null;
+  const unavailable = describeUnavailableHttpOperations(parity);
 
   return (
     <Alert
@@ -168,22 +175,42 @@ function TransportParityBanner({
         <span className="font-medium text-[color:var(--color-warning)]">
           Some operations are unavailable over HTTP.
         </span>{" "}
-        HTTP is bound outside the loopback host. Extension enable/disable and policy edits stay
-        available over UDS but return 403 on HTTP. Use the CLI or rebind to loopback to edit from
-        the web app.
+        HTTP is bound outside the loopback host. {unavailable} stay available over UDS but return
+        403 on HTTP. Use the CLI or rebind to loopback to edit from the web app.
       </AlertDescription>
     </Alert>
   );
+}
+
+function describeUnavailableHttpOperations(parity: SettingsHooksExtensionsTransportParity): string {
+  const operations: string[] = [];
+  if (parity.settings_http === false) {
+    operations.push("Hook toggles and policy edits");
+  }
+  if (parity.extensions_http === false) {
+    operations.push("Extension enable/disable");
+  }
+
+  if (operations.length === 0) return "These operations";
+  if (operations.length === 1) return operations[0];
+  return `${operations.slice(0, -1).join(", ")} and ${operations.at(-1)}`;
 }
 
 interface HooksSectionProps {
   hooks: SettingsHookEntry[];
   pendingHookName: string | null;
   hookError: string | null;
+  canMutate: boolean;
   onToggle: (entry: SettingsHookEntry, nextEnabled: boolean) => void;
 }
 
-function HooksSection({ hooks, pendingHookName, hookError, onToggle }: HooksSectionProps) {
+function HooksSection({
+  hooks,
+  pendingHookName,
+  hookError,
+  canMutate,
+  onToggle,
+}: HooksSectionProps) {
   return (
     <SettingsSectionCard
       data-testid="settings-page-hooks-extensions-hooks-section"
@@ -236,6 +263,7 @@ function HooksSection({ hooks, pendingHookName, hookError, onToggle }: HooksSect
                   key={entry.name}
                   entry={entry}
                   pending={pendingHookName === entry.name}
+                  canMutate={canMutate}
                   onToggle={onToggle}
                 />
               ))}
@@ -250,10 +278,12 @@ function HooksSection({ hooks, pendingHookName, hookError, onToggle }: HooksSect
 function HookRow({
   entry,
   pending,
+  canMutate,
   onToggle,
 }: {
   entry: SettingsHookEntry;
   pending: boolean;
+  canMutate: boolean;
   onToggle: (entry: SettingsHookEntry, nextEnabled: boolean) => void;
 }) {
   const declaration = entry.declaration;
@@ -295,7 +325,7 @@ function HookRow({
           <Switch
             data-testid={`settings-page-hooks-extensions-hooks-row-${entry.name}-toggle`}
             checked={enabled}
-            disabled={pending}
+            disabled={pending || !canMutate}
             onCheckedChange={checked => onToggle(entry, checked)}
             aria-label={`Toggle hook ${entry.name}`}
           />
@@ -449,6 +479,7 @@ interface PolicySectionProps {
   isSaving: boolean;
   error: string | null;
   warnings?: string[];
+  canMutate: boolean;
   onSave: () => void;
   onReset: () => void;
 }
@@ -461,9 +492,24 @@ function PolicySection({
   isSaving,
   error,
   warnings,
+  canMutate,
   onSave,
   onReset,
 }: PolicySectionProps) {
+  const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
+  const setValidationError = useCallback(
+    (key: string) => (message: string | null) => {
+      setValidationErrors(current =>
+        current[key] === message ? current : { ...current, [key]: message }
+      );
+    },
+    []
+  );
+  const isInvalid = useMemo(
+    () => Object.values(validationErrors).some(message => message !== null),
+    [validationErrors]
+  );
+
   return (
     <SettingsSectionCard
       data-testid="settings-page-hooks-extensions-policy-section"
@@ -473,6 +519,8 @@ function PolicySection({
         <SaveControls
           isDirty={isDirty}
           isSaving={isSaving}
+          isInvalid={isInvalid}
+          canMutate={canMutate}
           error={error}
           warnings={warnings}
           onSave={onSave}
@@ -490,6 +538,7 @@ function PolicySection({
             className="w-56"
             data-testid="settings-page-hooks-extensions-policy-registry-input"
             value={draft.marketplace.registry ?? ""}
+            disabled={!canMutate}
             onChange={event =>
               setDraft({
                 ...draft,
@@ -510,6 +559,7 @@ function PolicySection({
             data-testid="settings-page-hooks-extensions-policy-base-url-input"
             value={draft.marketplace.base_url ?? ""}
             placeholder="https://"
+            disabled={!canMutate}
             onChange={event =>
               setDraft({
                 ...draft,
@@ -521,6 +571,7 @@ function PolicySection({
       />
       <AllowedKindsField
         selected={draft.resources.allowed_kinds ?? []}
+        disabled={!canMutate}
         onToggle={onToggleAllowedKind}
       />
       <SettingsFieldRow
@@ -533,6 +584,7 @@ function PolicySection({
             className="w-40 font-mono"
             data-testid="settings-page-hooks-extensions-policy-max-scope-input"
             value={draft.resources.max_scope ?? "workspace"}
+            disabled={!canMutate}
             onChange={event =>
               setDraft({
                 ...draft,
@@ -556,6 +608,13 @@ function PolicySection({
         label="Snapshot rate limit"
         description="Published snapshots per window (queue = burst)"
         value={draft.resources.snapshot_rate_limit}
+        errorMessage={combineErrorMessages(
+          validationErrors.snapshotRateRequests,
+          validationErrors.snapshotRateQueue
+        )}
+        canMutate={canMutate}
+        onRequestsValidityChange={setValidationError("snapshotRateRequests")}
+        onQueueValidityChange={setValidationError("snapshotRateQueue")}
         onChange={next =>
           setDraft({
             ...draft,
@@ -568,6 +627,13 @@ function PolicySection({
         label="Operator write rate limit"
         description="Operator writes per window (queue = burst)"
         value={draft.resources.operator_write_rate_limit}
+        errorMessage={combineErrorMessages(
+          validationErrors.operatorRateRequests,
+          validationErrors.operatorRateQueue
+        )}
+        canMutate={canMutate}
+        onRequestsValidityChange={setValidationError("operatorRateRequests")}
+        onQueueValidityChange={setValidationError("operatorRateQueue")}
         onChange={next =>
           setDraft({
             ...draft,
@@ -581,9 +647,11 @@ function PolicySection({
 
 function AllowedKindsField({
   selected,
+  disabled,
   onToggle,
 }: {
   selected: string[];
+  disabled: boolean;
   onToggle: (kind: string) => void;
 }) {
   return (
@@ -603,6 +671,7 @@ function AllowedKindsField({
               <button
                 key={kind}
                 type="button"
+                disabled={disabled}
                 onClick={() => onToggle(kind)}
                 data-testid={`settings-page-hooks-extensions-policy-allowed-kinds-${kind}`}
                 data-active={active ? "true" : "false"}
@@ -620,17 +689,30 @@ function AllowedKindsField({
 
 type RateLimit = PolicyConfig["resources"]["snapshot_rate_limit"];
 
+function combineErrorMessages(...messages: Array<string | null | undefined>): string | undefined {
+  const visible = messages.filter(Boolean);
+  return visible.length > 0 ? visible.join(" ") : undefined;
+}
+
 function RateLimitRow({
   testId,
   label,
   description,
   value,
+  errorMessage,
+  canMutate,
+  onRequestsValidityChange,
+  onQueueValidityChange,
   onChange,
 }: {
   testId: string;
   label: string;
   description: string;
   value: RateLimit;
+  errorMessage?: string;
+  canMutate: boolean;
+  onRequestsValidityChange: (message: string | null) => void;
+  onQueueValidityChange: (message: string | null) => void;
   onChange: (next: RateLimit) => void;
 }) {
   return (
@@ -638,14 +720,19 @@ function RateLimitRow({
       data-testid={testId}
       label={label}
       description={description}
+      error={errorMessage}
       hint="LIMIT"
       control={
         <div className="flex items-center gap-1.5">
-          <NumberInput
-            testId={`${testId}-requests`}
+          <SettingsNumberInput
+            min={0}
+            className="w-16 font-mono"
+            data-testid={`${testId}-requests`}
             value={value.requests}
             placeholder="reqs"
-            onChange={next => onChange({ ...value, requests: next })}
+            disabled={!canMutate}
+            onValidityChange={onRequestsValidityChange}
+            onValueChange={next => onChange({ ...value, requests: next })}
           />
           <span className="font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
             per
@@ -655,16 +742,21 @@ function RateLimitRow({
             data-testid={`${testId}-window`}
             value={value.window}
             placeholder="5m"
+            disabled={!canMutate}
             onChange={event => onChange({ ...value, window: event.target.value })}
           />
           <span className="font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
             queue
           </span>
-          <NumberInput
-            testId={`${testId}-queue`}
+          <SettingsNumberInput
+            min={0}
+            className="w-16 font-mono"
+            data-testid={`${testId}-queue`}
             value={value.queue}
             placeholder="queue"
-            onChange={next => onChange({ ...value, queue: next })}
+            disabled={!canMutate}
+            onValidityChange={onQueueValidityChange}
+            onValueChange={next => onChange({ ...value, queue: next })}
           />
         </div>
       }
@@ -672,65 +764,72 @@ function RateLimitRow({
   );
 }
 
-function NumberInput({
-  testId,
-  value,
-  placeholder,
-  onChange,
-}: {
-  testId: string;
-  value: number;
-  placeholder: string;
-  onChange: (next: number) => void;
-}) {
-  return (
-    <Input
-      className="w-16 font-mono"
-      data-testid={testId}
-      type="number"
-      min={0}
-      value={value}
-      placeholder={placeholder}
-      onChange={event => {
-        const parsed = Number.parseInt(event.target.value, 10);
-        onChange(Number.isFinite(parsed) ? parsed : 0);
-      }}
-    />
-  );
-}
-
 interface SaveControlsProps {
   isDirty: boolean;
   isSaving: boolean;
+  isInvalid: boolean;
+  canMutate: boolean;
   error: string | null;
   warnings?: string[];
   onSave: () => void;
   onReset: () => void;
 }
 
-function SaveControls({ isDirty, isSaving, error, warnings, onSave, onReset }: SaveControlsProps) {
-  const disabled = !isDirty || isSaving;
+function SaveControls({
+  isDirty,
+  isSaving,
+  isInvalid,
+  canMutate,
+  error,
+  warnings,
+  onSave,
+  onReset,
+}: SaveControlsProps) {
+  const disabled = !isDirty || isSaving || isInvalid || !canMutate;
   return (
     <div
       className="flex items-center gap-2"
       data-testid="settings-page-hooks-extensions-policy-controls"
       data-dirty={isDirty ? "true" : "false"}
     >
-      {error ? (
-        <span
-          className="text-xs text-[color:var(--color-danger)]"
-          data-testid="settings-page-hooks-extensions-policy-error"
-        >
-          {error}
-        </span>
-      ) : warnings && warnings.length > 0 ? (
-        <span
-          className="text-xs text-[color:var(--color-warning)]"
-          data-testid="settings-page-hooks-extensions-policy-warning"
-        >
-          {warnings.join(" · ")}
-        </span>
-      ) : null}
+      <div className="min-w-0" role="status" aria-live={error ? "assertive" : "polite"}>
+        {error ? (
+          <span
+            className="text-xs text-[color:var(--color-danger)]"
+            data-testid="settings-page-hooks-extensions-policy-error"
+          >
+            {error}
+          </span>
+        ) : warnings && warnings.length > 0 ? (
+          <span
+            className="text-xs text-[color:var(--color-warning)]"
+            data-testid="settings-page-hooks-extensions-policy-warning"
+          >
+            {warnings.join(" · ")}
+          </span>
+        ) : !canMutate ? (
+          <span
+            className="text-xs text-[color:var(--color-warning)]"
+            data-testid="settings-page-hooks-extensions-policy-unavailable"
+          >
+            Policy edits are unavailable over HTTP
+          </span>
+        ) : isInvalid ? (
+          <span
+            className="text-xs text-[color:var(--color-warning)]"
+            data-testid="settings-page-hooks-extensions-policy-invalid"
+          >
+            Resolve validation errors before saving
+          </span>
+        ) : isDirty ? (
+          <span
+            className="text-xs text-[color:var(--color-text-tertiary)]"
+            data-testid="settings-page-hooks-extensions-policy-dirty"
+          >
+            Unsaved changes
+          </span>
+        ) : null}
+      </div>
       <Button
         type="button"
         variant="ghost"

@@ -975,6 +975,7 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 	runtime.mu.RUnlock()
 	if httpServer == nil {
 		t.Fatal("runtime.server = nil, want initialized webhook server")
+		return
 	}
 	if got, want := httpServer.ReadHeaderTimeout, gchatWebhookReadHeaderTimeout; got != want {
 		t.Fatalf("ReadHeaderTimeout = %s, want %s", got, want)
@@ -1327,6 +1328,22 @@ func TestGChatWebhookHandlersUseRequestContext(t *testing.T) {
 	t.Setenv(gchatTokenURLEnv, server.TokenURL())
 	t.Setenv(gchatDirectCertsEnv, server.DirectCertsURL())
 	t.Setenv(gchatPubSubCertsEnv, server.PubSubCertsURL())
+	runtime.apiFactory = func(cfg resolvedInstanceConfig) gchatAPI {
+		client := &gchatBotClient{
+			cfg: cfg,
+			httpClient: &http.Client{
+				Timeout: 10 * time.Second,
+			},
+		}
+		return &contextCheckingGChatAPI{
+			t:            t,
+			validateAuth: client.ValidateAuth,
+			message: gchatMessage{
+				Name:  "spaces/AAA/messages/msg-react",
+				Space: &gchatSpace{Name: "spaces/AAA", Type: "SPACE"},
+			},
+		}
+	}
 
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
@@ -1335,15 +1352,6 @@ func TestGChatWebhookHandlersUseRequestContext(t *testing.T) {
 	cfg, err := runtime.waitForInstanceConfig("brg-gchat-ctx", time.Second)
 	if err != nil {
 		t.Fatalf("waitForInstanceConfig() error = %v", err)
-	}
-	runtime.apiFactory = func(resolvedInstanceConfig) gchatAPI {
-		return &contextCheckingGChatAPI{
-			t: t,
-			message: gchatMessage{
-				Name:  "spaces/AAA/messages/msg-react",
-				Space: &gchatSpace{Name: "spaces/AAA", Type: "SPACE"},
-			},
-		}
 	}
 
 	canceledCtx, cancel := context.WithCancel(context.Background())
@@ -2042,11 +2050,17 @@ func (f *fakeGChatAPI) GetMessage(_ context.Context, messageName string) (*gchat
 }
 
 type contextCheckingGChatAPI struct {
-	t       *testing.T
-	message gchatMessage
+	t            *testing.T
+	message      gchatMessage
+	validateAuth func(context.Context) error
 }
 
-func (c *contextCheckingGChatAPI) ValidateAuth(context.Context) error { return nil }
+func (c *contextCheckingGChatAPI) ValidateAuth(ctx context.Context) error {
+	if c.validateAuth != nil {
+		return c.validateAuth(ctx)
+	}
+	return nil
+}
 
 func (c *contextCheckingGChatAPI) CreateMessage(context.Context, gchatCreateMessageRequest) (*gchatSentMessage, error) {
 	return nil, errors.New("unsupported")

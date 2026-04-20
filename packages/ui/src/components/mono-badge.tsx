@@ -37,19 +37,23 @@ const monoBadgeVariants = cva(
 export type MonoBadgeTone = NonNullable<VariantProps<typeof monoBadgeVariants>["tone"]>;
 
 export interface MonoBadgeProps
-  extends Omit<React.ComponentProps<"span">, "color">, VariantProps<typeof monoBadgeVariants> {}
+  extends Omit<React.ComponentProps<"span">, "color">, VariantProps<typeof monoBadgeVariants> {
+  "data-slot"?: string;
+}
 
 /**
  * Inline mono pill for identifiers (agent IDs, versions, protocol names) and
  * status badges. Uppercase by default, tinted via the DESIGN.md §4 tint formula.
  */
 function MonoBadge({ tone, uppercase, className, ...props }: MonoBadgeProps) {
+  const dataSlot = props["data-slot"] ?? "mono-badge";
+
   return (
     <span
-      data-slot="mono-badge"
+      {...props}
+      data-slot={dataSlot}
       data-tone={tone ?? "default"}
       className={cn(monoBadgeVariants({ tone, uppercase }), className)}
-      {...props}
     />
   );
 }

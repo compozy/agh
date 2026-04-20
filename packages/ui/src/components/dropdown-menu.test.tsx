@@ -66,6 +66,7 @@ describe("DropdownMenu", () => {
     );
     await user.click(screen.getByRole("button", { name: "Open" }));
     await user.click(await screen.findByRole("menuitem", { name: "Rename" }));
+    expect(handleClick).toHaveBeenCalledTimes(1);
     expect(handleClick).toHaveBeenCalled();
   });
 
@@ -84,6 +85,7 @@ describe("DropdownMenu", () => {
     );
     await user.click(screen.getByRole("button", { name: "Open" }));
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "Auto-scroll" }));
+    expect(handleChange).toHaveBeenCalledTimes(1);
     expect(handleChange).toHaveBeenCalledWith(true, expect.anything());
   });
 
@@ -103,6 +105,7 @@ describe("DropdownMenu", () => {
     );
     await user.click(screen.getByRole("button", { name: "Open" }));
     await user.click(await screen.findByRole("menuitemradio", { name: "Warning" }));
+    expect(handleChange).toHaveBeenCalledTimes(1);
     expect(handleChange).toHaveBeenCalledWith("warning", expect.anything());
   });
 });

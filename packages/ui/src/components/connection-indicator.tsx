@@ -35,6 +35,8 @@ function ConnectionIndicator({ status, label, className, ...props }: ConnectionI
     <div
       data-slot="connection-indicator"
       data-status={status}
+      role="status"
+      aria-live="polite"
       className={cn("inline-flex items-center gap-2", className)}
       {...props}
     >

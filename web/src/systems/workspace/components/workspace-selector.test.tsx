@@ -55,16 +55,24 @@ describe("WorkspaceSelector", () => {
     expect(screen.getByTestId("workspace-selector-dot-ws_alpha")).toBeInTheDocument();
   });
 
-  it("highlights the active workspace via aria-pressed + data-active", () => {
+  it("highlights the active workspace via aria-current + data-active", () => {
     renderSelector({ activeWorkspaceId: "ws_beta" });
 
     const activeRow = screen.getByTestId("workspace-selector-item-ws_beta");
-    expect(activeRow).toHaveAttribute("aria-pressed", "true");
+    expect(activeRow).toHaveAttribute("aria-current", "true");
     expect(activeRow).toHaveAttribute("data-active", "true");
 
     const inactiveRow = screen.getByTestId("workspace-selector-item-ws_alpha");
-    expect(inactiveRow).toHaveAttribute("aria-pressed", "false");
+    expect(inactiveRow).not.toHaveAttribute("aria-current");
     expect(inactiveRow).toHaveAttribute("data-active", "false");
+  });
+
+  it("uses native list + button semantics instead of a broken listbox pattern", () => {
+    renderSelector();
+
+    expect(screen.getByTestId("workspace-selector")).not.toHaveAttribute("role");
+    expect(screen.getByTestId("workspace-selector-item-ws_alpha")).not.toHaveAttribute("role");
+    expect(screen.getByTestId("workspace-selector-item-ws_beta")).not.toHaveAttribute("role");
   });
 
   it("calls onSelectWorkspace with the id when a row is clicked", () => {

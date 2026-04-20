@@ -56,6 +56,9 @@ function SkillsSettingsPage() {
           <p className="text-sm text-[color:var(--color-text-tertiary)]">
             {page.error?.message ?? "Failed to load skills settings"}
           </p>
+          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -415,34 +418,45 @@ function SaveControls({
   onReset,
 }: SaveControlsProps) {
   const disabled = !isDirty || isSaving;
+  const liveRegion = error ? "assertive" : "polite";
+
   return (
     <div
       className="flex items-center gap-2"
       data-testid={`settings-page-skills-${slug}-controls`}
       data-dirty={isDirty ? "true" : "false"}
     >
-      {error ? (
-        <span
-          className="text-xs text-[color:var(--color-danger)]"
-          data-testid={`settings-page-skills-${slug}-error`}
-        >
-          {error}
-        </span>
-      ) : warnings && warnings.length > 0 ? (
-        <span
-          className="text-xs text-[color:var(--color-warning)]"
-          data-testid={`settings-page-skills-${slug}-warning`}
-        >
-          {warnings.join(" · ")}
-        </span>
-      ) : lastAppliedLabel ? (
-        <span
-          className="text-xs text-[color:var(--color-text-tertiary)]"
-          data-testid={`settings-page-skills-${slug}-applied`}
-        >
-          {lastAppliedLabel}
-        </span>
-      ) : null}
+      <div className="min-w-0" role="status" aria-live={liveRegion}>
+        {error ? (
+          <span
+            className="text-xs text-[color:var(--color-danger)]"
+            data-testid={`settings-page-skills-${slug}-error`}
+          >
+            {error}
+          </span>
+        ) : warnings && warnings.length > 0 ? (
+          <span
+            className="text-xs text-[color:var(--color-warning)]"
+            data-testid={`settings-page-skills-${slug}-warning`}
+          >
+            {warnings.join(" · ")}
+          </span>
+        ) : isDirty ? (
+          <span
+            className="text-xs text-[color:var(--color-text-tertiary)]"
+            data-testid={`settings-page-skills-${slug}-dirty`}
+          >
+            Unsaved changes
+          </span>
+        ) : lastAppliedLabel ? (
+          <span
+            className="text-xs text-[color:var(--color-text-tertiary)]"
+            data-testid={`settings-page-skills-${slug}-applied`}
+          >
+            {lastAppliedLabel}
+          </span>
+        ) : null}
+      </div>
       <Button
         type="button"
         variant="ghost"

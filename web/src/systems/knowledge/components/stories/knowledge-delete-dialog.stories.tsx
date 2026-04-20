@@ -19,7 +19,7 @@ export const Default: Story = {
     <KnowledgeDeleteDialog
       filename="workspace/project-context.md"
       isPending={false}
-      onConfirm={() => undefined}
+      onConfirm={async () => {}}
       onOpenChange={() => undefined}
       open
       scope="workspace"
@@ -32,7 +32,7 @@ export const PendingDelete: Story = {
     <KnowledgeDeleteDialog
       filename="global/user-role.md"
       isPending
-      onConfirm={() => undefined}
+      onConfirm={async () => {}}
       onOpenChange={() => undefined}
       open
       scope="global"

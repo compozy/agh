@@ -1,3 +1,4 @@
+import * as React from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +20,14 @@ let mockSkillContent: string | undefined;
 let mockSkillContentLoading = false;
 let mockSkillContentError: Error | null = null;
 const mockRefetchSkillContent = vi.fn();
+const routerState = vi.hoisted(() => ({
+  navigateMock: vi.fn(),
+  searchListeners: new Set<(search: Record<string, unknown>) => void>(),
+  searchParams: {} as Record<string, unknown>,
+  validateSearch: undefined as
+    | ((search: Record<string, unknown>) => Record<string, unknown>)
+    | undefined,
+}));
 
 const mockDisableMutate = vi.fn();
 const mockEnableMutate = vi.fn();
@@ -29,10 +38,58 @@ let mockEnablePending = false;
 // Mocks
 // ---------------------------------------------------------------------------
 
+function getValidatedSearch() {
+  return routerState.validateSearch
+    ? routerState.validateSearch(routerState.searchParams)
+    : routerState.searchParams;
+}
+
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (opts: { component: () => React.ReactNode }) => ({
-    component: opts.component,
-  }),
+  createFileRoute:
+    () =>
+    (opts: {
+      component: () => React.ReactNode;
+      validateSearch?: (search: Record<string, unknown>) => Record<string, unknown>;
+    }) => {
+      routerState.validateSearch = opts.validateSearch;
+
+      return {
+        component: opts.component,
+        useSearch: () => {
+          const [search, setSearch] = React.useState(getValidatedSearch());
+
+          React.useEffect(() => {
+            routerState.searchListeners.add(setSearch);
+            return () => {
+              routerState.searchListeners.delete(setSearch);
+            };
+          }, []);
+
+          return search;
+        },
+      };
+    },
+  useNavigate:
+    () =>
+    async (options: {
+      search?:
+        | Record<string, unknown>
+        | ((current: Record<string, unknown>) => Record<string, unknown>);
+      to: string;
+    }) => {
+      if (typeof options.search === "function") {
+        routerState.searchParams = options.search(getValidatedSearch());
+      } else if (options.search) {
+        routerState.searchParams = options.search;
+      }
+
+      const nextSearch = getValidatedSearch();
+      for (const listener of routerState.searchListeners) {
+        listener(nextSearch);
+      }
+
+      routerState.navigateMock(options);
+    },
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -161,6 +218,9 @@ describe("SkillsPage", () => {
     mockEnablePending = false;
     mockDisableMutate.mockReset();
     mockEnableMutate.mockReset();
+    routerState.searchListeners.clear();
+    routerState.searchParams = {};
+    routerState.navigateMock.mockReset();
   });
 
   // -----------------------------------------------------------------------
@@ -180,6 +240,7 @@ describe("SkillsPage", () => {
     await user.click(screen.getByTestId("tab-marketplace"));
 
     expect(screen.getByTestId("marketplace-view")).toBeInTheDocument();
+    expect(getValidatedSearch()).toMatchObject({ tab: "marketplace" });
     expect(screen.queryByTestId("skill-list-panel")).not.toBeInTheDocument();
   });
 
@@ -191,7 +252,17 @@ describe("SkillsPage", () => {
     expect(screen.getByTestId("marketplace-view")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("tab-installed"));
+    expect(getValidatedSearch().tab).toBeUndefined();
     expect(screen.getByTestId("skill-list-panel")).toBeInTheDocument();
+  });
+
+  it("restores tab state from URL search", () => {
+    routerState.searchParams = { q: "mp-plugin", tab: "marketplace" };
+
+    render(<SkillsPage />);
+
+    expect(screen.getByTestId("marketplace-view")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-search-input")).toHaveValue("mp-plugin");
   });
 
   it("shows total skill count badge in header", () => {
@@ -227,6 +298,7 @@ describe("SkillsPage", () => {
 
     await user.click(screen.getByTestId("skill-item-beta-skill"));
 
+    expect(getValidatedSearch()).toMatchObject({ skill: "beta-skill" });
     const item = screen.getByTestId("skill-item-beta-skill");
     const indicator = within(item).getByTestId("skill-active-indicator");
     expect(indicator).toBeInTheDocument();
@@ -244,6 +316,24 @@ describe("SkillsPage", () => {
     render(<SkillsPage />);
     const detailPanel = screen.getByTestId("skill-detail-panel");
     expect(within(detailPanel).getByTestId("skill-detail-title")).toHaveTextContent("alpha-skill");
+  });
+
+  it("restores selected skill, requested content, and query from URL search", () => {
+    routerState.searchParams = {
+      content: "beta-skill",
+      q: "beta",
+      skill: "beta-skill",
+    };
+    mockSkillDetail = makeSkill({ name: "beta-skill", source: "bundled", enabled: false });
+    mockSkillContent = "## Beta instructions";
+
+    render(<SkillsPage />);
+
+    expect(screen.getByTestId("skill-search-input")).toHaveValue("beta");
+    expect(
+      within(screen.getByTestId("skill-item-beta-skill")).getByTestId("skill-active-indicator")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("content-body")).toHaveTextContent("Beta instructions");
   });
 
   // -----------------------------------------------------------------------
@@ -329,6 +419,7 @@ describe("SkillsPage", () => {
     const searchInput = screen.getByTestId("skill-search-input");
     await user.type(searchInput, "alpha");
 
+    expect(getValidatedSearch()).toMatchObject({ q: "alpha" });
     expect(screen.getByTestId("skill-item-alpha-skill")).toBeInTheDocument();
     expect(screen.queryByTestId("skill-item-beta-skill")).not.toBeInTheDocument();
     expect(screen.queryByTestId("skill-item-ws-tool")).not.toBeInTheDocument();
@@ -370,9 +461,17 @@ describe("SkillsPage", () => {
 
     await user.click(screen.getByTestId("tab-marketplace"));
 
+    expect(screen.getByTestId("marketplace-readonly-notice")).toHaveTextContent(
+      "The daemon API only exposes metadata for already installed marketplace skills here."
+    );
+    expect(screen.getByTestId("marketplace-row-mp-plugin")).toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-row-alpha-skill")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-row-ws-tool")).not.toBeInTheDocument();
+
     const searchInput = screen.getByTestId("marketplace-search-input");
     await user.type(searchInput, "mp-plugin");
 
+    expect(getValidatedSearch()).toMatchObject({ q: "mp-plugin", tab: "marketplace" });
     expect(screen.getByTestId("marketplace-row-mp-plugin")).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-row-alpha-skill")).not.toBeInTheDocument();
   });
@@ -394,8 +493,8 @@ describe("SkillsPage", () => {
 
     await user.click(screen.getByTestId("tab-marketplace"));
 
-    // All skills in our mock are "installed"
-    expect(screen.getByTestId("installed-pill-alpha-skill")).toHaveTextContent("INSTALLED");
+    expect(screen.getByTestId("installed-pill-mp-plugin")).toHaveTextContent("INSTALLED");
+    expect(screen.queryByTestId("installed-pill-alpha-skill")).not.toBeInTheDocument();
   });
 
   it("marketplace category filter shows Empty when nothing matches", async () => {
@@ -407,6 +506,9 @@ describe("SkillsPage", () => {
     await user.click(screen.getByTestId("category-chip-DATABASE"));
 
     expect(screen.getByTestId("marketplace-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-empty")).toHaveTextContent(
+      "No installed marketplace skills match the current filters."
+    );
   });
 
   // -----------------------------------------------------------------------
@@ -428,6 +530,17 @@ describe("SkillsPage", () => {
 
     expect(screen.getByTestId("skills-error")).toBeInTheDocument();
     expect(screen.getByText("Network failure")).toBeInTheDocument();
+  });
+
+  it("keeps stale skills visible when a background refresh fails", () => {
+    mockSkillsError = new Error("Refresh failed");
+    mockSkills = ALL_SKILLS;
+
+    render(<SkillsPage />);
+
+    expect(screen.queryByTestId("skills-error")).not.toBeInTheDocument();
+    expect(screen.getByTestId("skills-background-error")).toHaveTextContent("Refresh failed");
+    expect(screen.getByTestId("skill-list-panel")).toBeInTheDocument();
   });
 
   it("empty skills list shows empty message in list panel", () => {
@@ -497,6 +610,10 @@ describe("SkillsPage", () => {
     expect(screen.queryByTestId("content-body")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("view-full-content-btn"));
 
+    expect(getValidatedSearch()).toMatchObject({
+      content: "alpha-skill",
+      skill: "alpha-skill",
+    });
     expect(screen.getByTestId("content-body")).toBeInTheDocument();
     expect(screen.getByText(/Skill instructions/)).toBeInTheDocument();
   });

@@ -117,7 +117,8 @@ describe("KnowledgeListPanel", () => {
   it("emits onSearchChange with the typed query", () => {
     const onSearchChange = vi.fn();
     renderPanel({ onSearchChange });
-    const input = screen.getByTestId("knowledge-search-input");
+    const input = screen.getByLabelText("Search knowledge");
+    expect(input).toHaveAttribute("data-testid", "knowledge-search-input");
     fireEvent.change(input, { target: { value: "alpha" } });
     expect(onSearchChange).toHaveBeenCalledWith("alpha");
   });

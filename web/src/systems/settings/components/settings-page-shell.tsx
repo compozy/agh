@@ -31,13 +31,13 @@ function SettingsPageShell({
       data-testid={`settings-page-${slug}`}
     >
       <header
-        className="flex flex-col gap-4 border-b border-[color:var(--color-divider)] px-8 py-6 md:px-10"
+        className="flex flex-col gap-4 border-b border-[color:var(--color-divider)] px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10"
         data-testid={`settings-page-${slug}-header`}
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <span
-              className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--color-text-label)]"
+              className="font-mono text-[11px] font-semibold uppercase tracking-[var(--tracking-mono)] text-[color:var(--color-text-label)]"
               data-testid={`settings-page-${slug}-eyebrow`}
             >
               {eyebrow} / {title}
@@ -68,10 +68,13 @@ function SettingsPageShell({
       {banner ? <div data-testid={`settings-page-${slug}-banner-slot`}>{banner}</div> : null}
 
       <div
-        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto px-8 py-6 md:px-10", className)}
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10",
+          className
+        )}
         data-testid={`settings-page-${slug}-body`}
       >
-        <div className="flex flex-col gap-8 pb-8">{children}</div>
+        <div className="flex flex-col gap-6 pb-6 md:gap-8 md:pb-8">{children}</div>
       </div>
 
       {footer ? (

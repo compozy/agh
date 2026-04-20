@@ -17,8 +17,10 @@ let mockMemoryContent: string | undefined;
 let mockMemoryContentLoading = false;
 let mockMemoryContentError: Error | null = null;
 
-const mockDeleteMutate = vi.fn();
+const mockDeleteMutateAsync = vi.fn();
+const mockDeleteReset = vi.fn();
 let mockDeletePending = false;
+let mockDeleteError: Error | null = null;
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -74,8 +76,10 @@ vi.mock("@/systems/knowledge", async () => {
       error: mockMemoryContentError,
     }),
     useDeleteMemory: () => ({
-      mutate: mockDeleteMutate,
+      mutateAsync: mockDeleteMutateAsync,
+      reset: mockDeleteReset,
       isPending: mockDeletePending,
+      error: mockDeleteError,
     }),
   };
 });
@@ -169,7 +173,10 @@ describe("KnowledgePage", () => {
     mockMemoryContentLoading = false;
     mockMemoryContentError = null;
     mockDeletePending = false;
-    mockDeleteMutate.mockReset();
+    mockDeleteError = null;
+    mockDeleteMutateAsync.mockReset();
+    mockDeleteMutateAsync.mockResolvedValue({ ok: true });
+    mockDeleteReset.mockReset();
   });
 
   // -----------------------------------------------------------------------
@@ -218,6 +225,19 @@ describe("KnowledgePage", () => {
     expect(screen.getByTestId("tab-all")).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("re-selects the first visible memory when search filters out the current selection", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByTestId("memory-item-workspace/project_sprint.md"));
+    await user.type(screen.getByLabelText("Search knowledge"), "user");
+
+    expect(
+      within(screen.getByTestId("memory-item-user_role.md")).getByTestId("memory-active-indicator")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("memory-item-workspace/project_sprint.md")).not.toBeInTheDocument();
+  });
+
   // -----------------------------------------------------------------------
   // Grouping
   // -----------------------------------------------------------------------
@@ -255,7 +275,7 @@ describe("KnowledgePage", () => {
 
   it("auto-selects first memory when no selection is made", () => {
     renderPage();
-    const item = screen.getByTestId("memory-item-user_role.md");
+    const item = screen.getByTestId("memory-item-project_migration.md");
     expect(within(item).getByTestId("memory-active-indicator")).toBeInTheDocument();
   });
 
@@ -299,7 +319,7 @@ describe("KnowledgePage", () => {
     await user.click(screen.getByTestId("delete-memory-btn"));
 
     expect(screen.getByTestId("knowledge-delete-dialog")).toBeInTheDocument();
-    expect(mockDeleteMutate).not.toHaveBeenCalled();
+    expect(mockDeleteMutateAsync).not.toHaveBeenCalled();
   });
 
   it("confirming the delete dialog calls useDeleteMemory mutation", async () => {
@@ -307,10 +327,11 @@ describe("KnowledgePage", () => {
     mockMemoryContent = "content";
     renderPage();
 
+    await user.click(screen.getByTestId("memory-item-user_role.md"));
     await user.click(screen.getByTestId("delete-memory-btn"));
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
 
-    expect(mockDeleteMutate).toHaveBeenCalledWith({
+    expect(mockDeleteMutateAsync).toHaveBeenCalledWith({
       filename: "user_role.md",
       scope: "global",
       workspace: "ws_test",
@@ -325,7 +346,27 @@ describe("KnowledgePage", () => {
     await user.click(screen.getByTestId("delete-memory-btn"));
     await user.click(screen.getByTestId("cancel-delete-memory-btn"));
 
-    expect(mockDeleteMutate).not.toHaveBeenCalled();
+    expect(mockDeleteMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("clears a failed delete error after selecting a different memory", async () => {
+    const user = userEvent.setup();
+    mockDeleteMutateAsync.mockImplementation(async () => {
+      mockDeleteError = new Error("Delete failed");
+      throw mockDeleteError;
+    });
+    mockMemoryContent = "content";
+    renderPage();
+
+    await user.click(screen.getByTestId("memory-item-user_role.md"));
+    await user.click(screen.getByTestId("delete-memory-btn"));
+    await user.click(screen.getByTestId("confirm-delete-memory-btn"));
+
+    expect(await screen.findByTestId("knowledge-delete-error")).toHaveTextContent("Delete failed");
+
+    await user.click(screen.getByTestId("memory-item-project_migration.md"));
+
+    expect(screen.queryByTestId("knowledge-delete-error")).not.toBeInTheDocument();
   });
 
   it("delete button is disabled while a delete is pending", () => {
@@ -391,10 +432,10 @@ describe("KnowledgePage", () => {
   // Dream status
   // -----------------------------------------------------------------------
 
-  it("dream status indicator shows in page header", () => {
+  it("omits the stale dream placeholder from the page header", () => {
     renderPage();
-    expect(screen.getByTestId("dream-status")).toBeInTheDocument();
-    expect(screen.getByText(/Dream:/)).toBeInTheDocument();
+    expect(screen.queryByTestId("dream-status")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Dream:/)).not.toBeInTheDocument();
   });
 
   // -----------------------------------------------------------------------
@@ -493,7 +534,7 @@ describe("KnowledgePage", () => {
 
     await user.click(screen.getByTestId("delete-memory-btn"));
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
-    expect(mockDeleteMutate).toHaveBeenCalled();
+    expect(mockDeleteMutateAsync).toHaveBeenCalled();
 
     await user.click(screen.getByTestId("tab-global"));
     expect(screen.getByTestId("tab-global")).toHaveAttribute("aria-pressed", "true");

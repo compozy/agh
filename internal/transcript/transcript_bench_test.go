@@ -47,6 +47,7 @@ func BenchmarkBuildToolResultObjectRawOutput(b *testing.B) {
 		result := buildToolResult("Read", false, "", rawOutput)
 		if result == nil {
 			b.Fatal("buildToolResult() = nil")
+			return
 		}
 		if result.Content != "workspace\n" {
 			b.Fatalf("buildToolResult().Content = %q", result.Content)

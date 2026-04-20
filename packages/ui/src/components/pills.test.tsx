@@ -36,29 +36,39 @@ describe("Pills", () => {
     { value: "inbox", label: "Inbox", badge: 3 },
   ] as const;
 
-  it("Should fire onChange with the selected value when a tab is clicked", async () => {
+  it("Should fire onChange with the selected value when an item is clicked", async () => {
     const user = userEvent.setup();
     const handle = vi.fn();
     render(<Pills value="list" onChange={handle} items={items} />);
 
-    await user.click(screen.getByRole("tab", { name: /kanban/i }));
+    await user.click(screen.getByRole("button", { name: /kanban/i }));
 
     expect(handle).toHaveBeenCalledWith("kanban");
   });
 
-  it("Should reflect the active item via aria-selected + data-active", () => {
+  it("Should not fire onChange when the active item is clicked", async () => {
+    const user = userEvent.setup();
+    const handle = vi.fn();
+    render(<Pills value="list" onChange={handle} items={items} />);
+
+    await user.click(screen.getByRole("button", { name: /list/i }));
+
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it("Should reflect the active item via aria-pressed + data-active", () => {
     render(<Pills value="kanban" onChange={() => {}} items={items} />);
-    const kanban = screen.getByRole("tab", { name: /kanban/i });
-    const list = screen.getByRole("tab", { name: /list/i });
-    expect(kanban).toHaveAttribute("aria-selected", "true");
+    const kanban = screen.getByRole("button", { name: /kanban/i });
+    const list = screen.getByRole("button", { name: /list/i });
+    expect(kanban).toHaveAttribute("aria-pressed", "true");
     expect(kanban).toHaveAttribute("data-active", "true");
-    expect(list).toHaveAttribute("aria-selected", "false");
+    expect(list).toHaveAttribute("aria-pressed", "false");
     expect(list).toHaveAttribute("data-active", "false");
   });
 
   it("Should render the badge count next to the item label when badge > 0", () => {
     render(<Pills value="list" onChange={() => {}} items={items} />);
-    const inbox = screen.getByRole("tab", { name: /inbox/i });
+    const inbox = screen.getByRole("button", { name: /inbox/i });
     const badge = inbox.querySelector('[data-slot="pills-badge"]');
     expect(badge).not.toBeNull();
     expect(badge?.textContent).toBe("3");
@@ -78,7 +88,7 @@ describe("Pills", () => {
       />
     );
 
-    const kanban = screen.getByRole("tab", { name: /kanban/i });
+    const kanban = screen.getByRole("button", { name: /kanban/i });
     expect(kanban).toBeDisabled();
 
     await user.click(kanban);
@@ -93,6 +103,9 @@ describe("Pills", () => {
         items={[{ value: "list", label: "List", testId: "mode-list" }]}
       />
     );
-    expect(screen.getByRole("tab", { name: /list/i })).toHaveAttribute("data-testid", "mode-list");
+    expect(screen.getByRole("button", { name: /list/i })).toHaveAttribute(
+      "data-testid",
+      "mode-list"
+    );
   });
 });

@@ -26,4 +26,22 @@ describe("Section", () => {
     expect(container.querySelector('[data-slot="section-head"]')).toBeNull();
     expect(container.querySelector('[data-slot="section-body"]')?.textContent).toBe("body only");
   });
+
+  it.each([false, null])("Should omit the header when label is %p", label => {
+    const { container } = render(
+      <Section label={label}>
+        <p>body only</p>
+      </Section>
+    );
+    expect(container.querySelector('[data-slot="section-head"]')).toBeNull();
+  });
+
+  it("Should still render numeric zero labels", () => {
+    const { container } = render(
+      <Section label={0}>
+        <p>body only</p>
+      </Section>
+    );
+    expect(container.querySelector('[data-slot="section-label"]')?.textContent).toBe("0");
+  });
 });

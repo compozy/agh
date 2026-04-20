@@ -28,17 +28,23 @@ function SettingsSaveBar({
   className,
 }: SettingsSaveBarProps) {
   const disabled = !isDirty || isSaving || isInvalid;
+  const liveRegion = error ? "assertive" : "polite";
 
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 bg-[color:var(--color-surface)] px-8 py-4 md:flex-row md:items-center md:justify-between md:px-10",
+        "flex flex-col gap-4 bg-[color:var(--color-surface)] px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between md:px-8 xl:px-10",
         className
       )}
       data-testid={`settings-page-${slug}-save-bar`}
       data-dirty={isDirty ? "true" : "false"}
     >
-      <div className="flex min-w-0 flex-1 flex-col gap-1 text-xs">
+      <div
+        className="flex min-w-0 flex-1 flex-col gap-1 text-xs"
+        role="status"
+        aria-live={liveRegion}
+        aria-atomic="true"
+      >
         {error ? (
           <span
             className="flex items-center gap-1.5 text-[color:var(--color-danger)]"
@@ -59,6 +65,21 @@ function SettingsSaveBar({
               </li>
             ))}
           </ul>
+        ) : isInvalid ? (
+          <span
+            className="flex items-center gap-1.5 text-[color:var(--color-warning)]"
+            data-testid={`settings-page-${slug}-save-invalid`}
+          >
+            <AlertCircle className="size-3.5" />
+            Resolve validation errors before saving
+          </span>
+        ) : isDirty ? (
+          <span
+            className="text-[color:var(--color-text-tertiary)]"
+            data-testid={`settings-page-${slug}-save-dirty`}
+          >
+            Unsaved changes
+          </span>
         ) : lastAppliedLabel ? (
           <span
             className="flex items-center gap-1.5 text-[color:var(--color-text-tertiary)]"
@@ -68,8 +89,11 @@ function SettingsSaveBar({
             {lastAppliedLabel}
           </span>
         ) : (
-          <span className="text-[color:var(--color-text-tertiary)]">
-            {isDirty ? "Unsaved changes" : "No unsaved changes"}
+          <span
+            className="text-[color:var(--color-text-tertiary)]"
+            data-testid={`settings-page-${slug}-save-clean`}
+          >
+            No unsaved changes
           </span>
         )}
       </div>

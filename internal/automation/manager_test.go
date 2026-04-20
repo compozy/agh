@@ -92,6 +92,7 @@ func TestManagerStartSyncsConfigDefinitionsAndPreservesDynamicEntries(t *testing
 	gotConfigJob := findJobByID(jobs, configJob.ID)
 	if gotConfigJob == nil {
 		t.Fatalf("jobs missing config job %q", configJob.ID)
+		return
 	}
 	if got, want := gotConfigJob.Source, JobSourceConfig; got != want {
 		t.Fatalf("config job source = %q, want %q", got, want)
@@ -118,6 +119,7 @@ func TestManagerStartSyncsConfigDefinitionsAndPreservesDynamicEntries(t *testing
 	gotConfigTrigger := findTriggerByID(triggers, configTrigger.ID)
 	if gotConfigTrigger == nil {
 		t.Fatalf("triggers missing config trigger %q", configTrigger.ID)
+		return
 	}
 	if got, want := gotConfigTrigger.Source, JobSourceConfig; got != want {
 		t.Fatalf("config trigger source = %q, want %q", got, want)

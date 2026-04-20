@@ -236,6 +236,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		}
 		if matched == nil {
 			t.Fatalf("route %q not registered", key)
+			return
 		}
 		if !strings.Contains(matched.Handler, handlerName) {
 			t.Fatalf("route %q handler = %q, want substring %q", key, matched.Handler, handlerName)

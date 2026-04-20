@@ -32,7 +32,7 @@ describe("Metric", () => {
     const { container } = render(<Metric label="Signal" value="08" tone={tone} />);
     const value = container.querySelector<HTMLElement>('[data-slot="metric-value"]');
     expect(value?.style.color).toBe(color);
-    const root = container.querySelector<HTMLElement>('[data-slot="metric-value"]');
+    const root = container.querySelector<HTMLElement>('[data-slot="metric"]');
     expect(root).not.toBeNull();
     expect(container.querySelector('[data-slot="metric"]')?.getAttribute("data-tone")).toBe(tone);
   });

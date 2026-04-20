@@ -48,14 +48,14 @@ function WorkspaceSelector({
         const isGlobal = globalWorkspaceId !== null && workspace.id === globalWorkspaceId;
         const dotTone: StatusDotTone = isActive ? "success" : "neutral";
         const initial = workspaceInitial(workspace.name);
+        const rootDirId = `workspace-selector-root-dir-${workspace.id}`;
 
         return (
           <li key={workspace.id}>
             <button
               type="button"
-              role="option"
-              aria-selected={isActive}
-              aria-pressed={isActive}
+              aria-current={isActive ? "true" : undefined}
+              aria-describedby={rootDirId}
               disabled={disabled}
               data-testid={`workspace-selector-item-${workspace.id}`}
               data-active={isActive}
@@ -99,6 +99,7 @@ function WorkspaceSelector({
                 <span
                   className="truncate font-mono text-[0.68rem] text-[color:var(--color-text-tertiary)]"
                   data-testid={`workspace-selector-root-dir-${workspace.id}`}
+                  id={rootDirId}
                   title={workspace.root_dir}
                 >
                   {workspace.root_dir}

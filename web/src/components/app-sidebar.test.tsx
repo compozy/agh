@@ -106,6 +106,12 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("sidebar-workspace-name")).toHaveTextContent("alpha");
     });
 
+    it("removes the non-functional sidebar search affordances", () => {
+      renderSidebar(makeProps());
+      expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Search…")).not.toBeInTheDocument();
+    });
+
     it("no longer carries the wordmark (now owned by the global app shell)", () => {
       renderSidebar(makeProps());
       expect(screen.queryByTestId("sidebar-wordmark")).not.toBeInTheDocument();
@@ -128,6 +134,13 @@ describe("AppSidebar", () => {
     it("renders the app logo with accent background", () => {
       renderSidebar(makeProps());
       expect(screen.getByTestId("app-logo").className).toContain("bg-[color:var(--color-accent)]");
+    });
+
+    it("links the app logo back to the dashboard", () => {
+      renderSidebar(makeProps());
+      expect(screen.getByTestId("app-logo")).toHaveAttribute("href", "/");
+      expect(screen.getByTestId("app-logo")).toHaveAttribute("aria-label", "Go to dashboard");
+      expect(screen.getByTestId("app-logo").className).toContain("focus-visible:ring-2");
     });
 
     it("highlights active workspace with accent border", () => {

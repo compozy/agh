@@ -168,7 +168,7 @@ describe("GeneralSettingsPage", () => {
     );
     expect(screen.getByTestId("settings-page-general-permissions-group")).toBeInTheDocument();
     expect(screen.getByTestId("settings-page-general-permission-approve-all")).toHaveAttribute(
-      "aria-selected",
+      "aria-pressed",
       "true"
     );
   });

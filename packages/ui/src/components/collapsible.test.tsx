@@ -51,7 +51,10 @@ describe("Collapsible", () => {
       </Collapsible>
     );
     expect(screen.getByText("Body")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Toggle" }));
+    const trigger = screen.getByRole("button", { name: "Toggle" });
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText("Body")).toBeInTheDocument();
+    expect(screen.getByText("Body")).not.toBeVisible();
   });
 });

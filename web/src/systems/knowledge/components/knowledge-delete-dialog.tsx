@@ -16,7 +16,8 @@ interface KnowledgeDeleteDialogProps {
   filename: string;
   scope: string;
   isPending: boolean;
-  onConfirm: () => void;
+  error?: string | null;
+  onConfirm: () => Promise<void>;
 }
 
 function KnowledgeDeleteDialog({
@@ -25,6 +26,7 @@ function KnowledgeDeleteDialog({
   filename,
   scope,
   isPending,
+  error,
   onConfirm,
 }: KnowledgeDeleteDialogProps) {
   return (
@@ -41,6 +43,14 @@ function KnowledgeDeleteDialog({
             action cannot be undone.
           </DialogDescription>
         </DialogHeader>
+        {error ? (
+          <div
+            className="border-t border-[color:var(--color-divider)] px-5 py-3 text-xs text-[color:var(--color-danger)]"
+            data-testid="knowledge-delete-dialog-error"
+          >
+            {error}
+          </div>
+        ) : null}
         <DialogFooter className="border-t border-[color:var(--color-divider)] bg-transparent px-5 py-3">
           <Button
             data-testid="cancel-delete-memory-btn"

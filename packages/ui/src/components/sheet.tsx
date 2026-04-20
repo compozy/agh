@@ -88,10 +88,7 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
           transition={{ duration: 0.2, ease: "easeOut" }}
         />
       }
-      className={cn(
-        "fixed inset-0 z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs",
-        className
-      )}
+      className={cn("fixed inset-0 z-50 bg-black/50", className)}
       {...props}
     />
   );
@@ -159,7 +156,7 @@ function SheetContent({
               />
             }
             className={cn(
-              "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg",
+              "fixed z-50 flex flex-col gap-4 border border-border bg-card bg-clip-padding text-sm text-card-foreground outline-none",
               SIDE_CLASSES[side],
               className
             )}

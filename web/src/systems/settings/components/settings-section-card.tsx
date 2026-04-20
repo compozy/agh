@@ -20,14 +20,14 @@ function SettingsSectionCard({
   return (
     <section
       className={cn(
-        "flex flex-col gap-5 border-t border-[color:var(--color-divider)] pt-6 first:border-t-0 first:pt-0",
+        "flex flex-col gap-4 border-t border-[color:var(--color-divider)] pt-5 first:border-t-0 first:pt-0 md:gap-5 md:pt-6",
         className
       )}
       {...props}
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="flex min-w-0 flex-col gap-2">
-          <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--color-text-label)]">
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-[var(--tracking-mono)] text-[color:var(--color-text-label)]">
             {eyebrow}
           </span>
           {note ? (

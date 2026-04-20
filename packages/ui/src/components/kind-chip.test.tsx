@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { KindChip } from "./kind-chip";
 
 describe("KindChip", () => {
-  it("Should render the kind lowercase in mono with the accent tint tokens", () => {
+  it("Should render the original kind text with lowercase mono accent styling", () => {
     const { container } = render(<KindChip kind="Greet" />);
     const chip = container.querySelector<HTMLElement>('[data-slot="kind-chip"]');
     expect(chip).not.toBeNull();
@@ -22,5 +22,14 @@ describe("KindChip", () => {
     const chip = container.querySelector<HTMLElement>('[data-slot="kind-chip"]');
     expect(chip?.className).toContain("custom-class");
     expect(chip?.className).toContain("bg-[color:var(--color-accent-tint)]");
+  });
+
+  it("Should preserve internal data markers when conflicting data attributes are passed", () => {
+    const { container } = render(
+      <KindChip kind="whois" data-slot="override-slot" data-kind="override-kind" />
+    );
+    const chip = container.querySelector<HTMLElement>('[data-slot="kind-chip"]');
+    expect(chip).not.toBeNull();
+    expect(chip?.getAttribute("data-kind")).toBe("whois");
   });
 });

@@ -69,13 +69,41 @@ describe("MarketplaceView", () => {
     expect(screen.getByTestId("install-btn-alpha")).toBeDisabled();
   });
 
-  it("Should disable install button when onInstall is not provided", () => {
+  it("Should switch to a browse-only catalog when installs are unavailable", () => {
     renderView({
       onInstall: undefined,
-      installUnavailableReason: "offline",
+      installUnavailableReason: "Installs are not exposed by the daemon yet.",
     });
-    expect(screen.getByTestId("install-btn-alpha")).toBeDisabled();
-    expect(screen.getByTestId("install-btn-alpha")).toHaveAttribute("title", "offline");
+
+    expect(screen.getByTestId("marketplace-readonly-notice")).toHaveTextContent(
+      "Installs are not exposed by the daemon yet."
+    );
+    expect(screen.getByTestId("marketplace-search-input")).toHaveAttribute(
+      "aria-label",
+      "Filter installed marketplace skills"
+    );
+    expect(screen.getByTestId("marketplace-search-input")).toHaveAttribute(
+      "placeholder",
+      "Filter installed marketplace skills…"
+    );
+    expect(screen.getByTestId("marketplace-readonly-notice")).toHaveTextContent(
+      "Installed marketplace metadata only"
+    );
+    expect(screen.queryByTestId("install-btn-alpha")).not.toBeInTheDocument();
+  });
+
+  it("Should use browse-only empty copy when no installed marketplace skills are available", () => {
+    renderView({
+      onInstall: undefined,
+      skills: [],
+    });
+
+    expect(screen.getByTestId("marketplace-empty")).toHaveTextContent(
+      "No marketplace-installed skills"
+    );
+    expect(screen.getByTestId("marketplace-empty")).toHaveTextContent(
+      "No marketplace-installed skills are available in this workspace yet."
+    );
   });
 
   it("Should filter by category (pills) and show Empty when nothing matches", async () => {

@@ -5,17 +5,18 @@ import { describe, expect, it, vi } from "vitest";
 import { SearchInput } from "./search-input";
 
 describe("SearchInput", () => {
-  it("Should fire onChange with the new string on each keystroke", async () => {
+  it("Should fire onChange with the accumulated string on each keystroke", async () => {
     const user = userEvent.setup();
     const handle = vi.fn();
-    render(<SearchInput value="" onChange={handle} placeholder="Search workspaces" />);
+    render(<SearchInput onChange={handle} placeholder="Search workspaces" />);
 
-    const input = screen.getByPlaceholderText("Search workspaces");
+    const input = screen.getByPlaceholderText<HTMLInputElement>("Search workspaces");
     await user.type(input, "ab");
 
     expect(handle).toHaveBeenCalledTimes(2);
     expect(handle).toHaveBeenNthCalledWith(1, "a");
-    expect(handle).toHaveBeenNthCalledWith(2, "b");
+    expect(handle).toHaveBeenNthCalledWith(2, "ab");
+    expect(input.value).toBe("ab");
   });
 
   it("Should render the kbd slot when provided", () => {

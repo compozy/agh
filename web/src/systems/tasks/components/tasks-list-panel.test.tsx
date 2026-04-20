@@ -87,9 +87,9 @@ describe("TasksListPanel", () => {
     const laneMine = screen.getByTestId("tasks-list-lane-mine");
     const laneWatched = screen.getByTestId("tasks-list-lane-watched");
 
-    expect(laneAll).toHaveAttribute("aria-selected", "true");
-    expect(laneMine).toHaveAttribute("aria-selected", "false");
-    expect(laneWatched).toHaveAttribute("aria-selected", "false");
+    expect(laneAll).toHaveAttribute("aria-pressed", "true");
+    expect(laneMine).toHaveAttribute("aria-pressed", "false");
+    expect(laneWatched).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(laneMine);
     expect(onLaneChange).toHaveBeenCalledWith("mine");

@@ -1,12 +1,13 @@
 import { AlertCircle, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
-import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Input, Pills } from "@agh/ui";
+import { Button, Input, Pills } from "@agh/ui";
 import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
 import type { SettingsGeneralSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
+  SettingsNumberInput,
   SettingsPageActions,
   SettingsPageShell,
   SettingsRestartBanner,
@@ -44,6 +45,19 @@ function formatSessionTimeout(seconds: number): string {
 
 function GeneralSettingsPage() {
   const page = useSettingsGeneralPage();
+  const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
+  const setValidationError = useCallback(
+    (key: string) => (message: string | null) => {
+      setValidationErrors(current =>
+        current[key] === message ? current : { ...current, [key]: message }
+      );
+    },
+    []
+  );
+  const isInvalid = useMemo(
+    () => Object.values(validationErrors).some(message => message !== null),
+    [validationErrors]
+  );
 
   if (page.isLoading) {
     return (
@@ -67,6 +81,9 @@ function GeneralSettingsPage() {
           <p className="text-sm text-[color:var(--color-text-tertiary)]">
             {page.error?.message ?? "Failed to load general settings"}
           </p>
+          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -100,6 +117,7 @@ function GeneralSettingsPage() {
         <SettingsSaveBar
           slug="general"
           isDirty={page.isDirty}
+          isInvalid={isInvalid}
           isSaving={page.isSaving}
           error={page.saveError}
           warnings={page.warnings}
@@ -112,7 +130,12 @@ function GeneralSettingsPage() {
       <RuntimeSection envelope={envelope} />
       <DefaultsSection draft={draft} setDraft={setDraft} />
       <PermissionsSection draft={draft} setDraft={setDraft} />
-      <SessionSection draft={draft} setDraft={setDraft} />
+      <SessionSection
+        draft={draft}
+        setDraft={setDraft}
+        timeoutError={validationErrors.sessionTimeout ?? undefined}
+        onTimeoutValidityChange={setValidationError("sessionTimeout")}
+      />
     </SettingsPageShell>
   );
 }
@@ -239,26 +262,35 @@ function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
   );
 }
 
-function SessionSection({ draft, setDraft }: DraftSectionProps) {
+function SessionSection({
+  draft,
+  setDraft,
+  timeoutError,
+  onTimeoutValidityChange,
+}: DraftSectionProps & {
+  timeoutError?: string;
+  onTimeoutValidityChange: (message: string | null) => void;
+}) {
   return (
     <SettingsSectionCard eyebrow="Session" note="runtime limits">
       <SettingsFieldRow
         data-testid="settings-page-general-session-timeout"
         label="Session timeout"
         description="0 disables force-close"
+        error={timeoutError}
         hint="SECONDS"
         control={
           <div className="flex items-center gap-2">
-            <Input
-              type="number"
+            <SettingsNumberInput
               min={0}
               className="w-28"
               data-testid="settings-page-general-session-timeout-input"
               value={parseSessionTimeoutSeconds(draft.session_timeout)}
-              onChange={event =>
+              onValidityChange={onTimeoutValidityChange}
+              onValueChange={value =>
                 setDraft({
                   ...draft,
-                  session_timeout: formatSessionTimeout(Number(event.target.value || 0)),
+                  session_timeout: formatSessionTimeout(value),
                 })
               }
             />

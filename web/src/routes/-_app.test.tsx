@@ -15,19 +15,44 @@ let mockHasWorkspaces = true;
 let mockActiveWorkspaceId: string | null = "ws_alpha";
 let mockPathname = "/tasks";
 const reducedMotionMock = vi.fn<() => boolean>().mockReturnValue(false);
+const mockInvalidate = vi.fn();
+const mockReset = vi.fn();
 
 const mockSetActiveWorkspaceId = vi.fn();
 const mockCreateSessionMutate = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
-    component: opts.component,
-  }),
+  createFileRoute:
+    () =>
+    (opts: {
+      component: () => ReactNode;
+      errorComponent?: (props: { error: Error; reset: () => void }) => ReactNode;
+      notFoundComponent?: (props: { isNotFound: true; routeId: string }) => ReactNode;
+    }) => ({
+      component: opts.component,
+      errorComponent: opts.errorComponent,
+      notFoundComponent: opts.notFoundComponent,
+    }),
   Outlet: () => <div data-testid="outlet" />,
   useLocation: <T,>(opts?: { select?: (location: { pathname: string }) => T }) => {
     const location = { pathname: mockPathname };
     return opts?.select ? opts.select(location) : location;
   },
+  Link: ({
+    children,
+    to,
+    ...props
+  }: {
+    children: ReactNode;
+    to: string;
+  } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
+  useRouter: () => ({
+    invalidate: mockInvalidate,
+  }),
 }));
 
 vi.mock("motion/react", () => ({
@@ -155,6 +180,16 @@ import { Route, resolveRouteTransitionDuration, ROUTE_FADE_DURATION } from "./_a
 describe("AppLayout", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const AppLayout = (Route as any).component as () => ReactNode;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const AppErrorBoundary = (Route as any).errorComponent as (props: {
+    error: Error;
+    reset: () => void;
+  }) => ReactNode;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const AppNotFoundBoundary = (Route as any).notFoundComponent as (props: {
+    isNotFound: true;
+    routeId: string;
+  }) => ReactNode;
 
   beforeEach(() => {
     mockHasWorkspaces = true;
@@ -162,6 +197,8 @@ describe("AppLayout", () => {
     mockPathname = "/tasks";
     reducedMotionMock.mockReset();
     reducedMotionMock.mockReturnValue(false);
+    mockInvalidate.mockReset();
+    mockReset.mockReset();
     mockSetActiveWorkspaceId.mockReset();
     mockCreateSessionMutate.mockReset();
   });
@@ -241,5 +278,23 @@ describe("AppLayout", () => {
 
     fireEvent.click(screen.getByTestId("workspace-setup-dialog"));
     expect(mockSetActiveWorkspaceId).toHaveBeenCalledWith("ws_new");
+  });
+
+  it("renders an app-level not-found fallback with a path back home", () => {
+    render(<AppNotFoundBoundary isNotFound routeId="/_app" />);
+
+    expect(screen.getByTestId("app-route-not-found")).toBeInTheDocument();
+    expect(screen.getByText("Page not found")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go home" })).toHaveAttribute("href", "/");
+  });
+
+  it("renders an app-level error fallback that resets and invalidates the router", () => {
+    render(<AppErrorBoundary error={new Error("app route failed")} reset={mockReset} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(mockReset).toHaveBeenCalledTimes(1);
+    expect(mockInvalidate).toHaveBeenCalledWith({ forcePending: true });
+    expect(screen.getByText("app route failed")).toBeInTheDocument();
   });
 });

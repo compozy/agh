@@ -135,9 +135,15 @@ describe("Sidebar", () => {
     const { container, rerender } = render(<Sidebar nav={<span>nav</span>} collapsed={false} />);
     const panel = container.querySelector<HTMLElement>("[data-slot=sidebar-panel]");
     expect(panel).toHaveAttribute("aria-hidden", "false");
+    expect(panel).not.toHaveAttribute("inert");
+    expect(panel?.className).toContain("visible");
+    expect(panel?.className).toContain("pointer-events-auto");
 
     rerender(<Sidebar nav={<span>nav</span>} collapsed={true} />);
     expect(panel).toHaveAttribute("aria-hidden", "true");
+    expect(panel).toHaveAttribute("inert");
+    expect(panel?.className).toContain("invisible");
+    expect(panel?.className).toContain("pointer-events-none");
   });
 
   it("Should drive the motion panel width from the collapsed prop", async () => {
@@ -168,5 +174,33 @@ describe("Sidebar", () => {
     const sidebar = container.querySelector<HTMLElement>("[data-slot=sidebar]");
     expect(sidebar).toHaveAttribute("data-state", "collapsed");
     expect(sidebar).toHaveAttribute("data-narrow", "true");
+  });
+
+  it("Should open a narrow-viewport panel without mutating desktop collapse state", async () => {
+    const onCollapse = vi.fn();
+    const user = userEvent.setup();
+    installMatchMedia(q => q.includes("max-width"));
+
+    const { container } = render(
+      <UIProvider reducedMotion="always">
+        <Sidebar nav={<button type="button">nav action</button>} onCollapse={onCollapse} />
+      </UIProvider>
+    );
+
+    const trigger = screen.getByRole("button", { name: "Open sidebar navigation" });
+    const panel = container.querySelector<HTMLElement>("[data-slot=sidebar-panel]");
+    expect(panel).toHaveAttribute("aria-hidden", "true");
+
+    await user.click(trigger);
+
+    expect(trigger).toHaveAttribute("aria-label", "Close sidebar navigation");
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(container.querySelector("[data-slot=sidebar]")).toHaveAttribute(
+      "data-state",
+      "expanded"
+    );
+    expect(panel).toHaveAttribute("aria-hidden", "false");
+    await waitFor(() => expect(panel?.style.width).toBe("240px"));
+    expect(onCollapse).not.toHaveBeenCalled();
   });
 });

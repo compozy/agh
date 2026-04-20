@@ -93,7 +93,7 @@ describe("KnowledgeDetailPanel", () => {
 
   it("calls onDelete with the selected filename when confirm is clicked", async () => {
     const user = userEvent.setup();
-    const onDelete = vi.fn();
+    const onDelete = vi.fn().mockResolvedValue(undefined);
     renderDetail({ onDelete });
 
     await user.click(screen.getByTestId("delete-memory-btn"));
@@ -116,6 +116,17 @@ describe("KnowledgeDetailPanel", () => {
   it("disables the delete button while a mutation is pending", () => {
     renderDetail({ isDeletePending: true });
     expect(screen.getByTestId("delete-memory-btn")).toBeDisabled();
+  });
+
+  it("surfaces delete failures inline and inside the dialog", async () => {
+    const user = userEvent.setup();
+    renderDetail({ deleteError: "Delete failed" });
+
+    expect(screen.getByTestId("knowledge-delete-error")).toHaveTextContent("Delete failed");
+
+    await user.click(screen.getByTestId("delete-memory-btn"));
+
+    expect(screen.getByTestId("knowledge-delete-dialog-error")).toHaveTextContent("Delete failed");
   });
 
   it("falls back to deriving scope from filename when scope prop is omitted", () => {

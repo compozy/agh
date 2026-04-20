@@ -52,7 +52,7 @@ export const Default: Story = {
         isDeletePending={false}
         isLoading={false}
         memory={defaultMemory}
-        onDelete={() => undefined}
+        onDelete={async () => {}}
         scope="global"
       />
     </PanelSurface>
@@ -68,7 +68,7 @@ export const WorkspaceScope: Story = {
         isDeletePending={false}
         isLoading={false}
         memory={workspaceMemory}
-        onDelete={() => undefined}
+        onDelete={async () => {}}
         scope="workspace"
       />
     </PanelSurface>
@@ -84,7 +84,7 @@ export const NoContent: Story = {
         isDeletePending={false}
         isLoading={false}
         memory={defaultMemory}
-        onDelete={() => undefined}
+        onDelete={async () => {}}
         scope="global"
       />
     </PanelSurface>
@@ -100,7 +100,7 @@ export const Loading: Story = {
         isDeletePending={false}
         isLoading
         memory={defaultMemory}
-        onDelete={() => undefined}
+        onDelete={async () => {}}
         scope="global"
       />
     </PanelSurface>
@@ -116,7 +116,7 @@ export const ErrorState: Story = {
         isDeletePending={false}
         isLoading={false}
         memory={defaultMemory}
-        onDelete={() => undefined}
+        onDelete={async () => {}}
         scope="global"
       />
     </PanelSurface>
@@ -132,7 +132,7 @@ export const EmptySelection: Story = {
         isDeletePending={false}
         isLoading={false}
         memory={undefined}
-        onDelete={() => undefined}
+        onDelete={async () => {}}
       />
     </PanelSurface>
   ),

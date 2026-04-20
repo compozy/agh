@@ -122,6 +122,7 @@ function SkillListPanel({
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="skill-list-panel">
       <div className="border-b border-[color:var(--color-divider)] p-3">
         <SearchInput
+          aria-label="Search installed skills"
           data-testid="skill-search-input"
           onChange={onSearchChange}
           placeholder="Filter skills…"

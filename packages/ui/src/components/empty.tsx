@@ -6,10 +6,12 @@ import * as React from "react";
 import { cn } from "../lib/utils";
 
 type IconComponent = React.ComponentType<{ className?: string; size?: number }>;
+type EmptyTitleTag = "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p" | "span";
 
 export interface EmptyProps extends Omit<React.ComponentProps<"div">, "title"> {
   icon?: IconComponent | React.ReactNode;
   title: React.ReactNode;
+  titleAs?: EmptyTitleTag;
   description?: React.ReactNode;
   action?: React.ReactNode;
 }
@@ -24,12 +26,16 @@ function isComponentType(value: unknown): value is IconComponent {
   return false;
 }
 
+function resolveTitleTag(title: React.ReactNode): EmptyTitleTag {
+  return typeof title === "string" || typeof title === "number" ? "h3" : "div";
+}
+
 /**
  * Empty state primitive — centered icon well + title + description + optional action.
  * Mirrors `Empty` in `docs/design/web-inspiration/src/primitives.jsx` and DESIGN.md §4 "Empty State".
  * `icon` accepts either a Lucide-style component reference or a pre-rendered ReactNode.
  */
-function Empty({ icon, title, description, action, className, ...props }: EmptyProps) {
+function Empty({ icon, title, titleAs, description, action, className, ...props }: EmptyProps) {
   let iconContent: React.ReactNode;
   if (icon === undefined) {
     iconContent = <BoxIcon className="size-5" />;
@@ -39,6 +45,8 @@ function Empty({ icon, title, description, action, className, ...props }: EmptyP
   } else {
     iconContent = icon;
   }
+
+  const TitleTag = titleAs ?? resolveTitleTag(title);
 
   return (
     <div
@@ -56,12 +64,12 @@ function Empty({ icon, title, description, action, className, ...props }: EmptyP
       >
         {iconContent}
       </span>
-      <h3
+      <TitleTag
         data-slot="empty-title"
         className="text-[15px] font-medium text-[color:var(--color-text-secondary)]"
       >
         {title}
-      </h3>
+      </TitleTag>
       {description ? (
         <p
           data-slot="empty-description"

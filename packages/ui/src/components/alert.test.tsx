@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "./alert";
 describe("Alert", () => {
   it("renders role=alert by default and forwards class + data-variant", () => {
     render(
-      <Alert data-testid="alert" variant="warning">
+      <Alert data-testid="alert" variant="warning" className="ring-1">
         <AlertTitle>Heads up</AlertTitle>
         <AlertDescription>Restart required</AlertDescription>
       </Alert>
@@ -15,6 +15,7 @@ describe("Alert", () => {
     expect(alert).toHaveAttribute("role", "alert");
     expect(alert).toHaveAttribute("data-variant", "warning");
     expect(alert).toHaveAttribute("data-slot", "alert");
+    expect(alert).toHaveClass("ring-1");
   });
 
   it("accepts a role override for non-danger tones (e.g. status)", () => {
