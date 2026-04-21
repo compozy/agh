@@ -72,4 +72,22 @@ describe("Empty", () => {
     const { container } = render(<Empty title="Nothing here" titleAs="h2" />);
     expect(container.querySelector('[data-slot="empty-title"]')?.tagName).toBe("H2");
   });
+
+  it("Should stretch to fill its flex parent by default", () => {
+    const { container } = render(<Empty title="Nothing here" />);
+    const empty = container.querySelector('[data-slot="empty"]');
+    expect(empty?.getAttribute("data-fill")).toBe("true");
+    expect(empty?.className).toMatch(/\bflex-1\b/);
+    expect(empty?.className).toMatch(/\bmin-h-0\b/);
+    expect(empty?.className).toMatch(/\bh-full\b/);
+  });
+
+  it("Should sit at its natural content height when fill is disabled", () => {
+    const { container } = render(<Empty title="Nothing here" fill={false} />);
+    const empty = container.querySelector('[data-slot="empty"]');
+    expect(empty?.getAttribute("data-fill")).toBe("false");
+    expect(empty?.className).not.toMatch(/\bflex-1\b/);
+    expect(empty?.className).not.toMatch(/\bmin-h-0\b/);
+    expect(empty?.className).not.toMatch(/\bh-full\b/);
+  });
 });

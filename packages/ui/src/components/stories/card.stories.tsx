@@ -76,3 +76,32 @@ export const Small: Story = {
     </Card>
   ),
 };
+
+export const ActiveRail: Story = {
+  name: "Active rail",
+  args: {},
+  render: () => (
+    <div className="flex flex-col gap-3">
+      <Card activeRail size="sm">
+        <CardHeader>
+          <CardTitle>Agent · claude-sonnet</CardTitle>
+          <CardDescription>Run in-flight — 2 events in the last second.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
+            The 2px accent left-rail flags attention without framing the whole card.
+          </p>
+        </CardContent>
+      </Card>
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Agent · codex</CardTitle>
+          <CardDescription>Idle — last activity 4m ago.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">Idle cards stay fully neutral.</p>
+        </CardContent>
+      </Card>
+    </div>
+  ),
+};

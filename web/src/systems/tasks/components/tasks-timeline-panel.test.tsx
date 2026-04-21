@@ -47,7 +47,7 @@ describe("TasksTimelinePanel", () => {
     expect(screen.getByTestId("tasks-timeline-empty")).toBeInTheDocument();
   });
 
-  it("renders event messages with live indicator for in-progress runs", () => {
+  it("renders event messages with a live indicator when `isLive` is true", () => {
     render(
       <TasksTimelinePanel
         isLive
@@ -73,15 +73,24 @@ describe("TasksTimelinePanel", () => {
     );
 
     expect(screen.getByTestId("tasks-timeline-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-timeline-live")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-timeline-event-type-evt_progress")).toHaveTextContent(
       "task.run_progress"
     );
     expect(screen.getByTestId("tasks-timeline-message-evt_progress")).toHaveTextContent(
       "Calling tool"
     );
-    expect(screen.getByTestId("tasks-timeline-live-evt_progress")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-timeline-message-evt_failed")).toHaveTextContent(
       "rate-limited"
+    );
+  });
+
+  it("exposes the view-mode toggle", () => {
+    render(<TasksTimelinePanel items={[buildItem()]} />);
+    expect(screen.getByTestId("tasks-timeline-view-mode")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-timeline-view-interleaved")).toHaveAttribute(
+      "aria-pressed",
+      "true"
     );
   });
 

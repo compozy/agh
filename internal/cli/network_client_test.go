@@ -31,7 +31,7 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"peers":[{"peer_id":"reviewer.sess-a","session_id":"sess-a","channel":"builders","local":true,"peer_card":{"peer_id":"reviewer.sess-a","display_name":"Reviewer","profiles_supported":["v0"],"capabilities":["send"],"artifacts_supported":["text"],"trust_modes_supported":["untrusted"]}}]}`,
+						`{"peers":[{"peer_id":"reviewer.sess-a","session_id":"sess-a","channel":"builders","local":true,"peer_card":{"peer_id":"reviewer.sess-a","display_name":"Reviewer","profiles_supported":["v0"],"capabilities":[{"id":"send","summary":"Send direct messages"}],"artifacts_supported":["text"],"trust_modes_supported":["untrusted"]}}]}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/network/channels":
 					return newHTTPResponse(http.StatusOK, `{"channels":[{"channel":"builders","peer_count":2}]}`), nil

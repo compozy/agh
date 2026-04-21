@@ -443,6 +443,7 @@ func localPeerCardFromJoinRequest(request joinChannelRequest) (PeerCard, error) 
 	if err := applyCapabilityBriefProjection(&card, request.capabilities); err != nil {
 		return PeerCard{}, err
 	}
+	card.ArtifactsSupported = []string{string(KindCapability)}
 	return card, nil
 }
 

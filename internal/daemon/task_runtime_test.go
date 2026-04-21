@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -289,6 +291,122 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 			}
 			if got, want := recovery.SessionState, tc.wantState; got != want {
 				t.Fatalf("recovery.SessionState = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestPlanTaskRunRecoveryClassifiesCrashedOrphanedAndStalledSessions(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	lastUpdate := now.Add(-session.DefaultLivenessStallAfter - time.Minute)
+	startedAt, err := procutil.StartedAt(os.Getpid())
+	if err != nil {
+		t.Fatalf("procutil.StartedAt(self) error = %v", err)
+	}
+	mismatchedStartedAt := startedAt.Add(-time.Hour)
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{
+				ID:         "sess-crashed",
+				State:      session.StateStopped,
+				StopReason: store.StopAgentCrashed,
+				StopDetail: "daemon crashed while session active",
+			},
+			{
+				ID:    "sess-orphaned",
+				State: session.StateStopped,
+				Liveness: &store.SessionLivenessMeta{
+					SubprocessPID:       os.Getpid(),
+					SubprocessStartedAt: &startedAt,
+				},
+				StopDetail: "daemon exited while session subprocess remained alive",
+			},
+			{
+				ID:    "sess-stalled",
+				State: session.StateStopped,
+				Liveness: &store.SessionLivenessMeta{
+					SubprocessPID:       os.Getpid(),
+					SubprocessStartedAt: &startedAt,
+					LastUpdateAt:        &lastUpdate,
+					StallState:          store.SessionStallStateDetected,
+					StallReason:         store.SessionStallReasonActivityTimeout,
+				},
+				StopDetail: "daemon exited while stalled session subprocess remained alive",
+			},
+			{
+				ID:    "sess-reused-pid",
+				State: session.StateStopped,
+				Liveness: &store.SessionLivenessMeta{
+					SubprocessPID:       os.Getpid(),
+					SubprocessStartedAt: &mismatchedStartedAt,
+					LastUpdateAt:        &lastUpdate,
+				},
+				StopDetail: "daemon exited after pid reuse",
+			},
+		},
+	}
+
+	testCases := []struct {
+		name               string
+		sessionID          string
+		wantClassification string
+		wantDetail         string
+	}{
+		{
+			name:               "Should classify stopped session without live subprocess as crashed",
+			sessionID:          "sess-crashed",
+			wantClassification: taskRecoveryClassificationCrashed,
+			wantDetail:         "daemon crashed while session active",
+		},
+		{
+			name:               "Should classify stopped session with live subprocess as orphaned",
+			sessionID:          "sess-orphaned",
+			wantClassification: taskRecoveryClassificationOrphaned,
+			wantDetail:         "subprocess pid",
+		},
+		{
+			name:               "Should classify stale stopped session with live subprocess as stalled",
+			sessionID:          "sess-stalled",
+			wantClassification: taskRecoveryClassificationStalled,
+			wantDetail:         store.SessionStallReasonActivityTimeout,
+		},
+		{
+			name:               "Should treat pid reuse with mismatched start time as crashed",
+			sessionID:          "sess-reused-pid",
+			wantClassification: taskRecoveryClassificationCrashed,
+			wantDetail:         "daemon exited after pid reuse",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			recovery, err := planTaskRunRecovery(context.Background(), sessions, taskpkg.Run{
+				ID:        "run-" + tc.sessionID,
+				TaskID:    "task-" + tc.sessionID,
+				Status:    taskpkg.TaskRunStatusRunning,
+				Attempt:   1,
+				SessionID: tc.sessionID,
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt:  now,
+			})
+			if err != nil {
+				t.Fatalf("planTaskRunRecovery() error = %v", err)
+			}
+			if recovery == nil {
+				t.Fatal("planTaskRunRecovery() = nil, want recovery action")
+			}
+			if got, want := recovery.Action, taskpkg.RunBootRecoveryFail; got != want {
+				t.Fatalf("recovery.Action = %q, want %q", got, want)
+			}
+			if got, want := recovery.Classification, tc.wantClassification; got != want {
+				t.Fatalf("recovery.Classification = %q, want %q", got, want)
+			}
+			if got := recovery.Detail; !strings.Contains(got, tc.wantDetail) {
+				t.Fatalf("recovery.Detail = %q, want substring %q", got, tc.wantDetail)
 			}
 		})
 	}

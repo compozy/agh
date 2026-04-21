@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 func TestNormalizeEnvelopeValidKinds(t *testing.T) {
@@ -41,7 +43,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 						"peer_id":               "coder.sess-abc",
 						"profiles_supported":    []string{"agh-network/v0"},
 						"capabilities":          []string{"workspace.patch.apply"},
-						"artifacts_supported":   []string{"recipe"},
+						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
 					},
 					"summary": "hello",
@@ -67,7 +69,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 						"peer_id":               "coder.sess-abc",
 						"profiles_supported":    []string{"agh-network/v0"},
 						"capabilities":          []string{"chat.translate"},
-						"artifacts_supported":   []string{"recipe"},
+						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
 					},
 				}),
@@ -113,27 +115,25 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 			wantType: reflect.TypeFor[DirectBody](),
 		},
 		{
-			name: "recipe",
+			name: "capability",
 			envelope: Envelope{
 				Protocol: "agh-network/v0",
-				ID:       "msg_recipe_01",
-				Kind:     KindRecipe,
+				ID:       "msg_capability_01",
+				Kind:     KindCapability,
 				Channel:  "builders",
 				From:     "coder.sess-abc",
 				TS:       now.Unix(),
-				Body: mustRawJSON(t, map[string]any{
-					"recipe": map[string]any{
-						"recipe_id":    "review-fix",
-						"version":      "1.0.0",
-						"title":        "Review fix flow",
-						"content_type": "text/markdown",
-						"digest":       "sha256:abc123",
-						"inline":       "# Review fix flow",
-					},
+				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
+					ID:               "review-fix",
+					Summary:          "Review fix flow",
+					Outcome:          "A reusable review fix workflow.",
+					Version:          "1.0.0",
+					ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
+					Requirements:     []string{"workspace-write"},
 				}),
 			},
-			wantKind: KindRecipe,
-			wantType: reflect.TypeFor[RecipeBody](),
+			wantKind: KindCapability,
+			wantType: reflect.TypeFor[CapabilityBody](),
 		},
 		{
 			name: "receipt",
@@ -233,6 +233,22 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		wantMatch string
 	}{
 		{
+			name: "legacy recipe kind is rejected",
+			mutate: func(env Envelope) Envelope {
+				env.Kind = Kind("recipe")
+				env.To = nil
+				env.InteractionID = nil
+				env.Body = mustRawJSON(t, map[string]any{
+					"recipe": map[string]any{
+						"recipe_id": "review-fix",
+					},
+				})
+				return env
+			},
+			wantErr:   ErrInvalidKind,
+			wantMatch: `kind="recipe"`,
+		},
+		{
 			name: "invalid channel",
 			mutate: func(env Envelope) Envelope {
 				env.Channel = "bad.channel"
@@ -280,7 +296,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 						"peer_id":               "coder.sess-abc",
 						"profiles_supported":    []string{"agh-network/v0"},
 						"capabilities":          []string{"chat.translate"},
-						"artifacts_supported":   []string{"recipe"},
+						"artifacts_supported":   []string{"capability"},
 						"trust_modes_supported": []string{"unverified"},
 					},
 				})
@@ -324,41 +340,60 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "accepted receipt",
 		},
 		{
-			name: "recipe missing source",
+			name: "capability digest mismatch",
 			mutate: func(env Envelope) Envelope {
-				env.Kind = KindRecipe
+				capability := canonicalCapabilityPayload(t, CapabilityEnvelopePayload{
+					ID:               "review-fix",
+					Summary:          "Review fix flow",
+					Outcome:          "A reusable review fix workflow.",
+					Version:          "1.0.0",
+					ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
+					Requirements:     []string{"workspace-write"},
+				})
+				capability.Digest = "sha256:not-the-canonical-digest"
+
+				env.Kind = KindCapability
+				env.InteractionID = nil
+				env.To = nil
+				env.Body = mustRawJSON(t, CapabilityBody{Capability: capability})
+				return env
+			},
+			wantErr:   ErrVerificationFailed,
+			wantMatch: "canonical digest",
+		},
+		{
+			name: "capability missing nested capability object",
+			mutate: func(env Envelope) Envelope {
+				env.Kind = KindCapability
 				env.InteractionID = nil
 				env.To = nil
 				env.Body = mustRawJSON(t, map[string]any{
-					"recipe": map[string]any{
-						"recipe_id":    "review-fix",
-						"version":      "1.0.0",
-						"content_type": "text/markdown",
-						"digest":       "sha256:abc123",
+					"id":      "review-fix",
+					"summary": "Review fix flow",
+					"outcome": "A reusable review fix workflow.",
+				})
+				return env
+			},
+			wantErr:   ErrInvalidBody,
+			wantMatch: `{"capability":{...}}`,
+		},
+		{
+			name: "capability missing outcome",
+			mutate: func(env Envelope) Envelope {
+				env.Kind = KindCapability
+				env.InteractionID = nil
+				env.To = nil
+				env.Body = mustRawJSON(t, map[string]any{
+					"capability": map[string]any{
+						"id":      "review-fix",
+						"summary": "Review fix flow",
+						"digest":  "sha256:missing-outcome",
 					},
 				})
 				return env
 			},
 			wantErr:   ErrInvalidBody,
-			wantMatch: "uri or inline",
-		},
-		{
-			name: "recipe missing nested recipe object",
-			mutate: func(env Envelope) Envelope {
-				env.Kind = KindRecipe
-				env.InteractionID = nil
-				env.To = nil
-				env.Body = mustRawJSON(t, map[string]any{
-					"recipe_id":    "review-fix",
-					"version":      "1.0.0",
-					"content_type": "text/markdown",
-					"digest":       "sha256:abc123",
-					"inline":       "# Review fix flow",
-				})
-				return env
-			},
-			wantErr:   ErrInvalidBody,
-			wantMatch: `{"recipe":{...}}`,
+			wantMatch: "capability.outcome is required",
 		},
 	}
 
@@ -461,6 +496,40 @@ func mustRawJSON(t *testing.T, value any) json.RawMessage {
 		t.Fatalf("json.Marshal(%T) error = %v", value, err)
 	}
 	return json.RawMessage(data)
+}
+
+func canonicalCapabilityPayload(t *testing.T, capability CapabilityEnvelopePayload) CapabilityEnvelopePayload {
+	t.Helper()
+
+	if strings.TrimSpace(capability.Digest) != "" {
+		capability.Digest = strings.TrimSpace(capability.Digest)
+		return capability
+	}
+
+	digest, err := aghconfig.CanonicalCapabilityDigest(aghconfig.CapabilityDef{
+		ID:                capability.ID,
+		Summary:           capability.Summary,
+		Outcome:           capability.Outcome,
+		Version:           capability.Version,
+		ContextNeeded:     append([]string(nil), capability.ContextNeeded...),
+		ArtifactsExpected: append([]string(nil), capability.ArtifactsExpected...),
+		ExecutionOutline:  append([]string(nil), capability.ExecutionOutline...),
+		Constraints:       append([]string(nil), capability.Constraints...),
+		Examples:          append([]string(nil), capability.Examples...),
+		Requirements:      append([]string(nil), capability.Requirements...),
+	})
+	if err != nil {
+		t.Fatalf("CanonicalCapabilityDigest() error = %v", err)
+	}
+
+	capability.Digest = digest
+	return capability
+}
+
+func mustCapabilityBodyJSON(t *testing.T, capability CapabilityEnvelopePayload) json.RawMessage {
+	t.Helper()
+
+	return mustRawJSON(t, CapabilityBody{Capability: canonicalCapabilityPayload(t, capability)})
 }
 
 func stringPtr(value string) *string {

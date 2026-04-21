@@ -98,7 +98,7 @@ function KanbanColumn({
     <Section
       data-testid={`tasks-kanban-column-${column.id}`}
       role="listitem"
-      className="w-[280px] shrink-0"
+      className="min-w-[260px] flex-1"
       label={
         <span className="inline-flex items-center gap-2">
           <StatusDot tone={headerTone} />

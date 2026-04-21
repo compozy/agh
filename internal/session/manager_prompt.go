@@ -274,6 +274,46 @@ func clonePromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSyntheti
 	return &cloned
 }
 
+// CancelPrompt cooperatively cancels the active prompt turn for a known session.
+func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
+	if m == nil {
+		return errors.New("session: manager is required")
+	}
+	if ctx == nil {
+		return errors.New("session: cancel prompt context is required")
+	}
+
+	target := strings.TrimSpace(id)
+	if target == "" {
+		return errors.New("session: session id is required")
+	}
+
+	session, ok := m.Get(target)
+	if !ok {
+		if _, err := m.readMeta(target); err != nil {
+			return err
+		}
+		return nil
+	}
+	if !session.IsPrompting() {
+		return nil
+	}
+
+	proc := session.processHandle()
+	if proc == nil {
+		return nil
+	}
+
+	cancelErr := m.driver.Cancel(ctx, proc)
+	if cancelErr != nil {
+		if isProcessDone(proc) {
+			return nil
+		}
+		return fmt.Errorf("session: cancel prompt for %q: %w", target, cancelErr)
+	}
+	return nil
+}
+
 // ApprovePermission resolves one pending interactive permission request for an active session.
 func (m *Manager) ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error {
 	if ctx == nil {
@@ -350,6 +390,13 @@ func (m *Manager) pumpPrompt(
 
 		normalized := m.normalizeEvent(session, turnState.turnID, event)
 		normalized = m.preparePromptEvent(ctx, turnState, normalized)
+		if session != nil {
+			session.observeACPUpdate(normalized.Timestamp)
+			if err := m.writeMeta(session); err != nil {
+				m.sessionLogger(session).
+					Warn("session: persist liveness update failed", "turn_id", turnState.turnID, "error", err)
+			}
+		}
 		if err := m.recordEvent(ctx, session, normalized); err != nil {
 			m.sessionLogger(session).
 				Warn("session: record prompt event failed", "turn_id", turnState.turnID, "error", err)

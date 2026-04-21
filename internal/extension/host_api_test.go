@@ -4846,6 +4846,21 @@ Review the workspace changes carefully.
 	env.resources = resourceKernel
 	env.checker = checker
 	env.handler = handler
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		for _, info := range sessions.List() {
+			if info == nil {
+				continue
+			}
+			if err := sessions.Stop(ctx, info.ID); err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+				t.Errorf("sessions.Stop(%q) cleanup error = %v", info.ID, err)
+			}
+		}
+		if err := sessions.WaitForFinalizations(ctx); err != nil {
+			t.Errorf("sessions.WaitForFinalizations() cleanup error = %v", err)
+		}
+	})
 	return env
 }
 

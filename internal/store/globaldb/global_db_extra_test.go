@@ -845,7 +845,7 @@ func TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables(t *testing.T)
 	}
 
 	for table, expected := range map[string][]string{
-		"sessions":         {"stop_reason", "stop_detail", "channel"},
+		"sessions":         {"stop_reason", "stop_detail", "channel", "subprocess_pid", "subprocess_started_at", "last_update_at", "stall_state", "stall_reason"},
 		"workspaces":       {"environment_ref"},
 		"extensions":       {"registry_slug", "registry_name", "remote_version"},
 		"bridge_instances": {"source", "dm_policy", "provider_config", "degradation_reason", "degradation_message"},

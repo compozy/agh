@@ -4113,7 +4113,7 @@ func (f *fakeSessionManager) History(context.Context, string, store.EventQuery) 
 	return nil, nil
 }
 
-func (f *fakeSessionManager) Transcript(context.Context, string) ([]transcript.Message, error) {
+func (f *fakeSessionManager) Transcript(context.Context, string) ([]transcript.UIMessage, error) {
 	return nil, nil
 }
 
@@ -4193,6 +4193,53 @@ func (f *fakeSessionManager) Resume(context.Context, string) (*session.Session, 
 	return nil, nil
 }
 
+func (f *fakeSessionManager) ClearConversation(
+	ctx context.Context,
+	id string,
+) (*session.Session, error) {
+	info, err := f.Status(ctx, id)
+	if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+		return nil, err
+	}
+	if info == nil {
+		return &session.Session{ID: id, State: session.StateActive}, nil
+	}
+
+	return &session.Session{
+		ID:          info.ID,
+		Name:        info.Name,
+		AgentName:   info.AgentName,
+		WorkspaceID: info.WorkspaceID,
+		Workspace:   info.Workspace,
+		Channel:     info.Channel,
+		Type:        info.Type,
+		State:       session.StateActive,
+		CreatedAt:   info.CreatedAt,
+		UpdatedAt:   info.UpdatedAt,
+	}, nil
+}
+
+func TestFakeSessionManagerClearConversationTreatsMissingSessionAsFreshConversation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldTreatAMissingSessionAsAFreshConversation", func(t *testing.T) {
+		manager := &fakeSessionManager{}
+		cleared, err := manager.ClearConversation(context.Background(), "sess-missing")
+		if err != nil {
+			t.Fatalf("ClearConversation(missing) error = %v", err)
+		}
+		if cleared == nil {
+			t.Fatal("ClearConversation(missing) = nil, want session")
+		}
+		if got, want := cleared.ID, "sess-missing"; got != want {
+			t.Fatalf("cleared.ID = %q, want %q", got, want)
+		}
+		if got, want := cleared.State, session.StateActive; got != want {
+			t.Fatalf("cleared.State = %q, want %q", got, want)
+		}
+	})
+}
+
 func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	f.mu.Lock()
 	f.promptCalls = append(f.promptCalls, struct {
@@ -4239,6 +4286,10 @@ func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) 
 	ch := make(chan acp.AgentEvent)
 	close(ch)
 	return ch, nil
+}
+
+func (f *fakeSessionManager) CancelPrompt(context.Context, string) error {
+	return nil
 }
 
 func (f *fakeSessionManager) PromptSynthetic(

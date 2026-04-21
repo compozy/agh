@@ -207,7 +207,7 @@ func (m *Manager) readMeta(id string) (store.SessionMeta, error) {
 		}
 		return store.SessionMeta{}, fmt.Errorf("session: read metadata for %q: %w", target, err)
 	}
-	if _, ok := m.Get(target); ok {
+	if _, ok := m.Get(target); ok || m.isPending(target) {
 		return meta, nil
 	}
 	repaired, err := m.repairInactiveMeta(metaPath, meta)
@@ -282,6 +282,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		StopReason:   sessionMetaStopReason(meta),
 		StopDetail:   meta.StopDetail,
 		ACPSessionID: stringValue(meta.ACPSessionID),
+		Liveness:     store.CloneSessionLivenessMeta(meta.Liveness),
 		Environment:  cloneSessionEnvironmentMeta(meta.Environment),
 		CreatedAt:    meta.CreatedAt,
 		UpdatedAt:    meta.UpdatedAt,

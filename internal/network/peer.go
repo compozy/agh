@@ -22,23 +22,27 @@ type LocalPeer struct {
 
 // RemotePeerEntry is one cached remote peer advertisement.
 type RemotePeerEntry struct {
-	PeerID    string
-	PeerCard  PeerCard
-	Channel   string
-	LastSeen  time.Time
-	ExpiresAt time.Time
+	PeerID                 string
+	PeerCard               PeerCard
+	Channel                string
+	CapabilityCatalog      []sessionpkg.NetworkPeerCapability
+	CapabilityCatalogKnown bool
+	LastSeen               time.Time
+	ExpiresAt              time.Time
 }
 
 // PeerInfo is the API-facing snapshot for one visible peer.
 type PeerInfo struct {
-	SessionID *string
-	PeerID    string
-	Channel   string
-	Local     bool
-	PeerCard  PeerCard
-	JoinedAt  *time.Time
-	LastSeen  *time.Time
-	ExpiresAt *time.Time
+	SessionID              *string
+	PeerID                 string
+	Channel                string
+	Local                  bool
+	PeerCard               PeerCard
+	CapabilityCatalog      []sessionpkg.NetworkPeerCapability
+	CapabilityCatalogKnown bool
+	JoinedAt               *time.Time
+	LastSeen               *time.Time
+	ExpiresAt              *time.Time
 }
 
 // ChannelInfo summarizes one active runtime channel.
@@ -286,6 +290,19 @@ func (r *PeerRegistry) MatchLocalPeers(channel string, query string) []LocalPeer
 
 // RefreshRemote stores or refreshes one remote peer advertisement.
 func (r *PeerRegistry) RefreshRemote(channel string, card PeerCard, seenAt time.Time) (RemotePeerEntry, bool, error) {
+	return r.RefreshRemoteWithCapabilityCatalog(channel, card, nil, false, seenAt)
+}
+
+// RefreshRemoteWithCapabilityCatalog stores or refreshes one remote peer
+// advertisement plus optional rich capability discovery state learned via
+// explicit whois responses.
+func (r *PeerRegistry) RefreshRemoteWithCapabilityCatalog(
+	channel string,
+	card PeerCard,
+	capabilityCatalog []sessionpkg.NetworkPeerCapability,
+	capabilityCatalogKnown bool,
+	seenAt time.Time,
+) (RemotePeerEntry, bool, error) {
 	if r == nil {
 		return RemotePeerEntry{}, false, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
 	}
@@ -315,13 +332,23 @@ func (r *PeerRegistry) RefreshRemote(channel string, card PeerCard, seenAt time.
 	if _, ok := r.remotesByChannel[trimmedChannel]; !ok {
 		r.remotesByChannel[trimmedChannel] = make(map[string]RemotePeerEntry)
 	}
+	existing, hasExisting := r.remotesByChannel[trimmedChannel][normalizedCard.PeerID]
+	storedCatalog, storedCatalogKnown := nextRemoteCapabilityCatalog(
+		existing,
+		hasExisting,
+		normalizedCard.Capabilities,
+		capabilityCatalog,
+		capabilityCatalogKnown,
+	)
 
 	entry := RemotePeerEntry{
-		PeerID:    normalizedCard.PeerID,
-		PeerCard:  normalizedCard,
-		Channel:   trimmedChannel,
-		LastSeen:  seenAt,
-		ExpiresAt: seenAt.Add(2 * r.greetInterval),
+		PeerID:                 normalizedCard.PeerID,
+		PeerCard:               normalizedCard,
+		Channel:                trimmedChannel,
+		CapabilityCatalog:      storedCatalog,
+		CapabilityCatalogKnown: storedCatalogKnown,
+		LastSeen:               seenAt,
+		ExpiresAt:              seenAt.Add(2 * r.greetInterval),
 	}
 	r.remotesByChannel[trimmedChannel][entry.PeerID] = entry
 
@@ -548,11 +575,13 @@ func cloneLocalPeer(local LocalPeer) LocalPeer {
 
 func cloneRemotePeerEntry(entry RemotePeerEntry) RemotePeerEntry {
 	return RemotePeerEntry{
-		PeerID:    strings.TrimSpace(entry.PeerID),
-		PeerCard:  clonePeerCard(entry.PeerCard),
-		Channel:   strings.TrimSpace(entry.Channel),
-		LastSeen:  entry.LastSeen.UTC(),
-		ExpiresAt: entry.ExpiresAt.UTC(),
+		PeerID:                 strings.TrimSpace(entry.PeerID),
+		PeerCard:               clonePeerCard(entry.PeerCard),
+		Channel:                strings.TrimSpace(entry.Channel),
+		CapabilityCatalog:      cloneNetworkPeerCapabilityCatalog(entry.CapabilityCatalog),
+		CapabilityCatalogKnown: entry.CapabilityCatalogKnown,
+		LastSeen:               entry.LastSeen.UTC(),
+		ExpiresAt:              entry.ExpiresAt.UTC(),
 	}
 }
 
@@ -560,12 +589,14 @@ func peerInfoFromLocal(local LocalPeer) PeerInfo {
 	sessionID := strings.TrimSpace(local.SessionID)
 	joinedAt := local.JoinedAt.UTC()
 	return PeerInfo{
-		SessionID: &sessionID,
-		PeerID:    local.PeerID,
-		Channel:   local.Channel,
-		Local:     true,
-		PeerCard:  clonePeerCard(local.PeerCard),
-		JoinedAt:  &joinedAt,
+		SessionID:              &sessionID,
+		PeerID:                 local.PeerID,
+		Channel:                local.Channel,
+		Local:                  true,
+		PeerCard:               clonePeerCard(local.PeerCard),
+		CapabilityCatalog:      cloneNetworkPeerCapabilityCatalog(local.CapabilityCatalog),
+		CapabilityCatalogKnown: true,
+		JoinedAt:               &joinedAt,
 	}
 }
 
@@ -573,13 +604,51 @@ func peerInfoFromRemote(entry RemotePeerEntry) PeerInfo {
 	lastSeen := entry.LastSeen.UTC()
 	expiresAt := entry.ExpiresAt.UTC()
 	return PeerInfo{
-		PeerID:    entry.PeerID,
-		Channel:   entry.Channel,
-		Local:     false,
-		PeerCard:  clonePeerCard(entry.PeerCard),
-		LastSeen:  &lastSeen,
-		ExpiresAt: &expiresAt,
+		PeerID:                 entry.PeerID,
+		Channel:                entry.Channel,
+		Local:                  false,
+		PeerCard:               clonePeerCard(entry.PeerCard),
+		CapabilityCatalog:      cloneNetworkPeerCapabilityCatalog(entry.CapabilityCatalog),
+		CapabilityCatalogKnown: entry.CapabilityCatalogKnown,
+		LastSeen:               &lastSeen,
+		ExpiresAt:              &expiresAt,
 	}
+}
+
+func nextRemoteCapabilityCatalog(
+	existing RemotePeerEntry,
+	hasExisting bool,
+	capabilityIDs []string,
+	capabilityCatalog []sessionpkg.NetworkPeerCapability,
+	capabilityCatalogKnown bool,
+) ([]sessionpkg.NetworkPeerCapability, bool) {
+	if capabilityCatalogKnown {
+		if !capabilityCatalogAlignsWithCapabilityIDs(capabilityIDs, capabilityCatalog) {
+			return nil, false
+		}
+		return cloneNetworkPeerCapabilityCatalog(capabilityCatalog), true
+	}
+	if !hasExisting || !existing.CapabilityCatalogKnown {
+		return nil, false
+	}
+	if !sameCapabilityIDSequence(capabilityIDs, existing.PeerCard.Capabilities) {
+		return nil, false
+	}
+	return cloneNetworkPeerCapabilityCatalog(existing.CapabilityCatalog), true
+}
+
+func sameCapabilityIDSequence(left []string, right []string) bool {
+	normalizedLeft := normalizeCapabilityIDList(left)
+	normalizedRight := normalizeCapabilityIDList(right)
+	if len(normalizedLeft) != len(normalizedRight) {
+		return false
+	}
+	for idx := range normalizedLeft {
+		if normalizedLeft[idx] != normalizedRight[idx] {
+			return false
+		}
+	}
+	return true
 }
 
 func matchesWhoisQuery(card PeerCard, query string) bool {

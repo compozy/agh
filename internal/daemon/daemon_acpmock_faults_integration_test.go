@@ -12,6 +12,7 @@ import (
 	"time"
 
 	aghcontract "github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
 )
@@ -85,6 +86,106 @@ func TestDaemonE2EACPmockPermissionDisconnectProjectsRuntimeFailure(t *testing.T
 		"",
 		true,
 	)
+}
+
+func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	harness, session := startFaultyMockSession(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	type promptResult struct {
+		stream []e2etest.SSEEvent
+		err    error
+	}
+
+	resultCh := make(chan promptResult, 1)
+	go func() {
+		stream, err := harness.PromptSessionHTTP(ctx, session.ID, "block until canceled")
+		resultCh <- promptResult{stream: stream, err: err}
+	}()
+
+	waitForRuntimeCondition(t, "blocked ACP prompt to be recorded", 10*time.Second, func() bool {
+		eventsResp, err := harness.SessionEvents(ctx, session.ID)
+		if err != nil {
+			return false
+		}
+		for _, event := range eventsResp.Events {
+			if event.Type == "user_message" {
+				return true
+			}
+		}
+		return false
+	})
+
+	if err := harness.StopSession(ctx, session.ID); err != nil {
+		t.Fatalf("StopSession(%q) error = %v", session.ID, err)
+	}
+
+	var result promptResult
+	select {
+	case result = <-resultCh:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for blocked ACP prompt to finish after stop")
+	}
+	if result.err != nil {
+		t.Fatalf("PromptSessionHTTP(blocked cancel) error = %v", result.err)
+	}
+	if !sseStreamContainsEvent(result.stream, "error") {
+		t.Fatalf("prompt stream = %#v, want transport error when the blocked peer is stopped", result.stream)
+	}
+	if !sseStreamContainsEvent(result.stream, "done") {
+		t.Fatalf("prompt stream = %#v, want terminal done marker after cancellation", result.stream)
+	}
+
+	waitForRuntimeCondition(t, "blocked ACP session stopped", 10*time.Second, func() bool {
+		current, err := harness.GetSession(ctx, session.ID)
+		return err == nil && string(current.State) == "stopped"
+	})
+
+	sessionInfo, err := harness.GetSession(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("GetSession(%q) error = %v", session.ID, err)
+	}
+	if got, want := string(sessionInfo.State), "stopped"; got != want {
+		t.Fatalf("sessionInfo.State = %q, want %q", got, want)
+	}
+	if got, want := sessionInfo.StopReason, store.StopUserCanceled; got != want {
+		t.Fatalf("sessionInfo.StopReason = %q, want %q", got, want)
+	}
+
+	meta := mustReadSessionMeta(t, harness, session.ID)
+	if meta.Liveness == nil {
+		t.Fatal("meta.Liveness = nil, want persisted liveness metadata")
+	}
+	if got := meta.Liveness.SubprocessPID; got != 0 {
+		t.Fatalf("meta.Liveness.SubprocessPID = %d, want 0 after clean stop", got)
+	}
+	if got := strings.TrimSpace(meta.Liveness.StallState); got != "" {
+		t.Fatalf("meta.Liveness.StallState = %q, want empty after clean stop", got)
+	}
+	if got := strings.TrimSpace(meta.Liveness.StallReason); got != "" {
+		t.Fatalf("meta.Liveness.StallReason = %q, want empty after clean stop", got)
+	}
+
+	eventsResp := mustSessionEvents(t, ctx, harness, session.ID)
+	events := decodeAgentEvents(t, eventsResp.Events)
+	if !containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "error"}) {
+		t.Fatalf("events = %#v, want error event after blocked peer disconnect", events)
+	}
+
+	if err := harness.CaptureSessionTranscript(ctx, session.ID); err != nil {
+		t.Fatalf("CaptureSessionTranscript() error = %v", err)
+	}
+	if err := harness.CaptureSessionEvents(ctx, session.ID); err != nil {
+		t.Fatalf("CaptureSessionEvents() error = %v", err)
+	}
+	if err := harness.CaptureSessionEnvironment(ctx, session.ID); err != nil {
+		t.Fatalf("CaptureSessionEnvironment() error = %v", err)
+	}
 }
 
 func startFaultyMockSession(t testing.TB) (*e2etest.RuntimeHarness, aghcontract.SessionPayload) {

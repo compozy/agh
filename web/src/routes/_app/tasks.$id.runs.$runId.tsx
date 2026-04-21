@@ -5,7 +5,6 @@ import { useTaskRunPage } from "@/hooks/routes/use-task-run-page";
 import {
   TaskRunActivityPanel,
   TaskRunDetailHeader,
-  TaskRunDetailSessionLink,
   TaskRunIdentityPanel,
   TaskRunProgressPanel,
 } from "@/systems/tasks";
@@ -63,15 +62,13 @@ function TaskRunDetailRoute() {
         run={run}
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto px-6 py-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex min-w-0 flex-col gap-4" data-testid="tasks-run-detail-main">
-          <TaskRunDetailSessionLink run={run} />
-          <TaskRunActivityPanel run={run} />
-        </div>
-        <aside className="flex flex-col gap-4" data-testid="tasks-run-detail-side">
-          <TaskRunIdentityPanel run={run} />
-          <TaskRunProgressPanel run={run} />
-        </aside>
+      <div
+        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5"
+        data-testid="tasks-run-detail-main"
+      >
+        <TaskRunIdentityPanel run={run} />
+        <TaskRunProgressPanel run={run} />
+        <TaskRunActivityPanel run={run} />
       </div>
     </div>
   );

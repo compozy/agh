@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -187,10 +188,80 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		})
 
 		brief[0] = '{'
-		if got, want := string(
-			payload.PeerCard.Ext["agh.capabilities_brief"],
-		), `[{"id":"review-pr","summary":"Review pull requests"}]`; got != want {
-			t.Fatalf("payload capability brief = %q, want %q", got, want)
+		if got, want := payload.PeerCard.Capabilities, []contract.NetworkCapabilityBriefPayload{{
+			ID:      "review-pr",
+			Summary: "Review pull requests",
+		}}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("payload capability brief = %#v, want %#v", got, want)
+		}
+		if _, ok := payload.PeerCard.Ext["agh.capabilities_brief"]; ok {
+			t.Fatalf("payload capability brief ext should be stripped: %#v", payload.PeerCard.Ext)
+		}
+	})
+
+	t.Run("Should preserve greet brief summaries when rich catalog is filtered", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.NetworkPeerPayloadFromInfo(network.PeerInfo{
+			PeerID:  "reviewer.sess-c",
+			Channel: "builders",
+			Local:   false,
+			PeerCard: network.PeerCard{
+				PeerID:       "reviewer.sess-c",
+				Capabilities: []string{"review-pr", "ship-release"},
+				Ext: network.ExtensionMap{
+					"agh.capabilities_brief": json.RawMessage(`[
+						{"id":"review-pr","summary":"Review pull requests"},
+						{"id":"ship-release","summary":"Ship releases"}
+					]`),
+				},
+			},
+			CapabilityCatalog: []session.NetworkPeerCapability{{
+				ID:      "review-pr",
+				Summary: "Review pull requests",
+				Outcome: "Actionable review findings",
+			}},
+			CapabilityCatalogKnown: true,
+		})
+
+		if got, want := payload.PeerCard.Capabilities, []contract.NetworkCapabilityBriefPayload{
+			{ID: "review-pr", Summary: "Review pull requests"},
+			{ID: "ship-release", Summary: "Ship releases"},
+		}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("payload capability brief with filtered catalog = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should ignore stale rich catalog entries when the catalog is not known", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.NetworkPeerPayloadFromInfo(network.PeerInfo{
+			PeerID:  "reviewer.sess-d",
+			Channel: "builders",
+			Local:   false,
+			PeerCard: network.PeerCard{
+				PeerID:       "reviewer.sess-d",
+				Capabilities: []string{"review-pr", "ship-release"},
+				Ext: network.ExtensionMap{
+					"agh.capabilities_brief": json.RawMessage(`[
+						{"id":"review-pr","summary":"Review pull requests"},
+						{"id":"ship-release","summary":"Ship releases"}
+					]`),
+				},
+			},
+			CapabilityCatalog: []session.NetworkPeerCapability{{
+				ID:      "review-pr",
+				Summary: "STALE SUMMARY",
+				Outcome: "Actionable review findings",
+			}},
+			CapabilityCatalogKnown: false,
+		})
+
+		if got, want := payload.PeerCard.Capabilities, []contract.NetworkCapabilityBriefPayload{
+			{ID: "review-pr", Summary: "Review pull requests"},
+			{ID: "ship-release", Summary: "Ship releases"},
+		}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("payload capability brief with unknown catalog = %#v, want %#v", got, want)
 		}
 	})
 }
@@ -421,10 +492,14 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			*peersPayload.Peers[0].PeerCard.DisplayName != "Reviewer" {
 			t.Fatalf("peers payload = %#v", peersPayload.Peers)
 		}
-		if got, want := string(
-			peersPayload.Peers[0].PeerCard.Ext["agh.capabilities_brief"],
-		), `[{"id":"send","summary":"Send channel updates"}]`; got != want {
-			t.Fatalf("peer list capability brief = %q, want %q", got, want)
+		if got, want := peersPayload.Peers[0].PeerCard.Capabilities, []contract.NetworkCapabilityBriefPayload{{
+			ID:      "send",
+			Summary: "Send channel updates",
+		}}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("peer list capability brief = %#v, want %#v", got, want)
+		}
+		if _, ok := peersPayload.Peers[0].PeerCard.Ext["agh.capabilities_brief"]; ok {
+			t.Fatalf("peer list capability brief ext should be stripped: %#v", peersPayload.Peers[0].PeerCard.Ext)
 		}
 	})
 
@@ -1820,6 +1895,17 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 							),
 						},
 					},
+					CapabilityCatalog: []session.NetworkPeerCapability{{
+						ID:                "review-pr",
+						Summary:           "Review pull requests",
+						Outcome:           "Actionable review findings",
+						Version:           "1.0.0",
+						Digest:            "sha256:review-pr-v1",
+						ContextNeeded:     []string{"pull request link"},
+						ArtifactsExpected: []string{"review summary"},
+						Requirements:      []string{"workspace-read"},
+					}},
+					CapabilityCatalogKnown: true,
 				}}, nil
 			},
 		}
@@ -1892,10 +1978,29 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 		if got, want := payload.Peer.Metrics.Rejected, int64(1); got != want {
 			t.Fatalf("payload.Peer.Metrics.Rejected = %d, want %d", got, want)
 		}
-		if got, want := string(
-			payload.Peer.PeerCard.Ext["agh.capabilities_brief"],
-		), `[{"id":"review-pr","summary":"Review pull requests"}]`; got != want {
-			t.Fatalf("peer detail capability brief = %q, want %q", got, want)
+		if got, want := payload.Peer.PeerCard.Capabilities, []contract.NetworkCapabilityBriefPayload{{
+			ID:      "review-pr",
+			Summary: "Review pull requests",
+		}}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("peer detail capability brief = %#v, want %#v", got, want)
+		}
+		if _, ok := payload.Peer.PeerCard.Ext["agh.capabilities_brief"]; ok {
+			t.Fatalf("peer detail capability brief ext should be stripped: %#v", payload.Peer.PeerCard.Ext)
+		}
+		if payload.Peer.CapabilityCatalog == nil {
+			t.Fatal("payload.Peer.CapabilityCatalog = nil, want rich capability catalog")
+		}
+		if got, want := payload.Peer.CapabilityCatalog.Capabilities, []contract.NetworkCapabilityPayload{{
+			ID:                "review-pr",
+			Summary:           "Review pull requests",
+			Outcome:           "Actionable review findings",
+			Version:           "1.0.0",
+			Digest:            "sha256:review-pr-v1",
+			ContextNeeded:     []string{"pull request link"},
+			ArtifactsExpected: []string{"review summary"},
+			Requirements:      []string{"workspace-read"},
+		}}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("peer detail capability catalog = %#v, want %#v", got, want)
 		}
 	})
 

@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
+import { AlertCircle, ChevronRight, Inbox, Loader2 } from "lucide-react";
 
 import {
+  Empty,
   MonoBadge,
   Pill,
   Section,
@@ -44,35 +45,31 @@ export function TasksDetailRunsPanel({
 
   if (errorMessage && runs.length === 0) {
     return (
-      <div
-        className="flex min-h-[240px] flex-col items-center justify-center gap-2 px-6 text-center"
+      <Empty
+        icon={AlertCircle}
+        title="Unable to load runs"
+        description={errorMessage}
         data-testid="tasks-detail-runs-error"
-      >
-        <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-        <p className="text-sm text-[color:var(--color-text-secondary)]">{errorMessage}</p>
-      </div>
+      />
     );
   }
 
   if (runs.length === 0) {
     return (
-      <div
-        className="flex min-h-[240px] flex-col items-center justify-center gap-2 px-6 text-center"
+      <Empty
+        icon={Inbox}
+        title="No runs yet"
+        description="Enqueue a run to execute this task."
         data-testid="tasks-detail-runs-empty"
-      >
-        <p className="text-sm text-[color:var(--color-text-secondary)]">
-          No runs yet. Enqueue a run to execute this task.
-        </p>
-      </div>
+      />
     );
   }
 
   return (
     <Section
       aria-label="Task runs"
-      className="px-6 py-5"
+      className="w-full gap-6 px-6 py-5"
       data-testid="tasks-detail-runs-panel"
-      label={`Runs · ${runs.length}`}
     >
       <Table>
         <TableHeader>

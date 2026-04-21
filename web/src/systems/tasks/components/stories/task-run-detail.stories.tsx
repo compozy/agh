@@ -8,7 +8,6 @@ import {
   TaskRunIdentityPanel,
   TaskRunProgressPanel,
 } from "../task-run-detail-panels";
-import { TaskRunDetailSessionLink } from "../task-run-detail-session-link";
 
 const meta: Meta = {
   title: "systems/tasks/TaskRunDetail",
@@ -69,15 +68,10 @@ function DetailSurface({ run }: { run: TaskRunDetailView }) {
     <PanelSurface className="min-h-[820px] flex-col p-0">
       <div className="flex min-h-0 flex-1 flex-col">
         <TaskRunDetailHeader onCancelRun={() => undefined} run={run} />
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto px-6 py-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="flex min-w-0 flex-col gap-4">
-            <TaskRunDetailSessionLink run={run} />
-            <TaskRunActivityPanel run={run} />
-          </div>
-          <aside className="flex flex-col gap-4">
-            <TaskRunIdentityPanel run={run} />
-            <TaskRunProgressPanel run={run} />
-          </aside>
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5">
+          <TaskRunIdentityPanel run={run} />
+          <TaskRunProgressPanel run={run} />
+          <TaskRunActivityPanel run={run} />
         </div>
       </div>
     </PanelSurface>

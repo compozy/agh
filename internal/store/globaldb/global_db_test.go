@@ -988,6 +988,12 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 		WorkspaceID: workspaceID,
 		Channel:     "builders",
 		State:       "active",
+		Liveness: &store.SessionLivenessMeta{
+			SubprocessPID: 77,
+			LastUpdateAt:  ptrTime(time.Date(2026, 4, 3, 13, 1, 0, 0, time.UTC)),
+			StallState:    store.SessionStallStateDetected,
+			StallReason:   store.SessionStallReasonActivityTimeout,
+		},
 		Environment: &store.SessionEnvironmentMeta{
 			EnvironmentID: "env-workspace-id",
 			Backend:       "local",
@@ -1029,6 +1035,26 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	if got, want := sessions[0].Environment.LastSyncError, "last sync failed"; got != want {
 		t.Fatalf("sessions[0].Environment.LastSyncError = %q, want %q", got, want)
 	}
+	if sessions[0].Liveness == nil {
+		t.Fatal("sessions[0].Liveness = nil, want liveness metadata")
+	}
+	if got, want := sessions[0].Liveness.SubprocessPID, 77; got != want {
+		t.Fatalf("sessions[0].Liveness.SubprocessPID = %d, want %d", got, want)
+	}
+	if sessions[0].Liveness.LastUpdateAt == nil ||
+		!sessions[0].Liveness.LastUpdateAt.Equal(*session.Liveness.LastUpdateAt) {
+		t.Fatalf(
+			"sessions[0].Liveness.LastUpdateAt = %#v, want %s",
+			sessions[0].Liveness.LastUpdateAt,
+			session.Liveness.LastUpdateAt,
+		)
+	}
+	if got, want := sessions[0].Liveness.StallState, store.SessionStallStateDetected; got != want {
+		t.Fatalf("sessions[0].Liveness.StallState = %q, want %q", got, want)
+	}
+	if got, want := sessions[0].Liveness.StallReason, store.SessionStallReasonActivityTimeout; got != want {
+		t.Fatalf("sessions[0].Liveness.StallReason = %q, want %q", got, want)
+	}
 
 	assertTableColumns(
 		t,
@@ -1045,6 +1071,11 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"acp_session_id",
 			"stop_reason",
 			"stop_detail",
+			"subprocess_pid",
+			"subprocess_started_at",
+			"last_update_at",
+			"stall_state",
+			"stall_reason",
 			"environment_id",
 			"environment_backend",
 			"environment_profile",
@@ -1057,6 +1088,40 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"updated_at",
 		},
 	)
+}
+
+func TestGlobalDBRegisterSessionRejectsStallStateWithoutReason(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"invalid-stall-session",
+		filepath.Join(t.TempDir(), "invalid-stall-session"),
+	)
+
+	err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		ID:          "sess-invalid-stall",
+		AgentName:   "coder",
+		WorkspaceID: workspaceID,
+		State:       "active",
+		Liveness: &store.SessionLivenessMeta{
+			SubprocessPID: 77,
+			StallState:    store.SessionStallStateDetected,
+		},
+		CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+	})
+	if err == nil {
+		t.Fatal("RegisterSession() error = nil, want invalid stall reason failure")
+	}
+	if got, want := err.Error(), "store: session stall reason required when stall state is set"; !strings.Contains(
+		got,
+		want,
+	) {
+		t.Fatalf("RegisterSession() error = %v, want substring %q", err, want)
+	}
 }
 
 func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
@@ -1205,6 +1270,11 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"environment_last_sync_error",
 			"created_at",
 			"updated_at",
+			"subprocess_pid",
+			"subprocess_started_at",
+			"last_update_at",
+			"stall_state",
+			"stall_reason",
 		},
 	)
 	assertTableColumns(
@@ -1903,6 +1973,11 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"stop_reason",
 			"stop_detail",
 			"channel",
+			"subprocess_pid",
+			"subprocess_started_at",
+			"last_update_at",
+			"stall_state",
+			"stall_reason",
 			"environment_id",
 			"environment_backend",
 			"environment_profile",
@@ -2125,6 +2200,11 @@ func stringPointerForTest(value string) *string {
 	}
 
 	copyValue := value
+	return &copyValue
+}
+
+func ptrTime(value time.Time) *time.Time {
+	copyValue := value.UTC()
 	return &copyValue
 }
 

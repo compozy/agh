@@ -2,17 +2,28 @@ import type * as React from "react";
 
 import { cn } from "../lib/utils";
 
-function Card({
-  className,
-  size = "default",
-  ...props
-}: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
+export type CardSize = "default" | "sm";
+
+export interface CardProps extends React.ComponentProps<"div"> {
+  size?: CardSize;
+  /**
+   * Renders a 2px accent left-rail to flag attention-demanding or in-flight
+   * state. The rail replaces the ad-hoc `border-[color:var(--color-accent)]`
+   * pattern the Tasks domain used to paint around the whole perimeter — accent
+   * should read as a pointer, not a frame. Defaults to `false`.
+   */
+  activeRail?: boolean;
+}
+
+function Card({ className, size = "default", activeRail = false, ...props }: CardProps) {
   return (
     <div
       data-slot="card"
       data-size={size}
+      data-active-rail={activeRail ? "true" : undefined}
       className={cn(
         "group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
+        activeRail && "border-l-2 border-l-[color:var(--color-accent)]",
         className
       )}
       {...props}

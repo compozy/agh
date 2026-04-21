@@ -14,12 +14,14 @@ const workspaceFixture = {
 let mockHasWorkspaces = true;
 let mockActiveWorkspaceId: string | null = "ws_alpha";
 let mockPathname = "/tasks";
+let mockLatestPathname = "/tasks";
 const reducedMotionMock = vi.fn<() => boolean>().mockReturnValue(false);
 const mockInvalidate = vi.fn();
 const mockReset = vi.fn();
+const mockNavigate = vi.fn();
 
 const mockSetActiveWorkspaceId = vi.fn();
-const mockCreateSessionMutate = vi.fn();
+const mockCreateSessionMutateAsync = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute:
@@ -52,7 +54,9 @@ vi.mock("@tanstack/react-router", () => ({
   ),
   useRouter: () => ({
     invalidate: mockInvalidate,
+    latestLocation: { pathname: mockLatestPathname },
   }),
+  useNavigate: () => mockNavigate,
 }));
 
 vi.mock("motion/react", () => ({
@@ -126,7 +130,7 @@ vi.mock("@/systems/agent", () => ({
 
 vi.mock("@/systems/session", () => ({
   useCreateSession: () => ({
-    mutate: mockCreateSessionMutate,
+    mutateAsync: mockCreateSessionMutateAsync,
     isPending: false,
   }),
   useSessions: () => ({
@@ -195,12 +199,14 @@ describe("AppLayout", () => {
     mockHasWorkspaces = true;
     mockActiveWorkspaceId = workspaceFixture.id;
     mockPathname = "/tasks";
+    mockLatestPathname = "/tasks";
     reducedMotionMock.mockReset();
     reducedMotionMock.mockReturnValue(false);
     mockInvalidate.mockReset();
+    mockNavigate.mockReset();
     mockReset.mockReset();
     mockSetActiveWorkspaceId.mockReset();
-    mockCreateSessionMutate.mockReset();
+    mockCreateSessionMutateAsync.mockReset();
   });
 
   it("renders sidebar, content column, and outlet wrapped in the route motion shell", () => {
@@ -215,16 +221,27 @@ describe("AppLayout", () => {
 
   it("keys the motion shell by location pathname so a route swap replaces it", () => {
     mockPathname = "/tasks";
+    mockLatestPathname = "/tasks";
     const first = render(<AppLayout />);
     expect(first.getByTestId("app-route-motion")).toHaveAttribute("data-route-key", "/tasks");
     first.unmount();
 
     mockPathname = "/session/abc";
+    mockLatestPathname = "/session/abc";
     const second = render(<AppLayout />);
     expect(second.getByTestId("app-route-motion")).toHaveAttribute(
       "data-route-key",
       "/session/abc"
     );
+  });
+
+  it("prefers the router latest pathname when the selected location lags behind navigation", () => {
+    mockPathname = "/";
+    mockLatestPathname = "/network";
+
+    render(<AppLayout />);
+
+    expect(screen.getByTestId("app-route-motion")).toHaveAttribute("data-route-key", "/network");
   });
 
   it("uses the 200ms ease-out fade under default motion preferences", () => {

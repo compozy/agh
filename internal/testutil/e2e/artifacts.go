@@ -22,6 +22,7 @@ type ArtifactKind string
 const (
 	ArtifactKindTranscript           ArtifactKind = "transcript"
 	ArtifactKindEvents               ArtifactKind = "events"
+	ArtifactKindTransportOutputs     ArtifactKind = "transport_outputs"
 	ArtifactKindNetworkMessages      ArtifactKind = "network_messages"
 	ArtifactKindNetworkAudit         ArtifactKind = "network_audit"
 	ArtifactKindAutomationRuns       ArtifactKind = "automation_runs"
@@ -51,6 +52,7 @@ const defaultArtifactSlug = "run"
 var artifactSpecs = map[ArtifactKind]artifactSpec{
 	ArtifactKindTranscript:           {relativePath: "transcript.json"},
 	ArtifactKindEvents:               {relativePath: "events.json"},
+	ArtifactKindTransportOutputs:     {relativePath: "transport_outputs", isDir: true},
 	ArtifactKindNetworkMessages:      {relativePath: "network_messages.json"},
 	ArtifactKindNetworkAudit:         {relativePath: "network_audit.json"},
 	ArtifactKindAutomationRuns:       {relativePath: "automation_runs.json"},
@@ -81,6 +83,68 @@ type ArtifactEntry struct {
 type ArtifactManifest struct {
 	Version   int             `json:"version"`
 	Artifacts []ArtifactEntry `json:"artifacts"`
+}
+
+// RuntimeArtifactManifest captures the stable daemon-runtime surfaces later
+// integration suites need for debugging and parity assertions.
+type RuntimeArtifactManifest struct {
+	Version              int                      `json:"version"`
+	WorkspaceRoot        string                   `json:"workspace_root,omitempty"`
+	Home                 RuntimeHomeArtifact      `json:"home"`
+	Logs                 RuntimeLogArtifact       `json:"logs"`
+	Runs                 RuntimeRunArtifact       `json:"runs"`
+	Transport            RuntimeTransportArtifact `json:"transport"`
+	ArtifactRootDir      string                   `json:"artifact_root_dir,omitempty"`
+	ArtifactManifestPath string                   `json:"artifact_manifest_path,omitempty"`
+	CapturedArtifacts    ArtifactManifest         `json:"captured_artifacts"`
+}
+
+// RuntimeHomeArtifact captures the isolated AGH home layout used by a harness.
+type RuntimeHomeArtifact struct {
+	HomeDir          string `json:"home_dir,omitempty"`
+	ConfigFile       string `json:"config_file,omitempty"`
+	DatabaseFile     string `json:"database_file,omitempty"`
+	DaemonSocket     string `json:"daemon_socket,omitempty"`
+	DaemonInfo       string `json:"daemon_info,omitempty"`
+	LogsDir          string `json:"logs_dir,omitempty"`
+	NetworkAuditFile string `json:"network_audit_file,omitempty"`
+}
+
+// RuntimeLogArtifact captures the daemon log surfaces retained by the harness.
+type RuntimeLogArtifact struct {
+	DaemonLogFile  string `json:"daemon_log_file,omitempty"`
+	ProcessLogFile string `json:"process_log_file,omitempty"`
+}
+
+// RuntimeRunArtifact captures the stable run-root surfaces retained by the harness.
+type RuntimeRunArtifact struct {
+	RootDir     string   `json:"root_dir,omitempty"`
+	Directories []string `json:"directories,omitempty"`
+}
+
+// RuntimeTransportArtifact captures the public transport metadata shared by the harness.
+type RuntimeTransportArtifact struct {
+	HTTPBaseURL string `json:"http_base_url,omitempty"`
+	HTTPHost    string `json:"http_host,omitempty"`
+	HTTPPort    int    `json:"http_port,omitempty"`
+	UDSBaseURL  string `json:"uds_base_url,omitempty"`
+	SocketPath  string `json:"socket_path,omitempty"`
+	CLIBinary   string `json:"cli_binary,omitempty"`
+	CLIWorkdir  string `json:"cli_workdir,omitempty"`
+}
+
+// TransportOutputArtifact records one CLI/HTTP/UDS result retained for later diagnostics.
+type TransportOutputArtifact struct {
+	Name       string   `json:"name,omitempty"`
+	Transport  string   `json:"transport,omitempty"`
+	Command    []string `json:"command,omitempty"`
+	URL        string   `json:"url,omitempty"`
+	Method     string   `json:"method,omitempty"`
+	StatusCode int      `json:"status_code,omitempty"`
+	Stdout     string   `json:"stdout,omitempty"`
+	Stderr     string   `json:"stderr,omitempty"`
+	Error      string   `json:"error,omitempty"`
+	Payload    any      `json:"payload,omitempty"`
 }
 
 // SessionEnvironmentArtifact captures both the public session environment
@@ -232,6 +296,23 @@ func (c *ArtifactCollector) CaptureText(kind ArtifactKind, text string) error {
 	return c.captureBytes(kind, []byte(text), "text/plain")
 }
 
+// CaptureNamedJSON writes one JSON file inside a directory artifact and keeps
+// the directory registered in the shared manifest.
+func (c *ArtifactCollector) CaptureNamedJSON(kind ArtifactKind, name string, value any) (string, error) {
+	data, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("marshal %s named artifact %q: %w", kind, name, err)
+	}
+	data = append(data, '\n')
+	return c.captureNamedBytes(kind, name, ".json", data, "application/json")
+}
+
+// CaptureNamedText writes one text file inside a directory artifact and keeps
+// the directory registered in the shared manifest.
+func (c *ArtifactCollector) CaptureNamedText(kind ArtifactKind, name string, text string) (string, error) {
+	return c.captureNamedBytes(kind, name, ".txt", []byte(text), "text/plain")
+}
+
 // CaptureFile copies a single file into the canonical artifact location.
 func (c *ArtifactCollector) CaptureFile(kind ArtifactKind, sourcePath string, mediaType string) error {
 	data, err := os.ReadFile(sourcePath)
@@ -323,6 +404,48 @@ func (c *ArtifactCollector) captureBytes(kind ArtifactKind, data []byte, mediaTy
 		MediaType: strings.TrimSpace(mediaType),
 	}
 	return c.writeManifestLocked()
+}
+
+func (c *ArtifactCollector) captureNamedBytes(
+	kind ArtifactKind,
+	name string,
+	extension string,
+	data []byte,
+	mediaType string,
+) (string, error) {
+	spec, err := c.spec(kind)
+	if err != nil {
+		return "", err
+	}
+	if !spec.isDir {
+		return "", fmt.Errorf("artifact %s does not accept named entries", kind)
+	}
+
+	targetDir, err := c.targetPath(spec)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return "", fmt.Errorf("mkdir %s artifact dir %q: %w", kind, targetDir, err)
+	}
+
+	fileName := sanitizePathComponent(name) + extension
+	targetPath := filepath.Join(targetDir, fileName)
+	if err := os.WriteFile(targetPath, data, 0o600); err != nil {
+		return "", fmt.Errorf("write %s named artifact %q: %w", kind, targetPath, err)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries[kind] = ArtifactEntry{
+		Kind:      kind,
+		Path:      spec.relativePath,
+		MediaType: strings.TrimSpace(mediaType),
+	}
+	if err := c.writeManifestLocked(); err != nil {
+		return "", err
+	}
+	return targetPath, nil
 }
 
 func (c *ArtifactCollector) spec(kind ArtifactKind) (artifactSpec, error) {

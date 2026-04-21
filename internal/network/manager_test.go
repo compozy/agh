@@ -295,6 +295,9 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		if got, want := local.PeerCard.Capabilities, []string{"review-pr"}; !slices.Equal(got, want) {
 			t.Fatalf("local peer capabilities = %#v, want %#v", got, want)
 		}
+		if got, want := local.PeerCard.ArtifactsSupported, []string{"capability"}; !slices.Equal(got, want) {
+			t.Fatalf("local peer artifacts_supported = %#v, want %#v", got, want)
+		}
 		if !reflect.DeepEqual(local.CapabilityCatalog, capabilities) {
 			t.Fatalf("local capability catalog = %#v, want %#v", local.CapabilityCatalog, capabilities)
 		}
@@ -317,6 +320,9 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		}
 		if got, want := stored.PeerCard.Capabilities, []string{"review-pr"}; !slices.Equal(got, want) {
 			t.Fatalf("stored peer capabilities = %#v, want %#v", got, want)
+		}
+		if got, want := stored.PeerCard.ArtifactsSupported, []string{"capability"}; !slices.Equal(got, want) {
+			t.Fatalf("stored peer artifacts_supported = %#v, want %#v", got, want)
 		}
 		if !reflect.DeepEqual(stored.CapabilityCatalog, capabilities) {
 			t.Fatalf("stored capability catalog = %#v, want %#v", stored.CapabilityCatalog, capabilities)
@@ -353,6 +359,9 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 		}
 		if got := len(local.PeerCard.Capabilities); got != 0 {
 			t.Fatalf("local peer capabilities len = %d, want 0", got)
+		}
+		if got, want := local.PeerCard.ArtifactsSupported, []string{"capability"}; !slices.Equal(got, want) {
+			t.Fatalf("local peer artifacts_supported = %#v, want %#v", got, want)
 		}
 		if local.PeerCard.Ext != nil && local.PeerCard.Ext[capabilityBriefExtKey] != nil {
 			t.Fatalf("local peer ext = %#v, want omitted capability brief key", local.PeerCard.Ext)
@@ -633,6 +642,111 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 		if !strings.Contains(logOutput, want) {
 			t.Fatalf("logs missing %q:\n%s", want, logOutput)
 		}
+	}
+}
+
+func TestManagerDeliversLocalTraceLifecycleMessages(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	fixedNow := time.Date(2026, 4, 11, 18, 30, 0, 0, time.UTC)
+	prompter := newFakeDeliveryPrompter()
+
+	manager, err := NewManager(
+		ctx,
+		testManagerConfig(),
+		prompter,
+		filepath.Join(t.TempDir(), "network.audit"),
+		nil,
+		WithManagerLogger(discardManagerLogger()),
+		WithManagerClock(func() time.Time { return fixedNow }),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	defer func() {
+		if err := manager.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	}()
+
+	if err := manager.JoinChannel(ctx, testJoinRequest("sess-a", "reviewer.sess-a", "builders")); err != nil {
+		t.Fatalf("JoinChannel(sess-a) error = %v", err)
+	}
+	if err := manager.JoinChannel(ctx, testJoinRequest("sess-b", "patcher.sess-b", "builders")); err != nil {
+		t.Fatalf("JoinChannel(sess-b) error = %v", err)
+	}
+
+	directID, err := manager.Send(ctx, SendRequest{
+		SessionID:     "sess-b",
+		Channel:       "builders",
+		Kind:          KindDirect,
+		To:            ptrString("reviewer.sess-a"),
+		Body:          mustRawJSON(t, DirectBody{Text: "I can take the migration fix."}),
+		InteractionID: ptrString("int-local-trace"),
+		TraceID:       ptrString("trace-local-trace"),
+	})
+	if err != nil {
+		t.Fatalf("Send(direct) error = %v", err)
+	}
+
+	prompter.waitForCalls(t, 1)
+	directCall := prompter.call(0)
+	if got, want := directCall.sessionID, "sess-a"; got != want {
+		t.Fatalf("direct delivery session = %q, want %q", got, want)
+	}
+	if got, want := directCall.meta.Kind, string(KindDirect); got != want {
+		t.Fatalf("direct delivery kind = %q, want %q", got, want)
+	}
+	prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: fixedNow})
+	manager.deliveries.wait()
+
+	_, err = manager.Send(ctx, SendRequest{
+		SessionID: "sess-b",
+		Channel:   "builders",
+		Kind:      KindTrace,
+		To:        ptrString("reviewer.sess-a"),
+		Body: mustRawJSON(t, TraceBody{
+			State:   StateCompleted,
+			Message: "Patch prepared and tests pass.",
+			Result:  mustRawJSON(t, map[string]any{"summary": "migration fix applied"}),
+		}),
+		InteractionID: ptrString("int-local-trace"),
+		ReplyTo:       &directID,
+		TraceID:       ptrString("trace-local-trace"),
+		CausationID:   &directID,
+	})
+	if err != nil {
+		t.Fatalf("Send(trace) error = %v", err)
+	}
+
+	prompter.waitForCalls(t, 2)
+	traceCall := prompter.call(1)
+	if got, want := traceCall.sessionID, "sess-a"; got != want {
+		t.Fatalf("trace delivery session = %q, want %q", got, want)
+	}
+	if got, want := traceCall.meta.Kind, string(KindTrace); got != want {
+		t.Fatalf("trace delivery kind = %q, want %q", got, want)
+	}
+	prompter.finishCall(1, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: fixedNow})
+	manager.deliveries.wait()
+
+	status, err := manager.Status(ctx)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+
+	metricsByKind := make(map[Kind]KindMetric)
+	for _, metric := range status.KindMetrics {
+		metricsByKind[metric.Kind] = metric
+	}
+
+	if direct := metricsByKind[KindDirect]; direct.Sent != 1 || direct.Received != 1 || direct.Delivered != 1 {
+		t.Fatalf("direct kind metrics = %#v, want sent=1 received=1 delivered=1", direct)
+	}
+	if trace := metricsByKind[KindTrace]; trace.Sent != 1 || trace.Received != 1 || trace.Delivered != 1 {
+		t.Fatalf("trace kind metrics = %#v, want sent=1 received=1 delivered=1", trace)
 	}
 }
 

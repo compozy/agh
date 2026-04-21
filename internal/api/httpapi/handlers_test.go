@@ -158,7 +158,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/network/send",
 		"POST /api/sessions",
 		"POST /api/sessions/:id/approve",
+		"POST /api/sessions/:id/clear",
 		"POST /api/sessions/:id/prompt",
+		"POST /api/sessions/:id/prompt/cancel",
 		"POST /api/sessions/:id/resume",
 		"POST /api/settings/actions/restart",
 		"POST /api/skills/:name/disable",
@@ -1149,21 +1151,17 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 		t.Fatalf("last data = %q, want [DONE]", string(records[len(records)-1].Data))
 	}
 
-	var foundAgentMessage bool
-	var foundToolCall bool
-	var foundDone bool
 	var finishPart promptFinishPayload
 	var finishFields map[string]json.RawMessage
 	for _, record := range records {
-		if record.Event == "agent_message" {
-			foundAgentMessage = true
-		}
-		if record.Event == "tool_call" {
-			foundToolCall = true
-		}
-		if record.Event == "done" {
-			foundDone = true
-			if len(record.Data) > 0 && string(record.Data) != "[DONE]" {
+		if len(record.Data) > 0 && string(record.Data) != "[DONE]" {
+			var payload struct {
+				Type string `json:"type"`
+			}
+			if err := json.Unmarshal(record.Data, &payload); err != nil {
+				t.Fatalf("json.Unmarshal(part type) error = %v; data=%s", err, string(record.Data))
+			}
+			if payload.Type == "finish" {
 				if err := json.Unmarshal(record.Data, &finishPart); err != nil {
 					t.Fatalf("json.Unmarshal(finish part) error = %v; data=%s", err, string(record.Data))
 				}
@@ -1172,15 +1170,6 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 				}
 			}
 		}
-	}
-	if !foundAgentMessage || !foundToolCall || !foundDone {
-		t.Fatalf(
-			"events missing native markers: agent_message=%v tool_call=%v done=%v body=%s",
-			foundAgentMessage,
-			foundToolCall,
-			foundDone,
-			recorder.Body.String(),
-		)
 	}
 
 	var promptParts []map[string]any
@@ -1203,6 +1192,7 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	}
 	if !contains(types, "start") || !contains(types, "text-start") || !contains(types, "text-delta") ||
 		!contains(types, "tool-input-start") ||
+		!contains(types, "tool-input-available") ||
 		!contains(types, "tool-output-available") ||
 		!contains(types, "finish") {
 		t.Fatalf("part types = %#v", types)
@@ -1212,6 +1202,169 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	}
 	if _, ok := finishFields["stopReason"]; ok {
 		t.Fatalf("finish part unexpectedly includes stopReason: %s", finishFields["stopReason"])
+	}
+}
+
+func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldEmitRealToolInputAfterAForcedPlaceholder", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+				ch := make(chan acp.AgentEvent, 3)
+				ch <- acp.AgentEvent{
+					Type:       "tool_result",
+					TurnID:     "turn-1",
+					Timestamp:  time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
+					ToolCallID: "call-1",
+				}
+				ch <- acp.AgentEvent{
+					Type:       "tool_call",
+					TurnID:     "turn-1",
+					Timestamp:  time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC),
+					Title:      "read_file",
+					ToolCallID: "call-1",
+					Raw:        json.RawMessage(`{"tool_input":{"path":"README.md"}}`),
+				}
+				ch <- acp.AgentEvent{
+					Type:       "done",
+					TurnID:     "turn-1",
+					Timestamp:  time.Date(2026, 4, 3, 12, 0, 3, 0, time.UTC),
+					StopReason: "end_turn",
+				}
+				close(ch)
+				return ch, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/sessions/sess-123/prompt",
+			[]byte(`{"messages":[{"role":"user","parts":[{"type":"text","text":"hello"}]}]}`),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		records := parseSSE(t, recorder.Body.String())
+		if len(records) < 2 {
+			t.Fatalf("len(records) = %d, want at least 2; body=%s", len(records), recorder.Body.String())
+		}
+
+		var toolInputs []map[string]any
+		for _, record := range records[:len(records)-1] {
+			if len(record.Data) == 0 || string(record.Data) == "[DONE]" {
+				continue
+			}
+			var part map[string]any
+			if err := json.Unmarshal(record.Data, &part); err != nil {
+				t.Fatalf("json.Unmarshal(part) error = %v; data=%s", err, string(record.Data))
+			}
+			if part["type"] == "tool-input-available" {
+				toolInputs = append(toolInputs, part)
+			}
+		}
+
+		if len(toolInputs) != 2 {
+			t.Fatalf("len(toolInputs) = %d, want 2; body=%s", len(toolInputs), recorder.Body.String())
+		}
+
+		firstInput, ok := toolInputs[0]["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("first tool input = %#v, want object", toolInputs[0]["input"])
+		}
+		if len(firstInput) != 0 {
+			t.Fatalf("first tool input = %#v, want provisional empty object", firstInput)
+		}
+
+		secondInput, ok := toolInputs[1]["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("second tool input = %#v, want object", toolInputs[1]["input"])
+		}
+		if got, want := secondInput["path"], "README.md"; got != want {
+			t.Fatalf("second tool input path = %#v, want %q", got, want)
+		}
+		if got, want := toolInputs[1]["toolName"], "read_file"; got != want {
+			t.Fatalf("second tool input toolName = %#v, want %q", got, want)
+		}
+	})
+}
+
+func TestPromptSessionHandlerCancelsDetachedPromptContextWhenRequestEnds(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	promptCtxCh := make(chan context.Context, 1)
+	events := make(chan acp.AgentEvent)
+	manager := stubSessionManager{
+		PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
+			promptCtxCh <- ctx
+			return events, nil
+		},
+	}
+	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	requestCtx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequestWithContext(
+		requestCtx,
+		http.MethodPost,
+		"/api/sessions/sess-123/prompt",
+		strings.NewReader(`{"message":"hello"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		engine.ServeHTTP(recorder, req)
+		close(done)
+	}()
+
+	var promptCtx context.Context
+	select {
+	case promptCtx = <-promptCtxCh:
+	case <-time.After(time.Second):
+		t.Fatal("Prompt() was not invoked")
+	}
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("handler did not return after request cancellation")
+	}
+
+	if !errors.Is(promptCtx.Err(), context.Canceled) {
+		t.Fatalf("prompt context err = %v, want context.Canceled after request cancellation", promptCtx.Err())
+	}
+
+	close(events)
+}
+
+func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	manager := stubSessionManager{
+		CancelPromptFn: func(_ context.Context, id string) error {
+			if id != "sess-123" {
+				t.Fatalf("CancelPrompt() id = %q, want sess-123", id)
+			}
+			return nil
+		},
+	}
+	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/prompt/cancel", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if got := recorder.Body.String(); got != "" {
+		t.Fatalf("body = %q, want empty", got)
 	}
 }
 
@@ -1278,12 +1431,15 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		TranscriptFn: func(context.Context, string) ([]transcript.Message, error) {
-			return []transcript.Message{{
-				ID:        "msg-1",
-				Role:      transcript.RoleAssistant,
-				Content:   "hello",
-				Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		TranscriptFn: func(context.Context, string) ([]transcript.UIMessage, error) {
+			return []transcript.UIMessage{{
+				ID:   "msg-1",
+				Role: transcript.UIRoleAssistant,
+				Parts: []transcript.UIMessagePart{{
+					Type:  "text",
+					Text:  "hello",
+					State: "done",
+				}},
 			}}, nil
 		},
 	}
@@ -1296,14 +1452,14 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 	}
 
 	var response struct {
-		Messages []transcript.Message `json:"messages"`
+		Messages []transcript.UIMessage `json:"messages"`
 	}
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Messages) != 1 {
 		t.Fatalf("len(messages) = %d, want 1", len(response.Messages))
 	}
-	if got := response.Messages[0].Content; got != "hello" {
-		t.Fatalf("messages[0].Content = %q, want %q", got, "hello")
+	if got := response.Messages[0].Parts[0].Text; got != "hello" {
+		t.Fatalf("messages[0].Parts[0].Text = %q, want %q", got, "hello")
 	}
 }
 

@@ -90,12 +90,15 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				}},
 			}}, nil
 		},
-		TranscriptFn: func(_ context.Context, _ string) ([]transcript.Message, error) {
-			return []transcript.Message{{
-				ID:        "msg-1",
-				Role:      transcript.RoleUser,
-				Content:   "hello",
-				Timestamp: now,
+		TranscriptFn: func(_ context.Context, _ string) ([]transcript.UIMessage, error) {
+			return []transcript.UIMessage{{
+				ID:   "msg-1",
+				Role: transcript.UIRoleUser,
+				Parts: []transcript.UIMessagePart{{
+					Type:  "text",
+					Text:  "hello",
+					State: "done",
+				}},
 			}}, nil
 		},
 	}

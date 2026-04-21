@@ -237,7 +237,15 @@ describe("FinalCta", () => {
 
 describe("KindChip", () => {
   it("has a meaning string for every NetworkKind", () => {
-    const kinds: NetworkKind[] = ["greet", "whois", "say", "direct", "recipe", "receipt", "trace"];
+    const kinds: NetworkKind[] = [
+      "greet",
+      "whois",
+      "say",
+      "direct",
+      "capability",
+      "receipt",
+      "trace",
+    ];
     for (const kind of kinds) {
       expect(KIND_MEANING[kind]).toBeDefined();
       render(<KindChip kind={kind} />);

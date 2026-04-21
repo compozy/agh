@@ -24,7 +24,7 @@ function makeBaseProps() {
 }
 
 describe("TasksInboxView", () => {
-  it("renders lane tabs with counts and unread indicator", () => {
+  it("renders lane tabs with muted inline `(N)` counts — no bg-colored count pills, no unread dot", () => {
     const inbox = buildInboxFixture({
       total: 7,
       unread_total: 3,
@@ -67,12 +67,16 @@ describe("TasksInboxView", () => {
     render(<TasksInboxView {...makeBaseProps()} inbox={inbox} />);
 
     expect(screen.getByTestId("tasks-inbox-lane-tabs")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-inbox-lane-all-count")).toHaveTextContent("7");
-    expect(screen.getByTestId("tasks-inbox-lane-my_work-count")).toHaveTextContent("4");
-    expect(screen.getByTestId("tasks-inbox-lane-my_work-unread")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-inbox-lane-all-count")).toHaveTextContent("(7)");
+    expect(screen.getByTestId("tasks-inbox-lane-my_work-count")).toHaveTextContent("(4)");
+    // Unread totals live at the row level (accent left-rail) — not as dots on
+    // the lane tabs.
+    expect(screen.queryByTestId("tasks-inbox-lane-my_work-unread")).not.toBeInTheDocument();
     expect(screen.getByTestId("tasks-inbox-totals")).toHaveTextContent("3 unread");
     expect(screen.getByTestId("tasks-inbox-group-my_work")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-inbox-group-count-my_work")).toHaveTextContent("4 items");
+    expect(screen.getByTestId("tasks-inbox-group-count-my_work")).toHaveTextContent("(4)");
+    // The yellow "N UNREAD" pill that used to sit in the group header is gone.
+    expect(screen.queryByTestId("tasks-inbox-group-unread-my_work")).not.toBeInTheDocument();
   });
 
   it("emits lane, search, and unread toggle changes", () => {

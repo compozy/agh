@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: Preserve Recipe Operational Semantics Under Capability
 type: backend
 complexity: high
 dependencies:
-  - task_02
+    - task_02
 ---
 
 # Task 03: Preserve Recipe Operational Semantics Under Capability

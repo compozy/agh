@@ -10,8 +10,8 @@ import (
 	"github.com/pedronauck/agh/internal/transcript"
 )
 
-// Transcript returns a canonical replay transcript for the requested session.
-func (m *Manager) Transcript(ctx context.Context, id string) ([]transcript.Message, error) {
+// Transcript returns a canonical AI SDK replay transcript for the requested session.
+func (m *Manager) Transcript(ctx context.Context, id string) ([]transcript.UIMessage, error) {
 	recorder, cleanup, err := m.openQueryRecorder(ctx, id)
 	if err != nil {
 		return nil, err
@@ -31,5 +31,5 @@ func (m *Manager) Transcript(ctx context.Context, id string) ([]transcript.Messa
 		return nil, fmt.Errorf("session: query transcript events for %q: %w", strings.TrimSpace(id), err)
 	}
 
-	return transcript.Assemble(events)
+	return transcript.ToUIMessages(events)
 }

@@ -511,7 +511,9 @@ type SessionRef struct {
 // RunBootRecovery captures one daemon-owned recovery decision for an in-flight
 // run discovered during boot reconciliation.
 type RunBootRecovery struct {
-	Action       RunBootRecoveryAction `json:"action"`
-	Reason       string                `json:"reason,omitempty"`
-	SessionState string                `json:"session_state,omitempty"`
+	Action         RunBootRecoveryAction `json:"action"`
+	Reason         string                `json:"reason,omitempty"`
+	SessionState   string                `json:"session_state,omitempty"`
+	Classification string                `json:"classification,omitempty"`
+	Detail         string                `json:"detail,omitempty"`
 }

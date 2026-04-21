@@ -79,6 +79,36 @@ func TestRootPackageScriptsExposeTheRepoLevelE2ELaneEntryPoints(t *testing.T) {
 	}
 }
 
+func TestRootPackageScriptsExposeSharedCodegenEntryPoints(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRoot(t)
+	pkg := readPackageJSON(t, filepath.Join(repoRoot, "package.json"))
+
+	tests := []struct {
+		name    string
+		script  string
+		command string
+	}{
+		{name: "ShouldExposeCodegenAsTheRepoLevelCodegenEntryPoint", script: "codegen", command: "make codegen"},
+		{
+			name:    "ShouldExposeCodegenCheckAsTheRepoLevelCodegenCheckEntryPoint",
+			script:  "codegen-check",
+			command: "make codegen-check",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := pkg.Scripts[tc.script]; got != tc.command {
+				t.Fatalf("package.json script %q = %q, want %q", tc.script, got, tc.command)
+			}
+		})
+	}
+}
+
 func TestWebPackageScriptsPreserveDaemonServedModeAndNightlySplit(t *testing.T) {
 	t.Parallel()
 
@@ -99,6 +129,52 @@ func TestWebPackageScriptsPreserveDaemonServedModeAndNightlySplit(t *testing.T) 
 	}
 	if got := pkg.Scripts["test:e2e:nightly:raw"]; got != "playwright test --grep @nightly --pass-with-no-tests" {
 		t.Fatalf("web package nightly raw script = %q", got)
+	}
+}
+
+func TestWebPackageScriptsRouteSharedCodegenIntoDependentCommands(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRoot(t)
+	pkg := readPackageJSON(t, filepath.Join(repoRoot, WebDir, "package.json"))
+
+	tests := []struct {
+		name    string
+		script  string
+		command string
+	}{
+		{
+			name:    "ShouldRouteCodegenThroughTheSharedRepoEntryPoint",
+			script:  "codegen",
+			command: "bun run --cwd .. codegen",
+		},
+		{
+			name:    "ShouldRouteCodegenCheckThroughTheSharedRepoEntryPoint",
+			script:  "codegen-check",
+			command: "bun run --cwd .. codegen-check",
+		},
+		{name: "ShouldRunCodegenBeforeDev", script: "dev", command: "bun run codegen && bun run dev:raw"},
+		{
+			name:    "ShouldRunCodegenCheckBeforeBuild",
+			script:  "build",
+			command: "bun run codegen-check && bun run build:raw",
+		},
+		{name: "ShouldRunCodegenCheckBeforeTest", script: "test", command: "bun run codegen-check && bun run test:raw"},
+		{
+			name:    "ShouldRunCodegenCheckBeforeTypecheck",
+			script:  "typecheck",
+			command: "bun run codegen-check && bun run typecheck:raw",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := pkg.Scripts[tc.script]; got != tc.command {
+				t.Fatalf("web package script %q = %q, want %q", tc.script, got, tc.command)
+			}
+		})
 	}
 }
 

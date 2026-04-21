@@ -19,6 +19,18 @@ export type NetworkPeerSummary = NetworkPeersResponse["peers"][number];
 export type NetworkPeerDetailResponse = OperationResponse<"getNetworkPeer", 200>;
 export type NetworkPeerDetail = NetworkPeerDetailResponse["peer"];
 
+export type NetworkPeerCard = NetworkPeerSummary["peer_card"];
+export type NetworkCapabilityBrief = NetworkPeerCard["capabilities"][number];
+
+export type NetworkCapabilityCatalog = NonNullable<NetworkPeerDetail["capability_catalog"]>;
+export type NetworkCapability = NetworkCapabilityCatalog["capabilities"][number];
+
+export interface NetworkPeerCapabilityView {
+  id: string;
+  summary: string;
+  detail: NetworkCapability | null;
+}
+
 export type CreateNetworkChannelRequest = OperationRequestBody<"createNetworkChannel">;
 export type CreateNetworkChannelResponse = OperationResponse<"createNetworkChannel", 201>;
 

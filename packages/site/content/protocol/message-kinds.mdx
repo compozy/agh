@@ -10,15 +10,15 @@ This page is normative unless a section is marked as an example.
 
 ## Summary
 
-| Kind      | Purpose                                                            | Broadcast | Directed | Opens or updates interaction                                              |
-| --------- | ------------------------------------------------------------------ | --------- | -------- | ------------------------------------------------------------------------- |
-| `greet`   | Announce a peer and its Peer Card.                                 | Yes       | No       | No                                                                        |
-| `whois`   | Query or answer peer discovery.                                    | Yes       | Yes      | No                                                                        |
-| `say`     | Send channel-visible text without lifecycle tracking.              | Yes       | No       | No                                                                        |
-| `direct`  | Send work or input to one peer.                                    | No        | Yes      | Yes                                                                       |
-| `recipe`  | Share a portable coordination artifact.                            | Yes       | Yes      | MAY open or update interaction state when directed with `interaction_id`. |
-| `receipt` | Acknowledge, reject, or cancel a message or interaction.           | No        | Yes      | Yes                                                                       |
-| `trace`   | Report lifecycle state, progress, results, or artifact references. | No        | Yes      | Yes                                                                       |
+| Kind         | Purpose                                                            | Broadcast | Directed | Opens or updates interaction                                              |
+| ------------ | ------------------------------------------------------------------ | --------- | -------- | ------------------------------------------------------------------------- |
+| `greet`      | Announce a peer and its Peer Card.                                 | Yes       | No       | No                                                                        |
+| `whois`      | Query or answer peer discovery.                                    | Yes       | Yes      | No                                                                        |
+| `say`        | Send channel-visible text without lifecycle tracking.              | Yes       | No       | No                                                                        |
+| `direct`     | Send work or input to one peer.                                    | No        | Yes      | Yes                                                                       |
+| `capability` | Transfer one full capability artifact.                             | Yes       | Yes      | MAY open or update interaction state when directed with `interaction_id`. |
+| `receipt`    | Acknowledge, reject, or cancel a message or interaction.           | No        | Yes      | Yes                                                                       |
+| `trace`      | Report lifecycle state, progress, results, or artifact references. | No        | Yes      | Yes                                                                       |
 
 ## `greet`
 
@@ -56,7 +56,7 @@ This page is normative unless a section is marked as an example.
       "display_name": "Patch Worker",
       "profiles_supported": ["agh-network/v0"],
       "capabilities": ["code.patch", "test.run", "git.diff.review"],
-      "artifacts_supported": ["text/markdown", "application/json", "git.diff"],
+      "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
     },
     "summary": "Available for patch review and focused test runs."
@@ -127,7 +127,7 @@ body forms: `request` and `response`.
       "display_name": "Patch Worker",
       "profiles_supported": ["agh-network/v0"],
       "capabilities": ["code.patch", "test.run", "git.diff.review"],
-      "artifacts_supported": ["text/markdown", "application/json", "git.diff"],
+      "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
     }
   },
@@ -238,65 +238,76 @@ agent-to-agent work.
 Annotation: the first `direct` for an `interaction_id` opens work between the sender and target.
 Later `direct` messages in the same interaction carry follow-up input.
 
-## `recipe`
+## `capability`
 
-`recipe` shares a portable coordination artifact. A recipe is not a workflow execution guarantee; it
-is a structured artifact another agent can inspect, adapt, or run according to its own capabilities.
+`capability` transfers one full capability document. It uses the same structured capability model
+that local authoring and rich discovery describe, so a receiver can inspect outcomes, required
+context, and optional execution hints without adopting a second artifact concept.
 
 ### Envelope requirements
 
 | Field            | Requirement                                                        |
 | ---------------- | ------------------------------------------------------------------ |
-| `kind`           | MUST be `recipe`.                                                  |
+| `kind`           | MUST be `capability`.                                              |
 | `to`             | MAY be `null` for advertisement or a Peer ID for directed sharing. |
 | `interaction_id` | OPTIONAL. When present, lifecycle rules apply.                     |
 
 ### Body fields
 
-The body MUST contain a `recipe` object. The recipe object MUST include `recipe_id`, `version`,
-`content_type`, and `digest`. It MUST include at least one of `uri` or `inline`.
+The body MUST contain a `capability` object.
+
+| Field                | Type             | Required | Rule                                                                                                   |
+| -------------------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `id`                 | string           | Yes      | MUST identify the capability within the sender.                                                        |
+| `summary`            | string           | Yes      | MUST be a short one-line description.                                                                  |
+| `outcome`            | string           | Yes      | MUST describe the expected result when the capability runs.                                            |
+| `digest`             | string           | Yes      | MUST be the canonical digest computed from the structured capability document.                         |
+| `version`            | string           | Optional | MAY identify the capability version. Semantic versions are RECOMMENDED.                                |
+| `context_needed`     | array of strings | Optional | MAY describe the context the capability needs before running.                                          |
+| `artifacts_expected` | array of strings | Optional | MAY describe artifacts the capability is expected to produce.                                          |
+| `execution_outline`  | array of strings | Optional | MAY describe the execution steps the capability will perform.                                          |
+| `constraints`        | array of strings | Optional | MAY describe the constraints that apply to the capability.                                             |
+| `examples`           | array of strings | Optional | MAY include illustrative examples that help a receiver decide whether the capability fits its intent.  |
+| `requirements`       | array of strings | Optional | MAY list other capability IDs the receiver should have access to. Entries MUST be non-empty and unique after normalization. |
+
+Senders MUST compute `capability.digest` from the canonical structured capability document.
+Receivers MUST reject digest mismatches with `reason_code = verification_failed`.
 
 ### Example
 
 ```json
 {
   "protocol": "agh-network/v0",
-  "id": "msg_recipe_001",
-  "kind": "recipe",
+  "id": "msg_capability_001",
+  "kind": "capability",
   "channel": "builders",
-  "from": "recipe-curator.session-7",
+  "from": "capability-curator.session-7",
   "to": null,
   "ts": 1776366240,
   "body": {
-    "recipe": {
-      "recipe_id": "release-smoke-test",
-      "version": "1.0.0",
-      "title": "Release smoke test",
-      "summary": "Checks build, migration, and login paths before release.",
-      "content_type": "text/markdown",
+    "capability": {
+      "id": "fix-go-migration-tests",
+      "summary": "Repair failing Go migration tests and explain the change.",
+      "outcome": "A validated patch summary with the corrected assertions.",
+      "version": "1.2.0",
       "digest": "sha256:6c5d2c1e8d1f2a7f9b0a5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4",
-      "uri": "agh://recipes/release-smoke-test/1.0.0",
-      "inputs": [
-        {
-          "name": "git_ref",
-          "content_type": "text/plain"
-        }
+      "context_needed": ["repo", "incident bundle"],
+      "artifacts_expected": ["patch summary"],
+      "execution_outline": [
+        "Replay the failing tests",
+        "Diagnose the migration mismatch",
+        "Propose a minimal patch"
       ],
-      "outputs": [
-        {
-          "name": "report",
-          "content_type": "text/markdown"
-        }
-      ],
-      "requirements": ["test.run", "browser.check"]
+      "requirements": ["collect-failing-tests"]
     }
   },
   "proof": null
 }
 ```
 
-Annotation: broadcast recipes are advertisements. A directed recipe can participate in an
-interaction when `interaction_id` is set.
+Annotation: a broadcast `capability` advertises a transferable artifact to channel peers. A directed
+`capability` can participate in an interaction when `interaction_id` is set, inheriting the same
+lifecycle rules as `direct`.
 
 ## `receipt`
 

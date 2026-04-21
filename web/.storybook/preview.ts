@@ -162,7 +162,7 @@ export function createStorybookRouter(
 function resetStorybookAppState() {
   useSidebarStore.setState({ collapsed: false });
   useActiveWorkspaceStore.getState().clearSelectedWorkspaceId();
-  useSessionStore.getState().clearSession();
+  useSessionStore.getState().clearAllDrafts();
   resetSettingsRestartStore();
 }
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"time"
 )
 
 func configureSubprocessCommand(_ *exec.Cmd) {}
@@ -28,5 +29,11 @@ func signalSubprocessCommand(cmd *exec.Cmd, sig os.Signal) error {
 		}
 		return err
 	}
+	return nil
+}
+
+// Windows keeps an explicit no-op fallback until process-group parity lands for
+// hook subprocesses.
+func forceSubprocessCommandExit(_ *exec.Cmd, _ time.Duration) error {
 	return nil
 }

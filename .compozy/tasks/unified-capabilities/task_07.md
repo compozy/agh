@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Update `packages/site` Protocol Reference and Examples
 type: docs
 complexity: high
@@ -32,10 +32,10 @@ Update the protocol-facing site docs under `packages/site` so the public referen
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Rewrite protocol reference pages that still describe recipe as a first-class protocol concept
-- [ ] 7.2 Replace protocol examples and message-kind tables with unified capability language and payloads
-- [ ] 7.3 Remove or repurpose `recipes.mdx` and update site navigation metadata accordingly
-- [ ] 7.4 Cross-check protocol-site wording against RFC 003 and the accepted ADRs
+- [x] 7.1 Rewrite protocol reference pages that still describe recipe as a first-class protocol concept
+- [x] 7.2 Replace protocol examples and message-kind tables with unified capability language and payloads
+- [x] 7.3 Remove or repurpose `recipes.mdx` and update site navigation metadata accordingly
+- [x] 7.4 Cross-check protocol-site wording against RFC 003 and the accepted ADRs
 
 ## Implementation Details
 
@@ -70,13 +70,13 @@ See TechSpec "System Architecture", "Technical Considerations", and task_05 outp
 
 ## Tests
 - Unit tests:
-  - [ ] `message-kinds.mdx` documents `kind:"capability"` and no longer treats recipe as a first-class kind
-  - [ ] `capability-discovery.mdx` explains brief discovery, rich discovery, and transfer without conceptual duplication
-  - [ ] Protocol examples reflect the updated RFC terminology and payload expectations
-  - [ ] `meta.json` and related nav metadata remain valid after any page removal or rename
+  - [x] `message-kinds.mdx` documents `kind:"capability"` and no longer treats recipe as a first-class kind
+  - [x] `capability-discovery.mdx` explains brief discovery, rich discovery, and transfer without conceptual duplication
+  - [x] Protocol examples reflect the updated RFC terminology and payload expectations
+  - [x] `meta.json` and related nav metadata remain valid after any page removal or rename
 - Integration tests:
-  - [ ] The protocol section reads consistently end to end without pages contradicting the unified model
-  - [ ] Any retained references to recipe are clearly historical or superseded rather than normative
+  - [x] The protocol section reads consistently end to end without pages contradicting the unified model
+  - [x] Any retained references to recipe are clearly historical or superseded rather than normative
 - Test coverage target: >=80%
 - All tests must pass
 

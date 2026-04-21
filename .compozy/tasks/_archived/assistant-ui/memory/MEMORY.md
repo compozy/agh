@@ -1,0 +1,6 @@
+- [assistant-ui migration techspec](../_techspec.md) — Replace ~2.5K LOC of from-scratch chat UI in `web/src/systems/session` with assistant-ui + `useChatRuntime`, keep Go as AI SDK UI Message Stream encoder, reuse existing tool renderers via `makeAssistantToolUI`, render `data-agh-permission` via `makeAssistantDataUI`, unify `/transcript` on AI SDK `UIMessage` shape.
+- [Task list](../_tasks.md) — Ordered tasks with dependencies; greenfield, no compat shims.
+- [ADR-001](../adrs/adr-001.md) — Adopt assistant-ui with AI SDK `useChatRuntime`, reject `ExternalStoreRuntime` and server-side `LanguageModelV3` provider.
+- [ADR-002](../adrs/adr-002.md) — Keep the Go daemon as the sole AI SDK UI Message Stream encoder; no Node sidecar.
+- [ADR-003](../adrs/adr-003.md) — Render AGH-specific flows (permission, usage, memory, files) as AI SDK data parts consumed via `makeAssistantDataUI`.
+- [ADR-004](../adrs/adr-004.md) — Migrate `/api/sessions/:id/transcript` to emit AI SDK `UIMessage[]` directly; delete `transcript.Message` shape.

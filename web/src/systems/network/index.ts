@@ -2,6 +2,9 @@
 export type {
   CreateNetworkChannelRequest,
   CreateNetworkChannelResponse,
+  NetworkCapability,
+  NetworkCapabilityBrief,
+  NetworkCapabilityCatalog,
   NetworkChannel,
   NetworkChannelDetailResponse,
   NetworkChannelMessage,
@@ -10,6 +13,8 @@ export type {
   NetworkChannelsResponse,
   NetworkChannelSummary,
   NetworkCreateChannelDraft,
+  NetworkPeerCapabilityView,
+  NetworkPeerCard,
   NetworkPeerDetail,
   NetworkPeerDetailResponse,
   NetworkPeersResponse,
@@ -44,6 +49,7 @@ export {
 
 // Lib
 export {
+  buildPeerCapabilityViews,
   createNetworkChannelDraft,
   formatChannelMemberCount,
   formatChannelPeerCount,
@@ -59,6 +65,7 @@ export {
   getPeerHeartbeatLabel,
   getPeerPresenceTone,
   getPeerTypeLabel,
+  hasCapabilityDetail,
   matchesChannelSearch,
   matchesPeerSearch,
   sortAgentsForNetwork,

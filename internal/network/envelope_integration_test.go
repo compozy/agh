@@ -32,7 +32,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			      "peer_id": "coder.sess-abc",
 			      "profiles_supported": ["agh-network/v0"],
 			      "capabilities": ["workspace.patch.apply"],
-			      "artifacts_supported": ["recipe"],
+			      "artifacts_supported": ["capability"],
 			      "trust_modes_supported": ["unverified"]
 			    }
 			  }
@@ -55,7 +55,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			      "peer_id": "reviewer.sess-xyz",
 			      "profiles_supported": ["agh-network/v0"],
 			      "capabilities": ["chat.review"],
-			      "artifacts_supported": ["recipe"],
+			      "artifacts_supported": ["capability"],
 			      "trust_modes_supported": ["unverified"]
 			    }
 			  }
@@ -103,25 +103,27 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			}`),
 		},
 		{
-			name: "recipe",
+			name: "capability",
 			raw: []byte(`{
 			  "protocol": "agh-network/v0",
-			  "id": "msg_recipe_01",
-			  "kind": "recipe",
+			  "id": "msg_capability_01",
+			  "kind": "capability",
 			  "channel": "builders",
 			  "from": "curator.sess-123",
 			  "to": null,
 			  "ts": 1775822400,
 			  "body": {
-			    "recipe": {
-			      "recipe_id": "review-fix",
+			    "capability": {
+			      "id": "review-fix",
+			      "summary": "Review Fix Flow",
+			      "outcome": "A reusable review fix workflow.",
 			      "version": "1.0.0",
-			      "title": "Review Fix Flow",
-			      "content_type": "text/markdown",
-			      "digest": "sha256:abc123",
-			      "inline": "# Review Fix Flow"
+			      "digest": "sha256:edb42ce4ca23d905aeeba399001ca6d23420610775ba41ef66e90f47f14dba0d",
+			      "execution_outline": ["Inspect the issue", "Draft the fix"],
+			      "requirements": ["workspace-write"]
 			    }
-			  }
+			  },
+			  "proof": null
 			}`),
 		},
 		{

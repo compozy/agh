@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Unified Capabilities QA Execution and End-to-End Validation
 type: test
 complexity: critical
@@ -33,11 +33,11 @@ Execute the full QA pass for unified capabilities using the artifacts from task_
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/unified-capabilities` and derive the execution matrix from task_09 artifacts
-- [ ] 10.2 Run the baseline repository verification gate and establish the pre-execution health state
-- [ ] 10.3 Execute real backend/API/frontend/docs scenarios for unified capabilities through supported repo surfaces
-- [ ] 10.4 Fix root-cause regressions, add matching regression coverage, and rerun impacted scenarios
-- [ ] 10.5 Rerun final verification gates and publish `.compozy/tasks/unified-capabilities/qa/verification-report.md`
+- [x] 10.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/unified-capabilities` and derive the execution matrix from task_09 artifacts
+- [x] 10.2 Run the baseline repository verification gate and establish the pre-execution health state
+- [x] 10.3 Execute real backend/API/frontend/docs scenarios for unified capabilities through supported repo surfaces
+- [x] 10.4 Fix root-cause regressions, add matching regression coverage, and rerun impacted scenarios
+- [x] 10.5 Rerun final verification gates and publish `.compozy/tasks/unified-capabilities/qa/verification-report.md`
 
 ## Implementation Details
 
@@ -75,17 +75,17 @@ See the TechSpec "Testing Approach" plus the QA artifacts from task_09. The key 
 
 ## Tests
 - Unit tests:
-  - [ ] Any bug found in schema/digest handling gains a narrow regression that proves the exact normalization or validation rule that failed
-  - [ ] Any bug found in transfer or lifecycle handling gains a regression that proves the specific `kind:"capability"` invariant that failed
-  - [ ] Any bug found in discovery/API contracts gains the narrowest regression in backend contract or handler tests that proves the exact payload issue
-  - [ ] Any bug found in the web network surface gains the narrowest route, hook, or adapter regression that proves the actual operator-facing failure
+  - [x] Any bug found in schema/digest handling gains a narrow regression that proves the exact normalization or validation rule that failed
+  - [x] Any bug found in transfer or lifecycle handling gains a regression that proves the specific `kind:"capability"` invariant that failed
+  - [x] Any bug found in discovery/API contracts gains the narrowest regression in backend contract or handler tests that proves the exact payload issue
+  - [x] Any bug found in the web network surface gains the narrowest route, hook, or adapter regression that proves the actual operator-facing failure
 - Integration tests:
-  - [ ] Real runtime flows prove unified capabilities load, digest, and surface through discovery without recipe remnants
-  - [ ] Real transfer flows prove `kind:"capability"` delivery and lifecycle behavior end to end
-  - [ ] Real API and UDS flows prove peer details and discovery payloads remain coherent after the unification
-  - [ ] Real `web/` flows prove the network UI renders unified capabilities correctly when driven against the updated contract
-  - [ ] Final docs review proves the repository and site no longer teach recipe as a first-class steady-state concept
-  - [ ] `make verify` and the required web verification gates pass from a clean rerun after the final QA fix set
+  - [x] Real runtime flows prove unified capabilities load, digest, and surface through discovery without recipe remnants
+  - [x] Real transfer flows prove `kind:"capability"` delivery and lifecycle behavior end to end
+  - [x] Real API and UDS flows prove peer details and discovery payloads remain coherent after the unification
+  - [x] Real `web/` flows prove the network UI renders unified capabilities correctly when driven against the updated contract
+  - [x] Final docs review proves the repository and site no longer teach recipe as a first-class steady-state concept
+  - [x] `make verify` and the required web verification gates pass from a clean rerun after the final QA fix set
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pedronauck/agh/internal/api/contract"
 )
 
 func TestNetworkCommandsAndFormatting(t *testing.T) {
@@ -56,10 +58,13 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				Channel:   "builders",
 				Local:     true,
 				PeerCard: NetworkPeerCardRecord{
-					PeerID:              "reviewer.sess-a",
-					DisplayName:         &displayName,
-					ProfilesSupported:   []string{"v0"},
-					Capabilities:        []string{"send"},
+					PeerID:            "reviewer.sess-a",
+					DisplayName:       &displayName,
+					ProfilesSupported: []string{"v0"},
+					Capabilities: []contract.NetworkCapabilityBriefPayload{{
+						ID:      "send",
+						Summary: "Send direct messages",
+					}},
 					ArtifactsSupported:  []string{"text"},
 					TrustModesSupported: []string{"untrusted"},
 				},

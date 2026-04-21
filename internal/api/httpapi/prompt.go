@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -75,6 +76,9 @@ type promptStreamState struct {
 	textStarted      bool
 	reasoningStarted bool
 	toolStarted      map[string]struct{}
+	toolInputsReady  map[string]struct{}
+	toolInputPending map[string]struct{}
+	toolNames        map[string]string
 	finished         bool
 }
 
@@ -92,7 +96,9 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 
-	events, err := h.Sessions.Prompt(c.Request.Context(), c.Param("id"), message)
+	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
+	defer cancelPrompt()
+	events, err := h.Sessions.Prompt(promptCtx, c.Param("id"), message)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return
@@ -109,7 +115,10 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		now: func() string {
 			return h.Now().UTC().Format(time.RFC3339Nano)
 		},
-		toolStarted: make(map[string]struct{}),
+		toolStarted:      make(map[string]struct{}),
+		toolInputsReady:  make(map[string]struct{}),
+		toolInputPending: make(map[string]struct{}),
+		toolNames:        make(map[string]string),
 	}
 
 	for {
@@ -195,7 +204,6 @@ func (s *promptStreamState) emitAgentMessage(writer core.FlushWriter, event acp.
 		return err
 	}
 	return core.WriteSSE(writer, core.SSEMessage{
-		Name: "agent_message",
 		Data: map[string]any{
 			"type":  "text-delta",
 			"id":    s.textBlockID,
@@ -209,7 +217,6 @@ func (s *promptStreamState) emitThought(writer core.FlushWriter, event acp.Agent
 		return err
 	}
 	return core.WriteSSE(writer, core.SSEMessage{
-		Name: "thought",
 		Data: map[string]any{
 			"type":  "reasoning-delta",
 			"id":    s.reasoningBlockID,
@@ -223,22 +230,29 @@ func (s *promptStreamState) emitToolCall(writer core.FlushWriter, event acp.Agen
 	if err := s.ensureToolCallStarted(writer, toolCallID, event); err != nil {
 		return err
 	}
+	if err := s.ensureToolInputAvailable(writer, toolCallID, event, false); err != nil {
+		return err
+	}
 	return core.WriteSSE(writer, core.SSEMessage{
-		Name: "tool_call",
 		Data: map[string]any{
-			"type":       "data-agh-event",
-			"data":       agentEventPayloadFromEvent(event),
-			"toolCallId": toolCallID,
+			"type": "data-agh-event",
+			"data": agentEventPayloadFromEvent(event),
 		},
 	})
 }
 
 func (s *promptStreamState) emitToolResult(writer core.FlushWriter, event acp.AgentEvent) error {
+	toolCallID := s.toolCallID(event)
+	if err := s.ensureToolCallStarted(writer, toolCallID, event); err != nil {
+		return err
+	}
+	if err := s.ensureToolInputAvailable(writer, toolCallID, event, true); err != nil {
+		return err
+	}
 	return core.WriteSSE(writer, core.SSEMessage{
-		Name: "tool_result",
 		Data: map[string]any{
 			"type":       "tool-output-available",
-			"toolCallId": s.toolCallID(event),
+			"toolCallId": toolCallID,
 			"output":     agentEventPayloadFromEvent(event),
 		},
 	})
@@ -246,7 +260,6 @@ func (s *promptStreamState) emitToolResult(writer core.FlushWriter, event acp.Ag
 
 func (s *promptStreamState) emitPermission(writer core.FlushWriter, event acp.AgentEvent) error {
 	return core.WriteSSE(writer, core.SSEMessage{
-		Name: "permission",
 		Data: map[string]any{
 			"type": "data-agh-permission",
 			"data": agentEventPayloadFromEvent(event),
@@ -259,7 +272,6 @@ func (s *promptStreamState) emitError(writer core.FlushWriter, event acp.AgentEv
 		return err
 	}
 	if err := core.WriteSSE(writer, core.SSEMessage{
-		Name: "error",
 		Data: map[string]any{
 			"type":      "error",
 			"errorText": s.errorText(event),
@@ -272,7 +284,6 @@ func (s *promptStreamState) emitError(writer core.FlushWriter, event acp.AgentEv
 
 func (s *promptStreamState) emitGenericEvent(writer core.FlushWriter, event acp.AgentEvent) error {
 	return core.WriteSSE(writer, core.SSEMessage{
-		Name: event.Type,
 		Data: map[string]any{
 			"type": "data-agh-event",
 			"data": agentEventPayloadFromEvent(event),
@@ -294,23 +305,86 @@ func (s *promptStreamState) ensureToolCallStarted(
 	event acp.AgentEvent,
 ) error {
 	if _, ok := s.toolStarted[toolCallID]; ok {
+		if toolName := s.toolName(event); toolName != "" {
+			s.toolNames[toolCallID] = toolName
+		}
 		return nil
 	}
 
 	s.toolStarted[toolCallID] = struct{}{}
-	toolName := strings.TrimSpace(event.Title)
-	if toolName == "" {
-		toolName = "tool"
+	if toolName := s.toolName(event); toolName != "" {
+		s.toolNames[toolCallID] = toolName
 	}
 
 	return core.WriteSSE(writer, core.SSEMessage{
-		Name: "tool_call",
 		Data: map[string]any{
 			"type":       "tool-input-start",
 			"toolCallId": toolCallID,
-			"toolName":   toolName,
+			"toolName":   s.toolNameByID(toolCallID),
 		},
 	})
+}
+
+func (s *promptStreamState) ensureToolInputAvailable(
+	writer core.FlushWriter,
+	toolCallID string,
+	event acp.AgentEvent,
+	force bool,
+) error {
+	if _, ok := s.toolInputsReady[toolCallID]; ok {
+		return nil
+	}
+
+	input, ok := normalizedToolInput(event)
+	if !ok || !toolInputReady(input) {
+		if !force {
+			return nil
+		}
+		if _, ok := s.toolInputPending[toolCallID]; ok {
+			return nil
+		}
+		s.toolInputPending[toolCallID] = struct{}{}
+		input = map[string]any{}
+	} else {
+		delete(s.toolInputPending, toolCallID)
+		s.toolInputsReady[toolCallID] = struct{}{}
+	}
+
+	return core.WriteSSE(writer, core.SSEMessage{
+		Data: map[string]any{
+			"type":       "tool-input-available",
+			"toolCallId": toolCallID,
+			"toolName":   s.toolNameByID(toolCallID),
+			"input":      input,
+		},
+	})
+}
+
+func (s *promptStreamState) toolNameByID(toolCallID string) string {
+	toolName := strings.TrimSpace(s.toolNames[toolCallID])
+	if toolName == "" {
+		return "tool"
+	}
+	return toolName
+}
+
+func (s *promptStreamState) toolName(event acp.AgentEvent) string {
+	toolName := strings.TrimSpace(event.Title)
+	if toolName != "" {
+		return toolName
+	}
+
+	rawPayload := rawEventMap(event.Raw)
+	if toolName = strings.TrimSpace(stringValue(rawPayload["tool_name"])); toolName != "" {
+		return toolName
+	}
+	if toolName = strings.TrimSpace(stringValue(rawPayload["title"])); toolName != "" {
+		return toolName
+	}
+
+	meta := mapValue(rawPayload["_meta"])
+	claudeCode := mapValue(meta["claudeCode"])
+	return strings.TrimSpace(stringValue(claudeCode["toolName"]))
 }
 
 func (s *promptStreamState) errorText(event acp.AgentEvent) string {
@@ -416,7 +490,6 @@ func (s *promptStreamState) finish(writer core.FlushWriter, event acp.AgentEvent
 	}
 
 	if err := core.WriteSSE(writer, core.SSEMessage{
-		Name: "done",
 		Data: finishPayload,
 	}); err != nil {
 		return err
@@ -484,4 +557,71 @@ func tokenUsagePayloadFromUsage(usage *acp.TokenUsage) *tokenUsagePayload {
 		payload.Timestamp = base.Timestamp.UTC().Format(time.RFC3339Nano)
 	}
 	return payload
+}
+
+func normalizedToolInput(event acp.AgentEvent) (any, bool) {
+	rawPayload := rawEventMap(event.Raw)
+	if len(rawPayload) == 0 {
+		return nil, false
+	}
+
+	input, ok := firstNonNil(
+		rawPayload["tool_input"],
+		rawPayload["rawInput"],
+	)
+	if !ok || input == nil {
+		return nil, false
+	}
+
+	return input, true
+}
+
+func rawEventMap(raw json.RawMessage) map[string]any {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return nil
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil
+	}
+	return payload
+}
+
+func toolInputReady(input any) bool {
+	switch value := input.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(value) != ""
+	case []any:
+		return len(value) > 0
+	case map[string]any:
+		return len(value) > 0
+	default:
+		return true
+	}
+}
+
+func firstNonNil(values ...any) (any, bool) {
+	for _, value := range values {
+		if value != nil {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func stringValue(value any) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+	return ""
+}
+
+func mapValue(value any) map[string]any {
+	if payload, ok := value.(map[string]any); ok {
+		return payload
+	}
+	return nil
 }

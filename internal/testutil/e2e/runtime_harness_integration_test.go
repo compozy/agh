@@ -4,6 +4,9 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"net"
 	"os"
 	"strings"
 	"testing"
@@ -63,6 +66,39 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	}
 	if got, want := cliStatus.Socket, harness.Config.Daemon.Socket; got != want {
 		t.Fatalf("cliStatus.Socket = %q, want %q", got, want)
+	}
+}
+
+func TestStartRuntimeHarnessRetriesHTTPPortConflicts(t *testing.T) {
+	t.Parallel()
+
+	blocker, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen() error = %v", err)
+	}
+	defer func() {
+		_ = blocker.Close()
+	}()
+
+	conflictPort := blocker.Addr().(*net.TCPAddr).Port
+	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{
+		ConfigSeed: ConfigSeedOptions{
+			HTTPPort: conflictPort,
+		},
+	})
+	if got := harness.Config.HTTP.Port; got == conflictPort {
+		t.Fatalf("harness.Config.HTTP.Port = %d, want retry onto a new port", got)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var status aghcontract.DaemonStatusResponse
+	if err := harness.HTTPJSON(ctx, "GET", "/api/daemon/status", nil, &status); err != nil {
+		t.Fatalf("HTTP daemon status after retry error = %v", err)
+	}
+	if got, want := status.Daemon.HTTPPort, harness.Config.HTTP.Port; got != want {
+		t.Fatalf("status.Daemon.HTTPPort = %d, want %d", got, want)
 	}
 }
 
@@ -172,6 +208,87 @@ func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 	}
 }
 
+func TestStartRuntimeHarnessRepeatedCyclesLeaveNoStaleDaemonArtifacts(t *testing.T) {
+	for cycle := 0; cycle < 3; cycle++ {
+		harness := StartRuntimeHarness(t, RuntimeHarnessOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+		var httpStatus aghcontract.DaemonStatusResponse
+		if err := harness.HTTPJSON(ctx, "GET", "/api/daemon/status", nil, &httpStatus); err != nil {
+			cancel()
+			t.Fatalf("cycle %d HTTP daemon status error = %v", cycle, err)
+		}
+
+		if err := harness.Stop(ctx); err != nil {
+			cancel()
+			t.Fatalf("cycle %d Stop() error = %v", cycle, err)
+		}
+		cancel()
+
+		if _, err := os.Stat(harness.HomePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("cycle %d daemon info stat error = %v, want os.ErrNotExist", cycle, err)
+		}
+		if _, err := os.Stat(harness.Config.Daemon.Socket); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("cycle %d socket stat error = %v, want os.ErrNotExist", cycle, err)
+		}
+	}
+}
+
+func TestStartRuntimeHarnessCLIStatusCanBeCapturedInRuntimeManifest(t *testing.T) {
+	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stdout, stderr, err := harness.CLI.Run(ctx, "daemon", "status", "-o", "json")
+	if err != nil {
+		t.Fatalf("CLI.Run(daemon status) error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+	}
+
+	var cliStatus aghcontract.DaemonStatusPayload
+	if err := json.Unmarshal([]byte(stdout), &cliStatus); err != nil {
+		t.Fatalf("json.Unmarshal(cli status) error = %v; stdout=%s", err, strings.TrimSpace(stdout))
+	}
+	if got, want := cliStatus.Socket, harness.Config.Daemon.Socket; got != want {
+		t.Fatalf("cliStatus.Socket = %q, want %q", got, want)
+	}
+	if got, want := cliStatus.HTTPPort, harness.Config.HTTP.Port; got != want {
+		t.Fatalf("cliStatus.HTTPPort = %d, want %d", got, want)
+	}
+
+	outputPath, err := harness.CaptureCLIOutput(
+		"daemon status",
+		[]string{"daemon", "status", "-o", "json"},
+		stdout,
+		stderr,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("CaptureCLIOutput() error = %v", err)
+	}
+	outputBytes, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", outputPath, err)
+	}
+	if !strings.Contains(string(outputBytes), `"transport": "cli"`) {
+		t.Fatalf("CLI output artifact = %s, want CLI transport record", string(outputBytes))
+	}
+
+	manifestBytes, err := os.ReadFile(harness.RuntimeManifestPath())
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", harness.RuntimeManifestPath(), err)
+	}
+	var manifest RuntimeArtifactManifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatalf("json.Unmarshal(runtime manifest) error = %v", err)
+	}
+	if got, want := manifest.Transport.SocketPath, harness.Config.Daemon.Socket; got != want {
+		t.Fatalf("manifest.Transport.SocketPath = %q, want %q", got, want)
+	}
+	if !runtimeManifestHasArtifact(manifest.CapturedArtifacts, ArtifactKindTransportOutputs, "transport_outputs") {
+		t.Fatalf("manifest.CapturedArtifacts = %#v, want transport_outputs entry", manifest.CapturedArtifacts.Artifacts)
+	}
+}
+
 func (a *e2eACPAgent) Authenticate(
 	context.Context,
 	acpsdk.AuthenticateRequest,
@@ -252,4 +369,13 @@ func promptText(blocks []acpsdk.ContentBlock) string {
 		return strings.TrimSpace(lastText[idx+len(userRequestMarker):])
 	}
 	return lastText
+}
+
+func runtimeManifestHasArtifact(manifest ArtifactManifest, kind ArtifactKind, path string) bool {
+	for _, artifact := range manifest.Artifacts {
+		if artifact.Kind == kind && artifact.Path == path {
+			return true
+		}
+	}
+	return false
 }

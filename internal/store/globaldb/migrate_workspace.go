@@ -577,6 +577,24 @@ func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("store: add sessions.channel column: %w", err)
 		}
 	}
+	sessionLivenessColumns := []struct {
+		name string
+		sql  string
+	}{
+		{name: "subprocess_pid", sql: `ALTER TABLE sessions ADD COLUMN subprocess_pid INTEGER NOT NULL DEFAULT 0`},
+		{name: "subprocess_started_at", sql: `ALTER TABLE sessions ADD COLUMN subprocess_started_at TEXT`},
+		{name: "last_update_at", sql: `ALTER TABLE sessions ADD COLUMN last_update_at TEXT`},
+		{name: "stall_state", sql: `ALTER TABLE sessions ADD COLUMN stall_state TEXT NOT NULL DEFAULT ''`},
+		{name: "stall_reason", sql: `ALTER TABLE sessions ADD COLUMN stall_reason TEXT NOT NULL DEFAULT ''`},
+	}
+	for _, column := range sessionLivenessColumns {
+		if _, ok := columns[column.name]; ok {
+			continue
+		}
+		if _, err := db.ExecContext(ctx, column.sql); err != nil {
+			return fmt.Errorf("store: add sessions.%s column: %w", column.name, err)
+		}
+	}
 	sessionEnvironmentColumns := []struct {
 		name string
 		sql  string

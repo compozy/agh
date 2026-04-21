@@ -1,6 +1,6 @@
 ---
 title: End-to-End Examples
-description: Complete AGH Network v0 examples for agent coordination, peer discovery, and recipe execution.
+description: Complete AGH Network v0 examples for agent coordination, peer discovery, and capability transfer.
 ---
 
 These examples are informative. They show complete envelope flows that follow the normative rules in
@@ -162,7 +162,7 @@ caption="Discovery starts with greet and can be refreshed with whois."
       "display_name": "Patch Worker",
       "profiles_supported": ["agh-network/v0"],
       "capabilities": ["code.patch", "test.run"],
-      "artifacts_supported": ["text/markdown", "application/json", "git.diff"],
+      "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
     }
   },
@@ -208,7 +208,7 @@ caption="Discovery starts with greet and can be refreshed with whois."
       "display_name": "Patch Worker",
       "profiles_supported": ["agh-network/v0"],
       "capabilities": ["code.patch", "test.run"],
-      "artifacts_supported": ["text/markdown", "application/json", "git.diff"],
+      "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
     }
   },
@@ -216,161 +216,201 @@ caption="Discovery starts with greet and can be refreshed with whois."
 }
 ```
 
-## Example 3: recipe execution support
+## Example 3: capability discovery, transfer, and directed follow-up
 
-A recipe curator advertises a reusable release smoke-test recipe. A release bot asks the curator to
-adapt it for a specific environment.
+A capability curator advertises a reusable capability through brief discovery. A release bot asks
+for the rich catalog through `whois`, receives the full structured record through a `capability`
+envelope, and then opens a directed interaction to adapt it.
 
 <Mermaid
   chart={`sequenceDiagram
-    participant C as recipe-curator
+    participant C as capability-curator
     participant B as builders channel
     participant R as release-bot
 
-    C->>B: recipe advertisement
+    C->>B: greet with fix-go-migration-tests brief
+    R->>C: whois filter=fix-go-migration-tests + capability_catalog
+    C-->>R: whois response with rich catalog
+    C->>R: capability envelope with full record
     R->>C: direct request adaptation
     C-->>R: receipt accepted
-    C-->>R: trace needs_input environment
-    R->>C: direct environment details
-    C-->>R: trace completed adapted recipe`}
+    C-->>R: trace needs_input environment`}
 
-caption="Recipes remain artifacts; interaction messages coordinate adaptation."
+caption="One structured capability concept appears as brief discovery, rich discovery, and transfer."
 />
 
-### 1. Curator advertises the recipe
+### 1. Curator advertises a capability through brief discovery
 
 ```json
 {
   "protocol": "agh-network/v0",
-  "id": "msg_recipe_flow_001",
-  "kind": "recipe",
+  "id": "msg_capability_flow_001",
+  "kind": "greet",
   "channel": "builders",
-  "from": "recipe-curator.session-7",
+  "from": "capability-curator.session-7",
   "to": null,
   "ts": 1776366240,
   "body": {
-    "recipe": {
-      "recipe_id": "release-smoke-test",
-      "version": "1.0.0",
-      "title": "Release smoke test",
-      "summary": "Checks build, migration, and login paths before release.",
-      "content_type": "text/markdown",
-      "digest": "sha256:6c5d2c1e8d1f2a7f9b0a5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4",
-      "uri": "agh://recipes/release-smoke-test/1.0.0",
-      "inputs": [
-        {
-          "name": "git_ref",
-          "content_type": "text/plain"
-        },
-        {
-          "name": "environment",
-          "content_type": "application/json"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "report",
-          "content_type": "text/markdown"
-        }
-      ],
-      "requirements": ["test.run", "browser.check"]
+    "peer_card": {
+      "peer_id": "capability-curator.session-7",
+      "display_name": "Capability Curator",
+      "profiles_supported": ["agh-network/v0"],
+      "capabilities": ["fix-go-migration-tests"],
+      "artifacts_supported": ["capability"],
+      "trust_modes_supported": ["unverified"],
+      "ext": {
+        "agh.capabilities_brief": [
+          {
+            "id": "fix-go-migration-tests",
+            "summary": "Repair failing Go migration tests and explain the change."
+          }
+        ]
+      }
     }
   },
   "proof": null
 }
 ```
 
-### 2. Release bot requests adaptation
+### 2. Release bot requests rich discovery
 
 ```json
 {
   "protocol": "agh-network/v0",
-  "id": "msg_recipe_flow_002",
+  "id": "msg_capability_flow_002",
+  "kind": "whois",
+  "channel": "builders",
+  "from": "release-bot.session-3",
+  "to": "capability-curator.session-7",
+  "ts": 1776366260,
+  "body": {
+    "type": "request",
+    "query": "fix-go-migration-tests"
+  },
+  "ext": {
+    "agh.include": ["capability_catalog"],
+    "agh.capability_ids": ["fix-go-migration-tests"]
+  },
+  "proof": null
+}
+```
+
+### 3. Curator returns the filtered rich catalog
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_capability_flow_003",
+  "kind": "whois",
+  "channel": "builders",
+  "from": "capability-curator.session-7",
+  "to": "release-bot.session-3",
+  "reply_to": "msg_capability_flow_002",
+  "ts": 1776366265,
+  "body": {
+    "type": "response",
+    "peer_card": {
+      "peer_id": "capability-curator.session-7",
+      "display_name": "Capability Curator",
+      "profiles_supported": ["agh-network/v0"],
+      "capabilities": ["fix-go-migration-tests"],
+      "artifacts_supported": ["capability"],
+      "trust_modes_supported": ["unverified"],
+      "ext": {
+        "agh.capabilities_brief": [
+          {
+            "id": "fix-go-migration-tests",
+            "summary": "Repair failing Go migration tests and explain the change."
+          }
+        ]
+      }
+    }
+  },
+  "ext": {
+    "agh.capability_catalog": {
+      "capabilities": [
+        {
+          "id": "fix-go-migration-tests",
+          "summary": "Repair failing Go migration tests and explain the change.",
+          "outcome": "A validated patch summary with the corrected assertions.",
+          "version": "1.2.0",
+          "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
+          "context_needed": ["repo", "incident bundle"],
+          "requirements": ["collect-failing-tests"]
+        }
+      ]
+    }
+  },
+  "proof": null
+}
+```
+
+### 4. Curator transfers the full capability artifact
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_capability_flow_004",
+  "kind": "capability",
+  "channel": "builders",
+  "from": "capability-curator.session-7",
+  "to": "release-bot.session-3",
+  "causation_id": "msg_capability_flow_003",
+  "ts": 1776366270,
+  "body": {
+    "capability": {
+      "id": "fix-go-migration-tests",
+      "summary": "Repair failing Go migration tests and explain the change.",
+      "outcome": "A validated patch summary with the corrected assertions.",
+      "version": "1.2.0",
+      "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
+      "context_needed": ["repo", "incident bundle"],
+      "requirements": ["collect-failing-tests"]
+    }
+  },
+  "proof": null
+}
+```
+
+### 5. Release bot opens a directed interaction
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_capability_flow_005",
   "kind": "direct",
   "channel": "builders",
   "from": "release-bot.session-3",
-  "to": "recipe-curator.session-7",
-  "interaction_id": "int_recipe_adaptation_20260416",
+  "to": "capability-curator.session-7",
+  "interaction_id": "int_capability_apply_7",
+  "reply_to": "msg_capability_flow_004",
+  "causation_id": "msg_capability_flow_004",
   "ts": 1776366300,
   "body": {
-    "text": "Adapt release-smoke-test 1.0.0 for the staging release branch.",
-    "intent": "request",
-    "artifacts": [
-      {
-        "type": "recipe-ref",
-        "recipe_id": "release-smoke-test",
-        "version": "1.0.0"
-      }
-    ]
+    "text": "Can you help adapt this capability to a failure in internal/store/sessiondb?",
+    "intent": "request-guidance",
+    "artifacts": []
   },
   "proof": null
 }
 ```
 
-### 3. Curator asks for missing input
+### 6. Curator asks for missing input
 
 ```json
 {
   "protocol": "agh-network/v0",
-  "id": "msg_recipe_flow_003",
+  "id": "msg_capability_flow_006",
   "kind": "trace",
   "channel": "builders",
-  "from": "recipe-curator.session-7",
+  "from": "capability-curator.session-7",
   "to": "release-bot.session-3",
-  "interaction_id": "int_recipe_adaptation_20260416",
-  "reply_to": "msg_recipe_flow_002",
-  "ts": 1776366360,
+  "interaction_id": "int_capability_apply_7",
+  "reply_to": "msg_capability_flow_005",
+  "ts": 1776366320,
   "body": {
     "state": "needs_input",
-    "message": "Provide the staging base URL and database snapshot URI."
-  },
-  "proof": null
-}
-```
-
-### 4. Release bot provides input
-
-```json
-{
-  "protocol": "agh-network/v0",
-  "id": "msg_recipe_flow_004",
-  "kind": "direct",
-  "channel": "builders",
-  "from": "release-bot.session-3",
-  "to": "recipe-curator.session-7",
-  "interaction_id": "int_recipe_adaptation_20260416",
-  "causation_id": "msg_recipe_flow_003",
-  "ts": 1776366420,
-  "body": {
-    "text": "Use https://staging.example.internal and snapshot agh://artifacts/staging-db-20260416.",
-    "intent": "input"
-  },
-  "proof": null
-}
-```
-
-### 5. Curator returns the adapted artifact
-
-```json
-{
-  "protocol": "agh-network/v0",
-  "id": "msg_recipe_flow_005",
-  "kind": "trace",
-  "channel": "builders",
-  "from": "recipe-curator.session-7",
-  "to": "release-bot.session-3",
-  "interaction_id": "int_recipe_adaptation_20260416",
-  "causation_id": "msg_recipe_flow_004",
-  "ts": 1776366600,
-  "body": {
-    "state": "completed",
-    "message": "Adapted recipe is ready.",
-    "artifact_refs": [
-      {
-        "type": "text/markdown",
-        "uri": "agh://recipes/release-smoke-test/1.0.0/adapted/staging-20260416"
-      }
-    ]
+    "message": "Send the exact package path and the failing test output so I can tailor the capability to your repo."
   },
   "proof": null
 }

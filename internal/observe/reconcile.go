@@ -59,10 +59,7 @@ func (o *Observer) loadSessionMetadata() ([]store.SessionInfo, error) {
 			continue
 		}
 
-		normalized, err := o.normalizeRecoveredMeta(metaPath, meta)
-		if err != nil {
-			return nil, err
-		}
+		normalized := o.normalizeRecoveredMeta(metaPath, meta)
 		stopReason := store.StopReason("")
 		if normalized.StopReason != nil {
 			stopReason = *normalized.StopReason
@@ -91,18 +88,22 @@ func (o *Observer) loadSessionMetadata() ([]store.SessionInfo, error) {
 	return sessions, nil
 }
 
-func (o *Observer) normalizeRecoveredMeta(path string, meta store.SessionMeta) (store.SessionMeta, error) {
-	normalized := meta
-	state := strings.TrimSpace(normalized.State)
-	if state == "" || state == string(session.StateStopped) {
-		return normalized, nil
+func (o *Observer) normalizeRecoveredMeta(path string, meta store.SessionMeta) store.SessionMeta {
+	normalized, changed := session.ClassifyInactiveMetaForRecovery(o.now(), meta)
+	if !changed {
+		return normalized
 	}
 
-	normalized.State = string(session.StateStopped)
 	normalized.UpdatedAt = o.now()
 	if err := store.WriteSessionMeta(path, normalized); err != nil {
-		return store.SessionMeta{}, fmt.Errorf("observe: normalize session meta %q: %w", path, err)
+		o.logger.Warn(
+			"observe: persist recovered session classification failed",
+			"session_id", strings.TrimSpace(meta.ID),
+			"path", path,
+			"error", err,
+		)
+		return session.AnnotateUnpersistedRecovery(normalized, err)
 	}
 
-	return normalized, nil
+	return normalized
 }

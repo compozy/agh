@@ -31,7 +31,7 @@ portable sender SHOULD include them explicitly as `null` when no target or proof
 | ---------------- | -------------- | ----------- | ------------------------------------------------------------------------------------------------------------- |
 | `protocol`       | string         | Yes         | MUST be `agh-network/v0`.                                                                                     |
 | `id`             | string         | Yes         | MUST identify this envelope uniquely within the sender's replay window. UUIDs are RECOMMENDED.                |
-| `kind`           | string         | Yes         | MUST be one of `greet`, `whois`, `say`, `direct`, `recipe`, `receipt`, or `trace`.                            |
+| `kind`           | string         | Yes         | MUST be one of `greet`, `whois`, `say`, `direct`, `capability`, `receipt`, or `trace`.                        |
 | `channel`        | string         | Yes         | MUST match `[a-z0-9][a-z0-9_-]{0,63}`.                                                                        |
 | `from`           | string         | Yes         | MUST be the sender Peer ID and MUST match `[a-z0-9][a-z0-9._-]{0,127}`.                                       |
 | `to`             | string or null | Conditional | MUST be a Peer ID when the message is directed to one peer. MUST be `null` or omitted for broadcast messages. |
@@ -84,7 +84,7 @@ kind pages.
     },
     "kind": {
       "type": "string",
-      "enum": ["greet", "whois", "say", "direct", "recipe", "receipt", "trace"]
+      "enum": ["greet", "whois", "say", "direct", "capability", "receipt", "trace"]
     },
     "channel": {
       "type": "string",

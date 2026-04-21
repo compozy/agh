@@ -175,16 +175,14 @@ func TestPermissionPayloadHelpersAndTextDeltaDetection(t *testing.T) {
 
 	records := []SSEEvent{
 		{
-			Event: "permission",
-			Data:  []byte(`{"type":"data-agh-permission","data":{"request_id":"req-1"}}`),
+			Data: []byte(`{"type":"data-agh-permission","data":{"request_id":"req-1"}}`),
 		},
 		{
 			Event: "permission",
 			Data:  []byte(`{"type":"data-agh-permission","data":{"request_id":"req-1","decision":"allow-always"}}`),
 		},
 		{
-			Event: "agent_message",
-			Data:  []byte(`{"type":"text-delta","delta":"allow-always"}`),
+			Data: []byte(`{"type":"text-delta","delta":"allow-always"}`),
 		},
 	}
 

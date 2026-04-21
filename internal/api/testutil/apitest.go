@@ -42,11 +42,13 @@ type StubSessionManager struct {
 	StatusFn        func(context.Context, string) (*session.Info, error)
 	EventsFn        func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	HistoryFn       func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	TranscriptFn    func(context.Context, string) ([]transcript.Message, error)
+	TranscriptFn    func(context.Context, string) ([]transcript.UIMessage, error)
 	StopFn          func(context.Context, string) error
 	StopWithCauseFn func(context.Context, string, session.StopCause, string) error
 	ResumeFn        func(context.Context, string) (*session.Session, error)
+	ClearFn         func(context.Context, string) (*session.Session, error)
 	PromptFn        func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	CancelPromptFn  func(context.Context, string) error
 	ApproveFn       func(context.Context, string, acp.ApproveRequest) error
 }
 
@@ -107,7 +109,7 @@ func (s StubSessionManager) History(
 	return nil, nil
 }
 
-func (s StubSessionManager) Transcript(ctx context.Context, id string) ([]transcript.Message, error) {
+func (s StubSessionManager) Transcript(ctx context.Context, id string) ([]transcript.UIMessage, error) {
 	if s.TranscriptFn != nil {
 		return s.TranscriptFn(ctx, id)
 	}
@@ -143,6 +145,16 @@ func (s StubSessionManager) Resume(ctx context.Context, id string) (*session.Ses
 	return nil, nil
 }
 
+func (s StubSessionManager) ClearConversation(
+	ctx context.Context,
+	id string,
+) (*session.Session, error) {
+	if s.ClearFn != nil {
+		return s.ClearFn(ctx, id)
+	}
+	return nil, nil
+}
+
 func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	if s.PromptFn != nil {
 		return s.PromptFn(ctx, id, msg)
@@ -150,6 +162,13 @@ func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (
 	ch := make(chan acp.AgentEvent)
 	close(ch)
 	return ch, nil
+}
+
+func (s StubSessionManager) CancelPrompt(ctx context.Context, id string) error {
+	if s.CancelPromptFn != nil {
+		return s.CancelPromptFn(ctx, id)
+	}
+	return nil
 }
 
 func (s StubSessionManager) ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error {

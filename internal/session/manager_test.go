@@ -936,6 +936,134 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	}
 }
 
+func TestCancelPrompt(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should cancel driver prompt for an active prompting session", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			session.clearCurrentTurnSource()
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		})
+
+		promptEvents := make(chan acp.AgentEvent)
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return promptEvents, nil
+		}
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		waitForCondition(t, "session prompting", func() bool {
+			return session.IsPrompting()
+		})
+
+		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if got := h.driver.cancelCalls; got != 1 {
+			t.Fatalf("driver cancel calls = %d, want 1", got)
+		}
+
+		close(promptEvents)
+		_ = collectEvents(t, eventsCh)
+	})
+
+	t.Run("Should no-op when a prompting session loses its process handle", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			session.clearCurrentTurnSource()
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		})
+
+		session.setCurrentTurnSource(TurnSourceUser)
+		session.clearProcess(time.Now().UTC())
+
+		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if got := h.driver.cancelCalls; got != 0 {
+			t.Fatalf("driver cancel calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should ignore cancel errors once the process is already done", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		})
+
+		session.setCurrentTurnSource(TurnSourceUser)
+		h.driver.cancelHook = func(_ *fakeProcess) error {
+			return errors.New("test: cancel after process exit")
+		}
+		h.driver.lastProcess().exit()
+
+		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if got := h.driver.cancelCalls; got != 1 {
+			t.Fatalf("driver cancel calls = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should no-op for an active session without a prompt", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		})
+
+		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if got := h.driver.cancelCalls; got != 0 {
+			t.Fatalf("driver cancel calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should no-op for a known stopped session", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if got := h.driver.cancelCalls; got != 0 {
+			t.Fatalf("driver cancel calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should return ErrSessionNotFound for an unknown session", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+
+		err := h.manager.CancelPrompt(testutil.Context(t), "missing")
+		if !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("CancelPrompt(missing) error = %v, want ErrSessionNotFound", err)
+		}
+	})
+}
+
 func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 	t.Parallel()
 
@@ -2870,6 +2998,7 @@ type fakeDriver struct {
 	processes        map[*AgentProcess]*fakeProcess
 	lastProc         *fakeProcess
 	promptHook       func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error)
+	cancelHook       func(proc *fakeProcess) error
 	approveHook      func(proc *fakeProcess, req acp.ApproveRequest) error
 	stopHook         func(proc *fakeProcess) error
 	startHook        func(opts acp.StartOpts, sequence int) (*fakeProcess, error)
@@ -3211,10 +3340,19 @@ func (d *fakeDriver) Prompt(
 	return events, nil
 }
 
-func (d *fakeDriver) Cancel(_ context.Context, _ *AgentProcess) error {
+func (d *fakeDriver) Cancel(_ context.Context, proc *AgentProcess) error {
 	d.mu.Lock()
-	defer d.mu.Unlock()
+	fakeProc := d.processes[proc]
 	d.cancelCalls++
+	hook := d.cancelHook
+	d.mu.Unlock()
+
+	if fakeProc == nil {
+		return errors.New("test: unknown fake process")
+	}
+	if hook != nil {
+		return hook(fakeProc)
+	}
 	return nil
 }
 

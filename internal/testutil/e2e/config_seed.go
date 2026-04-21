@@ -128,6 +128,21 @@ func SeedConfig(t testing.TB, homePaths aghconfig.HomePaths, opts ConfigSeedOpti
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("seed config validate error = %v", err)
 	}
+	if err := writeSeedConfigFile(homePaths, &cfg); err != nil {
+		t.Fatalf("write seed config %q error = %v", homePaths.ConfigFile, err)
+	}
+
+	for _, agent := range opts.AgentDefs {
+		WriteAgentDef(t, homePaths, agent)
+	}
+
+	return cfg
+}
+
+func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) error {
+	if cfg == nil {
+		return errors.New("seed config is required")
+	}
 
 	overlay := configSeedFile{
 		Daemon: &configSeedDaemonSection{
@@ -152,23 +167,23 @@ func SeedConfig(t testing.TB, homePaths aghconfig.HomePaths, opts ConfigSeedOpti
 
 	file, err := os.Create(homePaths.ConfigFile)
 	if err != nil {
-		t.Fatalf("os.Create(%q) error = %v", homePaths.ConfigFile, err)
+		return fmt.Errorf("os.Create(%q): %w", homePaths.ConfigFile, err)
 	}
 	if err := toml.NewEncoder(file).Encode(overlay); err != nil {
 		if closeErr := file.Close(); closeErr != nil {
-			t.Fatalf("toml encode config %q error = %v (close error = %v)", homePaths.ConfigFile, err, closeErr)
+			return fmt.Errorf(
+				"toml encode config %q: %w (close error = %v)",
+				homePaths.ConfigFile,
+				err,
+				closeErr,
+			)
 		}
-		t.Fatalf("toml encode config %q error = %v", homePaths.ConfigFile, err)
+		return fmt.Errorf("toml encode config %q: %w", homePaths.ConfigFile, err)
 	}
 	if err := file.Close(); err != nil {
-		t.Fatalf("close config %q error = %v", homePaths.ConfigFile, err)
+		return fmt.Errorf("close config %q: %w", homePaths.ConfigFile, err)
 	}
-
-	for _, agent := range opts.AgentDefs {
-		WriteAgentDef(t, homePaths, agent)
-	}
-
-	return cfg
+	return nil
 }
 
 // SeedWorkspace creates an isolated workspace root and any requested files.

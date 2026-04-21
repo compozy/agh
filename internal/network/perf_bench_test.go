@@ -24,7 +24,7 @@ func BenchmarkFormatNetworkMessageDirect(b *testing.B) {
 			Text:   "Review the attached network benchmark payload and summarize the reply strategy.",
 			Intent: "review_request",
 			Artifacts: []json.RawMessage{
-				json.RawMessage(`{"kind":"recipe","id":"artifact-1"}`),
+				json.RawMessage(`{"kind":"capability","id":"artifact-1"}`),
 				json.RawMessage(`{"kind":"patch","id":"artifact-2"}`),
 			},
 		}),
@@ -94,7 +94,7 @@ func BenchmarkPeerRegistryListPeersFiltered(b *testing.B) {
 func BenchmarkNetworkLogFields(b *testing.B) {
 	envelope := Envelope{
 		ID:      "msg-bench-log",
-		Kind:    KindRecipe,
+		Kind:    KindCapability,
 		Channel: "builders",
 		From:    "coder.sess-bench",
 		To:      stringPtr("reviewer.sess-bench"),
@@ -127,7 +127,7 @@ func benchmarkPeerCard(b *testing.B, peerID string, capability string) PeerCard 
 		DisplayName:         &displayName,
 		ProfilesSupported:   []string{ProtocolV0},
 		Capabilities:        []string{capability, "chat.review"},
-		ArtifactsSupported:  []string{"recipe"},
+		ArtifactsSupported:  []string{"capability"},
 		TrustModesSupported: []string{"unverified"},
 	}
 	normalized, err := normalizePeerCard(card)

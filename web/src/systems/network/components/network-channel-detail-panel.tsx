@@ -37,7 +37,7 @@ interface NetworkChannelDetailPanelProps {
 
 type NetworkChannelMember = NonNullable<NetworkChannel["peers"]>[number];
 
-const VALID_KINDS = new Set(["greet", "whois", "say", "direct", "recipe", "receipt", "trace"]);
+const VALID_KINDS = new Set(["greet", "whois", "say", "direct", "capability", "receipt", "trace"]);
 
 function getMessageKind(message: NetworkChannelMessage): string {
   const raw = message.intent;
@@ -118,6 +118,7 @@ function MembersList({ members }: { members: NetworkChannelMember[] }) {
         icon={Hash}
         title="No members yet"
         description="Peers appear here as soon as they join the channel."
+        fill={false}
       />
     );
   }
@@ -296,6 +297,7 @@ export function NetworkChannelDetailPanel({
                 icon={Hash}
                 title="No messages yet"
                 description="This channel exists and can accept members, but no read-only timeline messages have been recorded yet."
+                fill={false}
               />
             </div>
           ) : (

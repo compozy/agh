@@ -9,8 +9,8 @@ export interface KindChipProps extends Omit<React.ComponentProps<"span">, "child
 }
 
 /**
- * Protocol kind marker (e.g. `greet`, `whois`, `say`). 5px radius, lowercase mono,
- * accent-tint background with accent text — per DESIGN.md §4 "Kind Chip".
+ * Protocol kind marker (e.g. `greet`, `whois`, `say`, `direct`, `capability`).
+ * 5px radius, lowercase mono, accent-tint background with accent text — per DESIGN.md §4 "Kind Chip".
  */
 function KindChip({ kind, className, ...props }: KindChipProps) {
   return (

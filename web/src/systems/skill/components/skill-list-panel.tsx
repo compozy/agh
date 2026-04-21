@@ -8,8 +8,6 @@ import {
   compareSkillSource,
   filterSkillsByQuery,
   skillSourceLabel,
-  skillSourceShortLabel,
-  skillSourceTone,
   skillStatusTone,
 } from "../lib/skill-formatters";
 import type { SkillPayload } from "../types";
@@ -95,12 +93,6 @@ function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
           {skill.description}
         </span>
       ) : null}
-      <MonoBadge
-        data-testid={`skill-source-badge-${skill.name}`}
-        tone={skillSourceTone(skill.source)}
-      >
-        {skillSourceShortLabel(skill.source)}
-      </MonoBadge>
     </button>
   );
 }

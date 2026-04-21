@@ -78,6 +78,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
           description="Queue samples will appear as runs are processed."
           icon={Gauge}
           title="No queue samples yet"
+          fill={false}
         />
       )}
 

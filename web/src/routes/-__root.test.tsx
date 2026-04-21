@@ -60,15 +60,6 @@ describe("RootComponent", () => {
     routeId: string;
   }) => React.ReactNode;
 
-  it("renders the sticky app header with wordmark, ALPHA chip, and placeholder nav", () => {
-    render(<RootComponent />);
-    const header = screen.getByTestId("app-header");
-    expect(header).toBeInTheDocument();
-    expect(screen.getByTestId("app-header-wordmark")).toHaveTextContent("agh");
-    expect(screen.getByTestId("app-header-alpha-chip")).toHaveTextContent(/alpha/i);
-    expect(screen.getByTestId("app-header-nav")).toBeInTheDocument();
-  });
-
   it("wraps the shell in a TooltipProvider", () => {
     render(<RootComponent />);
     const tooltipProvider = screen.getByTestId("tooltip-provider");
@@ -76,7 +67,7 @@ describe("RootComponent", () => {
     expect(tooltipProvider).toContainElement(screen.getByTestId("app-shell"));
   });
 
-  it("renders the Outlet below the header", () => {
+  it("renders the Outlet inside the shell", () => {
     render(<RootComponent />);
     expect(screen.getByTestId("outlet")).toBeInTheDocument();
   });

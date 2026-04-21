@@ -9,7 +9,6 @@ import {
   Network,
   Plus,
   Settings,
-  Terminal,
   Waypoints,
   Wrench,
   Zap,
@@ -54,7 +53,12 @@ function RailSlot({
         data-testid="app-logo"
         className="mb-1 inline-flex size-7 items-center justify-center rounded-md bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)] transition-colors hover:bg-[color:var(--color-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-canvas-deep)]"
       >
-        <Terminal aria-hidden="true" className="size-3.5" />
+        <span
+          aria-hidden="true"
+          className="font-wordmark text-[18px] leading-none tracking-[-0.02em]"
+        >
+          a
+        </span>
       </Link>
       {workspaces?.map(workspace => {
         const isActive = workspace.id === activeWorkspaceId;
@@ -184,18 +188,51 @@ function SidebarSessionItem({ session }: SidebarSessionItemProps) {
   );
 }
 
+interface PendingSidebarSessionItemProps {
+  agentName: string;
+}
+
+function PendingSidebarSessionItem({ agentName }: PendingSidebarSessionItemProps) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={`Creating session for ${agentName}`}
+      data-testid={`pending-session-row-${agentName}`}
+      className={cn(
+        "flex items-center gap-2 rounded-md px-2 py-1 text-[12px]",
+        "text-[color:var(--color-text-tertiary)]"
+      )}
+    >
+      <StatusDot tone="warning" pulse size="sm" />
+      <span className="truncate font-mono text-[11px] lowercase tracking-[0.04em]">
+        starting...
+      </span>
+    </div>
+  );
+}
+
 interface AgentItemProps {
   agent: AgentPayload;
   sessions: SessionPayload[] | undefined;
   onNewSession: (agentName: string) => void;
   newSessionDisabled: boolean;
+  isPendingCreate: boolean;
+  showPendingSessionRow: boolean;
 }
 
-function AgentItem({ agent, sessions, onNewSession, newSessionDisabled }: AgentItemProps) {
+function AgentItem({
+  agent,
+  sessions,
+  onNewSession,
+  newSessionDisabled,
+  isPendingCreate,
+  showPendingSessionRow,
+}: AgentItemProps) {
   const count = sessions?.length ?? 0;
 
   return (
-    <Collapsible defaultOpen={count > 0} className="group/agent">
+    <Collapsible defaultOpen={count > 0 || showPendingSessionRow} className="group/agent">
       <div className="relative flex items-center">
         <CollapsibleTrigger
           data-testid={`agent-trigger-${agent.name}`}
@@ -219,21 +256,32 @@ function AgentItem({ agent, sessions, onNewSession, newSessionDisabled }: AgentI
           onClick={() => onNewSession(agent.name)}
           disabled={newSessionDisabled}
           aria-label={`New session for ${agent.name}`}
+          aria-busy={isPendingCreate}
+          data-pending={isPendingCreate}
           data-testid={`new-session-${agent.name}`}
           className="ml-1 inline-flex size-5 items-center justify-center rounded text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] disabled:pointer-events-none disabled:opacity-40"
         >
-          <Plus aria-hidden="true" className="size-3" />
+          {isPendingCreate ? (
+            <Loader2
+              aria-hidden="true"
+              data-testid={`new-session-spinner-${agent.name}`}
+              className="size-3 animate-spin"
+            />
+          ) : (
+            <Plus aria-hidden="true" className="size-3" />
+          )}
         </button>
       </div>
       <CollapsibleContent>
         <div className="ml-[18px] flex flex-col gap-0.5 border-l border-[color:var(--color-divider)] pl-2 pt-0.5">
           {sessions && sessions.length > 0 ? (
             sessions.map(session => <SidebarSessionItem key={session.id} session={session} />)
-          ) : (
+          ) : !showPendingSessionRow ? (
             <span className="px-2 py-1 text-[11px] text-[color:var(--color-text-tertiary)]">
               No sessions
             </span>
-          )}
+          ) : null}
+          {showPendingSessionRow ? <PendingSidebarSessionItem agentName={agent.name} /> : null}
         </div>
       </CollapsibleContent>
     </Collapsible>
@@ -248,6 +296,8 @@ interface AgentListProps {
   sessions: SessionPayload[] | undefined;
   onNewSession: (agentName: string) => void;
   isCreatingSession: boolean;
+  pendingSessionAgentName: string | null;
+  pendingSessionWorkspaceId: string | null;
 }
 
 function AgentList({
@@ -258,6 +308,8 @@ function AgentList({
   sessions,
   onNewSession,
   isCreatingSession,
+  pendingSessionAgentName,
+  pendingSessionWorkspaceId,
 }: AgentListProps) {
   const sessionsByAgent = useSessionsByAgent(sessions);
 
@@ -294,6 +346,12 @@ function AgentList({
           sessions={sessionsByAgent[agent.name]}
           onNewSession={onNewSession}
           newSessionDisabled={!activeWorkspaceId || isCreatingSession}
+          isPendingCreate={pendingSessionAgentName === agent.name}
+          showPendingSessionRow={
+            pendingSessionAgentName === agent.name &&
+            activeWorkspaceId !== null &&
+            activeWorkspaceId === pendingSessionWorkspaceId
+          }
         />
       ))}
     </div>
@@ -318,6 +376,8 @@ interface NavSlotProps {
   sessions: SessionPayload[] | undefined;
   onNewSession: (agentName: string) => void;
   isCreatingSession: boolean;
+  pendingSessionAgentName: string | null;
+  pendingSessionWorkspaceId: string | null;
 }
 
 function NavSlot({
@@ -328,6 +388,8 @@ function NavSlot({
   sessions,
   onNewSession,
   isCreatingSession,
+  pendingSessionAgentName,
+  pendingSessionWorkspaceId,
 }: NavSlotProps) {
   return (
     <div data-testid="sidebar-nav" className="flex flex-col gap-1 px-2 py-3">
@@ -340,6 +402,8 @@ function NavSlot({
         sessions={sessions}
         onNewSession={onNewSession}
         isCreatingSession={isCreatingSession}
+        pendingSessionAgentName={pendingSessionAgentName}
+        pendingSessionWorkspaceId={pendingSessionWorkspaceId}
       />
 
       <SectionLabel className="mt-3">Workspace</SectionLabel>
@@ -434,6 +498,8 @@ export interface AppSidebarProps {
   sessions: SessionPayload[] | undefined;
   onNewSession: (agentName: string) => void;
   isCreatingSession: boolean;
+  pendingSessionAgentName: string | null;
+  pendingSessionWorkspaceId: string | null;
 }
 
 function AppSidebar({
@@ -452,6 +518,8 @@ function AppSidebar({
   sessions,
   onNewSession,
   isCreatingSession,
+  pendingSessionAgentName,
+  pendingSessionWorkspaceId,
 }: AppSidebarProps) {
   return (
     <Sidebar
@@ -477,6 +545,8 @@ function AppSidebar({
           sessions={sessions}
           onNewSession={onNewSession}
           isCreatingSession={isCreatingSession}
+          pendingSessionAgentName={pendingSessionAgentName}
+          pendingSessionWorkspaceId={pendingSessionWorkspaceId}
         />
       }
       footer={<FooterSlot connectionStatus={connectionStatus} health={health} />}

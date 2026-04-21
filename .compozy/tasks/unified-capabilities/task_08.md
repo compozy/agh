@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Update `packages/site` Runtime Capability Docs
 type: docs
 complexity: medium
@@ -32,10 +32,10 @@ Update the runtime-facing site docs so capability authoring, agent definitions, 
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Rewrite runtime capability authoring pages for the unified model
-- [ ] 8.2 Update agent-definition and runtime overview pages that reference capability behavior
-- [ ] 8.3 Align examples, metadata, and navigation with the rewritten runtime capability guide
-- [ ] 8.4 Cross-check site runtime wording against task_05 outputs and accepted ADRs
+- [x] 8.1 Rewrite runtime capability authoring pages for the unified model
+- [x] 8.2 Update agent-definition and runtime overview pages that reference capability behavior
+- [x] 8.3 Align examples, metadata, and navigation with the rewritten runtime capability guide
+- [x] 8.4 Cross-check site runtime wording against task_05 outputs and accepted ADRs
 
 ## Implementation Details
 

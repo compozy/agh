@@ -57,6 +57,7 @@ type Info struct {
 	StopDetail   string
 	ACPSessionID string
 	ACPCaps      acp.Caps
+	Liveness     *store.SessionLivenessMeta
 	Environment  *store.SessionEnvironmentMeta
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -79,6 +80,7 @@ type Session struct {
 	stopDetail   string
 	ACPSessionID string
 	ACPCaps      acp.Caps
+	Liveness     *store.SessionLivenessMeta
 	Environment  *store.SessionEnvironmentMeta
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -118,6 +120,7 @@ func (s *Session) Info() *Info {
 		StopDetail:   s.stopDetail,
 		ACPSessionID: s.ACPSessionID,
 		ACPCaps:      cloneCaps(s.ACPCaps),
+		Liveness:     store.CloneSessionLivenessMeta(s.Liveness),
 		Environment:  cloneSessionEnvironmentMeta(s.Environment),
 		CreatedAt:    s.CreatedAt,
 		UpdatedAt:    s.UpdatedAt,
@@ -286,6 +289,20 @@ func (s *Session) updateFromProcess(proc *AgentProcess, now time.Time) {
 	if proc != nil {
 		s.ACPSessionID = strings.TrimSpace(proc.SessionID)
 		s.ACPCaps = cloneCaps(proc.Caps)
+		if s.Liveness == nil {
+			s.Liveness = &store.SessionLivenessMeta{}
+		}
+		s.Liveness.SubprocessPID = proc.PID
+		if !proc.StartedAt.IsZero() {
+			startedAt := proc.StartedAt.UTC()
+			s.Liveness.SubprocessStartedAt = &startedAt
+		}
+		if !now.IsZero() {
+			lastUpdateAt := now.UTC()
+			s.Liveness.LastUpdateAt = &lastUpdateAt
+		}
+		s.Liveness.StallState = ""
+		s.Liveness.StallReason = ""
 	}
 	if !now.IsZero() {
 		s.UpdatedAt = now
@@ -317,9 +334,47 @@ func (s *Session) rollbackActivation(now time.Time) {
 	s.process = nil
 	s.ACPSessionID = ""
 	s.ACPCaps = acp.Caps{}
+	s.Liveness = nil
 	s.State = StateStarting
 	if !now.IsZero() {
 		s.UpdatedAt = now
+	}
+}
+
+func (s *Session) observeACPUpdate(now time.Time) {
+	if s == nil || now.IsZero() {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.Liveness == nil {
+		s.Liveness = &store.SessionLivenessMeta{}
+	}
+	lastUpdateAt := now.UTC()
+	s.Liveness.LastUpdateAt = &lastUpdateAt
+	s.Liveness.StallState = ""
+	s.Liveness.StallReason = ""
+	s.UpdatedAt = now
+}
+
+func (s *Session) markExited(now time.Time) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.Liveness != nil {
+		s.Liveness.SubprocessPID = 0
+		s.Liveness.SubprocessStartedAt = nil
+		s.Liveness.StallState = ""
+		s.Liveness.StallReason = ""
+	}
+	if !now.IsZero() {
+		s.UpdatedAt = now.UTC()
 	}
 }
 
@@ -600,6 +655,7 @@ func (s *Session) Meta() store.SessionMeta {
 		StopReason:   stopReasonPointer(s.stopReason),
 		StopDetail:   s.stopDetail,
 		ACPSessionID: stringPointer(s.ACPSessionID),
+		Liveness:     store.CloneSessionLivenessMeta(s.Liveness),
 		Environment:  cloneSessionEnvironmentMeta(s.Environment),
 		CreatedAt:    s.CreatedAt,
 		UpdatedAt:    s.UpdatedAt,

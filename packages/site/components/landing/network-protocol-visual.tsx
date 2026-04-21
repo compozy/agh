@@ -267,8 +267,8 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       {/* Footer — controls + kind footnote */}
       <div className="flex flex-col gap-3 border-t border-(--color-divider) bg-(--color-surface) px-4 py-3 md:flex-row md:items-center md:justify-between md:px-6">
         <p className="font-mono text-[11px] text-(--color-text-tertiary)">
-          <span className="text-(--color-accent)">recipe</span> bundles multi-step delegations.{" "}
-          <span className="text-(--color-accent)">say</span> is free-form operator chat.
+          <span className="text-(--color-accent)">capability</span> transfers full capability
+          artifacts. <span className="text-(--color-accent)">say</span> is free-form operator chat.
         </p>
         {!showAll ? (
           <div className="flex items-center gap-1.5">

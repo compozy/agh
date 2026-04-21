@@ -72,27 +72,33 @@ describe("task status and priority labels", () => {
 });
 
 describe("task semantic tones", () => {
-  it("maps task statuses to tones", () => {
-    expect(taskStatusTone("completed")).toBe("green");
+  it("maps task statuses to tones — terminal states resolve neutral", () => {
+    expect(taskStatusTone("completed")).toBe("neutral");
     expect(taskStatusTone("failed")).toBe("danger");
-    expect(taskStatusTone("in_progress")).toBe("violet");
+    expect(taskStatusTone("canceled")).toBe("danger");
+    expect(taskStatusTone("in_progress")).toBe("neutral");
     expect(taskStatusTone("blocked")).toBe("amber");
+    expect(taskStatusTone("ready")).toBe("neutral");
     expect(taskStatusTone("draft")).toBe("neutral");
     expect(taskStatusTone(undefined)).toBe("neutral");
   });
 
-  it("maps priorities to tones", () => {
-    expect(taskPriorityTone("urgent")).toBe("danger");
-    expect(taskPriorityTone("high")).toBe("amber");
-    expect(taskPriorityTone("medium")).toBe("violet");
+  it("maps every priority level to neutral — priority never colorizes", () => {
+    expect(taskPriorityTone("urgent")).toBe("neutral");
+    expect(taskPriorityTone("high")).toBe("neutral");
+    expect(taskPriorityTone("medium")).toBe("neutral");
     expect(taskPriorityTone("low")).toBe("neutral");
+    expect(taskPriorityTone(undefined)).toBe("neutral");
   });
 
-  it("maps run statuses to tones", () => {
-    expect(taskRunStatusTone("running")).toBe("violet");
-    expect(taskRunStatusTone("completed")).toBe("green");
+  it("maps run statuses to tones — terminal runs resolve neutral", () => {
+    expect(taskRunStatusTone("running")).toBe("accent");
+    expect(taskRunStatusTone("completed")).toBe("neutral");
     expect(taskRunStatusTone("failed")).toBe("danger");
+    expect(taskRunStatusTone("canceled")).toBe("danger");
     expect(taskRunStatusTone("queued")).toBe("amber");
+    expect(taskRunStatusTone("starting")).toBe("neutral");
+    expect(taskRunStatusTone("claimed")).toBe("neutral");
   });
 
   it("maps inbox lanes to tones", () => {

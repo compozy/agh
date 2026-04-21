@@ -42,11 +42,13 @@ type SessionManager interface {
 	Status(ctx context.Context, id string) (*session.Info, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
-	Transcript(ctx context.Context, id string) ([]transcript.Message, error)
+	Transcript(ctx context.Context, id string) ([]transcript.UIMessage, error)
 	Stop(ctx context.Context, id string) error
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 	Resume(ctx context.Context, id string) (*session.Session, error)
+	ClearConversation(ctx context.Context, id string) (*session.Session, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
+	CancelPrompt(ctx context.Context, id string) error
 	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error
 }
 

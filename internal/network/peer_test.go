@@ -2,6 +2,7 @@ package network
 
 import (
 	"encoding/json"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -89,7 +90,7 @@ func TestPeerRegistryAccessorsAndChannelSummaries(t *testing.T) {
 		DisplayName:         &displayName,
 		ProfilesSupported:   []string{ProtocolV0},
 		Capabilities:        []string{"chat.review"},
-		ArtifactsSupported:  []string{"recipe"},
+		ArtifactsSupported:  []string{"capability"},
 		TrustModesSupported: []string{"unverified"},
 	}
 	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {
@@ -249,6 +250,80 @@ func TestCloneAndNormalizePeerCardPreserveCapabilityBriefExt(t *testing.T) {
 	}
 	if got := string(normalized.Ext[capabilityBriefExtKey]); got != string(wantBriefRaw) {
 		t.Fatalf("normalized capability brief raw = %q, want %q", got, string(wantBriefRaw))
+	}
+}
+
+func TestPeerRegistryRefreshRemoteKeepsRichCatalogCoherentWithBriefDiscovery(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+
+	card := PeerCard{
+		PeerID:              "reviewer.sess-remote",
+		ProfilesSupported:   []string{ProtocolV0},
+		Capabilities:        []string{"review-pr"},
+		ArtifactsSupported:  []string{"capability"},
+		TrustModesSupported: []string{"untrusted"},
+	}
+	catalog := []sessionpkg.NetworkPeerCapability{{
+		ID:           "review-pr",
+		Summary:      "Review pull requests",
+		Outcome:      "Actionable review findings",
+		Version:      "1.0.0",
+		Digest:       "sha256:review-pr-v1",
+		Requirements: []string{"workspace-read"},
+	}}
+
+	entry, stored, err := registry.RefreshRemoteWithCapabilityCatalog("builders", card, catalog, true, now)
+	if err != nil {
+		t.Fatalf("RefreshRemoteWithCapabilityCatalog() error = %v", err)
+	}
+	if !stored {
+		t.Fatal("RefreshRemoteWithCapabilityCatalog() stored = false, want true")
+	}
+	if !entry.CapabilityCatalogKnown || !reflect.DeepEqual(entry.CapabilityCatalog, catalog) {
+		t.Fatalf(
+			"initial remote capability catalog = %#v known=%v, want %#v known=true",
+			entry.CapabilityCatalog,
+			entry.CapabilityCatalogKnown,
+			catalog,
+		)
+	}
+
+	refreshed, stored, err := registry.RefreshRemote("builders", card, now.Add(time.Second))
+	if err != nil {
+		t.Fatalf("RefreshRemote() error = %v", err)
+	}
+	if !stored {
+		t.Fatal("RefreshRemote() stored = false, want true")
+	}
+	if !refreshed.CapabilityCatalogKnown || !reflect.DeepEqual(refreshed.CapabilityCatalog, catalog) {
+		t.Fatalf(
+			"refreshed capability catalog = %#v known=%v, want %#v known=true",
+			refreshed.CapabilityCatalog,
+			refreshed.CapabilityCatalogKnown,
+			catalog,
+		)
+	}
+
+	changedCard := card
+	changedCard.Capabilities = []string{"draft-spec"}
+	changed, stored, err := registry.RefreshRemote("builders", changedCard, now.Add(2*time.Second))
+	if err != nil {
+		t.Fatalf("RefreshRemote(changed brief) error = %v", err)
+	}
+	if !stored {
+		t.Fatal("RefreshRemote(changed brief) stored = false, want true")
+	}
+	if changed.CapabilityCatalogKnown {
+		t.Fatalf("changed capability catalog should be cleared when brief ids change: %#v", changed)
+	}
+	if len(changed.CapabilityCatalog) != 0 {
+		t.Fatalf("changed capability catalog = %#v, want empty", changed.CapabilityCatalog)
 	}
 }
 

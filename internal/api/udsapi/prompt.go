@@ -1,6 +1,7 @@
 package udsapi
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -25,7 +26,9 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 
-	events, err := h.Sessions.Prompt(c.Request.Context(), c.Param("id"), req.Message)
+	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
+	defer cancelPrompt()
+	events, err := h.Sessions.Prompt(promptCtx, c.Param("id"), req.Message)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return

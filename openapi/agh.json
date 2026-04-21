@@ -9076,7 +9076,19 @@
                                                                     },
                                                                     "capabilities": {
                                                                         "items": {
-                                                                            "type": "string"
+                                                                            "properties": {
+                                                                                "id": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "summary": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "id",
+                                                                                "summary"
+                                                                            ],
+                                                                            "type": "object"
                                                                         },
                                                                         "type": "array"
                                                                     },
@@ -9418,7 +9430,19 @@
                                                                     },
                                                                     "capabilities": {
                                                                         "items": {
-                                                                            "type": "string"
+                                                                            "properties": {
+                                                                                "id": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "summary": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "id",
+                                                                                "summary"
+                                                                            ],
+                                                                            "type": "object"
                                                                         },
                                                                         "type": "array"
                                                                     },
@@ -10064,7 +10088,16 @@
                                                             },
                                                             "capabilities": {
                                                                 "items": {
-                                                                    "type": "string"
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "summary": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": ["id", "summary"],
+                                                                    "type": "object"
                                                                 },
                                                                 "type": "array"
                                                             },
@@ -10206,6 +10239,77 @@
                                     "properties": {
                                         "peer": {
                                             "properties": {
+                                                "capability_catalog": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "capabilities": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "artifacts_expected": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "constraints": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "context_needed": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "digest": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "examples": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "execution_outline": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "outcome": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "requirements": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "summary": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "version": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "outcome",
+                                                                    "summary"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": ["capabilities"],
+                                                    "type": "object"
+                                                },
                                                 "channel": {
                                                     "type": "string"
                                                 },
@@ -10261,7 +10365,16 @@
                                                         },
                                                         "capabilities": {
                                                             "items": {
-                                                                "type": "string"
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "summary": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["id", "summary"],
+                                                                "type": "object"
                                                             },
                                                             "type": "array"
                                                         },
@@ -14758,64 +14871,55 @@
                                         "messages": {
                                             "items": {
                                                 "properties": {
-                                                    "content": {
-                                                        "type": "string"
-                                                    },
                                                     "id": {
                                                         "type": "string"
                                                     },
+                                                    "metadata": {},
+                                                    "parts": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "data": {},
+                                                                "errorText": {
+                                                                    "type": "string"
+                                                                },
+                                                                "id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "input": {},
+                                                                "output": {},
+                                                                "preliminary": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "rawInput": {},
+                                                                "state": {
+                                                                    "type": "string"
+                                                                },
+                                                                "text": {
+                                                                    "type": "string"
+                                                                },
+                                                                "title": {
+                                                                    "type": "string"
+                                                                },
+                                                                "toolCallId": {
+                                                                    "type": "string"
+                                                                },
+                                                                "toolName": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": ["type"],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
                                                     "role": {
                                                         "type": "string"
-                                                    },
-                                                    "thinking": {
-                                                        "type": "string"
-                                                    },
-                                                    "thinking_complete": {
-                                                        "type": "boolean"
-                                                    },
-                                                    "timestamp": {
-                                                        "format": "date-time",
-                                                        "type": "string"
-                                                    },
-                                                    "tool_error": {
-                                                        "type": "boolean"
-                                                    },
-                                                    "tool_input": {},
-                                                    "tool_name": {
-                                                        "type": "string"
-                                                    },
-                                                    "tool_result": {
-                                                        "nullable": true,
-                                                        "properties": {
-                                                            "content": {
-                                                                "type": "string"
-                                                            },
-                                                            "error": {
-                                                                "type": "string"
-                                                            },
-                                                            "file_path": {
-                                                                "type": "string"
-                                                            },
-                                                            "raw_output": {},
-                                                            "stderr": {
-                                                                "type": "string"
-                                                            },
-                                                            "stdout": {
-                                                                "type": "string"
-                                                            },
-                                                            "structured_patch": {}
-                                                        },
-                                                        "type": "object"
                                                     }
                                                 },
-                                                "required": [
-                                                    "content",
-                                                    "id",
-                                                    "role",
-                                                    "thinking_complete",
-                                                    "timestamp",
-                                                    "tool_error"
-                                                ],
+                                                "required": ["id", "parts", "role"],
                                                 "type": "object"
                                             },
                                             "type": "array"

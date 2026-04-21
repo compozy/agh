@@ -158,6 +158,82 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	}
 }
 
+func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	sessionID := createIntegrationSession(t, runtime)
+
+	requestCtx, cancel := context.WithCancel(context.Background())
+	req, err := http.NewRequestWithContext(
+		requestCtx,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		strings.NewReader(`{"message":"hello"}`),
+	)
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := runtime.client.Do(req)
+	if err != nil {
+		t.Fatalf("client.Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("prompt status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	seenToolStart := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+
+		var part struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal([]byte(payload), &part); err != nil {
+			continue
+		}
+		if part.Type == "tool-input-start" {
+			seenToolStart = true
+			break
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scanner.Err() error = %v", err)
+	}
+	if !seenToolStart {
+		t.Fatal("tool-input-start was not observed before client disconnect")
+	}
+
+	cancel()
+	_ = resp.Body.Close()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		events, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+		if err == nil && integrationPromptEventsContainTerminalToolEvents(events) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	events, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Events() error after disconnect = %v", err)
+	}
+	t.Fatalf("persisted events after disconnect = %#v, want tool_result and done", events)
+}
+
 func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
@@ -171,26 +247,23 @@ func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 	}
 
 	var payload struct {
-		Messages []transcript.Message `json:"messages"`
+		Messages []transcript.UIMessage `json:"messages"`
 	}
 	decodeHTTPJSON(t, resp, &payload)
-	if len(payload.Messages) != 4 {
-		t.Fatalf("len(messages) = %d, want 4", len(payload.Messages))
+	if len(payload.Messages) != 2 {
+		t.Fatalf("len(messages) = %d, want 2", len(payload.Messages))
 	}
-	if got := payload.Messages[0].Role; got != transcript.RoleUser {
-		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.RoleUser)
+	if got := payload.Messages[0].Role; got != transcript.UIRoleUser {
+		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
 	}
-	if got := payload.Messages[0].Content; got != "hello" {
-		t.Fatalf("messages[0].Content = %q, want %q", got, "hello")
+	if got := transcript.UIMessageText(payload.Messages[0]); got != "hello" {
+		t.Fatalf("messages[0] text = %q, want %q", got, "hello")
 	}
-	if got := payload.Messages[1].Role; got != transcript.RoleAssistant {
-		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.RoleAssistant)
+	if got := payload.Messages[1].Role; got != transcript.UIRoleAssistant {
+		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
-	if got := payload.Messages[2].Role; got != transcript.RoleToolCall {
-		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.RoleToolCall)
-	}
-	if got := payload.Messages[3].Role; got != transcript.RoleToolResult {
-		t.Fatalf("messages[3].Role = %q, want %q", got, transcript.RoleToolResult)
+	if !httpTranscriptHasToolPart(payload.Messages[1]) {
+		t.Fatalf("messages[1] = %#v, want assistant tool part", payload.Messages[1])
 	}
 }
 
@@ -230,39 +303,45 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	}
 
 	var payload struct {
-		Messages []transcript.Message `json:"messages"`
+		Messages []transcript.UIMessage `json:"messages"`
 	}
 	decodeHTTPJSON(t, resp, &payload)
-	if len(payload.Messages) != 12 {
-		t.Fatalf("len(messages) = %d, want 12", len(payload.Messages))
+	if len(payload.Messages) != 6 {
+		t.Fatalf("len(messages) = %d, want 6", len(payload.Messages))
 	}
-	if got := payload.Messages[0].Role; got != transcript.RoleUser {
-		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.RoleUser)
+	if got := payload.Messages[0].Role; got != transcript.UIRoleUser {
+		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
 	}
-	if got := payload.Messages[0].Content; got != "hello" {
-		t.Fatalf("messages[0].Content = %q, want %q", got, "hello")
+	if got := transcript.UIMessageText(payload.Messages[0]); got != "hello" {
+		t.Fatalf("messages[0] text = %q, want %q", got, "hello")
 	}
-	if got := payload.Messages[4].Role; got != transcript.RoleUser {
-		t.Fatalf("messages[4].Role = %q, want %q", got, transcript.RoleUser)
+	if got := payload.Messages[2].Role; got != transcript.UIRoleUser {
+		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.UIRoleUser)
 	}
-	if got := payload.Messages[4].Content; got != "network hello" {
-		t.Fatalf("messages[4].Content = %q, want %q", got, "network hello")
+	if got := transcript.UIMessageText(payload.Messages[2]); got != "network hello" {
+		t.Fatalf("messages[2] text = %q, want %q", got, "network hello")
 	}
-	if got := payload.Messages[8].Role; got != transcript.RoleSystem {
-		t.Fatalf("messages[8].Role = %q, want %q", got, transcript.RoleSystem)
+	if got := payload.Messages[4].Role; got != transcript.UIRoleSystem {
+		t.Fatalf("messages[4].Role = %q, want %q", got, transcript.UIRoleSystem)
 	}
-	if got := payload.Messages[8].Content; got != "daemon wake-up" {
-		t.Fatalf("messages[8].Content = %q, want %q", got, "daemon wake-up")
+	if got := transcript.UIMessageText(payload.Messages[4]); got != "daemon wake-up" {
+		t.Fatalf("messages[4] text = %q, want %q", got, "daemon wake-up")
 	}
-	if got := payload.Messages[10].Role; got != transcript.RoleToolCall {
-		t.Fatalf("messages[10].Role = %q, want %q", got, transcript.RoleToolCall)
+	if got := payload.Messages[5].Role; got != transcript.UIRoleAssistant {
+		t.Fatalf("messages[5].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
-	if got := payload.Messages[11].Role; got != transcript.RoleToolResult {
-		t.Fatalf("messages[11].Role = %q, want %q", got, transcript.RoleToolResult)
+	if !httpTranscriptHasToolPart(payload.Messages[5]) {
+		t.Fatalf("messages[5] = %#v, want assistant tool part", payload.Messages[5])
 	}
-	if got, want := payload.Messages[10].ID, payload.Messages[11].ID; got != want {
-		t.Fatalf("synthetic tool message ids = %q/%q, want paired ids", got, want)
+}
+
+func httpTranscriptHasToolPart(message transcript.UIMessage) bool {
+	for _, part := range message.Parts {
+		if strings.HasPrefix(part.Type, "tool-") || part.Type == "dynamic-tool" {
+			return true
+		}
 	}
+	return false
 }
 
 func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testing.T) {
@@ -2268,7 +2347,7 @@ func extractPermissionPayloads(t *testing.T, records []sseRecord) []permissionSt
 }
 
 func extractPermissionPayloadFromRecord(record sseRecord) (permissionStreamPayload, bool) {
-	if record.Event != "permission" || len(record.Data) == 0 {
+	if len(record.Data) == 0 || string(record.Data) == "[DONE]" {
 		return permissionStreamPayload{}, false
 	}
 
@@ -2284,7 +2363,7 @@ func extractPermissionPayloadFromRecord(record sseRecord) (permissionStreamPaylo
 
 func recordsContainTextDelta(records []sseRecord, want string) bool {
 	for _, record := range records {
-		if record.Event != "agent_message" || len(record.Data) == 0 {
+		if len(record.Data) == 0 || string(record.Data) == "[DONE]" {
 			continue
 		}
 		var payload map[string]any
@@ -2480,6 +2559,22 @@ func containsAutomationRun(runs []contract.RunPayload, id string) bool {
 		}
 	}
 	return false
+}
+
+func integrationPromptEventsContainTerminalToolEvents(events []store.SessionEvent) bool {
+	var hasToolResult bool
+	var hasDone bool
+
+	for _, event := range events {
+		switch event.Type {
+		case acp.EventTypeToolResult:
+			hasToolResult = true
+		case acp.EventTypeDone:
+			hasDone = true
+		}
+	}
+
+	return hasToolResult && hasDone
 }
 
 func waitForRegistryStopReason(t *testing.T, runtime integrationRuntime, sessionID string, want store.StopReason) {

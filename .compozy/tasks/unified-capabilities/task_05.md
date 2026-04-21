@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Rewrite RFC 003 and Runtime Capability Guide
 type: docs
 complexity: medium
@@ -32,10 +32,10 @@ Rewrite the core repository docs so the unified capability model becomes the can
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Rewrite RFC 003 sections that currently describe recipe as a separate wire/runtime artifact
-- [ ] 5.2 Rewrite the runtime capability guide for the unified authored model
-- [ ] 5.3 Add a worked example covering authored capability, brief/rich discovery, and transfer semantics
-- [ ] 5.4 Cross-check terminology and invariants against ADR-001 through ADR-003 and task_04 outputs
+- [x] 5.1 Rewrite RFC 003 sections that currently describe recipe as a separate wire/runtime artifact
+- [x] 5.2 Rewrite the runtime capability guide for the unified authored model
+- [x] 5.3 Add a worked example covering authored capability, brief/rich discovery, and transfer semantics
+- [x] 5.4 Cross-check terminology and invariants against ADR-001 through ADR-003 and task_04 outputs
 
 ## Implementation Details
 
@@ -69,12 +69,12 @@ See TechSpec "System Architecture", "Technical Considerations", and "Architectur
 
 ## Tests
 - Unit tests:
-  - [ ] RFC 003 describes `kind:"capability"` as the transfer artifact and no longer treats recipe as first-class
-  - [ ] The runtime capability guide documents `version`, runtime-computed `digest`, and `requirements` consistently
-  - [ ] Discovery responsibilities are described consistently across `greet`, `whois`, and transfer sections
+  - [x] RFC 003 describes `kind:"capability"` as the transfer artifact and no longer treats recipe as first-class
+  - [x] The runtime capability guide documents `version`, runtime-computed `digest`, and `requirements` consistently
+  - [x] Discovery responsibilities are described consistently across `greet`, `whois`, and transfer sections
 - Integration tests:
-  - [ ] The rewritten docs remain consistent with ADR-001 through ADR-003 and the finalized backend/API behavior from task_04
-  - [ ] The worked example uses one concept end to end and does not reintroduce a second artifact type through examples or terminology
+  - [x] The rewritten docs remain consistent with ADR-001 through ADR-003 and the finalized backend/API behavior from task_04
+  - [x] The worked example uses one concept end to end and does not reintroduce a second artifact type through examples or terminology
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestAliveCurrentProcess(t *testing.T) {
@@ -51,5 +52,61 @@ func TestSignalReturnsErrorForMissingProcess(t *testing.T) {
 
 	if err := Signal(999999, syscall.Signal(0)); !errors.Is(err, syscall.ESRCH) {
 		t.Fatalf("Signal(missing pid, 0) error = %v, want ESRCH", err)
+	}
+}
+
+func TestStartedAtCurrentProcess(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldReturnANonZeroPastTimestampForTheCurrentProcess", func(t *testing.T) {
+		t.Parallel()
+
+		startedAt, err := StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatalf("StartedAt(current pid) error = %v", err)
+		}
+		if startedAt.IsZero() {
+			t.Fatal("StartedAt(current pid) = zero, want non-zero start time")
+		}
+		if startedAt.After(time.Now().UTC().Add(time.Second)) {
+			t.Fatalf("StartedAt(current pid) = %v, want a past timestamp", startedAt)
+		}
+	})
+}
+
+func TestMatchesStartTimeCurrentProcess(t *testing.T) {
+	t.Parallel()
+
+	startedAt, err := StartedAt(os.Getpid())
+	if err != nil {
+		t.Fatalf("StartedAt(current pid) error = %v", err)
+	}
+
+	testCases := []struct {
+		name      string
+		input     time.Time
+		wantMatch bool
+	}{
+		{
+			name:      "ShouldMatchTheCurrentProcessStartTime",
+			input:     startedAt,
+			wantMatch: true,
+		},
+		{
+			name:      "ShouldRejectAMismatchedStartTime",
+			input:     startedAt.Add(-time.Hour),
+			wantMatch: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := MatchesStartTime(os.Getpid(), tc.input)
+			if got != tc.wantMatch {
+				t.Fatalf("MatchesStartTime(current pid, %v) = %v, want %v", tc.input, got, tc.wantMatch)
+			}
+		})
 	}
 }

@@ -37,11 +37,14 @@ type NetworkPeerCapability struct {
 	ID                string
 	Summary           string
 	Outcome           string
+	Version           string
+	Digest            string
 	ContextNeeded     []string
 	ArtifactsExpected []string
 	ExecutionOutline  []string
 	Constraints       []string
 	Examples          []string
+	Requirements      []string
 }
 
 // NetworkPeerJoin describes one daemon-local peer registration request for the

@@ -157,12 +157,12 @@ describe("TasksMultiAgentPanel", () => {
     expect(screen.getByTestId("tasks-multi-agent-agent-task_002")).toBeInTheDocument();
   });
 
-  it("renders parent and descendant agents with hierarchy cues and live badges", () => {
+  it("shows the Agents header with a running/idle summary, not a live pill", () => {
     const root = buildAgent();
     const child = buildAgent({
       isRoot: false,
       isPrimary: false,
-      isLive: true,
+      isLive: false,
       label: "Coder",
       node: buildNode({
         depth: 1,
@@ -170,53 +170,92 @@ describe("TasksMultiAgentPanel", () => {
         task: {
           id: "task_002",
           identifier: "TASK-39",
-          status: "in_progress",
+          status: "ready",
           scope: "workspace",
           title: "Reproduce top-3 crashes",
           owner: { kind: "agent_session", ref: "Coder" },
         },
-        active_run: {
-          id: "run_c3d4",
-          attempt: 1,
-          max_attempts: 2,
-          queued_at: "2026-04-17T10:00:10Z",
-          status: "running",
-          task_id: "task_002",
-          session_id: "sess_b",
-        },
+        active_run: null,
       }),
     });
 
     render(
       <TasksMultiAgentPanel
-        activeDescendants={1}
+        activeDescendants={0}
         agents={[root, child]}
         descendantCount={1}
-        liveCount={2}
+        liveCount={1}
         state="ready"
-        timeline={[buildTimelineItem()]}
-        timelineLive
+        timeline={[]}
       />
     );
 
-    expect(screen.getByTestId("tasks-multi-agent-agents")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-multi-agent-live-count")).toHaveTextContent("2 agents live");
+    expect(screen.getByTestId("tasks-multi-agent-header")).toHaveTextContent("Agents");
+    expect(screen.getByTestId("tasks-multi-agent-summary")).toHaveTextContent("1 running · 1 idle");
+    // The old top-right "N AGENTS LIVE" pill has been deleted — hierarchy
+    // lives in the subtitle now.
+    expect(screen.queryByTestId("tasks-multi-agent-live-count")).not.toBeInTheDocument();
+  });
 
-    const rootCard = screen.getByTestId("tasks-multi-agent-agent-task_001");
-    expect(rootCard).toHaveAttribute("data-is-root", "true");
-    expect(screen.getByTestId("tasks-multi-agent-agent-primary-task_001")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-multi-agent-agent-live-task_001")).toBeInTheDocument();
+  it("flags live agents with a 2px accent left-rail (no perimeter border)", () => {
+    const root = buildAgent();
+    const child = buildAgent({
+      isRoot: false,
+      isPrimary: false,
+      isLive: false,
+      label: "Coder",
+      node: buildNode({
+        depth: 1,
+        parent_task_id: "task_001",
+        task: {
+          id: "task_002",
+          identifier: "TASK-39",
+          status: "ready",
+          scope: "workspace",
+          title: "Reproduce",
+          owner: { kind: "agent_session", ref: "Coder" },
+        },
+        active_run: null,
+      }),
+    });
 
-    const childCard = screen.getByTestId("tasks-multi-agent-agent-task_002");
-    expect(childCard).toHaveAttribute("data-depth", "1");
-    expect(childCard).toHaveAttribute("data-is-root", "false");
-    expect(
-      screen.queryByTestId("tasks-multi-agent-agent-primary-task_002")
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId("tasks-multi-agent-agent-live-task_002")).toBeInTheDocument();
+    render(
+      <TasksMultiAgentPanel
+        activeDescendants={0}
+        agents={[root, child]}
+        descendantCount={1}
+        liveCount={1}
+        state="ready"
+        timeline={[]}
+      />
+    );
 
-    expect(screen.getByTestId("tasks-multi-agent-timeline-live")).toBeInTheDocument();
-    expect(screen.getByTestId(`tasks-timeline-item-${"evt_1"}`)).toBeInTheDocument();
+    const liveCard = screen.getByTestId("tasks-multi-agent-agent-task_001");
+    expect(liveCard).toHaveAttribute("data-is-live", "true");
+    expect(liveCard.className).toContain("border-l-2");
+    expect(liveCard.className).toContain("border-l-[color:var(--color-accent)]");
+
+    const idleCard = screen.getByTestId("tasks-multi-agent-agent-task_002");
+    expect(idleCard).toHaveAttribute("data-is-live", "false");
+    expect(idleCard.className).toContain("border-l-transparent");
+  });
+
+  it("renders the per-agent event strip when timeline data is available", () => {
+    const root = buildAgent();
+    render(
+      <TasksMultiAgentPanel
+        activeDescendants={0}
+        agents={[root]}
+        descendantCount={0}
+        liveCount={1}
+        state="ready"
+        timeline={[buildTimelineItem()]}
+      />
+    );
+    expect(screen.getByTestId("tasks-multi-agent-agent-events-task_001")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-multi-agent-agent-event-evt_1")).toHaveTextContent(
+      "task.run_progress"
+    );
   });
 
   it("renders session and run drill-down links for agents with an active run", () => {
@@ -257,7 +296,6 @@ describe("TasksMultiAgentPanel", () => {
         liveCount={2}
         state="ready"
         timeline={[]}
-        timelineLive
       />
     );
 
@@ -343,5 +381,21 @@ describe("TasksMultiAgentPanel", () => {
     expect(screen.getByTestId("tasks-multi-agent-agent-error-task_001")).toHaveTextContent(
       "tool execution failed"
     );
+  });
+
+  it("does not render the deprecated interleaved-timeline section", () => {
+    const root = buildAgent();
+    render(
+      <TasksMultiAgentPanel
+        activeDescendants={0}
+        agents={[root]}
+        descendantCount={0}
+        liveCount={1}
+        state="ready"
+        timeline={[]}
+      />
+    );
+    expect(screen.queryByTestId("tasks-multi-agent-timeline")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-multi-agent-timeline-live")).not.toBeInTheDocument();
   });
 });

@@ -238,6 +238,7 @@ func (m *Manager) persistStopClassification(session *Session, waitErr error) err
 	stopCause, stopDetailHint := session.stopCauseDetail()
 	stopReason, stopDetail := classifyStopReason(stopCause, waitErr, stopDetailHint)
 	session.setStopClassification(stopReason, stopDetail)
+	session.markExited(m.now())
 	return m.writeMeta(session)
 }
 

@@ -388,7 +388,7 @@ const FILTERS = [
 
 type FilterValue = (typeof FILTERS)[number]["value"];
 
-const KINDS = ["greet", "whois", "say", "direct", "recipe", "receipt", "trace"] as const;
+const KINDS = ["greet", "whois", "say", "direct", "capability", "receipt", "trace"] as const;
 
 function SectionLink({ section, children }: { section: ShowcaseSection; children?: string }) {
   return (

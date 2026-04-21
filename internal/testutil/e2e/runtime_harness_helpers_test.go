@@ -213,6 +213,15 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("CreateNetworkChannel() error = %v", err)
 	}
+	if err := harness.StopSession(testContext(t), "sess-1"); err != nil {
+		t.Fatalf("StopSession() error = %v", err)
+	}
+	if err := harness.CaptureNetworkArtifacts(testContext(t), "builders"); err != nil {
+		t.Fatalf("CaptureNetworkArtifacts() error = %v", err)
+	}
+	if err := harness.CaptureBridgeHealth(testContext(t)); err != nil {
+		t.Fatalf("CaptureBridgeHealth() error = %v", err)
+	}
 
 	createdBridge, err := harness.CreateBridge(testContext(t), aghcontract.CreateBridgeRequest{
 		Scope:         bridgepkg.ScopeWorkspace,
@@ -561,6 +570,14 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if !strings.Contains(string(providerCallsBytes), "provider call") {
 		t.Fatalf("provider calls artifact = %s, want provider log capture", string(providerCallsBytes))
 	}
+
+	bridgeHealthPath, ok := harness.Artifacts.ArtifactPath(ArtifactKindBridgeHealth)
+	if !ok {
+		t.Fatal("ArtifactPath(bridge_health) = missing, want present")
+	}
+	if _, err := os.Stat(bridgeHealthPath); err != nil {
+		t.Fatalf("os.Stat(%q) error = %v", bridgeHealthPath, err)
+	}
 }
 
 func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testing.T) {
@@ -880,10 +897,13 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Channel:     "builders",
 				Local:       true,
 				PeerCard: aghcontract.NetworkPeerCardPayload{
-					PeerID:             "coder.sess-1",
-					ProfilesSupported:  []string{"agh-network/v0"},
-					Capabilities:       []string{"chat.review"},
-					ArtifactsSupported: []string{"recipe"},
+					PeerID:            "coder.sess-1",
+					ProfilesSupported: []string{"agh-network/v0"},
+					Capabilities: []aghcontract.NetworkCapabilityBriefPayload{{
+						ID:      "chat.review",
+						Summary: "Reviews chat requests.",
+					}},
+					ArtifactsSupported: []string{"capability"},
 				},
 			}},
 		})
@@ -935,10 +955,13 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 					Channel:     "builders",
 					Local:       true,
 					PeerCard: aghcontract.NetworkPeerCardPayload{
-						PeerID:             "coder.sess-1",
-						ProfilesSupported:  []string{"agh-network/v0"},
-						Capabilities:       []string{"chat.review"},
-						ArtifactsSupported: []string{"recipe"},
+						PeerID:            "coder.sess-1",
+						ProfilesSupported: []string{"agh-network/v0"},
+						Capabilities: []aghcontract.NetworkCapabilityBriefPayload{{
+							ID:      "chat.review",
+							Summary: "Reviews chat requests.",
+						}},
+						ArtifactsSupported: []string{"capability"},
 					},
 				}},
 			},

@@ -48,7 +48,7 @@ func (s sessionManagerStub) History(context.Context, string, store.EventQuery) (
 	return nil, nil
 }
 
-func (s sessionManagerStub) Transcript(context.Context, string) ([]transcript.Message, error) {
+func (s sessionManagerStub) Transcript(context.Context, string) ([]transcript.UIMessage, error) {
 	return nil, nil
 }
 
@@ -62,10 +62,18 @@ func (s sessionManagerStub) Resume(context.Context, string) (*session.Session, e
 	return nil, nil
 }
 
+func (s sessionManagerStub) ClearConversation(context.Context, string) (*session.Session, error) {
+	return nil, nil
+}
+
 func (s sessionManagerStub) Prompt(context.Context, string, string) (<-chan acp.AgentEvent, error) {
 	ch := make(chan acp.AgentEvent)
 	close(ch)
 	return ch, nil
+}
+
+func (s sessionManagerStub) CancelPrompt(context.Context, string) error {
+	return nil
 }
 
 func (s sessionManagerStub) ApprovePermission(context.Context, string, acp.ApproveRequest) error {

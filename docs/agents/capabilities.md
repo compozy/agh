@@ -1,15 +1,17 @@
 # Capability Catalogs for Agent Directories
 
-AGH lets an agent directory declare capabilities locally through an optional capability catalog that lives beside `AGENT.md`. This guide covers the runtime authoring surface only: valid files, field rules, invalid layouts, and how the loaded catalog projects into network discovery. For the self-contained agent-directory story, see [RFC 001](../rfcs/001_agent-md-with-skills-memory.md). For wire-level discovery keys and `whois` behavior, see [RFC 003](../rfcs/003_agh-network-v0.md).
+AGH uses one capability model end to end. A capability is authored locally in the agent directory, normalized by the runtime, advertised briefly in `greet`, returned richly through explicit `whois`, and transferred explicitly through `kind:"capability"` when a peer shares a portable capability document.
+
+This guide covers the runtime authoring and projection surface. For the self-contained agent-directory story, see [RFC 001](../rfcs/001_agent-md-with-skills-memory.md). For the wire contract, see [RFC 003](../rfcs/003_agh-network-v0.md).
 
 ## What Belongs Here
 
 - `AGENT.md` remains the agent identity, prompt, and runtime configuration surface.
-- The capability catalog is a separate sidecar or sidecar directory.
-- `internal/config` owns local file discovery, parsing, and validation.
-- `internal/network` consumes the normalized runtime catalog and projects it into brief and rich discovery.
-
-This split matters: file layout rules belong to runtime docs like this guide. Wire keys such as `agh.capabilities_brief` and `agh.capability_catalog` belong to the network RFC.
+- The capability catalog is an optional sidecar file or sidecar directory beside `AGENT.md`.
+- `internal/config` owns file discovery, strict parsing, normalization, validation, and runtime digest computation.
+- `internal/session` projects the normalized catalog into runtime-owned `NetworkPeerCapability` values.
+- `internal/network` reuses that same normalized capability model for brief discovery, rich discovery, and `kind:"capability"` transfer.
+- Daemon HTTP, UDS, and CLI surfaces expose typed capability payloads. Consumers should not depend on raw `agh.capabilities_brief` or `agh.capability_catalog` blobs in API-visible `ext`.
 
 ## Supported Local Layouts
 
@@ -26,30 +28,40 @@ AGH never merges:
 - `capabilities.toml` with `capabilities.json`
 - `.toml` and `.json` files inside the same `capabilities/` directory
 
-## Capability Schema
+## Unified Capability Schema
 
 Each capability is an outcome-oriented delegation offer.
 
-Required fields:
+Required authored fields:
 
 - `id`
 - `summary`
 - `outcome`
 
-Optional fields:
+Optional authored fields:
 
+- `version`
 - `context_needed`
 - `artifacts_expected`
 - `execution_outline`
 - `constraints`
 - `examples`
+- `requirements`
 
-Authoring guidance:
+Derived runtime fields:
 
-- Keep `summary` to one short sentence because AGH reuses it in brief discovery.
-- The v0 target is `<= 160` UTF-8 characters for `summary`.
-- `id` should use a simple slug such as `create-landing-page`.
-- Capability IDs only need to be unique inside one agent directory. On the network, the effective disambiguation is `peer_id + capability_id`.
+- `digest`
+
+Authoring and normalization rules:
+
+- `id` should use a stable slug such as `fix-go-migration-tests`.
+- Capability IDs only need to be unique inside one agent directory. On the network, the effective identifier is `peer_id + capability_id`.
+- AGH trims surrounding whitespace in scalar strings and list entries before validation.
+- `version` is optional, but if authored it must not normalize to blank.
+- `requirements` is optional and references other `capability.id` values. AGH validates the list syntactically but does not require every referenced ID to exist in the same local catalog.
+- `requirements` entries must be non-empty and unique after normalization. AGH canonicalizes them before computing the runtime digest.
+- `digest` is runtime-owned. Authors do not write it in TOML or JSON files, and strict parsing rejects unknown fields such as `digest`.
+- JSON and TOML use the same field names.
 
 ## Single-File Mode
 
@@ -64,27 +76,31 @@ Example `capabilities.toml`:
 
 ```toml
 [[capabilities]]
-id = "build-site"
-summary = "Build the landing page."
-outcome = "A finished landing page."
-context_needed = ["repo", "brand brief"]
-execution_outline = ["Inspect", "Build"]
-constraints = ["No mocks"]
-examples = ["marketing page"]
+id = "collect-failing-tests"
+summary = "Collect the exact failing package path and test output."
+outcome = "A normalized incident bundle for a debugging follow-up."
+context_needed = ["repo", "failing command"]
+artifacts_expected = ["incident bundle"]
 
 [[capabilities]]
-id = "review-copy"
-summary = "Review conversion copy."
-outcome = "A prioritized copy review."
-artifacts_expected = ["Annotated doc"]
+id = "fix-go-migration-tests"
+summary = "Repair failing Go migration tests and explain the change."
+outcome = "A validated patch summary with the corrected assertions."
+version = "1.2.0"
+context_needed = ["repo", "incident bundle"]
+artifacts_expected = ["patch summary", "verification notes"]
+execution_outline = ["inspect failure", "patch assertions", "rerun targeted tests"]
+constraints = ["Keep fixes scoped to the reported failure"]
+examples = ["sessiondb migration regressions"]
+requirements = ["collect-failing-tests"]
 ```
 
 Notes:
 
 - The top-level shape is a catalog object with `capabilities = [...]`.
-- JSON and TOML use the same field names.
-- AGH rejects unknown JSON and TOML fields.
+- Unknown JSON and TOML fields are rejected.
 - JSON parsing is strict: trailing JSON data is rejected.
+- AGH computes `digest` after normalization; the authored file does not include it.
 
 ## Directory Mode
 
@@ -98,33 +114,27 @@ Valid paths:
 Example directory:
 
 ```text
-agents/designer/
+agents/release-curator/
   AGENT.md
   capabilities/
-    build-site.json
-    review-copy.json
+    collect-failing-tests.json
+    fix-go-migration-tests.json
 ```
 
-Example `capabilities/build-site.json`:
+Example `capabilities/fix-go-migration-tests.json`:
 
 ```json
 {
-  "id": "build-site",
-  "summary": "Build the landing page.",
-  "outcome": "A finished landing page.",
-  "context_needed": ["repo", "brand brief"],
-  "execution_outline": ["Inspect", "Build"]
-}
-```
-
-Example `capabilities/review-copy.json`:
-
-```json
-{
-  "id": "review-copy",
-  "summary": "Review conversion copy.",
-  "outcome": "A prioritized copy review.",
-  "artifacts_expected": ["Annotated doc"]
+  "id": "fix-go-migration-tests",
+  "summary": "Repair failing Go migration tests and explain the change.",
+  "outcome": "A validated patch summary with the corrected assertions.",
+  "version": "1.2.0",
+  "context_needed": ["repo", "incident bundle"],
+  "artifacts_expected": ["patch summary", "verification notes"],
+  "execution_outline": ["inspect failure", "patch assertions", "rerun targeted tests"],
+  "constraints": ["Keep fixes scoped to the reported failure"],
+  "examples": ["sessiondb migration regressions"],
+  "requirements": ["collect-failing-tests"]
 }
 ```
 
@@ -138,12 +148,15 @@ Directory-mode rules:
 
 ## Validation Rules
 
-AGH normalizes surrounding whitespace in string fields and string-list entries before validation. After normalization:
+After normalization:
 
 - `id`, `summary`, and `outcome` must be present.
 - `id` must be unique within the agent catalog.
 - In directory mode, the filename basename must match the normalized `id`.
 - Duplicate IDs across single-file entries or directory entries are rejected.
+- Blank `requirements` entries are rejected.
+- Duplicate `requirements` entries are rejected after normalization.
+- `requirements` is canonicalized before digest computation, so ordering does not change the computed `digest`.
 
 ## Invalid Layouts
 
@@ -189,6 +202,7 @@ Other invalid cases:
 - missing `id`, `summary`, or `outcome`
 - duplicate capability IDs after normalization
 - directory filenames whose basename does not match `id`
+- authored `digest` fields or other unknown fields
 
 ## No-Catalog Behavior
 
@@ -200,20 +214,31 @@ If an agent directory has no supported capability catalog at all:
 - AGH treats the agent as having no declared capabilities
 - brief discovery uses `peer_card.capabilities = []`
 - AGH omits `peer_card.ext["agh.capabilities_brief"]`
-- when rich discovery is explicitly requested, `agh.capability_catalog.capabilities` is `[]`
+- explicit rich discovery returns `agh.capability_catalog.capabilities = []`
+- the local peer card still advertises `artifacts_supported = ["capability"]` because transfer support is protocol-level, not dependent on catalog size
 
-## Runtime Projection Boundary
+## Projection by Surface
 
-The local catalog is the runtime source of truth, but AGH projects it into two different network views.
+The same normalized capability document flows through each surface with different detail levels.
+
+| Surface                            | Purpose           | Shape                                                                                                                                 |
+| ---------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Local catalog                      | Authoring         | TOML or JSON capability documents with no authored `digest`                                                                           |
+| `greet` wire payload               | Brief discovery   | `peer_card.capabilities` IDs plus optional `peer_card.ext["agh.capabilities_brief"]` summaries                                        |
+| `whois` wire payload               | Rich discovery    | request `ext["agh.include"] = ["capability_catalog"]`; optional `ext["agh.capability_ids"]`; response `ext["agh.capability_catalog"]` |
+| `kind:"capability"` wire payload   | Transfer          | `body.capability` with the transferable capability document and required canonical `digest`                                           |
+| Daemon HTTP, UDS, and CLI payloads | Typed consumption | `peer_card.capabilities` as typed brief objects and `capability_catalog` as the typed rich catalog                                    |
 
 ### Brief Discovery
 
-AGH projects the normalized catalog into:
+On the wire, AGH projects the normalized catalog into:
 
 - `peer_card.capabilities`
 - `peer_card.ext["agh.capabilities_brief"]`
 
-`peer_card.capabilities` carries only capability IDs. `agh.capabilities_brief` carries only `id` and `summary`. Both come from the same normalized catalog and must stay in the same order.
+`peer_card.capabilities` stays compact and carries only IDs. `agh.capabilities_brief` carries only `id` and `summary`. Both derive from the same normalized catalog and must stay in the same order.
+
+On daemon API surfaces, AGH exposes the brief discovery view as typed `peer_card.capabilities` entries with `{id, summary}` and strips `agh.capabilities_brief` from API-visible `ext`.
 
 ### Rich Discovery
 
@@ -222,14 +247,150 @@ AGH does not put the full catalog into `PeerCard`.
 Instead, rich discovery is explicit through `whois` envelope extensions:
 
 - request `ext["agh.include"] = ["capability_catalog"]` to ask for the rich catalog
-- optionally send `ext["agh.capability_ids"] = ["build-site"]` to filter the returned catalog
+- optionally send `ext["agh.capability_ids"] = ["fix-go-migration-tests"]` to filter the returned catalog
 - read the response from `ext["agh.capability_catalog"]`
 
 Rich discovery rules:
 
 - the `whois` response still includes the normal `peer_card`
 - the rich catalog lives in envelope `ext`, not `peer_card.ext`
+- each rich capability entry includes `id`, `summary`, and `outcome`
+- a rich entry may also include `version`, `digest`, `context_needed`, `artifacts_expected`, `execution_outline`, `constraints`, `examples`, and `requirements`
 - when the peer has no local catalog, `agh.capability_catalog.capabilities` is `[]`
 - when `agh.capability_ids` contains no matches, `agh.capability_catalog.capabilities` is `[]`
 
-See [RFC 003](../rfcs/003_agh-network-v0.md) for the wire contract and [RFC 001](../rfcs/001_agent-md-with-skills-memory.md) for how capability sidecars travel with a self-contained agent directory.
+On daemon API surfaces, explicit rich discovery appears as typed `capability_catalog`. API-visible `ext` does not mirror `agh.capability_catalog`.
+
+### Transfer Semantics
+
+`kind:"capability"` transfers one full capability artifact using the same structured model that powers local authoring and discovery.
+
+Required transferred fields:
+
+- `id`
+- `summary`
+- `outcome`
+- `digest`
+
+Optional transferred fields:
+
+- `version`
+- `context_needed`
+- `artifacts_expected`
+- `execution_outline`
+- `constraints`
+- `examples`
+- `requirements`
+
+Transfer rules:
+
+- the payload lives inside `body.capability`
+- `digest` must match the runtime-computed canonical digest of the structured capability document
+- receivers reject digest mismatches as protocol verification failures
+- `kind:"capability"` may be broadcast or directed
+- if `interaction_id` is present, the transferred capability participates in the same interaction lifecycle machinery as other interaction-bearing envelopes
+
+## Worked Example: Authoring to Discovery to Transfer
+
+This is the steady-state flow the unified model is designed for.
+
+### 1. Author the capability locally
+
+```toml
+[[capabilities]]
+id = "collect-failing-tests"
+summary = "Collect the exact failing package path and test output."
+outcome = "A normalized incident bundle for a debugging follow-up."
+
+[[capabilities]]
+id = "fix-go-migration-tests"
+summary = "Repair failing Go migration tests and explain the change."
+outcome = "A validated patch summary with the corrected assertions."
+version = "1.2.0"
+context_needed = ["repo", "incident bundle"]
+requirements = ["collect-failing-tests"]
+```
+
+AGH loads the catalog, trims and validates the fields, canonicalizes `requirements`, and computes a runtime `digest` for `fix-go-migration-tests`.
+
+### 2. Advertise the brief view in `greet`
+
+Wire-level brief discovery stays small:
+
+```json
+{
+  "body": {
+    "peer_card": {
+      "peer_id": "release-curator",
+      "capabilities": ["collect-failing-tests", "fix-go-migration-tests"],
+      "artifacts_supported": ["capability"],
+      "ext": {
+        "agh.capabilities_brief": [
+          {
+            "id": "collect-failing-tests",
+            "summary": "Collect the exact failing package path and test output."
+          },
+          {
+            "id": "fix-go-migration-tests",
+            "summary": "Repair failing Go migration tests and explain the change."
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+Daemon APIs expose the same brief view as typed `peer_card.capabilities` entries instead of raw capability blobs in `ext`.
+
+### 3. Request the rich view through explicit `whois`
+
+```json
+{
+  "ext": {
+    "agh.include": ["capability_catalog"],
+    "agh.capability_ids": ["fix-go-migration-tests"]
+  }
+}
+```
+
+```json
+{
+  "ext": {
+    "agh.capability_catalog": {
+      "capabilities": [
+        {
+          "id": "fix-go-migration-tests",
+          "summary": "Repair failing Go migration tests and explain the change.",
+          "outcome": "A validated patch summary with the corrected assertions.",
+          "version": "1.2.0",
+          "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
+          "context_needed": ["repo", "incident bundle"],
+          "requirements": ["collect-failing-tests"]
+        }
+      ]
+    }
+  }
+}
+```
+
+### 4. Transfer the capability explicitly with `kind:"capability"`
+
+```json
+{
+  "kind": "capability",
+  "body": {
+    "capability": {
+      "id": "fix-go-migration-tests",
+      "summary": "Repair failing Go migration tests and explain the change.",
+      "outcome": "A validated patch summary with the corrected assertions.",
+      "version": "1.2.0",
+      "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
+      "context_needed": ["repo", "incident bundle"],
+      "requirements": ["collect-failing-tests"]
+    }
+  }
+}
+```
+
+Nothing new is invented for transfer. The same capability concept moves through authoring, brief discovery, rich discovery, and explicit transfer with only the surface-specific detail level changing.

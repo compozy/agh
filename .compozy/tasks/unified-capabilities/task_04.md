@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Align Discovery, Peer Details, and API Contracts with Unified Capabilities
 type: backend
 complexity: high
@@ -33,11 +33,11 @@ Align brief discovery, rich discovery, peer details, and API-visible contracts s
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Update brief and rich capability discovery code paths to use the unified runtime model
-- [ ] 4.2 Align peer detail and peer-card surfaces so brief and rich capability views remain coherent
-- [ ] 4.3 Rewrite daemon/API contract types and handlers for the unified capability payloads
-- [ ] 4.4 Preserve filtering and response-size behavior under the new schema
-- [ ] 4.5 Add regression coverage for discovery, peer details, and API serialization
+- [x] 4.1 Update brief and rich capability discovery code paths to use the unified runtime model
+- [x] 4.2 Align peer detail and peer-card surfaces so brief and rich capability views remain coherent
+- [x] 4.3 Rewrite daemon/API contract types and handlers for the unified capability payloads
+- [x] 4.4 Preserve filtering and response-size behavior under the new schema
+- [x] 4.5 Add regression coverage for discovery, peer details, and API serialization
 
 ## Implementation Details
 
@@ -73,14 +73,14 @@ See TechSpec "System Architecture", "Data Models", "API Endpoints", and "Build O
 
 ## Tests
 - Unit tests:
-  - [ ] Brief discovery exposes unified capability summaries with the expected fields and ordering
-  - [ ] Rich capability catalog filtering by `capability_ids` still works under the new schema
-  - [ ] Peer detail serialization exposes unified capabilities without recipe-specific fields or labels
-  - [ ] Oversized rich discovery payloads are still rejected or bounded according to the existing guard behavior
+  - [x] Brief discovery exposes unified capability summaries with the expected fields and ordering
+  - [x] Rich capability catalog filtering by `capability_ids` still works under the new schema
+  - [x] Peer detail serialization exposes unified capabilities without recipe-specific fields or labels
+  - [x] Oversized rich discovery payloads are still rejected or bounded according to the existing guard behavior
 - Integration tests:
-  - [ ] Initial join and reconnect flows publish brief capability discovery consistently across peer presence paths
-  - [ ] Explicit `whois` responses return rich unified capabilities derived from the same normalized catalog used in brief discovery
-  - [ ] HTTP and UDS network endpoints expose the same unified capability contract to clients
+  - [x] Initial join and reconnect flows publish brief capability discovery consistently across peer presence paths
+  - [x] Explicit `whois` responses return rich unified capabilities derived from the same normalized catalog used in brief discovery
+  - [x] HTTP and UDS network endpoints expose the same unified capability contract to clients
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -6,7 +6,10 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"time"
 )
+
+var errForceManagedProcessGroupExitUnsupported = errors.New("subprocess: force-managed process-group exit is not supported on Windows")
 
 func configureManagedCommand(_ *exec.Cmd) {}
 
@@ -29,4 +32,11 @@ func signalManagedProcess(cmd *exec.Cmd, sig os.Signal) error {
 		return err
 	}
 	return nil
+}
+
+// Windows does not yet provide process-group parity for managed subprocesses in
+// this phase. Keep the fallback explicit and compile-safe instead of implying
+// Unix-equivalent behavior.
+func forceManagedProcessGroupExit(_ *exec.Cmd, _ time.Duration) error {
+	return errForceManagedProcessGroupExitUnsupported
 }

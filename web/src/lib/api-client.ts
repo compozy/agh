@@ -1,14 +1,21 @@
 import createClient from "openapi-fetch";
 
-import type { paths } from "@/generated/agh-openapi";
+import type { paths as aghPaths } from "@/generated/agh-openapi";
+import type { paths as compozyPaths } from "@/generated/compozy-openapi";
 
-const apiBaseUrl = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+export const apiBaseUrl =
+  typeof window === "undefined" ? "http://localhost" : window.location.origin;
 
 // openapi-fetch captures the fetch implementation at client creation time.
 // Delegate through globalThis.fetch so tests can stub it after module import.
-const runtimeFetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
+export const runtimeFetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
 
-export const apiClient = createClient<paths>({
+export const apiClient = createClient<aghPaths>({
+  baseUrl: apiBaseUrl,
+  fetch: runtimeFetch,
+});
+
+export const daemonApiClient = createClient<compozyPaths>({
   baseUrl: apiBaseUrl,
   fetch: runtimeFetch,
 });

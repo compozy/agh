@@ -1020,6 +1020,8 @@ func (m *Service) recordRecoveredRun(
 		Reason:         recovery.Reason,
 		SessionID:      previousSessionID,
 		SessionState:   recovery.SessionState,
+		Classification: recovery.Classification,
+		Detail:         recovery.Detail,
 	})
 }
 
@@ -1872,6 +1874,8 @@ func normalizeRunBootRecovery(recovery RunBootRecovery) (RunBootRecovery, error)
 	normalized.Action = normalized.Action.Normalize()
 	normalized.Reason = strings.TrimSpace(normalized.Reason)
 	normalized.SessionState = strings.TrimSpace(normalized.SessionState)
+	normalized.Classification = strings.TrimSpace(normalized.Classification)
+	normalized.Detail = strings.TrimSpace(normalized.Detail)
 	if err := normalized.Validate("run_boot_recovery"); err != nil {
 		return RunBootRecovery{}, err
 	}
@@ -2516,6 +2520,19 @@ func errorsJoin(errs ...error) error {
 func runBootRecoveryError(run Run, recovery RunBootRecovery) string {
 	sessionID := strings.TrimSpace(run.SessionID)
 	switch {
+	case sessionID != "" && recovery.Classification != "" && recovery.Detail != "":
+		return fmt.Sprintf(
+			"orphaned on boot: session %q classified as %s (%s)",
+			sessionID,
+			recovery.Classification,
+			recovery.Detail,
+		)
+	case sessionID != "" && recovery.Classification != "":
+		return fmt.Sprintf(
+			"orphaned on boot: session %q classified as %s",
+			sessionID,
+			recovery.Classification,
+		)
 	case sessionID != "" && recovery.SessionState != "":
 		return fmt.Sprintf("orphaned on boot: session %q is %s", sessionID, recovery.SessionState)
 	case sessionID != "":
@@ -2531,6 +2548,8 @@ func runBootRecoveryMetadata(run Run, recovery RunBootRecovery) json.RawMessage 
 		"previous_status": string(run.Status.Normalize()),
 		"session_id":      strings.TrimSpace(run.SessionID),
 		"session_state":   strings.TrimSpace(recovery.SessionState),
+		"classification":  strings.TrimSpace(recovery.Classification),
+		"detail":          strings.TrimSpace(recovery.Detail),
 	})
 	if err != nil {
 		return nil
@@ -2964,4 +2983,6 @@ type recoveredRunPayload struct {
 	Reason         string                `json:"reason,omitempty"`
 	SessionID      string                `json:"session_id,omitempty"`
 	SessionState   string                `json:"session_state,omitempty"`
+	Classification string                `json:"classification,omitempty"`
+	Detail         string                `json:"detail,omitempty"`
 }

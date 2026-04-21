@@ -529,6 +529,54 @@ describe("NetworkPage", () => {
     expect(within(detailPanel).getByText("general")).toBeInTheDocument();
   });
 
+  it("renders unified capability rows from the peer_card brief and capability_catalog", async () => {
+    const user = userEvent.setup();
+    mockPeerDetail = makePeerDetail({
+      peer_card: {
+        artifacts_supported: ["capability"],
+        capabilities: [
+          { id: "chat", summary: "Coordinates chat-first collaboration." },
+          { id: "tools", summary: "Runs tool-driven steps." },
+        ],
+        peer_id: "peer_local",
+        profiles_supported: ["default"],
+        trust_modes_supported: ["local-first"],
+      },
+      capability_catalog: {
+        capabilities: [
+          {
+            id: "tools",
+            summary: "Runs tool-driven steps.",
+            outcome: "Implementation step runs with reproducible output.",
+            version: "0.3.0",
+            digest: "sha256:tools",
+            requirements: ["chat"],
+            execution_outline: ["Pick a step", "Run the tool", "Report result"],
+          },
+        ],
+      },
+    });
+
+    render(<NetworkPage />);
+    await user.click(screen.getByTestId("network-tab-peers"));
+
+    const detailPanel = screen.getByTestId("network-peer-detail-panel");
+    expect(
+      within(detailPanel).getByTestId("network-peer-capability-chat-summary")
+    ).toHaveTextContent("Coordinates chat-first collaboration.");
+
+    const toolsRow = within(detailPanel).getByTestId("network-peer-capability-tools");
+    expect(within(toolsRow).getByTestId("network-peer-capability-tools-version")).toHaveTextContent(
+      "v0.3.0"
+    );
+    expect(
+      within(toolsRow).getByTestId("network-peer-capability-tools-requirements")
+    ).toHaveTextContent("chat");
+    expect(
+      within(toolsRow).getByTestId("network-peer-capability-tools-execution-outline")
+    ).toHaveTextContent("Pick a step");
+  });
+
   it("opens the create dialog and submits the selected agents", async () => {
     render(<NetworkPage />);
 

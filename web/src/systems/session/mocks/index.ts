@@ -19,6 +19,7 @@ export {
   sessionEventsFixture,
   sessionFixtures,
   sessionHistoryFixture,
+  sessionTranscriptPermissionFixture,
   sessionTranscriptFixture,
   streamingAssistantMessageFixture,
   systemMessageFixture,

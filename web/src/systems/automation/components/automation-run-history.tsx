@@ -64,11 +64,12 @@ export function AutomationRunHistory({
             description={error.message ?? "Failed to load automation runs"}
             icon={AlertCircle}
             title="Unable to load runs"
+            fill={false}
           />
         </div>
       ) : runs.length === 0 ? (
         <div data-testid="automation-run-history-empty">
-          <Empty description={emptyDescription} icon={History} title={emptyTitle} />
+          <Empty description={emptyDescription} icon={History} title={emptyTitle} fill={false} />
         </div>
       ) : (
         <div className="overflow-hidden rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]">

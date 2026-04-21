@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Unified Capability Schema, Canonicalization, and Session Projection
 type: backend
 complexity: high
@@ -31,11 +31,11 @@ Unify the local capability model so `internal/config` and `internal/session` bec
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Extend the config-owned capability schema and validation rules for `version`, `requirements`, and canonical digest inputs
-- [ ] 1.2 Implement canonicalization and runtime-computed digest generation for unified capabilities
-- [ ] 1.3 Update agent loading so the unified catalog remains optional but normalized consistently across supported layouts
-- [ ] 1.4 Extend session/runtime projection structs so downstream discovery and transfer use the same normalized capability content
-- [ ] 1.5 Add focused unit and integration coverage for schema, digest stability, and projection invariants
+- [x] 1.1 Extend the config-owned capability schema and validation rules for `version`, `requirements`, and canonical digest inputs
+- [x] 1.2 Implement canonicalization and runtime-computed digest generation for unified capabilities
+- [x] 1.3 Update agent loading so the unified catalog remains optional but normalized consistently across supported layouts
+- [x] 1.4 Extend session/runtime projection structs so downstream discovery and transfer use the same normalized capability content
+- [x] 1.5 Add focused unit and integration coverage for schema, digest stability, and projection invariants
 
 ## Implementation Details
 
@@ -70,15 +70,15 @@ See TechSpec "Core Interfaces", "Data Models", and "Build Order" items 1-2. The 
 
 ## Tests
 - Unit tests:
-  - [ ] Loading a capability catalog with `version` and `requirements` preserves those fields in normalized runtime form
-  - [ ] Equivalent TOML and JSON capability catalogs produce identical canonical digests after normalization
-  - [ ] Changing a meaningful structured field such as `execution_outline` or `requirements` changes the computed digest
-  - [ ] Duplicate `requirements` entries are normalized or rejected according to the final schema rule
-  - [ ] Missing or malformed `version` and `requirements` fields return descriptive validation errors
+  - [x] Loading a capability catalog with `version` and `requirements` preserves those fields in normalized runtime form
+  - [x] Equivalent TOML and JSON capability catalogs produce identical canonical digests after normalization
+  - [x] Changing a meaningful structured field such as `execution_outline` or `requirements` changes the computed digest
+  - [x] Duplicate `requirements` entries are normalized or rejected according to the final schema rule
+  - [x] Missing or malformed `version` and `requirements` fields return descriptive validation errors
 - Integration tests:
-  - [ ] Real agent-directory fixtures load unified capability catalogs through `internal/config` without breaking optional-catalog behavior
-  - [ ] Session projection clones config-owned capability data so later network mutations cannot affect the source catalog
-  - [ ] Existing single-file and directory capability layouts remain supported without introducing dual parsing paths
+  - [x] Real agent-directory fixtures load unified capability catalogs through `internal/config` without breaking optional-catalog behavior
+  - [x] Session projection clones config-owned capability data so later network mutations cannot affect the source catalog
+  - [x] Existing single-file and directory capability layouts remain supported without introducing dual parsing paths
 - Test coverage target: >=80%
 - All tests must pass
 

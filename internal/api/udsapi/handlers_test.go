@@ -2,6 +2,7 @@ package udsapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -205,7 +206,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/network/send",
 		"POST /api/sessions",
 		"POST /api/sessions/:id/approve",
+		"POST /api/sessions/:id/clear",
 		"POST /api/sessions/:id/prompt",
+		"POST /api/sessions/:id/prompt/cancel",
 		"POST /api/sessions/:id/resume",
 		"POST /api/settings/actions/restart",
 		"POST /api/skills/:name/disable",
@@ -1001,49 +1004,126 @@ func TestResumeSessionHandlerReturnsSession(t *testing.T) {
 }
 
 func TestPromptSessionHandlerReturnsSSEStream(t *testing.T) {
+	t.Run("ShouldReturnAnSSEStream", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+				ch := make(chan acp.AgentEvent, 2)
+				ch <- acp.AgentEvent{
+					Type:      "agent_message",
+					TurnID:    "turn-1",
+					Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+					Text:      "hello",
+				}
+				ch <- acp.AgentEvent{
+					Type:       "done",
+					TurnID:     "turn-1",
+					Timestamp:  time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
+					StopReason: "end_turn",
+				}
+				close(ch)
+				return ch, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/sessions/sess-123/prompt",
+			[]byte(`{"message":"hello"}`),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
+			t.Fatalf("Content-Type = %q, want text/event-stream", got)
+		}
+
+		records := parseSSE(t, recorder.Body.String())
+		if len(records) != 2 {
+			t.Fatalf("len(records) = %d, want 2; body=%s", len(records), recorder.Body.String())
+		}
+		if records[0].Event != "agent_message" || records[1].Event != "done" {
+			t.Fatalf("events = [%s %s], want [agent_message done]", records[0].Event, records[1].Event)
+		}
+	})
+}
+
+func TestPromptSessionHandlerCancelsDetachedPromptContextWhenRequestEnds(t *testing.T) {
+	t.Run("ShouldCancelTheDetachedPromptContextWhenTheRequestEnds", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		promptCtxCh := make(chan context.Context, 1)
+		events := make(chan acp.AgentEvent)
+		manager := stubSessionManager{
+			PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
+				promptCtxCh <- ctx
+				return events, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		requestCtx, cancel := context.WithCancel(context.Background())
+		req := httptest.NewRequestWithContext(
+			requestCtx,
+			http.MethodPost,
+			"/api/sessions/sess-123/prompt",
+			strings.NewReader(`{"message":"hello"}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+
+		recorder := httptest.NewRecorder()
+		done := make(chan struct{})
+		go func() {
+			engine.ServeHTTP(recorder, req)
+			close(done)
+		}()
+
+		var promptCtx context.Context
+		select {
+		case promptCtx = <-promptCtxCh:
+		case <-time.After(time.Second):
+			t.Fatal("Prompt() was not invoked")
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("handler did not return after request cancellation")
+		}
+
+		if !errors.Is(promptCtx.Err(), context.Canceled) {
+			t.Fatalf("prompt context err = %v, want context.Canceled after request cancellation", promptCtx.Err())
+		}
+
+		close(events)
+	})
+}
+
+func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
-			ch := make(chan acp.AgentEvent, 2)
-			ch <- acp.AgentEvent{
-				Type:      "agent_message",
-				TurnID:    "turn-1",
-				Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-				Text:      "hello",
+		CancelPromptFn: func(_ context.Context, id string) error {
+			if id != "sess-123" {
+				t.Fatalf("CancelPrompt() id = %q, want sess-123", id)
 			}
-			ch <- acp.AgentEvent{
-				Type:       "done",
-				TurnID:     "turn-1",
-				Timestamp:  time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
-				StopReason: "end_turn",
-			}
-			close(ch)
-			return ch, nil
+			return nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/api/sessions/sess-123/prompt",
-		[]byte(`{"message":"hello"}`),
-	)
+	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/prompt/cancel", nil)
 	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
-	if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
-		t.Fatalf("Content-Type = %q, want text/event-stream", got)
-	}
-
-	records := parseSSE(t, recorder.Body.String())
-	if len(records) != 2 {
-		t.Fatalf("len(records) = %d, want 2; body=%s", len(records), recorder.Body.String())
-	}
-	if records[0].Event != "agent_message" || records[1].Event != "done" {
-		t.Fatalf("events = [%s %s], want [agent_message done]", records[0].Event, records[1].Event)
+	if got := recorder.Body.String(); got != "" {
+		t.Fatalf("body = %q, want empty", got)
 	}
 }
 
@@ -1157,12 +1237,15 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		TranscriptFn: func(context.Context, string) ([]transcript.Message, error) {
-			return []transcript.Message{{
-				ID:        "msg-1",
-				Role:      transcript.RoleAssistant,
-				Content:   "hello",
-				Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		TranscriptFn: func(context.Context, string) ([]transcript.UIMessage, error) {
+			return []transcript.UIMessage{{
+				ID:   "msg-1",
+				Role: transcript.UIRoleAssistant,
+				Parts: []transcript.UIMessagePart{{
+					Type:  "text",
+					Text:  "hello",
+					State: "done",
+				}},
 			}}, nil
 		},
 	}
@@ -1175,14 +1258,14 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 	}
 
 	var response struct {
-		Messages []transcript.Message `json:"messages"`
+		Messages []transcript.UIMessage `json:"messages"`
 	}
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Messages) != 1 {
 		t.Fatalf("len(messages) = %d, want 1", len(response.Messages))
 	}
-	if got := response.Messages[0].Content; got != "hello" {
-		t.Fatalf("messages[0].Content = %q, want %q", got, "hello")
+	if got := response.Messages[0].Parts[0].Text; got != "hello" {
+		t.Fatalf("messages[0].Parts[0].Text = %q, want %q", got, "hello")
 	}
 }
 

@@ -8,6 +8,8 @@ import {
 } from "@/test/fetch-test-utils";
 
 import {
+  cancelSessionPrompt,
+  clearSessionConversation,
   createSession,
   fetchSession,
   fetchSessionEvents,
@@ -222,6 +224,38 @@ describe("stopSession", () => {
   });
 });
 
+describe("cancelSessionPrompt", () => {
+  it("calls POST prompt cancel endpoint", async () => {
+    mockEmptyResponse();
+
+    await cancelSessionPrompt("sess-001");
+
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/sessions/sess-001/prompt/cancel",
+    });
+  });
+
+  it("throws 404 error for unknown session", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(cancelSessionPrompt("unknown")).rejects.toThrow("Session not found: unknown");
+  });
+
+  it("passes abort signal to fetch", async () => {
+    mockEmptyResponse();
+
+    const controller = new AbortController();
+    await cancelSessionPrompt("sess-001", controller.signal);
+
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/sessions/sess-001/prompt/cancel",
+      signal: controller.signal,
+    });
+  });
+});
+
 describe("resumeSession", () => {
   it("calls POST resume endpoint", async () => {
     mockJsonResponse({ session: { ...mockSession, state: "active" } });
@@ -239,6 +273,36 @@ describe("resumeSession", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
     await expect(resumeSession("unknown")).rejects.toThrow("Session not found: unknown");
+  });
+});
+
+describe("clearSessionConversation", () => {
+  it("calls POST clear endpoint and returns the refreshed session payload", async () => {
+    mockJsonResponse({ session: mockSession });
+
+    const result = await clearSessionConversation("sess-001");
+
+    expect(result).toEqual(mockSession);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/sessions/sess-001/clear",
+    });
+  });
+
+  it("throws 409 when a prompt is still running", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 409 }));
+
+    await expect(clearSessionConversation("sess-001")).rejects.toThrow(
+      'Cannot clear session "sess-001" while a prompt is still running'
+    );
+  });
+
+  it("throws on invalid response payload", async () => {
+    mockJsonResponse({ nope: true });
+
+    await expect(clearSessionConversation("sess-001")).rejects.toThrow(
+      'Failed to clear session "sess-001": invalid response payload'
+    );
   });
 });
 
@@ -313,29 +377,24 @@ describe("fetchSessionTranscript", () => {
       {
         id: "evt-1",
         role: "assistant",
-        content: "Hello",
-        thinking_complete: false,
-        tool_error: false,
-        timestamp: "2026-04-01T00:00:00Z",
+        parts: [{ type: "text", text: "Hello", state: "done" }],
       },
       {
         id: "tool-1",
-        role: "tool_call",
-        content: "",
-        tool_name: "Read",
-        tool_input: { file_path: "/tmp/file.ts" },
-        thinking_complete: false,
-        tool_error: false,
-        timestamp: "2026-04-01T00:00:01Z",
-      },
-      {
-        id: "tool-1",
-        role: "tool_result",
-        content: "",
-        tool_result: { stdout: "done", file_path: "/tmp/file.ts" },
-        thinking_complete: false,
-        tool_error: false,
-        timestamp: "2026-04-01T00:00:02Z",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-Read",
+            toolCallId: "tool-1",
+            state: "output-available",
+            input: { file_path: "/tmp/file.ts" },
+            output: {
+              type: "tool_result",
+              title: "Read",
+              raw: { stdout: "done", file_path: "/tmp/file.ts" },
+            },
+          },
+        ],
       },
     ],
   };

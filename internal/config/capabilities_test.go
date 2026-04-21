@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -16,10 +17,12 @@ func TestLoadAgentCapabilitiesFromSingleFileTOMLNormalizesEntries(t *testing.T) 
 id = "build-site"
 summary = " Build the landing page. "
 outcome = " A finished landing page. "
+version = " 1.0.0 "
 context_needed = [" repo ", "", " brand brief "]
 execution_outline = [" Inspect ", " Build "]
 constraints = [" No mocks "]
 examples = [" marketing page "]
+requirements = [" workspace-write ", "review-guidelines"]
 
 [[capabilities]]
 id = "review-copy"
@@ -43,6 +46,9 @@ artifacts_expected = [" Annotated doc "]
 	if got, want := first.Summary, "Build the landing page."; got != want {
 		t.Fatalf("Capabilities[0].Summary = %q, want %q", got, want)
 	}
+	if got, want := first.Version, "1.0.0"; got != want {
+		t.Fatalf("Capabilities[0].Version = %q, want %q", got, want)
+	}
 	if got, want := strings.Join(first.ContextNeeded, ","), "repo,brand brief"; got != want {
 		t.Fatalf("Capabilities[0].ContextNeeded = %#v, want normalized list", first.ContextNeeded)
 	}
@@ -55,10 +61,19 @@ artifacts_expected = [" Annotated doc "]
 	if got, want := strings.Join(first.Examples, ","), "marketing page"; got != want {
 		t.Fatalf("Capabilities[0].Examples = %#v, want normalized list", first.Examples)
 	}
+	if got, want := strings.Join(first.Requirements, ","), "review-guidelines,workspace-write"; got != want {
+		t.Fatalf("Capabilities[0].Requirements = %#v, want normalized sorted requirements", first.Requirements)
+	}
+	if !strings.HasPrefix(first.Digest, "sha256:") {
+		t.Fatalf("Capabilities[0].Digest = %q, want sha256 digest", first.Digest)
+	}
 
 	second := catalog.Capabilities[1]
 	if got, want := strings.Join(second.ArtifactsExpected, ","), "Annotated doc"; got != want {
 		t.Fatalf("Capabilities[1].ArtifactsExpected = %#v, want normalized list", second.ArtifactsExpected)
+	}
+	if !strings.HasPrefix(second.Digest, "sha256:") {
+		t.Fatalf("Capabilities[1].Digest = %q, want sha256 digest", second.Digest)
 	}
 }
 
@@ -114,6 +129,20 @@ func TestLoadAgentCapabilitiesFromSingleFileJSONStrictness(t *testing.T) {
   ]
 }`,
 			wantErr: `unknown field "unknown"`,
+		},
+		{
+			name: "ShouldRejectAuthoredDigestField",
+			payload: `{
+  "capabilities": [
+    {
+      "id": "review-copy",
+      "summary": "Review conversion copy.",
+      "outcome": "A prioritized copy review.",
+      "digest": "sha256:authored"
+    }
+  ]
+}`,
+			wantErr: `unknown field "digest"`,
 		},
 		{
 			name:    "ShouldRejectTrailingJSON",
@@ -418,6 +447,172 @@ outcome = "A prioritized copy review."
 			_, err := LoadAgentCapabilities(agentDir)
 			if err == nil {
 				t.Fatal("LoadAgentCapabilities() error = nil, want validation failure")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("LoadAgentCapabilities() error = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestLoadAgentCapabilitiesEquivalentTOMLAndJSONProduceSameRuntimeShapeAndDigest(t *testing.T) {
+	t.Parallel()
+
+	tomlAgentDir := t.TempDir()
+	jsonAgentDir := t.TempDir()
+
+	writeFile(t, filepath.Join(tomlAgentDir, capabilityCatalogTOMLName), `
+[[capabilities]]
+id = "review-copy"
+summary = " Review conversion copy. "
+outcome = " A prioritized copy review. "
+version = " 1.2.0 "
+context_needed = [" brief ", " analytics "]
+execution_outline = [" inspect ", " rewrite "]
+constraints = [" keep evidence "]
+examples = [" homepage review "]
+requirements = [" workspace-write ", "review-guidelines"]
+`)
+	writeFile(t, filepath.Join(jsonAgentDir, capabilityCatalogJSONName), `{
+  "capabilities": [
+    {
+      "id": "review-copy",
+      "summary": "Review conversion copy.",
+      "outcome": "A prioritized copy review.",
+      "version": "1.2.0",
+      "context_needed": ["brief", "analytics"],
+      "execution_outline": ["inspect", "rewrite"],
+      "constraints": ["keep evidence"],
+      "examples": ["homepage review"],
+      "requirements": ["review-guidelines", "workspace-write"]
+    }
+  ]
+}`)
+
+	tomlCatalog, err := LoadAgentCapabilities(tomlAgentDir)
+	if err != nil {
+		t.Fatalf("LoadAgentCapabilities(TOML) error = %v", err)
+	}
+	jsonCatalog, err := LoadAgentCapabilities(jsonAgentDir)
+	if err != nil {
+		t.Fatalf("LoadAgentCapabilities(JSON) error = %v", err)
+	}
+	if !reflect.DeepEqual(tomlCatalog, jsonCatalog) {
+		t.Fatalf("normalized catalogs differ:\nTOML: %#v\nJSON: %#v", tomlCatalog, jsonCatalog)
+	}
+	if got := tomlCatalog.Capabilities[0].Digest; got == "" {
+		t.Fatal("TOML digest = empty, want computed digest")
+	}
+	if got, want := tomlCatalog.Capabilities[0].Digest, jsonCatalog.Capabilities[0].Digest; got != want {
+		t.Fatalf("digest mismatch: TOML=%q JSON=%q", got, want)
+	}
+}
+
+func TestLoadAgentCapabilitiesDigestChangesWhenMeaningfulFieldsChange(t *testing.T) {
+	t.Parallel()
+
+	loadDigest := func(t *testing.T, payload string) string {
+		t.Helper()
+
+		agentDir := t.TempDir()
+		writeFile(t, filepath.Join(agentDir, capabilityCatalogTOMLName), payload)
+
+		catalog, err := LoadAgentCapabilities(agentDir)
+		if err != nil {
+			t.Fatalf("LoadAgentCapabilities() error = %v", err)
+		}
+		if catalog == nil || len(catalog.Capabilities) != 1 {
+			t.Fatalf("catalog = %#v, want single capability", catalog)
+		}
+		return catalog.Capabilities[0].Digest
+	}
+
+	baseDigest := loadDigest(t, `
+[[capabilities]]
+id = "review-copy"
+summary = "Review conversion copy."
+outcome = "A prioritized copy review."
+execution_outline = ["inspect", "rewrite"]
+requirements = ["workspace-write", "review-guidelines"]
+`)
+	changedExecutionDigest := loadDigest(t, `
+[[capabilities]]
+id = "review-copy"
+summary = "Review conversion copy."
+outcome = "A prioritized copy review."
+execution_outline = ["inspect", "rewrite", "publish"]
+requirements = ["workspace-write", "review-guidelines"]
+`)
+	changedRequirementsDigest := loadDigest(t, `
+[[capabilities]]
+id = "review-copy"
+summary = "Review conversion copy."
+outcome = "A prioritized copy review."
+execution_outline = ["inspect", "rewrite"]
+requirements = ["workspace-write", "design-brief"]
+`)
+
+	if baseDigest == changedExecutionDigest {
+		t.Fatalf("execution outline digest = %q, want different digest", changedExecutionDigest)
+	}
+	if baseDigest == changedRequirementsDigest {
+		t.Fatalf("requirements digest = %q, want different digest", changedRequirementsDigest)
+	}
+}
+
+func TestLoadAgentCapabilitiesRejectsInvalidVersionAndRequirements(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		payload string
+		wantErr string
+	}{
+		{
+			name: "ShouldRejectBlankVersionWhenProvided",
+			payload: `
+[[capabilities]]
+id = "review-copy"
+summary = "Review conversion copy."
+outcome = "A prioritized copy review."
+version = "   "
+`,
+			wantErr: ".version must not be blank when provided",
+		},
+		{
+			name: "ShouldRejectBlankRequirementEntry",
+			payload: `
+[[capabilities]]
+id = "review-copy"
+summary = "Review conversion copy."
+outcome = "A prioritized copy review."
+requirements = ["workspace-write", "   "]
+`,
+			wantErr: ".requirements[1] is required",
+		},
+		{
+			name: "ShouldRejectDuplicateRequirementsAfterNormalization",
+			payload: `
+[[capabilities]]
+id = "review-copy"
+summary = "Review conversion copy."
+outcome = "A prioritized copy review."
+requirements = ["workspace-write", " workspace-write "]
+`,
+			wantErr: `.requirements duplicate value "workspace-write" after normalization`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			agentDir := t.TempDir()
+			writeFile(t, filepath.Join(agentDir, capabilityCatalogTOMLName), tt.payload)
+
+			_, err := LoadAgentCapabilities(agentDir)
+			if err == nil {
+				t.Fatal("LoadAgentCapabilities() error = nil, want validation error")
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("LoadAgentCapabilities() error = %q, want substring %q", err.Error(), tt.wantErr)

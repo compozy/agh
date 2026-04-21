@@ -75,17 +75,22 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
 }
 
 function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
+  const overlayRender = React.useMemo(
+    () => (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+      />
+    ),
+    []
+  );
+
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      render={
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15, ease: "easeOut" }}
-        />
-      }
+      render={overlayRender}
       className={cn("fixed inset-0 isolate z-50 bg-black/50", className)}
       {...props}
     />
@@ -107,6 +112,17 @@ function DialogContent({
   const handleExitComplete = React.useCallback(() => {
     actionsRef.current?.unmount();
   }, [actionsRef]);
+  const popupRender = React.useMemo(
+    () => (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+      />
+    ),
+    []
+  );
 
   return (
     <AnimatePresence onExitComplete={handleExitComplete}>
@@ -115,14 +131,7 @@ function DialogContent({
           <DialogOverlay />
           <DialogPrimitive.Popup
             data-slot="dialog-content"
-            render={
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.15, ease: "easeOut" }}
-              />
-            }
+            render={popupRender}
             className={cn(
               "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-border bg-card p-4 text-sm text-card-foreground outline-none sm:max-w-sm",
               className

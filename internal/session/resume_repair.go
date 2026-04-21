@@ -42,39 +42,8 @@ func (e resumeValidationError) Check() string {
 	return e.check
 }
 
-func classifyPreviousStop(meta store.SessionMeta) (store.SessionMeta, bool) {
-	next := meta
-
-	switch strings.TrimSpace(meta.State) {
-	case string(StateActive):
-		next.State = string(StateStopped)
-		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
-		next.StopDetail = resumeStopDetailAgentCrashed
-		return next, true
-	case string(StateStopping):
-		next.State = string(StateStopped)
-		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
-		next.StopDetail = "stop did not complete"
-		return next, true
-	case string(StateStarting):
-		next.State = string(StateStopped)
-		next.StopReason = resumeStopReasonPointer(store.StopError)
-		next.StopDetail = resumeStopDetailStartIncomplete
-		next.ACPSessionID = nil
-		return next, true
-	case string(StateStopped):
-		if strings.TrimSpace(meta.StopDetail) == resumeStopDetailStartIncomplete && meta.ACPSessionID != nil {
-			next.ACPSessionID = nil
-			return next, true
-		}
-		return next, false
-	default:
-		return next, false
-	}
-}
-
 func (m *Manager) repairInactiveMeta(metaPath string, meta store.SessionMeta) (store.SessionMeta, error) {
-	classified, changed := classifyPreviousStop(meta)
+	classified, changed := ClassifyInactiveMetaForRecovery(m.now(), meta)
 	if !changed {
 		return meta, nil
 	}
@@ -219,11 +188,15 @@ func (m *Manager) persistResumeCrashClassification(metaPath string, meta store.S
 	classified := meta
 	classified.UpdatedAt = m.now()
 	if err := store.WriteSessionMeta(metaPath, classified); err != nil {
-		return store.SessionMeta{}, fmt.Errorf(
-			"session: persist crash classification for %q: %w",
-			strings.TrimSpace(meta.ID),
-			err,
+		annotated := AnnotateUnpersistedRecovery(classified, err)
+		m.resumeLogger(annotated).Warn(
+			"session.resume.crash_classification_persist_failed",
+			"previous_state", strings.TrimSpace(meta.State),
+			"stop_reason", sessionMetaStopReason(annotated),
+			"stop_detail", strings.TrimSpace(annotated.StopDetail),
+			"error", err,
 		)
+		return annotated, nil
 	}
 
 	reason := ""

@@ -13,6 +13,7 @@ export {
   CardDescription,
   CardContent,
 } from "./components/card";
+export type { CardProps, CardSize } from "./components/card";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Separator } from "./components/separator";

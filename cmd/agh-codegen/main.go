@@ -33,25 +33,29 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
+	return runWithPaths(ctx, args, spec.DefaultPath, defaultSDKContractsPath)
+}
+
+func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkContractsPath string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: agh-codegen <openapi|sdk-contracts|all|check>")
 	}
 
 	switch args[0] {
 	case "openapi":
-		return writeOpenAPI(spec.DefaultPath)
+		return writeOpenAPI(openapiPath)
 	case "sdk-contracts":
-		return writeSDKContracts(ctx, defaultSDKContractsPath)
+		return writeSDKContracts(ctx, sdkContractsPath)
 	case "all":
-		if err := writeOpenAPI(spec.DefaultPath); err != nil {
+		if err := writeOpenAPI(openapiPath); err != nil {
 			return err
 		}
-		return writeSDKContracts(ctx, defaultSDKContractsPath)
+		return writeSDKContracts(ctx, sdkContractsPath)
 	case "check":
-		if err := checkOpenAPI(spec.DefaultPath); err != nil {
+		if err := checkOpenAPI(openapiPath); err != nil {
 			return err
 		}
-		return checkSDKContracts(ctx, defaultSDKContractsPath)
+		return checkSDKContracts(ctx, sdkContractsPath)
 	default:
 		return fmt.Errorf("unknown codegen target %q", args[0])
 	}
