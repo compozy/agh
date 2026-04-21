@@ -106,7 +106,7 @@ func ValidateWebhookRunProjection(
 // PermissionPayloadFromSSE extracts one approval payload from a streamed SSE
 // record when present.
 func PermissionPayloadFromSSE(record SSEEvent) (PermissionStreamPayload, bool) {
-	if record.Event != "permission" || len(record.Data) == 0 {
+	if semanticSSEEvent(record) != "permission" || len(record.Data) == 0 {
 		return PermissionStreamPayload{}, false
 	}
 
@@ -135,7 +135,7 @@ func PermissionPayloads(records []SSEEvent) []PermissionStreamPayload {
 // expected assistant text delta.
 func RecordsContainTextDelta(records []SSEEvent, want string) bool {
 	for _, record := range records {
-		if record.Event != transportParityEventAgentMessage || len(record.Data) == 0 {
+		if semanticSSEEvent(record) != transportParityEventAgentMessage || len(record.Data) == 0 {
 			continue
 		}
 
@@ -148,6 +148,13 @@ func RecordsContainTextDelta(records []SSEEvent, want string) bool {
 		}
 	}
 	return false
+}
+
+func semanticSSEEvent(record SSEEvent) string {
+	if trimmed := strings.TrimSpace(record.Event); trimmed != "" {
+		return trimmed
+	}
+	return inferSSEEventName(record.Data)
 }
 
 // ValidateUDSApprovalNotImplemented checks the currently documented approval

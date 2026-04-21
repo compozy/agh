@@ -104,6 +104,89 @@ func TestArtifactCollectorCaptureTextAndFile(t *testing.T) {
 	}
 }
 
+func TestArtifactCollectorCaptureNamedJSONUsesStableDirectoryArtifact(t *testing.T) {
+	t.Parallel()
+
+	collector := NewArtifactCollector(t)
+	firstPath, err := collector.CaptureNamedJSON(
+		ArtifactKindTransportOutputs,
+		"daemon status",
+		TransportOutputArtifact{
+			Transport: "cli",
+			Command:   []string{"daemon", "status", "-o", "json"},
+			Stdout:    `{"status":"running"}`,
+		},
+	)
+	if err != nil {
+		t.Fatalf("CaptureNamedJSON(transport_outputs) error = %v", err)
+	}
+	secondPath, err := collector.CaptureNamedJSON(
+		ArtifactKindTransportOutputs,
+		"http status",
+		TransportOutputArtifact{
+			Transport:  "http",
+			Method:     "GET",
+			URL:        "/api/daemon/status",
+			StatusCode: 200,
+		},
+	)
+	if err != nil {
+		t.Fatalf("CaptureNamedJSON(transport_outputs second) error = %v", err)
+	}
+
+	manifest := collector.Manifest()
+	if got, want := len(manifest.Artifacts), 1; got != want {
+		t.Fatalf("len(manifest.Artifacts) = %d, want %d", got, want)
+	}
+	if got, want := manifest.Artifacts[0].Path, "transport_outputs"; got != want {
+		t.Fatalf("manifest.Artifacts[0].Path = %q, want %q", got, want)
+	}
+	if got, want := filepath.Base(firstPath), "daemon-status.json"; got != want {
+		t.Fatalf("filepath.Base(firstPath) = %q, want %q", got, want)
+	}
+	if got, want := filepath.Base(secondPath), "http-status.json"; got != want {
+		t.Fatalf("filepath.Base(secondPath) = %q, want %q", got, want)
+	}
+	for _, path := range []string{firstPath, secondPath} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("os.Stat(%q) error = %v", path, err)
+		}
+	}
+}
+
+func TestArtifactCollectorCaptureNamedTextUsesStableDirectoryArtifact(t *testing.T) {
+	t.Parallel()
+
+	collector := NewArtifactCollector(t)
+	textPath, err := collector.CaptureNamedText(
+		ArtifactKindTransportOutputs,
+		"cli stderr",
+		"permission denied",
+	)
+	if err != nil {
+		t.Fatalf("CaptureNamedText(transport_outputs) error = %v", err)
+	}
+
+	manifest := collector.Manifest()
+	if got, want := len(manifest.Artifacts), 1; got != want {
+		t.Fatalf("len(manifest.Artifacts) = %d, want %d", got, want)
+	}
+	if got, want := manifest.Artifacts[0].Path, "transport_outputs"; got != want {
+		t.Fatalf("manifest.Artifacts[0].Path = %q, want %q", got, want)
+	}
+	if got, want := filepath.Base(textPath), "cli-stderr.txt"; got != want {
+		t.Fatalf("filepath.Base(textPath) = %q, want %q", got, want)
+	}
+
+	content, err := os.ReadFile(textPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", textPath, err)
+	}
+	if got, want := string(content), "permission denied"; got != want {
+		t.Fatalf("string(content) = %q, want %q", got, want)
+	}
+}
+
 func TestArtifactCollectorCaptureCombinedAndToolHostArtifactsSeparately(t *testing.T) {
 	t.Parallel()
 

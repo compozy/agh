@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -72,6 +73,56 @@ func TestRuntimeHarnessWaitForReadyReturnsExitError(t *testing.T) {
 	}
 }
 
+func TestReadSSERecordsInferSemanticEventsFromJSONFrames(t *testing.T) {
+	t.Parallel()
+
+	stream := strings.NewReader(
+		"data: {\"type\":\"text-delta\",\"delta\":\"partial\"}\n\n" +
+			"data: {\"type\":\"data-agh-permission\",\"data\":{\"request_id\":\"req-1\"}}\n\n" +
+			"data: {\"type\":\"data-agh-event\",\"data\":{\"type\":\"tool_call\"}}\n\n" +
+			"data: {\"type\":\"error\",\"errorText\":\"boom\"}\n\n" +
+			"data: [DONE]\n\n",
+	)
+
+	records, err := readSSERecords(stream, 0)
+	if err != nil {
+		t.Fatalf("readSSERecords() error = %v", err)
+	}
+
+	got := make([]string, 0, len(records))
+	for _, record := range records {
+		got = append(got, record.Event)
+	}
+	want := []string{"agent_message", "permission", "tool_call", "error", "done"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("record events = %#v, want %#v", got, want)
+	}
+}
+
+func TestInferSSEEventNameRecognizesAdditionalFrameTypes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		data string
+		want string
+	}{
+		{name: "reasoning delta", data: `{"type":"reasoning-delta","delta":"think"}`, want: "reasoning"},
+		{name: "tool output", data: `{"type":"tool-output-available","toolCallId":"tool-1"}`, want: "tool_result"},
+		{name: "generic event fallback", data: `{"type":"data-agh-event","data":{}}`, want: "event"},
+		{name: "unknown passthrough", data: `{"type":"finish"}`, want: "finish"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := inferSSEEventName([]byte(tt.data)); got != tt.want {
+				t.Fatalf("inferSSEEventName(%s) = %q, want %q", tt.data, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRuntimeHarnessStopFallsBackToInterruptWhenCLIStopFails(t *testing.T) {
 	t.Parallel()
 
@@ -107,6 +158,82 @@ func TestRuntimeHarnessStopFallsBackToInterruptWhenCLIStopFails(t *testing.T) {
 	}
 	if err := harness.Stop(ctx); err != nil {
 		t.Fatalf("second Stop() error = %v", err)
+	}
+}
+
+func TestRuntimeHarnessStartRetryHelpersRebindHTTPPortAndCleanStaleState(t *testing.T) {
+	t.Parallel()
+
+	homePaths := NewHomePaths(t)
+	cfg := SeedConfig(t, homePaths, ConfigSeedOptions{HTTPPort: 22123})
+	processLogPath := filepath.Join(t.TempDir(), "daemon-process.log")
+	if err := os.WriteFile(
+		processLogPath,
+		[]byte("error: daemon: start http server: listen tcp 127.0.0.1:22123: bind: address already in use\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", processLogPath, err)
+	}
+	if err := os.WriteFile(homePaths.DaemonInfo, []byte(`{"pid":1}`), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", homePaths.DaemonInfo, err)
+	}
+	if err := os.WriteFile(cfg.Daemon.Socket, []byte("socket"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", cfg.Daemon.Socket, err)
+	}
+
+	waitCh := make(chan error, 1)
+	waitCh <- errors.New("exit status 1")
+	close(waitCh)
+
+	harness := &RuntimeHarness{
+		HomePaths:      homePaths,
+		Config:         cfg,
+		HTTPBaseURL:    fmt.Sprintf("http://%s:%d", cfg.HTTP.Host, cfg.HTTP.Port),
+		processLogPath: processLogPath,
+		waitCh:         waitCh,
+		processExited:  true,
+		processErr:     errors.New("exit status 1"),
+	}
+
+	if !harness.readinessFailureShouldRetry(errors.New("daemon exited before readiness: exit status 1")) {
+		t.Fatal("readinessFailureShouldRetry() = false, want true for bind conflict")
+	}
+
+	if err := harness.cleanupFailedStart(testContext(t)); err != nil {
+		t.Fatalf("cleanupFailedStart() error = %v", err)
+	}
+	for _, path := range []string{homePaths.DaemonInfo, cfg.Daemon.Socket} {
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(%q) error = %v, want os.ErrNotExist", path, err)
+		}
+	}
+	if harness.waitCh != nil {
+		t.Fatal("cleanupFailedStart() left waitCh populated, want reset state")
+	}
+
+	previousPort := harness.Config.HTTP.Port
+	if err := harness.reseedRuntimeHTTPPort(t); err != nil {
+		t.Fatalf("reseedRuntimeHTTPPort() error = %v", err)
+	}
+	if harness.Config.HTTP.Port == previousPort {
+		t.Fatalf("reseedRuntimeHTTPPort() kept HTTP port %d, want new port", previousPort)
+	}
+	if got, wantPrefix := harness.HTTPBaseURL, fmt.Sprintf(
+		"http://%s:",
+		harness.Config.HTTP.Host,
+	); !strings.HasPrefix(
+		got,
+		wantPrefix,
+	) {
+		t.Fatalf("HTTPBaseURL = %q, want prefix %q", got, wantPrefix)
+	}
+
+	configContents, err := os.ReadFile(homePaths.ConfigFile)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", homePaths.ConfigFile, err)
+	}
+	if !strings.Contains(string(configContents), fmt.Sprintf("port = %d", harness.Config.HTTP.Port)) {
+		t.Fatalf("config contents = %s, want rewritten port %d", string(configContents), harness.Config.HTTP.Port)
 	}
 }
 
@@ -198,6 +325,92 @@ func TestRuntimeHelpersCoverRequestAndTimingUtilities(t *testing.T) {
 	}
 	if got, want := encodeQuery(nil), ""; got != want {
 		t.Fatalf("encodeQuery(nil) = %q, want %q", got, want)
+	}
+}
+
+func TestRuntimeHarnessCaptureCLIOutputWritesTransportArtifactsAndManifest(t *testing.T) {
+	t.Parallel()
+
+	homePaths := NewHomePaths(t)
+	cfg := SeedConfig(t, homePaths, ConfigSeedOptions{HTTPPort: 23123})
+	harness := &RuntimeHarness{
+		HomePaths:      homePaths,
+		Config:         cfg,
+		Artifacts:      NewArtifactCollector(t),
+		WorkspaceRoot:  "/workspace",
+		HTTPBaseURL:    fmt.Sprintf("http://%s:%d", cfg.HTTP.Host, cfg.HTTP.Port),
+		UDSBaseURL:     "http://unix",
+		processLogPath: filepath.Join(t.TempDir(), "daemon-process.log"),
+		CLI: &CLIClient{
+			binaryPath: "/tmp/agh",
+			workdir:    "/repo",
+		},
+	}
+
+	cliPath, err := harness.CaptureCLIOutput(
+		"daemon status",
+		[]string{"daemon", "status", "-o", "json"},
+		`{"status":"running"}`,
+		"",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("CaptureCLIOutput() error = %v", err)
+	}
+	if got, want := filepath.Base(cliPath), "daemon-status.json"; got != want {
+		t.Fatalf("filepath.Base(cliPath) = %q, want %q", got, want)
+	}
+
+	httpPath, err := harness.CaptureTransportOutput("http status", TransportOutputArtifact{
+		Transport:  "http",
+		Method:     http.MethodGet,
+		URL:        "/api/daemon/status",
+		StatusCode: http.StatusOK,
+	})
+	if err != nil {
+		t.Fatalf("CaptureTransportOutput() error = %v", err)
+	}
+	if got, want := filepath.Base(httpPath), "http-status.json"; got != want {
+		t.Fatalf("filepath.Base(httpPath) = %q, want %q", got, want)
+	}
+
+	runtimeManifest, err := harness.RuntimeManifest()
+	if err != nil {
+		t.Fatalf("RuntimeManifest() error = %v", err)
+	}
+	if got, want := runtimeManifest.Transport.CLIBinary, "/tmp/agh"; got != want {
+		t.Fatalf("runtimeManifest.Transport.CLIBinary = %q, want %q", got, want)
+	}
+	if got, want := runtimeManifest.Transport.CLIWorkdir, "/repo"; got != want {
+		t.Fatalf("runtimeManifest.Transport.CLIWorkdir = %q, want %q", got, want)
+	}
+
+	manifestBytes, err := os.ReadFile(harness.RuntimeManifestPath())
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", harness.RuntimeManifestPath(), err)
+	}
+	if !strings.Contains(string(manifestBytes), "\"transport_outputs\"") {
+		t.Fatalf("runtime manifest = %s, want transport_outputs artifact entry", string(manifestBytes))
+	}
+}
+
+func TestRuntimeHarnessNilGuardsSurfaceStableErrors(t *testing.T) {
+	t.Parallel()
+
+	var nilHarness *RuntimeHarness
+	if got := nilHarness.RuntimeManifestPath(); got != "" {
+		t.Fatalf("nil RuntimeManifestPath() = %q, want empty", got)
+	}
+	if err := nilHarness.Stop(testContext(t)); err != nil {
+		t.Fatalf("nil Stop() error = %v, want nil", err)
+	}
+	if _, err := nilHarness.CaptureTransportOutput("daemon status", TransportOutputArtifact{}); err == nil {
+		t.Fatal("nil CaptureTransportOutput() error = nil, want failure")
+	}
+
+	harness := &RuntimeHarness{}
+	if _, err := harness.readProcessLog(); err == nil {
+		t.Fatal("readProcessLog() error = nil, want missing path failure")
 	}
 }
 

@@ -128,6 +128,47 @@ func TestSeedConfigPersistsEnvironmentProfilesAndDefault(t *testing.T) {
 	}
 }
 
+func TestWriteSeedConfigFileRewritesOverlayWithPermissions(t *testing.T) {
+	t.Parallel()
+
+	homePaths := NewHomePaths(t)
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.HTTP.Host = "127.0.0.1"
+	cfg.HTTP.Port = 24242
+	cfg.Permissions.Mode = aghconfig.PermissionModeApproveAll
+
+	if err := writeSeedConfigFile(homePaths, &cfg); err != nil {
+		t.Fatalf("writeSeedConfigFile() error = %v", err)
+	}
+
+	firstContents, err := os.ReadFile(homePaths.ConfigFile)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", homePaths.ConfigFile, err)
+	}
+	if !strings.Contains(string(firstContents), "port = 24242") {
+		t.Fatalf("config contents = %s, want initial port", string(firstContents))
+	}
+	if !strings.Contains(string(firstContents), "[permissions]") {
+		t.Fatalf("config contents = %s, want permissions section", string(firstContents))
+	}
+
+	cfg.HTTP.Port = 25252
+	if err := writeSeedConfigFile(homePaths, &cfg); err != nil {
+		t.Fatalf("writeSeedConfigFile(rewrite) error = %v", err)
+	}
+
+	reloaded, err := aghconfig.LoadForHome(homePaths)
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+	if got, want := reloaded.HTTP.Port, 25252; got != want {
+		t.Fatalf("reloaded.HTTP.Port = %d, want %d", got, want)
+	}
+	if got, want := reloaded.Permissions.Mode, aghconfig.PermissionModeApproveAll; got != want {
+		t.Fatalf("reloaded.Permissions.Mode = %q, want %q", got, want)
+	}
+}
+
 func TestPrepareRuntimeLayoutEnvironmentSeedDoesNotLeakBetweenRuns(t *testing.T) {
 	t.Parallel()
 

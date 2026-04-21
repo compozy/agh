@@ -24,6 +24,7 @@ import (
 	aghcontract "github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 	"golang.org/x/sys/execabs"
 )
@@ -31,8 +32,10 @@ import (
 const (
 	defaultStartTimeout = 20 * time.Second
 	defaultPollInterval = 100 * time.Millisecond
+	maxStartAttempts    = 3
 	windowsGOOS         = "windows"
 	daemonBinaryEnvVar  = "AGH_TEST_DAEMON_BIN"
+	runtimeManifestName = "runtime-manifest.json"
 )
 
 var (
@@ -84,6 +87,8 @@ type RuntimeHarness struct {
 	process *exec.Cmd
 	waitCh  <-chan error
 
+	processLogPath string
+
 	stopOnce sync.Once
 	stopErr  error
 
@@ -121,19 +126,7 @@ func StartRuntimeHarness(t testing.TB, opts RuntimeHarnessOptions) *RuntimeHarne
 	}
 	layout.Env = env
 	harness := newRuntimeHarness(t, &layout, binaryPath)
-	startDaemonProcess(t, harness, layout.Env)
-
-	readyCtx, cancel := context.WithTimeout(
-		context.Background(),
-		defaultDuration(opts.StartTimeout, defaultStartTimeout),
-	)
-	defer cancel()
-	if err := harness.waitForReady(readyCtx, defaultDuration(opts.PollInterval, defaultPollInterval)); err != nil {
-		if stopErr := harness.Stop(context.Background()); stopErr != nil {
-			t.Fatalf("stop runtime harness after readiness failure error = %v", stopErr)
-		}
-		t.Fatalf("wait for daemon readiness error = %v", err)
-	}
+	startRuntimeProcess(t, harness, layout.Env, opts)
 
 	workspace, err := harness.ResolveWorkspace(context.Background(), layout.WorkspaceRoot)
 	if err != nil {
@@ -143,6 +136,12 @@ func StartRuntimeHarness(t testing.TB, opts RuntimeHarnessOptions) *RuntimeHarne
 		t.Fatalf("resolve workspace %q error = %v", layout.WorkspaceRoot, err)
 	}
 	harness.WorkspaceID = workspace.ID
+	if _, err := harness.WriteRuntimeManifest(); err != nil {
+		if stopErr := harness.Stop(context.Background()); stopErr != nil {
+			t.Fatalf("stop runtime harness after runtime manifest failure error = %v", stopErr)
+		}
+		t.Fatalf("write runtime manifest error = %v", err)
+	}
 
 	t.Cleanup(func() {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -155,10 +154,50 @@ func StartRuntimeHarness(t testing.TB, opts RuntimeHarnessOptions) *RuntimeHarne
 	return harness
 }
 
+func startRuntimeProcess(
+	t testing.TB,
+	harness *RuntimeHarness,
+	env []string,
+	opts RuntimeHarnessOptions,
+) {
+	t.Helper()
+
+	startTimeout := defaultDuration(opts.StartTimeout, defaultStartTimeout)
+	pollInterval := defaultDuration(opts.PollInterval, defaultPollInterval)
+
+	for attempt := 1; attempt <= maxStartAttempts; attempt++ {
+		startDaemonProcess(t, harness, env)
+
+		readyCtx, cancel := context.WithTimeout(context.Background(), startTimeout)
+		err := harness.waitForReady(readyCtx, pollInterval)
+		cancel()
+		if err == nil {
+			return
+		}
+
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cleanupErr := harness.cleanupFailedStart(cleanupCtx)
+		cleanupCancel()
+		if attempt == maxStartAttempts || !harness.readinessFailureShouldRetry(err) {
+			if cleanupErr != nil {
+				t.Fatalf("cleanup failed start after readiness error = %v (readiness error = %v)", cleanupErr, err)
+			}
+			t.Fatalf("wait for daemon readiness error = %v", err)
+		}
+		if cleanupErr != nil {
+			t.Fatalf("cleanup failed start before retry error = %v (readiness error = %v)", cleanupErr, err)
+		}
+		if err := harness.reseedRuntimeHTTPPort(t); err != nil {
+			t.Fatalf("reseed runtime HTTP port error = %v", err)
+		}
+	}
+}
+
 func newRuntimeHarness(t testing.TB, layout *runtimeLayout, binaryPath string) *RuntimeHarness {
 	t.Helper()
 
 	repoRoot := mustRepoRoot(t)
+	processLogPath := filepath.Join(layout.Artifacts.RootDir(), "daemon-process.log")
 	return &RuntimeHarness{
 		HomePaths:     layout.HomePaths,
 		Config:        layout.Config,
@@ -175,6 +214,7 @@ func newRuntimeHarness(t testing.TB, layout *runtimeLayout, binaryPath string) *
 			env:        layout.Env,
 			workdir:    repoRoot,
 		},
+		processLogPath: processLogPath,
 	}
 }
 
@@ -201,7 +241,10 @@ func newUDSClient(socketPath string) *http.Client {
 func startDaemonProcess(t testing.TB, harness *RuntimeHarness, env []string) {
 	t.Helper()
 
-	processLogPath := filepath.Join(harness.Artifacts.RootDir(), "daemon-process.log")
+	processLogPath := harness.processLogPath
+	if strings.TrimSpace(processLogPath) == "" {
+		processLogPath = filepath.Join(harness.Artifacts.RootDir(), "daemon-process.log")
+	}
 	processLog, err := os.Create(processLogPath)
 	if err != nil {
 		t.Fatalf("os.Create(%q) error = %v", processLogPath, err)
@@ -276,6 +319,13 @@ func (h *RuntimeHarness) Stop(ctx context.Context) error {
 }
 
 func (h *RuntimeHarness) stopWithContext(ctx context.Context) error {
+	defer closeIdleConnections(h.HTTPClient)
+	defer closeIdleConnections(h.UDSClient)
+
+	if h.process == nil && h.waitCh == nil {
+		return nil
+	}
+
 	if exited, err := h.pollExit(); exited {
 		return err
 	}
@@ -304,6 +354,192 @@ func (h *RuntimeHarness) stopWithContext(ctx context.Context) error {
 		return killWaitErr
 	}
 	return waitErr
+}
+
+func (h *RuntimeHarness) cleanupFailedStart(ctx context.Context) error {
+	if h == nil {
+		return nil
+	}
+
+	if h.process != nil || h.waitCh != nil {
+		exited, err := h.pollExit()
+		if err != nil && !exited {
+			return fmt.Errorf("poll failed runtime process exit: %w", err)
+		}
+		if !exited {
+			if err := h.stopWithContext(ctx); err != nil {
+				return fmt.Errorf("stop failed runtime start: %w", err)
+			}
+		}
+	}
+	h.resetProcessState()
+
+	for _, path := range []string{
+		strings.TrimSpace(h.HomePaths.DaemonInfo),
+		strings.TrimSpace(h.Config.Daemon.Socket),
+	} {
+		if path == "" {
+			continue
+		}
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove runtime start artifact %q: %w", path, err)
+		}
+	}
+
+	return nil
+}
+
+func (h *RuntimeHarness) resetProcessState() {
+	if h == nil {
+		return
+	}
+
+	h.processWaitMu.Lock()
+	defer h.processWaitMu.Unlock()
+
+	h.process = nil
+	h.waitCh = nil
+	h.processExited = false
+	h.processErr = nil
+}
+
+func (h *RuntimeHarness) readinessFailureShouldRetry(err error) bool {
+	if h == nil || err == nil {
+		return false
+	}
+	if !strings.Contains(err.Error(), "daemon exited before readiness") {
+		return false
+	}
+
+	processLog, readErr := h.readProcessLog()
+	if readErr != nil {
+		return false
+	}
+	return strings.Contains(processLog, "address already in use")
+}
+
+func (h *RuntimeHarness) readProcessLog() (string, error) {
+	if h == nil {
+		return "", errors.New("runtime harness is required")
+	}
+	path := strings.TrimSpace(h.processLogPath)
+	if path == "" {
+		return "", errors.New("runtime harness process log path is required")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read process log %q: %w", path, err)
+	}
+	return string(data), nil
+}
+
+func (h *RuntimeHarness) reseedRuntimeHTTPPort(t testing.TB) error {
+	t.Helper()
+
+	if h == nil {
+		return errors.New("runtime harness is required")
+	}
+
+	nextPort := testutil.FreeTCPPort(t)
+	for nextPort == h.Config.HTTP.Port {
+		nextPort = testutil.FreeTCPPort(t)
+	}
+
+	h.Config.HTTP.Port = nextPort
+	h.HTTPBaseURL = fmt.Sprintf("http://%s:%d", h.Config.HTTP.Host, nextPort)
+	return writeSeedConfigFile(h.HomePaths, &h.Config)
+}
+
+// RuntimeManifestPath returns the stable runtime-manifest path under the harness artifact root.
+func (h *RuntimeHarness) RuntimeManifestPath() string {
+	if h == nil || h.Artifacts == nil {
+		return ""
+	}
+	return filepath.Join(h.Artifacts.RootDir(), runtimeManifestName)
+}
+
+// RuntimeManifest returns the current runtime-manifest snapshot without writing it.
+func (h *RuntimeHarness) RuntimeManifest() (RuntimeArtifactManifest, error) {
+	if h == nil {
+		return RuntimeArtifactManifest{}, errors.New("runtime harness is required")
+	}
+	if h.Artifacts == nil {
+		return RuntimeArtifactManifest{}, errors.New("runtime harness artifacts are required")
+	}
+
+	runDirectories, err := runtimeRunDirectories(h.HomePaths.SessionsDir)
+	if err != nil {
+		return RuntimeArtifactManifest{}, err
+	}
+	cliBinary := ""
+	cliWorkdir := ""
+	if h.CLI != nil {
+		cliBinary = strings.TrimSpace(h.CLI.binaryPath)
+		cliWorkdir = strings.TrimSpace(h.CLI.workdir)
+	}
+
+	return RuntimeArtifactManifest{
+		Version:       1,
+		WorkspaceRoot: strings.TrimSpace(h.WorkspaceRoot),
+		Home: RuntimeHomeArtifact{
+			HomeDir:          strings.TrimSpace(h.HomePaths.HomeDir),
+			ConfigFile:       strings.TrimSpace(h.HomePaths.ConfigFile),
+			DatabaseFile:     strings.TrimSpace(h.HomePaths.DatabaseFile),
+			DaemonSocket:     strings.TrimSpace(h.HomePaths.DaemonSocket),
+			DaemonInfo:       strings.TrimSpace(h.HomePaths.DaemonInfo),
+			LogsDir:          strings.TrimSpace(h.HomePaths.LogsDir),
+			NetworkAuditFile: strings.TrimSpace(h.HomePaths.NetworkAuditFile),
+		},
+		Logs: RuntimeLogArtifact{
+			DaemonLogFile:  strings.TrimSpace(h.HomePaths.LogFile),
+			ProcessLogFile: strings.TrimSpace(h.processLogPath),
+		},
+		Runs: RuntimeRunArtifact{
+			RootDir:     strings.TrimSpace(h.HomePaths.SessionsDir),
+			Directories: runDirectories,
+		},
+		Transport: RuntimeTransportArtifact{
+			HTTPBaseURL: strings.TrimSpace(h.HTTPBaseURL),
+			HTTPHost:    strings.TrimSpace(h.Config.HTTP.Host),
+			HTTPPort:    h.Config.HTTP.Port,
+			UDSBaseURL:  strings.TrimSpace(h.UDSBaseURL),
+			SocketPath:  strings.TrimSpace(h.Config.Daemon.Socket),
+			CLIBinary:   cliBinary,
+			CLIWorkdir:  cliWorkdir,
+		},
+		ArtifactRootDir:      strings.TrimSpace(h.Artifacts.RootDir()),
+		ArtifactManifestPath: strings.TrimSpace(h.Artifacts.ManifestPath()),
+		CapturedArtifacts:    h.Artifacts.Manifest(),
+	}, nil
+}
+
+// WriteRuntimeManifest persists the current runtime-manifest snapshot.
+func (h *RuntimeHarness) WriteRuntimeManifest() (RuntimeArtifactManifest, error) {
+	if h == nil || h.Artifacts == nil {
+		return RuntimeArtifactManifest{}, errors.New("runtime harness artifacts are required")
+	}
+	if _, err := h.Artifacts.WriteManifest(); err != nil {
+		return RuntimeArtifactManifest{}, err
+	}
+	manifest, err := h.RuntimeManifest()
+	if err != nil {
+		return RuntimeArtifactManifest{}, err
+	}
+
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return RuntimeArtifactManifest{}, fmt.Errorf("marshal runtime manifest: %w", err)
+	}
+	data = append(data, '\n')
+
+	path := h.RuntimeManifestPath()
+	if strings.TrimSpace(path) == "" {
+		return RuntimeArtifactManifest{}, errors.New("runtime harness artifact root is required")
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return RuntimeArtifactManifest{}, fmt.Errorf("write runtime manifest %q: %w", path, err)
+	}
+	return manifest, nil
 }
 
 // HTTPURL returns one absolute HTTP URL under the public daemon surface.
@@ -820,6 +1056,49 @@ func (h *RuntimeHarness) CaptureBrowserNetworkJSON(value any) error {
 	return h.Artifacts.CaptureJSON(ArtifactKindBrowserNetwork, value)
 }
 
+// CaptureTransportOutput stores one transport result inside the shared harness artifact root.
+func (h *RuntimeHarness) CaptureTransportOutput(
+	name string,
+	artifact TransportOutputArtifact,
+) (string, error) {
+	if h == nil {
+		return "", errors.New("runtime harness is required")
+	}
+	if h.Artifacts == nil {
+		return "", errors.New("runtime harness artifacts are required")
+	}
+	artifact.Name = defaultString(artifact.Name, name)
+	path, err := h.Artifacts.CaptureNamedJSON(ArtifactKindTransportOutputs, name, artifact)
+	if err != nil {
+		return "", err
+	}
+	if _, err := h.WriteRuntimeManifest(); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// CaptureCLIOutput stores one CLI command result in the shared transport-output artifact directory.
+func (h *RuntimeHarness) CaptureCLIOutput(
+	name string,
+	args []string,
+	stdout string,
+	stderr string,
+	commandErr error,
+) (string, error) {
+	artifact := TransportOutputArtifact{
+		Name:      strings.TrimSpace(name),
+		Transport: "cli",
+		Command:   append([]string(nil), args...),
+		Stdout:    stdout,
+		Stderr:    stderr,
+	}
+	if commandErr != nil {
+		artifact.Error = commandErr.Error()
+	}
+	return h.CaptureTransportOutput(name, artifact)
+}
+
 // Run executes one CLI command against the isolated daemon runtime.
 func (c *CLIClient) Run(ctx context.Context, args ...string) (string, string, error) {
 	return c.RunInDir(ctx, "", args...)
@@ -1060,6 +1339,7 @@ func readSSERecordsWithCallback(
 		line := scanner.Text()
 		if line == "" {
 			if current.ID != "" || current.Event != "" || len(current.Data) > 0 {
+				normalizeSSEEvent(&current)
 				records = append(records, current)
 				if onRecord != nil {
 					if err := onRecord(current); err != nil {
@@ -1090,6 +1370,7 @@ func readSSERecordsWithCallback(
 		return nil, fmt.Errorf("scan SSE stream: %w", err)
 	}
 	if current.ID != "" || current.Event != "" || len(current.Data) > 0 {
+		normalizeSSEEvent(&current)
 		records = append(records, current)
 		if onRecord != nil {
 			if err := onRecord(current); err != nil {
@@ -1100,9 +1381,61 @@ func readSSERecordsWithCallback(
 	return records, nil
 }
 
+func normalizeSSEEvent(record *SSEEvent) {
+	if record == nil || strings.TrimSpace(record.Event) != "" {
+		return
+	}
+	record.Event = inferSSEEventName(record.Data)
+}
+
+func inferSSEEventName(data []byte) string {
+	trimmed := bytes.TrimSpace(data)
+	switch {
+	case len(trimmed) == 0:
+		return ""
+	case bytes.Equal(trimmed, []byte("[DONE]")):
+		return "done"
+	}
+
+	var envelope struct {
+		Type string          `json:"type"`
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(trimmed, &envelope); err != nil {
+		return ""
+	}
+
+	switch strings.TrimSpace(envelope.Type) {
+	case "data-agh-permission":
+		return "permission"
+	case "data-agh-event":
+		var payload struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(envelope.Data, &payload); err != nil {
+			return "event"
+		}
+		if eventType := strings.TrimSpace(payload.Type); eventType != "" {
+			return eventType
+		}
+		return "event"
+	case "text-start", "text-delta", "text-end":
+		return transportParityEventAgentMessage
+	case "reasoning-start", "reasoning-delta", "reasoning-end":
+		return "reasoning"
+	case "tool-input-start", "tool-input-available":
+		return "tool_call"
+	case "tool-output-available":
+		return "tool_result"
+	default:
+		return strings.TrimSpace(envelope.Type)
+	}
+}
+
 func runtimeEnv(homePaths aghconfig.HomePaths, extra map[string]string) []string {
 	base := append([]string(nil), os.Environ()...)
-	base = append(base, "AGH_HOME="+homePaths.HomeDir, "HOME="+homePaths.HomeDir)
+	base = setEnvValue(base, "AGH_HOME", homePaths.HomeDir)
+	base = setEnvValue(base, "HOME", homePaths.HomeDir)
 
 	keys := make([]string, 0, len(extra))
 	for key := range extra {
@@ -1207,6 +1540,40 @@ func prependPath(prefix string, current string) string {
 	default:
 		return trimmedPrefix + string(os.PathListSeparator) + trimmedCurrent
 	}
+}
+
+func closeIdleConnections(client *http.Client) {
+	if client == nil || client.Transport == nil {
+		return
+	}
+	if closer, ok := client.Transport.(interface{ CloseIdleConnections() }); ok {
+		closer.CloseIdleConnections()
+	}
+}
+
+func runtimeRunDirectories(root string) ([]string, error) {
+	trimmedRoot := strings.TrimSpace(root)
+	if trimmedRoot == "" {
+		return nil, nil
+	}
+
+	entries, err := os.ReadDir(trimmedRoot)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read runtime run root %q: %w", trimmedRoot, err)
+	}
+
+	directories := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		directories = append(directories, filepath.Join(trimmedRoot, entry.Name()))
+	}
+	sortStrings(directories)
+	return directories, nil
 }
 
 func readNetworkAuditSnapshot(path string) ([]store.NetworkAuditEntry, error) {

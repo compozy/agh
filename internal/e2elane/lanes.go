@@ -19,6 +19,7 @@ const (
 	NightlyRuntimeE2EPattern = "^TestDaemonNightlyE2E"
 	HTTPTransportE2EPattern  = "^TestHTTPTransport"
 	UDSTransportE2EPattern   = "^TestUDSTransport"
+	HarnessRuntimeE2EPattern = "^TestStartRuntimeHarness"
 	DaytonaNightlyE2EPattern = "^TestDaytona(" +
 		"ProviderIntegrationFullLifecycle|LauncherTransportValidation|SSHNonPTYValidation)$"
 )
@@ -103,6 +104,10 @@ var runtimeGoSuites = []GoSuite{
 	{
 		Packages: []string{"./internal/api/udsapi"},
 		Run:      UDSTransportE2EPattern,
+	},
+	{
+		Packages: []string{"./internal/testutil/e2e"},
+		Run:      HarnessRuntimeE2EPattern,
 	},
 }
 
