@@ -182,6 +182,29 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 	return resolved, nil
 }
 
+// ResolveSessionAgent resolves a parsed agent definition for one session.
+// When providerOverride is set, the selected provider becomes canonical and
+// provider-owned runtime fields are re-resolved from that provider to avoid
+// mixed runtimes from the original agent definition.
+func (c *Config) ResolveSessionAgent(agent AgentDef, providerOverride string) (ResolvedAgent, error) {
+	override := strings.TrimSpace(providerOverride)
+	if override == "" {
+		return c.ResolveAgent(agent)
+	}
+
+	sessionAgent := agent
+	sessionAgent.Provider = override
+	sessionAgent.Command = ""
+	sessionAgent.Model = ""
+
+	resolved, err := c.ResolveAgent(sessionAgent)
+	if err != nil {
+		return ResolvedAgent{}, fmt.Errorf("resolve session agent with provider %q: %w", override, err)
+	}
+
+	return resolved, nil
+}
+
 func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig {
 	merged := cloneProvider(base)
 	if strings.TrimSpace(override.Command) != "" {
