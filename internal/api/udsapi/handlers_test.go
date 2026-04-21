@@ -1004,101 +1004,105 @@ func TestResumeSessionHandlerReturnsSession(t *testing.T) {
 }
 
 func TestPromptSessionHandlerReturnsSSEStream(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
-		PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
-			ch := make(chan acp.AgentEvent, 2)
-			ch <- acp.AgentEvent{
-				Type:      "agent_message",
-				TurnID:    "turn-1",
-				Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-				Text:      "hello",
-			}
-			ch <- acp.AgentEvent{
-				Type:       "done",
-				TurnID:     "turn-1",
-				Timestamp:  time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
-				StopReason: "end_turn",
-			}
-			close(ch)
-			return ch, nil
-		},
-	}
-	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
-	engine := newTestRouter(t, handlers)
+	t.Run("ShouldReturnAnSSEStream", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+				ch := make(chan acp.AgentEvent, 2)
+				ch <- acp.AgentEvent{
+					Type:      "agent_message",
+					TurnID:    "turn-1",
+					Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+					Text:      "hello",
+				}
+				ch <- acp.AgentEvent{
+					Type:       "done",
+					TurnID:     "turn-1",
+					Timestamp:  time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
+					StopReason: "end_turn",
+				}
+				close(ch)
+				return ch, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/api/sessions/sess-123/prompt",
-		[]byte(`{"message":"hello"}`),
-	)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
-	if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
-		t.Fatalf("Content-Type = %q, want text/event-stream", got)
-	}
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/sessions/sess-123/prompt",
+			[]byte(`{"message":"hello"}`),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
+			t.Fatalf("Content-Type = %q, want text/event-stream", got)
+		}
 
-	records := parseSSE(t, recorder.Body.String())
-	if len(records) != 2 {
-		t.Fatalf("len(records) = %d, want 2; body=%s", len(records), recorder.Body.String())
-	}
-	if records[0].Event != "agent_message" || records[1].Event != "done" {
-		t.Fatalf("events = [%s %s], want [agent_message done]", records[0].Event, records[1].Event)
-	}
+		records := parseSSE(t, recorder.Body.String())
+		if len(records) != 2 {
+			t.Fatalf("len(records) = %d, want 2; body=%s", len(records), recorder.Body.String())
+		}
+		if records[0].Event != "agent_message" || records[1].Event != "done" {
+			t.Fatalf("events = [%s %s], want [agent_message done]", records[0].Event, records[1].Event)
+		}
+	})
 }
 
 func TestPromptSessionHandlerCancelsDetachedPromptContextWhenRequestEnds(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	promptCtxCh := make(chan context.Context, 1)
-	events := make(chan acp.AgentEvent)
-	manager := stubSessionManager{
-		PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
-			promptCtxCh <- ctx
-			return events, nil
-		},
-	}
-	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
-	engine := newTestRouter(t, handlers)
+	t.Run("ShouldCancelTheDetachedPromptContextWhenTheRequestEnds", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		promptCtxCh := make(chan context.Context, 1)
+		events := make(chan acp.AgentEvent)
+		manager := stubSessionManager{
+			PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
+				promptCtxCh <- ctx
+				return events, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
 
-	requestCtx, cancel := context.WithCancel(context.Background())
-	req := httptest.NewRequestWithContext(
-		requestCtx,
-		http.MethodPost,
-		"/api/sessions/sess-123/prompt",
-		strings.NewReader(`{"message":"hello"}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
+		requestCtx, cancel := context.WithCancel(context.Background())
+		req := httptest.NewRequestWithContext(
+			requestCtx,
+			http.MethodPost,
+			"/api/sessions/sess-123/prompt",
+			strings.NewReader(`{"message":"hello"}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
 
-	recorder := httptest.NewRecorder()
-	done := make(chan struct{})
-	go func() {
-		engine.ServeHTTP(recorder, req)
-		close(done)
-	}()
+		recorder := httptest.NewRecorder()
+		done := make(chan struct{})
+		go func() {
+			engine.ServeHTTP(recorder, req)
+			close(done)
+		}()
 
-	var promptCtx context.Context
-	select {
-	case promptCtx = <-promptCtxCh:
-	case <-time.After(time.Second):
-		t.Fatal("Prompt() was not invoked")
-	}
+		var promptCtx context.Context
+		select {
+		case promptCtx = <-promptCtxCh:
+		case <-time.After(time.Second):
+			t.Fatal("Prompt() was not invoked")
+		}
 
-	cancel()
+		cancel()
 
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("handler did not return after request cancellation")
-	}
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("handler did not return after request cancellation")
+		}
 
-	if !errors.Is(promptCtx.Err(), context.Canceled) {
-		t.Fatalf("prompt context err = %v, want context.Canceled after request cancellation", promptCtx.Err())
-	}
+		if !errors.Is(promptCtx.Err(), context.Canceled) {
+			t.Fatalf("prompt context err = %v, want context.Canceled after request cancellation", promptCtx.Err())
+		}
 
-	close(events)
+		close(events)
+	})
 }
 
 func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {

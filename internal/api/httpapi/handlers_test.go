@@ -1205,6 +1205,96 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	}
 }
 
+func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldEmitRealToolInputAfterAForcedPlaceholder", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+				ch := make(chan acp.AgentEvent, 3)
+				ch <- acp.AgentEvent{
+					Type:       "tool_result",
+					TurnID:     "turn-1",
+					Timestamp:  time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
+					ToolCallID: "call-1",
+				}
+				ch <- acp.AgentEvent{
+					Type:       "tool_call",
+					TurnID:     "turn-1",
+					Timestamp:  time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC),
+					Title:      "read_file",
+					ToolCallID: "call-1",
+					Raw:        json.RawMessage(`{"tool_input":{"path":"README.md"}}`),
+				}
+				ch <- acp.AgentEvent{
+					Type:       "done",
+					TurnID:     "turn-1",
+					Timestamp:  time.Date(2026, 4, 3, 12, 0, 3, 0, time.UTC),
+					StopReason: "end_turn",
+				}
+				close(ch)
+				return ch, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/sessions/sess-123/prompt",
+			[]byte(`{"messages":[{"role":"user","parts":[{"type":"text","text":"hello"}]}]}`),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		records := parseSSE(t, recorder.Body.String())
+		if len(records) < 2 {
+			t.Fatalf("len(records) = %d, want at least 2; body=%s", len(records), recorder.Body.String())
+		}
+
+		var toolInputs []map[string]any
+		for _, record := range records[:len(records)-1] {
+			if len(record.Data) == 0 || string(record.Data) == "[DONE]" {
+				continue
+			}
+			var part map[string]any
+			if err := json.Unmarshal(record.Data, &part); err != nil {
+				t.Fatalf("json.Unmarshal(part) error = %v; data=%s", err, string(record.Data))
+			}
+			if part["type"] == "tool-input-available" {
+				toolInputs = append(toolInputs, part)
+			}
+		}
+
+		if len(toolInputs) != 2 {
+			t.Fatalf("len(toolInputs) = %d, want 2; body=%s", len(toolInputs), recorder.Body.String())
+		}
+
+		firstInput, ok := toolInputs[0]["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("first tool input = %#v, want object", toolInputs[0]["input"])
+		}
+		if len(firstInput) != 0 {
+			t.Fatalf("first tool input = %#v, want provisional empty object", firstInput)
+		}
+
+		secondInput, ok := toolInputs[1]["input"].(map[string]any)
+		if !ok {
+			t.Fatalf("second tool input = %#v, want object", toolInputs[1]["input"])
+		}
+		if got, want := secondInput["path"], "README.md"; got != want {
+			t.Fatalf("second tool input path = %#v, want %q", got, want)
+		}
+		if got, want := toolInputs[1]["toolName"], "read_file"; got != want {
+			t.Fatalf("second tool input toolName = %#v, want %q", got, want)
+		}
+	})
+}
+
 func TestPromptSessionHandlerCancelsDetachedPromptContextWhenRequestEnds(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	promptCtxCh := make(chan context.Context, 1)

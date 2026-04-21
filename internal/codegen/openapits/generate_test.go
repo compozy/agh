@@ -104,8 +104,8 @@ func TestCheck(t *testing.T) {
 		if err == nil {
 			t.Fatal("Check() error = nil, want missing output error")
 		}
-		if !strings.Contains(err.Error(), "is missing; run codegen") {
-			t.Fatalf("Check() error = %v, want missing output guidance", err)
+		if !errors.Is(err, ErrMissingGeneratedFile) {
+			t.Fatalf("Check() error = %v, want ErrMissingGeneratedFile", err)
 		}
 	})
 }
@@ -147,8 +147,8 @@ func TestCheckGeneratedFile(t *testing.T) {
 		if err == nil {
 			t.Fatal("checkGeneratedFile() error = nil, want missing output error")
 		}
-		if !strings.Contains(err.Error(), "is missing; run codegen") {
-			t.Fatalf("checkGeneratedFile() error = %v, want missing output guidance", err)
+		if !errors.Is(err, ErrMissingGeneratedFile) {
+			t.Fatalf("checkGeneratedFile() error = %v, want ErrMissingGeneratedFile", err)
 		}
 	})
 }

@@ -4222,20 +4222,22 @@ func (f *fakeSessionManager) ClearConversation(
 func TestFakeSessionManagerClearConversationTreatsMissingSessionAsFreshConversation(t *testing.T) {
 	t.Parallel()
 
-	manager := &fakeSessionManager{}
-	cleared, err := manager.ClearConversation(context.Background(), "sess-missing")
-	if err != nil {
-		t.Fatalf("ClearConversation(missing) error = %v", err)
-	}
-	if cleared == nil {
-		t.Fatal("ClearConversation(missing) = nil, want session")
-	}
-	if got, want := cleared.ID, "sess-missing"; got != want {
-		t.Fatalf("cleared.ID = %q, want %q", got, want)
-	}
-	if got, want := cleared.State, session.StateActive; got != want {
-		t.Fatalf("cleared.State = %q, want %q", got, want)
-	}
+	t.Run("ShouldTreatAMissingSessionAsAFreshConversation", func(t *testing.T) {
+		manager := &fakeSessionManager{}
+		cleared, err := manager.ClearConversation(context.Background(), "sess-missing")
+		if err != nil {
+			t.Fatalf("ClearConversation(missing) error = %v", err)
+		}
+		if cleared == nil {
+			t.Fatal("ClearConversation(missing) = nil, want session")
+		}
+		if got, want := cleared.ID, "sess-missing"; got != want {
+			t.Fatalf("cleared.ID = %q, want %q", got, want)
+		}
+		if got, want := cleared.State, session.StateActive; got != want {
+			t.Fatalf("cleared.State = %q, want %q", got, want)
+		}
+	})
 }
 
 func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {

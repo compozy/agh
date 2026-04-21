@@ -58,16 +58,20 @@ func TestSignalReturnsErrorForMissingProcess(t *testing.T) {
 func TestStartedAtCurrentProcess(t *testing.T) {
 	t.Parallel()
 
-	startedAt, err := StartedAt(os.Getpid())
-	if err != nil {
-		t.Fatalf("StartedAt(current pid) error = %v", err)
-	}
-	if startedAt.IsZero() {
-		t.Fatal("StartedAt(current pid) = zero, want non-zero start time")
-	}
-	if startedAt.After(time.Now().UTC().Add(time.Second)) {
-		t.Fatalf("StartedAt(current pid) = %v, want a past timestamp", startedAt)
-	}
+	t.Run("ShouldReturnANonZeroPastTimestampForTheCurrentProcess", func(t *testing.T) {
+		t.Parallel()
+
+		startedAt, err := StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatalf("StartedAt(current pid) error = %v", err)
+		}
+		if startedAt.IsZero() {
+			t.Fatal("StartedAt(current pid) = zero, want non-zero start time")
+		}
+		if startedAt.After(time.Now().UTC().Add(time.Second)) {
+			t.Fatalf("StartedAt(current pid) = %v, want a past timestamp", startedAt)
+		}
+	})
 }
 
 func TestMatchesStartTimeCurrentProcess(t *testing.T) {
@@ -77,10 +81,32 @@ func TestMatchesStartTimeCurrentProcess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartedAt(current pid) error = %v", err)
 	}
-	if !MatchesStartTime(os.Getpid(), startedAt) {
-		t.Fatalf("MatchesStartTime(current pid, %v) = false, want true", startedAt)
+
+	testCases := []struct {
+		name      string
+		input     time.Time
+		wantMatch bool
+	}{
+		{
+			name:      "ShouldMatchTheCurrentProcessStartTime",
+			input:     startedAt,
+			wantMatch: true,
+		},
+		{
+			name:      "ShouldRejectAMismatchedStartTime",
+			input:     startedAt.Add(-time.Hour),
+			wantMatch: false,
+		},
 	}
-	if MatchesStartTime(os.Getpid(), startedAt.Add(-time.Hour)) {
-		t.Fatalf("MatchesStartTime(current pid, mismatched start) = true, want false")
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := MatchesStartTime(os.Getpid(), tc.input)
+			if got != tc.wantMatch {
+				t.Fatalf("MatchesStartTime(current pid, %v) = %v, want %v", tc.input, got, tc.wantMatch)
+			}
+		})
 	}
 }

@@ -5,6 +5,7 @@ package procutil
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -23,14 +24,16 @@ func StartedAt(pid int) (time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	output, err := execabs.CommandContext(
+	cmd := execabs.CommandContext(
 		ctx,
 		"ps",
 		"-o",
 		"lstart=",
 		"-p",
 		strconv.Itoa(pid),
-	).Output()
+	)
+	cmd.Env = startedAtEnv()
+	output, err := cmd.Output()
 	if err != nil {
 		return time.Time{}, fmt.Errorf("procutil: read process %d start time: %w", pid, err)
 	}
@@ -51,4 +54,20 @@ func StartedAt(pid int) (time.Time, error) {
 	}
 
 	return startedAt.UTC(), nil
+}
+
+func startedAtEnv() []string {
+	return withEnvVar(os.Environ(), "LC_ALL", "C")
+}
+
+func withEnvVar(env []string, key string, value string) []string {
+	prefix := key + "="
+	filtered := make([]string, 0, len(env)+1)
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	return append(filtered, prefix+value)
 }

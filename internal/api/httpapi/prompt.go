@@ -77,6 +77,7 @@ type promptStreamState struct {
 	reasoningStarted bool
 	toolStarted      map[string]struct{}
 	toolInputsReady  map[string]struct{}
+	toolInputPending map[string]struct{}
 	toolNames        map[string]string
 	finished         bool
 }
@@ -114,9 +115,10 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		now: func() string {
 			return h.Now().UTC().Format(time.RFC3339Nano)
 		},
-		toolStarted:     make(map[string]struct{}),
-		toolInputsReady: make(map[string]struct{}),
-		toolNames:       make(map[string]string),
+		toolStarted:      make(map[string]struct{}),
+		toolInputsReady:  make(map[string]struct{}),
+		toolInputPending: make(map[string]struct{}),
+		toolNames:        make(map[string]string),
 	}
 
 	for {
@@ -338,10 +340,16 @@ func (s *promptStreamState) ensureToolInputAvailable(
 		if !force {
 			return nil
 		}
+		if _, ok := s.toolInputPending[toolCallID]; ok {
+			return nil
+		}
+		s.toolInputPending[toolCallID] = struct{}{}
 		input = map[string]any{}
+	} else {
+		delete(s.toolInputPending, toolCallID)
+		s.toolInputsReady[toolCallID] = struct{}{}
 	}
 
-	s.toolInputsReady[toolCallID] = struct{}{}
 	return core.WriteSSE(writer, core.SSEMessage{
 		Data: map[string]any{
 			"type":       "tool-input-available",

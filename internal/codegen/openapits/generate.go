@@ -20,6 +20,9 @@ type Artifact struct {
 // ErrStaleGeneratedFile reports that the committed generated file no longer matches the source spec.
 var ErrStaleGeneratedFile = errors.New("generated file is stale")
 
+// ErrMissingGeneratedFile reports that the committed generated file does not exist.
+var ErrMissingGeneratedFile = errors.New("generated file is missing")
+
 // Generate runs openapi-typescript for one artifact and formats the generated output with oxfmt.
 func Generate(ctx context.Context, artifact Artifact) error {
 	if err := os.MkdirAll(filepath.Dir(artifact.OutputPath), 0o755); err != nil {
@@ -72,8 +75,8 @@ func Check(ctx context.Context, artifact Artifact) (err error) {
 func checkGeneratedFile(path string, want []byte) error {
 	got, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("%s is missing; run codegen", path)
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("%s: %w; run codegen", path, ErrMissingGeneratedFile)
 		}
 		return fmt.Errorf("read %q: %w", path, err)
 	}
