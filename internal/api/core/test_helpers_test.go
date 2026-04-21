@@ -45,6 +45,12 @@ type handlerFixture struct {
 	HomePaths aghconfig.HomePaths
 }
 
+func testConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.Network.Enabled = false
+	return cfg
+}
+
 func newHandlerFixture(
 	t *testing.T,
 	manager testutil.StubSessionManager,
@@ -121,7 +127,7 @@ func newHandlerFixtureWithAutomationAndTasks(
 
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 	cfg.Daemon.Socket = "/tmp/api-core-test.sock"

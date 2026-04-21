@@ -57,6 +57,9 @@ api_key_env = "ANTHROPIC_KEY"
 	if cfg.Memory.Dream.Agent != DefaultAgentName {
 		t.Fatalf("SaveBootstrapConfig() Memory.Dream.Agent = %q, want %q", cfg.Memory.Dream.Agent, DefaultAgentName)
 	}
+	if !cfg.Network.Enabled {
+		t.Fatal("SaveBootstrapConfig() Network.Enabled = false, want inherited enabled default")
+	}
 
 	reloaded, err := LoadGlobalConfig(homePaths)
 	if err != nil {
@@ -79,6 +82,9 @@ api_key_env = "ANTHROPIC_KEY"
 			"claude-sonnet-4-20250514",
 		)
 	}
+	if !reloaded.Network.Enabled {
+		t.Fatal("LoadGlobalConfig() Network.Enabled = false, want inherited enabled default")
+	}
 
 	contents, err := os.ReadFile(homePaths.ConfigFile)
 	if err != nil {
@@ -97,6 +103,90 @@ api_key_env = "ANTHROPIC_KEY"
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("config contents missing %q\n%s", want, text)
+		}
+	}
+}
+
+func TestSaveBootstrapConfigFirstRunKeepsNetworkEnabledByDefault(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-20250514")
+	if err != nil {
+		t.Fatalf("SaveBootstrapConfig() error = %v", err)
+	}
+	if !cfg.Network.Enabled {
+		t.Fatal("SaveBootstrapConfig() Network.Enabled = false, want true on first run")
+	}
+
+	reloaded, err := LoadGlobalConfig(homePaths)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig() error = %v", err)
+	}
+	if !reloaded.Network.Enabled {
+		t.Fatal("LoadGlobalConfig() Network.Enabled = false, want true on first run")
+	}
+
+	contents, err := os.ReadFile(homePaths.ConfigFile)
+	if err != nil {
+		t.Fatalf("ReadFile(config) error = %v", err)
+	}
+	if strings.Contains(string(contents), "[network]") {
+		t.Fatalf("bootstrap config wrote an unexpected network section:\n%s", string(contents))
+	}
+}
+
+func TestSaveBootstrapConfigPreservesExplicitNetworkDisable(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[network]
+enabled = false
+default_channel = "legacy"
+`)
+
+	cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-20250514")
+	if err != nil {
+		t.Fatalf("SaveBootstrapConfig() error = %v", err)
+	}
+	if cfg.Network.Enabled {
+		t.Fatal("SaveBootstrapConfig() Network.Enabled = true, want preserved explicit false")
+	}
+	if got, want := cfg.Network.DefaultChannel, "legacy"; got != want {
+		t.Fatalf("SaveBootstrapConfig() Network.DefaultChannel = %q, want %q", got, want)
+	}
+
+	reloaded, err := LoadGlobalConfig(homePaths)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig() error = %v", err)
+	}
+	if reloaded.Network.Enabled {
+		t.Fatal("LoadGlobalConfig() Network.Enabled = true, want preserved explicit false")
+	}
+	if got, want := reloaded.Network.DefaultChannel, "legacy"; got != want {
+		t.Fatalf("LoadGlobalConfig() Network.DefaultChannel = %q, want %q", got, want)
+	}
+
+	contents, err := os.ReadFile(homePaths.ConfigFile)
+	if err != nil {
+		t.Fatalf("ReadFile(config) error = %v", err)
+	}
+	for _, want := range []string{
+		"[network]",
+		`enabled = false`,
+		`default_channel = "legacy"`,
+	} {
+		if !strings.Contains(string(contents), want) {
+			t.Fatalf("config contents missing %q\n%s", want, string(contents))
 		}
 	}
 }

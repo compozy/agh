@@ -47,7 +47,7 @@ will fail config loading as an unknown key.
 | `[[automation.jobs]]`         | Scheduled automation jobs.                                           | empty list                                                 |
 | `[[automation.triggers]]`     | Event-driven automation triggers.                                    | empty list                                                 |
 | `[[hooks.declarations]]`      | Config-defined runtime hooks.                                        | empty list                                                 |
-| `[network]`                   | Experimental AGH network runtime.                                    | disabled, channel `default`                                |
+| `[network]`                   | Experimental AGH network runtime.                                    | enabled, channel `default`                                 |
 
 ## Load And Merge Order
 
@@ -209,7 +209,7 @@ env = { HOOK_LOG = "1" }
 agent_name = "general"
 
 [network]
-enabled = false
+enabled = true
 default_channel = "default"
 port = -1
 max_payload = 1048576
@@ -482,7 +482,7 @@ context.post_compact
 
 | Field             | Type            | Default   | Valid values                                   | Description                                          |
 | ----------------- | --------------- | --------- | ---------------------------------------------- | ---------------------------------------------------- |
-| `enabled`         | boolean         | `false`   | `true` or `false`                              | Enables the embedded AGH network runtime.            |
+| `enabled`         | boolean         | `true`    | `true` or `false`                              | Enables the embedded AGH network runtime.            |
 | `default_channel` | string          | `default` | Regex `^[a-z0-9][a-z0-9_-]{0,63}$`             | Default network channel for sessions.                |
 | `port`            | integer         | `-1`      | `-1` or `1` through `65535`                    | Network listener port. `-1` lets the runtime choose. |
 | `max_payload`     | integer bytes   | `1048576` | Positive integer no greater than `2147483647`. | Maximum network payload size.                        |

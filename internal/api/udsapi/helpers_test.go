@@ -218,6 +218,7 @@ func newTestHandlersWithSettingsAndExtensions(
 ) *Handlers {
 	t.Helper()
 
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	return newHandlers(&handlerConfig{
 		sessions:        stubSessionManager{},
 		tasks:           stubTaskManager{},
@@ -227,7 +228,7 @@ func newTestHandlersWithSettingsAndExtensions(
 		settingsRestart: restart,
 		extensions:      extensions,
 		homePaths:       homePaths,
-		config:          aghconfig.DefaultWithHome(homePaths),
+		config:          cfg,
 		logger:          discardLogger(),
 		startedAt:       time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		now:             func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
@@ -249,6 +250,7 @@ func newTestHandlersWithRuntime(
 ) *Handlers {
 	t.Helper()
 
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	return newHandlers(&handlerConfig{
 		sessions:     manager,
 		tasks:        tasks,
@@ -257,7 +259,7 @@ func newTestHandlersWithRuntime(
 		bridges:      bridges,
 		workspaces:   workspaces,
 		homePaths:    homePaths,
-		config:       aghconfig.DefaultWithHome(homePaths),
+		config:       cfg,
 		logger:       discardLogger(),
 		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
@@ -288,6 +290,7 @@ func newTestHandlersWithResources(
 ) *Handlers {
 	t.Helper()
 
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	return newHandlers(&handlerConfig{
 		sessions:     manager,
 		tasks:        stubTaskManager{},
@@ -295,7 +298,7 @@ func newTestHandlersWithResources(
 		resources:    resources,
 		workspaces:   stubWorkspaceService{},
 		homePaths:    homePaths,
-		config:       aghconfig.DefaultWithHome(homePaths),
+		config:       cfg,
 		logger:       discardLogger(),
 		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
@@ -317,6 +320,12 @@ func newTestRouter(t *testing.T, handlers *Handlers) *gin.Engine {
 func newTestHomePaths(t *testing.T) aghconfig.HomePaths {
 	t.Helper()
 	return testutil.NewTestHomePaths(t)
+}
+
+func testConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.Network.Enabled = false
+	return cfg
 }
 
 func shortSocketPath(t *testing.T) string {

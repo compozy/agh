@@ -1482,6 +1482,12 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 		!slices.Equal(cfg.Skills.DisabledSkills, want.Skills.DisabledSkills) {
 		t.Fatalf("Load() Skills = %#v, want %#v", cfg.Skills, want.Skills)
 	}
+	if cfg.Network != want.Network {
+		t.Fatalf("Load() Network = %#v, want %#v", cfg.Network, want.Network)
+	}
+	if !cfg.Network.Enabled {
+		t.Fatal("Load() Network.Enabled = false, want true by default")
+	}
 }
 
 func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
@@ -1506,6 +1512,9 @@ func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 	if got, want := cfg.Skills.PollInterval, 3*time.Second; got != want {
 		t.Fatalf("defaultConfig() Skills.PollInterval = %s, want %s", got, want)
 	}
+	if !cfg.Network.Enabled {
+		t.Fatal("defaultConfig() Network.Enabled = false, want true")
+	}
 	if got, want := cfg.Network.DefaultChannel, "default"; got != want {
 		t.Fatalf("defaultConfig() Network.DefaultChannel = %q, want %q", got, want)
 	}
@@ -1514,6 +1523,37 @@ func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 	}
 	if got, want := cfg.Network.MaxPayload, 1<<20; got != want {
 		t.Fatalf("defaultConfig() Network.MaxPayload = %d, want %d", got, want)
+	}
+}
+
+func TestLoadRespectsExplicitNetworkDisable(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[network]
+enabled = false
+default_channel = "operators"
+`)
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Network.Enabled {
+		t.Fatal("Load() Network.Enabled = true, want explicit false override to win")
+	}
+	if got, want := cfg.Network.DefaultChannel, "operators"; got != want {
+		t.Fatalf("Load() Network.DefaultChannel = %q, want %q", got, want)
 	}
 }
 

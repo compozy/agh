@@ -14,6 +14,7 @@ export default defineConfig({
     name: "web",
     environment: "jsdom",
     globals: true,
+    testTimeout: 10_000,
     include: ["src/**/*.{test,spec}.{ts,tsx}", "e2e/**/*.test.ts", "tests/**/*.test.{ts,tsx}"],
     exclude: ["**/node_modules/**", "**/dist/**", "tests/visual/*.spec.ts"],
     setupFiles: ["./src/test-setup.ts"],

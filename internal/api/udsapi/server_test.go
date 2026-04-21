@@ -29,7 +29,7 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 	dream := &stubDreamTrigger{}
 	bridgeService := &stubBridgeService{}
 	extensionService := &stubExtensionService{}
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	cfg.Daemon.Socket = socketPath
 
 	server, err := New(
@@ -176,7 +176,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	socketPath := shortSocketPath(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	cfg.Daemon.Socket = socketPath
 
 	server, err := New(
@@ -242,7 +242,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	socketPath := shortSocketPath(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	cfg.Daemon.Socket = socketPath
 
 	server, err := New(
@@ -273,7 +273,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 func TestServerStartRejectsRegularFileAtSocketPath(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	socketPath := shortSocketPath(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	cfg.Daemon.Socket = socketPath
 	if err := os.WriteFile(socketPath, []byte("not-a-socket"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(socketPath) error = %v", err)

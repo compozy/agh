@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 func TestPrepareRuntimeLayoutCreatesIsolatedPaths(t *testing.T) {
@@ -30,15 +32,33 @@ func TestPrepareRuntimeLayoutCreatesIsolatedPaths(t *testing.T) {
 	}
 }
 
-func TestPrepareRuntimeLayoutEnablesNetworkOnlyWhenRequested(t *testing.T) {
+func TestPrepareRuntimeLayoutUsesEnabledNetworkByDefaultAndAllowsExplicitDisable(t *testing.T) {
 	t.Parallel()
 
-	disabled := prepareRuntimeLayout(t, RuntimeHarnessOptions{})
-	if disabled.Config.Network.Enabled {
-		t.Fatal("disabled.Config.Network.Enabled = true, want false by default")
+	defaulted := prepareRuntimeLayout(t, RuntimeHarnessOptions{})
+	if !defaulted.Config.Network.Enabled {
+		t.Fatal("defaulted.Config.Network.Enabled = false, want true by default")
 	}
 
-	enabled := prepareRuntimeLayout(t, RuntimeHarnessOptions{EnableNetwork: true})
+	disabled := prepareRuntimeLayout(t, RuntimeHarnessOptions{
+		ConfigSeed: ConfigSeedOptions{
+			Mutate: func(cfg *aghconfig.Config) {
+				cfg.Network.Enabled = false
+			},
+		},
+	})
+	if disabled.Config.Network.Enabled {
+		t.Fatal("disabled.Config.Network.Enabled = true, want explicit false override")
+	}
+
+	enabled := prepareRuntimeLayout(t, RuntimeHarnessOptions{
+		EnableNetwork: true,
+		ConfigSeed: ConfigSeedOptions{
+			Mutate: func(cfg *aghconfig.Config) {
+				cfg.Network.Enabled = false
+			},
+		},
+	})
 	if !enabled.Config.Network.Enabled {
 		t.Fatal("enabled.Config.Network.Enabled = false, want true when EnableNetwork is requested")
 	}
