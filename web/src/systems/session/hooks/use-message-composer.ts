@@ -23,13 +23,11 @@ export interface UseMessageComposerOptions {
 export interface UseMessageComposerReturn {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   text: string;
-  skillId: string | null;
   channel: string | null;
   attachments: MessageComposerAttachment[];
   handleChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
   handleKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   handleSend: () => void;
-  handleSkillChange: (next: string | null) => void;
   handleChannelChange: (next: string | null) => void;
   handleAttach: (item: MessageComposerAttachment) => void;
   handleRemoveAttachment: (id: string) => void;
@@ -46,26 +44,22 @@ export function useMessageComposer({
   const draft = useSessionStore(state => (sessionId ? state.drafts[sessionId] : undefined));
 
   const [text, setText] = useState<string>(draft?.text ?? "");
-  const [skillId, setSkillId] = useState<string | null>(draft?.skillId ?? null);
   const [channel, setChannel] = useState<string | null>(draft?.channel ?? null);
   const [attachments, setAttachments] = useState<MessageComposerAttachment[]>([]);
 
-  // Hydrate local state when the session changes (covers route-driven remounts).
   const lastHydratedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!sessionId || lastHydratedRef.current === sessionId) return;
     lastHydratedRef.current = sessionId;
     setText(draft?.text ?? "");
-    setSkillId(draft?.skillId ?? null);
     setChannel(draft?.channel ?? null);
-  }, [sessionId, draft?.text, draft?.skillId, draft?.channel]);
+  }, [sessionId, draft?.channel, draft?.text]);
 
   const persistDraft = useCallback(
-    (patch: { text?: string; skillId?: string | null; channel?: string | null }) => {
+    (patch: { text?: string; channel?: string | null }) => {
       if (!sessionId) return;
       useSessionStore.getState().setDraft(sessionId, {
         ...(patch.text !== undefined ? { text: patch.text } : {}),
-        ...(patch.skillId !== undefined ? { skillId: patch.skillId ?? undefined } : {}),
         ...(patch.channel !== undefined ? { channel: patch.channel ?? undefined } : {}),
       });
     },
@@ -91,7 +85,6 @@ export function useMessageComposer({
     if (!trimmed) return;
     onSend({
       text: trimmed,
-      skillId: skillId ?? undefined,
       channel: channel ?? undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
     });
@@ -101,8 +94,10 @@ export function useMessageComposer({
       useSessionStore.getState().clearDraft(sessionId);
     }
     const el = textareaRef.current;
-    if (el) el.style.height = "auto";
-  }, [attachments, channel, onSend, sessionId, skillId, text]);
+    if (el) {
+      el.style.height = "auto";
+    }
+  }, [attachments, channel, onSend, sessionId, text]);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -116,14 +111,6 @@ export function useMessageComposer({
     [disabled, handleSend]
   );
 
-  const handleSkillChange = useCallback(
-    (next: string | null) => {
-      setSkillId(next);
-      persistDraft({ skillId: next });
-    },
-    [persistDraft]
-  );
-
   const handleChannelChange = useCallback(
     (next: string | null) => {
       setChannel(next);
@@ -133,23 +120,23 @@ export function useMessageComposer({
   );
 
   const handleAttach = useCallback((item: MessageComposerAttachment) => {
-    setAttachments(prev => (prev.some(a => a.id === item.id) ? prev : [...prev, item]));
+    setAttachments(previous =>
+      previous.some(att => att.id === item.id) ? previous : [...previous, item]
+    );
   }, []);
 
   const handleRemoveAttachment = useCallback((id: string) => {
-    setAttachments(prev => prev.filter(a => a.id !== id));
+    setAttachments(previous => previous.filter(att => att.id !== id));
   }, []);
 
   return {
     textareaRef,
     text,
-    skillId,
     channel,
     attachments,
     handleChange,
     handleKeyDown,
     handleSend,
-    handleSkillChange,
     handleChannelChange,
     handleAttach,
     handleRemoveAttachment,

@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+
 import { useSessionStore } from "../hooks/use-session-store";
-import type { UIMessage, PermissionRequest } from "../types";
+import type { PermissionRequest, UIMessage } from "../types";
 
 function makeMessage(overrides: Partial<UIMessage> = {}): UIMessage {
   return {
@@ -14,31 +15,35 @@ function makeMessage(overrides: Partial<UIMessage> = {}): UIMessage {
 
 describe("session-store", () => {
   beforeEach(() => {
-    // Reset store to initial state before each test
     useSessionStore.setState({
       activeSessionId: null,
-      messages: [],
+      historyMessages: [],
+      liveMessages: [],
       isStreaming: false,
+      awaitingTranscriptSync: false,
       pendingPermission: null,
       drafts: {},
     });
   });
 
   describe("setActiveSession", () => {
-    it("replaces messages and sets activeSessionId", () => {
+    it("replaces history messages and sets activeSessionId", () => {
       const messages = [makeMessage({ id: "m1" }), makeMessage({ id: "m2" })];
       useSessionStore.getState().setActiveSession("session-1", messages);
 
       const state = useSessionStore.getState();
       expect(state.activeSessionId).toBe("session-1");
-      expect(state.messages).toHaveLength(2);
-      expect(state.messages[0].id).toBe("m1");
-      expect(state.messages[1].id).toBe("m2");
+      expect(state.historyMessages).toHaveLength(2);
+      expect(state.historyMessages[0].id).toBe("m1");
+      expect(state.historyMessages[1].id).toBe("m2");
+      expect(state.liveMessages).toEqual([]);
     });
 
-    it("clears streaming and permission state", () => {
+    it("clears transient streaming state when switching sessions", () => {
       useSessionStore.setState({
+        liveMessages: [makeMessage({ id: "live-1", isStreaming: true })],
         isStreaming: true,
+        awaitingTranscriptSync: true,
         pendingPermission: {
           requestId: "r1",
           toolName: "Bash",
@@ -51,63 +56,77 @@ describe("session-store", () => {
       useSessionStore.getState().setActiveSession("session-2", []);
 
       const state = useSessionStore.getState();
+      expect(state.liveMessages).toEqual([]);
       expect(state.isStreaming).toBe(false);
+      expect(state.awaitingTranscriptSync).toBe(false);
       expect(state.pendingPermission).toBeNull();
     });
   });
 
-  describe("appendMessage", () => {
-    it("adds message to end of array", () => {
-      const existing = makeMessage({ id: "existing" });
-      useSessionStore.setState({ messages: [existing] });
+  describe("history + live message actions", () => {
+    it("replaceHistoryMessages swaps only the durable transcript", () => {
+      const live = [makeMessage({ id: "live-1" })];
+      useSessionStore.setState({ liveMessages: live });
 
-      const newMsg = makeMessage({ id: "new" });
-      useSessionStore.getState().appendMessage(newMsg);
+      useSessionStore.getState().replaceHistoryMessages([makeMessage({ id: "history-1" })]);
 
-      const messages = useSessionStore.getState().messages;
-      expect(messages).toHaveLength(2);
-      expect(messages[0].id).toBe("existing");
-      expect(messages[1].id).toBe("new");
+      const state = useSessionStore.getState();
+      expect(state.historyMessages.map(message => message.id)).toEqual(["history-1"]);
+      expect(state.liveMessages).toBe(live);
     });
 
-    it("works on empty messages array", () => {
-      const msg = makeMessage({ id: "first" });
-      useSessionStore.getState().appendMessage(msg);
+    it("setLiveMessages replaces only the in-flight tail", () => {
+      useSessionStore.setState({ historyMessages: [makeMessage({ id: "history-1" })] });
 
-      expect(useSessionStore.getState().messages).toHaveLength(1);
-      expect(useSessionStore.getState().messages[0].id).toBe("first");
+      useSessionStore.getState().setLiveMessages([makeMessage({ id: "live-1" })]);
+
+      const state = useSessionStore.getState();
+      expect(state.historyMessages.map(message => message.id)).toEqual(["history-1"]);
+      expect(state.liveMessages.map(message => message.id)).toEqual(["live-1"]);
     });
-  });
 
-  describe("updateLastMessage", () => {
-    it("merges partial into last message", () => {
-      const msg1 = makeMessage({ id: "m1", content: "first" });
-      const msg2 = makeMessage({ id: "m2", content: "original", isStreaming: true });
-      useSessionStore.setState({ messages: [msg1, msg2] });
-
-      useSessionStore.getState().updateLastMessage({
-        content: "updated content",
-        thinking: "some thinking",
-        isStreaming: false,
+    it("clearLiveMessages removes the in-flight tail without touching history", () => {
+      useSessionStore.setState({
+        historyMessages: [makeMessage({ id: "history-1" })],
+        liveMessages: [makeMessage({ id: "live-1" })],
       });
 
-      const messages = useSessionStore.getState().messages;
-      expect(messages).toHaveLength(2);
-      expect(messages[0].content).toBe("first"); // unchanged
-      expect(messages[1].content).toBe("updated content");
-      expect(messages[1].thinking).toBe("some thinking");
-      expect(messages[1].isStreaming).toBe(false);
-      expect(messages[1].id).toBe("m2"); // preserves id
+      useSessionStore.getState().clearLiveMessages();
+
+      const state = useSessionStore.getState();
+      expect(state.historyMessages.map(message => message.id)).toEqual(["history-1"]);
+      expect(state.liveMessages).toEqual([]);
     });
 
-    it("does nothing when messages array is empty", () => {
-      useSessionStore.setState({ messages: [] });
-      useSessionStore.getState().updateLastMessage({ content: "should not crash" });
-      expect(useSessionStore.getState().messages).toHaveLength(0);
+    it("resetConversation clears history, live tail, and transient flags", () => {
+      useSessionStore.setState({
+        activeSessionId: "session-1",
+        historyMessages: [makeMessage({ id: "history-1" })],
+        liveMessages: [makeMessage({ id: "live-1" })],
+        isStreaming: true,
+        awaitingTranscriptSync: true,
+        pendingPermission: {
+          requestId: "r1",
+          toolName: "Bash",
+          toolInput: {},
+          action: "exec",
+          resource: "cmd",
+        },
+      });
+
+      useSessionStore.getState().resetConversation();
+
+      const state = useSessionStore.getState();
+      expect(state.activeSessionId).toBe("session-1");
+      expect(state.historyMessages).toEqual([]);
+      expect(state.liveMessages).toEqual([]);
+      expect(state.isStreaming).toBe(false);
+      expect(state.awaitingTranscriptSync).toBe(false);
+      expect(state.pendingPermission).toBeNull();
     });
   });
 
-  describe("setPendingPermission", () => {
+  describe("pending state", () => {
     it("sets permission state", () => {
       const permission: PermissionRequest = {
         requestId: "req-1",
@@ -118,33 +137,26 @@ describe("session-store", () => {
       };
 
       useSessionStore.getState().setPendingPermission(permission);
-
-      const state = useSessionStore.getState();
-      expect(state.pendingPermission).toEqual(permission);
+      expect(useSessionStore.getState().pendingPermission).toEqual(permission);
     });
 
-    it("clears permission state with null", () => {
-      useSessionStore.setState({
-        pendingPermission: {
-          requestId: "req-1",
-          toolName: "Bash",
-          toolInput: {},
-          action: "exec",
-          resource: "cmd",
-        },
-      });
+    it("tracks transcript sync state", () => {
+      useSessionStore.getState().setAwaitingTranscriptSync(true);
+      expect(useSessionStore.getState().awaitingTranscriptSync).toBe(true);
 
-      useSessionStore.getState().setPendingPermission(null);
-      expect(useSessionStore.getState().pendingPermission).toBeNull();
+      useSessionStore.getState().setAwaitingTranscriptSync(false);
+      expect(useSessionStore.getState().awaitingTranscriptSync).toBe(false);
     });
   });
 
   describe("clearSession", () => {
-    it("resets all state to initial values", () => {
+    it("resets all session state to initial values", () => {
       useSessionStore.setState({
         activeSessionId: "session-1",
-        messages: [makeMessage()],
+        historyMessages: [makeMessage()],
+        liveMessages: [makeMessage({ id: "live-1" })],
         isStreaming: true,
+        awaitingTranscriptSync: true,
         pendingPermission: {
           requestId: "r1",
           toolName: "Bash",
@@ -152,15 +164,17 @@ describe("session-store", () => {
           action: "exec",
           resource: "cmd",
         },
-        drafts: { "session-1": { text: "draft" } },
+        drafts: { "session-1": { text: "draft", channel: "release" } },
       });
 
       useSessionStore.getState().clearSession();
 
       const state = useSessionStore.getState();
       expect(state.activeSessionId).toBeNull();
-      expect(state.messages).toHaveLength(0);
+      expect(state.historyMessages).toEqual([]);
+      expect(state.liveMessages).toEqual([]);
       expect(state.isStreaming).toBe(false);
+      expect(state.awaitingTranscriptSync).toBe(false);
       expect(state.pendingPermission).toBeNull();
       expect(state.drafts).toEqual({});
     });
@@ -169,11 +183,10 @@ describe("session-store", () => {
   describe("setDraft + clearDraft", () => {
     it("stores a draft for a session and merges patches", () => {
       useSessionStore.getState().setDraft("session-a", { text: "Hello" });
-      useSessionStore.getState().setDraft("session-a", { skillId: "no-workarounds" });
+      useSessionStore.getState().setDraft("session-a", { channel: "release" });
 
       const draft = useSessionStore.getState().drafts["session-a"];
-      expect(draft.text).toBe("Hello");
-      expect(draft.skillId).toBe("no-workarounds");
+      expect(draft).toEqual({ text: "Hello", channel: "release" });
     });
 
     it("keeps drafts isolated per session", () => {
@@ -193,21 +206,10 @@ describe("session-store", () => {
     });
 
     it("clearDraft drops the entry", () => {
-      useSessionStore.getState().setDraft("session-a", { text: "Hello", skillId: "x" });
+      useSessionStore.getState().setDraft("session-a", { text: "Hello", channel: "release" });
       useSessionStore.getState().clearDraft("session-a");
 
       expect(useSessionStore.getState().drafts["session-a"]).toBeUndefined();
-    });
-  });
-
-  describe("setActiveSession draft preservation", () => {
-    it("keeps drafts alive across session switches", () => {
-      useSessionStore.getState().setDraft("session-a", { text: "Unsent thought" });
-      useSessionStore.getState().setActiveSession("session-a", []);
-      useSessionStore.getState().setActiveSession("session-b", []);
-      useSessionStore.getState().setActiveSession("session-a", []);
-
-      expect(useSessionStore.getState().drafts["session-a"]?.text).toBe("Unsent thought");
     });
   });
 });

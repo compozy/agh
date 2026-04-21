@@ -289,6 +289,18 @@ func (h *BaseHandlers) ResumeSession(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(sess.Info())})
 }
 
+// ClearSessionConversation clears persisted conversation history and restarts the
+// session with a fresh ACP conversation context while preserving the same id.
+func (h *BaseHandlers) ClearSessionConversation(c *gin.Context) {
+	sess, err := h.Sessions.ClearConversation(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(sess.Info())})
+}
+
 // SessionEvents returns the filtered session event list.
 func (h *BaseHandlers) SessionEvents(c *gin.Context) {
 	query, err := ParseSessionEventQuery(c)

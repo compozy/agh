@@ -111,27 +111,20 @@ export function TasksInboxView({
             <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
           </div>
         ) : errorMessage && !inbox ? (
-          <div
-            className="flex min-h-full items-center justify-center py-10"
+          <Empty
+            icon={AlertCircle}
+            title="Unable to load inbox"
+            description={errorMessage}
             data-testid="tasks-inbox-error"
-          >
-            <div className="flex max-w-md flex-col items-center gap-2 text-center">
-              <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-              <p className="text-sm text-[color:var(--color-text-secondary)]">{errorMessage}</p>
-            </div>
-          </div>
+          />
         ) : groups.length === 0 ? (
-          <div
-            className="flex min-h-full items-center justify-center py-10"
+          <Empty
+            className="mx-auto max-w-xl"
+            description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."
+            icon={Search}
+            title="Nothing is waiting in the inbox"
             data-testid="tasks-inbox-empty"
-          >
-            <Empty
-              className="max-w-xl"
-              description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."
-              icon={Search}
-              title="Nothing is waiting in the inbox"
-            />
-          </div>
+          />
         ) : (
           <div className="flex flex-col gap-6">
             {groups.map(group => (

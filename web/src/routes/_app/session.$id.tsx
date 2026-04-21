@@ -42,8 +42,13 @@ function SessionPage() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <ChatHeader
           session={page.session}
+          onClear={page.handleClear}
           onStop={page.handleStop}
           onResume={page.handleResume}
+          canClear={page.canClear}
+          isStopping={page.isStopping}
+          isResuming={page.isResuming}
+          isClearing={page.isClearing}
           workspaceName={page.workspaceName}
         />
         <ChatView
@@ -63,7 +68,7 @@ function SessionPage() {
             sessionId={id}
             onSend={page.handleSend}
             disabled={page.isDisabled}
-            skills={page.skills}
+            inert={page.isInert}
             channels={page.channels}
           />
         )}

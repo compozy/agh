@@ -33,31 +33,23 @@ export function TasksDashboardView({
 
   if (errorMessage && !dashboard) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center py-10"
+      <Empty
+        icon={AlertCircle}
+        title="Unable to load dashboard"
+        description={errorMessage}
         data-testid="tasks-dashboard-error"
-      >
-        <div className="flex max-w-md flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-          <p className="text-sm text-[color:var(--color-text-secondary)]">{errorMessage}</p>
-        </div>
-      </div>
+      />
     );
   }
 
   if (!dashboard) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-8"
+      <Empty
+        description="Create or run tasks to see queue depth, health, freshness, and live work in one place."
+        icon={AlertCircle}
+        title="No dashboard data yet"
         data-testid="tasks-dashboard-empty"
-      >
-        <Empty
-          className="max-w-xl"
-          description="Create or run tasks to see queue depth, health, freshness, and live work in one place."
-          icon={AlertCircle}
-          title="No dashboard data yet"
-        />
-      </div>
+      />
     );
   }
 

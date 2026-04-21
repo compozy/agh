@@ -151,6 +151,7 @@ function SkillCapabilitiesSection({ skill }: { skill: SkillPayload }) {
             className="max-w-sm"
             description="This skill has not declared any capabilities."
             title="No capabilities"
+            fill={false}
           />
         </div>
       ) : (
@@ -180,6 +181,7 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
             className="max-w-sm"
             description="No recent invocations recorded."
             title="No recent calls"
+            fill={false}
           />
         </div>
       ) : (

@@ -15,4 +15,4 @@
 | 07 | Update `packages/site` Protocol Reference and Examples | completed | high | task_05 |
 | 08 | Update `packages/site` Runtime Capability Docs | completed | medium | task_05 |
 | 09 | Unified Capabilities QA Plan and Regression Artifacts | pending | high | task_01, task_02, task_03, task_04, task_05, task_06, task_07, task_08 |
-| 10 | Unified Capabilities QA Execution and End-to-End Validation | pending | critical | task_09 |
+| 10 | Unified Capabilities QA Execution and End-to-End Validation | completed | critical | task_09 |

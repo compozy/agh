@@ -86,6 +86,8 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
     sessions: [],
     onNewSession,
     isCreatingSession: false,
+    pendingSessionAgentName: null,
+    pendingSessionWorkspaceId: null,
     ...overrides,
   };
 }
@@ -249,6 +251,41 @@ describe("AppSidebar", () => {
       );
 
       expect(screen.getByTestId("new-session-claude-agent")).toBeDisabled();
+    });
+
+    it("shows a spinner and temporary starting row for the pending agent", () => {
+      renderSidebar(
+        makeProps({
+          agents: [
+            { name: "claude-agent", provider: "anthropic", prompt: "help" },
+            { name: "general", provider: "openai", prompt: "general" },
+          ],
+          isCreatingSession: true,
+          pendingSessionAgentName: "claude-agent",
+          pendingSessionWorkspaceId: "ws_alpha",
+        })
+      );
+
+      expect(screen.getByTestId("new-session-claude-agent")).toBeDisabled();
+      expect(screen.getByTestId("new-session-general")).toBeDisabled();
+      expect(screen.getByTestId("new-session-spinner-claude-agent")).toBeInTheDocument();
+      expect(screen.queryByTestId("new-session-spinner-general")).not.toBeInTheDocument();
+      expect(screen.getByTestId("pending-session-row-claude-agent")).toHaveTextContent(
+        "starting..."
+      );
+    });
+
+    it("does not render the temporary row when the pending session belongs to another workspace", () => {
+      renderSidebar(
+        makeProps({
+          agents: [{ name: "claude-agent", provider: "anthropic", prompt: "help" }],
+          isCreatingSession: true,
+          pendingSessionAgentName: "claude-agent",
+          pendingSessionWorkspaceId: "ws_beta",
+        })
+      );
+
+      expect(screen.queryByTestId("pending-session-row-claude-agent")).not.toBeInTheDocument();
     });
   });
 

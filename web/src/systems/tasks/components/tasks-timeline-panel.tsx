@@ -1,7 +1,7 @@
-import { AlertCircle, Loader2 } from "lucide-react";
+import { Activity, AlertCircle, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { Button, MonoBadge, Pills, Section, StatusDot } from "@agh/ui";
+import { Button, Empty, MonoBadge, Pills, Section, StatusDot } from "@agh/ui";
 import type { PillsItem } from "@agh/ui";
 
 import { taskStatusSignal } from "../lib/task-formatters";
@@ -190,26 +190,23 @@ export function TasksTimelinePanel({
 
   if (errorMessage && items.length === 0) {
     return (
-      <div
-        className="flex min-h-[240px] flex-col items-center justify-center gap-2 px-6 text-center"
+      <Empty
+        icon={AlertCircle}
+        title="Unable to load events"
+        description={errorMessage}
         data-testid="tasks-timeline-error"
-      >
-        <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-        <p className="text-sm text-[color:var(--color-text-secondary)]">{errorMessage}</p>
-      </div>
+      />
     );
   }
 
   if (items.length === 0) {
     return (
-      <div
-        className="flex min-h-[240px] flex-col items-center justify-center gap-2 px-6 text-center"
+      <Empty
+        icon={Activity}
+        title="No events recorded yet"
+        description="Events will appear here as this task is executed."
         data-testid="tasks-timeline-empty"
-      >
-        <p className="text-sm text-[color:var(--color-text-secondary)]">
-          No events recorded yet for this task.
-        </p>
-      </div>
+      />
     );
   }
 

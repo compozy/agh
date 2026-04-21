@@ -11,7 +11,6 @@ import {
   filterSkillsByQuery,
   formatSkillRelativeTime,
   matchesMarketplaceCategory,
-  skillSourceShortLabel,
   skillSourceTone,
   skillStatusTone,
 } from "./skill-formatters";
@@ -42,14 +41,6 @@ describe("skill-formatters", () => {
     expect(skillSourceTone("user")).toBe("warning");
     expect(skillSourceTone("additional")).toBe("neutral");
     expect(skillSourceTone("unknown")).toBe("neutral");
-  });
-
-  it("Should shorten sources for badge display", () => {
-    expect(skillSourceShortLabel("bundled")).toBe("BUNDLED");
-    expect(skillSourceShortLabel("workspace")).toBe("WS");
-    expect(skillSourceShortLabel("marketplace")).toBe("MP");
-    expect(skillSourceShortLabel("user")).toBe("USER");
-    expect(skillSourceShortLabel("additional")).toBe("ADD");
   });
 
   it("Should map enabled flag to status dot tone", () => {

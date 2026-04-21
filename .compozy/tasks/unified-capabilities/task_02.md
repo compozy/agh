@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Replace Recipe Wire Kind with Capability Envelopes
 type: backend
 complexity: high
@@ -32,11 +32,11 @@ Replace `kind:"recipe"` at the protocol layer with `kind:"capability"` so the wi
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Replace recipe-specific envelope/body types with unified capability transfer types
-- [ ] 2.2 Update decode and encode registration so `kind:"capability"` becomes the only artifact-transfer kind
-- [ ] 2.3 Rewrite network validation rules for transferred capabilities, including digest verification behavior
-- [ ] 2.4 Update helper text, summaries, and any router-visible metadata derived from envelope kinds
-- [ ] 2.5 Add unit and integration coverage for valid and invalid capability envelopes
+- [x] 2.1 Replace recipe-specific envelope/body types with unified capability transfer types
+- [x] 2.2 Update decode and encode registration so `kind:"capability"` becomes the only artifact-transfer kind
+- [x] 2.3 Rewrite network validation rules for transferred capabilities, including digest verification behavior
+- [x] 2.4 Update helper text, summaries, and any router-visible metadata derived from envelope kinds
+- [x] 2.5 Add unit and integration coverage for valid and invalid capability envelopes
 
 ## Implementation Details
 
@@ -69,15 +69,15 @@ See TechSpec "Core Interfaces", "Data Models", and "Build Order" items 3-4. This
 
 ## Tests
 - Unit tests:
-  - [ ] Decoding a valid `kind:"capability"` envelope returns the expected payload shape and summary metadata
-  - [ ] Missing capability metadata such as `id`, `summary`, `outcome`, or `digest` yields a descriptive validation failure
-  - [ ] A transferred capability whose digest does not match the canonicalized payload is rejected
-  - [ ] Unknown `kind:"recipe"` envelopes are rejected once the new registry is in place
-  - [ ] Capability envelope helpers no longer emit recipe-specific labels or summaries
+  - [x] Decoding a valid `kind:"capability"` envelope returns the expected payload shape and summary metadata
+  - [x] Missing capability metadata such as `id`, `summary`, `outcome`, or `digest` yields a descriptive validation failure
+  - [x] A transferred capability whose digest does not match the canonicalized payload is rejected
+  - [x] Unknown `kind:"recipe"` envelopes are rejected once the new registry is in place
+  - [x] Capability envelope helpers no longer emit recipe-specific labels or summaries
 - Integration tests:
-  - [ ] Encode/decode round-trips for `kind:"capability"` succeed across the in-process network envelope path
-  - [ ] Invalid capability transfers fail before router delivery or lifecycle creation
-  - [ ] Discovery flows continue using `greet` and `whois` rather than the transfer body path
+  - [x] Encode/decode round-trips for `kind:"capability"` succeed across the in-process network envelope path
+  - [x] Invalid capability transfers fail before router delivery or lifecycle creation
+  - [x] Discovery flows continue using `greet` and `whois` rather than the transfer body path
 - Test coverage target: >=80%
 - All tests must pass
 

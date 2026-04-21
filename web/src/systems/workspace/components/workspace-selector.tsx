@@ -33,6 +33,7 @@ function WorkspaceSelector({
         description="Register a workspace to activate AGH for this machine."
         data-testid="workspace-selector-empty"
         className={className}
+        fill={false}
       />
     );
   }

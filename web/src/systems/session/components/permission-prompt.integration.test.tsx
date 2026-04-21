@@ -77,8 +77,10 @@ describe("Permission prompt integration", () => {
   beforeEach(() => {
     useSessionStore.setState({
       activeSessionId: null,
-      messages: [],
+      historyMessages: [],
+      liveMessages: [],
       isStreaming: false,
+      awaitingTranscriptSync: false,
       pendingPermission: null,
     });
   });
@@ -107,7 +109,7 @@ describe("Permission prompt integration", () => {
       <div>
         <ChatView messages={messages} isStreaming={false} />
         <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
-        <MessageComposer onSend={vi.fn()} disabled={true} />
+        <MessageComposer onSend={vi.fn()} inert />
       </div>
     );
 
@@ -125,7 +127,7 @@ describe("Permission prompt integration", () => {
       <div>
         <ChatView messages={messages} isStreaming={false} />
         <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
-        <MessageComposer onSend={vi.fn()} disabled={true} />
+        <MessageComposer onSend={vi.fn()} inert />
       </div>
     );
 

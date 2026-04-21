@@ -1,31 +1,34 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import type {
   MessageComposerChannel,
   MessageComposerPayload,
-  MessageComposerSkill,
 } from "@/systems/session/components/message-composer";
+import {
+  useClearSessionConversation,
+  useResumeSession,
+  useStopSession,
+} from "@/systems/session/hooks/use-session-actions";
 import { useSessionChat } from "@/systems/session/hooks/use-session-chat";
-import { useResumeSession, useStopSession } from "@/systems/session/hooks/use-session-actions";
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import { useSessionTranscript } from "@/systems/session/hooks/use-session-transcript";
 import { useSession } from "@/systems/session/hooks/use-sessions";
 import { useNetworkChannels } from "@/systems/network";
-import { useSkills } from "@/systems/skill";
 import { useWorkspaces } from "@/systems/workspace";
 
 function useSessionPage(id: string) {
   const navigate = useNavigate();
-  const hydratedSessionIdRef = useRef<string | null>(null);
 
   const { data: session, isLoading, error } = useSession(id);
   const { data: workspaces } = useWorkspaces();
-  const messages = useSessionStore(state => state.messages);
-  const isStreaming = useSessionStore(state => state.isStreaming);
-  const pendingPermission = useSessionStore(state => state.pendingPermission);
   const activeSessionId = useSessionStore(state => state.activeSessionId);
+  const historyMessages = useSessionStore(state => state.historyMessages);
+  const liveMessages = useSessionStore(state => state.liveMessages);
+  const isStreaming = useSessionStore(state => state.isStreaming);
+  const awaitingTranscriptSync = useSessionStore(state => state.awaitingTranscriptSync);
+  const pendingPermission = useSessionStore(state => state.pendingPermission);
 
   const {
     transcriptMessages,
@@ -33,31 +36,43 @@ function useSessionPage(id: string) {
     error: transcriptError,
   } = useSessionTranscript(id);
   const canPrompt = session?.state === "active";
-  const { sendMessage: sendChatMessage, status } = useSessionChat({ sessionId: id });
+  const {
+    sendMessage: sendChatMessage,
+    stop: stopChatPrompt,
+    resetLiveState,
+    status,
+    isStoppingPrompt,
+  } = useSessionChat({ sessionId: id });
   const stopMutation = useStopSession();
   const resumeMutation = useResumeSession();
+  const clearMutation = useClearSessionConversation();
 
-  const workspaceId = session?.workspace_id ?? "";
-  const { data: skillsData } = useSkills(workspaceId);
   const { data: channelsData } = useNetworkChannels({ enabled: canPrompt ?? false });
 
-  useEffect(() => {
-    hydratedSessionIdRef.current = null;
-    useSessionStore.setState({
-      activeSessionId: id,
-      isStreaming: false,
-      messages: [],
-      pendingPermission: null,
-    });
-  }, [id]);
+  const resetSessionView = useEffectEvent(() => {
+    resetLiveState();
+    useSessionStore.getState().setActiveSession(id, []);
+  });
 
   useEffect(() => {
-    if (!transcriptMessages || activeSessionId !== id || hydratedSessionIdRef.current === id) {
+    resetSessionView();
+  }, [id]);
+
+  const syncTranscriptHistory = useEffectEvent(
+    (messages: NonNullable<typeof transcriptMessages>) => {
+      useSessionStore.getState().replaceHistoryMessages(messages);
+      if (useSessionStore.getState().awaitingTranscriptSync) {
+        resetLiveState();
+      }
+    }
+  );
+
+  useEffect(() => {
+    if (!transcriptMessages || activeSessionId !== id) {
       return;
     }
 
-    useSessionStore.getState().setActiveSession(id, transcriptMessages);
-    hydratedSessionIdRef.current = id;
+    syncTranscriptHistory(transcriptMessages);
   }, [activeSessionId, id, transcriptMessages]);
 
   useEffect(() => {
@@ -76,8 +91,22 @@ function useSessionPage(id: string) {
   }, [id, resumeMutation]);
 
   const handleStop = useCallback(() => {
+    if (isStreaming || status === "submitted" || status === "streaming") {
+      stopChatPrompt();
+      return;
+    }
+
     stopMutation.mutate(id);
-  }, [id, stopMutation]);
+  }, [id, isStreaming, status, stopChatPrompt, stopMutation]);
+
+  const handleClear = useCallback(() => {
+    if (clearMutation.isPending) {
+      return;
+    }
+
+    resetLiveState();
+    clearMutation.mutate(id);
+  }, [clearMutation, id, resetLiveState]);
 
   const handleSend = useCallback(
     (payload: MessageComposerPayload) => {
@@ -87,18 +116,6 @@ function useSessionPage(id: string) {
   );
 
   const workspaceName = workspaces?.find(workspace => workspace.id === session?.workspace_id)?.name;
-  const isDisabled =
-    !canPrompt || isStreaming || status === "submitted" || pendingPermission !== null;
-
-  const skills = useMemo<MessageComposerSkill[]>(() => {
-    return (skillsData ?? [])
-      .filter(skill => skill.enabled)
-      .map(skill => ({
-        id: skill.name,
-        name: skill.name,
-        description: skill.description ?? undefined,
-      }));
-  }, [skillsData]);
 
   const channels = useMemo<MessageComposerChannel[]>(() => {
     return (channelsData?.channels ?? []).map(channel => ({
@@ -107,21 +124,45 @@ function useSessionPage(id: string) {
     }));
   }, [channelsData]);
 
+  const messages = useMemo(() => {
+    return [...historyMessages, ...liveMessages];
+  }, [historyMessages, liveMessages]);
+
+  const isStopping = stopMutation.isPending || isStoppingPrompt;
+  const isResuming = resumeMutation.isPending;
+  const isClearing = clearMutation.isPending;
+  const controlsBusy = isStopping || isResuming || isClearing;
+  const isDisabled = !canPrompt || isStreaming || awaitingTranscriptSync || isClearing;
+  const isInert = pendingPermission !== null;
+  const canClear =
+    messages.length > 0 &&
+    !controlsBusy &&
+    !isStreaming &&
+    !awaitingTranscriptSync &&
+    pendingPermission === null &&
+    status !== "submitted" &&
+    status !== "streaming";
+
   return {
+    canClear,
     canPrompt,
     channels,
     fatalErrorMessage: error?.message ?? transcriptError?.message ?? "Session not found",
+    handleClear,
     handlePermissionResolved,
     handleResume,
     handleSend,
     handleStop,
+    isClearing,
     isDisabled,
+    isInert,
     isLoading: isLoading || isLoadingTranscript,
+    isResuming,
+    isStopping,
     isStreaming,
     messages,
     pendingPermission,
     session,
-    skills,
     workspaceName,
   };
 }

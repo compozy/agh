@@ -16,3 +16,12 @@ func (h *Handlers) approveSession(c *gin.Context) {
 		false,
 	)
 }
+
+func (h *Handlers) cancelSessionPrompt(c *gin.Context) {
+	if err := h.Sessions.CancelPrompt(c.Request.Context(), c.Param("id")); err != nil {
+		core.RespondError(c, core.StatusForSessionError(err), err, false)
+		return
+	}
+
+	c.Status(http.StatusOK)
+}

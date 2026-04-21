@@ -14,6 +14,12 @@ export interface EmptyProps extends Omit<React.ComponentProps<"div">, "title"> {
   titleAs?: EmptyTitleTag;
   description?: React.ReactNode;
   action?: React.ReactNode;
+  /**
+   * When `true` (default), the empty state stretches to fill its flex parent
+   * and centers vertically. Set to `false` for small card/popover contexts
+   * where the empty state should sit at its natural content height.
+   */
+  fill?: boolean;
 }
 
 function isComponentType(value: unknown): value is IconComponent {
@@ -35,7 +41,16 @@ function resolveTitleTag(title: React.ReactNode): EmptyTitleTag {
  * Mirrors `Empty` in `docs/design/web-inspiration/src/primitives.jsx` and DESIGN.md §4 "Empty State".
  * `icon` accepts either a Lucide-style component reference or a pre-rendered ReactNode.
  */
-function Empty({ icon, title, titleAs, description, action, className, ...props }: EmptyProps) {
+function Empty({
+  icon,
+  title,
+  titleAs,
+  description,
+  action,
+  fill = true,
+  className,
+  ...props
+}: EmptyProps) {
   let iconContent: React.ReactNode;
   if (icon === undefined) {
     iconContent = <BoxIcon className="size-5" />;
@@ -51,8 +66,10 @@ function Empty({ icon, title, titleAs, description, action, className, ...props 
   return (
     <div
       data-slot="empty"
+      data-fill={fill ? "true" : "false"}
       className={cn(
         "flex w-full flex-col items-center justify-center gap-3 rounded-xl text-center",
+        fill && "h-full min-h-0 flex-1",
         className
       )}
       {...props}

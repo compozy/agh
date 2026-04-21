@@ -46,7 +46,9 @@ type SessionManager interface {
 	Stop(ctx context.Context, id string) error
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 	Resume(ctx context.Context, id string) (*session.Session, error)
+	ClearConversation(ctx context.Context, id string) (*session.Session, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
+	CancelPrompt(ctx context.Context, id string) error
 	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error
 }
 

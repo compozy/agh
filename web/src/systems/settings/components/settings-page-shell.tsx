@@ -74,7 +74,7 @@ function SettingsPageShell({
         )}
         data-testid={`settings-page-${slug}-body`}
       >
-        <div className="flex flex-col gap-6 pb-6 md:gap-8 md:pb-8">{children}</div>
+        <div className="flex min-h-full flex-col gap-6 pb-6 md:gap-8 md:pb-8">{children}</div>
       </div>
 
       {footer ? (

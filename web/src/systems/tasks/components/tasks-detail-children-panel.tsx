@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { AlertCircle, ChevronRight, ListTree } from "lucide-react";
 
 import {
+  Empty,
   MonoBadge,
   Pill,
   Section,
@@ -41,23 +42,22 @@ export function TasksDetailChildrenPanel({
 }: TasksDetailChildrenPanelProps) {
   if (errorMessage && items.length === 0) {
     return (
-      <div
-        className="flex min-h-[200px] items-center justify-center px-6 text-center text-sm text-[color:var(--color-danger)]"
+      <Empty
+        icon={AlertCircle}
+        title="Unable to load children"
+        description={errorMessage}
         data-testid="tasks-detail-children-error"
-      >
-        {errorMessage}
-      </div>
+      />
     );
   }
 
   if (items.length === 0) {
     return (
-      <div
-        className="flex min-h-[200px] items-center justify-center px-6 text-center text-sm text-[color:var(--color-text-secondary)]"
+      <Empty
+        icon={ListTree}
+        title="This task has no children"
         data-testid="tasks-detail-children-empty"
-      >
-        This task has no children.
-      </div>
+      />
     );
   }
 

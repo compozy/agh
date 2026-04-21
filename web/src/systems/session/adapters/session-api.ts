@@ -84,6 +84,26 @@ export async function stopSession(id: string, signal?: AbortSignal): Promise<voi
   }
 }
 
+export async function cancelSessionPrompt(id: string, signal?: AbortSignal): Promise<void> {
+  const request = new Request(
+    new URL(
+      `/api/sessions/${encodeURIComponent(id)}/prompt/cancel`,
+      typeof window === "undefined" ? "http://localhost" : window.location.origin
+    ),
+    {
+      method: "POST",
+      signal,
+    }
+  );
+  const response = await globalThis.fetch(request);
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(`Session not found: ${id}`);
+    }
+    throw new Error(`Failed to cancel prompt for session "${id}": ${response.status}`);
+  }
+}
+
 export async function resumeSession(id: string, signal?: AbortSignal): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.POST("/api/sessions/{id}/resume", {
     params: { path: { id } },
@@ -96,6 +116,53 @@ export async function resumeSession(id: string, signal?: AbortSignal): Promise<S
     throw new Error(defaultApiErrorMessage(`Failed to resume session "${id}"`, response, error));
   }
   return requireResponseData(data, response, `Failed to resume session "${id}"`).session;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isSessionEnvelope(value: unknown): value is { session: SessionPayload } {
+  if (!isPlainObject(value) || !("session" in value)) {
+    return false;
+  }
+
+  const session = value.session;
+  return isPlainObject(session) && typeof session.id === "string";
+}
+
+export async function clearSessionConversation(
+  id: string,
+  signal?: AbortSignal
+): Promise<SessionPayload> {
+  const request = new Request(
+    new URL(
+      `/api/sessions/${encodeURIComponent(id)}/clear`,
+      typeof window === "undefined" ? "http://localhost" : window.location.origin
+    ),
+    {
+      method: "POST",
+      signal,
+    }
+  );
+
+  const response = await globalThis.fetch(request);
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(`Session not found: ${id}`);
+    }
+    if (response.status === 409) {
+      throw new Error(`Cannot clear session "${id}" while a prompt is still running`);
+    }
+    throw new Error(`Failed to clear session "${id}": ${response.status}`);
+  }
+
+  const body: unknown = await response.json();
+  if (!isSessionEnvelope(body)) {
+    throw new Error(`Failed to clear session "${id}": invalid response payload`);
+  }
+
+  return body.session;
 }
 
 export async function fetchSessionEvents(

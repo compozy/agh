@@ -4193,6 +4193,32 @@ func (f *fakeSessionManager) Resume(context.Context, string) (*session.Session, 
 	return nil, nil
 }
 
+func (f *fakeSessionManager) ClearConversation(
+	ctx context.Context,
+	id string,
+) (*session.Session, error) {
+	info, err := f.Status(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if info == nil {
+		return &session.Session{ID: id, State: session.StateActive}, nil
+	}
+
+	return &session.Session{
+		ID:          info.ID,
+		Name:        info.Name,
+		AgentName:   info.AgentName,
+		WorkspaceID: info.WorkspaceID,
+		Workspace:   info.Workspace,
+		Channel:     info.Channel,
+		Type:        info.Type,
+		State:       session.StateActive,
+		CreatedAt:   info.CreatedAt,
+		UpdatedAt:   info.UpdatedAt,
+	}, nil
+}
+
 func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	f.mu.Lock()
 	f.promptCalls = append(f.promptCalls, struct {

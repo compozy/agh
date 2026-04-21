@@ -39,3 +39,12 @@ func (h *Handlers) approveSession(c *gin.Context) {
 
 	c.JSON(http.StatusOK, contract.SessionApprovalResponse{Status: "approved"})
 }
+
+func (h *Handlers) cancelSessionPrompt(c *gin.Context) {
+	if err := h.Sessions.CancelPrompt(c.Request.Context(), c.Param("id")); err != nil {
+		core.RespondError(c, core.StatusForSessionError(err), err, true)
+		return
+	}
+
+	c.Status(http.StatusOK)
+}

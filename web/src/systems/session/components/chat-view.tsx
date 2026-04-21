@@ -84,7 +84,7 @@ function ChatViewContent({ messages, isStreaming, agentName }: ChatViewProps) {
         data-testid="chat-view-scroll"
       >
         <div
-          className="mx-auto w-full max-w-[820px]"
+          className="w-full"
           style={{
             height: `${view.virtualizer.getTotalSize()}px`,
             position: "relative",

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
-import { ChevronDown, Hash, Paperclip, SendHorizontal, Wrench, X } from "lucide-react";
+import { ChevronDown, Hash, Paperclip, SendHorizontal, X } from "lucide-react";
 
 import {
   Button,
@@ -28,12 +28,6 @@ export interface MessageComposerAttachment {
   size?: number;
 }
 
-export interface MessageComposerSkill {
-  id: string;
-  name: string;
-  description?: string;
-}
-
 export interface MessageComposerChannel {
   id: string;
   name: string;
@@ -42,7 +36,6 @@ export interface MessageComposerChannel {
 
 export interface MessageComposerPayload {
   text: string;
-  skillId?: string;
   channel?: string;
   attachments?: MessageComposerAttachment[];
 }
@@ -52,7 +45,7 @@ export interface MessageComposerProps {
   /** Session id used to scope persisted drafts. When omitted, drafts are not persisted. */
   sessionId?: string | null;
   disabled?: boolean;
-  skills?: MessageComposerSkill[];
+  inert?: boolean;
   channels?: MessageComposerChannel[];
   /** Attach menu items rendered inside the Popover. */
   attachOptions?: MessageComposerAttachment[];
@@ -74,12 +67,13 @@ export function MessageComposer({
   onSend,
   sessionId,
   disabled,
-  skills,
+  inert = false,
   channels,
   attachOptions,
   className,
 }: MessageComposerProps) {
   const composer = useMessageComposer({ sessionId, disabled, onSend });
+  const interactiveDisabled = disabled || inert;
 
   const attachmentMap = useMemo(() => {
     const map = new Map<string, MessageComposerAttachment>();
@@ -87,21 +81,23 @@ export function MessageComposer({
     return map;
   }, [composer.attachments]);
 
-  const hasSkills = (skills?.length ?? 0) > 0;
   const hasChannels = (channels?.length ?? 0) > 0;
-  const activeSkill = hasSkills ? skills?.find(s => s.id === composer.skillId) : undefined;
   const activeChannel = hasChannels ? channels?.find(c => c.id === composer.channel) : undefined;
 
   return (
     <div className={cn("px-4 py-3", className)} data-testid="message-composer">
       <div
+        aria-busy={disabled || undefined}
+        aria-disabled={interactiveDisabled || undefined}
         className={cn(
           "flex flex-col gap-2 rounded-xl border px-3 pt-2.5 pb-2",
           "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
           "focus-within:border-[color:var(--color-accent)]",
-          "transition-colors"
+          "transition-colors",
+          inert && "pointer-events-none opacity-60"
         )}
         data-testid="composer-container"
+        inert={inert || undefined}
       >
         {composer.attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5" data-testid="composer-attachments">
@@ -136,7 +132,7 @@ export function MessageComposer({
           onChange={composer.handleChange}
           onKeyDown={composer.handleKeyDown}
           placeholder="Send a message..."
-          disabled={disabled}
+          disabled={interactiveDisabled}
           rows={1}
           aria-label="Message composer"
           className={cn(
@@ -154,18 +150,8 @@ export function MessageComposer({
             options={attachOptions ?? []}
             attachmentMap={attachmentMap}
             onAttach={composer.handleAttach}
-            disabled={disabled}
+            disabled={interactiveDisabled}
           />
-
-          {hasSkills && (
-            <ComposerSkillPill
-              skills={skills ?? []}
-              value={composer.skillId}
-              activeSkill={activeSkill}
-              onChange={composer.handleSkillChange}
-              disabled={disabled}
-            />
-          )}
 
           {hasChannels && (
             <ComposerChannelPill
@@ -173,7 +159,7 @@ export function MessageComposer({
               value={composer.channel}
               activeChannel={activeChannel}
               onChange={composer.handleChannelChange}
-              disabled={disabled}
+              disabled={interactiveDisabled}
             />
           )}
 
@@ -181,7 +167,7 @@ export function MessageComposer({
             <Button
               type="button"
               aria-label="Send message"
-              disabled={disabled}
+              disabled={interactiveDisabled}
               onClick={composer.handleSend}
               className={cn(
                 "flex size-9 shrink-0 items-center justify-center rounded-full p-0",
@@ -294,96 +280,6 @@ function ComposerAttachPill({
         )}
       </PopoverContent>
     </Popover>
-  );
-}
-
-interface ComposerSkillPillProps {
-  skills: MessageComposerSkill[];
-  value: string | null;
-  activeSkill?: MessageComposerSkill;
-  onChange: (next: string | null) => void;
-  disabled?: boolean;
-}
-
-function ComposerSkillPill({
-  skills,
-  value,
-  activeSkill,
-  onChange,
-  disabled,
-}: ComposerSkillPillProps) {
-  const handleValueChange = useCallback(
-    (next: unknown) => {
-      if (typeof next === "string") {
-        onChange(next.length > 0 ? next : null);
-        return;
-      }
-      onChange(null);
-    },
-    [onChange]
-  );
-
-  return (
-    <Combobox
-      items={skills.map(s => s.id)}
-      value={value ?? ""}
-      onValueChange={handleValueChange}
-      autoHighlight
-    >
-      <ComboboxPrimitive.Trigger
-        type="button"
-        disabled={disabled}
-        data-testid="composer-skill-pill"
-        className={pillTriggerClass}
-      >
-        <Wrench />
-        <span>{activeSkill?.name ?? "skills"}</span>
-        <ChevronDown className="opacity-60" />
-      </ComboboxPrimitive.Trigger>
-      <ComboboxContent
-        align="start"
-        side="top"
-        className="w-64 overflow-hidden p-0"
-        data-testid="composer-skill-combobox"
-      >
-        <div className="border-b border-[color:var(--color-divider)] p-1.5">
-          <ComboboxPrimitive.Input
-            data-testid="composer-skill-search"
-            placeholder="Search skills"
-            className={cn(
-              "h-7 w-full rounded-md bg-transparent px-2 text-sm",
-              "text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-tertiary)]",
-              "outline-none focus:ring-0"
-            )}
-          />
-        </div>
-        <ComboboxList className="max-h-56">
-          <ComboboxEmpty className="py-3 text-xs">No skills match.</ComboboxEmpty>
-          <ComboboxCollection>
-            {(id: string) => {
-              const skill = skills.find(s => s.id === id);
-              return (
-                <ComboboxItem
-                  key={id}
-                  value={id}
-                  data-testid={`composer-skill-item-${id}`}
-                  className="flex-col items-start gap-0 px-2 py-1.5 pr-2"
-                >
-                  <span className="text-sm text-[color:var(--color-text-primary)]">
-                    {skill?.name ?? id}
-                  </span>
-                  {skill?.description && (
-                    <span className="text-[11px] text-[color:var(--color-text-tertiary)]">
-                      {skill.description}
-                    </span>
-                  )}
-                </ComboboxItem>
-              );
-            }}
-          </ComboboxCollection>
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
   );
 }
 

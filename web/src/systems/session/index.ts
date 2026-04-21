@@ -76,7 +76,12 @@ export type {
 
 // Hooks
 export { useSession, useSessions } from "./hooks/use-sessions";
-export { useCreateSession, useResumeSession, useStopSession } from "./hooks/use-session-actions";
+export {
+  useClearSessionConversation,
+  useCreateSession,
+  useResumeSession,
+  useStopSession,
+} from "./hooks/use-session-actions";
 export {
   useSessionChat,
   type UseSessionChatOptions,
@@ -106,7 +111,6 @@ export {
   type MessageComposerChannel,
   type MessageComposerPayload,
   type MessageComposerProps,
-  type MessageComposerSkill,
 } from "./components/message-composer";
 export { ThinkingBlock, type ThinkingBlockProps } from "./components/thinking-block";
 export {

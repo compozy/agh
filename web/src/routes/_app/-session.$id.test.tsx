@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
@@ -74,7 +74,10 @@ vi.mock("@/systems/session/hooks/use-session-transcript", () => ({
 vi.mock("@/systems/session/hooks/use-session-chat", () => ({
   useSessionChat: () => ({
     sendMessage: vi.fn(),
+    stop: vi.fn(),
+    resetLiveState: vi.fn(),
     status: "ready" as const,
+    isStoppingPrompt: false,
   }),
 }));
 
@@ -96,14 +99,16 @@ vi.mock("@/systems/workspace", () => ({
 vi.mock("@/systems/session/hooks/use-session-actions", () => ({
   useStopSession: () => ({
     mutate: vi.fn(),
+    isPending: false,
   }),
   useResumeSession: () => ({
     mutate: vi.fn(),
+    isPending: false,
   }),
-}));
-
-vi.mock("@/systems/skill", () => ({
-  useSkills: () => ({ data: undefined, isLoading: false, error: null }),
+  useClearSessionConversation: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock("@/systems/network", () => ({
@@ -111,8 +116,8 @@ vi.mock("@/systems/network", () => ({
 }));
 
 vi.mock("@/systems/session/components/chat-header", () => ({
-  ChatHeader: ({ workspaceName }: { workspaceName?: string }) => (
-    <div data-testid="chat-header">{workspaceName ?? "no-workspace"}</div>
+  ChatHeader: ({ workspaceName, canClear }: { workspaceName?: string; canClear?: boolean }) => (
+    <div data-testid="chat-header">{`${workspaceName ?? "no-workspace"}:${String(canClear)}`}</div>
   ),
 }));
 
@@ -128,7 +133,9 @@ vi.mock("@/systems/session/components/chat-view", () => ({
 }));
 
 vi.mock("@/systems/session/components/message-composer", () => ({
-  MessageComposer: () => <div data-testid="message-composer" />,
+  MessageComposer: ({ inert }: { inert?: boolean }) => (
+    <div data-testid="message-composer" data-inert={String(Boolean(inert))} />
+  ),
 }));
 
 vi.mock("@/systems/session/components/permission-prompt", () => ({
@@ -155,8 +162,10 @@ describe("SessionPage", () => {
     };
     useSessionStore.setState({
       activeSessionId: null,
-      messages: [],
+      historyMessages: [],
+      liveMessages: [],
       isStreaming: false,
+      awaitingTranscriptSync: false,
       pendingPermission: null,
     });
     mockNavigate.mockReset();
@@ -165,7 +174,7 @@ describe("SessionPage", () => {
   it("hydrates a late transcript for the active session", () => {
     const { rerender } = render(<SessionPage />);
 
-    expect(screen.getByTestId("chat-header")).toHaveTextContent("alpha");
+    expect(screen.getByTestId("chat-header")).toHaveTextContent("alpha:false");
     expect(screen.getByTestId("message-count")).toHaveTextContent("0");
 
     transcriptState = {
@@ -185,7 +194,7 @@ describe("SessionPage", () => {
     };
 
     const { rerender } = render(<SessionPage />);
-    expect(screen.getByTestId("chat-header")).toHaveTextContent("alpha");
+    expect(screen.getByTestId("chat-header")).toHaveTextContent("alpha:true");
     expect(screen.getByTestId("message-content")).toHaveTextContent("from-a");
 
     routeParams = { id: "sess-2" };
@@ -227,5 +236,22 @@ describe("SessionPage", () => {
     render(<SessionPage />);
 
     expect(screen.queryByTestId("message-composer")).not.toBeInTheDocument();
+  });
+
+  it("renders the composer inert when a permission prompt is pending", () => {
+    render(<SessionPage />);
+
+    act(() => {
+      useSessionStore.getState().setPendingPermission({
+        requestId: "req-1",
+        toolName: "Bash",
+        toolInput: {},
+        action: "execute",
+        resource: "cmd",
+      });
+    });
+
+    expect(screen.getByTestId("message-composer")).toHaveAttribute("data-inert", "true");
+    expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
   });
 });

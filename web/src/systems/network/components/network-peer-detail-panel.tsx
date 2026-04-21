@@ -289,6 +289,7 @@ export function NetworkPeerDetailPanel({ error, isLoading, peer }: NetworkPeerDe
               icon={Network}
               title="No capabilities advertised"
               description="This peer does not advertise any runtime capabilities."
+              fill={false}
             />
           ) : (
             <ul className="flex flex-col gap-2" data-testid="network-peer-capabilities">
@@ -336,6 +337,7 @@ export function NetworkPeerDetailPanel({ error, isLoading, peer }: NetworkPeerDe
               icon={Network}
               title="No channel membership"
               description="This peer is visible but did not report an active channel membership."
+              fill={false}
             />
           )}
         </Section>

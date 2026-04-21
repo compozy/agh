@@ -7,8 +7,10 @@ import { MessageComposer, type MessageComposerPayload } from "./message-composer
 function resetStore() {
   useSessionStore.setState({
     activeSessionId: null,
-    messages: [],
+    historyMessages: [],
+    liveMessages: [],
     isStreaming: false,
+    awaitingTranscriptSync: false,
     pendingPermission: null,
     drafts: {},
   });
@@ -26,8 +28,9 @@ describe("MessageComposer", () => {
     cleanup();
   });
 
-  it("renders container with 12px rounded, divider border, surface fill, accent focus", () => {
+  it("renders container with divider border, surface fill, and accent focus state", () => {
     renderComposer();
+
     const container = screen.getByTestId("composer-container");
     expect(container.className).toContain("rounded-xl");
     expect(container.className).toMatch(/border-\[color:var\(--color-divider\)\]/);
@@ -37,6 +40,7 @@ describe("MessageComposer", () => {
 
   it("renders a 36px circular accent send button with SendHorizontal icon", () => {
     renderComposer();
+
     const sendButton = screen.getByTestId("composer-send-button");
     expect(sendButton.className).toContain("rounded-full");
     expect(sendButton.className).toContain("size-9");
@@ -44,9 +48,10 @@ describe("MessageComposer", () => {
     expect(sendButton.querySelector("svg")).not.toBeNull();
   });
 
-  it("Enter sends the trimmed text, clears the textarea, and calls onSend with payload", () => {
+  it("Enter sends trimmed text, clears the textarea, and calls onSend with payload", () => {
     const { onSend } = renderComposer();
     const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
+
     fireEvent.change(textarea, { target: { value: "  Hello world  " } });
     fireEvent.keyDown(textarea, { key: "Enter" });
 
@@ -58,8 +63,10 @@ describe("MessageComposer", () => {
   it("Shift+Enter inserts a newline without calling onSend", () => {
     const { onSend } = renderComposer();
     const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
+
     fireEvent.change(textarea, { target: { value: "Line 1" } });
     fireEvent.keyDown(textarea, { key: "Enter", shiftKey: true });
+
     expect(onSend).not.toHaveBeenCalled();
     expect(textarea.value).toBe("Line 1");
   });
@@ -67,12 +74,14 @@ describe("MessageComposer", () => {
   it("does not send whitespace-only messages", () => {
     const { onSend } = renderComposer();
     const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
+
     fireEvent.change(textarea, { target: { value: "   " } });
     fireEvent.keyDown(textarea, { key: "Enter" });
+
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it("disabled state: textarea + send button disabled, Enter and click are no-ops, send shows disabled classes", () => {
+  it("disabled state makes textarea and send button unavailable", () => {
     const { onSend } = renderComposer({ disabled: true });
     const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
     const sendButton = screen.getByTestId("composer-send-button") as HTMLButtonElement;
@@ -88,11 +97,26 @@ describe("MessageComposer", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it("inert state prevents interaction without relying only on disabled styling", () => {
+    renderComposer({ inert: true, channels: [{ id: "release", name: "release" }] });
+
+    const container = screen.getByTestId("composer-container");
+    const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
+    const sendButton = screen.getByTestId("composer-send-button") as HTMLButtonElement;
+
+    expect(container).toHaveAttribute("inert");
+    expect(container.className).toMatch(/pointer-events-none/);
+    expect(textarea).toBeDisabled();
+    expect(sendButton).toBeDisabled();
+  });
+
   it("clicks the send button to submit the payload", () => {
     const { onSend } = renderComposer();
     const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
+
     fireEvent.change(textarea, { target: { value: "Via button" } });
     fireEvent.click(screen.getByTestId("composer-send-button"));
+
     expect(onSend).toHaveBeenCalledWith({ text: "Via button" });
   });
 
@@ -100,28 +124,13 @@ describe("MessageComposer", () => {
     renderComposer();
     const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
 
-    // Simulate a textarea with a scroll height well below the cap.
     Object.defineProperty(textarea, "scrollHeight", { configurable: true, value: 60 });
     fireEvent.change(textarea, { target: { value: "one" } });
     expect(textarea.style.height).toBe("60px");
 
-    // Now a very tall scrollHeight — height must clamp to 200px.
     Object.defineProperty(textarea, "scrollHeight", { configurable: true, value: 900 });
     fireEvent.change(textarea, { target: { value: "one\ntwo\nthree\nfour\nfive" } });
     expect(textarea.style.height).toBe("200px");
-  });
-
-  it("hides skill pill when no skills are provided, shows it when they are", () => {
-    const { rerender, onSend } = renderComposer();
-    expect(screen.queryByTestId("composer-skill-pill")).toBeNull();
-
-    rerender(
-      <MessageComposer
-        onSend={onSend}
-        skills={[{ id: "no-workarounds", name: "no-workarounds" }]}
-      />
-    );
-    expect(screen.getByTestId("composer-skill-pill")).toBeInTheDocument();
   });
 
   it("hides channel pill when no channels are provided, shows it when they are", () => {
@@ -153,36 +162,13 @@ describe("MessageComposer", () => {
     const sessionId = "session-beta";
     const onSend = vi.fn();
     render(<MessageComposer sessionId={sessionId} onSend={onSend} />);
+
     const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "ship it" } });
     fireEvent.keyDown(textarea, { key: "Enter" });
 
     expect(onSend).toHaveBeenCalledWith({ text: "ship it" });
     expect(useSessionStore.getState().drafts[sessionId]).toBeUndefined();
-  });
-
-  it("attaches skillId to the onSend payload after selecting a skill", async () => {
-    const onSend = vi.fn();
-    render(
-      <MessageComposer
-        onSend={onSend}
-        skills={[
-          { id: "no-workarounds", name: "no-workarounds" },
-          { id: "storybook", name: "storybook-stories" },
-        ]}
-      />
-    );
-
-    fireEvent.click(screen.getByTestId("composer-skill-pill"));
-
-    const option = await waitFor(() => screen.getByTestId("composer-skill-item-storybook"));
-    fireEvent.click(option);
-
-    const textarea = screen.getByTestId("composer-textarea") as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "run it" } });
-    fireEvent.keyDown(textarea, { key: "Enter" });
-
-    expect(onSend).toHaveBeenCalledWith({ text: "run it", skillId: "storybook" });
   });
 
   it("attaches channel to the onSend payload after selecting a channel", async () => {
@@ -208,7 +194,7 @@ describe("MessageComposer", () => {
     expect(onSend).toHaveBeenCalledWith({ text: "ping team", channel: "release" });
   });
 
-  it("attach Popover — picking a file adds a chip that reflects the file name", async () => {
+  it("attach popover adds a chip that reflects the file name", async () => {
     const onSend = vi.fn();
     render(
       <MessageComposer

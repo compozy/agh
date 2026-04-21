@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { AlertCircle, ChevronRight, GitBranch } from "lucide-react";
 
 import {
+  Empty,
   MonoBadge,
   Pill,
   Section,
@@ -37,23 +38,22 @@ export function TasksDetailDependenciesPanel({
 }: TasksDetailDependenciesPanelProps) {
   if (errorMessage && dependencies.length === 0) {
     return (
-      <div
-        className="flex min-h-[200px] items-center justify-center px-6 text-center text-sm text-[color:var(--color-danger)]"
+      <Empty
+        icon={AlertCircle}
+        title="Unable to load dependencies"
+        description={errorMessage}
         data-testid="tasks-detail-dependencies-error"
-      >
-        {errorMessage}
-      </div>
+      />
     );
   }
 
   if (dependencies.length === 0) {
     return (
-      <div
-        className="flex min-h-[200px] items-center justify-center px-6 text-center text-sm text-[color:var(--color-text-secondary)]"
+      <Empty
+        icon={GitBranch}
+        title="This task has no dependencies"
         data-testid="tasks-detail-dependencies-empty"
-      >
-        This task has no dependencies.
-      </div>
+      />
     );
   }
 

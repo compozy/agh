@@ -18,14 +18,6 @@ const SOURCE_TONE: Record<string, MonoBadgeTone> = {
   additional: "neutral",
 };
 
-const SOURCE_SHORT_LABEL: Record<string, string> = {
-  bundled: "BUNDLED",
-  workspace: "WS",
-  marketplace: "MP",
-  user: "USER",
-  additional: "ADD",
-};
-
 export const MARKETPLACE_CATEGORIES = [
   "ALL",
   "TESTING",
@@ -48,10 +40,6 @@ export function skillSourceTone(source: string): MonoBadgeTone {
 
 export function skillSourceLabel(source: string): string {
   return source.toUpperCase();
-}
-
-export function skillSourceShortLabel(source: string): string {
-  return SOURCE_SHORT_LABEL[source] ?? source.toUpperCase();
 }
 
 export function skillStatusTone(enabled: boolean): "success" | "neutral" {

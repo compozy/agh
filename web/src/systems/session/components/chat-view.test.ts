@@ -64,6 +64,27 @@ describe("buildRows", () => {
     expect(rows[1]).toEqual({ kind: "processing" });
   });
 
+  it("does not add processing row once tool activity is visible for the current turn", () => {
+    const messages: UIMessage[] = [
+      msg({ id: "1", role: "user", content: "Hello" }),
+      msg({ id: "tool-1", role: "tool_call", toolName: "Bash", isStreaming: true }),
+    ];
+    const rows = buildRows(messages, true);
+    expect(rows).toHaveLength(2);
+    expect(rows.every(row => row.kind !== "processing")).toBe(true);
+  });
+
+  it("still adds processing row when only historical tool activity exists", () => {
+    const messages: UIMessage[] = [
+      msg({ id: "old-user", role: "user", content: "First prompt" }),
+      msg({ id: "old-tool", role: "tool_call", toolName: "Read" }),
+      msg({ id: "old-result", role: "tool_result", content: "done" }),
+      msg({ id: "new-user", role: "user", content: "Second prompt" }),
+    ];
+    const rows = buildRows(messages, true);
+    expect(rows.at(-1)).toEqual({ kind: "processing" });
+  });
+
   it("does not add processing row when a message is actively streaming content", () => {
     const messages: UIMessage[] = [
       msg({ id: "1", role: "user", content: "Hello" }),

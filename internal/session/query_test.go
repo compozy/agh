@@ -246,6 +246,65 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 	}
 }
 
+func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	sessionID := "sess-pending"
+	sessionDir := filepath.Join(h.homePaths.SessionsDir, sessionID)
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(sessionDir) error = %v", err)
+	}
+
+	acpSessionID := "acp-pending"
+	meta := store.SessionMeta{
+		ID:           sessionID,
+		Name:         "pending",
+		AgentName:    "coder",
+		WorkspaceID:  h.workspaceID,
+		State:        string(StateStarting),
+		ACPSessionID: stringPointer(acpSessionID),
+		CreatedAt:    time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2026, 4, 20, 12, 0, 1, 0, time.UTC),
+	}
+	metaPath := store.SessionMetaFile(sessionDir)
+	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		t.Fatalf("WriteSessionMeta() error = %v", err)
+	}
+
+	h.manager.mu.Lock()
+	h.manager.pending[sessionID] = struct{}{}
+	h.manager.mu.Unlock()
+
+	info, err := h.manager.Status(testutil.Context(t), sessionID)
+	if err != nil {
+		t.Fatalf("Status(pending) error = %v", err)
+	}
+	if got := info.State; got != StateStarting {
+		t.Fatalf("Status(pending).State = %q, want %q", got, StateStarting)
+	}
+	if got := info.ACPSessionID; got != acpSessionID {
+		t.Fatalf("Status(pending).ACPSessionID = %q, want %q", got, acpSessionID)
+	}
+	if got := info.StopDetail; got != "" {
+		t.Fatalf("Status(pending).StopDetail = %q, want empty", got)
+	}
+
+	storedMeta, err := store.ReadSessionMeta(metaPath)
+	if err != nil {
+		t.Fatalf("ReadSessionMeta() error = %v", err)
+	}
+	if got := storedMeta.State; got != string(StateStarting) {
+		t.Fatalf("stored meta state = %q, want %q", got, StateStarting)
+	}
+	if storedMeta.StopReason != nil {
+		t.Fatalf("stored meta stop reason = %#v, want nil", storedMeta.StopReason)
+	}
+	if got := stringValue(storedMeta.ACPSessionID); got != acpSessionID {
+		t.Fatalf("stored meta ACPSessionID = %q, want %q", got, acpSessionID)
+	}
+}
+
 func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	t.Parallel()
 

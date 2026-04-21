@@ -130,6 +130,7 @@ func statusForSessionError(err error) int {
 	case errors.Is(err, session.ErrSessionNotActive):
 		return http.StatusBadRequest
 	case errors.Is(err, session.ErrMaxSessionsReached),
+		errors.Is(err, session.ErrPromptInProgress),
 		errors.Is(err, session.ErrPendingPermissionNotFound),
 		errors.Is(err, session.ErrPendingPermissionConflict),
 		errors.Is(err, workspacepkg.ErrWorkspaceNameTaken),

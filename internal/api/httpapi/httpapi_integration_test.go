@@ -158,6 +158,82 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	}
 }
 
+func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	sessionID := createIntegrationSession(t, runtime)
+
+	requestCtx, cancel := context.WithCancel(context.Background())
+	req, err := http.NewRequestWithContext(
+		requestCtx,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		strings.NewReader(`{"message":"hello"}`),
+	)
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := runtime.client.Do(req)
+	if err != nil {
+		t.Fatalf("client.Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("prompt status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	seenToolStart := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+
+		var part struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal([]byte(payload), &part); err != nil {
+			continue
+		}
+		if part.Type == "tool-input-start" {
+			seenToolStart = true
+			break
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scanner.Err() error = %v", err)
+	}
+	if !seenToolStart {
+		t.Fatal("tool-input-start was not observed before client disconnect")
+	}
+
+	cancel()
+	_ = resp.Body.Close()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		events, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+		if err == nil && integrationPromptEventsContainTerminalToolEvents(events) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	events, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Events() error after disconnect = %v", err)
+	}
+	t.Fatalf("persisted events after disconnect = %#v, want tool_result and done", events)
+}
+
 func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
@@ -2268,7 +2344,7 @@ func extractPermissionPayloads(t *testing.T, records []sseRecord) []permissionSt
 }
 
 func extractPermissionPayloadFromRecord(record sseRecord) (permissionStreamPayload, bool) {
-	if record.Event != "permission" || len(record.Data) == 0 {
+	if len(record.Data) == 0 || string(record.Data) == "[DONE]" {
 		return permissionStreamPayload{}, false
 	}
 
@@ -2284,7 +2360,7 @@ func extractPermissionPayloadFromRecord(record sseRecord) (permissionStreamPaylo
 
 func recordsContainTextDelta(records []sseRecord, want string) bool {
 	for _, record := range records {
-		if record.Event != "agent_message" || len(record.Data) == 0 {
+		if len(record.Data) == 0 || string(record.Data) == "[DONE]" {
 			continue
 		}
 		var payload map[string]any
@@ -2480,6 +2556,22 @@ func containsAutomationRun(runs []contract.RunPayload, id string) bool {
 		}
 	}
 	return false
+}
+
+func integrationPromptEventsContainTerminalToolEvents(events []store.SessionEvent) bool {
+	var hasToolResult bool
+	var hasDone bool
+
+	for _, event := range events {
+		switch event.Type {
+		case acp.EventTypeToolResult:
+			hasToolResult = true
+		case acp.EventTypeDone:
+			hasDone = true
+		}
+	}
+
+	return hasToolResult && hasDone
 }
 
 func waitForRegistryStopReason(t *testing.T, runtime integrationRuntime, sessionID string, want store.StopReason) {

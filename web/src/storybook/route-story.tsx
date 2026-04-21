@@ -62,7 +62,9 @@ export function StorybookSessionPermissionSetup({
     useSessionStore.setState({
       activeSessionId: sessionId,
       isStreaming: false,
-      messages: [],
+      historyMessages: [],
+      liveMessages: [],
+      awaitingTranscriptSync: false,
       pendingPermission: permissionRequestFixture,
     });
   }, [sessionId]);

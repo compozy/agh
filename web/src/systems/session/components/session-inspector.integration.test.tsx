@@ -80,41 +80,49 @@ const memoryDocs: InspectorMemoryDoc[] = [
 const files: InspectorFileEntry[] = [{ path: "src/stream.ts", readCount: 1 }];
 
 describe("SessionInspector — integration", () => {
-  it("renders all four slices populated from a fixture session", () => {
-    render(
-      <SessionInspector messages={messages} usage={usage} memoryDocs={memoryDocs} files={files} />
-    );
-    const stacked = screen.getByTestId("session-inspector-stacked");
-    expect(within(stacked).getAllByTestId("session-inspector-trace-row").length).toBeGreaterThan(0);
-    expect(within(stacked).getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
-    expect(within(stacked).getByTestId("session-inspector-memory-list")).toBeInTheDocument();
-    expect(within(stacked).getByTestId("session-inspector-files-list")).toBeInTheDocument();
-  });
-
-  it("keeps tabbed panels clickable and preserves content when switching", async () => {
+  it("renders all four slices populated from a fixture session", async () => {
     const user = userEvent.setup();
     render(
       <SessionInspector messages={messages} usage={usage} memoryDocs={memoryDocs} files={files} />
     );
-    const tabbed = screen.getByTestId("session-inspector-tabbed");
+    const body = screen.getByTestId("session-inspector-body");
 
-    await user.click(within(tabbed).getByTestId("session-inspector-tab-files"));
-    const panel = within(tabbed).getByTestId("session-inspector-tab-panel");
-    expect(panel.getAttribute("data-active-tab")).toBe("files");
-    expect(within(tabbed).getByTestId("session-inspector-files-list")).toBeInTheDocument();
+    // Trace (top) and memory (bottom) are the default active tabs.
+    expect(within(body).getAllByTestId("session-inspector-trace-row").length).toBeGreaterThan(0);
+    expect(within(body).getByTestId("session-inspector-memory-list")).toBeInTheDocument();
 
-    await user.click(within(tabbed).getByTestId("session-inspector-tab-memory"));
-    expect(
-      within(tabbed).getByTestId("session-inspector-tab-panel").getAttribute("data-active-tab")
-    ).toBe("memory");
+    await user.click(within(body).getByTestId("session-inspector-tab-usage"));
+    expect(within(body).getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
 
-    await user.click(within(tabbed).getByTestId("session-inspector-tab-usage"));
-    expect(
-      within(tabbed).getByTestId("session-inspector-tab-panel").getAttribute("data-active-tab")
-    ).toBe("usage");
+    await user.click(within(body).getByTestId("session-inspector-tab-files"));
+    expect(within(body).getByTestId("session-inspector-files-list")).toBeInTheDocument();
+  });
 
-    // Tab triggers expose `aria-selected` via Base UI Tabs for a11y consumers.
-    const filesTrigger = within(tabbed).getByTestId("session-inspector-tab-files");
+  it("switches top and bottom tab groups independently", async () => {
+    const user = userEvent.setup();
+    render(
+      <SessionInspector messages={messages} usage={usage} memoryDocs={memoryDocs} files={files} />
+    );
+    const body = screen.getByTestId("session-inspector-body");
+    const top = () => within(body).getByTestId("session-inspector-top-panel");
+    const bottom = () => within(body).getByTestId("session-inspector-bottom-panel");
+
+    await user.click(within(body).getByTestId("session-inspector-tab-files"));
+    expect(bottom().getAttribute("data-active-tab")).toBe("files");
+    expect(within(body).getByTestId("session-inspector-files-list")).toBeInTheDocument();
+    // Top group unchanged.
+    expect(top().getAttribute("data-active-tab")).toBe("trace");
+
+    await user.click(within(body).getByTestId("session-inspector-tab-usage"));
+    expect(top().getAttribute("data-active-tab")).toBe("usage");
+    expect(bottom().getAttribute("data-active-tab")).toBe("files");
+
+    await user.click(within(body).getByTestId("session-inspector-tab-memory"));
+    expect(bottom().getAttribute("data-active-tab")).toBe("memory");
+    expect(top().getAttribute("data-active-tab")).toBe("usage");
+
+    // Tab triggers expose `role="tab"` via Base UI Tabs for a11y consumers.
+    const filesTrigger = within(body).getByTestId("session-inspector-tab-files");
     expect(filesTrigger.getAttribute("role")).toBe("tab");
   });
 

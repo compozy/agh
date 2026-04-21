@@ -169,10 +169,10 @@ describe("<SessionInspector />", () => {
         onViewAllTrace={onViewAll}
       />
     );
-    const stacked = screen.getByTestId("session-inspector-stacked");
-    const rows = within(stacked).getAllByTestId("session-inspector-trace-row");
+    const panel = screen.getByTestId("session-inspector-top-panel");
+    const rows = within(panel).getAllByTestId("session-inspector-trace-row");
     expect(rows).toHaveLength(6);
-    const viewAll = within(stacked).getByTestId("session-inspector-trace-view-all");
+    const viewAll = within(panel).getByTestId("session-inspector-trace-view-all");
     expect(viewAll).toBeInTheDocument();
   });
 
@@ -193,10 +193,10 @@ describe("<SessionInspector />", () => {
         files={[]}
       />
     );
-    const stacked = screen.getByTestId("session-inspector-stacked");
-    const kind = within(stacked).getByTestId("session-inspector-trace-kind");
+    const panel = screen.getByTestId("session-inspector-top-panel");
+    const kind = within(panel).getByTestId("session-inspector-trace-kind");
     expect(kind.textContent).toBe("START");
-    const dot = within(stacked).getByTestId("session-inspector-trace-dot");
+    const dot = within(panel).getByTestId("session-inspector-trace-dot");
     expect(dot.getAttribute("data-tone")).toBe("danger");
   });
 
@@ -214,8 +214,8 @@ describe("<SessionInspector />", () => {
         usage={null}
       />
     );
-    const stacked = screen.getByTestId("session-inspector-stacked");
-    const rows = within(stacked).getAllByTestId("session-inspector-trace-row");
+    const panel = screen.getByTestId("session-inspector-top-panel");
+    const rows = within(panel).getAllByTestId("session-inspector-trace-row");
     const pending = rows[1];
     expect(pending.getAttribute("data-status")).toBe("pending");
     const dot = within(pending).getByTestId("session-inspector-trace-dot");
@@ -223,24 +223,28 @@ describe("<SessionInspector />", () => {
     expect(dot.getAttribute("data-pulse")).toBe("true");
   });
 
-  it("renders four Metric tiles and colors deltas via tone", () => {
+  it("renders four Metric tiles and colors deltas via tone", async () => {
+    const user = userEvent.setup();
     render(<SessionInspector messages={buildThread(2)} usage={usage} />);
-    const stacked = screen.getByTestId("session-inspector-stacked");
-    const grid = within(stacked).getByTestId("session-inspector-usage-grid");
+    await user.click(screen.getByTestId("session-inspector-tab-usage"));
+    const panel = screen.getByTestId("session-inspector-top-panel");
+    const grid = within(panel).getByTestId("session-inspector-usage-grid");
     const tiles = within(grid).getAllByTestId(/session-inspector-usage-/);
     // tokens-in + tokens-out + cost + rate
     expect(tiles).toHaveLength(4);
 
-    const tokensIn = within(stacked).getByTestId("session-inspector-usage-tokens-in");
+    const tokensIn = within(panel).getByTestId("session-inspector-usage-tokens-in");
     expect(tokensIn.getAttribute("data-tone")).toBe("success");
-    const tokensOut = within(stacked).getByTestId("session-inspector-usage-tokens-out");
+    const tokensOut = within(panel).getByTestId("session-inspector-usage-tokens-out");
     expect(tokensOut.getAttribute("data-tone")).toBe("danger");
-    const cost = within(stacked).getByTestId("session-inspector-usage-cost");
+    const cost = within(panel).getByTestId("session-inspector-usage-cost");
     expect(cost.getAttribute("data-tone")).toBe("default");
   });
 
-  it("renders the Usage Empty state when usage is null", () => {
+  it("renders the Usage Empty state when usage is null", async () => {
+    const user = userEvent.setup();
     render(<SessionInspector messages={buildThread(2)} usage={null} />);
+    await user.click(screen.getByTestId("session-inspector-tab-usage"));
     expect(screen.getByTestId("session-inspector-usage-empty")).toBeInTheDocument();
   });
 
@@ -251,8 +255,8 @@ describe("<SessionInspector />", () => {
 
   it("renders each memory row with kind badge, title, and formatted byte size", () => {
     render(<SessionInspector messages={buildThread(1)} memoryDocs={memoryDocs} />);
-    const stacked = screen.getByTestId("session-inspector-stacked");
-    const rows = within(stacked).getAllByTestId("session-inspector-memory-row");
+    const panel = screen.getByTestId("session-inspector-bottom-panel");
+    const rows = within(panel).getAllByTestId("session-inspector-memory-row");
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByTestId("session-inspector-memory-kind").textContent).toBe("ws");
     expect(within(rows[0]).getByTestId("session-inspector-memory-title").textContent).toBe(
@@ -266,10 +270,12 @@ describe("<SessionInspector />", () => {
     );
   });
 
-  it("wraps the files list in a ScrollArea and renders path + read count per row", () => {
+  it("wraps the files list in a ScrollArea and renders path + read count per row", async () => {
+    const user = userEvent.setup();
     render(<SessionInspector messages={buildThread(1)} files={files} />);
-    const stacked = screen.getByTestId("session-inspector-stacked");
-    const scroll = within(stacked).getByTestId("session-inspector-files-scroll");
+    await user.click(screen.getByTestId("session-inspector-tab-files"));
+    const panel = screen.getByTestId("session-inspector-bottom-panel");
+    const scroll = within(panel).getByTestId("session-inspector-files-scroll");
     expect(scroll.getAttribute("data-slot")).toBe("scroll-area");
     const rows = within(scroll).getAllByTestId("session-inspector-files-row");
     expect(rows).toHaveLength(2);
@@ -277,7 +283,8 @@ describe("<SessionInspector />", () => {
     expect(within(rows[0]).getByTestId("session-inspector-files-count").textContent).toBe("×2");
   });
 
-  it("derives the files list from messages when no explicit files prop is provided", () => {
+  it("derives the files list from messages when no explicit files prop is provided", async () => {
+    const user = userEvent.setup();
     const thread: UIMessage[] = [
       makeMessage({
         id: "t1",
@@ -288,24 +295,44 @@ describe("<SessionInspector />", () => {
       }),
     ];
     render(<SessionInspector messages={thread} />);
+    await user.click(screen.getByTestId("session-inspector-tab-files"));
     const row = screen.getAllByTestId("session-inspector-files-row")[0];
     expect(within(row).getByTestId("session-inspector-files-path").textContent).toBe("derived.ts");
   });
 
-  it("renders both stacked and tabbed layouts; the tabbed variant is CSS-hidden by default", () => {
+  it("renders two stacked tab groups with trace + memory active by default", () => {
     render(<SessionInspector messages={buildThread(3)} usage={usage} />);
-    expect(screen.getByTestId("session-inspector-stacked")).toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-tabbed")).toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-body")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-inspector-stacked")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-inspector-tabbed")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-top-panel").getAttribute("data-active-tab")).toBe(
+      "trace"
+    );
+    expect(
+      screen.getByTestId("session-inspector-bottom-panel").getAttribute("data-active-tab")
+    ).toBe("memory");
   });
 
-  it("switches active tab in the compact layout when a tab is clicked", async () => {
+  it("switches top and bottom groups independently", async () => {
     const user = userEvent.setup();
     render(<SessionInspector messages={buildThread(3)} usage={usage} />);
-    const tabbed = screen.getByTestId("session-inspector-tabbed");
-    await user.click(within(tabbed).getByTestId("session-inspector-tab-memory"));
-    const panel = within(tabbed).getByTestId("session-inspector-tab-panel");
-    expect(panel.getAttribute("data-active-tab")).toBe("memory");
-    expect(within(tabbed).getByTestId("session-inspector-memory-empty")).toBeInTheDocument();
+    await user.click(screen.getByTestId("session-inspector-tab-usage"));
+    expect(screen.getByTestId("session-inspector-top-panel").getAttribute("data-active-tab")).toBe(
+      "usage"
+    );
+    // Bottom group stays on memory.
+    expect(
+      screen.getByTestId("session-inspector-bottom-panel").getAttribute("data-active-tab")
+    ).toBe("memory");
+
+    await user.click(screen.getByTestId("session-inspector-tab-files"));
+    expect(
+      screen.getByTestId("session-inspector-bottom-panel").getAttribute("data-active-tab")
+    ).toBe("files");
+    // Top group stays on usage.
+    expect(screen.getByTestId("session-inspector-top-panel").getAttribute("data-active-tab")).toBe(
+      "usage"
+    );
   });
 
   it("hides the inline aside under the xl breakpoint", () => {

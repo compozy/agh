@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+
 import { useSessionStore } from "../hooks/use-session-store";
 import type { UIMessage } from "../types";
 
@@ -16,35 +17,16 @@ describe("session-store session switch", () => {
   beforeEach(() => {
     useSessionStore.setState({
       activeSessionId: null,
-      messages: [],
+      historyMessages: [],
+      liveMessages: [],
       isStreaming: false,
+      awaitingTranscriptSync: false,
       pendingPermission: null,
       drafts: {},
     });
   });
 
-  it("saves current messages before loading new session via setActiveSession", () => {
-    // Set up session A with messages
-    const sessionAMessages = [
-      makeMessage({ id: "a1", content: "Hello from A" }),
-      makeMessage({ id: "a2", content: "Response from A" }),
-    ];
-    useSessionStore.getState().setActiveSession("session-a", sessionAMessages);
-
-    expect(useSessionStore.getState().activeSessionId).toBe("session-a");
-    expect(useSessionStore.getState().messages).toHaveLength(2);
-
-    // Switch to session B with its own messages
-    const sessionBMessages = [makeMessage({ id: "b1", content: "Hello from B" })];
-    useSessionStore.getState().setActiveSession("session-b", sessionBMessages);
-
-    // Store now reflects session B
-    expect(useSessionStore.getState().activeSessionId).toBe("session-b");
-    expect(useSessionStore.getState().messages).toHaveLength(1);
-    expect(useSessionStore.getState().messages[0].content).toBe("Hello from B");
-  });
-
-  it("loads history messages into store for target session", () => {
+  it("loads history messages into store for the target session", () => {
     const historyMessages: UIMessage[] = [
       makeMessage({ id: "h1", role: "user", content: "Previous question" }),
       makeMessage({ id: "h2", role: "assistant", content: "Previous answer", isStreaming: false }),
@@ -54,52 +36,38 @@ describe("session-store session switch", () => {
 
     const state = useSessionStore.getState();
     expect(state.activeSessionId).toBe("session-with-history");
-    expect(state.messages).toHaveLength(2);
-    expect(state.messages[0].content).toBe("Previous question");
-    expect(state.messages[1].content).toBe("Previous answer");
+    expect(state.historyMessages).toHaveLength(2);
+    expect(state.historyMessages[0].content).toBe("Previous question");
+    expect(state.historyMessages[1].content).toBe("Previous answer");
+    expect(state.liveMessages).toEqual([]);
     expect(state.isStreaming).toBe(false);
     expect(state.pendingPermission).toBeNull();
   });
 
-  it("clears streaming state on session switch", () => {
+  it("clears the live tail on session switch", () => {
     useSessionStore.setState({
       activeSessionId: "session-streaming",
-      messages: [makeMessage({ isStreaming: true })],
+      historyMessages: [makeMessage({ id: "history-1" })],
+      liveMessages: [makeMessage({ id: "live-1", isStreaming: true })],
       isStreaming: true,
-      pendingPermission: null,
+      awaitingTranscriptSync: true,
     });
 
     useSessionStore.getState().setActiveSession("session-new", []);
 
-    expect(useSessionStore.getState().isStreaming).toBe(false);
+    const state = useSessionStore.getState();
+    expect(state.historyMessages).toEqual([]);
+    expect(state.liveMessages).toEqual([]);
+    expect(state.isStreaming).toBe(false);
+    expect(state.awaitingTranscriptSync).toBe(false);
   });
 
-  it("clears pending permission on session switch", () => {
-    useSessionStore.setState({
-      activeSessionId: "session-perm",
-      messages: [],
-      isStreaming: false,
-      pendingPermission: {
-        requestId: "req-1",
-        toolName: "Bash",
-        toolInput: {},
-        action: "execute",
-        resource: "cmd",
-      },
-    });
+  it("keeps drafts alive across session switches", () => {
+    useSessionStore.getState().setDraft("session-a", { text: "Unsent thought" });
+    useSessionStore.getState().setActiveSession("session-a", []);
+    useSessionStore.getState().setActiveSession("session-b", []);
+    useSessionStore.getState().setActiveSession("session-a", []);
 
-    useSessionStore.getState().setActiveSession("session-new", []);
-
-    expect(useSessionStore.getState().pendingPermission).toBeNull();
-  });
-
-  it("handles switching to session with empty history", () => {
-    const msgs = [makeMessage({ id: "m1" })];
-    useSessionStore.getState().setActiveSession("session-a", msgs);
-
-    useSessionStore.getState().setActiveSession("session-empty", []);
-
-    expect(useSessionStore.getState().activeSessionId).toBe("session-empty");
-    expect(useSessionStore.getState().messages).toHaveLength(0);
+    expect(useSessionStore.getState().drafts["session-a"]?.text).toBe("Unsent thought");
   });
 });

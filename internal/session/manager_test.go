@@ -936,6 +936,89 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	}
 }
 
+func TestCancelPrompt(t *testing.T) {
+	t.Parallel()
+
+	t.Run("active prompting session cancels driver prompt", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		})
+
+		promptEvents := make(chan acp.AgentEvent)
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return promptEvents, nil
+		}
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		waitForCondition(t, "session prompting", func() bool {
+			return session.IsPrompting()
+		})
+
+		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if got := h.driver.cancelCalls; got != 1 {
+			t.Fatalf("driver cancel calls = %d, want 1", got)
+		}
+
+		close(promptEvents)
+		_ = collectEvents(t, eventsCh)
+	})
+
+	t.Run("active session without prompt is a no-op", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		})
+
+		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if got := h.driver.cancelCalls; got != 0 {
+			t.Fatalf("driver cancel calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("known stopped session is a no-op", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if got := h.driver.cancelCalls; got != 0 {
+			t.Fatalf("driver cancel calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("unknown session returns ErrSessionNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+
+		err := h.manager.CancelPrompt(testutil.Context(t), "missing")
+		if !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("CancelPrompt(missing) error = %v, want ErrSessionNotFound", err)
+		}
+	})
+}
+
 func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 	t.Parallel()
 

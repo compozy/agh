@@ -12,8 +12,6 @@ import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 
 import { Button, Empty, Toaster, TooltipProvider, buttonVariants } from "@agh/ui";
 
-import { AppHeader } from "@/components/app-header";
-
 export const Route = createRootRoute({
   component: RootComponent,
   errorComponent: RootRouteErrorBoundary,
@@ -25,12 +23,9 @@ function RootComponent() {
     <TooltipProvider>
       <div
         data-testid="app-shell"
-        className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
+        className="flex h-screen overflow-hidden bg-background text-foreground"
       >
-        <AppHeader />
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          <Outlet />
-        </div>
+        <Outlet />
       </div>
       <Toaster />
     </TooltipProvider>
@@ -105,7 +100,6 @@ function RootBoundaryFrame({
   return (
     <TooltipProvider>
       <div className="flex min-h-dvh flex-col bg-background text-foreground">
-        <AppHeader />
         <main
           data-route-id={routeId}
           data-testid={testId}

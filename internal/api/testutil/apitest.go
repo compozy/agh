@@ -46,7 +46,9 @@ type StubSessionManager struct {
 	StopFn          func(context.Context, string) error
 	StopWithCauseFn func(context.Context, string, session.StopCause, string) error
 	ResumeFn        func(context.Context, string) (*session.Session, error)
+	ClearFn         func(context.Context, string) (*session.Session, error)
 	PromptFn        func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	CancelPromptFn  func(context.Context, string) error
 	ApproveFn       func(context.Context, string, acp.ApproveRequest) error
 }
 
@@ -143,6 +145,16 @@ func (s StubSessionManager) Resume(ctx context.Context, id string) (*session.Ses
 	return nil, nil
 }
 
+func (s StubSessionManager) ClearConversation(
+	ctx context.Context,
+	id string,
+) (*session.Session, error) {
+	if s.ClearFn != nil {
+		return s.ClearFn(ctx, id)
+	}
+	return nil, nil
+}
+
 func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	if s.PromptFn != nil {
 		return s.PromptFn(ctx, id, msg)
@@ -150,6 +162,13 @@ func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (
 	ch := make(chan acp.AgentEvent)
 	close(ch)
 	return ch, nil
+}
+
+func (s StubSessionManager) CancelPrompt(ctx context.Context, id string) error {
+	if s.CancelPromptFn != nil {
+		return s.CancelPromptFn(ctx, id)
+	}
+	return nil
 }
 
 func (s StubSessionManager) ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error {

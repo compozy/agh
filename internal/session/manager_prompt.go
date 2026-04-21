@@ -274,6 +274,43 @@ func clonePromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSyntheti
 	return &cloned
 }
 
+// CancelPrompt cooperatively cancels the active prompt turn for a known session.
+func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
+	if m == nil {
+		return errors.New("session: manager is required")
+	}
+	if ctx == nil {
+		return errors.New("session: cancel prompt context is required")
+	}
+
+	target := strings.TrimSpace(id)
+	if target == "" {
+		return errors.New("session: session id is required")
+	}
+
+	session, ok := m.Get(target)
+	if !ok {
+		if _, err := m.readMeta(target); err != nil {
+			return err
+		}
+		return nil
+	}
+	if !session.IsPrompting() {
+		return nil
+	}
+
+	proc := session.processHandle()
+	if proc == nil {
+		return errors.New("session: agent process is not available")
+	}
+
+	cancelErr := m.driver.Cancel(ctx, proc)
+	if cancelErr != nil && !isProcessDone(proc) {
+		return fmt.Errorf("session: cancel prompt for %q: %w", target, cancelErr)
+	}
+	return cancelErr
+}
+
 // ApprovePermission resolves one pending interactive permission request for an active session.
 func (m *Manager) ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error {
 	if ctx == nil {

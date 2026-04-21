@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ArrowUpRight, ChevronRight, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowUpRight, ChevronRight, Loader2, Users } from "lucide-react";
 import { useMemo } from "react";
 
-import { MonoBadge, Pill, StatusDot } from "@agh/ui";
+import { Empty, MonoBadge, Pill, StatusDot } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import type { MultiAgentAgent, MultiAgentLiveState } from "@/hooks/routes/use-task-detail-page";
@@ -64,16 +64,15 @@ export function TasksMultiAgentPanel({
 
   if (state === "disconnected") {
     return (
-      <div
-        className="flex min-h-[240px] flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+      <Empty
+        icon={AlertCircle}
+        title="Live tree unavailable"
+        description={
+          errorMessage ??
+          "Live tree unavailable right now. Updates will resume once the connection is restored."
+        }
         data-testid="tasks-multi-agent-disconnected"
-      >
-        <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
-        <p className="text-sm text-[color:var(--color-text-secondary)]">
-          {errorMessage ??
-            "Live tree unavailable right now. Updates will resume once the connection is restored."}
-        </p>
-      </div>
+      />
     );
   }
 
@@ -89,7 +88,7 @@ export function TasksMultiAgentPanel({
   return (
     <section
       aria-label="Agents"
-      className="flex w-full flex-col gap-6 px-6 py-5"
+      className="flex min-h-0 w-full flex-1 flex-col gap-6 px-6 py-5"
       data-testid="tasks-multi-agent-panel"
     >
       <header className="flex flex-col gap-1" data-testid="tasks-multi-agent-header">
@@ -103,12 +102,12 @@ export function TasksMultiAgentPanel({
       </header>
 
       {state === "no-descendants" ? (
-        <div
-          className="flex min-h-[200px] items-center justify-center rounded-xl border border-dashed border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-6 py-5 text-center text-sm text-[color:var(--color-text-secondary)]"
+        <Empty
+          icon={Users}
+          title="No descendants yet"
+          description="Multi-agent live surfaces will appear once child runs spawn."
           data-testid="tasks-multi-agent-empty"
-        >
-          This task has no descendants. Multi-agent live surfaces will appear once child runs spawn.
-        </div>
+        />
       ) : (
         <ul className="flex flex-col gap-3" data-testid="tasks-multi-agent-agents">
           {agents.map(agent => (

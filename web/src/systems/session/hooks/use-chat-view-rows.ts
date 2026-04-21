@@ -35,12 +35,23 @@ export function buildRows(messages: UIMessage[], isStreaming: boolean): RowDescr
   }
 
   if (isStreaming) {
-    const hasActiveStream = messages.some(
+    let lastUserIndex = -1;
+    for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+      if (messages[messageIndex]?.role === "user") {
+        lastUserIndex = messageIndex;
+        break;
+      }
+    }
+    const currentTurnMessages = lastUserIndex >= 0 ? messages.slice(lastUserIndex + 1) : messages;
+    const hasActiveAssistantStream = currentTurnMessages.some(
       message =>
         message.role === "assistant" && message.isStreaming && (message.content || message.thinking)
     );
+    const hasVisibleToolActivity = currentTurnMessages.some(
+      message => message.role === "tool_call" || message.role === "tool_result"
+    );
 
-    if (!hasActiveStream) {
+    if (!hasActiveAssistantStream && !hasVisibleToolActivity) {
       rows.push(PROCESSING_ROW);
     }
   }

@@ -10,26 +10,7 @@ import {
   type MessageComposerAttachment,
   type MessageComposerChannel,
   type MessageComposerPayload,
-  type MessageComposerSkill,
 } from "../message-composer";
-
-const skills: MessageComposerSkill[] = [
-  {
-    id: "storybook-stories",
-    name: "storybook-stories",
-    description: "Create and refactor Storybook stories.",
-  },
-  {
-    id: "no-workarounds",
-    name: "no-workarounds",
-    description: "Enforce root-cause fixes over workarounds.",
-  },
-  {
-    id: "code-review",
-    name: "code-review",
-    description: "Structured review + remediation workflows.",
-  },
-];
 
 const channels: MessageComposerChannel[] = [
   { id: "storybook", name: "storybook" },
@@ -65,7 +46,6 @@ function SeedDraftComposer({ sessionId, draftText }: { sessionId: string; draftT
     <MessageComposer
       sessionId={sessionId}
       onSend={noopSend}
-      skills={skills}
       channels={channels}
       attachOptions={attachOptions}
     />
@@ -86,12 +66,7 @@ type Story = StoryObj<typeof meta>;
 export const Empty: Story = {
   render: () => (
     <ComposerFrame>
-      <MessageComposer
-        onSend={noopSend}
-        skills={skills}
-        channels={channels}
-        attachOptions={attachOptions}
-      />
+      <MessageComposer onSend={noopSend} channels={channels} attachOptions={attachOptions} />
     </ComposerFrame>
   ),
 };
@@ -113,7 +88,6 @@ export const Disabled: Story = {
       <MessageComposer
         disabled
         onSend={noopSend}
-        skills={skills}
         channels={channels}
         attachOptions={attachOptions}
       />
@@ -125,12 +99,7 @@ export const WithAttachOpen: Story = {
   tags: ["play-fn"],
   render: () => (
     <ComposerFrame>
-      <MessageComposer
-        onSend={noopSend}
-        skills={skills}
-        channels={channels}
-        attachOptions={attachOptions}
-      />
+      <MessageComposer onSend={noopSend} channels={channels} attachOptions={attachOptions} />
     </ComposerFrame>
   ),
   play: async ({ canvasElement }) => {
@@ -150,39 +119,11 @@ export const WithAttachOpen: Story = {
   },
 };
 
-export const WithSkillPickerOpen: Story = {
-  tags: ["play-fn"],
-  render: () => (
-    <ComposerFrame>
-      <MessageComposer
-        onSend={noopSend}
-        skills={skills}
-        channels={channels}
-        attachOptions={attachOptions}
-      />
-    </ComposerFrame>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByTestId("composer-skill-pill"));
-    await waitFor(() =>
-      expect(
-        within(document.body).getByTestId("composer-skill-item-no-workarounds")
-      ).toBeInTheDocument()
-    );
-  },
-};
-
 export const WithChannelPickerOpen: Story = {
   tags: ["play-fn"],
   render: () => (
     <ComposerFrame>
-      <MessageComposer
-        onSend={noopSend}
-        skills={skills}
-        channels={channels}
-        attachOptions={attachOptions}
-      />
+      <MessageComposer onSend={noopSend} channels={channels} attachOptions={attachOptions} />
     </ComposerFrame>
   ),
   play: async ({ canvasElement }) => {
@@ -198,12 +139,7 @@ export const FocusBorder: Story = {
   tags: ["play-fn"],
   render: () => (
     <ComposerFrame>
-      <MessageComposer
-        onSend={noopSend}
-        skills={skills}
-        channels={channels}
-        attachOptions={attachOptions}
-      />
+      <MessageComposer onSend={noopSend} channels={channels} attachOptions={attachOptions} />
     </ComposerFrame>
   ),
   play: async ({ canvasElement }) => {
@@ -223,12 +159,7 @@ export const SendKeyboardShortcut: Story = {
   tags: ["play-fn"],
   render: () => (
     <ComposerFrame>
-      <MessageComposer
-        onSend={noopSend}
-        skills={skills}
-        channels={channels}
-        attachOptions={attachOptions}
-      />
+      <MessageComposer onSend={noopSend} channels={channels} attachOptions={attachOptions} />
     </ComposerFrame>
   ),
   play: async ({ canvasElement }) => {

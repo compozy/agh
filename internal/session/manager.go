@@ -335,6 +335,19 @@ func (m *Manager) Get(id string) (*Session, bool) {
 	return session, ok
 }
 
+func (m *Manager) isPending(id string) bool {
+	target := strings.TrimSpace(id)
+	if target == "" {
+		return false
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	_, ok := m.pending[target]
+	return ok
+}
+
 // SetNetworkPeerLifecycle installs the late-bound network join/leave callbacks
 // used after session activation and before final stop cleanup.
 func (m *Manager) SetNetworkPeerLifecycle(lifecycle NetworkPeerLifecycle) {
