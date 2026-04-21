@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 
 import {
   Empty,
-  KindChip,
   Metric,
   MonoBadge,
   Pill,
@@ -17,14 +16,16 @@ import {
 } from "@agh/ui";
 
 import {
+  buildPeerCapabilityViews,
   formatNetworkDateTime,
   formatNetworkNumber,
   getPeerDeliveredRate,
   getPeerDisplayName,
   getPeerHeartbeatLabel,
   getPeerTypeLabel,
+  hasCapabilityDetail,
 } from "../lib/network-formatters";
-import type { NetworkPeerDetail } from "../types";
+import type { NetworkPeerCapabilityView, NetworkPeerDetail } from "../types";
 
 interface NetworkPeerDetailPanelProps {
   error: Error | null;
@@ -56,6 +57,139 @@ function PeerMetric({ detail, label, value }: PeerMetricProps) {
       label={label}
       value={value}
     />
+  );
+}
+
+interface CapabilityDetailListProps {
+  items: readonly string[];
+  label: string;
+  slug: string;
+  testIdPrefix: string;
+}
+
+function CapabilityDetailList({ items, label, slug, testIdPrefix }: CapabilityDetailListProps) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-1" data-testid={`${testIdPrefix}-${slug}`}>
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+        {label}
+      </span>
+      <ul className="flex list-disc flex-col gap-0.5 pl-4 text-[12.5px] text-[color:var(--color-text-secondary)]">
+        {items.map((item, index) => (
+          <li key={`${slug}-${index}`}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+interface CapabilityBadgeRowProps {
+  items: readonly string[];
+  label: string;
+  slug: string;
+  testIdPrefix: string;
+}
+
+function CapabilityBadgeRow({ items, label, slug, testIdPrefix }: CapabilityBadgeRowProps) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" data-testid={`${testIdPrefix}-${slug}`}>
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+        {label}
+      </span>
+      {items.map(item => (
+        <MonoBadge key={`${slug}-${item}`}>{item}</MonoBadge>
+      ))}
+    </div>
+  );
+}
+
+interface CapabilityRowProps {
+  view: NetworkPeerCapabilityView;
+}
+
+function CapabilityRow({ view }: CapabilityRowProps) {
+  const testIdRoot = `network-peer-capability-${view.id}`;
+  const testIdDetail = `${testIdRoot}-detail`;
+  const detail = view.detail;
+  const hasDetail = detail !== null && hasCapabilityDetail(view);
+
+  return (
+    <li
+      className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-3 py-3"
+      data-testid={testIdRoot}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <MonoBadge tone="accent">{view.id}</MonoBadge>
+        {detail?.version ? (
+          <MonoBadge data-testid={`${testIdRoot}-version`}>v{detail.version}</MonoBadge>
+        ) : null}
+        <span
+          className="min-w-0 flex-1 text-[13px] text-[color:var(--color-text-primary)]"
+          data-testid={`${testIdRoot}-summary`}
+        >
+          {view.summary || "No summary provided."}
+        </span>
+      </div>
+
+      {hasDetail && detail ? (
+        <div className="flex flex-col gap-2" data-testid={testIdDetail}>
+          {detail.outcome ? (
+            <p
+              className="text-[12.5px] leading-snug text-[color:var(--color-text-secondary)]"
+              data-testid={`${testIdRoot}-outcome`}
+            >
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                outcome
+              </span>{" "}
+              {detail.outcome}
+            </p>
+          ) : null}
+          <CapabilityBadgeRow
+            items={detail.requirements ?? []}
+            label="requires"
+            slug="requirements"
+            testIdPrefix={testIdRoot}
+          />
+          <CapabilityBadgeRow
+            items={detail.context_needed ?? []}
+            label="context"
+            slug="context"
+            testIdPrefix={testIdRoot}
+          />
+          <CapabilityBadgeRow
+            items={detail.artifacts_expected ?? []}
+            label="artifacts"
+            slug="artifacts"
+            testIdPrefix={testIdRoot}
+          />
+          <CapabilityBadgeRow
+            items={detail.constraints ?? []}
+            label="constraints"
+            slug="constraints"
+            testIdPrefix={testIdRoot}
+          />
+          <CapabilityDetailList
+            items={detail.execution_outline ?? []}
+            label="execution outline"
+            slug="execution-outline"
+            testIdPrefix={testIdRoot}
+          />
+          <CapabilityDetailList
+            items={detail.examples ?? []}
+            label="examples"
+            slug="examples"
+            testIdPrefix={testIdRoot}
+          />
+        </div>
+      ) : null}
+    </li>
   );
 }
 
@@ -99,7 +233,11 @@ export function NetworkPeerDetailPanel({ error, isLoading, peer }: NetworkPeerDe
 
   const displayName = getPeerDisplayName(peer);
   const typeLabel = getPeerTypeLabel({ local: peer.local ?? false });
-  const capabilities = peer.peer_card?.capabilities ?? [];
+  const capabilityViews = buildPeerCapabilityViews(
+    peer.peer_card?.capabilities,
+    peer.capability_catalog
+  );
+  const hasRichCatalog = capabilityViews.some(hasCapabilityDetail);
 
   return (
     <section
@@ -135,26 +273,29 @@ export function NetworkPeerDetailPanel({ error, isLoading, peer }: NetworkPeerDe
       </header>
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
-        <Section label="Capabilities" right={<MonoBadge>{capabilities.length}</MonoBadge>}>
-          {capabilities.length === 0 ? (
+        <Section
+          label="Capabilities"
+          right={
+            <div className="flex items-center gap-1.5">
+              <MonoBadge tone={hasRichCatalog ? "accent" : "default"}>
+                {hasRichCatalog ? "detailed" : "brief"}
+              </MonoBadge>
+              <MonoBadge>{capabilityViews.length}</MonoBadge>
+            </div>
+          }
+        >
+          {capabilityViews.length === 0 ? (
             <Empty
               icon={Network}
               title="No capabilities advertised"
-              description="This peer's card does not advertise any runtime capabilities."
+              description="This peer does not advertise any runtime capabilities."
             />
           ) : (
-            <div
-              className="flex flex-wrap items-center gap-1.5"
-              data-testid="network-peer-capabilities"
-            >
-              {capabilities.map(capability => (
-                <KindChip
-                  data-testid={`network-peer-capability-${capability.id}`}
-                  key={capability.id}
-                  kind={capability.id}
-                />
+            <ul className="flex flex-col gap-2" data-testid="network-peer-capabilities">
+              {capabilityViews.map(view => (
+                <CapabilityRow key={view.id} view={view} />
               ))}
-            </div>
+            </ul>
           )}
         </Section>
 

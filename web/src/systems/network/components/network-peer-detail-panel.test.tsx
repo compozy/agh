@@ -30,15 +30,53 @@ function renderPanel(
 }
 
 describe("NetworkPeerDetailPanel", () => {
-  it("Should render exactly one Metric per stat key and one KindChip per capability", () => {
+  it("Should render exactly one Metric per stat key and one row per unified capability", () => {
     renderPanel();
 
     const panel = screen.getByTestId("network-peer-detail-panel");
     const metrics = within(panel).getAllByTestId(/^network-peer-metric-/);
     expect(metrics).toHaveLength(4);
 
-    const capabilities = within(panel).getAllByTestId(/^network-peer-capability-/);
-    expect(capabilities).toHaveLength(networkPeerFixture.peer_card.capabilities.length);
+    const capabilityRoots = within(panel).getAllByTestId(/^network-peer-capability-[^-]+$/);
+    expect(capabilityRoots).toHaveLength(networkPeerFixture.peer_card.capabilities.length);
+  });
+
+  it("Should render brief summary and rich catalog fields for each capability", () => {
+    renderPanel();
+
+    const panel = screen.getByTestId("network-peer-detail-panel");
+    const chatRow = within(panel).getByTestId("network-peer-capability-chat");
+    expect(within(chatRow).getByTestId("network-peer-capability-chat-summary")).toHaveTextContent(
+      "Coordinates chat-first collaboration."
+    );
+    expect(within(chatRow).getByTestId("network-peer-capability-chat-outcome")).toHaveTextContent(
+      "Peers converge on a shared plan"
+    );
+    expect(
+      within(chatRow).getByTestId("network-peer-capability-chat-execution-outline")
+    ).toBeInTheDocument();
+
+    const toolsRow = within(panel).getByTestId("network-peer-capability-tools");
+    const requires = within(toolsRow).getByTestId("network-peer-capability-tools-requirements");
+    expect(requires).toHaveTextContent("chat");
+    expect(within(toolsRow).getByTestId("network-peer-capability-tools-version")).toHaveTextContent(
+      "v0.2.0"
+    );
+  });
+
+  it("Should fall back to a brief label when no rich capability catalog is supplied", () => {
+    renderPanel({
+      peer: {
+        ...networkPeerFixture,
+        capability_catalog: null,
+      },
+    });
+
+    const panel = screen.getByTestId("network-peer-detail-panel");
+    expect(panel).toHaveTextContent("brief");
+    expect(
+      within(panel).queryByTestId("network-peer-capability-chat-detail")
+    ).not.toBeInTheDocument();
   });
 
   it("Should render the Message Statistics section header, channel table, and session link", () => {

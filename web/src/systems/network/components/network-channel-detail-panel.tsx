@@ -37,7 +37,7 @@ interface NetworkChannelDetailPanelProps {
 
 type NetworkChannelMember = NonNullable<NetworkChannel["peers"]>[number];
 
-const VALID_KINDS = new Set(["greet", "whois", "say", "direct", "recipe", "receipt", "trace"]);
+const VALID_KINDS = new Set(["greet", "whois", "say", "direct", "capability", "receipt", "trace"]);
 
 function getMessageKind(message: NetworkChannelMessage): string {
   const raw = message.intent;

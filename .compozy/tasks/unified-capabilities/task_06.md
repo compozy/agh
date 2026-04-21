@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Update `web/` Network UX and Typed Client for Unified Capabilities
 type: frontend
 complexity: high
@@ -32,11 +32,11 @@ Update the network surface in `web/` so the frontend consumes and presents the u
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Update frontend network types and API bindings for unified capabilities
-- [ ] 6.2 Rewrite `systems/network` adapters, hooks, and formatters around the new payload shape
-- [ ] 6.3 Update route/page view-model hooks and peer-detail UI to render unified capability data clearly
-- [ ] 6.4 Refresh mocks, fixtures, and regression tests for the new contract
-- [ ] 6.5 Run the required web verification gates for lint, typecheck, and targeted tests
+- [x] 6.1 Update frontend network types and API bindings for unified capabilities
+- [x] 6.2 Rewrite `systems/network` adapters, hooks, and formatters around the new payload shape
+- [x] 6.3 Update route/page view-model hooks and peer-detail UI to render unified capability data clearly
+- [x] 6.4 Refresh mocks, fixtures, and regression tests for the new contract
+- [x] 6.5 Run the required web verification gates for lint, typecheck, and targeted tests
 
 ## Implementation Details
 

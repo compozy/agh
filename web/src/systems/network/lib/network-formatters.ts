@@ -1,10 +1,13 @@
 import type { AgentPayload } from "@/systems/agent";
 
 import type {
+  NetworkCapabilityBrief,
+  NetworkCapabilityCatalog,
   NetworkChannel,
   NetworkChannelMessage,
   NetworkChannelSummary,
   NetworkCreateChannelDraft,
+  NetworkPeerCapabilityView,
   NetworkPeerDetail,
   NetworkPeerSummary,
   NetworkStatus,
@@ -297,4 +300,50 @@ export function getPeerDeliveredRate(peer: Pick<NetworkPeerDetail, "metrics">): 
 
 export function sortAgentsForNetwork(agents: AgentPayload[]) {
   return [...agents].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export function buildPeerCapabilityViews(
+  brief: readonly NetworkCapabilityBrief[] | undefined,
+  catalog: NetworkCapabilityCatalog | null | undefined
+): NetworkPeerCapabilityView[] {
+  const briefList = brief ?? [];
+  const catalogList = catalog?.capabilities ?? [];
+
+  const byId = new Map<string, NetworkPeerCapabilityView>();
+  for (const entry of briefList) {
+    byId.set(entry.id, { id: entry.id, summary: entry.summary, detail: null });
+  }
+
+  for (const detail of catalogList) {
+    const existing = byId.get(detail.id);
+    if (existing) {
+      existing.detail = detail;
+      if (!existing.summary) {
+        existing.summary = detail.summary;
+      }
+      continue;
+    }
+
+    byId.set(detail.id, { id: detail.id, summary: detail.summary, detail });
+  }
+
+  return [...byId.values()].sort((left, right) => left.id.localeCompare(right.id));
+}
+
+export function hasCapabilityDetail(view: NetworkPeerCapabilityView): boolean {
+  const detail = view.detail;
+  if (!detail) {
+    return false;
+  }
+
+  return Boolean(
+    detail.outcome ||
+    detail.version ||
+    (detail.requirements?.length ?? 0) > 0 ||
+    (detail.context_needed?.length ?? 0) > 0 ||
+    (detail.artifacts_expected?.length ?? 0) > 0 ||
+    (detail.execution_outline?.length ?? 0) > 0 ||
+    (detail.constraints?.length ?? 0) > 0 ||
+    (detail.examples?.length ?? 0) > 0
+  );
 }

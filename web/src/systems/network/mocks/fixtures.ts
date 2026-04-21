@@ -1,5 +1,6 @@
 import type {
   CreateNetworkChannelResponse,
+  NetworkCapabilityCatalog,
   NetworkChannel,
   NetworkChannelMessage,
   NetworkChannelsResponse,
@@ -11,7 +12,7 @@ import type {
 const primaryPeerCard = {
   peer_id: "peer_storybook_local",
   display_name: "Storyboard",
-  artifacts_supported: ["text/markdown", "application/json"],
+  artifacts_supported: ["capability"],
   capabilities: [
     { id: "chat", summary: "Coordinates chat-first collaboration." },
     { id: "tools", summary: "Runs tool-driven implementation steps." },
@@ -23,10 +24,45 @@ const primaryPeerCard = {
 const remotePeerCard = {
   peer_id: "peer_storybook_remote",
   display_name: "Remote Reviewer",
-  artifacts_supported: ["text/plain"],
+  artifacts_supported: ["capability"],
   capabilities: [{ id: "chat", summary: "Participates in channel discussion." }],
   profiles_supported: ["default"],
   trust_modes_supported: ["relay"],
+};
+
+const primaryCapabilityCatalog: NetworkCapabilityCatalog = {
+  capabilities: [
+    {
+      id: "chat",
+      summary: "Coordinates chat-first collaboration.",
+      outcome: "Peers converge on a shared plan inside a channel.",
+      version: "1.0.0",
+      digest: "sha256:chat",
+      context_needed: ["channel-history", "active-workspace"],
+      artifacts_expected: ["message.text"],
+      execution_outline: [
+        "Acknowledge the incoming request.",
+        "Summarize the conversation so far.",
+        "Propose the next coordinated step.",
+      ],
+      constraints: ["Latency-sensitive"],
+      examples: ["Standup sync", "Rollout review"],
+      requirements: [],
+    },
+    {
+      id: "tools",
+      summary: "Runs tool-driven implementation steps.",
+      outcome: "Delegated implementation step runs with reproducible output.",
+      version: "0.2.0",
+      digest: "sha256:tools",
+      context_needed: ["workspace-root"],
+      artifacts_expected: ["tool-call.summary"],
+      execution_outline: ["Pick the next step.", "Run the tool.", "Report the result."],
+      constraints: [],
+      examples: ["Run `make verify`"],
+      requirements: ["chat"],
+    },
+  ],
 };
 
 export const networkStatusFixture: NetworkStatus = {
@@ -191,6 +227,7 @@ export const networkPeerFixture: NetworkPeerDetail = {
     rejected: 1,
   },
   peer_card: primaryPeerCard,
+  capability_catalog: primaryCapabilityCatalog,
   peer_id: primaryPeerCard.peer_id,
   session_id: "sess-storybook",
 };
