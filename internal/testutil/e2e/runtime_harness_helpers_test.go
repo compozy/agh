@@ -880,10 +880,13 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Channel:     "builders",
 				Local:       true,
 				PeerCard: aghcontract.NetworkPeerCardPayload{
-					PeerID:             "coder.sess-1",
-					ProfilesSupported:  []string{"agh-network/v0"},
-					Capabilities:       []string{"chat.review"},
-					ArtifactsSupported: []string{"recipe"},
+					PeerID:            "coder.sess-1",
+					ProfilesSupported: []string{"agh-network/v0"},
+					Capabilities: []aghcontract.NetworkCapabilityBriefPayload{{
+						ID:      "chat.review",
+						Summary: "Reviews chat requests.",
+					}},
+					ArtifactsSupported: []string{"capability"},
 				},
 			}},
 		})
@@ -935,10 +938,13 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 					Channel:     "builders",
 					Local:       true,
 					PeerCard: aghcontract.NetworkPeerCardPayload{
-						PeerID:             "coder.sess-1",
-						ProfilesSupported:  []string{"agh-network/v0"},
-						Capabilities:       []string{"chat.review"},
-						ArtifactsSupported: []string{"recipe"},
+						PeerID:            "coder.sess-1",
+						ProfilesSupported: []string{"agh-network/v0"},
+						Capabilities: []aghcontract.NetworkCapabilityBriefPayload{{
+							ID:      "chat.review",
+							Summary: "Reviews chat requests.",
+						}},
+						ArtifactsSupported: []string{"capability"},
 					},
 				}},
 			},

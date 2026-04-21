@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/network"
 )
 
@@ -98,5 +100,58 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 		!strings.Contains(inboxResp.Body.String(), `"agh.workflow_id":"wf-1"`) ||
 		!strings.Contains(inboxResp.Body.String(), `"agh.handoff_version":3`) {
 		t.Fatalf("inbox body = %s, want workflow metadata", inboxResp.Body.String())
+	}
+}
+
+func TestNetworkHandlersExposeTypedCapabilityPayloads(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	handlers.Config.Network.Enabled = true
+	handlers.Network = stubNetworkService{
+		ListPeersFn: func(context.Context, string) ([]network.PeerInfo, error) {
+			return []network.PeerInfo{{
+				PeerID:  "reviewer.sess-a",
+				Channel: "builders",
+				Local:   true,
+				PeerCard: network.PeerCard{
+					PeerID:              "reviewer.sess-a",
+					Capabilities:        []string{"review-pr"},
+					ProfilesSupported:   []string{network.ProtocolV0},
+					ArtifactsSupported:  []string{"capability"},
+					TrustModesSupported: []string{"untrusted"},
+					Ext: network.ExtensionMap{
+						"agh.capabilities_brief": json.RawMessage(
+							`[{"id":"review-pr","summary":"Review pull requests"}]`,
+						),
+						"agh.workflow_id": json.RawMessage(`"wf-1"`),
+					},
+				},
+			}}, nil
+		},
+	}
+	engine := newTestRouter(t, handlers)
+
+	resp := performRequest(t, engine, http.MethodGet, "/api/network/peers", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("peers status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+
+	var payload contract.NetworkPeersResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(peers) error = %v", err)
+	}
+	if got, want := payload.Peers[0].PeerCard.Capabilities, []contract.NetworkCapabilityBriefPayload{{
+		ID:      "review-pr",
+		Summary: "Review pull requests",
+	}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("peer capabilities = %#v, want %#v", got, want)
+	}
+	if _, ok := payload.Peers[0].PeerCard.Ext["agh.capabilities_brief"]; ok {
+		t.Fatalf("capability brief ext should be stripped: %#v", payload.Peers[0].PeerCard.Ext)
+	}
+	if got, want := string(payload.Peers[0].PeerCard.Ext["agh.workflow_id"]), `"wf-1"`; got != want {
+		t.Fatalf("workflow ext = %q, want %q", got, want)
 	}
 }

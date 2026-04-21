@@ -330,16 +330,22 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsCapabilityCatalog(t *testing.T
 			ID:                "review-pr",
 			Summary:           "Review pull requests",
 			Outcome:           "Actionable review findings with risk assessment",
+			Version:           "1.0.0",
+			Digest:            "sha256:review-pr-v1",
 			ContextNeeded:     []string{"pull request link", "acceptance criteria"},
 			ArtifactsExpected: []string{"review summary"},
 			ExecutionOutline:  []string{"inspect diff", "run focused checks"},
 			Constraints:       []string{"no speculative blockers"},
 			Examples:          []string{"backend regression review"},
+			Requirements:      []string{"workspace-read"},
 		},
 		{
-			ID:      "draft-spec",
-			Summary: "Draft technical specifications",
-			Outcome: "A reviewed implementation plan",
+			ID:           "draft-spec",
+			Summary:      "Draft technical specifications",
+			Outcome:      "A reviewed implementation plan",
+			Version:      "2.1.0",
+			Digest:       "sha256:draft-spec-v2",
+			Requirements: []string{"repo-map"},
 		},
 	}
 	if _, err := registry.RegisterLocalWithCapabilityCatalog(
@@ -392,16 +398,22 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsCapabilityCatalog(t *testing.T
 				ID:                "review-pr",
 				Summary:           "Review pull requests",
 				Outcome:           "Actionable review findings with risk assessment",
+				Version:           "1.0.0",
+				Digest:            "sha256:review-pr-v1",
 				ContextNeeded:     []string{"pull request link", "acceptance criteria"},
 				ArtifactsExpected: []string{"review summary"},
 				ExecutionOutline:  []string{"inspect diff", "run focused checks"},
 				Constraints:       []string{"no speculative blockers"},
 				Examples:          []string{"backend regression review"},
+				Requirements:      []string{"workspace-read"},
 			},
 			{
-				ID:      "draft-spec",
-				Summary: "Draft technical specifications",
-				Outcome: "A reviewed implementation plan",
+				ID:           "draft-spec",
+				Summary:      "Draft technical specifications",
+				Outcome:      "A reviewed implementation plan",
+				Version:      "2.1.0",
+				Digest:       "sha256:draft-spec-v2",
+				Requirements: []string{"repo-map"},
 			},
 		},
 	}
@@ -421,8 +433,22 @@ func TestRouterWhoisRichCapabilityDiscoveryFiltersRequestedIDsInCatalogOrder(t *
 
 	responder := mustPeerCard(t, "reviewer.sess-filtered")
 	catalog := []sessionpkg.NetworkPeerCapability{
-		{ID: "review-pr", Summary: "Review pull requests", Outcome: "Actionable feedback"},
-		{ID: "draft-spec", Summary: "Draft technical specifications", Outcome: "A reviewed implementation plan"},
+		{
+			ID:           "review-pr",
+			Summary:      "Review pull requests",
+			Outcome:      "Actionable feedback",
+			Version:      "1.0.0",
+			Digest:       "sha256:review-pr-v1",
+			Requirements: []string{"workspace-read"},
+		},
+		{
+			ID:           "draft-spec",
+			Summary:      "Draft technical specifications",
+			Outcome:      "A reviewed implementation plan",
+			Version:      "2.1.0",
+			Digest:       "sha256:draft-spec-v2",
+			Requirements: []string{"repo-map"},
+		},
 	}
 	if _, err := registry.RegisterLocalWithCapabilityCatalog(
 		"sess-filtered",
@@ -470,9 +496,12 @@ func TestRouterWhoisRichCapabilityDiscoveryFiltersRequestedIDsInCatalogOrder(t *
 	payload := decodeWhoisCapabilityCatalogPayload(t, response.Ext[whoisCapabilityCatalogExtKey])
 	wantPayload := whoisCapabilityCatalogPayload{
 		Capabilities: []whoisCapabilityCatalogEntry{{
-			ID:      "draft-spec",
-			Summary: "Draft technical specifications",
-			Outcome: "A reviewed implementation plan",
+			ID:           "draft-spec",
+			Summary:      "Draft technical specifications",
+			Outcome:      "A reviewed implementation plan",
+			Version:      "2.1.0",
+			Digest:       "sha256:draft-spec-v2",
+			Requirements: []string{"repo-map"},
 		}},
 	}
 	if !reflect.DeepEqual(payload, wantPayload) {
@@ -1302,6 +1331,135 @@ func TestRouterDirectedCapabilityOpensInteractionForReceiptAndTrace(t *testing.T
 	}
 	if got, want := traceResult.Deliveries[0].SessionID, "sess-alpha"; got != want {
 		t.Fatalf("capability trace delivery session = %q, want %q", got, want)
+	}
+}
+
+func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 11, 15, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+
+	sender := mustPeerCard(t, "alpha.sess-a")
+	remote := mustPeerCard(t, "delta.sess-b")
+	if _, err := registry.RegisterLocal("sess-alpha", "builders", sender, now); err != nil {
+		t.Fatalf("RegisterLocal(sender) error = %v", err)
+	}
+	if _, stored, err := registry.RefreshRemote("builders", remote, now); err != nil {
+		t.Fatalf("RefreshRemote(remote) error = %v", err)
+	} else if !stored {
+		t.Fatal("RefreshRemote(remote) stored = false, want true")
+	}
+
+	router, err := NewRouter(
+		registry,
+		&spyRouterTransport{},
+		DefaultMaxReplayAge,
+		WithRouterClock(func() time.Time { return now }),
+	)
+	if err != nil {
+		t.Fatalf("NewRouter() error = %v", err)
+	}
+
+	sent, err := router.Send(context.Background(), SendRequest{
+		SessionID:     "sess-alpha",
+		Channel:       "builders",
+		Kind:          KindCapability,
+		To:            stringPtr(remote.PeerID),
+		InteractionID: stringPtr("int_capability_send"),
+		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
+			ID:               "review-fix",
+			Summary:          "Review fix flow",
+			Outcome:          "A reusable review fix workflow.",
+			Version:          "1.0.0",
+			ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
+			Requirements:     []string{"workspace-write"},
+		}),
+	})
+	if err != nil {
+		t.Fatalf("Send(capability) error = %v", err)
+	}
+
+	tracePayload, err := json.Marshal(Envelope{
+		Protocol:      ProtocolV0,
+		ID:            "msg_capability_trace_needs_input",
+		Kind:          KindTrace,
+		Channel:       "builders",
+		From:          remote.PeerID,
+		To:            stringPtr(sender.PeerID),
+		InteractionID: stringPtr("int_capability_send"),
+		ReplyTo:       stringPtr(sent.ID),
+		TS:            now.Unix(),
+		Body: mustRawJSON(t, TraceBody{
+			State:   StateNeedsInput,
+			Message: "need more detail",
+		}),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(trace needs_input) error = %v", err)
+	}
+
+	traceResult, err := router.Receive(context.Background(), tracePayload)
+	if err != nil {
+		t.Fatalf("Receive(trace needs_input) error = %v", err)
+	}
+	if traceResult.Ignored || traceResult.Rejected {
+		t.Fatalf("trace needs_input result = %#v, want delivered trace", traceResult)
+	}
+	if got, want := len(traceResult.Deliveries), 1; got != want {
+		t.Fatalf("len(trace needs_input deliveries) = %d, want %d", got, want)
+	}
+	if got, want := traceResult.Deliveries[0].SessionID, "sess-alpha"; got != want {
+		t.Fatalf("trace needs_input delivery session = %q, want %q", got, want)
+	}
+
+	completedPayload, err := json.Marshal(Envelope{
+		Protocol:      ProtocolV0,
+		ID:            "msg_capability_trace_completed",
+		Kind:          KindTrace,
+		Channel:       "builders",
+		From:          remote.PeerID,
+		To:            stringPtr(sender.PeerID),
+		InteractionID: stringPtr("int_capability_send"),
+		ReplyTo:       stringPtr(sent.ID),
+		TS:            now.Unix(),
+		Body: mustRawJSON(t, TraceBody{
+			State:   StateCompleted,
+			Message: "completed",
+		}),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(trace completed) error = %v", err)
+	}
+
+	completedResult, err := router.Receive(context.Background(), completedPayload)
+	if err != nil {
+		t.Fatalf("Receive(trace completed) error = %v", err)
+	}
+	if completedResult.Ignored || completedResult.Rejected {
+		t.Fatalf("trace completed result = %#v, want delivered terminal trace", completedResult)
+	}
+
+	if _, err := router.Send(context.Background(), SendRequest{
+		SessionID:     "sess-alpha",
+		Channel:       "builders",
+		Kind:          KindCapability,
+		To:            stringPtr(remote.PeerID),
+		InteractionID: stringPtr("int_capability_send"),
+		ReplyTo:       stringPtr(sent.ID),
+		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
+			ID:               "review-fix-follow-up",
+			Summary:          "Review follow-up flow",
+			Outcome:          "A post-completion follow-up workflow.",
+			Version:          "1.0.0",
+			ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
+			Requirements:     []string{"workspace-write"},
+		}),
+	}); !errors.Is(err, ErrInteractionClosed) {
+		t.Fatalf("Send(post-terminal capability) error = %v, want ErrInteractionClosed", err)
 	}
 }
 

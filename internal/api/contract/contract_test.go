@@ -674,6 +674,117 @@ func TestUpdateTaskRequestHasChanges(t *testing.T) {
 	}
 }
 
+func TestNetworkPeerPayloadJSONShape(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should serialize peer-card capabilities as typed brief objects", func(t *testing.T) {
+		t.Parallel()
+
+		payload := contract.NetworkPeerPayload{
+			PeerID:      "reviewer.sess-a",
+			DisplayName: "Reviewer",
+			Channel:     "builders",
+			Local:       true,
+			PeerCard: contract.NetworkPeerCardPayload{
+				PeerID: "reviewer.sess-a",
+				Capabilities: []contract.NetworkCapabilityBriefPayload{{
+					ID:      "review-pr",
+					Summary: "Review pull requests",
+				}},
+				ProfilesSupported:   []string{"agh-network/v0"},
+				ArtifactsSupported:  []string{"capability"},
+				TrustModesSupported: []string{"untrusted"},
+				Ext: map[string]json.RawMessage{
+					"agh.workflow_id": json.RawMessage(`"wf-1"`),
+				},
+			},
+		}
+
+		var got map[string]any
+		marshalJSON(t, payload, &got)
+
+		peerCard, ok := got["peer_card"].(map[string]any)
+		if !ok {
+			t.Fatalf("peer_card type = %T, want object", got["peer_card"])
+		}
+		capabilities, ok := peerCard["capabilities"].([]any)
+		if !ok || len(capabilities) != 1 {
+			t.Fatalf("peer_card.capabilities = %#v, want one object entry", peerCard["capabilities"])
+		}
+		firstCapability, ok := capabilities[0].(map[string]any)
+		if !ok {
+			t.Fatalf("capability entry type = %T, want object", capabilities[0])
+		}
+		if firstCapability["id"] != "review-pr" || firstCapability["summary"] != "Review pull requests" {
+			t.Fatalf("capability brief JSON = %#v", firstCapability)
+		}
+		if _, isString := capabilities[0].(string); isString {
+			t.Fatalf("capability brief JSON should be object, got string: %#v", capabilities[0])
+		}
+	})
+}
+
+func TestNetworkPeerDetailPayloadJSONShape(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should serialize rich capability catalogs as structured payloads", func(t *testing.T) {
+		t.Parallel()
+
+		payload := contract.NetworkPeerDetailPayload{
+			PeerID:      "reviewer.sess-a",
+			DisplayName: "Reviewer",
+			Channel:     "builders",
+			Local:       true,
+			PeerCard: contract.NetworkPeerCardPayload{
+				PeerID: "reviewer.sess-a",
+				Capabilities: []contract.NetworkCapabilityBriefPayload{{
+					ID:      "review-pr",
+					Summary: "Review pull requests",
+				}},
+				ProfilesSupported:   []string{"agh-network/v0"},
+				ArtifactsSupported:  []string{"capability"},
+				TrustModesSupported: []string{"untrusted"},
+			},
+			CapabilityCatalog: &contract.NetworkCapabilityCatalogPayload{
+				Capabilities: []contract.NetworkCapabilityPayload{{
+					ID:                "review-pr",
+					Summary:           "Review pull requests",
+					Outcome:           "Actionable review findings",
+					Version:           "1.0.0",
+					Digest:            "sha256:review-pr-v1",
+					ContextNeeded:     []string{"pull request link"},
+					ArtifactsExpected: []string{"review summary"},
+					Requirements:      []string{"workspace-read"},
+				}},
+			},
+		}
+
+		var got map[string]any
+		marshalJSON(t, payload, &got)
+
+		catalog, ok := got["capability_catalog"].(map[string]any)
+		if !ok {
+			t.Fatalf("capability_catalog type = %T, want object", got["capability_catalog"])
+		}
+		capabilities, ok := catalog["capabilities"].([]any)
+		if !ok || len(capabilities) != 1 {
+			t.Fatalf("capability_catalog.capabilities = %#v, want one object entry", catalog["capabilities"])
+		}
+		firstCapability, ok := capabilities[0].(map[string]any)
+		if !ok {
+			t.Fatalf("rich capability entry type = %T, want object", capabilities[0])
+		}
+		if firstCapability["digest"] != "sha256:review-pr-v1" ||
+			firstCapability["outcome"] != "Actionable review findings" {
+			t.Fatalf("rich capability JSON = %#v", firstCapability)
+		}
+		requirements, ok := firstCapability["requirements"].([]any)
+		if !ok || len(requirements) != 1 || requirements[0] != "workspace-read" {
+			t.Fatalf("requirements JSON = %#v, want workspace-read", firstCapability["requirements"])
+		}
+	})
+}
+
 func marshalJSON[T any](t *testing.T, value any, target *T) {
 	t.Helper()
 

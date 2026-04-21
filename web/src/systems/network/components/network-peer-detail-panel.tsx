@@ -149,9 +149,9 @@ export function NetworkPeerDetailPanel({ error, isLoading, peer }: NetworkPeerDe
             >
               {capabilities.map(capability => (
                 <KindChip
-                  data-testid={`network-peer-capability-${capability}`}
-                  key={capability}
-                  kind={capability}
+                  data-testid={`network-peer-capability-${capability.id}`}
+                  key={capability.id}
+                  kind={capability.id}
                 />
               ))}
             </div>

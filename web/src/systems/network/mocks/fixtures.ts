@@ -12,7 +12,10 @@ const primaryPeerCard = {
   peer_id: "peer_storybook_local",
   display_name: "Storyboard",
   artifacts_supported: ["text/markdown", "application/json"],
-  capabilities: ["chat", "tools"],
+  capabilities: [
+    { id: "chat", summary: "Coordinates chat-first collaboration." },
+    { id: "tools", summary: "Runs tool-driven implementation steps." },
+  ],
   profiles_supported: ["default"],
   trust_modes_supported: ["local-first"],
 };
@@ -21,7 +24,7 @@ const remotePeerCard = {
   peer_id: "peer_storybook_remote",
   display_name: "Remote Reviewer",
   artifacts_supported: ["text/plain"],
-  capabilities: ["chat"],
+  capabilities: [{ id: "chat", summary: "Participates in channel discussion." }],
   profiles_supported: ["default"],
   trust_modes_supported: ["relay"],
 };

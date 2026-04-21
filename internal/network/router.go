@@ -269,6 +269,9 @@ func (r *Router) Send(ctx context.Context, req SendRequest) (SendResult, error) 
 			envelope.Channel,
 		)
 	}
+	if err := r.validateSendLifecycle(envelope, now); err != nil {
+		return SendResult{}, err
+	}
 
 	subject, err := subjectForEnvelope(envelope)
 	if err != nil {
@@ -277,6 +280,7 @@ func (r *Router) Send(ctx context.Context, req SendRequest) (SendResult, error) 
 	if err := r.publishEnvelope(ctx, envelope); err != nil {
 		return SendResult{}, err
 	}
+	r.syncSentLifecycle(envelope, now)
 
 	return SendResult{
 		ID:       envelope.ID,
@@ -568,7 +572,14 @@ func (r *Router) handleWhois(
 	switch whois.Type {
 	case WhoisTypeResponse:
 		if whois.PeerCard != nil {
-			if _, _, refreshErr := r.peers.RefreshRemote(envelope.Channel, *whois.PeerCard, now); refreshErr != nil {
+			capabilityCatalog, capabilityCatalogKnown := decodeWhoisCapabilityCatalogResponseExt(envelope.Ext)
+			if _, _, refreshErr := r.peers.RefreshRemoteWithCapabilityCatalog(
+				envelope.Channel,
+				*whois.PeerCard,
+				capabilityCatalog,
+				capabilityCatalogKnown,
+				now,
+			); refreshErr != nil {
 				return RouteResult{}, refreshErr
 			}
 		}
@@ -758,6 +769,28 @@ func (r *Router) applyLifecycle(envelope Envelope, now time.Time) (LifecycleResu
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	result, err := r.evaluateLifecycleLocked(key, envelope, now)
+	if err != nil {
+		return LifecycleResult{}, err
+	}
+	r.interactions[key] = result.Interaction
+	return result, nil
+}
+
+func (r *Router) evaluateLifecycle(envelope Envelope, now time.Time) (LifecycleResult, error) {
+	key := interactionKey(envelope.Channel, *envelope.InteractionID)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.evaluateLifecycleLocked(key, envelope, now)
+}
+
+func (r *Router) evaluateLifecycleLocked(
+	key string,
+	envelope Envelope,
+	now time.Time,
+) (LifecycleResult, error) {
 	current, ok := r.interactions[key]
 	var currentPtr *Interaction
 	if ok {
@@ -765,12 +798,52 @@ func (r *Router) applyLifecycle(envelope Envelope, now time.Time) (LifecycleResu
 		currentPtr = &copied
 	}
 
-	result, err := ApplyInteractionEnvelope(currentPtr, envelope, now)
-	if err != nil {
-		return LifecycleResult{}, err
+	return ApplyInteractionEnvelope(currentPtr, envelope, now)
+}
+
+func (r *Router) validateSendLifecycle(envelope Envelope, now time.Time) error {
+	if !shouldTrackSentLifecycle(envelope) {
+		return nil
 	}
-	r.interactions[key] = result.Interaction
-	return result, nil
+
+	result, err := r.evaluateLifecycle(envelope, now)
+	if err != nil {
+		return err
+	}
+	switch result.Action {
+	case LifecycleActionIgnored, LifecycleActionRejectDirect:
+		return fmt.Errorf(
+			"%w: interaction_id=%q kind=%q",
+			ErrInteractionClosed,
+			result.Interaction.ID,
+			envelope.Kind,
+		)
+	default:
+		return nil
+	}
+}
+
+func (r *Router) syncSentLifecycle(envelope Envelope, now time.Time) {
+	if !shouldTrackSentLifecycle(envelope) {
+		return
+	}
+
+	if _, err := r.applyLifecycle(envelope, now); err != nil {
+		return
+	}
+}
+
+func shouldTrackSentLifecycle(envelope Envelope) bool {
+	if envelope.InteractionID == nil {
+		return false
+	}
+
+	switch envelope.Kind {
+	case KindDirect, KindCapability, KindReceipt, KindTrace:
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *Router) publishEnvelope(ctx context.Context, envelope Envelope) error {

@@ -9076,7 +9076,19 @@
                                                                     },
                                                                     "capabilities": {
                                                                         "items": {
-                                                                            "type": "string"
+                                                                            "properties": {
+                                                                                "id": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "summary": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "id",
+                                                                                "summary"
+                                                                            ],
+                                                                            "type": "object"
                                                                         },
                                                                         "type": "array"
                                                                     },
@@ -9418,7 +9430,19 @@
                                                                     },
                                                                     "capabilities": {
                                                                         "items": {
-                                                                            "type": "string"
+                                                                            "properties": {
+                                                                                "id": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "summary": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "id",
+                                                                                "summary"
+                                                                            ],
+                                                                            "type": "object"
                                                                         },
                                                                         "type": "array"
                                                                     },
@@ -10064,7 +10088,16 @@
                                                             },
                                                             "capabilities": {
                                                                 "items": {
-                                                                    "type": "string"
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "summary": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": ["id", "summary"],
+                                                                    "type": "object"
                                                                 },
                                                                 "type": "array"
                                                             },
@@ -10206,6 +10239,77 @@
                                     "properties": {
                                         "peer": {
                                             "properties": {
+                                                "capability_catalog": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "capabilities": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "artifacts_expected": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "constraints": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "context_needed": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "digest": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "examples": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "execution_outline": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "outcome": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "requirements": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "summary": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "version": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "outcome",
+                                                                    "summary"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": ["capabilities"],
+                                                    "type": "object"
+                                                },
                                                 "channel": {
                                                     "type": "string"
                                                 },
@@ -10261,7 +10365,16 @@
                                                         },
                                                         "capabilities": {
                                                             "items": {
-                                                                "type": "string"
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "summary": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["id", "summary"],
+                                                                "type": "object"
                                                             },
                                                             "type": "array"
                                                         },

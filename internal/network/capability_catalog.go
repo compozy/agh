@@ -29,11 +29,14 @@ type whoisCapabilityCatalogEntry struct {
 	ID                string   `json:"id"`
 	Summary           string   `json:"summary"`
 	Outcome           string   `json:"outcome"`
+	Version           string   `json:"version,omitempty"`
+	Digest            string   `json:"digest,omitempty"`
 	ContextNeeded     []string `json:"context_needed,omitempty"`
 	ArtifactsExpected []string `json:"artifacts_expected,omitempty"`
 	ExecutionOutline  []string `json:"execution_outline,omitempty"`
 	Constraints       []string `json:"constraints,omitempty"`
 	Examples          []string `json:"examples,omitempty"`
+	Requirements      []string `json:"requirements,omitempty"`
 }
 
 func parseWhoisCapabilityDiscoveryRequest(ext ExtensionMap) whoisCapabilityDiscoveryRequest {
@@ -113,11 +116,14 @@ func projectWhoisCapabilityCatalog(
 			ID:                id,
 			Summary:           strings.TrimSpace(capability.Summary),
 			Outcome:           strings.TrimSpace(capability.Outcome),
+			Version:           strings.TrimSpace(capability.Version),
+			Digest:            strings.TrimSpace(capability.Digest),
 			ContextNeeded:     cloneStringList(capability.ContextNeeded),
 			ArtifactsExpected: cloneStringList(capability.ArtifactsExpected),
 			ExecutionOutline:  cloneStringList(capability.ExecutionOutline),
 			Constraints:       cloneStringList(capability.Constraints),
 			Examples:          cloneStringList(capability.Examples),
+			Requirements:      cloneStringList(capability.Requirements),
 		})
 	}
 	if len(entries) == 0 {
@@ -140,14 +146,96 @@ func cloneNetworkPeerCapabilityCatalog(
 			ID:                strings.TrimSpace(capability.ID),
 			Summary:           strings.TrimSpace(capability.Summary),
 			Outcome:           strings.TrimSpace(capability.Outcome),
+			Version:           strings.TrimSpace(capability.Version),
+			Digest:            strings.TrimSpace(capability.Digest),
 			ContextNeeded:     cloneStringList(capability.ContextNeeded),
 			ArtifactsExpected: cloneStringList(capability.ArtifactsExpected),
 			ExecutionOutline:  cloneStringList(capability.ExecutionOutline),
 			Constraints:       cloneStringList(capability.Constraints),
 			Examples:          cloneStringList(capability.Examples),
+			Requirements:      cloneStringList(capability.Requirements),
 		})
 	}
 	return cloned
+}
+
+func decodeWhoisCapabilityCatalogResponseExt(
+	ext ExtensionMap,
+) ([]sessionpkg.NetworkPeerCapability, bool) {
+	if len(ext) == 0 {
+		return nil, false
+	}
+
+	raw, ok := ext[whoisCapabilityCatalogExtKey]
+	if !ok || len(raw) == 0 {
+		return nil, false
+	}
+
+	var payload whoisCapabilityCatalogPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, false
+	}
+
+	catalog := make([]sessionpkg.NetworkPeerCapability, 0, len(payload.Capabilities))
+	for _, capability := range payload.Capabilities {
+		id := strings.TrimSpace(capability.ID)
+		if id == "" {
+			continue
+		}
+
+		catalog = append(catalog, sessionpkg.NetworkPeerCapability{
+			ID:                id,
+			Summary:           strings.TrimSpace(capability.Summary),
+			Outcome:           strings.TrimSpace(capability.Outcome),
+			Version:           strings.TrimSpace(capability.Version),
+			Digest:            strings.TrimSpace(capability.Digest),
+			ContextNeeded:     cloneStringList(capability.ContextNeeded),
+			ArtifactsExpected: cloneStringList(capability.ArtifactsExpected),
+			ExecutionOutline:  cloneStringList(capability.ExecutionOutline),
+			Constraints:       cloneStringList(capability.Constraints),
+			Examples:          cloneStringList(capability.Examples),
+			Requirements:      cloneStringList(capability.Requirements),
+		})
+	}
+
+	return catalog, true
+}
+
+func capabilityCatalogAlignsWithCapabilityIDs(
+	capabilityIDs []string,
+	capabilityCatalog []sessionpkg.NetworkPeerCapability,
+) bool {
+	normalizedIDs := normalizeCapabilityIDList(capabilityIDs)
+	if len(normalizedIDs) != len(capabilityCatalog) {
+		return false
+	}
+
+	for idx, capability := range capabilityCatalog {
+		if normalizedIDs[idx] != strings.TrimSpace(capability.ID) {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizeCapabilityIDList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		normalized = append(normalized, trimmed)
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+
+	return normalized
 }
 
 func decodeExtensionStringList(ext ExtensionMap, key string) []string {

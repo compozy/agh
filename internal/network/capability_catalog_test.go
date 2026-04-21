@@ -86,8 +86,19 @@ func TestProjectWhoisCapabilityCatalogDistinguishesAbsentAndExplicitEmptyFilters
 	t.Parallel()
 
 	catalog := []sessionpkg.NetworkPeerCapability{
-		{ID: "review-pr", Summary: "Review pull requests", Outcome: "Actionable review findings"},
-		{ID: "draft-spec", Summary: "Draft technical specifications", Outcome: "Reviewed implementation plan"},
+		{
+			ID:           "review-pr",
+			Summary:      "Review pull requests",
+			Outcome:      "Actionable review findings",
+			Version:      "1.0.0",
+			Digest:       "sha256:review-pr-v1",
+			Requirements: []string{"workspace-read"},
+		},
+		{
+			ID:      "draft-spec",
+			Summary: "Draft technical specifications",
+			Outcome: "Reviewed implementation plan",
+		},
 	}
 
 	tests := []struct {
@@ -99,7 +110,14 @@ func TestProjectWhoisCapabilityCatalogDistinguishesAbsentAndExplicitEmptyFilters
 			name:          "ShouldReturnTheFullCatalogWhenTheFilterIsAbsent",
 			capabilityIDs: nil,
 			want: []whoisCapabilityCatalogEntry{
-				{ID: "review-pr", Summary: "Review pull requests", Outcome: "Actionable review findings"},
+				{
+					ID:           "review-pr",
+					Summary:      "Review pull requests",
+					Outcome:      "Actionable review findings",
+					Version:      "1.0.0",
+					Digest:       "sha256:review-pr-v1",
+					Requirements: []string{"workspace-read"},
+				},
 				{ID: "draft-spec", Summary: "Draft technical specifications", Outcome: "Reviewed implementation plan"},
 			},
 		},
@@ -126,5 +144,49 @@ func TestProjectWhoisCapabilityCatalogDistinguishesAbsentAndExplicitEmptyFilters
 				t.Fatalf("projectWhoisCapabilityCatalog() = %#v, want %#v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestDecodeWhoisCapabilityCatalogResponseExtPreservesUnifiedFields(t *testing.T) {
+	t.Parallel()
+
+	ext := ExtensionMap{
+		whoisCapabilityCatalogExtKey: mustRawJSON(t, whoisCapabilityCatalogPayload{
+			Capabilities: []whoisCapabilityCatalogEntry{{
+				ID:                "review-pr",
+				Summary:           "Review pull requests",
+				Outcome:           "Actionable review findings",
+				Version:           "1.0.0",
+				Digest:            "sha256:review-pr-v1",
+				ContextNeeded:     []string{"pull request link"},
+				ArtifactsExpected: []string{"review summary"},
+				ExecutionOutline:  []string{"inspect diff"},
+				Constraints:       []string{"no speculative blockers"},
+				Examples:          []string{"backend regression review"},
+				Requirements:      []string{"workspace-read"},
+			}},
+		}),
+	}
+
+	catalog, known := decodeWhoisCapabilityCatalogResponseExt(ext)
+	if !known {
+		t.Fatal("decodeWhoisCapabilityCatalogResponseExt() known = false, want true")
+	}
+
+	want := []sessionpkg.NetworkPeerCapability{{
+		ID:                "review-pr",
+		Summary:           "Review pull requests",
+		Outcome:           "Actionable review findings",
+		Version:           "1.0.0",
+		Digest:            "sha256:review-pr-v1",
+		ContextNeeded:     []string{"pull request link"},
+		ArtifactsExpected: []string{"review summary"},
+		ExecutionOutline:  []string{"inspect diff"},
+		Constraints:       []string{"no speculative blockers"},
+		Examples:          []string{"backend regression review"},
+		Requirements:      []string{"workspace-read"},
+	}}
+	if !reflect.DeepEqual(catalog, want) {
+		t.Fatalf("decoded catalog = %#v, want %#v", catalog, want)
 	}
 }

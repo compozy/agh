@@ -313,15 +313,44 @@ type CreateNetworkChannelRequest struct {
 	AgentNames  []string `json:"agent_names"`
 }
 
+// NetworkCapabilityBriefPayload is the shared brief discovery projection for
+// one peer capability.
+type NetworkCapabilityBriefPayload struct {
+	ID      string `json:"id"`
+	Summary string `json:"summary"`
+}
+
+// NetworkCapabilityPayload is the shared rich capability payload surfaced by
+// daemon APIs.
+type NetworkCapabilityPayload struct {
+	ID                string   `json:"id"`
+	Summary           string   `json:"summary"`
+	Outcome           string   `json:"outcome"`
+	Version           string   `json:"version,omitempty"`
+	Digest            string   `json:"digest,omitempty"`
+	ContextNeeded     []string `json:"context_needed,omitempty"`
+	ArtifactsExpected []string `json:"artifacts_expected,omitempty"`
+	ExecutionOutline  []string `json:"execution_outline,omitempty"`
+	Constraints       []string `json:"constraints,omitempty"`
+	Examples          []string `json:"examples,omitempty"`
+	Requirements      []string `json:"requirements,omitempty"`
+}
+
+// NetworkCapabilityCatalogPayload is the shared rich discovery catalog surfaced
+// by peer-detail APIs when explicit rich capability data is available.
+type NetworkCapabilityCatalogPayload struct {
+	Capabilities []NetworkCapabilityPayload `json:"capabilities"`
+}
+
 // NetworkPeerCardPayload is the shared JSON representation of one peer card.
 type NetworkPeerCardPayload struct {
-	PeerID              string                     `json:"peer_id"`
-	DisplayName         *string                    `json:"display_name,omitempty"`
-	ProfilesSupported   []string                   `json:"profiles_supported"`
-	Capabilities        []string                   `json:"capabilities"`
-	ArtifactsSupported  []string                   `json:"artifacts_supported"`
-	TrustModesSupported []string                   `json:"trust_modes_supported"`
-	Ext                 map[string]json.RawMessage `json:"ext,omitempty"`
+	PeerID              string                          `json:"peer_id"`
+	DisplayName         *string                         `json:"display_name,omitempty"`
+	ProfilesSupported   []string                        `json:"profiles_supported"`
+	Capabilities        []NetworkCapabilityBriefPayload `json:"capabilities"`
+	ArtifactsSupported  []string                        `json:"artifacts_supported"`
+	TrustModesSupported []string                        `json:"trust_modes_supported"`
+	Ext                 map[string]json.RawMessage      `json:"ext,omitempty"`
 }
 
 // NetworkPeerPayload is the shared JSON representation of one visible peer.
@@ -404,16 +433,17 @@ type NetworkPeerMetricsPayload struct {
 
 // NetworkPeerDetailPayload is the shared selected-peer detail payload.
 type NetworkPeerDetailPayload struct {
-	SessionID   *string                   `json:"session_id,omitempty"`
-	PeerID      string                    `json:"peer_id"`
-	DisplayName string                    `json:"display_name,omitempty"`
-	Channel     string                    `json:"channel,omitempty"`
-	Local       bool                      `json:"local,omitempty"`
-	PeerCard    NetworkPeerCardPayload    `json:"peer_card"`
-	JoinedAt    *time.Time                `json:"joined_at,omitempty"`
-	LastSeen    *time.Time                `json:"last_seen,omitempty"`
-	ExpiresAt   *time.Time                `json:"expires_at,omitempty"`
-	Metrics     NetworkPeerMetricsPayload `json:"metrics"`
+	SessionID         *string                          `json:"session_id,omitempty"`
+	PeerID            string                           `json:"peer_id"`
+	DisplayName       string                           `json:"display_name,omitempty"`
+	Channel           string                           `json:"channel,omitempty"`
+	Local             bool                             `json:"local,omitempty"`
+	PeerCard          NetworkPeerCardPayload           `json:"peer_card"`
+	CapabilityCatalog *NetworkCapabilityCatalogPayload `json:"capability_catalog,omitempty"`
+	JoinedAt          *time.Time                       `json:"joined_at,omitempty"`
+	LastSeen          *time.Time                       `json:"last_seen,omitempty"`
+	ExpiresAt         *time.Time                       `json:"expires_at,omitempty"`
+	Metrics           NetworkPeerMetricsPayload        `json:"metrics"`
 }
 
 // InstallExtensionRequest is the shared extension install request payload.

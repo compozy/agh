@@ -752,16 +752,17 @@ func NetworkPeerDetailPayloadFromInfo(
 	metrics contract.NetworkPeerMetricsPayload,
 ) contract.NetworkPeerDetailPayload {
 	payload := contract.NetworkPeerDetailPayload{
-		SessionID:   peer.SessionID,
-		PeerID:      peer.PeerID,
-		DisplayName: networkPeerDisplayName(peer, sessionsByID),
-		Channel:     peer.Channel,
-		Local:       peer.Local,
-		PeerCard:    NetworkPeerPayloadFromInfo(peer).PeerCard,
-		JoinedAt:    cloneTimePtr(peer.JoinedAt),
-		LastSeen:    cloneTimePtr(peer.LastSeen),
-		ExpiresAt:   cloneTimePtr(peer.ExpiresAt),
-		Metrics:     metrics,
+		SessionID:         peer.SessionID,
+		PeerID:            peer.PeerID,
+		DisplayName:       networkPeerDisplayName(peer, sessionsByID),
+		Channel:           peer.Channel,
+		Local:             peer.Local,
+		PeerCard:          NetworkPeerPayloadFromInfo(peer).PeerCard,
+		CapabilityCatalog: networkCapabilityCatalogPayload(peer),
+		JoinedAt:          cloneTimePtr(peer.JoinedAt),
+		LastSeen:          cloneTimePtr(peer.LastSeen),
+		ExpiresAt:         cloneTimePtr(peer.ExpiresAt),
+		Metrics:           metrics,
 	}
 	return payload
 }
