@@ -228,7 +228,7 @@ func (m *Manager) lookupPromptSession(target string) (*Session, error) {
 		return nil, err
 	}
 
-	meta, metaErr := m.readMeta(target)
+	meta, metaErr := m.readMetaWithContext(context.Background(), target)
 	switch {
 	case metaErr == nil:
 		return nil, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, meta.State)
@@ -290,7 +290,7 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 
 	session, ok := m.Get(target)
 	if !ok {
-		if _, err := m.readMeta(target); err != nil {
+		if _, err := m.readMetaWithContext(ctx, target); err != nil {
 			return err
 		}
 		return nil
@@ -330,7 +330,7 @@ func (m *Manager) ApprovePermission(ctx context.Context, id string, req acp.Appr
 
 	session, ok := m.Get(target)
 	if !ok {
-		meta, err := m.readMeta(target)
+		meta, err := m.readMetaWithContext(ctx, target)
 		if err != nil {
 			return err
 		}

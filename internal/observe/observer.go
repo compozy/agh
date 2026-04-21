@@ -787,6 +787,7 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 		ID:           info.ID,
 		Name:         info.Name,
 		AgentName:    info.AgentName,
+		Provider:     info.Provider,
 		WorkspaceID:  info.WorkspaceID,
 		Channel:      info.Channel,
 		SessionType:  string(info.Type),

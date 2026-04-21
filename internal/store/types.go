@@ -142,6 +142,7 @@ type SessionInfo struct {
 	ID           string
 	Name         string
 	AgentName    string
+	Provider     string
 	WorkspaceID  string
 	Channel      string
 	SessionType  string
@@ -571,6 +572,7 @@ type SessionMeta struct {
 	ID           string                  `json:"id"`
 	Name         string                  `json:"name,omitempty"`
 	AgentName    string                  `json:"agent_name"`
+	Provider     string                  `json:"provider,omitempty"`
 	WorkspaceID  string                  `json:"workspace_id,omitempty"`
 	Channel      string                  `json:"channel,omitempty"`
 	SessionType  string                  `json:"session_type,omitempty"`

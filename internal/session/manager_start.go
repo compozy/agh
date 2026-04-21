@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,6 +24,7 @@ type sessionStartSpec struct {
 	environment            *store.SessionEnvironmentMeta
 	sessionName            string
 	agentName              string
+	provider               string
 	workspace              workspacepkg.ResolvedWorkspace
 	channel                string
 	sessionType            Type
@@ -80,11 +82,12 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		environmentID:     environmentID,
 		sessionName:       strings.TrimSpace(opts.Name),
 		agentName:         strings.TrimSpace(agentName),
+		provider:          strings.TrimSpace(opts.Provider),
 		workspace:         resolvedWorkspace,
 		channel:           strings.TrimSpace(opts.Channel),
 		sessionType:       normalizeSessionType(opts.Type),
 		postEvent:         hookspkg.HookSessionPostCreate,
-		startAction:       "start",
+		startAction:       "create",
 		cleanupSessionDir: true,
 	}, nil
 }
@@ -106,6 +109,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		environment:            cloneSessionEnvironmentMeta(meta.Environment),
 		sessionName:            meta.Name,
 		agentName:              meta.AgentName,
+		provider:               strings.TrimSpace(meta.Provider),
 		workspace:              resolvedWorkspace,
 		channel:                strings.TrimSpace(meta.Channel),
 		sessionType:            normalizeSessionType(Type(meta.SessionType)),
@@ -125,6 +129,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 
 	runtime, err := m.prepareSessionStartRuntime(ctx, spec, now)
 	if err != nil {
+		spec.startLogger(m).Warn("session.start.runtime_prepare_failed", "phase", spec.startAction, "error", err)
 		return nil, err
 	}
 
@@ -168,12 +173,14 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	}
 
 	if err := m.writeMeta(session); err != nil {
+		m.sessionLogger(session).Warn("session.start.meta_write_failed", "phase", spec.startAction, "error", err)
 		return nil, err
 	}
 
 	transportStarted := time.Now()
 	proc, err = m.driver.Start(ctx, startOpts)
 	if err != nil {
+		m.sessionLogger(session).Warn("session.start.driver_start_failed", "phase", spec.startAction, "error", err)
 		m.logEnvironmentTransport(session, environmentEventTransportError, err, time.Since(transportStarted))
 		return nil, fmt.Errorf("session: %s agent for %q: %w", spec.startAction, spec.sessionID, err)
 	}
@@ -256,9 +263,9 @@ func (m *Manager) prepareSessionStartRuntime(
 	}
 	agentDef.Prompt = startupPrompt
 
-	resolved, err := spec.workspace.Config.ResolveAgent(agentDef)
+	resolved, err := spec.workspace.Config.ResolveSessionAgent(agentDef, spec.provider)
 	if err != nil {
-		return sessionStartRuntime{}, fmt.Errorf("session: resolve agent %q: %w", spec.agentName, err)
+		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
 
 	startMCPServers, err := m.resolveStartMCPServers(ctx, &spec.workspace, resolved.MCPServers)
@@ -312,6 +319,7 @@ func (s *sessionStartSpec) newStartingSession(
 		ID:                       s.sessionID,
 		Name:                     s.sessionName,
 		AgentName:                resolved.Name,
+		Provider:                 strings.TrimSpace(resolved.Provider),
 		WorkspaceID:              s.workspace.ID,
 		Workspace:                s.workspace.RootDir,
 		Channel:                  s.channel,
@@ -329,6 +337,19 @@ func (s *sessionStartSpec) newStartingSession(
 		recorder:                 storage.recorder,
 		environmentDestroyOnStop: s.workspace.Environment.DestroyOnStop,
 	}
+}
+
+func (s *sessionStartSpec) startLogger(m *Manager) *slog.Logger {
+	logger := slog.Default()
+	if m != nil && m.logger != nil {
+		logger = m.logger
+	}
+	return logger.With(
+		"session_id", strings.TrimSpace(s.sessionID),
+		"agent_name", strings.TrimSpace(s.agentName),
+		"provider", strings.TrimSpace(s.provider),
+		"workspace_id", strings.TrimSpace(s.workspace.ID),
+	)
 }
 
 func (m *Manager) sessionStartOpts(

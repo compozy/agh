@@ -51,7 +51,7 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 			continue
 		}
 
-		meta, err := m.readMeta(id)
+		meta, err := m.readMetaWithContext(ctx, id)
 		if err != nil {
 			if errors.Is(err, ErrSessionNotFound) {
 				continue
@@ -97,7 +97,7 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 		return session.Info(), nil
 	}
 
-	meta, err := m.readMeta(target)
+	meta, err := m.readMetaWithContext(ctx, target)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
 		return recorder, func() error { return nil }, nil
 	}
 
-	if _, err := m.readMeta(target); err != nil {
+	if _, err := m.readMetaWithContext(ctx, target); err != nil {
 		return nil, nil, err
 	}
 
@@ -194,6 +194,10 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
 }
 
 func (m *Manager) readMeta(id string) (store.SessionMeta, error) {
+	return m.readMetaWithContext(context.Background(), id)
+}
+
+func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.SessionMeta, error) {
 	target, err := normalizeStoredSessionID(id)
 	if err != nil {
 		return store.SessionMeta{}, err
@@ -210,7 +214,7 @@ func (m *Manager) readMeta(id string) (store.SessionMeta, error) {
 	if _, ok := m.Get(target); ok || m.isPending(target) {
 		return meta, nil
 	}
-	repaired, err := m.repairInactiveMeta(metaPath, meta)
+	repaired, err := m.repairInactiveMeta(ctx, metaPath, meta)
 	if err != nil {
 		return store.SessionMeta{}, err
 	}
@@ -275,6 +279,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		ID:           meta.ID,
 		Name:         meta.Name,
 		AgentName:    meta.AgentName,
+		Provider:     meta.Provider,
 		WorkspaceID:  meta.WorkspaceID,
 		Channel:      meta.Channel,
 		Type:         normalizeSessionType(Type(meta.SessionType)),

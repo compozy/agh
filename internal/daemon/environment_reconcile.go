@@ -500,6 +500,7 @@ func sessionInfoFromEnvironmentReconcileMeta(meta store.SessionMeta) store.Sessi
 		ID:           strings.TrimSpace(meta.ID),
 		Name:         strings.TrimSpace(meta.Name),
 		AgentName:    strings.TrimSpace(meta.AgentName),
+		Provider:     strings.TrimSpace(meta.Provider),
 		WorkspaceID:  strings.TrimSpace(meta.WorkspaceID),
 		Channel:      strings.TrimSpace(meta.Channel),
 		SessionType:  strings.TrimSpace(meta.SessionType),

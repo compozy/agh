@@ -1,0 +1,135 @@
+package session
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"strconv"
+	"sync"
+	"time"
+)
+
+type capturedLogRecord struct {
+	Message string
+	Level   slog.Level
+	Attrs   map[string]string
+}
+
+type captureLogHandler struct {
+	mu      *sync.Mutex
+	records *[]capturedLogRecord
+	attrs   []slog.Attr
+	groups  []string
+}
+
+func newCaptureLogHandler() *captureLogHandler {
+	records := make([]capturedLogRecord, 0, 8)
+	return &captureLogHandler{
+		mu:      &sync.Mutex{},
+		records: &records,
+	}
+}
+
+func (h *captureLogHandler) Enabled(context.Context, slog.Level) bool {
+	return true
+}
+
+func (h *captureLogHandler) Handle(_ context.Context, record slog.Record) error {
+	attrs := make(map[string]string, len(h.attrs)+record.NumAttrs())
+
+	var add func(groups []string, attr slog.Attr)
+	add = func(groups []string, attr slog.Attr) {
+		attr.Value = attr.Value.Resolve()
+		if attr.Key == "" && attr.Value.Kind() == slog.KindGroup {
+			for _, child := range attr.Value.Group() {
+				add(groups, child)
+			}
+			return
+		}
+		if attr.Value.Kind() == slog.KindGroup {
+			nextGroups := append(append([]string(nil), groups...), attr.Key)
+			for _, child := range attr.Value.Group() {
+				add(nextGroups, child)
+			}
+			return
+		}
+		key := attr.Key
+		if len(groups) > 0 {
+			key = groups[0]
+			for _, group := range groups[1:] {
+				key += "." + group
+			}
+			key += "." + attr.Key
+		}
+		attrs[key] = slogValueString(attr.Value)
+	}
+
+	for _, attr := range h.attrs {
+		add(h.groups, attr)
+	}
+	record.Attrs(func(attr slog.Attr) bool {
+		add(h.groups, attr)
+		return true
+	})
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	*h.records = append(*h.records, capturedLogRecord{
+		Message: record.Message,
+		Level:   record.Level,
+		Attrs:   attrs,
+	})
+	return nil
+}
+
+func (h *captureLogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	clone := *h
+	clone.attrs = append(append([]slog.Attr(nil), h.attrs...), attrs...)
+	return &clone
+}
+
+func (h *captureLogHandler) WithGroup(name string) slog.Handler {
+	clone := *h
+	clone.groups = append(append([]string(nil), h.groups...), name)
+	return &clone
+}
+
+func (h *captureLogHandler) Records() []capturedLogRecord {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]capturedLogRecord(nil), (*h.records)...)
+}
+
+func (h *captureLogHandler) FindByMessage(message string) (capturedLogRecord, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, record := range *h.records {
+		if record.Message == message {
+			return record, true
+		}
+	}
+	return capturedLogRecord{}, false
+}
+
+func slogValueString(value slog.Value) string {
+	switch value.Kind() {
+	case slog.KindString:
+		return value.String()
+	case slog.KindBool:
+		return strconv.FormatBool(value.Bool())
+	case slog.KindInt64:
+		return strconv.FormatInt(value.Int64(), 10)
+	case slog.KindUint64:
+		return strconv.FormatUint(value.Uint64(), 10)
+	case slog.KindFloat64:
+		return strconv.FormatFloat(value.Float64(), 'f', -1, 64)
+	case slog.KindDuration:
+		return value.Duration().String()
+	case slog.KindTime:
+		return value.Time().Format(time.RFC3339Nano)
+	case slog.KindAny:
+		return fmt.Sprint(value.Any())
+	default:
+		return value.String()
+	}
+}

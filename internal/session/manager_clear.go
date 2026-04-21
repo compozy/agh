@@ -47,7 +47,7 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 		}
 	}
 
-	meta, err := m.readMeta(target)
+	meta, err := m.readMetaWithContext(ctx, target)
 	if err != nil {
 		return nil, err
 	}

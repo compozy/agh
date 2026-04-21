@@ -49,7 +49,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		return session, nil
 	}
 
-	meta, err := m.readMeta(target)
+	meta, err := m.readMetaWithContext(ctx, target)
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +84,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 
 	m.resumeLogger(meta).Warn(
 		"session.resume.load_session_missing_fallback",
+		"phase", "resume",
 		"error", err,
 	)
 

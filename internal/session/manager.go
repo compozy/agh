@@ -38,6 +38,7 @@ var (
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
 	AgentName     string
+	Provider      string
 	Name          string
 	Workspace     string
 	WorkspacePath string

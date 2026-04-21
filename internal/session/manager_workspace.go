@@ -109,3 +109,20 @@ func (m *Manager) resolveWorkspaceAgent(
 	}
 	return resolveWorkspaceAgent(agentName, resolvedWorkspace)
 }
+
+func (m *Manager) resolveWorkspaceSessionAgent(
+	agentName string,
+	provider string,
+	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
+) (aghconfig.ResolvedAgent, error) {
+	agentDef, err := m.resolveWorkspaceAgent(agentName, resolvedWorkspace)
+	if err != nil {
+		return aghconfig.ResolvedAgent{}, err
+	}
+
+	resolved, err := resolvedWorkspace.Config.ResolveSessionAgent(agentDef, provider)
+	if err != nil {
+		return aghconfig.ResolvedAgent{}, err
+	}
+	return resolved, nil
+}
