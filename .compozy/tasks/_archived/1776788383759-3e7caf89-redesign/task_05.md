@@ -1,5 +1,5 @@
 ---
-status: done
+status: completed
 title: Add Sidebar + SplitPane primitives to @agh/ui
 type: frontend
 complexity: high

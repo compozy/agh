@@ -1,5 +1,5 @@
 ---
-status: done
+status: completed
 title: Rewrite Tasks domain Kanban, Dashboard, Inbox views
 type: frontend
 complexity: high

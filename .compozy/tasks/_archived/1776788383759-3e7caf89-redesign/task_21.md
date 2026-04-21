@@ -1,5 +1,5 @@
 ---
-status: done
+status: completed
 title: Rewrite Session domain composer
 type: frontend
 complexity: medium
