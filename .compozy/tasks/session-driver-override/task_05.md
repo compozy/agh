@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Workspace Provider Catalog and Automatic Creator Defaults
 type: backend
 complexity: medium
@@ -33,11 +33,11 @@ Publish the provider options that are actually visible in a resolved workspace a
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Add workspace provider option payload types and workspace detail conversion support
-- [ ] 5.2 Build sorted provider-option assembly from workspace-merged config
-- [ ] 5.3 Extend workspace detail handlers/tests to expose provider options
-- [ ] 5.4 Update automatic internal session creators to pass empty provider explicitly
-- [ ] 5.5 Add coverage for provider-option ordering and creator-default behavior
+- [x] 5.1 Add workspace provider option payload types and workspace detail conversion support
+- [x] 5.2 Build sorted provider-option assembly from workspace-merged config
+- [x] 5.3 Extend workspace detail handlers/tests to expose provider options
+- [x] 5.4 Update automatic internal session creators to pass empty provider explicitly
+- [x] 5.5 Add coverage for provider-option ordering and creator-default behavior
 
 ## Implementation Details
 
@@ -76,16 +76,28 @@ See TechSpec "API Endpoints", "Testing Approach", and ADR-004. The backend shoul
 
 ## Tests
 - Unit tests:
-  - [ ] Workspace detail payload conversion emits sorted provider options
-  - [ ] Empty or single-provider workspaces yield deterministic option lists
-  - [ ] Automatic creator call sites pass empty provider explicitly instead of carrying stale state
-  - [ ] Workspace detail handlers keep backward-compatible behavior for callers that ignore the new field
+  - [x] Workspace detail payload conversion emits sorted provider options
+  - [x] Empty or single-provider workspaces yield deterministic option lists
+  - [x] Automatic creator call sites pass empty provider explicitly instead of carrying stale state
+  - [x] Workspace detail handlers keep backward-compatible behavior for callers that ignore the new field
 - Integration tests:
-  - [ ] HTTP/UDS workspace detail responses expose provider options for a resolved workspace
-  - [ ] Automatic task/runtime/consolidation creator flows still create sessions with the agent default provider
-  - [ ] Provider-option assembly uses workspace-merged config rather than daemon-global provider inference
+  - [x] HTTP/UDS workspace detail responses expose provider options for a resolved workspace
+  - [x] Automatic task/runtime/consolidation creator flows still create sessions with the agent default provider
+  - [x] Provider-option assembly uses workspace-merged config rather than daemon-global provider inference
 - Test coverage target: >=80%
 - All tests must pass
+
+## Verification
+- `go test ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/automation ./internal/extension ./internal/memory/consolidation ./internal/daemon -count=1`
+- `go test -tags integration ./internal/daemon -run 'TestBootWiresTaskRuntimeWithDedicatedSessionBridge|TestRunDreamTickerAndSpawnerIntegration' -count=1`
+- `make codegen-check`
+- `make verify`
+- Touched implementation coverage: `83.4%` (`1787/2142` statements) across:
+  - `internal/api/core/{conversions.go,workspaces.go,network_details.go}`
+  - `internal/automation/dispatch.go`
+  - `internal/daemon/task_runtime.go`
+  - `internal/memory/consolidation/runtime.go`
+  - `internal/extension/host_api_bridges.go`
 
 ## Success Criteria
 - All tests passing

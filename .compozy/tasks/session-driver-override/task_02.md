@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Session Provider Runtime Plumbing and On-Disk Persistence
 type: backend
 complexity: high
@@ -33,11 +33,11 @@ Thread the effective session provider through AGH's runtime and persisted sessio
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Add `Provider` to the runtime and persistence structs in `internal/session` and `internal/store`
-- [ ] 2.2 Thread `CreateOpts.Provider` through create/start/resume flows
-- [ ] 2.3 Enforce provider validation ordering before metadata writes and driver startup
-- [ ] 2.4 Round-trip provider through `Session.Meta()`, metadata parsing, and session info conversion
-- [ ] 2.5 Add lifecycle tests for create, resume, query, and unavailable-provider failures
+- [x] 2.1 Add `Provider` to the runtime and persistence structs in `internal/session` and `internal/store`
+- [x] 2.2 Thread `CreateOpts.Provider` through create/start/resume flows
+- [x] 2.3 Enforce provider validation ordering before metadata writes and driver startup
+- [x] 2.4 Round-trip provider through `Session.Meta()`, metadata parsing, and session info conversion
+- [x] 2.5 Add lifecycle tests for create, resume, query, and unavailable-provider failures
 
 ## Implementation Details
 
@@ -75,15 +75,15 @@ See TechSpec "Data Models", "Testing Approach", and ADR-003. This task should st
 
 ## Tests
 - Unit tests:
-  - [ ] `CreateOpts.Provider` propagates into the started session runtime
-  - [ ] `Session.Meta()` serializes the effective provider and metadata parsing restores it
-  - [ ] `sessionInfoFromMeta()` and related conversion helpers include provider in the read model
-  - [ ] Validation failure happens before `writeMeta` is called
-  - [ ] Resume with an unavailable persisted provider returns a descriptive error instead of falling back
+  - [x] `CreateOpts.Provider` propagates into the started session runtime
+  - [x] `Session.Meta()` serializes the effective provider and metadata parsing restores it
+  - [x] `sessionInfoFromMeta()` and related conversion helpers include provider in the read model
+  - [x] Validation failure happens before `writeMeta` is called
+  - [x] Resume with an unavailable persisted provider returns a descriptive error instead of falling back
 - Integration tests:
-  - [ ] Starting a session with an invalid provider fails before metadata/global state is written
-  - [ ] A valid session persists provider state across stop/resume and read-model queries
-  - [ ] Structured logs and error payloads include `session_id`, `agent_name`, `provider`, and phase where applicable
+  - [x] Starting a session with an invalid provider fails before metadata/global state is written
+  - [x] A valid session persists provider state across stop/resume and read-model queries
+  - [x] Structured logs and error payloads include `session_id`, `agent_name`, `provider`, and phase where applicable
 - Test coverage target: >=80%
 - All tests must pass
 

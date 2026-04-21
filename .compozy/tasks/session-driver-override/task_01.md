@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Provider-Aware Session Resolution and Validation
 type: backend
 complexity: medium
@@ -31,11 +31,11 @@ Implement the config-layer helper that resolves an agent for one session with an
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Add the session-aware resolution helper under `internal/config`
-- [ ] 1.2 Implement override semantics for `provider`, `command`, `model`, and provider-owned MCP layers
-- [ ] 1.3 Make `ResolvedAgent.Provider` explicit and canonical across the resolution result
-- [ ] 1.4 Add focused unit coverage for no-override, override, and invalid-provider cases
-- [ ] 1.5 Document any helper-level invariants needed by later session and API tasks
+- [x] 1.1 Add the session-aware resolution helper under `internal/config`
+- [x] 1.2 Implement override semantics for `provider`, `command`, `model`, and provider-owned MCP layers
+- [x] 1.3 Make `ResolvedAgent.Provider` explicit and canonical across the resolution result
+- [x] 1.4 Add focused unit coverage for no-override, override, and invalid-provider cases
+- [x] 1.5 Document any helper-level invariants needed by later session and API tasks
 
 ## Implementation Details
 
@@ -67,14 +67,14 @@ See TechSpec "Core Interfaces", "Testing Approach", and ADR-001 / ADR-002. The k
 
 ## Tests
 - Unit tests:
-  - [ ] No override preserves current `ResolveAgent` behavior exactly
-  - [ ] Override swaps provider and re-resolves `command` plus default model from the selected provider
-  - [ ] Override clears explicit agent `Command` and `Model` influence before provider resolution
-  - [ ] Provider-owned MCP layers are replaced while global and agent-local layers remain intact
-  - [ ] Unknown or unavailable provider override returns a descriptive validation error
+  - [x] No override preserves current `ResolveAgent` behavior exactly
+  - [x] Override swaps provider and re-resolves `command` plus default model from the selected provider
+  - [x] Override clears explicit agent `Command` and `Model` influence before provider resolution
+  - [x] Provider-owned MCP layers are replaced while global and agent-local layers remain intact
+  - [x] Unknown or unavailable provider override returns a descriptive validation error
 - Integration tests:
-  - [ ] Session-oriented callers can reuse the helper without needing separate provider recomputation logic
-  - [ ] Workspace-merged config remains the effective input to provider resolution rather than daemon-global config
+  - [x] Session-oriented callers can reuse the helper without needing separate provider recomputation logic
+  - [x] Workspace-merged config remains the effective input to provider resolution rather than daemon-global config
 - Test coverage target: >=80%
 - All tests must pass
 

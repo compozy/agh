@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Global Session Index Migration and Legacy Provider Repair
 type: backend
 complexity: high
@@ -33,11 +33,11 @@ Extend the global session index to persist provider state and converge old local
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Add `sessions.provider` to the global DB schema migration paths
-- [ ] 3.2 Update global session register/scan/reconcile helpers to round-trip provider
-- [ ] 3.3 Implement one-time blank-provider repair for inactive legacy session metadata
-- [ ] 3.4 Fail explicitly when legacy repair cannot resolve the stored agent/provider anymore
-- [ ] 3.5 Add migration and repair coverage for idempotence, reconcile, and explicit failure paths
+- [x] 3.1 Add `sessions.provider` to the global DB schema migration paths
+- [x] 3.2 Update global session register/scan/reconcile helpers to round-trip provider
+- [x] 3.3 Implement one-time blank-provider repair for inactive legacy session metadata
+- [x] 3.4 Fail explicitly when legacy repair cannot resolve the stored agent/provider anymore
+- [x] 3.5 Add migration and repair coverage for idempotence, reconcile, and explicit failure paths
 
 ## Implementation Details
 
@@ -73,16 +73,16 @@ See TechSpec "Data Models", "Testing Approach", and ADR-005. The storage invaria
 
 ## Tests
 - Unit tests:
-  - [ ] `migrateSessionColumns` adds `provider` idempotently
-  - [ ] Copy-style migrations preserve `provider` values when rebuilding `sessions`
-  - [ ] `scanSessionInfo` reads provider from the global index
-  - [ ] `registerSession` upserts provider correctly
-  - [ ] Legacy blank-provider repair persists the resolved provider exactly once
-  - [ ] Repair fails explicitly when the stored agent or provider can no longer be resolved
+  - [x] `migrateSessionColumns` adds `provider` idempotently
+  - [x] Copy-style migrations preserve `provider` values when rebuilding `sessions`
+  - [x] `scanSessionInfo` reads provider from the global index
+  - [x] `registerSession` upserts provider correctly
+  - [x] Legacy blank-provider repair persists the resolved provider exactly once
+  - [x] Repair fails explicitly when the stored agent or provider can no longer be resolved
 - Integration tests:
-  - [ ] Opening an existing global DB migrates `sessions.provider` without dropping data
-  - [ ] Reconcile persists repaired providers into the global index and stops leaving blanks behind
-  - [ ] Resuming a legacy session after repair uses the persisted provider deterministically
+  - [x] Opening an existing global DB migrates `sessions.provider` without dropping data
+  - [x] Reconcile persists repaired providers into the global index and stops leaving blanks behind
+  - [x] Resuming a legacy session after repair uses the persisted provider deterministically
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Explicit Session Provider Contracts and Generated Surfaces
 type: backend
 complexity: high
@@ -34,11 +34,11 @@ Expose the session provider override on every explicit creation and read surface
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Extend shared session request/response contracts with `provider`
-- [ ] 4.2 Update HTTP and UDS handlers plus payload conversions to round-trip provider
-- [ ] 4.3 Add CLI support for `--provider` and provider-aware session output
-- [ ] 4.4 Extend the extension Host API `sessions.create` contract with optional provider
-- [ ] 4.5 Regenerate OpenAPI and checked-in web types, then add transport-level coverage
+- [x] 4.1 Extend shared session request/response contracts with `provider`
+- [x] 4.2 Update HTTP and UDS handlers plus payload conversions to round-trip provider
+- [x] 4.3 Add CLI support for `--provider` and provider-aware session output
+- [x] 4.4 Extend the extension Host API `sessions.create` contract with optional provider
+- [x] 4.5 Regenerate OpenAPI and checked-in web types, then add transport-level coverage
 
 ## Implementation Details
 
@@ -81,16 +81,16 @@ See TechSpec "API Endpoints", "Testing Approach", and ADR-004. This task should 
 
 ## Tests
 - Unit tests:
-  - [ ] Request decoding accepts optional `provider` without breaking requests that omit it
-  - [ ] Session payload conversion emits the effective provider from `session.Info`
-  - [ ] CLI create command forwards `--provider` correctly
-  - [ ] CLI session list/detail output includes the effective provider
-  - [ ] Extension Host API `sessions.create` accepts and forwards provider
+  - [x] Request decoding accepts optional `provider` without breaking requests that omit it
+  - [x] Session payload conversion emits the effective provider from `session.Info`
+  - [x] CLI create command forwards `--provider` correctly
+  - [x] CLI session list/detail output includes the effective provider
+  - [x] Extension Host API `sessions.create` accepts and forwards provider
 - Integration tests:
-  - [ ] HTTP create with explicit provider returns session payloads containing the same effective provider
-  - [ ] UDS create/read flows expose provider consistently with HTTP
-  - [ ] `make codegen-check` passes after updating generated artifacts
-  - [ ] Generated TS types reflect the new session and workspace payload fields used by the web client
+  - [x] HTTP create with explicit provider returns session payloads containing the same effective provider
+  - [x] UDS create/read flows expose provider consistently with HTTP
+  - [x] `make codegen-check` passes after updating generated artifacts
+  - [x] Generated TS types reflect the new session and workspace payload fields used by the web client
 - Test coverage target: >=80%
 - All tests must pass
 
