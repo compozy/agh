@@ -14,7 +14,8 @@ definition is a directory with an `AGENT.md` file and optional sidecars:
 ```
 
 `mcp.json` declares MCP servers in JSON form, and `capabilities.toml` (or a `capabilities/`
-directory) declares outcome-oriented offerings advertised to other peers. See
+directory) declares the unified capability catalog the runtime projects into brief discovery, rich
+discovery, and explicit `kind:"capability"` transfer. See
 [Agent Capabilities](/runtime/core/agents/capabilities) for the catalog format.
 
 `AGENT.md` is a Markdown file with required frontmatter and a required body. AGH parses the
