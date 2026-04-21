@@ -136,6 +136,27 @@ vi.mock("@/systems/session", () => ({
   useSessions: () => ({
     data: [],
   }),
+  useSessionCreateDialog: () => ({
+    open: false,
+    agents: [],
+    workspace: undefined,
+    providerOptions: [],
+    providersLoading: false,
+    providersError: null,
+    selectedAgentName: "",
+    selectedProvider: "",
+    isSubmitting: false,
+    submitError: null,
+    pendingAgentName: null,
+    pendingWorkspaceId: null,
+    openForAgent: vi.fn(),
+    setOpen: vi.fn(),
+    onAgentChange: vi.fn(),
+    onProviderChange: vi.fn(),
+    submit: vi.fn(),
+  }),
+  SessionCreateDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="session-create-dialog" /> : null,
 }));
 
 vi.mock("@/systems/workspace", () => ({

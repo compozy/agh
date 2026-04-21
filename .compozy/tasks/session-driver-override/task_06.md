@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Web Session Creation Dialog and Resume Failure UX
 type: frontend
 complexity: high
@@ -34,11 +34,11 @@ Replace the current direct quick-create flow with an explicit session-creation d
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Replace the sidebar and route quick-create path with a session-creation dialog flow
-- [ ] 6.2 Prefill agent, workspace, and default provider in the dialog state
-- [ ] 6.3 Bind the provider picker to workspace detail provider options
-- [ ] 6.4 Thread provider through session create hooks, adapters, and client types
-- [ ] 6.5 Add a dedicated resume failure state and cover the flow with route/component tests
+- [x] 6.1 Replace the sidebar and route quick-create path with a session-creation dialog flow
+- [x] 6.2 Prefill agent, workspace, and default provider in the dialog state
+- [x] 6.3 Bind the provider picker to workspace detail provider options
+- [x] 6.4 Thread provider through session create hooks, adapters, and client types
+- [x] 6.5 Add a dedicated resume failure state and cover the flow with route/component tests
 
 ## Implementation Details
 
@@ -77,16 +77,16 @@ See TechSpec "API Endpoints", "Testing Approach", and ADR-004. The UX goal is ex
 
 ## Tests
 - Unit tests:
-  - [ ] Every create-session entrypoint opens the dialog instead of creating immediately
-  - [ ] The dialog preselects the chosen agent, active workspace, and default provider
-  - [ ] The provider picker renders workspace-visible providers from the workspace detail payload
-  - [ ] Submitting the dialog sends the selected provider in the session create mutation
-  - [ ] Resume failure renders a dedicated inline state instead of only a toast
+  - [x] Every create-session entrypoint opens the dialog instead of creating immediately
+  - [x] The dialog preselects the chosen agent, active workspace, and default provider
+  - [x] The provider picker renders workspace-visible providers from the workspace detail payload
+  - [x] Submitting the dialog sends the selected provider in the session create mutation
+  - [x] Resume failure renders a dedicated inline state instead of only a toast
 - Integration tests:
-  - [ ] Generated workspace/session types are consumed without handwritten contract drift
-  - [ ] Route tests prove the dialog flow works from the sidebar and any other create entrypoints
-  - [ ] Route tests prove persisted-provider resume failures remain actionable in the UI
-  - [ ] Web typecheck and targeted test suites pass after the create-flow and resume UX changes
+  - [x] Generated workspace/session types are consumed without handwritten contract drift
+  - [x] Route tests prove the dialog flow works from the sidebar and any other create entrypoints
+  - [x] Route tests prove persisted-provider resume failures remain actionable in the UI
+  - [x] Web typecheck and targeted test suites pass after the create-flow and resume UX changes
 - Test coverage target: >=80%
 - All tests must pass
 

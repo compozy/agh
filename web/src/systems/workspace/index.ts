@@ -1,5 +1,6 @@
 // Types
 export type {
+  SessionProviderOption,
   WorkspaceDetailPayload,
   WorkspacePayload,
   WorkspaceResponse,

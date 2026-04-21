@@ -69,8 +69,22 @@ export {
   useResumeSession,
   useStopSession,
 } from "./hooks/use-session-actions";
+export {
+  useSessionCreateDialog,
+  type SessionCreateDialogApi,
+  type SessionCreateDialogDraft,
+  type SessionCreateDialogState,
+} from "./hooks/use-session-create-dialog";
 
 // Components
+export {
+  SessionCreateDialog,
+  type SessionCreateDialogProps,
+} from "./components/session-create-dialog";
+export {
+  SessionResumeFailure,
+  type SessionResumeFailureProps,
+} from "./components/session-resume-failure";
 export { ToolCallCard, type ToolCallCardProps } from "./components/tool-call-card";
 export { ChatHeader, type ChatHeaderProps } from "./components/chat-header";
 export {

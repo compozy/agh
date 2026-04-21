@@ -35,6 +35,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       prompt: "Own implementation details and verification for coding tasks.",
     },
   ],
+  providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
   sessions: [
     {
       id: "sess-storybook",

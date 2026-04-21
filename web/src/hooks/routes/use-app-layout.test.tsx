@@ -1,13 +1,25 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockNavigate, mockMutateAsync, mockToastError } = vi.hoisted(() => ({
-  mockNavigate: vi.fn(),
-  mockMutateAsync: vi.fn(),
+const {
+  mockNavigate,
+  mockMutateAsync,
+  mockToastError,
+  mockWorkspaceQuery,
+  mockUseCreateSessionPending,
+} = vi.hoisted(() => ({
+  mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
+  mockMutateAsync: vi.fn<(input: unknown) => Promise<{ id: string }>>(),
   mockToastError: vi.fn(),
+  mockWorkspaceQuery: vi.fn(),
+  mockUseCreateSessionPending: { current: false as boolean },
 }));
 
 let mockActiveWorkspaceId: string | null = "ws_alpha";
+let mockAgents: Array<{ name: string; provider: string; prompt: string }> = [
+  { name: "claude-agent", provider: "claude", prompt: "help" },
+  { name: "codex-agent", provider: "codex", prompt: "code" },
+];
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
@@ -34,21 +46,32 @@ vi.mock("@/systems/daemon", () => ({
 
 vi.mock("@/systems/agent", () => ({
   useAgents: () => ({
-    data: [],
+    data: mockAgents,
     isLoading: false,
     isError: false,
   }),
 }));
 
-vi.mock("@/systems/session", () => ({
+vi.mock("@/systems/session/hooks/use-session-actions", () => ({
   useCreateSession: () => ({
     mutateAsync: mockMutateAsync,
-    isPending: false,
-  }),
-  useSessions: () => ({
-    data: [],
+    isPending: mockUseCreateSessionPending.current,
   }),
 }));
+
+vi.mock("@/systems/session", async () => {
+  const useSessionCreateDialogModule = await vi.importActual<
+    typeof import("@/systems/session/hooks/use-session-create-dialog")
+  >("@/systems/session/hooks/use-session-create-dialog");
+  return {
+    useCreateSession: () => ({
+      mutateAsync: mockMutateAsync,
+      isPending: mockUseCreateSessionPending.current,
+    }),
+    useSessions: () => ({ data: [] }),
+    useSessionCreateDialog: useSessionCreateDialogModule.useSessionCreateDialog,
+  };
+});
 
 vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({
@@ -82,87 +105,134 @@ vi.mock("@/systems/workspace", () => ({
     isLoading: false,
     isError: false,
   }),
+  useWorkspace: (workspaceId: string, options?: { enabled?: boolean }) =>
+    mockWorkspaceQuery(workspaceId, options),
 }));
 
 import { useAppLayout } from "./use-app-layout";
 
-function createDeferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-
-  return { promise, resolve, reject };
-}
-
 describe("useAppLayout", () => {
   beforeEach(() => {
     mockActiveWorkspaceId = "ws_alpha";
+    mockAgents = [
+      { name: "claude-agent", provider: "claude", prompt: "help" },
+      { name: "codex-agent", provider: "codex", prompt: "code" },
+    ];
     mockNavigate.mockReset();
     mockMutateAsync.mockReset();
     mockToastError.mockReset();
+    mockWorkspaceQuery.mockReset();
+    mockUseCreateSessionPending.current = false;
+    mockWorkspaceQuery.mockReturnValue({
+      data: {
+        workspace: {
+          id: "ws_alpha",
+          root_dir: "/workspace/alpha",
+          add_dirs: [],
+          name: "alpha",
+          created_at: "2026-04-20T10:00:00Z",
+          updated_at: "2026-04-20T10:00:00Z",
+        },
+        providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
+      },
+      isLoading: false,
+      error: null,
+    });
   });
 
-  it("keeps the pending sidebar state until navigation settles", async () => {
-    const mutation = createDeferred<{ id: string }>();
-    const navigation = createDeferred<void>();
-    mockMutateAsync.mockReturnValue(mutation.promise);
-    mockNavigate.mockReturnValue(navigation.promise);
+  it("opens the create-session dialog instead of creating a session immediately", () => {
+    const { result } = renderHook(() => useAppLayout());
+
+    expect(result.current.sessionCreate.open).toBe(false);
+
+    act(() => {
+      result.current.handleNewSession("claude-agent");
+    });
+
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(result.current.sessionCreate.open).toBe(true);
+    expect(result.current.sessionCreate.selectedAgentName).toBe("claude-agent");
+    expect(result.current.sessionCreate.selectedProvider).toBe("claude");
+    expect(result.current.sessionCreate.providerOptions.map(option => option.name)).toEqual([
+      "claude",
+      "codex",
+      "gemini",
+    ]);
+  });
+
+  it("preselects the chosen agent default provider when opening for a different agent", () => {
+    const { result } = renderHook(() => useAppLayout());
+
+    act(() => {
+      result.current.handleNewSession("codex-agent");
+    });
+
+    expect(result.current.sessionCreate.selectedAgentName).toBe("codex-agent");
+    expect(result.current.sessionCreate.selectedProvider).toBe("codex");
+  });
+
+  it("submits the dialog with agent name, workspace, and selected provider", async () => {
+    mockMutateAsync.mockResolvedValue({ id: "sess-new" });
+    mockNavigate.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAppLayout());
 
     act(() => {
-      void result.current.handleNewSession("claude-agent");
+      result.current.handleNewSession("claude-agent");
     });
 
-    expect(result.current.isCreatingSession).toBe(true);
-    expect(result.current.pendingSessionAgentName).toBe("claude-agent");
-    expect(result.current.pendingSessionWorkspaceId).toBe("ws_alpha");
+    act(() => {
+      result.current.sessionCreate.onProviderChange("gemini");
+    });
+
+    await act(async () => {
+      await result.current.sessionCreate.submit();
+    });
+
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "claude-agent",
       workspace: "ws_alpha",
+      provider: "gemini",
     });
-
-    await act(async () => {
-      mutation.resolve({ id: "sess-created" });
-      await Promise.resolve();
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/session/$id",
+      params: { id: "sess-new" },
     });
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith({
-        to: "/session/$id",
-        params: { id: "sess-created" },
-      });
-    });
-
-    expect(result.current.isCreatingSession).toBe(true);
-    expect(result.current.pendingSessionAgentName).toBe("claude-agent");
-
-    await act(async () => {
-      navigation.resolve();
-      await navigation.promise;
-    });
-
-    expect(result.current.isCreatingSession).toBe(false);
-    expect(result.current.pendingSessionAgentName).toBeNull();
-    expect(result.current.pendingSessionWorkspaceId).toBeNull();
+    expect(result.current.sessionCreate.open).toBe(false);
   });
 
-  it("clears pending state and shows a toast when creation fails", async () => {
+  it("keeps the dialog open and surfaces submitError when creation fails", async () => {
     mockMutateAsync.mockRejectedValue(new Error("Failed to create"));
 
     const { result } = renderHook(() => useAppLayout());
 
-    await act(async () => {
-      await result.current.handleNewSession("claude-agent");
+    act(() => {
+      result.current.handleNewSession("claude-agent");
     });
 
+    await act(async () => {
+      await result.current.sessionCreate.submit();
+    });
+
+    expect(result.current.sessionCreate.open).toBe(true);
+    expect(result.current.sessionCreate.submitError).toBe("Failed to create");
     expect(mockToastError).toHaveBeenCalledWith("Failed to create");
     expect(mockNavigate).not.toHaveBeenCalled();
-    expect(result.current.isCreatingSession).toBe(false);
-    expect(result.current.pendingSessionAgentName).toBeNull();
+  });
+
+  it("refuses to open the dialog when there is no active workspace", () => {
+    mockActiveWorkspaceId = null;
+
+    const { result } = renderHook(() => useAppLayout());
+
+    act(() => {
+      result.current.handleNewSession("claude-agent");
+    });
+
+    expect(result.current.sessionCreate.open).toBe(false);
+    expect(mockToastError).toHaveBeenCalledWith(
+      "Select an active workspace before starting a session."
+    );
   });
 });

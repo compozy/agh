@@ -98,6 +98,22 @@ export function ChatHeader({
             {session.name?.trim() || session.id}
           </span>
 
+          {session.provider ? (
+            <>
+              <ChevronRight
+                aria-hidden="true"
+                className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]"
+              />
+              <MonoBadge
+                tone="accent"
+                className="shrink-0 normal-case"
+                data-testid="session-provider-badge"
+              >
+                {session.provider}
+              </MonoBadge>
+            </>
+          ) : null}
+
           {workspaceName ? (
             <>
               <ChevronRight

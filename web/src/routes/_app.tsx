@@ -16,6 +16,7 @@ import { Button, Empty, buttonVariants } from "@agh/ui";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { useAppLayout } from "@/hooks/routes/use-app-layout";
+import { SessionCreateDialog } from "@/systems/session";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
 
 const ROUTE_FADE_DURATION = 0.2;
@@ -89,6 +90,22 @@ function AppLayout() {
         open={page.isWorkspaceSetupOpen}
         onOpenChange={page.setWorkspaceSetupOpen}
         onWorkspaceResolved={page.setActiveWorkspaceId}
+      />
+      <SessionCreateDialog
+        agents={page.sessionCreate.agents}
+        isSubmitting={page.sessionCreate.isSubmitting}
+        onAgentChange={page.sessionCreate.onAgentChange}
+        onOpenChange={page.sessionCreate.setOpen}
+        onProviderChange={page.sessionCreate.onProviderChange}
+        onSubmit={page.sessionCreate.submit}
+        open={page.sessionCreate.open}
+        providerOptions={page.sessionCreate.providerOptions}
+        providersError={page.sessionCreate.providersError}
+        providersLoading={page.sessionCreate.providersLoading}
+        selectedAgentName={page.sessionCreate.selectedAgentName}
+        selectedProvider={page.sessionCreate.selectedProvider}
+        submitError={page.sessionCreate.submitError}
+        workspace={page.sessionCreate.workspace}
       />
     </>
   );

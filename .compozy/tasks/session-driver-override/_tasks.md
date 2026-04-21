@@ -6,11 +6,11 @@
 
 | # | Title | Status | Complexity | Dependencies |
 |---|-------|--------|------------|--------------|
-| 01 | Provider-Aware Session Resolution and Validation | pending | medium | - |
-| 02 | Session Provider Runtime Plumbing and On-Disk Persistence | pending | high | task_01 |
-| 03 | Global Session Index Migration and Legacy Provider Repair | pending | high | task_02 |
-| 04 | Explicit Session Provider Contracts and Generated Surfaces | pending | high | task_02 |
-| 05 | Workspace Provider Catalog and Automatic Creator Defaults | pending | medium | task_02 |
-| 06 | Web Session Creation Dialog and Resume Failure UX | pending | high | task_04, task_05 |
+| 01 | Provider-Aware Session Resolution and Validation | completed | medium | - |
+| 02 | Session Provider Runtime Plumbing and On-Disk Persistence | completed | high | task_01 |
+| 03 | Global Session Index Migration and Legacy Provider Repair | completed | high | task_02 |
+| 04 | Explicit Session Provider Contracts and Generated Surfaces | completed | high | task_02 |
+| 05 | Workspace Provider Catalog and Automatic Creator Defaults | completed | medium | task_02 |
+| 06 | Web Session Creation Dialog and Resume Failure UX | completed | high | task_04, task_05 |
 | 07 | Session Provider Override QA Plan and Regression Artifacts | pending | high | task_06 |
 | 08 | Session Provider Override QA Execution and End-to-End Validation | pending | critical | task_07 |
