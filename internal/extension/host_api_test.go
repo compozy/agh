@@ -4849,15 +4849,19 @@ Review the workspace changes carefully.
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		for _, info := range sessions.List() {
+		manager := env.sessions
+		if manager == nil {
+			return
+		}
+		for _, info := range manager.List() {
 			if info == nil {
 				continue
 			}
-			if err := sessions.Stop(ctx, info.ID); err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+			if err := manager.Stop(ctx, info.ID); err != nil && !errors.Is(err, session.ErrSessionNotFound) {
 				t.Errorf("sessions.Stop(%q) cleanup error = %v", info.ID, err)
 			}
 		}
-		if err := sessions.WaitForFinalizations(ctx); err != nil {
+		if err := manager.WaitForFinalizations(ctx); err != nil {
 			t.Errorf("sessions.WaitForFinalizations() cleanup error = %v", err)
 		}
 	})

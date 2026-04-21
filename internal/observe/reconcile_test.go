@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		ID:          "sess-new",
 		Name:        "New",
 		AgentName:   "coder",
+		Provider:    "claude",
 		WorkspaceID: h.workspaceID,
 		State:       "stopped",
 		StopReason:  &stopReason,
@@ -60,6 +62,9 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 	if sessions[0].StopDetail != "requested by API" {
 		t.Fatalf("sessions[0].StopDetail = %q, want %q", sessions[0].StopDetail, "requested by API")
 	}
+	if sessions[0].Provider != "claude" {
+		t.Fatalf("sessions[0].Provider = %q, want claude", sessions[0].Provider)
+	}
 
 	meta, err := store.ReadSessionMeta(metaPath)
 	if err != nil {
@@ -79,6 +84,7 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 		ID:          "sess-orphan",
 		Name:        "Orphan",
 		AgentName:   "coder",
+		Provider:    "claude",
 		WorkspaceID: h.workspaceID,
 		State:       "active",
 		CreatedAt:   now,
@@ -108,6 +114,94 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 	}
 }
 
+func TestReconciliationRepairsLegacyProviderBeforeIndexing(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	sessionDir := filepath.Join(h.home.SessionsDir, "sess-repair")
+	metaPath := store.SessionMetaFile(sessionDir)
+	now := h.now.Add(40 * time.Minute)
+
+	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
+		ID:          "sess-repair",
+		Name:        "Repair",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		State:       "stopped",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}); err != nil {
+		t.Fatalf("WriteSessionMeta() error = %v", err)
+	}
+
+	result, err := h.observer.Reconcile(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if got, want := result.Indexed, []string{"sess-repair"}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("Indexed = %#v, want %#v", got, want)
+	}
+
+	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if got, want := len(sessions), 1; got != want {
+		t.Fatalf("len(sessions) = %d, want %d", got, want)
+	}
+	if got, want := sessions[0].Provider, "claude"; got != want {
+		t.Fatalf("sessions[0].Provider = %q, want %q", got, want)
+	}
+
+	meta, err := store.ReadSessionMeta(metaPath)
+	if err != nil {
+		t.Fatalf("ReadSessionMeta() error = %v", err)
+	}
+	if got, want := meta.Provider, "claude"; got != want {
+		t.Fatalf("meta.Provider = %q, want %q", got, want)
+	}
+}
+
+func TestReconciliationFailsWhenLegacyProviderRepairCannotResolveAgent(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	sessionDir := filepath.Join(h.home.SessionsDir, "sess-bad-repair")
+	metaPath := store.SessionMetaFile(sessionDir)
+	now := h.now.Add(50 * time.Minute)
+
+	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
+		ID:          "sess-bad-repair",
+		Name:        "Bad Repair",
+		AgentName:   "missing-agent",
+		WorkspaceID: h.workspaceID,
+		State:       "stopped",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}); err != nil {
+		t.Fatalf("WriteSessionMeta() error = %v", err)
+	}
+
+	_, err := h.observer.Reconcile(testutil.Context(t))
+	if err == nil {
+		t.Fatal("Reconcile() error = nil, want legacy provider repair failure")
+	}
+	if !strings.Contains(err.Error(), "sess-bad-repair") {
+		t.Fatalf("Reconcile() error = %q, want session id detail", err.Error())
+	}
+	if !strings.Contains(err.Error(), "missing-agent") {
+		t.Fatalf("Reconcile() error = %q, want missing agent detail", err.Error())
+	}
+
+	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if len(sessions) != 0 {
+		t.Fatalf("len(sessions) = %d, want 0", len(sessions))
+	}
+}
+
 func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -120,6 +214,7 @@ func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
 		ID:          "sess-valid",
 		Name:        "Valid",
 		AgentName:   "coder",
+		Provider:    "claude",
 		WorkspaceID: h.workspaceID,
 		State:       "active",
 		CreatedAt:   now,

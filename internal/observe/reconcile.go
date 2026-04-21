@@ -15,7 +15,7 @@ import (
 
 // Reconcile scans the sessions directory and reconciles the global session index.
 func (o *Observer) Reconcile(ctx context.Context) (store.ReconcileResult, error) {
-	sessions, err := o.loadSessionMetadata()
+	sessions, err := o.loadSessionMetadata(ctx)
 	if err != nil {
 		return store.ReconcileResult{}, err
 	}
@@ -28,7 +28,7 @@ func (o *Observer) Reconcile(ctx context.Context) (store.ReconcileResult, error)
 	return result, nil
 }
 
-func (o *Observer) loadSessionMetadata() ([]store.SessionInfo, error) {
+func (o *Observer) loadSessionMetadata(ctx context.Context) ([]store.SessionInfo, error) {
 	entries, err := os.ReadDir(o.homePaths.SessionsDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -57,6 +57,19 @@ func (o *Observer) loadSessionMetadata() ([]store.SessionInfo, error) {
 				"error", err,
 			)
 			continue
+		}
+
+		meta, err = session.RepairLegacyProvider(ctx, metaPath, meta, session.LegacyProviderRepairOptions{
+			Now:               o.now,
+			Logger:            o.logger,
+			WorkspaceResolver: o.workspaceResolver,
+		})
+		if err != nil {
+			return nil, fmt.Errorf(
+				"observe: repair legacy provider for session %q: %w",
+				strings.TrimSpace(meta.ID),
+				err,
+			)
 		}
 
 		normalized := o.normalizeRecoveredMeta(metaPath, meta)

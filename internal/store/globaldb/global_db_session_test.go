@@ -21,6 +21,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'sess-scan',
 			'Demo',
 			'coder',
+			'claude',
 			'ws-1',
 			'builders',
 			'user',
@@ -59,6 +60,9 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 	}
 	if got, want := info.StopDetail, "deadline exceeded"; got != want {
 		t.Fatalf("info.StopDetail = %q, want %q", got, want)
+	}
+	if got, want := info.Provider, "claude"; got != want {
+		t.Fatalf("info.Provider = %q, want %q", got, want)
 	}
 	if got, want := info.Channel, "builders"; got != want {
 		t.Fatalf("info.Channel = %q, want %q", got, want)
@@ -108,6 +112,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'sess-null',
 			NULL,
 			'coder',
+			'',
 			'ws-1',
 			'',
 			'user',
@@ -144,6 +149,9 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 	if info.StopDetail != "" {
 		t.Fatalf("info.StopDetail = %q, want empty", info.StopDetail)
 	}
+	if info.Provider != "" {
+		t.Fatalf("info.Provider = %q, want empty", info.Provider)
+	}
 	if info.Channel != "" {
 		t.Fatalf("info.Channel = %q, want empty", info.Channel)
 	}
@@ -161,6 +169,7 @@ func TestScanSessionInfoRejectsInvalidEnvironmentLastSyncAt(t *testing.T) {
 			'sess-invalid-last-sync',
 			'Demo',
 			'coder',
+			'claude',
 			'ws-1',
 			'builders',
 			'user',
@@ -205,6 +214,7 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'sess-invalid-stall',
 			'Demo',
 			'coder',
+			'claude',
 			'ws-1',
 			'builders',
 			'user',

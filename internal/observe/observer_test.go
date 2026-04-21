@@ -500,6 +500,23 @@ func newHarness(t *testing.T) *harness {
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
 	}
+	cfg := aghconfig.DefaultWithHome(home)
+	workspaceResolver := &fakeObserveWorkspaceResolver{
+		expectedRef: observerWorkspaceID,
+		resolved: aghworkspace.ResolvedWorkspace{
+			Workspace: aghworkspace.Workspace{
+				ID:      observerWorkspaceID,
+				RootDir: workspace,
+				Name:    "observe-workspace",
+			},
+			Config: cfg,
+			Agents: []aghconfig.AgentDef{{
+				Name:     "coder",
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			}},
+		},
+	}
 	if err := registry.InsertWorkspace(testutil.Context(t), aghworkspace.Workspace{
 		ID:        observerWorkspaceID,
 		RootDir:   workspace,
@@ -515,6 +532,7 @@ func newHarness(t *testing.T) *harness {
 		WithHomePaths(home),
 		WithSessionSource(source),
 		WithBridgeSource(bridges),
+		WithWorkspaceResolver(workspaceResolver),
 		WithPermissionModeResolver(func(_ context.Context, agentName, workspaceID string) (string, error) {
 			if strings.TrimSpace(agentName) == "" || strings.TrimSpace(workspaceID) == "" {
 				return "", context.Canceled
@@ -560,6 +578,7 @@ func newSession(id string, state session.State, workspace string, now time.Time)
 		ID:           id,
 		Name:         strings.ToUpper(id),
 		AgentName:    "coder",
+		Provider:     "claude",
 		WorkspaceID:  observerWorkspaceID,
 		Workspace:    workspace,
 		State:        state,

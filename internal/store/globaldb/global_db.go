@@ -49,6 +49,7 @@ var globalSchemaStatements = append([]string{
 		id             TEXT PRIMARY KEY,
 		name           TEXT,
 		agent_name     TEXT NOT NULL,
+		provider       TEXT NOT NULL DEFAULT '',
 		workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
 		session_type   TEXT NOT NULL DEFAULT 'user',
 		channel          TEXT NOT NULL DEFAULT '',

@@ -272,6 +272,7 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		ID:          "sess-global",
 		Name:        "Alpha",
 		AgentName:   "coder",
+		Provider:    "claude",
 		WorkspaceID: workspaceID,
 		SessionType: "dream",
 		State:       "active",
@@ -309,8 +310,66 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 	if sessions[0].WorkspaceID != workspaceID {
 		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", sessions[0].WorkspaceID, workspaceID)
 	}
+	if sessions[0].Provider != "claude" {
+		t.Fatalf("sessions[0].Provider = %q, want claude", sessions[0].Provider)
+	}
 	if sessions[0].ACPSessionID == nil || *sessions[0].ACPSessionID != "acp-123" {
 		t.Fatalf("sessions[0].ACPSessionID = %#v, want acp-123", sessions[0].ACPSessionID)
+	}
+}
+
+func TestGlobalDBRegisterSessionUpsertsProvider(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"provider-upsert-workspace",
+		filepath.Join(t.TempDir(), "provider-upsert"),
+	)
+	createdAt := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
+
+	session := SessionInfo{
+		ID:          "sess-provider-upsert",
+		AgentName:   "coder",
+		Provider:    "claude",
+		WorkspaceID: workspaceID,
+		State:       "active",
+		CreatedAt:   createdAt,
+		UpdatedAt:   createdAt,
+	}
+	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
+		t.Fatalf("RegisterSession(initial) error = %v", err)
+	}
+
+	session.Provider = "codex"
+	session.UpdatedAt = createdAt.Add(time.Minute)
+	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
+		t.Fatalf("RegisterSession(update) error = %v", err)
+	}
+
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if got, want := len(sessions), 1; got != want {
+		t.Fatalf("len(sessions) = %d, want %d", got, want)
+	}
+	if got, want := sessions[0].Provider, "codex"; got != want {
+		t.Fatalf("sessions[0].Provider = %q, want %q", got, want)
+	}
+
+	var provider string
+	if err := globalDB.db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT provider FROM sessions WHERE id = ?`,
+		session.ID,
+	).Scan(&provider); err != nil {
+		t.Fatalf("QueryRowContext(provider) error = %v", err)
+	}
+	if got, want := provider, "codex"; got != want {
+		t.Fatalf("stored provider = %q, want %q", got, want)
 	}
 }
 
@@ -1064,6 +1123,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"id",
 			"name",
 			"agent_name",
+			"provider",
 			"workspace_id",
 			"session_type",
 			"channel",
@@ -1253,6 +1313,7 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"id",
 			"name",
 			"agent_name",
+			"provider",
 			"workspace_id",
 			"session_type",
 			"channel",
@@ -1815,6 +1876,7 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 		{
 			ID:        "sess-keep",
 			AgentName: "coder",
+			Provider:  "claude",
 			WorkspaceID: registerWorkspaceForGlobalTests(
 				t,
 				globalDB,
@@ -1829,6 +1891,7 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 		{
 			ID:        "sess-new",
 			AgentName: "reviewer",
+			Provider:  "codex",
 			WorkspaceID: registerWorkspaceForGlobalTests(
 				t,
 				globalDB,
@@ -1862,9 +1925,11 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 	}
 	stateByID := make(map[string]string, len(sessions))
 	stopReasonByID := make(map[string]store.StopReason, len(sessions))
+	providerByID := make(map[string]string, len(sessions))
 	for _, session := range sessions {
 		stateByID[session.ID] = session.State
 		stopReasonByID[session.ID] = session.StopReason
+		providerByID[session.ID] = session.Provider
 	}
 	if stateByID["sess-new"] != "stopped" {
 		t.Fatalf("stateByID[sess-new] = %q, want stopped", stateByID["sess-new"])
@@ -1872,8 +1937,77 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 	if stopReasonByID["sess-new"] != store.StopUserCanceled {
 		t.Fatalf("stopReasonByID[sess-new] = %q, want %q", stopReasonByID["sess-new"], store.StopUserCanceled)
 	}
+	if providerByID["sess-new"] != "codex" {
+		t.Fatalf("providerByID[sess-new] = %q, want codex", providerByID["sess-new"])
+	}
 	if stateByID["sess-orphan"] != "orphaned" {
 		t.Fatalf("stateByID[sess-orphan] = %q, want orphaned", stateByID["sess-orphan"])
+	}
+}
+
+func TestGlobalDBReconcileSessionsSkipsDuplicateIDsAndDefaultsTimestamps(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	reconciledAt := time.Date(2026, 4, 3, 16, 30, 0, 0, time.UTC)
+	globalDB.now = func() time.Time {
+		return reconciledAt
+	}
+
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"sess-duplicate-reconciled-workspace",
+		filepath.Join(t.TempDir(), "sess-duplicate"),
+	)
+	onDisk := []SessionInfo{
+		{
+			ID:          "sess-duplicate",
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: workspaceID,
+			State:       "stopped",
+		},
+		{
+			ID:          "sess-duplicate",
+			AgentName:   "coder",
+			Provider:    "codex",
+			WorkspaceID: workspaceID,
+			State:       "orphaned",
+		},
+	}
+
+	result, err := globalDB.ReconcileSessions(testutil.Context(t), onDisk)
+	if err != nil {
+		t.Fatalf("ReconcileSessions() error = %v", err)
+	}
+	if !testutil.EqualStringSlices(result.Indexed, []string{"sess-duplicate"}) {
+		t.Fatalf("Indexed = %#v, want %#v", result.Indexed, []string{"sess-duplicate"})
+	}
+	if len(result.Orphaned) != 0 {
+		t.Fatalf("Orphaned = %#v, want empty", result.Orphaned)
+	}
+
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if got, want := len(sessions), 1; got != want {
+		t.Fatalf("len(sessions) = %d, want %d", got, want)
+	}
+
+	got := sessions[0]
+	if got.Provider != "claude" {
+		t.Fatalf("sessions[0].Provider = %q, want claude from first reconcile entry", got.Provider)
+	}
+	if got.State != "stopped" {
+		t.Fatalf("sessions[0].State = %q, want stopped from first reconcile entry", got.State)
+	}
+	if !got.CreatedAt.Equal(reconciledAt) {
+		t.Fatalf("sessions[0].CreatedAt = %v, want %v", got.CreatedAt, reconciledAt)
+	}
+	if !got.UpdatedAt.Equal(reconciledAt) {
+		t.Fatalf("sessions[0].UpdatedAt = %v, want %v", got.UpdatedAt, reconciledAt)
 	}
 }
 
@@ -1970,6 +2104,7 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"acp_session_id",
 			"created_at",
 			"updated_at",
+			"provider",
 			"stop_reason",
 			"stop_detail",
 			"channel",
@@ -2071,6 +2206,7 @@ func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID s
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
 		ID:        sessionID,
 		AgentName: "coder",
+		Provider:  "claude",
 		WorkspaceID: registerWorkspaceForGlobalTests(
 			t,
 			globalDB,

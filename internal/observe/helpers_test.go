@@ -407,6 +407,7 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 		ID:          "sess-stopped",
 		Name:        "Stopped",
 		AgentName:   "coder",
+		Provider:    "claude",
 		WorkspaceID: h.workspaceID,
 		State:       "stopped",
 		CreatedAt:   h.now,
@@ -415,7 +416,7 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
-	sessions, err := h.observer.loadSessionMetadata()
+	sessions, err := h.observer.loadSessionMetadata(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("loadSessionMetadata() error = %v", err)
 	}
@@ -490,7 +491,7 @@ func TestMissingPathHelpers(t *testing.T) {
 
 	h := newHarness(t)
 	h.observer.homePaths.SessionsDir = missingDir
-	sessions, err := h.observer.loadSessionMetadata()
+	sessions, err := h.observer.loadSessionMetadata(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("loadSessionMetadata(missing) error = %v", err)
 	}

@@ -125,6 +125,64 @@ func TestStatusRepairsLegacyProviderAndLogs(t *testing.T) {
 	assertCapturedLogAttr(t, record, "agent_name", "coder")
 	assertCapturedLogAttr(t, record, "provider", "claude")
 	assertCapturedLogAttr(t, record, "phase", "legacy_repair")
+	assertCapturedLogAttr(t, record, "repaired", "true")
+
+	info, err = h.manager.Status(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Status(second) error = %v", err)
+	}
+	if got := info.Provider; got != "claude" {
+		t.Fatalf("Status(second).Provider = %q, want %q", got, "claude")
+	}
+
+	repairedLogs := 0
+	for _, entry := range logs.Records() {
+		if entry.Message == "session.resume.legacy_provider_repaired" {
+			repairedLogs++
+		}
+	}
+	if got, want := repairedLogs, 1; got != want {
+		t.Fatalf("legacy_provider_repaired log count = %d, want %d", got, want)
+	}
+}
+
+func TestStatusFailsWhenLegacyProviderRepairCannotResolveAgent(t *testing.T) {
+	t.Parallel()
+
+	logs := newCaptureLogHandler()
+	h := newHarness(t, WithLogger(slog.New(logs)))
+	session := createSession(t, h)
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	meta := readMeta(t, session.MetaPath())
+	meta.Provider = ""
+	meta.AgentName = "missing-agent"
+	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+		t.Fatalf("WriteSessionMeta(set missing agent) error = %v", err)
+	}
+
+	_, err := h.manager.Status(testutil.Context(t), session.ID)
+	if err == nil {
+		t.Fatal("Status() error = nil, want legacy provider repair failure")
+	}
+	if !strings.Contains(err.Error(), session.ID) {
+		t.Fatalf("Status() error = %q, want session id detail", err.Error())
+	}
+	if !strings.Contains(err.Error(), "missing-agent") {
+		t.Fatalf("Status() error = %q, want missing agent detail", err.Error())
+	}
+
+	record, ok := logs.FindByMessage("session.resume.legacy_provider_repair_failed")
+	if !ok {
+		t.Fatalf("missing legacy_provider_repair_failed log: %#v", logs.Records())
+	}
+	assertCapturedLogAttr(t, record, "session_id", session.ID)
+	assertCapturedLogAttr(t, record, "agent_name", "missing-agent")
+	assertCapturedLogAttr(t, record, "provider", "")
+	assertCapturedLogAttr(t, record, "phase", "legacy_repair")
 }
 
 func TestResumeFailsWhenPersistedProviderUnavailable(t *testing.T) {

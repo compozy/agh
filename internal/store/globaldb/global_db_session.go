@@ -71,7 +71,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, name, agent_name, workspace_id, channel, session_type,
+	sqlQuery := `SELECT id, name, agent_name, provider, workspace_id, channel, session_type,
 		state, acp_session_id, stop_reason, stop_detail,
 		subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 		environment_id, environment_backend, environment_profile, environment_instance_id,
@@ -189,16 +189,17 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 	_, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO sessions (
-			id, name, agent_name, workspace_id, session_type, channel, state,
+			id, name, agent_name, provider, workspace_id, session_type, channel, state,
 			acp_session_id, stop_reason, stop_detail,
 			subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 			environment_id, environment_backend, environment_profile, environment_instance_id,
 			environment_state, environment_provider_state_json,
 			environment_last_sync_at, environment_last_sync_error, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			agent_name = excluded.agent_name,
+			provider = excluded.provider,
 			workspace_id = excluded.workspace_id,
 			session_type = excluded.session_type,
 			channel = excluded.channel,
@@ -223,6 +224,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		session.ID,
 		store.NullableString(session.Name),
 		session.AgentName,
+		strings.TrimSpace(session.Provider),
 		session.WorkspaceID,
 		store.NormalizeSessionType(session.SessionType),
 		strings.TrimSpace(session.Channel),
@@ -372,6 +374,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	if row.name.Valid {
 		session.Name = row.name.String
 	}
+	session.Provider = strings.TrimSpace(row.session.Provider)
 	session.Channel = strings.TrimSpace(row.channel)
 	session.SessionType = store.NormalizeSessionType(row.sessionType)
 	session.ACPSessionID = store.NullString(row.acpSessionID)
@@ -423,6 +426,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.session.ID,
 		&row.name,
 		&row.session.AgentName,
+		&row.session.Provider,
 		&row.session.WorkspaceID,
 		&row.channel,
 		&row.sessionType,

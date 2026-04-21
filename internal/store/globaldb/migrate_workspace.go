@@ -26,6 +26,7 @@ type legacySessionRow struct {
 	ID           string
 	Name         sql.NullString
 	AgentName    string
+	Provider     string
 	Workspace    string
 	SessionType  string
 	State        string
@@ -565,35 +566,7 @@ func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
-	if _, ok := columns["stop_reason"]; !ok {
-		if _, err := db.ExecContext(ctx, `ALTER TABLE sessions ADD COLUMN stop_reason TEXT`); err != nil {
-			return fmt.Errorf("store: add sessions.stop_reason column: %w", err)
-		}
-	}
-	if _, ok := columns["stop_detail"]; !ok {
-		if _, err := db.ExecContext(ctx, `ALTER TABLE sessions ADD COLUMN stop_detail TEXT`); err != nil {
-			return fmt.Errorf("store: add sessions.stop_detail column: %w", err)
-		}
-	}
-	if _, ok := columns["channel"]; !ok {
-		if _, err := db.ExecContext(
-			ctx,
-			`ALTER TABLE sessions ADD COLUMN channel TEXT NOT NULL DEFAULT ''`,
-		); err != nil {
-			return fmt.Errorf("store: add sessions.channel column: %w", err)
-		}
-	}
-	sessionLivenessColumns := []struct {
-		name string
-		sql  string
-	}{
-		{name: "subprocess_pid", sql: `ALTER TABLE sessions ADD COLUMN subprocess_pid INTEGER NOT NULL DEFAULT 0`},
-		{name: "subprocess_started_at", sql: `ALTER TABLE sessions ADD COLUMN subprocess_started_at TEXT`},
-		{name: "last_update_at", sql: `ALTER TABLE sessions ADD COLUMN last_update_at TEXT`},
-		{name: "stall_state", sql: `ALTER TABLE sessions ADD COLUMN stall_state TEXT NOT NULL DEFAULT ''`},
-		{name: "stall_reason", sql: `ALTER TABLE sessions ADD COLUMN stall_reason TEXT NOT NULL DEFAULT ''`},
-	}
-	for _, column := range sessionLivenessColumns {
+	for _, column := range sessionColumnSpecs() {
 		if _, ok := columns[column.name]; ok {
 			continue
 		}
@@ -601,10 +574,26 @@ func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("store: add sessions.%s column: %w", column.name, err)
 		}
 	}
-	sessionEnvironmentColumns := []struct {
-		name string
-		sql  string
-	}{
+
+	return nil
+}
+
+type migrationColumnSpec struct {
+	name string
+	sql  string
+}
+
+func sessionColumnSpecs() []migrationColumnSpec {
+	return []migrationColumnSpec{
+		{name: "provider", sql: `ALTER TABLE sessions ADD COLUMN provider TEXT NOT NULL DEFAULT ''`},
+		{name: "stop_reason", sql: `ALTER TABLE sessions ADD COLUMN stop_reason TEXT`},
+		{name: "stop_detail", sql: `ALTER TABLE sessions ADD COLUMN stop_detail TEXT`},
+		{name: "channel", sql: `ALTER TABLE sessions ADD COLUMN channel TEXT NOT NULL DEFAULT ''`},
+		{name: "subprocess_pid", sql: `ALTER TABLE sessions ADD COLUMN subprocess_pid INTEGER NOT NULL DEFAULT 0`},
+		{name: "subprocess_started_at", sql: `ALTER TABLE sessions ADD COLUMN subprocess_started_at TEXT`},
+		{name: "last_update_at", sql: `ALTER TABLE sessions ADD COLUMN last_update_at TEXT`},
+		{name: "stall_state", sql: `ALTER TABLE sessions ADD COLUMN stall_state TEXT NOT NULL DEFAULT ''`},
+		{name: "stall_reason", sql: `ALTER TABLE sessions ADD COLUMN stall_reason TEXT NOT NULL DEFAULT ''`},
 		{name: "environment_id", sql: `ALTER TABLE sessions ADD COLUMN environment_id TEXT NOT NULL DEFAULT ''`},
 		{
 			name: "environment_backend",
@@ -629,16 +618,6 @@ func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
 			sql:  `ALTER TABLE sessions ADD COLUMN environment_last_sync_error TEXT NOT NULL DEFAULT ''`,
 		},
 	}
-	for _, column := range sessionEnvironmentColumns {
-		if _, ok := columns[column.name]; ok {
-			continue
-		}
-		if _, err := db.ExecContext(ctx, column.sql); err != nil {
-			return fmt.Errorf("store: add sessions.%s column: %w", column.name, err)
-		}
-	}
-
-	return nil
 }
 
 func migrateBridgeColumns(ctx context.Context, db *sql.DB) error {
@@ -823,9 +802,22 @@ func loadLegacySessions(
 	ctx context.Context,
 	exec sqlQueryExecutor,
 ) ([]legacySessionRow, map[string]legacyWorkspaceSeed, error) {
+	columns, err := tableColumns(ctx, exec, "sessions")
+	if err != nil {
+		return nil, nil, err
+	}
+	providerExpr := `''`
+	if _, ok := columns["provider"]; ok {
+		providerExpr = `COALESCE(provider, '')`
+	}
+
 	rows, err := exec.QueryContext(
 		ctx,
-		`SELECT id, name, agent_name, workspace, session_type, state, acp_session_id, created_at, updated_at FROM sessions ORDER BY created_at ASC, id ASC`,
+		fmt.Sprintf(
+			`SELECT id, name, agent_name, %s AS provider, workspace, session_type, state, acp_session_id, created_at, updated_at
+			FROM sessions ORDER BY created_at ASC, id ASC`,
+			providerExpr,
+		),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("store: query legacy sessions for migration: %w", err)
@@ -842,6 +834,7 @@ func loadLegacySessions(
 			&row.ID,
 			&row.Name,
 			&row.AgentName,
+			&row.Provider,
 			&row.Workspace,
 			&row.SessionType,
 			&row.State,
@@ -937,6 +930,7 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 			id             TEXT PRIMARY KEY,
 			name           TEXT,
 			agent_name     TEXT NOT NULL,
+			provider       TEXT NOT NULL DEFAULT '',
 			workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
 			session_type   TEXT NOT NULL DEFAULT 'user',
 			channel          TEXT NOT NULL DEFAULT '',
@@ -1011,12 +1005,13 @@ func copyMigratedSessions(
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO sessions_new (
-				id, name, agent_name, workspace_id, session_type, channel, state, acp_session_id,
+				id, name, agent_name, provider, workspace_id, session_type, channel, state, acp_session_id,
 				environment_backend, environment_profile, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			row.ID,
 			nullStringValue(row.Name),
 			row.AgentName,
+			strings.TrimSpace(row.Provider),
 			workspaceID,
 			store.NormalizeSessionType(row.SessionType),
 			"",

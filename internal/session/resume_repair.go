@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -21,6 +22,15 @@ const (
 	resumeStopDetailAgentCrashed    = "daemon crashed while session active"
 	resumeStopDetailStartIncomplete = "start did not complete"
 )
+
+// LegacyProviderRepairOptions supplies the dependencies used to repair legacy
+// session metadata that predates persisted provider state.
+type LegacyProviderRepairOptions struct {
+	Now               func() time.Time
+	Logger            *slog.Logger
+	WorkspaceResolver workspacepkg.RuntimeResolver
+	AgentResolver     AgentResolver
+}
 
 type resumeValidationError struct {
 	check string
@@ -68,13 +78,39 @@ func (m *Manager) repairLegacyProvider(
 	metaPath string,
 	meta store.SessionMeta,
 ) (store.SessionMeta, error) {
+	return RepairLegacyProvider(ctx, metaPath, meta, LegacyProviderRepairOptions{
+		Now:               m.now,
+		Logger:            m.logger,
+		WorkspaceResolver: m.workspace,
+		AgentResolver:     m.agentResolver,
+	})
+}
+
+// RepairLegacyProvider resolves and persists the effective provider for a
+// legacy inactive session exactly once before resume or reconcile continues.
+func RepairLegacyProvider(
+	ctx context.Context,
+	metaPath string,
+	meta store.SessionMeta,
+	opts LegacyProviderRepairOptions,
+) (store.SessionMeta, error) {
 	if strings.TrimSpace(meta.Provider) != "" {
 		return meta, nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	now := opts.Now
+	if now == nil {
+		now = func() time.Time {
+			return time.Now().UTC()
+		}
+	}
 
-	resolvedWorkspace, err := m.resolveResumeWorkspace(ctx, meta)
+	logger := legacyProviderRepairLogger(opts.Logger, meta)
+	resolvedWorkspace, err := resolveStoredSessionWorkspace(ctx, meta, opts.WorkspaceResolver)
 	if err != nil {
-		m.resumeLogger(meta).Warn(
+		logger.Warn(
 			"session.resume.legacy_provider_repair_failed",
 			"phase", "legacy_repair",
 			"error", err,
@@ -82,9 +118,9 @@ func (m *Manager) repairLegacyProvider(
 		return store.SessionMeta{}, fmt.Errorf("session: repair provider for %q: %w", strings.TrimSpace(meta.ID), err)
 	}
 
-	resolved, err := m.resolveWorkspaceSessionAgent(meta.AgentName, "", &resolvedWorkspace)
+	resolved, err := resolveWorkspaceSessionAgent(meta.AgentName, "", &resolvedWorkspace, opts.AgentResolver)
 	if err != nil {
-		m.resumeLogger(meta).Warn(
+		logger.Warn(
 			"session.resume.legacy_provider_repair_failed",
 			"phase", "legacy_repair",
 			"error", err,
@@ -99,9 +135,9 @@ func (m *Manager) repairLegacyProvider(
 
 	repaired := meta
 	repaired.Provider = strings.TrimSpace(resolved.Provider)
-	repaired.UpdatedAt = m.now()
+	repaired.UpdatedAt = now()
 	if err := store.WriteSessionMeta(metaPath, repaired); err != nil {
-		m.resumeLogger(repaired).Warn(
+		legacyProviderRepairLogger(opts.Logger, repaired).Warn(
 			"session.resume.legacy_provider_repair_persist_failed",
 			"phase", "legacy_repair",
 			"error", err,
@@ -113,9 +149,10 @@ func (m *Manager) repairLegacyProvider(
 		)
 	}
 
-	m.resumeLogger(repaired).Info(
+	legacyProviderRepairLogger(opts.Logger, repaired).Info(
 		"session.resume.legacy_provider_repaired",
 		"phase", "legacy_repair",
+		"repaired", true,
 	)
 	return repaired, nil
 }
@@ -303,7 +340,10 @@ func (m *Manager) logResumeValidationFailures(meta store.SessionMeta, errs []err
 }
 
 func (m *Manager) resumeLogger(meta store.SessionMeta) *slog.Logger {
-	logger := m.logger
+	return legacyProviderRepairLogger(m.logger, meta)
+}
+
+func legacyProviderRepairLogger(logger *slog.Logger, meta store.SessionMeta) *slog.Logger {
 	if logger == nil {
 		logger = slog.Default()
 	}
