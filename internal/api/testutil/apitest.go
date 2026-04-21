@@ -42,7 +42,7 @@ type StubSessionManager struct {
 	StatusFn        func(context.Context, string) (*session.Info, error)
 	EventsFn        func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	HistoryFn       func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	TranscriptFn    func(context.Context, string) ([]transcript.Message, error)
+	TranscriptFn    func(context.Context, string) ([]transcript.UIMessage, error)
 	StopFn          func(context.Context, string) error
 	StopWithCauseFn func(context.Context, string, session.StopCause, string) error
 	ResumeFn        func(context.Context, string) (*session.Session, error)
@@ -109,7 +109,7 @@ func (s StubSessionManager) History(
 	return nil, nil
 }
 
-func (s StubSessionManager) Transcript(ctx context.Context, id string) ([]transcript.Message, error) {
+func (s StubSessionManager) Transcript(ctx context.Context, id string) ([]transcript.UIMessage, error) {
 	if s.TranscriptFn != nil {
 		return s.TranscriptFn(ctx, id)
 	}

@@ -9,11 +9,12 @@ import type {
   ApproveSessionParams,
   CreateSessionParams,
   FetchSessionEventsParams,
+  SessionMessage,
   SessionEventPayload,
   SessionPayload,
-  TranscriptMessage,
   TurnHistoryPayload,
 } from "../types";
+import { normalizeTranscriptMessages } from "../lib/message-schemas";
 
 export type {
   ApproveSessionParams,
@@ -228,7 +229,7 @@ export async function fetchSessionHistory(
 export async function fetchSessionTranscript(
   id: string,
   signal?: AbortSignal
-): Promise<TranscriptMessage[]> {
+): Promise<SessionMessage[]> {
   const { data, error, response } = await apiClient.GET("/api/sessions/{id}/transcript", {
     params: { path: { id } },
     signal,
@@ -241,5 +242,8 @@ export async function fetchSessionTranscript(
       defaultApiErrorMessage(`Failed to fetch session transcript "${id}"`, response, error)
     );
   }
-  return requireResponseData(data, response, `Failed to fetch session transcript "${id}"`).messages;
+
+  const payload = requireResponseData(data, response, `Failed to fetch session transcript "${id}"`);
+
+  return normalizeTranscriptMessages(payload.messages);
 }

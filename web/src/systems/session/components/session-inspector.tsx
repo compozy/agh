@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Activity, ChevronRight, FileCode, Gauge, Library, PanelRightOpen } from "lucide-react";
+import type { AssistantState } from "@assistant-ui/react";
 
 import {
   Button,
@@ -18,7 +19,9 @@ import {
   type StatusDotTone,
 } from "@agh/ui";
 
-import type { UIMessage } from "../types";
+import { isAgentEventPayload, parseToolUseResult } from "../lib/message-parts";
+
+type ThreadMessageState = AssistantState["thread"]["messages"][number];
 
 export type InspectorTraceKind =
   | "start"
@@ -64,7 +67,7 @@ export interface InspectorFileEntry {
 }
 
 export interface SessionInspectorProps {
-  messages: UIMessage[];
+  messages: readonly ThreadMessageState[];
   usage?: InspectorUsage | null;
   memoryDocs?: InspectorMemoryDoc[];
   /** Explicit file list. When omitted, derived from `messages` via `deriveFileReads`. */
@@ -106,61 +109,157 @@ const TRACE_KIND_LABEL: Record<InspectorTraceKind, string> = {
   approval: "APPROVAL",
 };
 
-function traceKindFromRole(role: UIMessage["role"]): InspectorTraceKind {
+function traceKindFromRole(role: ThreadMessageState["role"]): InspectorTraceKind {
   switch (role) {
     case "user":
       return "user";
     case "assistant":
       return "agent";
-    case "tool_call":
-    case "tool_result":
-      return "tool";
-    case "diff":
-      return "diff";
     case "system":
       return "system";
   }
+
+  const _exhaustive: never = role;
+  return _exhaustive;
 }
 
-function traceStatusFromMessage(msg: UIMessage): InspectorTraceStatus {
-  if (msg.toolError) return "error";
-  if (msg.isStreaming) return "pending";
-  if (msg.role === "tool_call" && !msg.toolResult) return "pending";
+function traceStatusFromMessage(message: ThreadMessageState): InspectorTraceStatus {
+  if (message.role !== "assistant") {
+    return "ok";
+  }
+
+  if (message.status?.type === "running" || message.status?.type === "requires-action") {
+    return "pending";
+  }
+
+  if (message.status?.type === "incomplete") {
+    return message.status.reason === "error" ? "error" : "warn";
+  }
+
   return "ok";
 }
 
-function traceLabelFromMessage(msg: UIMessage): string {
-  if (msg.role === "tool_call" || msg.role === "tool_result") {
-    return msg.toolName ? msg.toolName : "tool call";
+function toolStatusFromPart(part: ThreadMessageState["parts"][number]): InspectorTraceStatus {
+  if (part.type !== "tool-call") {
+    return "ok";
   }
-  if (msg.role === "diff") {
-    return msg.diff?.path ?? "diff";
+
+  if (part.isError || (part.status.type === "incomplete" && part.status.reason === "error")) {
+    return "error";
   }
-  if (msg.role === "system") {
-    const first = msg.content.split("\n")[0] ?? "";
+
+  if (part.status.type === "running" || part.status.type === "requires-action") {
+    return "pending";
+  }
+
+  if (part.status.type === "incomplete") {
+    return "warn";
+  }
+
+  return "ok";
+}
+
+function getTextPartText(message: ThreadMessageState): string {
+  return message.content
+    .filter(
+      (
+        part
+      ): part is Extract<ThreadMessageState["content"][number], { type: "text" | "reasoning" }> =>
+        part.type === "text" || part.type === "reasoning"
+    )
+    .map(part => part.text)
+    .join("");
+}
+
+function traceLabelFromMessage(message: ThreadMessageState): string {
+  if (message.role === "system") {
+    const first = getTextPartText(message).split("\n")[0] ?? "";
     return first || "system event";
   }
-  if (msg.role === "user") return "Prompt sent";
+
+  if (message.role === "user") {
+    return "Prompt sent";
+  }
+
   return "Agent response";
 }
 
 /**
- * Map a transcript/store UIMessage[] into trace rows for the Inspector.
+ * Map the current thread messages into trace rows for the Inspector.
  * Pure — no hooks. The first message is tagged as `start` so the session-resume
  * line reads like the mock. The last `limit` events are returned.
  */
 export function deriveTraceEvents(
-  messages: UIMessage[],
+  messages: readonly ThreadMessageState[],
   limit = TRACE_LIMIT_DEFAULT
 ): InspectorTraceEvent[] {
-  if (messages.length === 0) return [];
-  const events = messages.map<InspectorTraceEvent>((msg, index) => ({
-    id: msg.id ?? `trace-${index}`,
-    kind: index === 0 ? "start" : traceKindFromRole(msg.role),
-    label: index === 0 ? "Session started" : traceLabelFromMessage(msg),
-    timestamp: msg.timestamp,
-    status: traceStatusFromMessage(msg),
-  }));
+  if (messages.length === 0) {
+    return [];
+  }
+
+  const events: InspectorTraceEvent[] = [];
+
+  const firstTimestamp = messages[0]?.createdAt.getTime() ?? Date.now();
+  events.push({
+    id: `start-${messages[0]?.id ?? "session"}`,
+    kind: "start",
+    label: "Session started",
+    timestamp: firstTimestamp,
+    status: "ok",
+  });
+
+  for (const message of messages) {
+    const timestamp = message.createdAt.getTime();
+
+    if (message.role === "user" || message.role === "system") {
+      events.push({
+        id: message.id,
+        kind: traceKindFromRole(message.role),
+        label: traceLabelFromMessage(message),
+        timestamp,
+        status: traceStatusFromMessage(message),
+      });
+      continue;
+    }
+
+    const hasAssistantNarration = message.content.some(
+      part => part.type === "text" || part.type === "reasoning"
+    );
+
+    if (hasAssistantNarration) {
+      events.push({
+        id: message.id,
+        kind: "agent",
+        label: traceLabelFromMessage(message),
+        timestamp,
+        status: traceStatusFromMessage(message),
+      });
+    }
+
+    for (const part of message.parts) {
+      if (part.type === "tool-call") {
+        events.push({
+          id: part.toolCallId,
+          kind: "tool",
+          label: part.toolName || "tool call",
+          timestamp,
+          status: toolStatusFromPart(part),
+        });
+      }
+
+      if (part.type === "data" && part.name === "agh-permission") {
+        const raw = part.data as { title?: string; decision?: string } | undefined;
+        events.push({
+          id: `${message.id}-${part.name}`,
+          kind: "approval",
+          label: raw?.title || "Permission required",
+          timestamp,
+          status: raw?.decision ? "ok" : "pending",
+        });
+      }
+    }
+  }
+
   return events.slice(-limit);
 }
 
@@ -169,25 +268,39 @@ export function deriveTraceEvents(
  * `toolResult.filePath` first, then falls back to known input fields
  * (`file_path` / `filePath` / `path`). Order is preserved by first appearance.
  */
-export function deriveFileReads(messages: UIMessage[]): InspectorFileEntry[] {
+export function deriveFileReads(messages: readonly ThreadMessageState[]): InspectorFileEntry[] {
   const index = new Map<string, InspectorFileEntry>();
-  for (const msg of messages) {
-    const path = msg.toolResult?.filePath ?? readFilePathFromInput(msg);
-    if (!path) continue;
-    const existing = index.get(path);
-    if (existing) {
-      existing.readCount += 1;
-    } else {
-      index.set(path, { path, readCount: 1 });
+  for (const message of messages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+
+    for (const part of message.parts) {
+      if (part.type !== "tool-call") {
+        continue;
+      }
+
+      const result = isAgentEventPayload(part.result) ? parseToolUseResult(part.result) : null;
+      const path = result?.filePath ?? readFilePathFromInput(part.args);
+      if (!path) {
+        continue;
+      }
+
+      const existing = index.get(path);
+      if (existing) {
+        existing.readCount += 1;
+      } else {
+        index.set(path, { path, readCount: 1 });
+      }
     }
   }
   return Array.from(index.values());
 }
 
-function readFilePathFromInput(msg: UIMessage): string | undefined {
-  if (msg.role !== "tool_call" && msg.role !== "tool_result") return undefined;
-  const input = msg.toolInput;
-  if (!input) return undefined;
+function readFilePathFromInput(input: Record<string, unknown> | undefined): string | undefined {
+  if (!input) {
+    return undefined;
+  }
   const raw = input.file_path ?? input.filePath ?? input.path;
   return typeof raw === "string" && raw.length > 0 ? raw : undefined;
 }

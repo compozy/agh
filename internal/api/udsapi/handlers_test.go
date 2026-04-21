@@ -1232,12 +1232,15 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		TranscriptFn: func(context.Context, string) ([]transcript.Message, error) {
-			return []transcript.Message{{
-				ID:        "msg-1",
-				Role:      transcript.RoleAssistant,
-				Content:   "hello",
-				Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		TranscriptFn: func(context.Context, string) ([]transcript.UIMessage, error) {
+			return []transcript.UIMessage{{
+				ID:   "msg-1",
+				Role: transcript.UIRoleAssistant,
+				Parts: []transcript.UIMessagePart{{
+					Type:  "text",
+					Text:  "hello",
+					State: "done",
+				}},
 			}}, nil
 		},
 	}
@@ -1250,14 +1253,14 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 	}
 
 	var response struct {
-		Messages []transcript.Message `json:"messages"`
+		Messages []transcript.UIMessage `json:"messages"`
 	}
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Messages) != 1 {
 		t.Fatalf("len(messages) = %d, want 1", len(response.Messages))
 	}
-	if got := response.Messages[0].Content; got != "hello" {
-		t.Fatalf("messages[0].Content = %q, want %q", got, "hello")
+	if got := response.Messages[0].Parts[0].Text; got != "hello" {
+		t.Fatalf("messages[0].Parts[0].Text = %q, want %q", got, "hello")
 	}
 }
 

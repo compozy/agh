@@ -844,14 +844,8 @@ func observeEventTypes(events []aghcontract.ObserveEventPayload) []string {
 	return types
 }
 
-func joinTransportTranscript(messages []transcript.Message) string {
-	parts := make([]string, 0, len(messages))
-	for _, message := range messages {
-		if text := strings.TrimSpace(message.Content); text != "" {
-			parts = append(parts, text)
-		}
-	}
-	return strings.Join(parts, "\n")
+func joinTransportTranscript(messages []transcript.UIMessage) string {
+	return transcript.JoinUIMessageText(messages)
 }
 
 func transportMockFixturePath(t testing.TB, name string) string {

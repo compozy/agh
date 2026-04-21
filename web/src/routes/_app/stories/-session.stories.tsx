@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 
+import { sessionTranscriptPermissionFixture } from "@/systems/session/mocks";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
-  StorybookSessionPermissionSetup,
   appRouteParameters,
   createRouteStoryMeta,
 } from "@/storybook/route-story";
@@ -54,12 +54,20 @@ export const Stopped: Story = {
 };
 
 /**
- * Pending permission prompt injected into the route's existing session store flow.
+ * Pending permission prompt hydrated from the transcript replay payload.
  */
 export const PendingPermission: Story = {
   args: {},
-  parameters: appRouteParameters("/session/sess-storybook"),
-  render: () => <StorybookSessionPermissionSetup />,
+  parameters: {
+    ...appRouteParameters("/session/sess-storybook"),
+    ...storybookMswParameters({
+      session: [
+        http.get("/api/sessions/:id/transcript", () =>
+          HttpResponse.json({ messages: sessionTranscriptPermissionFixture })
+        ),
+      ],
+    }),
+  },
 };
 
 /**

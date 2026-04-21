@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSessionStore } from "./use-session-store";
 import { useClearSessionConversation, useCreateSession } from "./use-session-actions";
 import { sessionKeys } from "../lib/query-keys";
-import type { SessionPayload, UIMessage } from "../types";
+import type { SessionPayload } from "../types";
 
 vi.mock("../adapters/session-api", () => ({
   clearSessionConversation: vi.fn(),
@@ -20,16 +20,6 @@ import { clearSessionConversation, createSession } from "../adapters/session-api
 function createWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
-}
-
-function makeMessage(overrides: Partial<UIMessage> = {}): UIMessage {
-  return {
-    id: `msg-${Math.random().toString(36).slice(2, 8)}`,
-    role: "assistant",
-    content: "test content",
-    timestamp: Date.now(),
-    ...overrides,
-  };
 }
 
 const createdSession: SessionPayload = {
@@ -67,15 +57,7 @@ const otherWorkspaceSession: SessionPayload = {
 describe("session actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useSessionStore.setState({
-      activeSessionId: "sess-created",
-      historyMessages: [],
-      liveMessages: [],
-      isStreaming: false,
-      awaitingTranscriptSync: false,
-      pendingPermission: null,
-      drafts: {},
-    });
+    useSessionStore.setState({ drafts: {} });
   });
 
   afterEach(() => {
@@ -121,7 +103,7 @@ describe("session actions", () => {
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, { queryKey: sessionKeys.lists() });
   });
 
-  it("useClearSessionConversation clears transcript caches and local session state optimistically", async () => {
+  it("useClearSessionConversation clears transcript caches optimistically without touching drafts", async () => {
     vi.mocked(clearSessionConversation).mockResolvedValue(createdSession);
 
     const queryClient = new QueryClient({
@@ -132,15 +114,7 @@ describe("session actions", () => {
       { id: "history-1", role: "assistant", content: "existing" },
     ]);
     queryClient.setQueryData(sessionKeys.history(createdSession.id), [{ id: "turn-1" }]);
-
-    useSessionStore.setState({
-      activeSessionId: createdSession.id,
-      historyMessages: [makeMessage({ id: "history-1" })],
-      liveMessages: [makeMessage({ id: "live-1", role: "user" })],
-      isStreaming: false,
-      awaitingTranscriptSync: false,
-      pendingPermission: null,
-    });
+    useSessionStore.getState().setDraft(createdSession.id, { text: "keep me" });
 
     const { result } = renderHook(() => useClearSessionConversation(), {
       wrapper: createWrapper(queryClient),
@@ -154,11 +128,10 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.detail(createdSession.id))).toEqual(createdSession);
     expect(queryClient.getQueryData(sessionKeys.transcript(createdSession.id))).toEqual([]);
     expect(queryClient.getQueryData(sessionKeys.history(createdSession.id))).toEqual([]);
-    expect(useSessionStore.getState().historyMessages).toEqual([]);
-    expect(useSessionStore.getState().liveMessages).toEqual([]);
+    expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
   });
 
-  it("useClearSessionConversation rolls back optimistic state on failure", async () => {
+  it("useClearSessionConversation rolls back optimistic cache changes on failure", async () => {
     vi.mocked(clearSessionConversation).mockRejectedValue(new Error("clear failed"));
 
     const queryClient = new QueryClient({
@@ -170,17 +143,7 @@ describe("session actions", () => {
     const historySnapshot = [{ id: "turn-1" }];
     queryClient.setQueryData(sessionKeys.transcript(createdSession.id), transcriptSnapshot);
     queryClient.setQueryData(sessionKeys.history(createdSession.id), historySnapshot);
-
-    const historyMessages = [makeMessage({ id: "history-1" })];
-    const liveMessages = [makeMessage({ id: "live-1", role: "user" })];
-    useSessionStore.setState({
-      activeSessionId: createdSession.id,
-      historyMessages,
-      liveMessages,
-      isStreaming: false,
-      awaitingTranscriptSync: false,
-      pendingPermission: null,
-    });
+    useSessionStore.getState().setDraft(createdSession.id, { text: "keep me" });
 
     const { result } = renderHook(() => useClearSessionConversation(), {
       wrapper: createWrapper(queryClient),
@@ -196,7 +159,6 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.history(createdSession.id))).toEqual(
       historySnapshot
     );
-    expect(useSessionStore.getState().historyMessages).toBe(historyMessages);
-    expect(useSessionStore.getState().liveMessages).toBe(liveMessages);
+    expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
   });
 });

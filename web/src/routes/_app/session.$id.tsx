@@ -1,22 +1,83 @@
+import { useEffect } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 
-import { useSessionPage } from "@/hooks/routes/use-session-page";
+import { SessionThread } from "@/components/assistant-ui/session-thread";
+import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
 import { ChatHeader } from "@/systems/session/components/chat-header";
-import { ChatView } from "@/systems/session/components/chat-view";
-import { MessageComposer } from "@/systems/session/components/message-composer";
-import { PermissionPrompt } from "@/systems/session/components/permission-prompt";
+import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { SessionInspector } from "@/systems/session/components/session-inspector";
+import { useSession } from "@/systems/session/hooks/use-sessions";
+import type { SessionPayload } from "@/systems/session/types";
+import { useWorkspaces } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/session/$id")({
   component: SessionPage,
 });
 
+function SessionPageContent({
+  sessionId,
+  session,
+  workspaceName,
+}: {
+  sessionId: string;
+  session: SessionPayload;
+  workspaceName?: string;
+}) {
+  const {
+    canClear,
+    canPrompt,
+    handleCancelPrompt,
+    handleClear,
+    handleResume,
+    handleStop,
+    isClearing,
+    isResuming,
+    isStopping,
+    messages,
+  } = useSessionPageControls(sessionId, session.state);
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <ChatHeader
+          session={session}
+          onClear={handleClear}
+          onStop={handleStop}
+          onResume={handleResume}
+          canClear={canClear}
+          isStopping={isStopping}
+          isResuming={isResuming}
+          isClearing={isClearing}
+          workspaceName={workspaceName}
+        />
+        <SessionThread
+          sessionId={sessionId}
+          agentName={session.agent_name}
+          canPrompt={canPrompt}
+          onCancelPrompt={handleCancelPrompt}
+        />
+      </div>
+      <SessionInspector messages={messages} />
+    </div>
+  );
+}
+
 function SessionPage() {
   const { id } = Route.useParams();
-  const page = useSessionPage(id);
+  const navigate = useNavigate();
+  const { data: session, isLoading, error } = useSession(id);
+  const { data: workspaces } = useWorkspaces();
 
-  if (page.isLoading) {
+  useEffect(() => {
+    if (error?.message?.includes("not found")) {
+      toast.error("Session not found");
+      navigate({ to: "/" });
+    }
+  }, [error, navigate]);
+
+  if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
@@ -24,56 +85,24 @@ function SessionPage() {
     );
   }
 
-  if (!page.session) {
+  if (!session) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="flex flex-col items-center gap-2 text-center">
           <AlertCircle className="size-6 text-[color:var(--color-danger)]" />
           <p className="text-sm text-[color:var(--color-text-tertiary)]">
-            {page.fatalErrorMessage}
+            {error?.message ?? "Session not found"}
           </p>
         </div>
       </div>
     );
   }
 
+  const workspaceName = workspaces?.find(workspace => workspace.id === session.workspace_id)?.name;
+
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <ChatHeader
-          session={page.session}
-          onClear={page.handleClear}
-          onStop={page.handleStop}
-          onResume={page.handleResume}
-          canClear={page.canClear}
-          isStopping={page.isStopping}
-          isResuming={page.isResuming}
-          isClearing={page.isClearing}
-          workspaceName={page.workspaceName}
-        />
-        <ChatView
-          messages={page.messages}
-          isStreaming={page.isStreaming}
-          agentName={page.session.agent_name}
-        />
-        {page.pendingPermission && (
-          <PermissionPrompt
-            permission={page.pendingPermission}
-            sessionId={id}
-            onResolved={page.handlePermissionResolved}
-          />
-        )}
-        {page.canPrompt && (
-          <MessageComposer
-            sessionId={id}
-            onSend={page.handleSend}
-            disabled={page.isDisabled}
-            inert={page.isInert}
-            channels={page.channels}
-          />
-        )}
-      </div>
-      <SessionInspector messages={page.messages} />
-    </div>
+    <SessionChatRuntimeProvider key={id} sessionId={id} workspaceId={session.workspace_id}>
+      <SessionPageContent sessionId={id} session={session} workspaceName={workspaceName} />
+    </SessionChatRuntimeProvider>
   );
 }

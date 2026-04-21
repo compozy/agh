@@ -932,7 +932,7 @@ func registerNetworkScenarioArtifacts(
 			t.Logf("CaptureNetworkArtifacts(%q) error = %v", channel, err)
 		}
 
-		transcripts := make(map[string][]transcript.Message, len(sessions))
+		transcripts := make(map[string][]transcript.UIMessage, len(sessions))
 		events := make(map[string][]aghcontract.SessionEventPayload, len(sessions))
 		for _, session := range sessions {
 			transcriptResp, err := harness.SessionTranscript(ctx, session.ID)

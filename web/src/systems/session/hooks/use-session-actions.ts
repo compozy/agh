@@ -9,7 +9,6 @@ import {
 } from "../adapters/session-api";
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionPayload } from "../types";
-import { useSessionStore } from "./use-session-store";
 
 function mergeSessionList(
   current: SessionPayload[] | undefined,
@@ -86,13 +85,6 @@ interface ClearConversationSnapshot {
   session: SessionPayload | undefined;
   transcript: unknown;
   history: unknown;
-  storeState: {
-    historyMessages: ReturnType<typeof useSessionStore.getState>["historyMessages"];
-    liveMessages: ReturnType<typeof useSessionStore.getState>["liveMessages"];
-    isStreaming: boolean;
-    awaitingTranscriptSync: boolean;
-    pendingPermission: ReturnType<typeof useSessionStore.getState>["pendingPermission"];
-  };
 }
 
 export function useClearSessionConversation() {
@@ -105,23 +97,14 @@ export function useClearSessionConversation() {
       await queryClient.cancelQueries({ queryKey: sessionKeys.history(id) });
       await queryClient.cancelQueries({ queryKey: sessionKeys.transcript(id) });
 
-      const store = useSessionStore.getState();
       const snapshot: ClearConversationSnapshot = {
         session: queryClient.getQueryData<SessionPayload>(sessionKeys.detail(id)),
         transcript: queryClient.getQueryData(sessionKeys.transcript(id)),
         history: queryClient.getQueryData(sessionKeys.history(id)),
-        storeState: {
-          historyMessages: store.historyMessages,
-          liveMessages: store.liveMessages,
-          isStreaming: store.isStreaming,
-          awaitingTranscriptSync: store.awaitingTranscriptSync,
-          pendingPermission: store.pendingPermission,
-        },
       };
 
       queryClient.setQueryData(sessionKeys.transcript(id), []);
       queryClient.setQueryData(sessionKeys.history(id), []);
-      useSessionStore.getState().resetConversation([]);
 
       return snapshot;
     },
@@ -136,7 +119,6 @@ export function useClearSessionConversation() {
 
       queryClient.setQueryData(sessionKeys.transcript(id), snapshot.transcript);
       queryClient.setQueryData(sessionKeys.history(id), snapshot.history);
-      useSessionStore.setState(snapshot.storeState);
     },
     onSuccess: (session, id) => {
       queryClient.setQueryData(sessionKeys.detail(id), session);

@@ -145,38 +145,38 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	}
 
 	var payload struct {
-		Messages []transcript.Message `json:"messages"`
+		Messages []transcript.UIMessage `json:"messages"`
 	}
 	decodeHTTPJSON(t, resp, &payload)
 	if len(payload.Messages) != 6 {
 		t.Fatalf("len(messages) = %d, want 6", len(payload.Messages))
 	}
-	if got := payload.Messages[0].Role; got != transcript.RoleUser {
-		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.RoleUser)
+	if got := payload.Messages[0].Role; got != transcript.UIRoleUser {
+		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
 	}
-	if got := payload.Messages[0].Content; got != "hello" {
-		t.Fatalf("messages[0].Content = %q, want %q", got, "hello")
+	if got := transcript.UIMessageText(payload.Messages[0]); got != "hello" {
+		t.Fatalf("messages[0] text = %q, want %q", got, "hello")
 	}
-	if got := payload.Messages[1].Role; got != transcript.RoleAssistant {
-		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.RoleAssistant)
+	if got := payload.Messages[1].Role; got != transcript.UIRoleAssistant {
+		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
-	if got := payload.Messages[2].Role; got != transcript.RoleUser {
-		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.RoleUser)
+	if got := payload.Messages[2].Role; got != transcript.UIRoleUser {
+		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.UIRoleUser)
 	}
-	if got := payload.Messages[2].Content; got != "network hello" {
-		t.Fatalf("messages[2].Content = %q, want %q", got, "network hello")
+	if got := transcript.UIMessageText(payload.Messages[2]); got != "network hello" {
+		t.Fatalf("messages[2] text = %q, want %q", got, "network hello")
 	}
-	if got := payload.Messages[3].Role; got != transcript.RoleAssistant {
-		t.Fatalf("messages[3].Role = %q, want %q", got, transcript.RoleAssistant)
+	if got := payload.Messages[3].Role; got != transcript.UIRoleAssistant {
+		t.Fatalf("messages[3].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
-	if got := payload.Messages[4].Role; got != transcript.RoleSystem {
-		t.Fatalf("messages[4].Role = %q, want %q", got, transcript.RoleSystem)
+	if got := payload.Messages[4].Role; got != transcript.UIRoleSystem {
+		t.Fatalf("messages[4].Role = %q, want %q", got, transcript.UIRoleSystem)
 	}
-	if got := payload.Messages[4].Content; got != "daemon wake-up" {
-		t.Fatalf("messages[4].Content = %q, want %q", got, "daemon wake-up")
+	if got := transcript.UIMessageText(payload.Messages[4]); got != "daemon wake-up" {
+		t.Fatalf("messages[4] text = %q, want %q", got, "daemon wake-up")
 	}
-	if got := payload.Messages[5].Role; got != transcript.RoleAssistant {
-		t.Fatalf("messages[5].Role = %q, want %q", got, transcript.RoleAssistant)
+	if got := payload.Messages[5].Role; got != transcript.UIRoleAssistant {
+		t.Fatalf("messages[5].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
 }
 

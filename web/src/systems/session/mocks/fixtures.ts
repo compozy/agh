@@ -136,7 +136,7 @@ export const multiHunkEditToolMessageFixture: UIMessage = {
   ...editToolMessageFixture,
   id: "tool_edit_multi_hunk",
   toolInput: {
-    file_path: "web/src/systems/session/components/stories/chat-view.stories.tsx",
+    file_path: "web/src/components/assistant-ui/session-thread.tsx",
     old_string: [
       "@@ -12,7 +12,7 @@",
       "-export const Default = {};",
@@ -190,7 +190,7 @@ export const searchToolMessageFixture: UIMessage = {
   },
   toolResult: {
     stdout:
-      "web/src/components/ui/stories/dialog.stories.tsx\nweb/src/systems/session/components/chat-view.tsx",
+      "web/src/components/ui/stories/dialog.stories.tsx\nweb/src/components/assistant-ui/session-thread.tsx",
   },
   timestamp: Date.parse("2026-04-17T16:07:00Z"),
 };
@@ -209,7 +209,7 @@ export const writeToolMessageFixture: UIMessage = {
   content: "",
   toolName: "Write",
   toolInput: {
-    file_path: "web/src/systems/session/components/stories/chat-view.stories.tsx",
+    file_path: "web/src/components/assistant-ui/session-thread.tsx",
     content: "export const Default = {};",
   },
   toolResult: {
@@ -222,7 +222,7 @@ export const overwriteWriteToolMessageFixture: UIMessage = {
   ...writeToolMessageFixture,
   id: "tool_write_overwrite",
   toolInput: {
-    file_path: "web/src/systems/session/components/stories/chat-view.stories.tsx",
+    file_path: "web/src/components/assistant-ui/session-thread.tsx",
     content: [
       "// WARNING: overwriting existing story module",
       "export const Default = { args: { mode: 'overwrite' } };",
@@ -331,32 +331,63 @@ export const sessionTranscriptFixture: TranscriptMessage[] = [
   {
     id: "transcript_user_001",
     role: "user",
-    content: "Finish the remaining Storybook tasks.",
-    thinking_complete: false,
-    timestamp: "2026-04-17T16:00:00Z",
-    tool_error: false,
+    parts: [{ type: "text", text: "Finish the remaining Storybook tasks.", state: "done" }],
   },
   {
     id: "transcript_assistant_001",
     role: "assistant",
-    content: markdownFixture,
-    thinking: "Need typed fixtures first so stories stay truthful.",
-    thinking_complete: true,
-    timestamp: "2026-04-17T16:10:00Z",
-    tool_error: false,
+    parts: [
+      {
+        type: "reasoning",
+        text: "Need typed fixtures first so stories stay truthful.",
+        state: "done",
+      },
+      { type: "text", text: markdownFixture, state: "done" },
+    ],
   },
   {
     id: "transcript_tool_001",
-    role: "tool_call",
-    content: "",
-    thinking_complete: false,
-    timestamp: "2026-04-17T16:04:00Z",
-    tool_error: false,
-    tool_name: "Bash",
-    tool_input: bashToolMessageFixture.toolInput,
-    tool_result: {
-      stdout: "Build started\nBuild finished successfully\n",
-    },
+    role: "assistant",
+    parts: [
+      {
+        type: "tool-Bash",
+        toolCallId: "tool_bash_001",
+        state: "output-available",
+        input: bashToolMessageFixture.toolInput,
+        output: {
+          type: "tool_result",
+          title: "Bash",
+          raw: {
+            stdout: "Build started\nBuild finished successfully\n",
+          },
+        },
+      },
+    ],
+  },
+];
+
+export const sessionTranscriptPermissionFixture: TranscriptMessage[] = [
+  ...sessionTranscriptFixture,
+  {
+    id: "transcript_permission_001",
+    role: "assistant",
+    parts: [
+      {
+        type: "data-agh-permission",
+        data: {
+          type: "permission.required",
+          request_id: "perm_storybook_001",
+          turn_id: "turn_perm_001",
+          tool_call_id: "tool_bash_perm_001",
+          action: "execute",
+          resource: "make web-typecheck",
+          title: "Bash",
+          raw: {
+            command: "make web-typecheck",
+          },
+        },
+      },
+    ],
   },
 ];
 

@@ -26,7 +26,7 @@ type networkAuditExpectation struct {
 }
 
 func validateNetworkCorrelationSurfaces(
-	messages []transcript.Message,
+	messages []transcript.UIMessage,
 	audit []store.NetworkAuditEntry,
 	expectation networkCorrelationExpectation,
 ) error {
@@ -43,7 +43,7 @@ func validateNetworkCorrelationSurfaces(
 
 	matched := false
 	for _, message := range messages {
-		content := strings.TrimSpace(message.Content)
+		content := strings.TrimSpace(transcript.UIMessageText(message))
 		if content == "" {
 			continue
 		}
@@ -118,10 +118,16 @@ func attributeNeedle(name string, value string) string {
 func TestValidateNetworkCorrelationSurfacesUsesTargetedAttributes(t *testing.T) {
 	t.Parallel()
 
-	messages := []transcript.Message{
+	messages := []transcript.UIMessage{
 		{
-			Role:    "assistant",
-			Content: `<network-message id="msg_direct_01" kind="direct" interaction="int_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+			Role: transcript.UIRoleAssistant,
+			Parts: []transcript.UIMessagePart{
+				{
+					Type:  "text",
+					Text:  `<network-message id="msg_direct_01" kind="direct" interaction="int_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+					State: "done",
+				},
+			},
 		},
 	}
 	audit := []store.NetworkAuditEntry{
@@ -144,14 +150,24 @@ func TestValidateNetworkCorrelationSurfacesUsesTargetedAttributes(t *testing.T) 
 func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *testing.T) {
 	t.Parallel()
 
-	messages := []transcript.Message{
+	messages := []transcript.UIMessage{
 		{
-			Role:    "assistant",
-			Content: `<network-message id="msg_direct_01" kind="direct"></network-message>`,
+			Role: transcript.UIRoleAssistant,
+			Parts: []transcript.UIMessagePart{{
+				Type:  "text",
+				Text:  `<network-message id="msg_direct_01" kind="direct"></network-message>`,
+				State: "done",
+			}},
 		},
 		{
-			Role:    "assistant",
-			Content: `<network-message interaction="int_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+			Role: transcript.UIRoleAssistant,
+			Parts: []transcript.UIMessagePart{
+				{
+					Type:  "text",
+					Text:  `<network-message interaction="int_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+					State: "done",
+				},
+			},
 		},
 	}
 	audit := []store.NetworkAuditEntry{

@@ -26,7 +26,7 @@ type SessionHistoryResponse struct {
 
 // SessionTranscriptResponse wraps the canonical transcript payload.
 type SessionTranscriptResponse struct {
-	Messages []transcript.Message `json:"messages"`
+	Messages []transcript.UIMessage `json:"messages"`
 }
 
 // SessionApprovalResponse wraps the approve-session success payload.

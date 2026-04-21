@@ -37,4 +37,7 @@ if (typeof window !== "undefined") {
   if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = function scrollIntoView() {};
   }
+  if (typeof Element !== "undefined" && !Element.prototype.scrollTo) {
+    Element.prototype.scrollTo = function scrollTo() {};
+  }
 }

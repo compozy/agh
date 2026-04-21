@@ -4113,7 +4113,7 @@ func (f *fakeSessionManager) History(context.Context, string, store.EventQuery) 
 	return nil, nil
 }
 
-func (f *fakeSessionManager) Transcript(context.Context, string) ([]transcript.Message, error) {
+func (f *fakeSessionManager) Transcript(context.Context, string) ([]transcript.UIMessage, error) {
 	return nil, nil
 }
 

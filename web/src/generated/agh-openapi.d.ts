@@ -9337,25 +9337,24 @@ export interface operations {
         content: {
           "application/json": {
             messages: {
-              content: string;
               id: string;
+              metadata?: unknown;
+              parts: {
+                data?: unknown;
+                errorText?: string;
+                id?: string;
+                input?: unknown;
+                output?: unknown;
+                preliminary?: boolean;
+                rawInput?: unknown;
+                state?: string;
+                text?: string;
+                title?: string;
+                toolCallId?: string;
+                toolName?: string;
+                type: string;
+              }[];
               role: string;
-              thinking?: string;
-              thinking_complete: boolean;
-              /** Format: date-time */
-              timestamp: string;
-              tool_error: boolean;
-              tool_input?: unknown;
-              tool_name?: string;
-              tool_result?: {
-                content?: string;
-                error?: string;
-                file_path?: string;
-                raw_output?: unknown;
-                stderr?: string;
-                stdout?: string;
-                structured_patch?: unknown;
-              } | null;
             }[];
           };
         };

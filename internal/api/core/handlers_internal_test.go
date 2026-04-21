@@ -48,7 +48,7 @@ func (s sessionManagerStub) History(context.Context, string, store.EventQuery) (
 	return nil, nil
 }
 
-func (s sessionManagerStub) Transcript(context.Context, string) ([]transcript.Message, error) {
+func (s sessionManagerStub) Transcript(context.Context, string) ([]transcript.UIMessage, error) {
 	return nil, nil
 }
 

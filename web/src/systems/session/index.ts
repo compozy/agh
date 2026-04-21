@@ -2,6 +2,7 @@
 export type {
   ACPCaps,
   AgentEventPayload,
+  AghPermissionData,
   ApproveSessionParams,
   CreateSessionParams,
   FetchSessionEventsParams,
@@ -11,21 +12,19 @@ export type {
   SessionApprovalResponse,
   SessionEventsResponse,
   SessionHistoryResponse,
+  SessionMessage,
   SessionPayload,
   SessionResponse,
   SessionState,
   SessionsResponse,
   SessionTranscriptResponse,
+  SessionDataParts,
   TokenUsagePayload,
   ToolUseResult,
   TranscriptMessage,
   TranscriptMessageRole,
-  TranscriptToolResult,
   TurnHistoryPayload,
-  UIMessage,
-  UIMessageRole,
 } from "./types";
-export { uiMessageRoles } from "./types";
 
 // Adapters
 export {
@@ -50,21 +49,6 @@ export {
   sessionsListOptions,
 } from "./lib/query-options";
 
-// Lib
-export { SimpleStreamingBuffer, mergeStreamingChunk } from "./lib/streaming-buffer";
-export {
-  mapAgentEventToUIMessage,
-  extractPermissionRequest,
-  mapHistoryToMessages,
-} from "./lib/event-mapper";
-export { mapTranscriptToMessages } from "./lib/transcript-mapper";
-export {
-  getToolIcon,
-  getToolLabel,
-  getToolCompactSummary,
-  type ToolLabelTense,
-} from "./lib/tool-labels";
-
 // Stores
 export { useSessionStore } from "./hooks/use-session-store";
 export type {
@@ -82,36 +66,15 @@ export {
   useResumeSession,
   useStopSession,
 } from "./hooks/use-session-actions";
-export {
-  useSessionChat,
-  type UseSessionChatOptions,
-  type UseSessionChatReturn,
-} from "./hooks/use-session-chat";
-export { useSessionHistory, type UseSessionHistoryReturn } from "./hooks/use-session-history";
-export {
-  useSessionTranscript,
-  type UseSessionTranscriptReturn,
-} from "./hooks/use-session-transcript";
 
 // Components
 export { SessionSidebarItem } from "./components/session-sidebar-item";
-export {
-  ChatView,
-  buildRows,
-  mergeToolPairs,
-  type RowDescriptor,
-  type ChatViewProps,
-} from "./components/chat-view";
 export { ToolCallCard, type ToolCallCardProps } from "./components/tool-call-card";
 export { ChatHeader, type ChatHeaderProps } from "./components/chat-header";
-export { MessageBubble, type MessageBubbleProps } from "./components/message-bubble";
 export {
-  MessageComposer,
-  type MessageComposerAttachment,
-  type MessageComposerChannel,
-  type MessageComposerPayload,
-  type MessageComposerProps,
-} from "./components/message-composer";
+  SessionChatRuntimeProvider,
+  type SessionChatRuntimeProviderProps,
+} from "./components/session-chat-runtime-provider";
 export { ThinkingBlock, type ThinkingBlockProps } from "./components/thinking-block";
 export {
   ProcessingIndicator,

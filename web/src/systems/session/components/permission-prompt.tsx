@@ -11,7 +11,7 @@ import { approveSession } from "../adapters/session-api";
 export interface PermissionPromptProps {
   permission: PermissionRequest;
   sessionId: string;
-  onResolved: () => void;
+  onResolved?: () => void;
 }
 
 export function PermissionPrompt({ permission, sessionId, onResolved }: PermissionPromptProps) {
@@ -23,16 +23,16 @@ export function PermissionPrompt({ permission, sessionId, onResolved }: Permissi
       try {
         await approveSession(sessionId, {
           request_id: permission.requestId,
-          turn_id: "",
+          turn_id: permission.turnId ?? "",
           decision,
         });
       } catch {
         toast.error("Failed to send permission response. The agent may continue waiting.");
       }
-      onResolved();
+      onResolved?.();
       setIsSubmitting(false);
     },
-    [sessionId, permission.requestId, onResolved]
+    [sessionId, permission.requestId, permission.turnId, onResolved]
   );
 
   return (

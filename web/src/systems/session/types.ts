@@ -1,3 +1,5 @@
+import type { UIMessage as AIUIMessage } from "ai";
+
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type SessionsResponse = OperationResponse<"listSessions", 200>;
@@ -14,9 +16,6 @@ export type SessionHistoryResponse = OperationResponse<"getSessionHistory", 200>
 export type TurnHistoryPayload = SessionHistoryResponse["history"][number];
 
 export type SessionTranscriptResponse = OperationResponse<"getSessionTranscript", 200>;
-export type TranscriptMessage = SessionTranscriptResponse["messages"][number];
-export type TranscriptMessageRole = TranscriptMessage["role"];
-export type TranscriptToolResult = NonNullable<TranscriptMessage["tool_result"]>;
 
 export type CreateSessionParams = OperationRequestBody<"createSession">;
 export type SessionApprovalResponse = OperationResponse<"approveSession", 200>;
@@ -66,6 +65,20 @@ export interface AgentEventPayload {
   raw?: unknown;
 }
 
+export interface AghPermissionData extends AgentEventPayload {
+  request_id: string;
+  raw?: Record<string, unknown>;
+}
+
+export interface SessionDataParts extends Record<string, unknown> {
+  "agh-event": AgentEventPayload;
+  "agh-permission": AghPermissionData;
+}
+
+export type SessionMessage = AIUIMessage<unknown, SessionDataParts>;
+export type TranscriptMessage = SessionMessage;
+export type TranscriptMessageRole = TranscriptMessage["role"];
+
 export const uiMessageRoles = [
   "user",
   "assistant",
@@ -106,4 +119,6 @@ export interface PermissionRequest {
   toolInput: Record<string, unknown>;
   action: string;
   resource: string;
+  turnId?: string;
+  toolCallId?: string;
 }

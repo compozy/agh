@@ -55,11 +55,11 @@ func TestManagerTranscriptDelegatesToTranscriptAssembler(t *testing.T) {
 	if len(messages) != 2 {
 		t.Fatalf("Transcript() len = %d, want 2", len(messages))
 	}
-	if got := messages[0].Role; got != transcript.RoleUser {
-		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.RoleUser)
+	if got := messages[0].Role; got != transcript.UIRoleUser {
+		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
 	}
-	if got := messages[1].Role; got != transcript.RoleAssistant {
-		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.RoleAssistant)
+	if got := messages[1].Role; got != transcript.UIRoleAssistant {
+		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
 }
 
@@ -114,17 +114,17 @@ func TestManagerTranscriptIncludesSyntheticOriginMessages(t *testing.T) {
 	if len(messages) != 3 {
 		t.Fatalf("Transcript() len = %d, want 3", len(messages))
 	}
-	if got := messages[0].Role; got != transcript.RoleUser {
-		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.RoleUser)
+	if got := messages[0].Role; got != transcript.UIRoleUser {
+		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
 	}
-	if got := messages[1].Role; got != transcript.RoleSystem {
-		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.RoleSystem)
+	if got := messages[1].Role; got != transcript.UIRoleSystem {
+		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.UIRoleSystem)
 	}
-	if got := messages[1].Content; got != "daemon wake-up" {
-		t.Fatalf("messages[1].Content = %q, want %q", got, "daemon wake-up")
+	if got := transcript.UIMessageText(messages[1]); got != "daemon wake-up" {
+		t.Fatalf("messages[1] text = %q, want %q", got, "daemon wake-up")
 	}
-	if got := messages[2].Role; got != transcript.RoleAssistant {
-		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.RoleAssistant)
+	if got := messages[2].Role; got != transcript.UIRoleAssistant {
+		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
 }
 
@@ -176,8 +176,8 @@ func TestManagerTranscriptLogsCleanupErrorsWithoutFailingSuccessfulRead(t *testi
 	if len(messages) != 1 {
 		t.Fatalf("Transcript() len = %d, want 1", len(messages))
 	}
-	if got := messages[0].Role; got != transcript.RoleSystem {
-		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.RoleSystem)
+	if got := messages[0].Role; got != transcript.UIRoleSystem {
+		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleSystem)
 	}
 	if recorder.closeCalls != 1 {
 		t.Fatalf("recorder.closeCalls = %d, want 1", recorder.closeCalls)

@@ -1,0 +1,102 @@
+import type { Toolkit, ToolCallMessagePartProps } from "@assistant-ui/react";
+import { makeAssistantDataUI } from "@assistant-ui/react";
+import { AlertCircle, Loader2 } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import { PermissionPrompt } from "../components/permission-prompt";
+import { ToolCallCard } from "../components/tool-call-card";
+import { isAgentEventPayload, parseToolUseResult, toPermissionRequest } from "./message-parts";
+import type { AghPermissionData, UIMessage } from "../types";
+
+type SessionToolPartProps = ToolCallMessagePartProps<Record<string, unknown>, unknown>;
+
+function toLegacyToolMessage(part: SessionToolPartProps): UIMessage {
+  const result = isAgentEventPayload(part.result) ? parseToolUseResult(part.result) : null;
+
+  return {
+    id: part.toolCallId,
+    role: part.result || part.isError ? "tool_result" : "tool_call",
+    content: "",
+    toolName: part.toolName,
+    toolInput: part.args,
+    toolResult: result ?? undefined,
+    toolError: part.isError,
+    isStreaming: part.status.type === "running",
+    timestamp: Date.now(),
+  };
+}
+
+function BackendToolPart({ part }: { part: SessionToolPartProps }) {
+  if (part.status.type === "running" && Object.keys(part.args ?? {}).length === 0) {
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2",
+          "border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)]",
+          "text-xs text-[color:var(--color-text-tertiary)]"
+        )}
+      >
+        <Loader2 className="size-3.5 animate-spin" />
+        <span className="font-mono uppercase tracking-[0.08em]">{part.toolName}</span>
+        <span>preparing input</span>
+      </div>
+    );
+  }
+
+  if (part.isError && !part.result) {
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2",
+          "border-[color:var(--color-danger)]/30 bg-[color:var(--color-danger)]/8",
+          "text-xs text-[color:var(--color-danger)]"
+        )}
+      >
+        <AlertCircle className="size-3.5" />
+        <span className="font-medium">{part.toolName}</span>
+      </div>
+    );
+  }
+
+  return <ToolCallCard message={toLegacyToolMessage(part)} />;
+}
+
+function createBackendTool() {
+  return { type: "backend" as const };
+}
+
+export const sessionToolkit: Toolkit = {
+  Bash: {
+    ...createBackendTool(),
+    render: part => <BackendToolPart part={part} />,
+  },
+  Read: {
+    ...createBackendTool(),
+    render: part => <BackendToolPart part={part} />,
+  },
+  Write: {
+    ...createBackendTool(),
+    render: part => <BackendToolPart part={part} />,
+  },
+  Edit: {
+    ...createBackendTool(),
+    render: part => <BackendToolPart part={part} />,
+  },
+  Grep: {
+    ...createBackendTool(),
+    render: part => <BackendToolPart part={part} />,
+  },
+  Glob: {
+    ...createBackendTool(),
+    render: part => <BackendToolPart part={part} />,
+  },
+};
+
+export function createAghPermissionDataUI(sessionId: string) {
+  return makeAssistantDataUI<AghPermissionData>({
+    name: "agh-permission",
+    render: ({ data }) => (
+      <PermissionPrompt permission={toPermissionRequest(data)} sessionId={sessionId} />
+    ),
+  });
+}
