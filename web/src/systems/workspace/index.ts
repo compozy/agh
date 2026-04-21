@@ -19,6 +19,4 @@ export { useActiveWorkspace } from "./hooks/use-active-workspace";
 export { useResolveWorkspace, useWorkspace, useWorkspaces } from "./hooks/use-workspaces";
 
 // Components
-export { WorkspacePageShell } from "./components/workspace-page-shell";
-export { WorkspaceSelector } from "./components/workspace-selector";
 export { WorkspaceOnboarding, WorkspaceSetupDialog } from "./components/workspace-setup";

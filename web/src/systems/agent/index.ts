@@ -13,4 +13,3 @@ export { useAgent, useAgents } from "./hooks/use-agents";
 
 // Components
 export { AgentIcon, providerIconMap } from "./components/agent-icon";
-export { AgentSidebarGroup } from "./components/agent-sidebar-group";

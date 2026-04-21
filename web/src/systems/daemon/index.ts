@@ -17,6 +17,3 @@ export { daemonHealthOptions, daemonStatusOptions } from "./lib/query-options";
 // Hooks
 export { useDaemonHealth } from "./hooks/use-daemon-health";
 export { useDaemonStatus } from "./hooks/use-daemon-status";
-
-// Components
-export { ConnectionStatus } from "./components/connection-status";

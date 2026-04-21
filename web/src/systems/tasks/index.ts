@@ -177,8 +177,6 @@ export { TasksKanbanBoard } from "./components/tasks-kanban-board";
 export type { TasksKanbanBoardProps } from "./components/tasks-kanban-board";
 export { TasksEmptyState } from "./components/tasks-empty-state";
 export type { TasksEmptyStateProps } from "./components/tasks-empty-state";
-export { TasksCreateModal } from "./components/tasks-create-modal";
-export type { TasksCreateModalProps } from "./components/tasks-create-modal";
 
 // Task detail + run detail components
 export { TasksDetailHeader } from "./components/tasks-detail-header";
