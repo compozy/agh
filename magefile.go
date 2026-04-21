@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,25 +16,38 @@ import (
 	"time"
 
 	"github.com/magefile/mage/sh"
+	"github.com/pedronauck/agh/internal/codegen/openapits"
 	"github.com/pedronauck/agh/internal/e2elane"
 )
 
 const (
-	golangciLintVersion   = "v2.11.4"
-	goplsModernizeVersion = "v0.21.1"
-	gotestsumVersion      = "v1.13.0"
-	binDir                = "bin"
-	cliBinary             = "agh"
-	versionPackage        = "github.com/pedronauck/agh/internal/version"
-	openAPISpecPath       = "openapi/agh.json"
-	webOpenAPITypePath    = "web/src/generated/agh-openapi.d.ts"
-	webDistIndex          = "web/dist/index.html"
-	daemonBinaryEnvVar    = "AGH_TEST_DAEMON_BIN"
-	driverBinaryEnvVar    = "AGH_TEST_ACPMOCK_DRIVER_BIN"
+	golangciLintVersion       = "v2.11.4"
+	goplsModernizeVersion     = "v0.21.1"
+	gotestsumVersion          = "v1.13.0"
+	binDir                    = "bin"
+	cliBinary                 = "agh"
+	versionPackage            = "github.com/pedronauck/agh/internal/version"
+	openAPISpecPath           = "openapi/agh.json"
+	compozyOpenAPISpecPath    = "openapi/compozy-daemon.json"
+	webOpenAPITypePath        = "web/src/generated/agh-openapi.d.ts"
+	webCompozyOpenAPITypePath = "web/src/generated/compozy-openapi.d.ts"
+	webDistIndex              = "web/dist/index.html"
+	daemonBinaryEnvVar        = "AGH_TEST_DAEMON_BIN"
+	driverBinaryEnvVar        = "AGH_TEST_ACPMOCK_DRIVER_BIN"
 )
 
 var (
-	Default = Verify
+	Default             = Verify
+	webOpenAPIArtifacts = []openapits.Artifact{
+		{
+			SpecPath:   openAPISpecPath,
+			OutputPath: webOpenAPITypePath,
+		},
+		{
+			SpecPath:   compozyOpenAPISpecPath,
+			OutputPath: webCompozyOpenAPITypePath,
+		},
+	}
 )
 
 func Deps() error {
@@ -137,14 +149,32 @@ func Codegen() error {
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/agh-codegen", "all"); err != nil {
 		return err
 	}
-	return generateWebOpenAPITypes(webOpenAPITypePath)
+	artifacts, err := availableWebOpenAPIArtifacts()
+	if err != nil {
+		return err
+	}
+	for _, artifact := range artifacts {
+		if err := openapits.Generate(context.Background(), artifact); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func CodegenCheck() error {
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/agh-codegen", "check"); err != nil {
 		return err
 	}
-	return checkWebOpenAPITypes(webOpenAPITypePath)
+	artifacts, err := availableWebOpenAPIArtifacts()
+	if err != nil {
+		return err
+	}
+	for _, artifact := range artifacts {
+		if err := openapits.Check(context.Background(), artifact); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func WebLint() error {
@@ -267,36 +297,6 @@ func Verify() error {
 	}
 
 	return nil
-}
-
-func generateWebOpenAPITypes(outputPath string) error {
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-		return err
-	}
-	if err := runCommandInDir(context.Background(), ".", "bunx", "openapi-typescript", openAPISpecPath, "-o", outputPath); err != nil {
-		return err
-	}
-	return runCommandInDir(context.Background(), ".", "bunx", "oxfmt", outputPath)
-}
-
-func checkWebOpenAPITypes(path string) error {
-	file, err := os.CreateTemp("", "agh-openapi-types-*.d.ts")
-	if err != nil {
-		return err
-	}
-	_ = file.Close()
-	defer os.Remove(file.Name())
-
-	if err := generateWebOpenAPITypes(file.Name()); err != nil {
-		return err
-	}
-
-	want, err := os.ReadFile(file.Name())
-	if err != nil {
-		return err
-	}
-
-	return checkGeneratedFile(path, want)
 }
 
 func goFiles(root string) ([]string, error) {
@@ -554,18 +554,28 @@ func withRaceEnabledEnv(overrides map[string]string) map[string]string {
 	return env
 }
 
-func checkGeneratedFile(path string, want []byte) error {
-	got, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("%s is missing; run codegen", path)
+func availableWebOpenAPIArtifacts() ([]openapits.Artifact, error) {
+	artifacts := make([]openapits.Artifact, 0, len(webOpenAPIArtifacts))
+	for _, artifact := range webOpenAPIArtifacts {
+		if artifact.SpecPath == "" {
+			continue
 		}
-		return err
+		if _, err := os.Stat(artifact.SpecPath); err != nil {
+			if os.IsNotExist(err) {
+				if artifact.OutputPath != "" {
+					if _, outputErr := os.Stat(artifact.OutputPath); outputErr == nil {
+						return nil, fmt.Errorf(
+							"%s exists but %s is missing; remove the generated file or restore the spec",
+							artifact.OutputPath,
+							artifact.SpecPath,
+						)
+					}
+				}
+				continue
+			}
+			return nil, err
+		}
+		artifacts = append(artifacts, artifact)
 	}
-
-	if !bytes.Equal(got, want) {
-		return fmt.Errorf("%s is stale; run codegen", path)
-	}
-
-	return nil
+	return artifacts, nil
 }

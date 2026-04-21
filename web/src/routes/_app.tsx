@@ -32,7 +32,11 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout() {
   const page = useAppLayout();
-  const pathname = useLocation({ select: location => location.pathname });
+  const router = useRouter();
+  const locationPathname = useLocation({ select: location => location.pathname });
+  // Keep the motion shell keyed to the browser's latest path so pending-route
+  // resolution cannot remount the active screen later and discard local UI state.
+  const pathname = router.latestLocation.pathname || locationPathname;
   const reducedMotion = useReducedMotionConfig();
   const duration = resolveRouteTransitionDuration(Boolean(reducedMotion));
 
@@ -58,6 +62,8 @@ function AppLayout() {
         sessions={page.sessions}
         onNewSession={page.handleNewSession}
         isCreatingSession={page.isCreatingSession}
+        pendingSessionAgentName={page.pendingSessionAgentName}
+        pendingSessionWorkspaceId={page.pendingSessionWorkspaceId}
       />
       <main
         data-testid="app-content"

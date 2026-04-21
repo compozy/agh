@@ -159,6 +159,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/sessions",
 		"POST /api/sessions/:id/approve",
 		"POST /api/sessions/:id/prompt",
+		"POST /api/sessions/:id/prompt/cancel",
 		"POST /api/sessions/:id/resume",
 		"POST /api/settings/actions/restart",
 		"POST /api/skills/:name/disable",
@@ -1149,21 +1150,17 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 		t.Fatalf("last data = %q, want [DONE]", string(records[len(records)-1].Data))
 	}
 
-	var foundAgentMessage bool
-	var foundToolCall bool
-	var foundDone bool
 	var finishPart promptFinishPayload
 	var finishFields map[string]json.RawMessage
 	for _, record := range records {
-		if record.Event == "agent_message" {
-			foundAgentMessage = true
-		}
-		if record.Event == "tool_call" {
-			foundToolCall = true
-		}
-		if record.Event == "done" {
-			foundDone = true
-			if len(record.Data) > 0 && string(record.Data) != "[DONE]" {
+		if len(record.Data) > 0 && string(record.Data) != "[DONE]" {
+			var payload struct {
+				Type string `json:"type"`
+			}
+			if err := json.Unmarshal(record.Data, &payload); err != nil {
+				t.Fatalf("json.Unmarshal(part type) error = %v; data=%s", err, string(record.Data))
+			}
+			if payload.Type == "finish" {
 				if err := json.Unmarshal(record.Data, &finishPart); err != nil {
 					t.Fatalf("json.Unmarshal(finish part) error = %v; data=%s", err, string(record.Data))
 				}
@@ -1172,15 +1169,6 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 				}
 			}
 		}
-	}
-	if !foundAgentMessage || !foundToolCall || !foundDone {
-		t.Fatalf(
-			"events missing native markers: agent_message=%v tool_call=%v done=%v body=%s",
-			foundAgentMessage,
-			foundToolCall,
-			foundDone,
-			recorder.Body.String(),
-		)
 	}
 
 	var promptParts []map[string]any
@@ -1203,6 +1191,7 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	}
 	if !contains(types, "start") || !contains(types, "text-start") || !contains(types, "text-delta") ||
 		!contains(types, "tool-input-start") ||
+		!contains(types, "tool-input-available") ||
 		!contains(types, "tool-output-available") ||
 		!contains(types, "finish") {
 		t.Fatalf("part types = %#v", types)
@@ -1212,6 +1201,79 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	}
 	if _, ok := finishFields["stopReason"]; ok {
 		t.Fatalf("finish part unexpectedly includes stopReason: %s", finishFields["stopReason"])
+	}
+}
+
+func TestPromptSessionHandlerDetachesPromptContextFromRequest(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	promptCtxCh := make(chan context.Context, 1)
+	events := make(chan acp.AgentEvent)
+	manager := stubSessionManager{
+		PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
+			promptCtxCh <- ctx
+			return events, nil
+		},
+	}
+	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	requestCtx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequestWithContext(
+		requestCtx,
+		http.MethodPost,
+		"/api/sessions/sess-123/prompt",
+		strings.NewReader(`{"message":"hello"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		engine.ServeHTTP(recorder, req)
+		close(done)
+	}()
+
+	var promptCtx context.Context
+	select {
+	case promptCtx = <-promptCtxCh:
+	case <-time.After(time.Second):
+		t.Fatal("Prompt() was not invoked")
+	}
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("handler did not return after request cancellation")
+	}
+
+	if err := promptCtx.Err(); err != nil {
+		t.Fatalf("prompt context err = %v, want nil after request cancellation", err)
+	}
+
+	close(events)
+}
+
+func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	manager := stubSessionManager{
+		CancelPromptFn: func(_ context.Context, id string) error {
+			if id != "sess-123" {
+				t.Fatalf("CancelPrompt() id = %q, want sess-123", id)
+			}
+			return nil
+		},
+	}
+	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/prompt/cancel", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if got := recorder.Body.String(); got != "" {
+		t.Fatalf("body = %q, want empty", got)
 	}
 }
 

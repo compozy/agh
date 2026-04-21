@@ -391,6 +391,23 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsCapabilityCatalog(t *testing.T
 		t.Fatalf("len(rich whois responses) = %d, want %d", got, want)
 	}
 	response := result.Generated[0]
+	decoded, decodeErr := response.DecodeBody()
+	if decodeErr != nil {
+		t.Fatalf("DecodeBody(rich whois response) error = %v", decodeErr)
+	}
+	body := decoded.(WhoisBody)
+	if body.PeerCard == nil {
+		t.Fatal("rich whois response peer_card = nil, want non-nil")
+	}
+	if got, want := body.PeerCard.Capabilities, []string{"review-pr", "draft-spec"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("rich whois peer_card.capabilities = %#v, want %#v", got, want)
+	}
+	if got, want := decodeCapabilityBriefPayload(t, body.PeerCard.Ext[capabilityBriefExtKey]), []capabilityBrief{
+		{ID: "review-pr", Summary: "Review pull requests"},
+		{ID: "draft-spec", Summary: "Draft technical specifications"},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("rich whois peer_card brief = %#v, want %#v", got, want)
+	}
 	payload := decodeWhoisCapabilityCatalogPayload(t, response.Ext[whoisCapabilityCatalogExtKey])
 	wantPayload := whoisCapabilityCatalogPayload{
 		Capabilities: []whoisCapabilityCatalogEntry{
@@ -493,6 +510,22 @@ func TestRouterWhoisRichCapabilityDiscoveryFiltersRequestedIDsInCatalogOrder(t *
 		t.Fatalf("Receive(filtered whois request) error = %v", err)
 	}
 	response := result.Generated[0]
+	decoded, decodeErr := response.DecodeBody()
+	if decodeErr != nil {
+		t.Fatalf("DecodeBody(filtered whois response) error = %v", decodeErr)
+	}
+	body := decoded.(WhoisBody)
+	if body.PeerCard == nil {
+		t.Fatal("filtered whois response peer_card = nil, want non-nil")
+	}
+	if got, want := body.PeerCard.Capabilities, []string{"draft-spec"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("filtered whois peer_card.capabilities = %#v, want %#v", got, want)
+	}
+	if got, want := decodeCapabilityBriefPayload(t, body.PeerCard.Ext[capabilityBriefExtKey]), []capabilityBrief{
+		{ID: "draft-spec", Summary: "Draft technical specifications"},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("filtered whois peer_card brief = %#v, want %#v", got, want)
+	}
 	payload := decodeWhoisCapabilityCatalogPayload(t, response.Ext[whoisCapabilityCatalogExtKey])
 	wantPayload := whoisCapabilityCatalogPayload{
 		Capabilities: []whoisCapabilityCatalogEntry{{

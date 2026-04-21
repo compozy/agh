@@ -206,6 +206,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/sessions",
 		"POST /api/sessions/:id/approve",
 		"POST /api/sessions/:id/prompt",
+		"POST /api/sessions/:id/prompt/cancel",
 		"POST /api/sessions/:id/resume",
 		"POST /api/settings/actions/restart",
 		"POST /api/skills/:name/disable",
@@ -1044,6 +1045,79 @@ func TestPromptSessionHandlerReturnsSSEStream(t *testing.T) {
 	}
 	if records[0].Event != "agent_message" || records[1].Event != "done" {
 		t.Fatalf("events = [%s %s], want [agent_message done]", records[0].Event, records[1].Event)
+	}
+}
+
+func TestPromptSessionHandlerDetachesPromptContextFromRequest(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	promptCtxCh := make(chan context.Context, 1)
+	events := make(chan acp.AgentEvent)
+	manager := stubSessionManager{
+		PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
+			promptCtxCh <- ctx
+			return events, nil
+		},
+	}
+	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	requestCtx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequestWithContext(
+		requestCtx,
+		http.MethodPost,
+		"/api/sessions/sess-123/prompt",
+		strings.NewReader(`{"message":"hello"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		engine.ServeHTTP(recorder, req)
+		close(done)
+	}()
+
+	var promptCtx context.Context
+	select {
+	case promptCtx = <-promptCtxCh:
+	case <-time.After(time.Second):
+		t.Fatal("Prompt() was not invoked")
+	}
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("handler did not return after request cancellation")
+	}
+
+	if err := promptCtx.Err(); err != nil {
+		t.Fatalf("prompt context err = %v, want nil after request cancellation", err)
+	}
+
+	close(events)
+}
+
+func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	manager := stubSessionManager{
+		CancelPromptFn: func(_ context.Context, id string) error {
+			if id != "sess-123" {
+				t.Fatalf("CancelPrompt() id = %q, want sess-123", id)
+			}
+			return nil
+		},
+	}
+	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/prompt/cancel", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if got := recorder.Body.String(); got != "" {
+		t.Fatalf("body = %q, want empty", got)
 	}
 }
 

@@ -1,3 +1,4 @@
+import * as React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -22,6 +23,23 @@ function DialogExample({ defaultOpen = false }: { defaultOpen?: boolean }) {
         <DialogDescription>Change the display name of the selected task.</DialogDescription>
         <input aria-label="name" defaultValue="task" />
         <DialogClose render={<Button>Confirm</Button>} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RerenderingDialogExample() {
+  const [value, setValue] = React.useState("");
+
+  return (
+    <Dialog open onOpenChange={() => undefined}>
+      <DialogContent showCloseButton={false}>
+        <DialogTitle>Stable dialog</DialogTitle>
+        <input
+          aria-label="stable-name"
+          value={value}
+          onChange={event => setValue(event.target.value)}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -61,6 +79,16 @@ describe("Dialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument(), {
       timeout: 1500,
     });
+  });
+
+  it("Should keep the same dialog node mounted across controlled rerenders while open", async () => {
+    const user = userEvent.setup();
+    render(<RerenderingDialogExample />);
+
+    const initialDialog = screen.getByRole("dialog");
+    await user.type(screen.getByLabelText("stable-name"), "abc");
+
+    expect(screen.getByRole("dialog")).toBe(initialDialog);
   });
 
   it("Should use the flat scrim and bordered dialog surface from DESIGN.md", async () => {

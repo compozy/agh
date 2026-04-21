@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	aghcontract "github.com/pedronauck/agh/internal/api/contract"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
@@ -165,7 +167,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		}) == nil && sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_trace_02"))
 	})
 
-	mustSendNetworkCLI(t, ctx, harness, []string{
+	postTerminalDirectArgs := []string{
+		"network", "send",
 		"--session", patchSession.ID,
 		"--channel", "builders",
 		"--kind", "direct",
@@ -176,20 +179,15 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		"--causation-id", "msg_say_01",
 		"--id", "msg_direct_01",
 		"--body", `{"text":"I can take the failing migration tests and send back a patch summary.","intent":"handoff","artifacts":[]}`,
-	})
-
-	waitForRuntimeCondition(t, "duplicate rejection audit", 10*time.Second, func() bool {
-		audit, err := harness.NetworkAuditSnapshot()
-		if err != nil {
-			return false
-		}
-		return validateNetworkAuditEntry(audit, networkAuditExpectation{
-			MessageID: "msg_direct_01",
-			Direction: "rejected",
-			Kind:      "direct",
-			Reason:    "duplicate",
-		}) == nil
-	})
+		"-o", "json",
+	}
+	_, stderr, err := harness.CLI.Run(ctx, postTerminalDirectArgs...)
+	if err == nil {
+		t.Fatalf("CLI %v error = nil, want interaction-closed rejection", postTerminalDirectArgs)
+	}
+	if !strings.Contains(stderr, "interaction closed") || !strings.Contains(stderr, `interaction_id="int_patch_42"`) {
+		t.Fatalf("CLI %v stderr = %q, want interaction-closed details", postTerminalDirectArgs, stderr)
+	}
 
 	status := mustHTTPNetworkStatus(t, ctx, harness)
 	if !status.Enabled || status.Status != "running" {
@@ -267,19 +265,10 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(trace) error = %v", err)
 	}
-	if err := validateNetworkAuditEntry(audit, networkAuditExpectation{
-		MessageID: "msg_direct_01",
-		Direction: "rejected",
-		Kind:      "direct",
-		Reason:    "duplicate",
-	}); err != nil {
-		t.Fatalf("validateNetworkAuditEntry(duplicate) error = %v", err)
-	}
-
 	assertCLINetworkParity(t, ctx, harness, status, peers, channel)
 }
 
-func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
+func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 	acpmock.RequireDriver(t)
 
 	fixturePath := mockFixturePath(t, "network_collaboration_fixture.json")
@@ -294,7 +283,7 @@ func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
 			{
 				FixturePath:  fixturePath,
 				FixtureAgent: "recipe-curator",
-				AgentName:    "mock-recipe-curator",
+				AgentName:    "mock-capability-curator",
 			},
 		},
 	})
@@ -306,58 +295,73 @@ func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
 		t,
 		ctx,
 		harness,
-		"recipes",
+		"capabilities",
 		"mock-release-bot",
-		"mock-recipe-curator",
+		"mock-capability-curator",
 	)
 	releaseSession := requireChannelSession(t, channelDetail, "mock-release-bot")
-	curatorSession := requireChannelSession(t, channelDetail, "mock-recipe-curator")
+	curatorSession := requireChannelSession(t, channelDetail, "mock-capability-curator")
 
 	regRelease, ok := harness.MockAgentRegistration("mock-release-bot")
 	if !ok {
 		t.Fatal("MockAgentRegistration(mock-release-bot) = missing, want present")
 	}
-	regCurator, ok := harness.MockAgentRegistration("mock-recipe-curator")
+	regCurator, ok := harness.MockAgentRegistration("mock-capability-curator")
 	if !ok {
-		t.Fatal("MockAgentRegistration(mock-recipe-curator) = missing, want present")
+		t.Fatal("MockAgentRegistration(mock-capability-curator) = missing, want present")
 	}
 
 	registerNetworkScenarioArtifacts(
 		t,
 		harness,
-		"recipes",
+		"capabilities",
 		[]aghcontract.SessionPayload{releaseSession, curatorSession},
 		[]acpmock.Registration{regRelease, regCurator},
 	)
 
-	peers := waitForChannelPeerCount(t, ctx, harness, "recipes", 2)
+	peers := waitForChannelPeerCount(t, ctx, harness, "capabilities", 2)
 	releasePeerID := requirePeerIDForSession(t, peers, releaseSession.ID)
 	curatorPeerID := requirePeerIDForSession(t, peers, curatorSession.ID)
 	if releasePeerID == curatorPeerID {
 		t.Fatalf("peer IDs = %q and %q, want distinct values", releasePeerID, curatorPeerID)
 	}
 
-	mustSendNetworkCLI(t, ctx, harness, []string{
-		"--session", releaseSession.ID,
-		"--channel", "recipes",
-		"--kind", "say",
-		"--id", "msg_recipe_say_01",
-		"--trace-id", "trace_recipe_apply_7",
-		"--body", `{"text":"Does anyone have a reusable migration test repair recipe?","intent":"request-help","artifacts":[]}`,
+	capabilityBody := mustCapabilityBodyString(t, aghconfig.CapabilityDef{
+		ID:                "fix-go-migration-tests",
+		Summary:           "Repair failing Go migration test assertions and rerun the package verification lane.",
+		Outcome:           "A patched migration test with passing package verification output.",
+		Version:           "1.0.0",
+		ContextNeeded:     []string{"package path", "failing test output"},
+		ArtifactsExpected: []string{"updated assertion", "passing package tests"},
+		ExecutionOutline: []string{
+			"Re-run the failing migration tests.",
+			"Compare the expected schema with the normalized audit rows.",
+			"Update the migration assertion and rerun the package tests.",
+		},
+		Requirements: []string{"go-test", "sessiondb-fixtures"},
 	})
 
-	waitForRuntimeCondition(t, "recipe say delivery", 10*time.Second, func() bool {
-		return channelHasMessageID(ctx, harness, "recipes", "msg_recipe_say_01") &&
+	mustSendNetworkCLI(t, ctx, harness, []string{
+		"--session", releaseSession.ID,
+		"--channel", "capabilities",
+		"--kind", "say",
+		"--id", "msg_capability_say_01",
+		"--trace-id", "trace_capability_apply_7",
+		"--body", `{"text":"Does anyone have a reusable migration test repair capability?","intent":"request-help","artifacts":[]}`,
+	})
+
+	waitForRuntimeCondition(t, "capability say delivery", 10*time.Second, func() bool {
+		return channelHasMessageID(ctx, harness, "capabilities", "msg_capability_say_01") &&
 			sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("kind", "say"))
 	})
 
 	mustSendNetworkCLI(t, ctx, harness, []string{
 		"--session", releaseSession.ID,
-		"--channel", "recipes",
+		"--channel", "capabilities",
 		"--kind", "whois",
 		"--to", curatorPeerID,
 		"--id", "msg_whois_01",
-		"--body", `{"type":"request","query":"recipe-curator"}`,
+		"--body", `{"type":"request","query":"capability-curator"}`,
 	})
 
 	waitForRuntimeCondition(t, "whois response delivery", 10*time.Second, func() bool {
@@ -374,39 +378,39 @@ func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
 
 	mustSendNetworkCLI(t, ctx, harness, []string{
 		"--session", curatorSession.ID,
-		"--channel", "recipes",
-		"--kind", "recipe",
-		"--id", "msg_recipe_01",
-		"--trace-id", "trace_recipe_apply_7",
-		"--body", `{"recipe":{"recipe_id":"agh.recipe.fix-go-migration-tests","version":"1.0.0","title":"Repair Go migration test assertions","summary":"Align failing migration assertions with the normalized audit rows and rerun the package tests.","content_type":"text/markdown","digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111","inline":"1. Re-run the failing migration tests.\n2. Compare the expected schema with the normalized audit rows.\n3. Update the migration assertion and rerun the package tests.","inputs":["package path","failing test output"],"outputs":["updated assertion","passing package tests"],"requirements":["go test","sessiondb fixtures"]}}`,
+		"--channel", "capabilities",
+		"--kind", "capability",
+		"--id", "msg_capability_01",
+		"--trace-id", "trace_capability_apply_7",
+		"--body", capabilityBody,
 	})
 
-	waitForRuntimeCondition(t, "recipe delivery", 10*time.Second, func() bool {
+	waitForRuntimeCondition(t, "capability delivery", 10*time.Second, func() bool {
 		audit, err := harness.NetworkAuditSnapshot()
 		if err != nil {
 			return false
 		}
 		return validateNetworkAuditEntry(audit, networkAuditExpectation{
-			MessageID: "msg_recipe_01",
+			MessageID: "msg_capability_01",
 			Direction: "sent",
-			Kind:      "recipe",
-		}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("id", "msg_recipe_01"))
+			Kind:      "capability",
+		}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("id", "msg_capability_01"))
 	})
 
 	mustSendNetworkCLI(t, ctx, harness, []string{
 		"--session", releaseSession.ID,
-		"--channel", "recipes",
+		"--channel", "capabilities",
 		"--kind", "direct",
 		"--to", curatorPeerID,
-		"--interaction-id", "int_recipe_apply_7",
-		"--reply-to", "msg_recipe_01",
-		"--trace-id", "trace_recipe_apply_7",
-		"--causation-id", "msg_recipe_01",
+		"--interaction-id", "int_capability_apply_7",
+		"--reply-to", "msg_capability_01",
+		"--trace-id", "trace_capability_apply_7",
+		"--causation-id", "msg_capability_01",
 		"--id", "msg_direct_20",
-		"--body", `{"text":"Can you help adapt this recipe to a failure in internal/store/sessiondb?","intent":"request-guidance","artifacts":[]}`,
+		"--body", `{"text":"Can you adapt this capability to a failure in internal/store/sessiondb?","intent":"request-guidance","artifacts":[]}`,
 	})
 
-	waitForRuntimeCondition(t, "recipe direct delivery", 10*time.Second, func() bool {
+	waitForRuntimeCondition(t, "capability direct delivery", 10*time.Second, func() bool {
 		audit, err := harness.NetworkAuditSnapshot()
 		if err != nil {
 			return false
@@ -420,18 +424,18 @@ func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
 
 	mustSendNetworkCLI(t, ctx, harness, []string{
 		"--session", curatorSession.ID,
-		"--channel", "recipes",
+		"--channel", "capabilities",
 		"--kind", "trace",
 		"--to", releasePeerID,
-		"--interaction-id", "int_recipe_apply_7",
+		"--interaction-id", "int_capability_apply_7",
 		"--reply-to", "msg_direct_20",
-		"--trace-id", "trace_recipe_apply_7",
+		"--trace-id", "trace_capability_apply_7",
 		"--causation-id", "msg_direct_20",
 		"--id", "msg_trace_21",
-		"--body", `{"state":"needs_input","message":"Send the exact package path and the failing test output so I can tailor the recipe.","result":{"recipe_id":"agh.recipe.fix-go-migration-tests"},"artifact_refs":[]}`,
+		"--body", `{"state":"needs_input","message":"Send the exact package path and failing test output so I can tailor the capability.","result":{"capability_id":"fix-go-migration-tests"},"artifact_refs":[]}`,
 	})
 
-	waitForRuntimeCondition(t, "recipe trace delivery", 10*time.Second, func() bool {
+	waitForRuntimeCondition(t, "capability trace delivery", 10*time.Second, func() bool {
 		audit, err := harness.NetworkAuditSnapshot()
 		if err != nil {
 			return false
@@ -451,7 +455,7 @@ func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
 		t.Fatalf("HTTP network local_peers = %d, want %d", status.LocalPeers, 2)
 	}
 
-	peers = mustHTTPNetworkPeers(t, ctx, harness, "recipes")
+	peers = mustHTTPNetworkPeers(t, ctx, harness, "capabilities")
 	if len(peers) != 2 {
 		t.Fatalf("HTTP network peers = %#v, want 2 peers", peers)
 	}
@@ -463,24 +467,24 @@ func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
 	}
 
 	channels := mustHTTPNetworkChannels(t, ctx, harness)
-	channel, ok := findChannelPayload(channels, "recipes")
+	channel, ok := findChannelPayload(channels, "capabilities")
 	if !ok {
-		t.Fatalf("HTTP network channels = %#v, want recipes entry", channels)
+		t.Fatalf("HTTP network channels = %#v, want capabilities entry", channels)
 	}
 	if channel.PeerCount != 2 || channel.SessionCount != 2 {
-		t.Fatalf("HTTP recipes channel = %#v, want peer_count=2 session_count=2", channel)
+		t.Fatalf("HTTP capabilities channel = %#v, want peer_count=2 session_count=2", channel)
 	}
 	if channel.MessageCount < 1 {
-		t.Fatalf("HTTP recipes channel message_count = %d, want >= 1", channel.MessageCount)
+		t.Fatalf("HTTP capabilities channel message_count = %d, want >= 1", channel.MessageCount)
 	}
 
-	channelDetail = mustHTTPNetworkChannel(t, ctx, harness, "recipes")
-	if channelDetail.Channel != "recipes" || channelDetail.PeerCount != 2 || len(channelDetail.Sessions) != 2 {
-		t.Fatalf("HTTP channel detail = %#v, want recipes with 2 peers and 2 sessions", channelDetail)
+	channelDetail = mustHTTPNetworkChannel(t, ctx, harness, "capabilities")
+	if channelDetail.Channel != "capabilities" || channelDetail.PeerCount != 2 || len(channelDetail.Sessions) != 2 {
+		t.Fatalf("HTTP channel detail = %#v, want capabilities with 2 peers and 2 sessions", channelDetail)
 	}
 
-	channelMessages := mustHTTPNetworkChannelMessages(t, ctx, harness, "recipes")
-	requireChannelMessage(t, channelMessages, "msg_recipe_say_01", "Does anyone have a reusable migration test repair recipe?")
+	channelMessages := mustHTTPNetworkChannelMessages(t, ctx, harness, "capabilities")
+	requireChannelMessage(t, channelMessages, "msg_capability_say_01", "Does anyone have a reusable migration test repair capability?")
 
 	releaseTranscript := mustSessionTranscript(t, ctx, harness, releaseSession.ID)
 	curatorTranscript := mustSessionTranscript(t, ctx, harness, curatorSession.ID)
@@ -490,10 +494,10 @@ func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
 	for _, needle := range []string{
 		attributeNeedle("kind", "whois"),
 		attributeNeedle("reply-to", "msg_whois_01"),
-		attributeNeedle("id", "msg_recipe_01"),
-		attributeNeedle("kind", "recipe"),
+		attributeNeedle("id", "msg_capability_01"),
+		attributeNeedle("kind", "capability"),
 		attributeNeedle("id", "msg_trace_21"),
-		attributeNeedle("trace-id", "trace_recipe_apply_7"),
+		attributeNeedle("trace-id", "trace_capability_apply_7"),
 	} {
 		if !strings.Contains(releaseContent, needle) {
 			t.Fatalf("release transcript missing %q in %s", needle, releaseContent)
@@ -502,22 +506,22 @@ func TestDaemonE2ENetworkWhoisAndRecipeExchange(t *testing.T) {
 	if err := validateNetworkCorrelationSurfaces(curatorTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_20",
 		Kind:            "direct",
-		InteractionID:   "int_recipe_apply_7",
-		ReplyTo:         "msg_recipe_01",
-		TraceID:         "trace_recipe_apply_7",
+		InteractionID:   "int_capability_apply_7",
+		ReplyTo:         "msg_capability_01",
+		TraceID:         "trace_capability_apply_7",
 		AuditDirections: []string{"sent", "delivered"},
 	}); err != nil {
-		t.Fatalf("validateNetworkCorrelationSurfaces(recipe direct) error = %v", err)
+		t.Fatalf("validateNetworkCorrelationSurfaces(capability direct) error = %v", err)
 	}
 	if err := validateNetworkCorrelationSurfaces(releaseTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_trace_21",
 		Kind:            "trace",
-		InteractionID:   "int_recipe_apply_7",
+		InteractionID:   "int_capability_apply_7",
 		ReplyTo:         "msg_direct_20",
-		TraceID:         "trace_recipe_apply_7",
+		TraceID:         "trace_capability_apply_7",
 		AuditDirections: []string{"sent", "delivered"},
 	}); err != nil {
-		t.Fatalf("validateNetworkCorrelationSurfaces(recipe trace) error = %v", err)
+		t.Fatalf("validateNetworkCorrelationSurfaces(capability trace) error = %v", err)
 	}
 
 	assertCLINetworkParity(t, ctx, harness, status, peers, channel)
@@ -629,6 +633,35 @@ func mustSendNetworkCLI(
 		t.Fatalf("CLI %v error = %v", fullArgs, err)
 	}
 	return payload
+}
+
+func mustCapabilityBodyString(t testing.TB, def aghconfig.CapabilityDef) string {
+	t.Helper()
+
+	digest, err := aghconfig.CanonicalCapabilityDigest(def)
+	if err != nil {
+		t.Fatalf("CanonicalCapabilityDigest(%q) error = %v", def.ID, err)
+	}
+
+	raw, err := json.Marshal(map[string]any{
+		"capability": map[string]any{
+			"id":                 def.ID,
+			"summary":            def.Summary,
+			"outcome":            def.Outcome,
+			"version":            def.Version,
+			"digest":             digest,
+			"context_needed":     append([]string(nil), def.ContextNeeded...),
+			"artifacts_expected": append([]string(nil), def.ArtifactsExpected...),
+			"execution_outline":  append([]string(nil), def.ExecutionOutline...),
+			"constraints":        append([]string(nil), def.Constraints...),
+			"examples":           append([]string(nil), def.Examples...),
+			"requirements":       append([]string(nil), def.Requirements...),
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(capability body %q) error = %v", def.ID, err)
+	}
+	return string(raw)
 }
 
 func assertCLINetworkParity(

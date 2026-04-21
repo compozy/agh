@@ -4241,6 +4241,10 @@ func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) 
 	return ch, nil
 }
 
+func (f *fakeSessionManager) CancelPrompt(context.Context, string) error {
+	return nil
+}
+
 func (f *fakeSessionManager) PromptSynthetic(
 	ctx context.Context,
 	id string,

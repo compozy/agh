@@ -84,40 +84,15 @@ func projectWhoisCapabilityCatalog(
 	capabilityCatalog []sessionpkg.NetworkPeerCapability,
 	capabilityIDs []string,
 ) []whoisCapabilityCatalogEntry {
-	if len(capabilityCatalog) == 0 {
-		return []whoisCapabilityCatalogEntry{}
-	}
-	if capabilityIDs != nil && len(capabilityIDs) == 0 {
-		return []whoisCapabilityCatalogEntry{}
-	}
-
-	filter := make(map[string]struct{}, len(capabilityIDs))
-	for _, capabilityID := range capabilityIDs {
-		trimmed := strings.TrimSpace(capabilityID)
-		if trimmed == "" {
-			continue
-		}
-		filter[trimmed] = struct{}{}
-	}
-
-	entries := make([]whoisCapabilityCatalogEntry, 0, len(capabilityCatalog))
-	for _, capability := range capabilityCatalog {
-		id := strings.TrimSpace(capability.ID)
-		if id == "" {
-			continue
-		}
-		if len(filter) > 0 {
-			if _, ok := filter[id]; !ok {
-				continue
-			}
-		}
-
+	selectedCatalog := selectWhoisCapabilityCatalog(capabilityCatalog, capabilityIDs)
+	entries := make([]whoisCapabilityCatalogEntry, 0, len(selectedCatalog))
+	for _, capability := range selectedCatalog {
 		entries = append(entries, whoisCapabilityCatalogEntry{
-			ID:                id,
-			Summary:           strings.TrimSpace(capability.Summary),
-			Outcome:           strings.TrimSpace(capability.Outcome),
-			Version:           strings.TrimSpace(capability.Version),
-			Digest:            strings.TrimSpace(capability.Digest),
+			ID:                capability.ID,
+			Summary:           capability.Summary,
+			Outcome:           capability.Outcome,
+			Version:           capability.Version,
+			Digest:            capability.Digest,
 			ContextNeeded:     cloneStringList(capability.ContextNeeded),
 			ArtifactsExpected: cloneStringList(capability.ArtifactsExpected),
 			ExecutionOutline:  cloneStringList(capability.ExecutionOutline),
@@ -131,6 +106,59 @@ func projectWhoisCapabilityCatalog(
 	}
 
 	return entries
+}
+
+func selectWhoisCapabilityCatalog(
+	capabilityCatalog []sessionpkg.NetworkPeerCapability,
+	capabilityIDs []string,
+) []sessionpkg.NetworkPeerCapability {
+	if len(capabilityCatalog) == 0 {
+		return []sessionpkg.NetworkPeerCapability{}
+	}
+	if capabilityIDs != nil && len(capabilityIDs) == 0 {
+		return []sessionpkg.NetworkPeerCapability{}
+	}
+
+	filter := make(map[string]struct{}, len(capabilityIDs))
+	for _, capabilityID := range capabilityIDs {
+		trimmed := strings.TrimSpace(capabilityID)
+		if trimmed == "" {
+			continue
+		}
+		filter[trimmed] = struct{}{}
+	}
+
+	selected := make([]sessionpkg.NetworkPeerCapability, 0, len(capabilityCatalog))
+	for _, capability := range capabilityCatalog {
+		id := strings.TrimSpace(capability.ID)
+		if id == "" {
+			continue
+		}
+		if len(filter) > 0 {
+			if _, ok := filter[id]; !ok {
+				continue
+			}
+		}
+
+		selected = append(selected, sessionpkg.NetworkPeerCapability{
+			ID:                id,
+			Summary:           strings.TrimSpace(capability.Summary),
+			Outcome:           strings.TrimSpace(capability.Outcome),
+			Version:           strings.TrimSpace(capability.Version),
+			Digest:            strings.TrimSpace(capability.Digest),
+			ContextNeeded:     cloneStringList(capability.ContextNeeded),
+			ArtifactsExpected: cloneStringList(capability.ArtifactsExpected),
+			ExecutionOutline:  cloneStringList(capability.ExecutionOutline),
+			Constraints:       cloneStringList(capability.Constraints),
+			Examples:          cloneStringList(capability.Examples),
+			Requirements:      cloneStringList(capability.Requirements),
+		})
+	}
+	if len(selected) == 0 {
+		return []sessionpkg.NetworkPeerCapability{}
+	}
+
+	return selected
 }
 
 func cloneNetworkPeerCapabilityCatalog(

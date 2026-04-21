@@ -645,9 +645,23 @@ func (r *Router) buildWhoisResponseEnvelope(
 	discoveryRequest whoisCapabilityDiscoveryRequest,
 	now time.Time,
 ) (Envelope, error) {
+	responseCard := clonePeerCard(responder.PeerCard)
+	if len(responder.CapabilityCatalog) != 0 {
+		responseCatalog := responder.CapabilityCatalog
+		if discoveryRequest.includeCapabilityCatalog {
+			responseCatalog = selectWhoisCapabilityCatalog(
+				responder.CapabilityCatalog,
+				discoveryRequest.capabilityIDs,
+			)
+		}
+		if err := applyCapabilityBriefProjection(&responseCard, responseCatalog); err != nil {
+			return Envelope{}, err
+		}
+	}
+
 	payload, err := marshalEnvelopeBody(WhoisBody{
 		Type:     WhoisTypeResponse,
-		PeerCard: &responder.PeerCard,
+		PeerCard: &responseCard,
 	})
 	if err != nil {
 		return Envelope{}, err
@@ -827,9 +841,26 @@ func (r *Router) syncSentLifecycle(envelope Envelope, now time.Time) {
 	if !shouldTrackSentLifecycle(envelope) {
 		return
 	}
+	if !r.shouldSyncSentLifecycle(envelope) {
+		return
+	}
 
 	if _, err := r.applyLifecycle(envelope, now); err != nil {
 		return
+	}
+}
+
+func (r *Router) shouldSyncSentLifecycle(envelope Envelope) bool {
+	if r == nil || r.peers == nil || !envelope.IsDirected() {
+		return true
+	}
+
+	switch envelope.Kind {
+	case KindReceipt, KindTrace:
+		_, ok := r.peers.LocalByPeer(envelope.Channel, *envelope.To)
+		return !ok
+	default:
+		return true
 	}
 }
 
