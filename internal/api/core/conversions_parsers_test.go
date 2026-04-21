@@ -26,6 +26,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		ID:           "sess-1",
 		Name:         "demo",
 		AgentName:    "coder",
+		Provider:     "fake",
 		WorkspaceID:  "ws_alpha",
 		Workspace:    "/workspace",
 		Channel:      "builders",
@@ -54,6 +55,9 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	if payload.ID != "sess-1" || payload.WorkspaceID != "ws_alpha" || payload.WorkspacePath != "/workspace" ||
 		payload.Channel != "builders" {
 		t.Fatalf("payload = %#v", payload)
+	}
+	if payload.Provider != "fake" {
+		t.Fatalf("payload.Provider = %q, want %q", payload.Provider, "fake")
 	}
 	if payload.State != session.StateActive || payload.ACPSessionID != "acp-123" {
 		t.Fatalf("payload session fields = %#v", payload)

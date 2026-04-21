@@ -1711,6 +1711,7 @@ export interface SessionCreatePatch {
 
 export interface SessionCreateResult {
   session_id: string;
+  provider: string;
 }
 
 export interface SessionEvent {
@@ -1906,6 +1907,7 @@ export interface SessionStatus {
   session_id: string;
   name?: string;
   agent: string;
+  provider: string;
   workspace_id?: string;
   workspace?: string;
   state: State;
@@ -1920,6 +1922,7 @@ export interface SessionSummary {
   id: string;
   name?: string;
   agent: string;
+  provider: string;
   workspace?: string;
   state: State;
   created_at: ISODateTime;
@@ -1932,6 +1935,7 @@ export interface SessionTargetParams {
 export interface SessionsCreateParams {
   agent: string;
   prompt?: string;
+  provider?: string;
   workspace?: string;
 }
 

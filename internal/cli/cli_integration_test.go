@@ -162,7 +162,10 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session list toon error = %v", err)
 	}
-	if !strings.Contains(toonOut, "sessions[1]{id,name,agent_name,environment_backend,state,workspace,channel,updated_at}:") {
+	if !strings.Contains(
+		toonOut,
+		"sessions[1]{id,name,agent_name,provider,environment_backend,state,workspace,channel,updated_at}:",
+	) {
 		t.Fatalf("toon output = %q, want TOON table", toonOut)
 	}
 }

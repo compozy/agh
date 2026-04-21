@@ -117,6 +117,60 @@ func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
 	}
 }
 
+func TestHTTPTransportSessionProviderCreateReadRoundTrip(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  transportMockFixturePath(t, "automation_task_fixture.json"),
+			FixtureAgent: "automation-runner",
+			AgentName:    transportAutomationAgent,
+		}},
+	})
+	registration, ok := runtimeHarness.MockAgentRegistration(transportAutomationAgent)
+	if !ok {
+		t.Fatalf("MockAgentRegistration(%q) not found", transportAutomationAgent)
+	}
+	provider := registration.Provider
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	var created aghcontract.SessionResponse
+	if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/sessions", aghcontract.CreateSessionRequest{
+		AgentName:     transportAutomationAgent,
+		Provider:      provider,
+		WorkspacePath: runtimeHarness.WorkspaceRoot,
+	}, &created); err != nil {
+		t.Fatalf("HTTP create session error = %v", err)
+	}
+	if created.Session.ID == "" {
+		t.Fatal("HTTP create session id = empty, want non-empty")
+	}
+	if created.Session.Provider != provider {
+		t.Fatalf("HTTP create provider = %q, want %q", created.Session.Provider, provider)
+	}
+
+	var detail aghcontract.SessionResponse
+	if err := runtimeHarness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/sessions/"+url.PathEscape(created.Session.ID),
+		nil,
+		&detail,
+	); err != nil {
+		t.Fatalf("HTTP get session error = %v", err)
+	}
+	if detail.Session.Provider != created.Session.Provider {
+		t.Fatalf(
+			"HTTP detail provider = %q, want create provider %q",
+			detail.Session.Provider,
+			created.Session.Provider,
+		)
+	}
+}
+
 func TestHTTPTransportWebhookIngressUsesSharedRuntimeHarness(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()

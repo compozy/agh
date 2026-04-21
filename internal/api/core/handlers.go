@@ -243,6 +243,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 
 	sess, err := h.Sessions.Create(c.Request.Context(), session.CreateOpts{
 		AgentName:     req.AgentName,
+		Provider:      strings.TrimSpace(req.Provider),
 		Name:          req.Name,
 		Workspace:     strings.TrimSpace(req.Workspace),
 		WorkspacePath: strings.TrimSpace(req.WorkspacePath),

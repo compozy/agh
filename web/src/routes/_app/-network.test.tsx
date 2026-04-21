@@ -326,6 +326,7 @@ function makeChannelDetail(overrides: Partial<NetworkChannel> = {}): NetworkChan
         created_at: "2026-04-13T09:00:00Z",
         id: "sess_local",
         name: "Polybot Main",
+        provider: "anthropic",
         state: "active",
         updated_at: "2026-04-13T10:45:00Z",
         workspace_id: "ws_main",

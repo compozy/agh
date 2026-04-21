@@ -102,6 +102,7 @@ type SessionsListParams struct {
 type SessionsCreateParams struct {
 	Agent     string `json:"agent"`
 	Prompt    string `json:"prompt,omitempty"`
+	Provider  string `json:"provider,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
 }
 
@@ -395,6 +396,7 @@ type SessionSummary struct {
 	ID        string        `json:"id"`
 	Name      string        `json:"name,omitempty"`
 	Agent     string        `json:"agent"`
+	Provider  string        `json:"provider"`
 	Workspace string        `json:"workspace,omitempty"`
 	State     session.State `json:"state"`
 	CreatedAt time.Time     `json:"created_at"`
@@ -405,6 +407,7 @@ type SessionStatus struct {
 	SessionID    string           `json:"session_id"`
 	Name         string           `json:"name,omitempty"`
 	Agent        string           `json:"agent"`
+	Provider     string           `json:"provider"`
 	WorkspaceID  string           `json:"workspace_id,omitempty"`
 	Workspace    string           `json:"workspace,omitempty"`
 	State        session.State    `json:"state"`
@@ -425,6 +428,7 @@ type SessionEvent struct {
 // SessionCreateResult returns the created session identifier.
 type SessionCreateResult struct {
 	SessionID string `json:"session_id"`
+	Provider  string `json:"provider"`
 }
 
 // SessionPromptResult returns the created turn identifier.

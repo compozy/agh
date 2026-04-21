@@ -175,6 +175,50 @@ func TestSessionNewPassesChannelFlag(t *testing.T) {
 	}
 }
 
+func TestSessionNewPassesProviderFlag(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, &stubClient{
+		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
+			if request.Provider != "fake-alt" {
+				t.Fatalf("CreateSession() Provider = %q, want %q", request.Provider, "fake-alt")
+			}
+			return SessionRecord{
+				ID:            "sess-1",
+				AgentName:     "general",
+				Provider:      request.Provider,
+				WorkspaceID:   "ws-1",
+				WorkspacePath: request.WorkspacePath,
+				State:         session.StateActive,
+				CreatedAt:     fixedTestNow,
+				UpdatedAt:     fixedTestNow,
+			}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"session",
+		"new",
+		"--provider",
+		"fake-alt",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("executeRootCommand(session new --provider) error = %v", err)
+	}
+
+	var decoded SessionRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(session new --provider) error = %v", err)
+	}
+	if decoded.Provider != "fake-alt" {
+		t.Fatalf("decoded.Provider = %q, want %q", decoded.Provider, "fake-alt")
+	}
+}
+
 func TestSessionNewRejectsInvalidWorkspaceFlags(t *testing.T) {
 	t.Parallel()
 
@@ -461,6 +505,7 @@ func TestSessionStatusReturnsSessionRecord(t *testing.T) {
 			return SessionRecord{
 				ID:            id,
 				AgentName:     "coder",
+				Provider:      "fake",
 				WorkspaceID:   "ws-1",
 				WorkspacePath: "/workspace/project",
 				State:         session.StateActive,
@@ -479,7 +524,7 @@ func TestSessionStatusReturnsSessionRecord(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if decoded.ID != "sess-1" || decoded.State != session.StateActive {
+	if decoded.ID != "sess-1" || decoded.Provider != "fake" || decoded.State != session.StateActive {
 		t.Fatalf("decoded = %#v, want sess-1 active", decoded)
 	}
 }
@@ -561,6 +606,7 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		ID:            "sess-1",
 		Name:          "demo",
 		AgentName:     "coder",
+		Provider:      "fake",
 		WorkspaceID:   "ws-1",
 		WorkspacePath: "/workspace/project",
 		Channel:       "builders",
@@ -577,10 +623,12 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		t.Fatalf("sessionListBundle().human() error = %v", err)
 	}
 	if !strings.Contains(human, "sess-1") ||
+		!strings.Contains(strings.ToLower(human), "provider") ||
+		!strings.Contains(human, "fake") ||
 		!strings.Contains(human, "/workspace/project") ||
 		!strings.Contains(strings.ToLower(human), "channel") ||
 		!strings.Contains(human, "builders") {
-		t.Fatalf("sessionListBundle().human() = %q, want session, workspace, and channel output", human)
+		t.Fatalf("sessionListBundle().human() = %q, want session, provider, workspace, and channel output", human)
 	}
 
 	toon, err := bundle.toon()
@@ -589,8 +637,44 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 	}
 	if !strings.Contains(toon, "sessions") ||
 		!strings.Contains(toon, "sess-1") ||
+		!strings.Contains(strings.ToLower(toon), "provider") ||
+		!strings.Contains(toon, "fake") ||
 		!strings.Contains(strings.ToLower(toon), "channel") ||
 		!strings.Contains(toon, "builders") {
-		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output with channel", toon)
+		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output with provider and channel", toon)
+	}
+}
+
+func TestSessionBundleRendersProviderInHumanAndToon(t *testing.T) {
+	t.Parallel()
+
+	bundle := sessionBundle(SessionRecord{
+		ID:            "sess-1",
+		Name:          "demo",
+		AgentName:     "coder",
+		Provider:      "fake",
+		WorkspaceID:   "ws-1",
+		WorkspacePath: "/workspace/project",
+		State:         session.StateActive,
+		CreatedAt:     fixedTestNow,
+		UpdatedAt:     fixedTestNow,
+	}, func() time.Time {
+		return fixedTestNow.Add(time.Minute)
+	})
+
+	human, err := bundle.human()
+	if err != nil {
+		t.Fatalf("sessionBundle().human() error = %v", err)
+	}
+	if !strings.Contains(strings.ToLower(human), "provider") || !strings.Contains(human, "fake") {
+		t.Fatalf("sessionBundle().human() = %q, want provider output", human)
+	}
+
+	toon, err := bundle.toon()
+	if err != nil {
+		t.Fatalf("sessionBundle().toon() error = %v", err)
+	}
+	if !strings.Contains(strings.ToLower(toon), "provider") || !strings.Contains(toon, "fake") {
+		t.Fatalf("sessionBundle().toon() = %q, want provider output", toon)
 	}
 }

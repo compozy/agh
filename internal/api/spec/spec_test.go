@@ -44,7 +44,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				}
 
 				sessionSchema := sessionsSchema.Items.Value
-				assertRequired(t, sessionSchema, "id", "agent_name", "state", "created_at", "updated_at")
+				assertRequired(t, sessionSchema, "id", "agent_name", "provider", "state", "created_at", "updated_at")
 				assertNotRequired(t, sessionSchema, "workspace_id", "workspace_path", "stop_reason", "stop_detail")
 				assertEnumValues(
 					t,
@@ -75,7 +75,15 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				createSession := operationFor(t, doc, "/api/sessions", "POST")
 				createSessionSchema := jsonRequestSchema(t, createSession)
-				assertNotRequired(t, createSessionSchema, "agent_name", "name", "workspace", "workspace_path")
+				assertNotRequired(
+					t,
+					createSessionSchema,
+					"agent_name",
+					"provider",
+					"name",
+					"workspace",
+					"workspace_path",
+				)
 			},
 		},
 		{

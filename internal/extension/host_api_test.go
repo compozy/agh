@@ -64,6 +64,9 @@ func TestHostAPIHandlerSessionsListReturnsAuthorizedSessions(t *testing.T) {
 	if sessionsList[0].Agent != "coder" {
 		t.Fatalf("sessions/list[0].Agent = %q, want coder", sessionsList[0].Agent)
 	}
+	if sessionsList[0].Provider != sess.Info().Provider {
+		t.Fatalf("sessions/list[0].Provider = %q, want %q", sessionsList[0].Provider, sess.Info().Provider)
+	}
 }
 
 func TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead(t *testing.T) {
@@ -84,6 +87,7 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 
 	result, err := env.call(t, "ext-create", "sessions/create", map[string]string{
 		"agent":     "coder",
+		"provider":  "fake-alt",
 		"workspace": env.workspaceID,
 	})
 	if err != nil {
@@ -95,6 +99,9 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	if created.SessionID == "" {
 		t.Fatal("sessions/create session_id = empty, want non-empty")
 	}
+	if created.Provider != "fake-alt" {
+		t.Fatalf("sessions/create provider = %q, want %q", created.Provider, "fake-alt")
+	}
 
 	info, err := env.sessions.Status(testutil.Context(t), created.SessionID)
 	if err != nil {
@@ -102,6 +109,9 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	}
 	if info.State != session.StateActive {
 		t.Fatalf("created session state = %q, want %q", info.State, session.StateActive)
+	}
+	if info.Provider != "fake-alt" {
+		t.Fatalf("created session provider = %q, want %q", info.Provider, "fake-alt")
 	}
 }
 
@@ -190,6 +200,9 @@ func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {
 	}
 	if status.State != session.StateActive {
 		t.Fatalf("sessions/status state = %q, want %q", status.State, session.StateActive)
+	}
+	if status.Provider != sess.Info().Provider {
+		t.Fatalf("sessions/status provider = %q, want %q", status.Provider, sess.Info().Provider)
 	}
 }
 
@@ -4677,7 +4690,8 @@ Review the workspace changes carefully.
 		Config: aghconfig.Config{
 			Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
 			Providers: map[string]aghconfig.ProviderConfig{
-				"fake": {Command: "fake-agent"},
+				"fake":     {Command: "fake-agent"},
+				"fake-alt": {Command: "fake-agent"},
 			},
 			Permissions: aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveAll},
 		},

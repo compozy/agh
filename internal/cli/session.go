@@ -38,6 +38,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		cwd          string
 		name         string
 		channel      string
+		provider     string
 		workspaceRef string
 	)
 
@@ -65,6 +66,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 
 			created, err := client.CreateSession(cmd.Context(), CreateSessionRequest{
 				AgentName:     agentName,
+				Provider:      strings.TrimSpace(provider),
 				Name:          name,
 				Workspace:     workspace,
 				WorkspacePath: workspacePath,
@@ -82,6 +84,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Absolute workspace directory to auto-register")
 	cmd.Flags().StringVar(&name, "name", "", "Optional session label")
 	cmd.Flags().StringVar(&channel, "channel", "", "Optional network channel opt-in for the session")
+	cmd.Flags().StringVar(&provider, "provider", "", "Optional provider override for this session")
 	return cmd
 }
 
@@ -408,6 +411,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				{Label: "ID", Value: stringOrDash(info.ID)},
 				{Label: "Name", Value: stringOrDash(info.Name)},
 				{Label: "Agent", Value: stringOrDash(info.AgentName)},
+				{Label: "Provider", Value: stringOrDash(info.Provider)},
 				{Label: "Workspace", Value: stringOrDash(displaySessionWorkspace(info))},
 				{Label: "Channel", Value: stringOrDash(info.Channel)},
 				{Label: "State", Value: stringOrDash(string(info.State))},
@@ -444,6 +448,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				"id",
 				"name",
 				"agent_name",
+				"provider",
 				"environment_backend",
 				"workspace",
 				"channel",
@@ -455,6 +460,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				info.ID,
 				info.Name,
 				info.AgentName,
+				info.Provider,
 				sessionEnvironmentBackend(info),
 				displaySessionWorkspace(info),
 				info.Channel,
@@ -472,14 +478,35 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 		items,
 		items,
 		"Sessions",
-		[]string{"ID", "Name", "Agent", "Backend", "State", "Workspace", "Channel", "Updated"},
+		[]string{
+			"ID",
+			"Name",
+			"Agent",
+			"Provider",
+			"Backend",
+			"State",
+			"Workspace",
+			"Channel",
+			"Updated",
+		},
 		"sessions",
-		[]string{"id", "name", "agent_name", "environment_backend", "state", "workspace", "channel", "updated_at"},
+		[]string{
+			"id",
+			"name",
+			"agent_name",
+			"provider",
+			"environment_backend",
+			"state",
+			"workspace",
+			"channel",
+			"updated_at",
+		},
 		func(item SessionRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
 				stringOrDash(item.Name),
 				stringOrDash(item.AgentName),
+				stringOrDash(item.Provider),
 				stringOrDash(sessionEnvironmentBackend(item)),
 				stringOrDash(string(item.State)),
 				stringOrDash(displaySessionWorkspace(item)),
@@ -492,6 +519,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 				item.ID,
 				item.Name,
 				item.AgentName,
+				item.Provider,
 				sessionEnvironmentBackend(item),
 				string(item.State),
 				displaySessionWorkspace(item),

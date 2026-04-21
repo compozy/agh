@@ -113,6 +113,78 @@ func TestUDSTransportApprovalRouteDocumentsNotImplementedGap(t *testing.T) {
 	}
 }
 
+func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  transportMockFixturePath(t, "automation_task_fixture.json"),
+			FixtureAgent: "automation-runner",
+			AgentName:    transportUDSAutomationAgent,
+		}},
+	})
+	registration, ok := runtimeHarness.MockAgentRegistration(transportUDSAutomationAgent)
+	if !ok {
+		t.Fatalf("MockAgentRegistration(%q) not found", transportUDSAutomationAgent)
+	}
+	provider := registration.Provider
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	var created aghcontract.SessionResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", aghcontract.CreateSessionRequest{
+		AgentName:     transportUDSAutomationAgent,
+		Provider:      provider,
+		WorkspacePath: runtimeHarness.WorkspaceRoot,
+	}, &created); err != nil {
+		t.Fatalf("UDS create session error = %v", err)
+	}
+	if created.Session.ID == "" {
+		t.Fatal("UDS create session id = empty, want non-empty")
+	}
+	if created.Session.Provider != provider {
+		t.Fatalf("UDS create provider = %q, want %q", created.Session.Provider, provider)
+	}
+
+	var udsDetail aghcontract.SessionResponse
+	if err := runtimeHarness.UDSJSON(
+		ctx,
+		http.MethodGet,
+		"/api/sessions/"+url.PathEscape(created.Session.ID),
+		nil,
+		&udsDetail,
+	); err != nil {
+		t.Fatalf("UDS get session error = %v", err)
+	}
+	if udsDetail.Session.Provider != created.Session.Provider {
+		t.Fatalf(
+			"UDS detail provider = %q, want create provider %q",
+			udsDetail.Session.Provider,
+			created.Session.Provider,
+		)
+	}
+
+	var httpDetail aghcontract.SessionResponse
+	if err := runtimeHarness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/sessions/"+url.PathEscape(created.Session.ID),
+		nil,
+		&httpDetail,
+	); err != nil {
+		t.Fatalf("HTTP get session error = %v", err)
+	}
+	if httpDetail.Session.Provider != created.Session.Provider {
+		t.Fatalf(
+			"HTTP detail provider = %q, want UDS create provider %q",
+			httpDetail.Session.Provider,
+			created.Session.Provider,
+		)
+	}
+}
+
 func TestUDSTransportProjectionParityMatchesHTTPAndCLI(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()

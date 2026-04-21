@@ -38,6 +38,7 @@ describe("useSessions", () => {
       {
         id: "sess-001",
         agent_name: "claude-agent",
+        provider: "claude",
         workspace_id: "ws_alpha",
         workspace_path: "/workspace/alpha",
         state: "active",
@@ -71,6 +72,7 @@ describe("useSession", () => {
     vi.mocked(fetchSession).mockResolvedValue({
       id: "sess-001",
       agent_name: "claude-agent",
+      provider: "claude",
       workspace_id: "ws_alpha",
       workspace_path: "/workspace/alpha",
       state: "active",

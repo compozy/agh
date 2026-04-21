@@ -734,6 +734,7 @@ func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMes
 			ID:        info.ID,
 			Name:      info.Name,
 			Agent:     info.AgentName,
+			Provider:  info.Provider,
 			Workspace: info.Workspace,
 			State:     info.State,
 			CreatedAt: info.CreatedAt,
@@ -758,6 +759,7 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 
 	sess, err := h.sessions.Create(ctx, session.CreateOpts{
 		AgentName: strings.TrimSpace(params.Agent),
+		Provider:  strings.TrimSpace(params.Provider),
 		Workspace: strings.TrimSpace(params.Workspace),
 		Type:      session.SessionTypeSystem,
 	})
@@ -771,7 +773,10 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 		}
 	}
 
-	return hostAPISessionCreateResult{SessionID: sess.ID}, nil
+	return hostAPISessionCreateResult{
+		SessionID: sess.ID,
+		Provider:  sess.Info().Provider,
+	}, nil
 }
 
 func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -2227,6 +2232,7 @@ func hostAPISessionStatusFromInfo(info *session.Info) hostAPISessionStatus {
 		SessionID:    info.ID,
 		Name:         info.Name,
 		Agent:        info.AgentName,
+		Provider:     info.Provider,
 		WorkspaceID:  info.WorkspaceID,
 		Workspace:    info.Workspace,
 		State:        info.State,

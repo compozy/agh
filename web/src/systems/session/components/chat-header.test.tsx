@@ -17,6 +17,7 @@ const baseSession: SessionPayload = {
   id: "sess-001",
   name: "My Test Session",
   agent_name: "claude-code",
+  provider: "claude",
   workspace_id: "ws_alpha",
   workspace_path: "/tmp/workspace",
   state: "active",

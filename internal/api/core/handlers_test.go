@@ -33,11 +33,15 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		},
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			createCalled.Store(true)
-			if opts.AgentName != "coder" || opts.Workspace != "alpha" || opts.Type != session.SessionTypeUser {
+			if opts.AgentName != "coder" ||
+				opts.Provider != "fake" ||
+				opts.Workspace != "alpha" ||
+				opts.Type != session.SessionTypeUser {
 				t.Fatalf("Create opts = %#v", opts)
 			}
 			created := testutil.NewSession("sess-created")
 			created.AgentName = opts.AgentName
+			created.Provider = opts.Provider
 			return created, nil
 		},
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
@@ -124,10 +128,17 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/sessions",
-			[]byte(`{"agent_name":"coder","workspace":"alpha"}`),
+			[]byte(`{"agent_name":"coder","provider":"fake","workspace":"alpha"}`),
 		)
 		if createResp.Code != http.StatusCreated || !createCalled.Load() {
 			t.Fatalf("create status = %d, called=%v", createResp.Code, createCalled.Load())
+		}
+		var payload contract.SessionResponse
+		if err := json.Unmarshal(createResp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(create response) error = %v", err)
+		}
+		if payload.Session.Provider != "fake" {
+			t.Fatalf("created session provider = %q, want %q", payload.Session.Provider, "fake")
 		}
 	})
 

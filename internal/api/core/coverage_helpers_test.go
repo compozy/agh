@@ -396,6 +396,7 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 		ID:          "sess-1",
 		Name:        "Support session",
 		AgentName:   "coder",
+		Provider:    "fake",
 		WorkspaceID: " ws-1 ",
 		Workspace:   " /tmp/ws ",
 		ACPCaps: acp.Caps{
@@ -403,7 +404,8 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 			SupportedModes:      []string{"edit"},
 		},
 	})
-	if payload.ID != "sess-1" || payload.WorkspaceID != "ws-1" || payload.WorkspacePath != "/tmp/ws" ||
+	if payload.ID != "sess-1" || payload.Provider != "fake" ||
+		payload.WorkspaceID != "ws-1" || payload.WorkspacePath != "/tmp/ws" ||
 		payload.ACPCaps == nil {
 		t.Fatalf("SessionPayloadFromInfo() = %#v", payload)
 	}

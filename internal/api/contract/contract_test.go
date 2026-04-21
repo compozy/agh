@@ -23,6 +23,7 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			ID:           "sess-1",
 			Name:         "demo",
 			AgentName:    "coder",
+			Provider:     "fake",
 			WorkspaceID:  "ws_alpha",
 			Workspace:    "/workspace",
 			State:        session.StateActive,
@@ -46,7 +47,10 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		var got map[string]any
 		marshalJSON(t, payload, &got)
 
-		if got["agent_name"] != "coder" || got["workspace_id"] != "ws_alpha" || got["workspace_path"] != "/workspace" {
+		if got["agent_name"] != "coder" ||
+			got["provider"] != "fake" ||
+			got["workspace_id"] != "ws_alpha" ||
+			got["workspace_path"] != "/workspace" {
 			t.Fatalf("session JSON = %#v", got)
 		}
 		if _, exists := got["stop_reason"]; exists {
@@ -73,6 +77,43 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			environmentPayload["backend"] != "local" ||
 			environmentPayload["instance_id"] != "instance-json" {
 			t.Fatalf("environment JSON = %#v", environmentPayload)
+		}
+	})
+}
+
+func TestCreateSessionRequestJSONShape(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should decode optional provider when present", func(t *testing.T) {
+		t.Parallel()
+
+		var req contract.CreateSessionRequest
+		if err := json.Unmarshal(
+			[]byte(`{"agent_name":"coder","provider":"fake","workspace":"alpha"}`),
+			&req,
+		); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if req.AgentName != "coder" || req.Provider != "fake" || req.Workspace != "alpha" {
+			t.Fatalf("request = %#v", req)
+		}
+	})
+
+	t.Run("Should omit provider cleanly when absent", func(t *testing.T) {
+		t.Parallel()
+
+		var req contract.CreateSessionRequest
+		if err := json.Unmarshal(
+			[]byte(`{"agent_name":"coder","workspace_path":"/workspace"}`),
+			&req,
+		); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if req.Provider != "" {
+			t.Fatalf("request.Provider = %q, want empty", req.Provider)
+		}
+		if req.WorkspacePath != "/workspace" {
+			t.Fatalf("request = %#v", req)
 		}
 	})
 }

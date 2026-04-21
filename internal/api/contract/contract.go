@@ -13,6 +13,7 @@ import (
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
 	AgentName     string `json:"agent_name,omitempty"`
+	Provider      string `json:"provider,omitempty"`
 	Name          string `json:"name,omitempty"`
 	Workspace     string `json:"workspace,omitempty"`
 	WorkspacePath string `json:"workspace_path,omitempty"`
@@ -31,6 +32,7 @@ type SessionPayload struct {
 	ID            string        `json:"id"`
 	Name          string        `json:"name,omitempty"`
 	AgentName     string        `json:"agent_name"`
+	Provider      string        `json:"provider"`
 	WorkspaceID   string        `json:"workspace_id,omitempty"`
 	WorkspacePath string        `json:"workspace_path,omitempty"`
 	Channel       string        `json:"channel,omitempty"`

@@ -39,6 +39,7 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		ID:            info.ID,
 		Name:          info.Name,
 		AgentName:     info.AgentName,
+		Provider:      info.Provider,
 		WorkspaceID:   ref.WorkspaceID,
 		WorkspacePath: ref.WorkspacePath,
 		Channel:       info.Channel,

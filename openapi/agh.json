@@ -9269,6 +9269,9 @@
                                                             "name": {
                                                                 "type": "string"
                                                             },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            },
                                                             "state": {
                                                                 "enum": [
                                                                     "starting",
@@ -9311,6 +9314,7 @@
                                                             "agent_name",
                                                             "created_at",
                                                             "id",
+                                                            "provider",
                                                             "state",
                                                             "updated_at"
                                                         ],
@@ -9655,6 +9659,9 @@
                                                             "name": {
                                                                 "type": "string"
                                                             },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            },
                                                             "state": {
                                                                 "enum": [
                                                                     "starting",
@@ -9697,6 +9704,7 @@
                                                             "agent_name",
                                                             "created_at",
                                                             "id",
+                                                            "provider",
                                                             "state",
                                                             "updated_at"
                                                         ],
@@ -13926,6 +13934,9 @@
                                                     "name": {
                                                         "type": "string"
                                                     },
+                                                    "provider": {
+                                                        "type": "string"
+                                                    },
                                                     "state": {
                                                         "enum": [
                                                             "starting",
@@ -13968,6 +13979,7 @@
                                                     "agent_name",
                                                     "created_at",
                                                     "id",
+                                                    "provider",
                                                     "state",
                                                     "updated_at"
                                                 ],
@@ -14037,6 +14049,9 @@
                                         "type": "string"
                                     },
                                     "name": {
+                                        "type": "string"
+                                    },
+                                    "provider": {
                                         "type": "string"
                                     },
                                     "workspace": {
@@ -14127,6 +14142,9 @@
                                                 "name": {
                                                     "type": "string"
                                                 },
+                                                "provider": {
+                                                    "type": "string"
+                                                },
                                                 "state": {
                                                     "enum": [
                                                         "starting",
@@ -14169,6 +14187,7 @@
                                                 "agent_name",
                                                 "created_at",
                                                 "id",
+                                                "provider",
                                                 "state",
                                                 "updated_at"
                                             ],
@@ -14400,6 +14419,9 @@
                                                 "name": {
                                                     "type": "string"
                                                 },
+                                                "provider": {
+                                                    "type": "string"
+                                                },
                                                 "state": {
                                                     "enum": [
                                                         "starting",
@@ -14442,6 +14464,7 @@
                                                 "agent_name",
                                                 "created_at",
                                                 "id",
+                                                "provider",
                                                 "state",
                                                 "updated_at"
                                             ],
@@ -15075,6 +15098,9 @@
                                                 "name": {
                                                     "type": "string"
                                                 },
+                                                "provider": {
+                                                    "type": "string"
+                                                },
                                                 "state": {
                                                     "enum": [
                                                         "starting",
@@ -15117,6 +15143,7 @@
                                                 "agent_name",
                                                 "created_at",
                                                 "id",
+                                                "provider",
                                                 "state",
                                                 "updated_at"
                                             ],
@@ -34041,6 +34068,9 @@
                                                     "name": {
                                                         "type": "string"
                                                     },
+                                                    "provider": {
+                                                        "type": "string"
+                                                    },
                                                     "state": {
                                                         "enum": [
                                                             "starting",
@@ -34083,6 +34113,7 @@
                                                     "agent_name",
                                                     "created_at",
                                                     "id",
+                                                    "provider",
                                                     "state",
                                                     "updated_at"
                                                 ],
