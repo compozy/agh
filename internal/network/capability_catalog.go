@@ -238,8 +238,21 @@ func capabilityCatalogAlignsWithCapabilityIDs(
 		return false
 	}
 
-	for idx, capability := range capabilityCatalog {
-		if normalizedIDs[idx] != strings.TrimSpace(capability.ID) {
+	remaining := make(map[string]int, len(normalizedIDs))
+	for _, id := range normalizedIDs {
+		remaining[id]++
+	}
+
+	for _, capability := range capabilityCatalog {
+		id := strings.TrimSpace(capability.ID)
+		if remaining[id] == 0 {
+			return false
+		}
+		remaining[id]--
+	}
+
+	for _, count := range remaining {
+		if count != 0 {
 			return false
 		}
 	}

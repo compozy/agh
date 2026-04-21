@@ -461,16 +461,18 @@ func TestFormatTypeScript(t *testing.T) {
 func TestMarshalOpenAPI(t *testing.T) {
 	t.Parallel()
 
-	content, err := marshalOpenAPI()
-	if err != nil {
-		t.Fatalf("marshalOpenAPI() error = %v", err)
-	}
-	if !bytes.Contains(content, []byte(`"openapi": "3.0.3"`)) {
-		t.Fatalf("marshalOpenAPI() missing version header: %s", string(content))
-	}
-	if !bytes.Contains(content, []byte(`"/api/daemon/status"`)) {
-		t.Fatalf("marshalOpenAPI() missing daemon status route: %s", string(content))
-	}
+	t.Run("ShouldMarshalTheDaemonOpenAPIContract", func(t *testing.T) {
+		content, err := marshalOpenAPI()
+		if err != nil {
+			t.Fatalf("marshalOpenAPI() error = %v", err)
+		}
+		if !bytes.Contains(content, []byte(`"openapi": "3.0.3"`)) {
+			t.Fatalf("marshalOpenAPI() missing version header: %s", string(content))
+		}
+		if !bytes.Contains(content, []byte(`"/api/daemon/status"`)) {
+			t.Fatalf("marshalOpenAPI() missing daemon status route: %s", string(content))
+		}
+	})
 }
 
 func TestGenerateFormattedSDKContracts(t *testing.T) {

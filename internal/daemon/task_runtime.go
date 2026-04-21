@@ -517,15 +517,14 @@ func classifyRecoveredTaskSession(info *session.Info, now time.Time) (string, st
 		if liveness.LastUpdateAt != nil &&
 			!liveness.LastUpdateAt.IsZero() &&
 			now.Sub(liveness.LastUpdateAt.UTC()) >= session.DefaultLivenessStallAfter &&
-			liveness.SubprocessPID > 0 &&
-			procutil.Alive(liveness.SubprocessPID) {
+			taskSessionMatchesRecordedSubprocess(liveness) {
 			return taskRecoveryClassificationStalled, firstTaskRecoveryDetail(
 				liveness.StallReason,
 				store.SessionStallReasonActivityTimeout,
 				info.StopDetail,
 			)
 		}
-		if liveness.SubprocessPID > 0 && procutil.Alive(liveness.SubprocessPID) {
+		if taskSessionMatchesRecordedSubprocess(liveness) {
 			return taskRecoveryClassificationOrphaned, fmt.Sprintf(
 				"subprocess pid %d is still alive without a live daemon owner",
 				liveness.SubprocessPID,
@@ -536,6 +535,16 @@ func classifyRecoveredTaskSession(info *session.Info, now time.Time) (string, st
 		info.StopDetail,
 		"bound session is not live",
 	)
+}
+
+func taskSessionMatchesRecordedSubprocess(liveness *store.SessionLivenessMeta) bool {
+	if liveness == nil || liveness.SubprocessPID <= 0 {
+		return false
+	}
+	if liveness.SubprocessStartedAt == nil || liveness.SubprocessStartedAt.IsZero() {
+		return false
+	}
+	return procutil.MatchesStartTime(liveness.SubprocessPID, *liveness.SubprocessStartedAt)
 }
 
 func firstTaskRecoveryDetail(values ...string) string {

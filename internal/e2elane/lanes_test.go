@@ -163,21 +163,25 @@ func TestPlanForLaneReturnsIndependentGoSuitePackageSlices(t *testing.T) {
 func TestRuntimeLaneIncludesHarnessPackageCoverage(t *testing.T) {
 	t.Parallel()
 
-	plan, err := PlanForLane(LaneRuntime)
-	if err != nil {
-		t.Fatalf("PlanForLane(%q) error = %v", LaneRuntime, err)
-	}
+	t.Run("ShouldIncludeHarnessPackageCoverageInTheRuntimeLane", func(t *testing.T) {
+		t.Parallel()
 
-	found := false
-	for _, suite := range plan.GoSuites {
-		if len(suite.Packages) == 1 && suite.Packages[0] == "./internal/testutil/e2e" {
-			found = true
-			if got, want := suite.Run, HarnessRuntimeE2EPattern; got != want {
-				t.Fatalf("harness suite run pattern = %q, want %q", got, want)
+		plan, err := PlanForLane(LaneRuntime)
+		if err != nil {
+			t.Fatalf("PlanForLane(%q) error = %v", LaneRuntime, err)
+		}
+
+		found := false
+		for _, suite := range plan.GoSuites {
+			if len(suite.Packages) == 1 && suite.Packages[0] == "./internal/testutil/e2e" {
+				found = true
+				if got, want := suite.Run, HarnessRuntimeE2EPattern; got != want {
+					t.Fatalf("harness suite run pattern = %q, want %q", got, want)
+				}
 			}
 		}
-	}
-	if !found {
-		t.Fatalf("runtime lane suites = %#v, want internal/testutil/e2e coverage", plan.GoSuites)
-	}
+		if !found {
+			t.Fatalf("runtime lane suites = %#v, want internal/testutil/e2e coverage", plan.GoSuites)
+		}
+	})
 }

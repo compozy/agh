@@ -38,7 +38,7 @@ func Generate(ctx context.Context, artifact Artifact) error {
 }
 
 // Check regenerates one artifact into a temporary file and fails when the checked-in output differs.
-func Check(ctx context.Context, artifact Artifact) error {
+func Check(ctx context.Context, artifact Artifact) (err error) {
 	file, err := os.CreateTemp("", "openapi-types-*.d.ts")
 	if err != nil {
 		return fmt.Errorf("create temporary output for %q: %w", artifact.OutputPath, err)
@@ -46,7 +46,13 @@ func Check(ctx context.Context, artifact Artifact) error {
 	if err := file.Close(); err != nil {
 		return fmt.Errorf("close temporary output for %q: %w", artifact.OutputPath, err)
 	}
-	defer os.Remove(file.Name())
+	defer func() {
+		removeErr := os.Remove(file.Name())
+		if removeErr == nil || errors.Is(removeErr, os.ErrNotExist) {
+			return
+		}
+		err = errors.Join(err, fmt.Errorf("remove temporary output %q: %w", file.Name(), removeErr))
+	}()
 
 	if err := Generate(ctx, Artifact{
 		SpecPath:   artifact.SpecPath,

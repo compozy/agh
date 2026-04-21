@@ -190,3 +190,19 @@ func TestDecodeWhoisCapabilityCatalogResponseExtPreservesUnifiedFields(t *testin
 		t.Fatalf("decoded catalog = %#v, want %#v", catalog, want)
 	}
 }
+
+func TestCapabilityCatalogAlignsWithCapabilityIDsIgnoresFilterOrder(t *testing.T) {
+	t.Parallel()
+
+	catalog := []sessionpkg.NetworkPeerCapability{
+		{ID: "review-pr"},
+		{ID: "draft-spec"},
+	}
+
+	if !capabilityCatalogAlignsWithCapabilityIDs([]string{"draft-spec", "review-pr"}, catalog) {
+		t.Fatalf("capabilityCatalogAlignsWithCapabilityIDs() = false, want true for reordered filter")
+	}
+	if capabilityCatalogAlignsWithCapabilityIDs([]string{"draft-spec", "unknown"}, catalog) {
+		t.Fatalf("capabilityCatalogAlignsWithCapabilityIDs() = true, want false for mismatched ids")
+	}
+}

@@ -95,7 +95,8 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 
-	promptCtx := context.WithoutCancel(c.Request.Context())
+	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
+	defer cancelPrompt()
 	events, err := h.Sessions.Prompt(promptCtx, c.Param("id"), message)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)

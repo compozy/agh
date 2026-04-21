@@ -14,6 +14,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -300,7 +301,11 @@ func TestPlanTaskRunRecoveryClassifiesCrashedOrphanedAndStalledSessions(t *testi
 
 	now := time.Now().UTC()
 	lastUpdate := now.Add(-session.DefaultLivenessStallAfter - time.Minute)
-	startedAt := now.Add(-5 * time.Minute)
+	startedAt, err := procutil.StartedAt(os.Getpid())
+	if err != nil {
+		t.Fatalf("procutil.StartedAt(self) error = %v", err)
+	}
+	mismatchedStartedAt := startedAt.Add(-time.Hour)
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
@@ -330,6 +335,16 @@ func TestPlanTaskRunRecoveryClassifiesCrashedOrphanedAndStalledSessions(t *testi
 				},
 				StopDetail: "daemon exited while stalled session subprocess remained alive",
 			},
+			{
+				ID:    "sess-reused-pid",
+				State: session.StateStopped,
+				Liveness: &store.SessionLivenessMeta{
+					SubprocessPID:       os.Getpid(),
+					SubprocessStartedAt: &mismatchedStartedAt,
+					LastUpdateAt:        &lastUpdate,
+				},
+				StopDetail: "daemon exited after pid reuse",
+			},
 		},
 	}
 
@@ -356,6 +371,12 @@ func TestPlanTaskRunRecoveryClassifiesCrashedOrphanedAndStalledSessions(t *testi
 			sessionID:          "sess-stalled",
 			wantClassification: taskRecoveryClassificationStalled,
 			wantDetail:         store.SessionStallReasonActivityTimeout,
+		},
+		{
+			name:               "Should treat pid reuse with mismatched start time as crashed",
+			sessionID:          "sess-reused-pid",
+			wantClassification: taskRecoveryClassificationCrashed,
+			wantDetail:         "daemon exited after pid reuse",
 		},
 	}
 

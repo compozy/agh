@@ -318,11 +318,16 @@ func NetworkPeerPayloadFromInfo(peer network.PeerInfo) contract.NetworkPeerPaylo
 }
 
 func networkPeerCardPayload(peer network.PeerInfo) contract.NetworkPeerCardPayload {
+	capabilityCatalog := peer.CapabilityCatalog
+	if !peer.CapabilityCatalogKnown {
+		capabilityCatalog = nil
+	}
+
 	return contract.NetworkPeerCardPayload{
 		PeerID:              peer.PeerCard.PeerID,
 		DisplayName:         peer.PeerCard.DisplayName,
 		ProfilesSupported:   append([]string(nil), peer.PeerCard.ProfilesSupported...),
-		Capabilities:        networkCapabilityBriefPayloads(peer.PeerCard, peer.CapabilityCatalog),
+		Capabilities:        networkCapabilityBriefPayloads(peer.PeerCard, capabilityCatalog),
 		ArtifactsSupported:  append([]string(nil), peer.PeerCard.ArtifactsSupported...),
 		TrustModesSupported: append([]string(nil), peer.PeerCard.TrustModesSupported...),
 		Ext:                 clonePeerCardExtWithoutCapabilityDiscovery(peer.PeerCard.Ext),

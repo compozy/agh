@@ -231,6 +231,39 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			t.Fatalf("payload capability brief with filtered catalog = %#v, want %#v", got, want)
 		}
 	})
+
+	t.Run("Should ignore stale rich catalog entries when the catalog is not known", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.NetworkPeerPayloadFromInfo(network.PeerInfo{
+			PeerID:  "reviewer.sess-d",
+			Channel: "builders",
+			Local:   false,
+			PeerCard: network.PeerCard{
+				PeerID:       "reviewer.sess-d",
+				Capabilities: []string{"review-pr", "ship-release"},
+				Ext: network.ExtensionMap{
+					"agh.capabilities_brief": json.RawMessage(`[
+						{"id":"review-pr","summary":"Review pull requests"},
+						{"id":"ship-release","summary":"Ship releases"}
+					]`),
+				},
+			},
+			CapabilityCatalog: []session.NetworkPeerCapability{{
+				ID:      "review-pr",
+				Summary: "STALE SUMMARY",
+				Outcome: "Actionable review findings",
+			}},
+			CapabilityCatalogKnown: false,
+		})
+
+		if got, want := payload.PeerCard.Capabilities, []contract.NetworkCapabilityBriefPayload{
+			{ID: "review-pr", Summary: "Review pull requests"},
+			{ID: "ship-release", Summary: "Ship releases"},
+		}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("payload capability brief with unknown catalog = %#v, want %#v", got, want)
+		}
+	})
 }
 
 func TestBundleActivationPayloadUsesMaterializedStableIDs(t *testing.T) {

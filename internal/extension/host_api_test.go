@@ -4854,11 +4854,11 @@ Review the workspace changes carefully.
 				continue
 			}
 			if err := sessions.Stop(ctx, info.ID); err != nil && !errors.Is(err, session.ErrSessionNotFound) {
-				t.Fatalf("sessions.Stop(%q) cleanup error = %v", info.ID, err)
+				t.Errorf("sessions.Stop(%q) cleanup error = %v", info.ID, err)
 			}
 		}
 		if err := sessions.WaitForFinalizations(ctx); err != nil {
-			t.Fatalf("sessions.WaitForFinalizations() cleanup error = %v", err)
+			t.Errorf("sessions.WaitForFinalizations() cleanup error = %v", err)
 		}
 	})
 	return env

@@ -238,31 +238,39 @@ func TestAuditWriterPersistsTimelineMessagesForSayEnvelopesOnly(t *testing.T) {
 func TestAuditWriterRecordsCapabilityTransfersAsCapabilityAudits(t *testing.T) {
 	t.Parallel()
 
-	storeSink := &recordingAuditStore{}
-	writer, err := NewAuditWriter("", storeSink)
-	if err != nil {
-		t.Fatalf("NewAuditWriter() error = %v", err)
-	}
-	recordedAt := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
-	writer.now = func() time.Time { return recordedAt }
+	t.Run("ShouldRecordCapabilityTransfersAsCapabilityAudits", func(t *testing.T) {
+		t.Parallel()
 
-	if err := writer.RecordReceived(context.Background(), "sess-audit", testCapabilityAuditEnvelope(t)); err != nil {
-		t.Fatalf("RecordReceived(capability) error = %v", err)
-	}
+		storeSink := &recordingAuditStore{}
+		writer, err := NewAuditWriter("", storeSink)
+		if err != nil {
+			t.Fatalf("NewAuditWriter() error = %v", err)
+		}
+		recordedAt := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
+		writer.now = func() time.Time { return recordedAt }
 
-	if got, want := len(storeSink.entries), 1; got != want {
-		t.Fatalf("len(store entries) = %d, want %d", got, want)
-	}
-	entry := storeSink.entries[0]
-	if got, want := entry.Kind, string(KindCapability); got != want {
-		t.Fatalf("entry.Kind = %q, want %q", got, want)
-	}
-	if got, want := entry.Direction, AuditDirectionReceived; got != want {
-		t.Fatalf("entry.Direction = %q, want %q", got, want)
-	}
-	if got := len(storeSink.messages); got != 0 {
-		t.Fatalf("len(store timeline messages) = %d, want 0 for capability transfers", got)
-	}
+		if err := writer.RecordReceived(
+			context.Background(),
+			"sess-audit",
+			testCapabilityAuditEnvelope(t),
+		); err != nil {
+			t.Fatalf("RecordReceived(capability) error = %v", err)
+		}
+
+		if got, want := len(storeSink.entries), 1; got != want {
+			t.Fatalf("len(store entries) = %d, want %d", got, want)
+		}
+		entry := storeSink.entries[0]
+		if got, want := entry.Kind, string(KindCapability); got != want {
+			t.Fatalf("entry.Kind = %q, want %q", got, want)
+		}
+		if got, want := entry.Direction, AuditDirectionReceived; got != want {
+			t.Fatalf("entry.Direction = %q, want %q", got, want)
+		}
+		if got := len(storeSink.messages); got != 0 {
+			t.Fatalf("len(store timeline messages) = %d, want 0 for capability transfers", got)
+		}
+	})
 }
 
 func TestAuditWriterSkipsTimelineWriteWhenAuditStoreFails(t *testing.T) {

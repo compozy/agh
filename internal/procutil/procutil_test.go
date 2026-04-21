@@ -6,6 +6,7 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestAliveCurrentProcess(t *testing.T) {
@@ -51,5 +52,35 @@ func TestSignalReturnsErrorForMissingProcess(t *testing.T) {
 
 	if err := Signal(999999, syscall.Signal(0)); !errors.Is(err, syscall.ESRCH) {
 		t.Fatalf("Signal(missing pid, 0) error = %v, want ESRCH", err)
+	}
+}
+
+func TestStartedAtCurrentProcess(t *testing.T) {
+	t.Parallel()
+
+	startedAt, err := StartedAt(os.Getpid())
+	if err != nil {
+		t.Fatalf("StartedAt(current pid) error = %v", err)
+	}
+	if startedAt.IsZero() {
+		t.Fatal("StartedAt(current pid) = zero, want non-zero start time")
+	}
+	if startedAt.After(time.Now().UTC().Add(time.Second)) {
+		t.Fatalf("StartedAt(current pid) = %v, want a past timestamp", startedAt)
+	}
+}
+
+func TestMatchesStartTimeCurrentProcess(t *testing.T) {
+	t.Parallel()
+
+	startedAt, err := StartedAt(os.Getpid())
+	if err != nil {
+		t.Fatalf("StartedAt(current pid) error = %v", err)
+	}
+	if !MatchesStartTime(os.Getpid(), startedAt) {
+		t.Fatalf("MatchesStartTime(current pid, %v) = false, want true", startedAt)
+	}
+	if MatchesStartTime(os.Getpid(), startedAt.Add(-time.Hour)) {
+		t.Fatalf("MatchesStartTime(current pid, mismatched start) = true, want false")
 	}
 }

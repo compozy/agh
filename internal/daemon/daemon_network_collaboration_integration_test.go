@@ -352,7 +352,13 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 
 	waitForRuntimeCondition(t, "capability say delivery", 10*time.Second, func() bool {
 		return channelHasMessageID(ctx, harness, "capabilities", "msg_capability_say_01") &&
-			sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("kind", "say"))
+			sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("kind", "say")) &&
+			sessionTranscriptHasNeedle(
+				ctx,
+				harness,
+				curatorSession.ID,
+				attributeNeedle("id", "msg_capability_say_01"),
+			)
 	})
 
 	mustSendNetworkCLI(t, ctx, harness, []string{
