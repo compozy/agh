@@ -6,8 +6,8 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
+	"time"
 
 	aghcontract "github.com/pedronauck/agh/internal/api/contract"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
@@ -41,15 +41,13 @@ func createFixtureBackedSession(
 	if err != nil {
 		t.Fatalf("CreateSession(%q) error = %v", agentName, err)
 	}
+	waitForRuntimeCondition(t, "fixture-backed session visible", 5*time.Second, func() bool {
+		current, err := harness.GetSession(ctx, session.ID)
+		return err == nil && current.ID == session.ID
+	})
 	return session
 }
 
-func joinTranscriptContent(messages []transcript.Message) string {
-	parts := make([]string, 0, len(messages))
-	for _, message := range messages {
-		if strings.TrimSpace(message.Content) != "" {
-			parts = append(parts, message.Content)
-		}
-	}
-	return strings.Join(parts, "\n")
+func joinTranscriptContent(messages []transcript.UIMessage) string {
+	return transcript.JoinUIMessageText(messages)
 }

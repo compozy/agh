@@ -73,6 +73,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 
 	sqlQuery := `SELECT id, name, agent_name, workspace_id, channel, session_type,
 		state, acp_session_id, stop_reason, stop_detail,
+		subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 		environment_id, environment_backend, environment_profile, environment_instance_id,
 		environment_state, environment_provider_state_json,
 		environment_last_sync_at, environment_last_sync_error,
@@ -190,10 +191,11 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		`INSERT INTO sessions (
 			id, name, agent_name, workspace_id, session_type, channel, state,
 			acp_session_id, stop_reason, stop_detail,
+			subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 			environment_id, environment_backend, environment_profile, environment_instance_id,
 			environment_state, environment_provider_state_json,
 			environment_last_sync_at, environment_last_sync_error, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			agent_name = excluded.agent_name,
@@ -204,6 +206,11 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			acp_session_id = excluded.acp_session_id,
 			stop_reason = excluded.stop_reason,
 			stop_detail = excluded.stop_detail,
+			subprocess_pid = excluded.subprocess_pid,
+			subprocess_started_at = excluded.subprocess_started_at,
+			last_update_at = excluded.last_update_at,
+			stall_state = excluded.stall_state,
+			stall_reason = excluded.stall_reason,
 			environment_id = excluded.environment_id,
 			environment_backend = excluded.environment_backend,
 			environment_profile = excluded.environment_profile,
@@ -223,6 +230,11 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		store.NullableStringPointer(session.ACPSessionID),
 		store.NullableString(string(session.StopReason)),
 		store.NullableString(session.StopDetail),
+		sessionLivenessPID(session.Liveness),
+		sessionLivenessStartedAt(session.Liveness),
+		sessionLivenessLastUpdateAt(session.Liveness),
+		sessionLivenessStallState(session.Liveness),
+		sessionLivenessStallReason(session.Liveness),
 		sessionEnvironmentID(session.Environment),
 		sessionEnvironmentBackend(session.Environment),
 		sessionEnvironmentProfile(session.Environment),
@@ -277,6 +289,24 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 		assignments = append(assignments, "stop_reason = ?", "stop_detail = ?")
 		args = append(args, store.NullableStringPointer(update.StopReason), store.NullableString(update.StopDetail))
 	}
+	if update.Liveness != nil {
+		assignments = append(
+			assignments,
+			"subprocess_pid = ?",
+			"subprocess_started_at = ?",
+			"last_update_at = ?",
+			"stall_state = ?",
+			"stall_reason = ?",
+		)
+		args = append(
+			args,
+			sessionLivenessPID(update.Liveness),
+			sessionLivenessStartedAt(update.Liveness),
+			sessionLivenessLastUpdateAt(update.Liveness),
+			sessionLivenessStallState(update.Liveness),
+			sessionLivenessStallReason(update.Liveness),
+		)
+	}
 	if update.Environment != nil {
 		assignments = append(
 			assignments,
@@ -307,79 +337,77 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 	return fmt.Sprintf("UPDATE sessions SET %s WHERE id = ?", strings.Join(assignments, ", ")), args
 }
 
+type sessionInfoRow struct {
+	session              store.SessionInfo
+	name                 sql.NullString
+	channel              string
+	sessionType          string
+	acpSessionID         sql.NullString
+	stopReason           sql.NullString
+	stopDetail           sql.NullString
+	subprocessPID        int
+	subprocessStartedAt  sql.NullString
+	lastUpdateAt         sql.NullString
+	stallState           string
+	stallReason          string
+	envID                string
+	envBackend           string
+	envProfile           string
+	envInstance          string
+	envState             string
+	envProviderStateJSON string
+	envLastSyncAt        sql.NullString
+	envLastSyncError     string
+	createdAtRaw         string
+	updatedAtRaw         string
+}
+
 func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
-	var (
-		session              store.SessionInfo
-		name                 sql.NullString
-		channel              string
-		sessionType          string
-		acpSessionID         sql.NullString
-		stopReason           sql.NullString
-		stopDetail           sql.NullString
-		envID                string
-		envBackend           string
-		envProfile           string
-		envInstance          string
-		envState             string
-		envProviderStateJSON string
-		envLastSyncAt        sql.NullString
-		envLastSyncError     string
-		createdAtRaw         string
-		updatedAtRaw         string
-	)
-	if err := scanner.Scan(
-		&session.ID,
-		&name,
-		&session.AgentName,
-		&session.WorkspaceID,
-		&channel,
-		&sessionType,
-		&session.State,
-		&acpSessionID,
-		&stopReason,
-		&stopDetail,
-		&envID,
-		&envBackend,
-		&envProfile,
-		&envInstance,
-		&envState,
-		&envProviderStateJSON,
-		&envLastSyncAt,
-		&envLastSyncError,
-		&createdAtRaw,
-		&updatedAtRaw,
-	); err != nil {
-		return store.SessionInfo{}, fmt.Errorf("store: scan session info: %w", err)
+	row, err := scanSessionInfoRow(scanner)
+	if err != nil {
+		return store.SessionInfo{}, err
 	}
 
-	if name.Valid {
-		session.Name = name.String
+	session := row.session
+	if row.name.Valid {
+		session.Name = row.name.String
 	}
-	session.Channel = strings.TrimSpace(channel)
-	session.SessionType = store.NormalizeSessionType(sessionType)
-	session.ACPSessionID = store.NullString(acpSessionID)
-	if reason := store.NullString(stopReason); reason != nil {
+	session.Channel = strings.TrimSpace(row.channel)
+	session.SessionType = store.NormalizeSessionType(row.sessionType)
+	session.ACPSessionID = store.NullString(row.acpSessionID)
+	if reason := store.NullString(row.stopReason); reason != nil {
 		session.StopReason = store.StopReason(*reason)
 	}
-	if detail := store.NullString(stopDetail); detail != nil {
+	if detail := store.NullString(row.stopDetail); detail != nil {
 		session.StopDetail = *detail
 	}
+	liveness, err := scanSessionLiveness(
+		row.subprocessPID,
+		row.subprocessStartedAt,
+		row.lastUpdateAt,
+		row.stallState,
+		row.stallReason,
+	)
+	if err != nil {
+		return store.SessionInfo{}, err
+	}
+	session.Liveness = liveness
 	environment, err := scanSessionEnvironment(
-		envID,
-		envBackend,
-		envProfile,
-		envInstance,
-		envState,
-		envProviderStateJSON,
-		envLastSyncAt,
-		envLastSyncError,
+		row.envID,
+		row.envBackend,
+		row.envProfile,
+		row.envInstance,
+		row.envState,
+		row.envProviderStateJSON,
+		row.envLastSyncAt,
+		row.envLastSyncError,
 	)
 	if err != nil {
 		return store.SessionInfo{}, err
 	}
 	session.Environment = environment
 
-	createdAt, updatedAt, err := parseSessionInfoTimestamps(createdAtRaw, updatedAtRaw)
+	createdAt, updatedAt, err := parseSessionInfoTimestamps(row.createdAtRaw, row.updatedAtRaw)
 	if err != nil {
 		return store.SessionInfo{}, err
 	}
@@ -387,6 +415,40 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	session.UpdatedAt = updatedAt
 
 	return session, nil
+}
+
+func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
+	var row sessionInfoRow
+	if err := scanner.Scan(
+		&row.session.ID,
+		&row.name,
+		&row.session.AgentName,
+		&row.session.WorkspaceID,
+		&row.channel,
+		&row.sessionType,
+		&row.session.State,
+		&row.acpSessionID,
+		&row.stopReason,
+		&row.stopDetail,
+		&row.subprocessPID,
+		&row.subprocessStartedAt,
+		&row.lastUpdateAt,
+		&row.stallState,
+		&row.stallReason,
+		&row.envID,
+		&row.envBackend,
+		&row.envProfile,
+		&row.envInstance,
+		&row.envState,
+		&row.envProviderStateJSON,
+		&row.envLastSyncAt,
+		&row.envLastSyncError,
+		&row.createdAtRaw,
+		&row.updatedAtRaw,
+	); err != nil {
+		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)
+	}
+	return row, nil
 }
 
 func scanSessionEnvironment(
@@ -447,11 +509,89 @@ func parseSessionInfoTimestamps(createdAtRaw string, updatedAtRaw string) (time.
 	return createdAt, updatedAt, nil
 }
 
+func scanSessionLiveness(
+	subprocessPID int,
+	subprocessStartedAt sql.NullString,
+	lastUpdateAt sql.NullString,
+	stallState string,
+	stallReason string,
+) (*store.SessionLivenessMeta, error) {
+	if subprocessPID <= 0 &&
+		(!subprocessStartedAt.Valid || strings.TrimSpace(subprocessStartedAt.String) == "") &&
+		(!lastUpdateAt.Valid || strings.TrimSpace(lastUpdateAt.String) == "") &&
+		strings.TrimSpace(stallState) == "" &&
+		strings.TrimSpace(stallReason) == "" {
+		return nil, nil
+	}
+
+	meta := &store.SessionLivenessMeta{
+		SubprocessPID: subprocessPID,
+		StallState:    strings.TrimSpace(stallState),
+		StallReason:   strings.TrimSpace(stallReason),
+	}
+	if subprocessStartedAt.Valid && strings.TrimSpace(subprocessStartedAt.String) != "" {
+		parsed, err := store.ParseTimestamp(subprocessStartedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("store: parse session subprocess started at: %w", err)
+		}
+		meta.SubprocessStartedAt = &parsed
+	}
+	if lastUpdateAt.Valid && strings.TrimSpace(lastUpdateAt.String) != "" {
+		parsed, err := store.ParseTimestamp(lastUpdateAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("store: parse session last update at: %w", err)
+		}
+		meta.LastUpdateAt = &parsed
+	}
+	if err := meta.Validate(); err != nil {
+		return nil, err
+	}
+	return meta, nil
+}
+
 func sessionEnvironmentID(meta *store.SessionEnvironmentMeta) string {
 	if meta == nil {
 		return ""
 	}
 	return strings.TrimSpace(meta.EnvironmentID)
+}
+
+func sessionLivenessPID(meta *store.SessionLivenessMeta) int {
+	if meta == nil {
+		return 0
+	}
+	if meta.SubprocessPID < 0 {
+		return 0
+	}
+	return meta.SubprocessPID
+}
+
+func sessionLivenessStartedAt(meta *store.SessionLivenessMeta) any {
+	if meta == nil || meta.SubprocessStartedAt == nil || meta.SubprocessStartedAt.IsZero() {
+		return nil
+	}
+	return store.FormatTimestamp(meta.SubprocessStartedAt.UTC())
+}
+
+func sessionLivenessLastUpdateAt(meta *store.SessionLivenessMeta) any {
+	if meta == nil || meta.LastUpdateAt == nil || meta.LastUpdateAt.IsZero() {
+		return nil
+	}
+	return store.FormatTimestamp(meta.LastUpdateAt.UTC())
+}
+
+func sessionLivenessStallState(meta *store.SessionLivenessMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return strings.TrimSpace(meta.StallState)
+}
+
+func sessionLivenessStallReason(meta *store.SessionLivenessMeta) string {
+	if meta == nil {
+		return ""
+	}
+	return strings.TrimSpace(meta.StallReason)
 }
 
 func sessionEnvironmentBackend(meta *store.SessionEnvironmentMeta) string {

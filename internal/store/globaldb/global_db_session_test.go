@@ -26,6 +26,11 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'acp-123',
 			'timeout',
 			'deadline exceeded',
+			42,
+			?,
+			?,
+			'stalled',
+			'activity_timeout',
 			'env-scan',
 			'local',
 			'local',
@@ -36,7 +41,9 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'sync failed',
 			?,
 			?`,
+		formatTimestamp(time.Date(2026, 4, 3, 12, 3, 0, 0, time.UTC)),
 		formatTimestamp(time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)),
+		formatTimestamp(time.Date(2026, 4, 3, 12, 4, 30, 0, time.UTC)),
 		formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
 		formatTimestamp(time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)),
 	)
@@ -59,6 +66,18 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 	}
 	if info.Environment == nil {
 		t.Fatal("info.Environment = nil, want environment metadata")
+	}
+	if info.Liveness == nil {
+		t.Fatal("info.Liveness = nil, want liveness metadata")
+	}
+	if got, want := info.Liveness.SubprocessPID, 42; got != want {
+		t.Fatalf("info.Liveness.SubprocessPID = %d, want %d", got, want)
+	}
+	if got, want := info.Liveness.StallState, "stalled"; got != want {
+		t.Fatalf("info.Liveness.StallState = %q, want %q", got, want)
+	}
+	if got, want := info.Liveness.StallReason, "activity_timeout"; got != want {
+		t.Fatalf("info.Liveness.StallReason = %q, want %q", got, want)
 	}
 	if got, want := info.Environment.EnvironmentID, "env-scan"; got != want {
 		t.Fatalf("info.Environment.EnvironmentID = %q, want %q", got, want)
@@ -84,6 +103,11 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			NULL,
 			NULL,
 			NULL,
+			0,
+			NULL,
+			NULL,
+			'',
+			'',
 			'',
 			'local',
 			'',
@@ -132,6 +156,11 @@ func TestScanSessionInfoRejectsInvalidEnvironmentLastSyncAt(t *testing.T) {
 			NULL,
 			NULL,
 			NULL,
+			0,
+			NULL,
+			NULL,
+			'',
+			'',
 			'env-invalid',
 			'local',
 			'local',

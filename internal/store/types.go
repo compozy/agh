@@ -149,6 +149,7 @@ type SessionInfo struct {
 	ACPSessionID *string
 	StopReason   StopReason
 	StopDetail   string
+	Liveness     *SessionLivenessMeta
 	Environment  *SessionEnvironmentMeta
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -166,6 +167,9 @@ func (s SessionInfo) Validate() error {
 		return err
 	}
 	if err := requireField(s.State, "session state"); err != nil {
+		return err
+	}
+	if err := s.Liveness.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -191,6 +195,7 @@ type SessionStateUpdate struct {
 	StopReasonSet bool
 	StopReason    *string
 	StopDetail    string
+	Liveness      *SessionLivenessMeta
 	Environment   *SessionEnvironmentMeta
 	UpdatedAt     time.Time
 }
@@ -201,6 +206,9 @@ func (u SessionStateUpdate) Validate() error {
 		return err
 	}
 	if err := requireField(u.State, "session update state"); err != nil {
+		return err
+	}
+	if err := u.Liveness.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -500,6 +508,7 @@ type SessionMeta struct {
 	StopReason   *StopReason             `json:"stop_reason,omitempty"`
 	StopDetail   string                  `json:"stop_detail,omitempty"`
 	ACPSessionID *string                 `json:"acp_session_id,omitempty"`
+	Liveness     *SessionLivenessMeta    `json:"liveness,omitempty"`
 	Environment  *SessionEnvironmentMeta `json:"environment,omitempty"`
 	CreatedAt    time.Time               `json:"created_at"`
 	UpdatedAt    time.Time               `json:"updated_at"`
@@ -521,6 +530,9 @@ func (m SessionMeta) Validate() error {
 	}
 	if m.StopReason != nil && !ValidStopReason(*m.StopReason) {
 		return fmt.Errorf("store: invalid session stop reason %q", *m.StopReason)
+	}
+	if err := m.Liveness.Validate(); err != nil {
+		return err
 	}
 	return nil
 }

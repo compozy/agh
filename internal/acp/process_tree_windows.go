@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"time"
 )
 
 func configureManagedCommand(_ *exec.Cmd) {}
@@ -28,5 +29,11 @@ func signalManagedProcess(cmd *exec.Cmd, sig os.Signal) error {
 		}
 		return err
 	}
+	return nil
+}
+
+// Windows keeps explicit compile-safe fallback behavior until ACP process-tree
+// parity is implemented for this launcher path.
+func forceManagedProcessGroupExit(_ *exec.Cmd, _ time.Duration) error {
 	return nil
 }

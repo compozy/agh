@@ -387,6 +387,13 @@ func (m *Manager) pumpPrompt(
 
 		normalized := m.normalizeEvent(session, turnState.turnID, event)
 		normalized = m.preparePromptEvent(ctx, turnState, normalized)
+		if session != nil {
+			session.observeACPUpdate(normalized.Timestamp)
+			if err := m.writeMeta(session); err != nil {
+				m.sessionLogger(session).
+					Warn("session: persist liveness update failed", "turn_id", turnState.turnID, "error", err)
+			}
+		}
 		if err := m.recordEvent(ctx, session, normalized); err != nil {
 			m.sessionLogger(session).
 				Warn("session: record prompt event failed", "turn_id", turnState.turnID, "error", err)

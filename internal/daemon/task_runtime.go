@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
@@ -20,6 +22,12 @@ const (
 	taskStopDetailShutdown     = "task shutdown"
 	taskStopDetailOrphaned     = "task run orphaned"
 	taskStopDetailCancellation = "task cancellation"
+
+	taskRecoveryClassificationLive     = "live"
+	taskRecoveryClassificationMissing  = "missing"
+	taskRecoveryClassificationCrashed  = "crashed"
+	taskRecoveryClassificationOrphaned = "orphaned"
+	taskRecoveryClassificationStalled  = "stalled"
 )
 
 type taskStore interface {
@@ -53,6 +61,13 @@ type taskRecoveryStats struct {
 	requeued      int
 	markedRunning int
 	failed        int
+}
+
+type taskSessionRecoveryEvidence struct {
+	live           bool
+	state          string
+	classification string
+	detail         string
 }
 
 var _ taskpkg.SessionExecutor = (*taskSessionBridge)(nil)
@@ -358,48 +373,58 @@ func planTaskRunRecovery(
 		return nil, errors.New("daemon: task recovery requires a session manager")
 	}
 
-	sessionLive, sessionState, err := taskSessionRuntimeState(ctx, sessions, strings.TrimSpace(run.SessionID))
+	evidence, err := inspectTaskSessionRecovery(ctx, sessions, strings.TrimSpace(run.SessionID))
 	if err != nil {
 		return nil, err
 	}
 
 	switch run.Status.Normalize() {
 	case taskpkg.TaskRunStatusClaimed:
-		if sessionLive {
+		if evidence.live {
 			return &taskpkg.RunBootRecovery{
-				Action:       taskpkg.RunBootRecoveryMarkRunning,
-				Reason:       taskRecoveryReasonBoot,
-				SessionState: sessionState,
+				Action:         taskpkg.RunBootRecoveryMarkRunning,
+				Reason:         taskRecoveryReasonBoot,
+				SessionState:   evidence.state,
+				Classification: evidence.classification,
+				Detail:         evidence.detail,
 			}, nil
 		}
 		return &taskpkg.RunBootRecovery{
-			Action:       taskpkg.RunBootRecoveryRequeue,
-			Reason:       taskRecoveryReasonBoot,
-			SessionState: sessionState,
+			Action:         taskpkg.RunBootRecoveryRequeue,
+			Reason:         taskRecoveryReasonBoot,
+			SessionState:   evidence.state,
+			Classification: evidence.classification,
+			Detail:         evidence.detail,
 		}, nil
 
 	case taskpkg.TaskRunStatusStarting:
-		if sessionLive {
+		if evidence.live {
 			return &taskpkg.RunBootRecovery{
-				Action:       taskpkg.RunBootRecoveryMarkRunning,
-				Reason:       taskRecoveryReasonBoot,
-				SessionState: sessionState,
+				Action:         taskpkg.RunBootRecoveryMarkRunning,
+				Reason:         taskRecoveryReasonBoot,
+				SessionState:   evidence.state,
+				Classification: evidence.classification,
+				Detail:         evidence.detail,
 			}, nil
 		}
 		return &taskpkg.RunBootRecovery{
-			Action:       taskpkg.RunBootRecoveryFail,
-			Reason:       taskRecoveryReasonBoot,
-			SessionState: sessionState,
+			Action:         taskpkg.RunBootRecoveryFail,
+			Reason:         taskRecoveryReasonBoot,
+			SessionState:   evidence.state,
+			Classification: evidence.classification,
+			Detail:         evidence.detail,
 		}, nil
 
 	case taskpkg.TaskRunStatusRunning:
-		if sessionLive {
+		if evidence.live {
 			return nil, nil
 		}
 		return &taskpkg.RunBootRecovery{
-			Action:       taskpkg.RunBootRecoveryFail,
-			Reason:       taskRecoveryReasonBoot,
-			SessionState: sessionState,
+			Action:         taskpkg.RunBootRecoveryFail,
+			Reason:         taskRecoveryReasonBoot,
+			SessionState:   evidence.state,
+			Classification: evidence.classification,
+			Detail:         evidence.detail,
 		}, nil
 
 	default:
@@ -412,22 +437,11 @@ func taskSessionRuntimeState(
 	sessions taskBridgeSessionManager,
 	sessionID string,
 ) (bool, string, error) {
-	trimmedID := strings.TrimSpace(sessionID)
-	if trimmedID == "" {
-		return false, taskRecoverySessionMissing, nil
-	}
-
-	info, err := sessions.Status(ctx, trimmedID)
+	evidence, err := inspectTaskSessionRecovery(ctx, sessions, sessionID)
 	if err != nil {
-		if errors.Is(err, session.ErrSessionNotFound) {
-			return false, taskRecoverySessionMissing, nil
-		}
 		return false, "", err
 	}
-	if info == nil {
-		return false, taskRecoverySessionMissing, nil
-	}
-	return isTaskSessionStateLive(info.State), string(info.State), nil
+	return evidence.live, evidence.state, nil
 }
 
 func isTaskSessionStateLive(state session.State) bool {
@@ -437,6 +451,100 @@ func isTaskSessionStateLive(state session.State) bool {
 	default:
 		return false
 	}
+}
+
+func inspectTaskSessionRecovery(
+	ctx context.Context,
+	sessions taskBridgeSessionManager,
+	sessionID string,
+) (taskSessionRecoveryEvidence, error) {
+	trimmedID := strings.TrimSpace(sessionID)
+	if trimmedID == "" {
+		return taskSessionRecoveryEvidence{
+			state:          taskRecoverySessionMissing,
+			classification: taskRecoveryClassificationMissing,
+			detail:         "run has no bound session",
+		}, nil
+	}
+
+	info, err := sessions.Status(ctx, trimmedID)
+	if err != nil {
+		if errors.Is(err, session.ErrSessionNotFound) {
+			return taskSessionRecoveryEvidence{
+				state:          taskRecoverySessionMissing,
+				classification: taskRecoveryClassificationMissing,
+				detail:         "bound session metadata is missing",
+			}, nil
+		}
+		return taskSessionRecoveryEvidence{}, err
+	}
+	if info == nil {
+		return taskSessionRecoveryEvidence{
+			state:          taskRecoverySessionMissing,
+			classification: taskRecoveryClassificationMissing,
+			detail:         "bound session metadata is missing",
+		}, nil
+	}
+
+	evidence := taskSessionRecoveryEvidence{
+		live:  isTaskSessionStateLive(info.State),
+		state: string(info.State),
+	}
+	if evidence.state == "" {
+		evidence.state = taskRecoverySessionMissing
+	}
+	if evidence.live {
+		evidence.classification = taskRecoveryClassificationLive
+		return evidence, nil
+	}
+
+	evidence.classification, evidence.detail = classifyRecoveredTaskSession(info, time.Now().UTC())
+	return evidence, nil
+}
+
+func classifyRecoveredTaskSession(info *session.Info, now time.Time) (string, string) {
+	if info == nil {
+		return taskRecoveryClassificationMissing, "session metadata is unavailable"
+	}
+	if liveness := info.Liveness; liveness != nil {
+		if strings.TrimSpace(liveness.StallState) == store.SessionStallStateDetected {
+			return taskRecoveryClassificationStalled, firstTaskRecoveryDetail(
+				liveness.StallReason,
+				info.StopDetail,
+				"session liveness monitor marked the process stalled",
+			)
+		}
+		if liveness.LastUpdateAt != nil &&
+			!liveness.LastUpdateAt.IsZero() &&
+			now.Sub(liveness.LastUpdateAt.UTC()) >= session.DefaultLivenessStallAfter &&
+			liveness.SubprocessPID > 0 &&
+			procutil.Alive(liveness.SubprocessPID) {
+			return taskRecoveryClassificationStalled, firstTaskRecoveryDetail(
+				liveness.StallReason,
+				store.SessionStallReasonActivityTimeout,
+				info.StopDetail,
+			)
+		}
+		if liveness.SubprocessPID > 0 && procutil.Alive(liveness.SubprocessPID) {
+			return taskRecoveryClassificationOrphaned, fmt.Sprintf(
+				"subprocess pid %d is still alive without a live daemon owner",
+				liveness.SubprocessPID,
+			)
+		}
+	}
+	return taskRecoveryClassificationCrashed, firstTaskRecoveryDetail(
+		info.StopDetail,
+		"bound session is not live",
+	)
+}
+
+func firstTaskRecoveryDetail(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func taskSessionName(spec *taskpkg.StartTaskSession) string {

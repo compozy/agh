@@ -125,6 +125,7 @@ type Observer struct {
 }
 
 var _ session.Notifier = (*Observer)(nil)
+var _ session.AgentEventNotifier = (*Observer)(nil)
 
 // WithRegistry injects the global registry implementation used by observe/.
 func WithRegistry(registry Registry) Option {
@@ -435,6 +436,7 @@ func (o *Observer) OnSessionStopped(ctx context.Context, sess *session.Session) 
 		StopReasonSet: true,
 		StopReason:    stringPointer(string(info.StopReason)),
 		StopDetail:    info.StopDetail,
+		Liveness:      store.CloneSessionLivenessMeta(info.Liveness),
 		Environment:   cloneSessionEnvironmentMeta(info.Environment),
 		UpdatedAt:     info.UpdatedAt,
 	}); err != nil {
@@ -458,6 +460,38 @@ func (o *Observer) OnSessionStopped(ctx context.Context, sess *session.Session) 
 
 // OnAgentEvent records one lightweight cross-session event summary and any derived aggregates.
 func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, payload any) {
+	o.observeAgentEvent(ctx, strings.TrimSpace(sessionID), payload)
+}
+
+// OnAgentEventForSession records event summaries and refreshes the indexed
+// liveness state for the active session.
+func (o *Observer) OnAgentEventForSession(ctx context.Context, sess *session.Session, payload any) {
+	if sess == nil {
+		return
+	}
+	info := sess.Info()
+	if info == nil {
+		return
+	}
+	if err := o.registry.UpdateSessionState(ctx, store.SessionStateUpdate{
+		ID:           info.ID,
+		State:        string(info.State),
+		ACPSessionID: stringPointer(info.ACPSessionID),
+		Liveness:     store.CloneSessionLivenessMeta(info.Liveness),
+		Environment:  cloneSessionEnvironmentMeta(info.Environment),
+		UpdatedAt:    info.UpdatedAt,
+	}); err != nil {
+		o.logger.Warn(
+			"observe: update session liveness failed",
+			"session_id", info.ID,
+			"state", info.State,
+			"error", err,
+		)
+	}
+	o.observeAgentEvent(ctx, info.ID, payload)
+}
+
+func (o *Observer) observeAgentEvent(ctx context.Context, sessionID string, payload any) {
 	event, ok := normalizeObservedAgentEvent(payload)
 	if !ok {
 		o.logger.Warn("observe: skipped unsupported agent event payload", "session_id", strings.TrimSpace(sessionID))
@@ -760,6 +794,7 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 		ACPSessionID: stringPointer(info.ACPSessionID),
 		StopReason:   info.StopReason,
 		StopDetail:   info.StopDetail,
+		Liveness:     store.CloneSessionLivenessMeta(info.Liveness),
 		Environment:  cloneSessionEnvironmentMeta(info.Environment),
 		CreatedAt:    info.CreatedAt,
 		UpdatedAt:    info.UpdatedAt,

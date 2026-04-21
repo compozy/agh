@@ -988,6 +988,12 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 		WorkspaceID: workspaceID,
 		Channel:     "builders",
 		State:       "active",
+		Liveness: &store.SessionLivenessMeta{
+			SubprocessPID: 77,
+			LastUpdateAt:  ptrTime(time.Date(2026, 4, 3, 13, 1, 0, 0, time.UTC)),
+			StallState:    store.SessionStallStateDetected,
+			StallReason:   store.SessionStallReasonActivityTimeout,
+		},
 		Environment: &store.SessionEnvironmentMeta{
 			EnvironmentID: "env-workspace-id",
 			Backend:       "local",
@@ -1029,6 +1035,15 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	if got, want := sessions[0].Environment.LastSyncError, "last sync failed"; got != want {
 		t.Fatalf("sessions[0].Environment.LastSyncError = %q, want %q", got, want)
 	}
+	if sessions[0].Liveness == nil {
+		t.Fatal("sessions[0].Liveness = nil, want liveness metadata")
+	}
+	if got, want := sessions[0].Liveness.SubprocessPID, 77; got != want {
+		t.Fatalf("sessions[0].Liveness.SubprocessPID = %d, want %d", got, want)
+	}
+	if got, want := sessions[0].Liveness.StallReason, store.SessionStallReasonActivityTimeout; got != want {
+		t.Fatalf("sessions[0].Liveness.StallReason = %q, want %q", got, want)
+	}
 
 	assertTableColumns(
 		t,
@@ -1045,6 +1060,11 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"acp_session_id",
 			"stop_reason",
 			"stop_detail",
+			"subprocess_pid",
+			"subprocess_started_at",
+			"last_update_at",
+			"stall_state",
+			"stall_reason",
 			"environment_id",
 			"environment_backend",
 			"environment_profile",
@@ -1205,6 +1225,11 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"environment_last_sync_error",
 			"created_at",
 			"updated_at",
+			"subprocess_pid",
+			"subprocess_started_at",
+			"last_update_at",
+			"stall_state",
+			"stall_reason",
 		},
 	)
 	assertTableColumns(
@@ -1903,6 +1928,11 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"stop_reason",
 			"stop_detail",
 			"channel",
+			"subprocess_pid",
+			"subprocess_started_at",
+			"last_update_at",
+			"stall_state",
+			"stall_reason",
 			"environment_id",
 			"environment_backend",
 			"environment_profile",
@@ -2125,6 +2155,11 @@ func stringPointerForTest(value string) *string {
 	}
 
 	copyValue := value
+	return &copyValue
+}
+
+func ptrTime(value time.Time) *time.Time {
+	copyValue := value.UTC()
 	return &copyValue
 }
 

@@ -246,6 +246,57 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 	}
 }
 
+func TestManagerStatusRepairsInterruptedSessionAsStalledWhenLiveSubprocessIsStale(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	meta, err := store.ReadSessionMeta(session.MetaPath())
+	if err != nil {
+		t.Fatalf("ReadSessionMeta() error = %v", err)
+	}
+	lastUpdate := time.Now().UTC().Add(-DefaultLivenessStallAfter - time.Minute)
+	startedAt := time.Now().UTC().Add(-10 * time.Minute)
+	meta.State = string(StateActive)
+	meta.StopReason = nil
+	meta.StopDetail = ""
+	meta.Liveness = &store.SessionLivenessMeta{
+		SubprocessPID:       os.Getpid(),
+		SubprocessStartedAt: &startedAt,
+		LastUpdateAt:        &lastUpdate,
+	}
+	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+		t.Fatalf("WriteSessionMeta() error = %v", err)
+	}
+
+	info, err := h.manager.Status(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Status(stalled) error = %v", err)
+	}
+	if got, want := info.State, StateStopped; got != want {
+		t.Fatalf("Status(stalled).State = %q, want %q", got, want)
+	}
+	if got, want := info.StopReason, store.StopAgentCrashed; got != want {
+		t.Fatalf("Status(stalled).StopReason = %q, want %q", got, want)
+	}
+	if got, want := info.StopDetail, resumeStopDetailAgentStalled; got != want {
+		t.Fatalf("Status(stalled).StopDetail = %q, want %q", got, want)
+	}
+	if info.Liveness == nil {
+		t.Fatal("Status(stalled).Liveness = nil, want liveness metadata")
+	}
+	if got, want := info.Liveness.StallState, store.SessionStallStateDetected; got != want {
+		t.Fatalf("Status(stalled).Liveness.StallState = %q, want %q", got, want)
+	}
+	if got, want := info.Liveness.StallReason, store.SessionStallReasonActivityTimeout; got != want {
+		t.Fatalf("Status(stalled).Liveness.StallReason = %q, want %q", got, want)
+	}
+}
+
 func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 	t.Parallel()
 
