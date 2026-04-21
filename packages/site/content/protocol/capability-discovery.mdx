@@ -1,26 +1,32 @@
 ---
 title: Capability Discovery
-description: Wire-level reference for AGH Network capability advertisement in Peer Cards and rich catalog retrieval through whois envelope extensions.
+description: Wire-level reference for AGH Network capability advertisement in Peer Cards, rich catalog retrieval through whois envelope extensions, and the relationship with capability transfer.
 ---
 
-Capability discovery lets one peer advertise outcome-oriented offerings and lets other peers ask
-for richer detail on demand. It is a thin layer on top of the existing `greet` and `whois` message
-kinds, using namespaced envelope extensions so that runtimes that do not know these keys still
-route correctly.
+A capability is the single AGH delegation artifact. The same structured capability model feeds
+three distinct protocol roles:
+
+- brief discovery in `greet` through `peer_card.capabilities` and `peer_card.ext["agh.capabilities_brief"]`
+- rich discovery in `whois` through the envelope-level `ext["agh.capability_catalog"]`
+- explicit transfer through [`kind:"capability"`](/protocol/message-kinds/#capability)
+
+Capability discovery is a thin layer on top of `greet` and `whois`, using namespaced envelope
+extensions so that runtimes that do not know these keys still route correctly. Receivers that want
+the full document — including the canonical digest and optional execution hints — can either request
+a rich `whois` response or receive a `capability` envelope from a peer.
 
 This page is normative unless a section is marked as an example.
 
-## Two discovery views
+## Three protocol roles for one concept
 
-Capability discovery defines two views over the same runtime-local catalog:
-
-| View  | Trigger                                              | Surface                                                     | Payload                                               |
-| ----- | ---------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------- |
-| Brief | Always emitted when a catalog exists.                | `peer_card.capabilities` and `peer_card.ext["agh.capabilities_brief"]`. | Capability IDs and one-line summaries.                |
-| Rich  | Opt-in via `agh.include` on a `whois` request.       | Response envelope `ext["agh.capability_catalog"]`.          | Full capability records with outcomes and optionals.  |
+| Role     | Trigger                                              | Surface                                                                  | Payload                                               |
+| -------- | ---------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
+| Brief    | Always emitted when a catalog exists.                | `peer_card.capabilities` and `peer_card.ext["agh.capabilities_brief"]`.  | Capability IDs and one-line summaries.                |
+| Rich     | Opt-in via `agh.include` on a `whois` request.       | Response envelope `ext["agh.capability_catalog"]`.                       | Full capability records with outcomes and optionals.  |
+| Transfer | Sender emits a [`capability` envelope](/protocol/message-kinds/#capability). | `body.capability` on a `kind:"capability"` envelope. | One full capability document with canonical `digest`. |
 
 The full catalog never rides inside `peer_card.ext`. It is always scoped to an explicit `whois`
-exchange so that routine peer cards remain small.
+exchange or a `capability` envelope so that routine peer cards remain small.
 
 ## Brief discovery
 
@@ -47,7 +53,7 @@ the peer can perform the work, and brief projections never carry the outcome or 
   "display_name": "Designer",
   "profiles_supported": ["agh-network/v0"],
   "capabilities": ["build-site", "review-copy"],
-  "artifacts_supported": ["text/markdown"],
+  "artifacts_supported": ["capability"],
   "trust_modes_supported": ["unverified"],
   "ext": {
     "agh.capabilities_brief": [
@@ -92,6 +98,8 @@ The payload shape is:
       "id": "build-site",
       "summary": "Build the landing page.",
       "outcome": "A finished landing page.",
+      "version": "1.0.0",
+      "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
       "context_needed": ["repo"],
       "execution_outline": ["Inspect", "Build"]
     }
@@ -102,8 +110,11 @@ The payload shape is:
 Field rules for each entry:
 
 - `id`, `summary`, and `outcome` are always present.
-- `context_needed`, `artifacts_expected`, `execution_outline`, `constraints`, and `examples` are
-  optional and MUST be omitted when empty.
+- `version`, `digest`, `context_needed`, `artifacts_expected`, `execution_outline`, `constraints`,
+  `examples`, and `requirements` are optional and MUST be omitted when empty.
+- `digest` is the canonical digest computed from the structured capability document and MUST match
+  the digest carried by a subsequent [`kind:"capability"`](/protocol/message-kinds/#capability)
+  transfer of the same record.
 - Entries appear in catalog order. Filtering preserves that order.
 
 ### Response rules
@@ -159,7 +170,7 @@ Field rules for each entry:
       "peer_id": "designer.session-19",
       "profiles_supported": ["agh-network/v0"],
       "capabilities": ["build-site", "review-copy"],
-      "artifacts_supported": ["text/markdown"],
+      "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"],
       "ext": {
         "agh.capabilities_brief": [
@@ -176,6 +187,8 @@ Field rules for each entry:
           "id": "build-site",
           "summary": "Build the landing page.",
           "outcome": "A finished landing page.",
+          "version": "1.0.0",
+          "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
           "context_needed": ["repo", "brand brief"],
           "execution_outline": ["Inspect", "Build"],
           "constraints": ["No mocks"]
@@ -186,6 +199,26 @@ Field rules for each entry:
   "proof": null
 }
 ```
+
+## Explicit transfer through `kind:"capability"`
+
+Discovery advertises what a peer claims to offer. When a caller needs the authoritative, digest-bound
+record — to cache, sign, adapt, or delegate — the sender emits a
+[`kind:"capability"`](/protocol/message-kinds/#capability) envelope that carries the full structured
+document under `body.capability`.
+
+Rules:
+
+- A `capability` envelope and a rich `whois` response that return the same capability MUST agree on
+  `id`, `summary`, `outcome`, and `digest`.
+- Receivers SHOULD verify `capability.digest` against the canonical structured document before
+  caching or forwarding it. A mismatch MUST be treated as `verification_failed`.
+- A `capability` envelope MAY open or continue an interaction when `interaction_id` is present,
+  inheriting the same lifecycle rules as `direct`.
+
+Discovery and transfer therefore cover different needs over one concept: discovery is lightweight
+hint metadata scoped to peer cards and `whois`, and transfer is the digest-bound hand-off of the
+same structured capability record.
 
 ## Interop rules
 
@@ -212,6 +245,8 @@ messages, so that newer capability metadata can travel unchanged through older r
 
 - [Peer Discovery](/protocol/peer-discovery) covers how `PeerCard` carries capability IDs in
   `greet` and `whois` responses.
+- [Message Kinds](/protocol/message-kinds/#capability) documents the `kind:"capability"` envelope
+  that transfers a full structured capability artifact.
 - [Interaction Lifecycle](/protocol/interactions) describes the directed work a caller opens after
   choosing a capability.
 - [Agent Capabilities](/runtime/core/agents/capabilities) documents how AGH Runtime authors and

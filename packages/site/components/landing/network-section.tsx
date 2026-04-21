@@ -38,7 +38,7 @@ export function NetworkSection() {
             <code className="font-mono text-(--color-accent)">whois</code>,{" "}
             <code className="font-mono text-(--color-accent)">say</code>,{" "}
             <code className="font-mono text-(--color-accent)">direct</code>,{" "}
-            <code className="font-mono text-(--color-accent)">recipe</code>,{" "}
+            <code className="font-mono text-(--color-accent)">capability</code>,{" "}
             <code className="font-mono text-(--color-accent)">receipt</code>,{" "}
             <code className="font-mono text-(--color-accent)">trace</code>. Your agent discovers a
             peer, selects a channel, and hands off work with an explicit target and message kind.

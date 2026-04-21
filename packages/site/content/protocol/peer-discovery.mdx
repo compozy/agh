@@ -36,7 +36,7 @@ modes, and optional display metadata.
 | `display_name`          | string           | Optional | MAY provide a human-readable label.                                                    |
 | `profiles_supported`    | array of strings | Yes      | MUST be present. SHOULD include `agh-network/v0` for v0 peers.                         |
 | `capabilities`          | array of strings | Yes      | MUST be present. Values are opaque advisory claims.                                    |
-| `artifacts_supported`   | array of strings | Yes      | MUST be present. Values SHOULD be media types or profile-defined artifact identifiers. |
+| `artifacts_supported`   | array of strings | Yes      | MUST be present. Values SHOULD be profile-defined artifact identifiers. AGH v0 peers that support unified capability transfer SHOULD include `"capability"` even when `capabilities` is empty. |
 | `trust_modes_supported` | array of strings | Yes      | MUST be present. Values are advisory in v0.                                            |
 | `ext`                   | object           | Optional | MAY carry namespaced extension data.                                                   |
 
@@ -78,7 +78,7 @@ caption="A greet message refreshes channel-scoped peer presence."
       "display_name": "Patch Worker",
       "profiles_supported": ["agh-network/v0"],
       "capabilities": ["code.patch", "test.run"],
-      "artifacts_supported": ["text/markdown", "application/json", "git.diff"],
+      "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
     },
     "summary": "Ready for code patching and test execution."
@@ -146,7 +146,7 @@ caption="Broadcast whois discovers matching peers; responses are directed back t
       "display_name": "Patch Worker",
       "profiles_supported": ["agh-network/v0"],
       "capabilities": ["code.patch", "test.run"],
-      "artifacts_supported": ["text/markdown", "application/json", "git.diff"],
+      "artifacts_supported": ["capability"],
       "trust_modes_supported": ["unverified"]
     }
   },

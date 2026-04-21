@@ -22,7 +22,7 @@ This page is normative unless a section is marked as an example.
 
 Terminal states are authoritative. After an interaction reaches `completed`, `failed`, or
 `canceled`, later non-terminal updates MUST NOT move it back to an active state. A later `direct` or
-`recipe` in that interaction MAY be rejected with `interaction_closed`.
+`capability` in that interaction MAY be rejected with `interaction_closed`.
 
 <Mermaid
   chart={`stateDiagram-v2
@@ -47,9 +47,9 @@ Terminal states are authoritative. After an interaction reaches `completed`, `fa
 ## Opening work with directed work
 
 A directed `direct` message with a new `interaction_id` opens an interaction between the sender and
-target. A directed `recipe` with `interaction_id` MAY also open an interaction when the sender is
-handing a portable artifact to one peer. The target SHOULD reply with a `receipt` when it accepts or
-rejects responsibility.
+target. A directed `capability` with `interaction_id` MAY also open an interaction when the sender
+is handing a full capability artifact to one peer. The target SHOULD reply with a `receipt` when it
+accepts or rejects responsibility.
 
 <Mermaid
   chart={`sequenceDiagram
@@ -66,10 +66,10 @@ caption="A request-response interaction uses direct, receipt, and trace messages
 
 ### Rules
 
-- The first directed `direct` or directed `recipe` message establishes the initiator and target.
+- The first directed `direct` or directed `capability` message establishes the initiator and target.
 - Only the initiator and target MAY emit lifecycle messages for that interaction.
 - A `direct` message MUST include `to` and `interaction_id`.
-- A `recipe` message MUST include `to` when it is meant to participate in a directed interaction.
+- A `capability` message MUST include `to` when it is meant to participate in a directed interaction.
 - A `receipt` or `trace` message MUST include `interaction_id`.
 - A receiver SHOULD emit `receipt(accepted)` when it accepts responsibility.
 - A receiver SHOULD emit `receipt(rejected)` with a reason code when it refuses responsibility.

@@ -26,7 +26,7 @@ AGH Network gives that coordination a wire format. It lets a runtime say:
 - "Send this request to that peer in this channel."
 - "This interaction is accepted, rejected, working, waiting for input, completed, failed, or
   canceled."
-- "Here is a reusable recipe artifact another agent can inspect or adapt."
+- "Here is a reusable capability artifact another agent can inspect, adapt, or run."
 
 That boundary is deliberately smaller than a workflow engine and larger than a raw chat message. It
 is enough structure for interoperable work without forcing a universal orchestration model.
@@ -51,7 +51,7 @@ messages to its own session model.
 | Envelope      | Wraps every message in a stable JSON wire format.                            | `protocol`, `id`, `kind`, `channel`, `from`, `to`, timestamps, correlation fields, `body`, `proof`, and `ext`. |
 | Peer          | Identifies an agent runtime participant inside a channel.                    | Peer IDs use lowercase letters, digits, dots, underscores, and hyphens.                                        |
 | Channel       | Scopes discovery, routing, and interactions.                                 | Channel names match `[a-z0-9][a-z0-9_-]{0,63}`.                                                                |
-| Message kinds | Define the seven protocol actions.                                           | `greet`, `whois`, `say`, `direct`, `recipe`, `receipt`, `trace`.                                               |
+| Message kinds | Define the seven protocol actions.                                           | `greet`, `whois`, `say`, `direct`, `capability`, `receipt`, `trace`.                                           |
 | Interactions  | Correlate delegated work and progress.                                       | `interaction_id` scopes receipts, direct follow-ups, and trace updates.                                        |
 | Discovery     | Lets peers announce and query capability claims.                             | `greet` advertises a Peer Card with brief capabilities; `whois` asks for matching peers and optionally the rich catalog. |
 | Delivery      | Defines expectations without pretending to guarantee exactly-once messaging. | Receivers deduplicate, expire stale messages, and use receipts where useful.                                   |
@@ -112,7 +112,7 @@ Start here when you want working interop quickly:
 Add these when you need explicit responsibility and progress:
 
 4. Add `receipt` and `trace`.
-5. Add `recipe` when agents need portable, reusable task artifacts.
+5. Add `capability` when agents need to transfer portable, reusable capability artifacts.
 
 ### Conformance claim
 

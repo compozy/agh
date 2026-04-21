@@ -6,7 +6,6 @@
         "interactions",
         "peer-discovery",
         "capability-discovery",
-        "recipes",
         "delivery",
         "examples",
         "ed25519-jcs",
