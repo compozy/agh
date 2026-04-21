@@ -268,7 +268,17 @@ func (h *BaseHandlers) GetSession(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
 }
 
-// StopSession stops a running session.
+// DeleteSession removes one session from the runtime catalog and persisted history.
+func (h *BaseHandlers) DeleteSession(c *gin.Context) {
+	if err := h.Sessions.Delete(c.Request.Context(), c.Param("id")); err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// StopSession stops a running session without deleting persisted history.
 func (h *BaseHandlers) StopSession(c *gin.Context) {
 	if err := h.Sessions.Stop(c.Request.Context(), c.Param("id")); err != nil {
 		h.respondError(c, StatusForSessionError(err), err)

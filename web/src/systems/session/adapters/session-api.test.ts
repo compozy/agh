@@ -11,6 +11,7 @@ import {
   cancelSessionPrompt,
   clearSessionConversation,
   createSession,
+  deleteSession,
   fetchSession,
   fetchSessionEvents,
   fetchSessionTranscript,
@@ -200,14 +201,14 @@ describe("fetchSession", () => {
 });
 
 describe("stopSession", () => {
-  it("calls DELETE endpoint", async () => {
+  it("calls POST stop endpoint", async () => {
     mockEmptyResponse();
 
     await stopSession("sess-001");
 
     await expectFetchRequest({
-      method: "DELETE",
-      path: "/api/sessions/sess-001",
+      method: "POST",
+      path: "/api/sessions/sess-001/stop",
     });
   });
 
@@ -221,6 +222,33 @@ describe("stopSession", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
     await expect(stopSession("sess-001")).rejects.toThrow('Failed to stop session "sess-001": 500');
+  });
+});
+
+describe("deleteSession", () => {
+  it("calls DELETE endpoint", async () => {
+    mockEmptyResponse();
+
+    await deleteSession("sess-001");
+
+    await expectFetchRequest({
+      method: "DELETE",
+      path: "/api/sessions/sess-001",
+    });
+  });
+
+  it("throws 404 error for unknown session", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(deleteSession("unknown")).rejects.toThrow("Session not found: unknown");
+  });
+
+  it("throws generic error for other failures", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
+    await expect(deleteSession("sess-001")).rejects.toThrow(
+      'Failed to delete session "sess-001": 500'
+    );
   });
 });
 

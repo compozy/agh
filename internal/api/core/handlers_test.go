@@ -49,6 +49,12 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			info.UpdatedAt = now
 			return info, nil
 		},
+		DeleteFn: func(_ context.Context, id string) error {
+			if id != "sess-a" {
+				t.Fatalf("Delete id = %q, want sess-a", id)
+			}
+			return nil
+		},
 		StopFn: func(_ context.Context, id string) error {
 			if id != "sess-a" {
 				t.Fatalf("Stop id = %q, want sess-a", id)
@@ -139,8 +145,18 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("ShouldDeleteSession", func(t *testing.T) {
+		deleteResp := performRequest(t, fixture.Engine, http.MethodDelete, "/sessions/sess-a", nil)
+		if deleteResp.Code != http.StatusNoContent {
+			t.Fatalf("delete status = %d, want %d", deleteResp.Code, http.StatusNoContent)
+		}
+		if got := deleteResp.Body.String(); got != "" {
+			t.Fatalf("delete body = %q, want empty", got)
+		}
+	})
+
 	t.Run("ShouldStopSession", func(t *testing.T) {
-		stopResp := performRequest(t, fixture.Engine, http.MethodDelete, "/sessions/sess-a", nil)
+		stopResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions/sess-a/stop", nil)
 		if stopResp.Code != http.StatusNoContent {
 			t.Fatalf("stop status = %d, want %d", stopResp.Code, http.StatusNoContent)
 		}

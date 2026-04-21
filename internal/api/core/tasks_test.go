@@ -390,6 +390,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	var listedQuery taskpkg.Query
 	var createdSpec taskpkg.CreateTask
 	var childSpec taskpkg.CreateTask
+	var deletedTaskID string
 	var updatedPatch taskpkg.Patch
 	var cancelledTask taskpkg.CancelTask
 	var addedDependency taskpkg.AddDependency
@@ -531,6 +532,10 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 				UpdatedAt:    now,
 				ParentTaskID: parentTaskID,
 			}, nil
+		},
+		DeleteTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) error {
+			deletedTaskID = id
+			return nil
 		},
 		AddDependencyFn: func(_ context.Context, spec taskpkg.AddDependency, _ taskpkg.ActorContext) error {
 			addedDependency = spec
@@ -678,6 +683,11 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	resp = performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1", nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("get status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+
+	resp = performRequest(t, fixture.Engine, http.MethodDelete, "/tasks/task-1", nil)
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d, want %d; body=%s", resp.Code, http.StatusNoContent, resp.Body.String())
 	}
 
 	resp = performRequest(
@@ -843,6 +853,9 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	if childSpec.WorkspaceID != "ws-alpha" || childSpec.Title != "Child task" {
 		t.Fatalf("child spec = %#v", childSpec)
 	}
+	if deletedTaskID != "task-1" {
+		t.Fatalf("deleted task id = %q, want %q", deletedTaskID, "task-1")
+	}
 	if updatedPatch.Title == nil || *updatedPatch.Title != "Renamed task" {
 		t.Fatalf("updated patch = %#v", updatedPatch)
 	}
@@ -902,6 +915,7 @@ func TestBaseHandlersTaskActorResolverErrors(t *testing.T) {
 		{method: http.MethodGet, path: "/tasks"},
 		{method: http.MethodPost, path: "/tasks", body: []byte(`{"scope":"global","title":"Review task API"}`)},
 		{method: http.MethodGet, path: "/tasks/task-1"},
+		{method: http.MethodDelete, path: "/tasks/task-1"},
 		{method: http.MethodPatch, path: "/tasks/task-1", body: []byte(`{"title":"Renamed task"}`)},
 		{method: http.MethodPost, path: "/tasks/task-1/cancel", body: []byte(`{}`)},
 		{

@@ -71,6 +71,18 @@ describe("TasksDetailHeader", () => {
     expect(onEnqueueRun).toHaveBeenCalledTimes(1);
   });
 
+  it("opens a confirmation dialog before deleting the task", () => {
+    const onDelete = vi.fn();
+
+    render(<TasksDetailHeader detail={buildDetail()} onDelete={onDelete} />);
+
+    fireEvent.click(screen.getByTestId("tasks-detail-delete"));
+    expect(screen.getByTestId("tasks-detail-delete-dialog")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tasks-detail-delete-confirm"));
+    expect(onDelete).toHaveBeenCalledWith("task_001");
+  });
+
   it("surfaces the publish button for draft tasks", () => {
     const onPublish = vi.fn();
     render(<TasksDetailHeader detail={buildDetail({ status: "draft" })} onPublish={onPublish} />);
@@ -85,12 +97,15 @@ describe("TasksDetailHeader", () => {
       <TasksDetailHeader
         detail={buildDetail({ status: "in_progress" })}
         isCancelPending
+        isDeletePending
         isEnqueuePending
+        onDelete={() => {}}
         onCancel={() => {}}
         onEnqueueRun={() => {}}
       />
     );
 
+    expect(screen.getByTestId("tasks-detail-delete")).toBeDisabled();
     expect(screen.getByTestId("tasks-detail-cancel")).toBeDisabled();
     expect(screen.getByTestId("tasks-detail-enqueue")).toBeDisabled();
   });

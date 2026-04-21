@@ -9,6 +9,7 @@ import {
   useCancelTask,
   useCancelTaskRun,
   useCreateTask,
+  useDeleteTask,
   useDismissTask,
   useEnqueueTaskRun,
   useFailTaskRun,
@@ -20,6 +21,7 @@ import {
 
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   createTask: vi.fn(),
+  deleteTask: vi.fn(),
   updateTask: vi.fn(),
   publishTask: vi.fn(),
   cancelTask: vi.fn(),
@@ -46,6 +48,7 @@ import {
   cancelTask,
   cancelTaskRun,
   createTask,
+  deleteTask,
   dismissTask,
   enqueueTaskRun,
   failTaskRun,
@@ -119,6 +122,30 @@ describe("task mutation hooks", () => {
 
     expect(updateTask).toHaveBeenCalledWith("task_001", { title: "Next" });
     expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
+  });
+
+  it("removes task detail cache and invalidates aggregates when deleting a task", async () => {
+    vi.mocked(deleteTask).mockResolvedValue(undefined);
+
+    const queryClient = buildClient();
+    queryClient.setQueryData(["tasks", "detail", "task_001"], taskFixture);
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const removeSpy = vi.spyOn(queryClient, "removeQueries");
+
+    const { result } = renderHook(() => useDeleteTask(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({ id: "task_001" });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(deleteTask).toHaveBeenCalledWith("task_001");
+    expect(removeSpy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["tasks", "dashboard"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["tasks", "inbox"] });
   });
 
   it("invalidates task surfaces after publish, cancel, approve, reject", async () => {

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -260,6 +261,46 @@ func (m *Service) CreateChildTask(
 		return nil, err
 	}
 	return child, nil
+}
+
+// DeleteTask removes one task after verifying it is not still in use by child
+// tasks or non-terminal runs, then reconciles any dependents unblocked by the
+// cascade-deleted dependency edges.
+func (m *Service) DeleteTask(ctx context.Context, id string, actor ActorContext) error {
+	if err := requireWriteAuthority(actor); err != nil {
+		return err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+
+	record, err := m.store.GetTask(ctx, trimmedID)
+	if err != nil {
+		return err
+	}
+	if err := m.ensureTaskDeleteAllowed(ctx, record); err != nil {
+		return err
+	}
+
+	dependents, err := m.store.ListDependents(ctx, trimmedID)
+	if err != nil {
+		return err
+	}
+	dependentIDs := uniqueDependentTaskIDs(dependents)
+
+	if err := m.store.DeleteTask(ctx, trimmedID); err != nil {
+		return err
+	}
+
+	for _, dependentID := range dependentIDs {
+		if _, err := m.reconcileTaskCascade(ctx, dependentID); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // UpdateTask applies one mutable patch while preserving immutable identity and
@@ -2152,6 +2193,58 @@ func runComesAfter(left Run, right Run) bool {
 	default:
 		return left.ID > right.ID
 	}
+}
+
+func (m *Service) ensureTaskDeleteAllowed(ctx context.Context, record Task) error {
+	childCount, err := m.store.CountDirectChildren(ctx, record.ID)
+	if err != nil {
+		return err
+	}
+	if childCount > 0 {
+		return fmt.Errorf(
+			"%w: task %q has %d child tasks; delete children first",
+			ErrValidation,
+			record.ID,
+			childCount,
+		)
+	}
+
+	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
+	if err != nil {
+		return err
+	}
+	if hasOpenRun(runs) {
+		return fmt.Errorf(
+			"%w: task %q has active or queued runs; cancel or finish them first",
+			ErrValidation,
+			record.ID,
+		)
+	}
+
+	return nil
+}
+
+func uniqueDependentTaskIDs(dependents []Dependency) []string {
+	if len(dependents) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(dependents))
+	ids := make([]string, 0, len(dependents))
+	for _, dependent := range dependents {
+		taskID := strings.TrimSpace(dependent.TaskID)
+		if taskID == "" {
+			continue
+		}
+		if _, ok := seen[taskID]; ok {
+			continue
+		}
+		seen[taskID] = struct{}{}
+		ids = append(ids, taskID)
+	}
+
+	sort.Strings(ids)
+	return ids
 }
 
 func (m *Service) hasUnresolvedDependencies(ctx context.Context, dependencies []Dependency) (bool, error) {

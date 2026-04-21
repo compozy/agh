@@ -16,7 +16,7 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-func TestCreateGetResumeAndStopHandlersReturnExpectedErrors(t *testing.T) {
+func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
 		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
@@ -27,6 +27,9 @@ func TestCreateGetResumeAndStopHandlersReturnExpectedErrors(t *testing.T) {
 		},
 		ResumeFn: func(context.Context, string) (*session.Session, error) {
 			return nil, session.ErrSessionNotFound
+		},
+		DeleteFn: func(context.Context, string) error {
+			return session.ErrSessionNotFound
 		},
 		StopFn: func(context.Context, string) error {
 			return session.ErrSessionNotFound
@@ -55,7 +58,12 @@ func TestCreateGetResumeAndStopHandlersReturnExpectedErrors(t *testing.T) {
 		t.Fatalf("resume status = %d, want %d", resumeResp.Code, http.StatusNotFound)
 	}
 
-	stopResp := performRequest(t, engine, http.MethodDelete, "/api/sessions/missing", nil)
+	deleteResp := performRequest(t, engine, http.MethodDelete, "/api/sessions/missing", nil)
+	if deleteResp.Code != http.StatusNotFound {
+		t.Fatalf("delete status = %d, want %d", deleteResp.Code, http.StatusNotFound)
+	}
+
+	stopResp := performRequest(t, engine, http.MethodPost, "/api/sessions/missing/stop", nil)
 	if stopResp.Code != http.StatusNotFound {
 		t.Fatalf("stop status = %d, want %d", stopResp.Code, http.StatusNotFound)
 	}

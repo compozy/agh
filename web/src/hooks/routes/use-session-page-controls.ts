@@ -5,15 +5,26 @@ import { toast } from "sonner";
 import { cancelSessionPrompt } from "@/systems/session/adapters/session-api";
 import {
   useClearSessionConversation,
+  useDeleteSession,
   useResumeSession,
   useStopSession,
 } from "@/systems/session/hooks/use-session-actions";
 import type { SessionPayload } from "@/systems/session/types";
 
-export function useSessionPageControls(sessionId: string, sessionState: SessionPayload["state"]) {
+interface UseSessionPageControlsOptions {
+  onDeleteSuccess?: () => void;
+}
+
+export function useSessionPageControls(
+  sessionId: string,
+  sessionState: SessionPayload["state"],
+  options: UseSessionPageControlsOptions = {}
+) {
   const aui = useAui();
+  const onDeleteSuccess = options.onDeleteSuccess;
   const messages = useAuiState(state => state.thread.messages);
   const isRunning = useAuiState(state => state.thread.isRunning);
+  const deleteMutation = useDeleteSession();
   const stopMutation = useStopSession();
   const resumeMutation = useResumeSession();
   const clearMutation = useClearSessionConversation();
@@ -49,6 +60,23 @@ export function useSessionPageControls(sessionId: string, sessionState: SessionP
     resumeMutation.mutate(sessionId);
   }, [resumeMutation, sessionId]);
 
+  const handleDelete = useCallback(() => {
+    if (deleteMutation.isPending) {
+      return;
+    }
+
+    deleteMutation.mutate(sessionId, {
+      onSuccess: () => {
+        aui.thread().reset();
+        toast.success("Session deleted.");
+        onDeleteSuccess?.();
+      },
+      onError: error => {
+        toast.error(error instanceof Error ? error.message : "Failed to delete session");
+      },
+    });
+  }, [aui, deleteMutation, onDeleteSuccess, sessionId]);
+
   const handleClear = useCallback(() => {
     if (clearMutation.isPending) {
       return;
@@ -63,8 +91,9 @@ export function useSessionPageControls(sessionId: string, sessionState: SessionP
 
   const isStopping = stopMutation.isPending || isCancellingPrompt;
   const isResuming = resumeMutation.isPending;
+  const isDeleting = deleteMutation.isPending;
   const isClearing = clearMutation.isPending;
-  const controlsBusy = isStopping || isResuming || isClearing;
+  const controlsBusy = isStopping || isResuming || isDeleting || isClearing;
   const canClear = messages.length > 0 && !controlsBusy && !isRunning;
 
   return {
@@ -72,9 +101,11 @@ export function useSessionPageControls(sessionId: string, sessionState: SessionP
     canPrompt,
     handleCancelPrompt,
     handleClear,
+    handleDelete,
     handleResume,
     handleStop,
     isClearing,
+    isDeleting,
     isResuming,
     isStopping,
     messages,

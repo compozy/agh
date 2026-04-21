@@ -864,8 +864,8 @@ export interface paths {
     get: operations["getSession"];
     put?: never;
     post?: never;
-    /** Stop a session */
-    delete: operations["stopSession"];
+    /** Delete one session and remove it from persisted history */
+    delete: operations["deleteSession"];
     options?: never;
     head?: never;
     patch?: never;
@@ -933,6 +933,23 @@ export interface paths {
     put?: never;
     /** Resume a stopped session */
     post: operations["resumeSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{id}/stop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Stop a session without deleting persisted history */
+    post: operations["stopSession"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1508,7 +1525,8 @@ export interface paths {
     get: operations["getTask"];
     put?: never;
     post?: never;
-    delete?: never;
+    /** Delete one task */
+    delete: operations["deleteTask"];
     options?: never;
     head?: never;
     /** Update one task */
@@ -9077,7 +9095,7 @@ export interface operations {
       };
     };
   };
-  stopSession: {
+  deleteSession: {
     parameters: {
       query?: never;
       header?: never;
@@ -9445,6 +9463,55 @@ export interface operations {
             };
           };
         };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  stopSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description Session not found */
       404: {
@@ -15312,6 +15379,77 @@ export interface operations {
         };
       };
       /** @description Invalid task id */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task delete */
       422: {
         headers: {
           [name: string]: unknown;

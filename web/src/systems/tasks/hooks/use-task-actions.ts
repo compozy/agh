@@ -11,6 +11,7 @@ import {
   completeTaskRun,
   createChildTask,
   createTask,
+  deleteTask,
   dismissTask,
   enqueueTaskRun,
   failTaskRun,
@@ -148,6 +149,22 @@ export function useUpdateTask() {
         invalidateTaskQueries(queryClient, id),
         invalidateAggregateQueries(queryClient),
       ]),
+  });
+}
+
+export function useDeleteTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: TaskIdParams) => deleteTask(id),
+    onSettled: (_result, _error, { id }) => {
+      queryClient.removeQueries({ queryKey: tasksKeys.detail(id) });
+
+      return Promise.all([
+        invalidateTaskQueries(queryClient, id),
+        invalidateAggregateQueries(queryClient),
+      ]);
+    },
   });
 }
 

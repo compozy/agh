@@ -34,6 +34,9 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 		ResumeFn: func(context.Context, string) (*session.Session, error) {
 			return nil, session.ErrSessionNotFound
 		},
+		DeleteFn: func(context.Context, string) error {
+			return session.ErrSessionNotFound
+		},
 		StopFn: func(context.Context, string) error {
 			return session.ErrSessionNotFound
 		},

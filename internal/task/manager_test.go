@@ -186,6 +186,48 @@ func (s *inMemoryManagerStore) CreateTask(_ context.Context, taskRecord Task) er
 	return nil
 }
 
+func (s *inMemoryManagerStore) DeleteTask(_ context.Context, id string) error {
+	taskID := strings.TrimSpace(id)
+	if _, exists := s.tasks[taskID]; !exists {
+		return ErrTaskNotFound
+	}
+
+	delete(s.tasks, taskID)
+	delete(s.dependencies, taskID)
+	delete(s.triageStates, taskID)
+
+	for dependentID, edges := range s.dependencies {
+		delete(edges, taskID)
+		if len(edges) == 0 {
+			delete(s.dependencies, dependentID)
+		}
+	}
+
+	for runID, run := range s.runs {
+		if run.TaskID == taskID {
+			delete(s.runs, runID)
+		}
+	}
+
+	filteredEvents := s.events[:0]
+	for _, event := range s.events {
+		if event.TaskID == taskID {
+			delete(s.eventSequenceByID, event.ID)
+			continue
+		}
+		filteredEvents = append(filteredEvents, event)
+	}
+	s.events = filteredEvents
+
+	for key, record := range s.idempotencyByKey {
+		if run, ok := s.runs[record.RunID]; !ok || run.TaskID == taskID {
+			delete(s.idempotencyByKey, key)
+		}
+	}
+
+	return nil
+}
+
 func (s *inMemoryManagerStore) UpdateTask(_ context.Context, taskRecord Task) error {
 	if _, exists := s.tasks[taskRecord.ID]; !exists {
 		return ErrTaskNotFound

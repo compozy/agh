@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let routeParams = { id: "task_abc" };
 let childMatches: Array<{ id: string }> = [];
+const navigateMock = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => {
@@ -17,6 +18,7 @@ vi.mock("@tanstack/react-router", () => ({
   }),
   Outlet: () => <div data-testid="tasks-detail-outlet" />,
   useChildMatches: () => childMatches,
+  useNavigate: () => navigateMock,
 }));
 
 const treeWithDescendantFixture = {
@@ -151,6 +153,7 @@ describe("TaskDetailRoute", () => {
   beforeEach(() => {
     routeParams = { id: "task_abc" };
     childMatches = [];
+    navigateMock.mockReset();
     vi.mocked(getTask).mockResolvedValue(detailFixture as never);
   });
 

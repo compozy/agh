@@ -4138,6 +4138,13 @@ func (f *fakeSessionManager) Stop(_ context.Context, id string) error {
 	return nil
 }
 
+func (f *fakeSessionManager) Delete(ctx context.Context, id string) error {
+	if err := f.Stop(ctx, id); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (f *fakeSessionManager) StopWithCause(_ context.Context, id string, cause session.StopCause, detail string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -4935,6 +4942,10 @@ func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
 }
 
 func (r *recordingRegistry) UpdateTask(context.Context, taskpkg.Task) error {
+	return nil
+}
+
+func (r *recordingRegistry) DeleteTask(context.Context, string) error {
 	return nil
 }
 

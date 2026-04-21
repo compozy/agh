@@ -134,6 +134,24 @@ export async function getTask(id: string, signal?: AbortSignal): Promise<TaskDet
   return requireResponseData(data, response, `Failed to fetch task "${id}"`).task;
 }
 
+export async function deleteTask(id: string, signal?: AbortSignal): Promise<void> {
+  const { error, response } = await apiClient.DELETE("/api/tasks/{id}", {
+    params: { path: { id } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new TasksApiError(`Task not found: ${id}`, 404);
+    }
+
+    throw new TasksApiError(
+      defaultApiErrorMessage(`Failed to delete task "${id}"`, response, error),
+      response.status
+    );
+  }
+}
+
 export async function createTask(
   body: CreateTaskRequest,
   signal?: AbortSignal

@@ -86,7 +86,9 @@ function TasksRoute() {
     <TasksDetailPreviewPanel
       detail={detailQuery.data ?? null}
       errorMessage={detailQuery.error?.message ?? null}
+      isDeletePending={page.isDeletePending}
       isLoading={detailQuery.isLoading && !detailQuery.data}
+      onDeleteTask={page.handleDeleteTask}
       isPublishPending={page.isPublishPending}
       onPublishTask={page.handlePublishTask}
       task={page.selectedTask}

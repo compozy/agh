@@ -10,6 +10,7 @@ import (
 type Manager interface {
 	CreateTask(ctx context.Context, spec CreateTask, actor ActorContext) (*Task, error)
 	CreateChildTask(ctx context.Context, parentTaskID string, spec CreateTask, actor ActorContext) (*Task, error)
+	DeleteTask(ctx context.Context, id string, actor ActorContext) error
 	UpdateTask(ctx context.Context, id string, patch Patch, actor ActorContext) (*Task, error)
 	PublishTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
 	ApproveTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
@@ -40,6 +41,7 @@ type Manager interface {
 // RecordStore is the persistence surface for durable task records.
 type RecordStore interface {
 	CreateTask(ctx context.Context, task Task) error
+	DeleteTask(ctx context.Context, id string) error
 	UpdateTask(ctx context.Context, task Task) error
 	GetTask(ctx context.Context, id string) (Task, error)
 	ListTasks(ctx context.Context, query Query) ([]Summary, error)

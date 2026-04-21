@@ -18,15 +18,18 @@ import {
   taskStatusTone,
 } from "../lib/task-formatters";
 import type { TaskDetailView, TaskListItem, TaskRecord } from "../types";
+import { TaskDeleteAction } from "./task-delete-action";
 
 export interface TasksDetailPreviewPanelProps {
   task: TaskListItem | null;
   detail: TaskDetailView | null;
   isLoading?: boolean;
   errorMessage?: string | null;
+  onDeleteTask?: (taskId: string) => void;
   onCancelTask?: (taskId: string) => void;
   onEnqueueRun?: (taskId: string) => void;
   onPublishTask?: (taskId: string) => void;
+  isDeletePending?: boolean;
   isPublishPending?: boolean;
 }
 
@@ -55,9 +58,11 @@ export function TasksDetailPreviewPanel({
   detail,
   isLoading = false,
   errorMessage = null,
+  onDeleteTask,
   onCancelTask,
   onEnqueueRun,
   onPublishTask,
+  isDeletePending = false,
   isPublishPending = false,
 }: TasksDetailPreviewPanelProps) {
   if (!task) {
@@ -163,6 +168,18 @@ export function TasksDetailPreviewPanel({
               Edit
             </Button>
           </Link>
+          {onDeleteTask ? (
+            <TaskDeleteAction
+              taskId={record.id}
+              taskTitle={record.title}
+              onDelete={onDeleteTask}
+              isPending={isDeletePending}
+              triggerTestId="tasks-detail-preview-delete"
+              dialogTestId="tasks-detail-preview-delete-dialog"
+              cancelTestId="tasks-detail-preview-delete-cancel"
+              confirmTestId="tasks-detail-preview-delete-confirm"
+            />
+          ) : null}
           {isDraft && onPublishTask ? (
             <Button
               data-testid="tasks-detail-preview-publish"

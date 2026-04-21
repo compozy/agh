@@ -4,9 +4,11 @@ import {
   clearSessionConversation,
   createSession,
   type CreateSessionParams,
+  deleteSession,
   resumeSession,
   stopSession,
 } from "../adapters/session-api";
+import { useSessionStore } from "./use-session-store";
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionPayload } from "../types";
 
@@ -64,6 +66,23 @@ export function useStopSession() {
     mutationFn: (id: string) => stopSession(id),
     onSettled: (_data, _error, id) => {
       queryClient.invalidateQueries({ queryKey: sessionKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+    },
+  });
+}
+
+export function useDeleteSession() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => deleteSession(id),
+    onSuccess: (_data, id) => {
+      useSessionStore.getState().clearDraft(id);
+    },
+    onSettled: (_data, _error, id) => {
+      queryClient.removeQueries({ queryKey: sessionKeys.detail(id) });
+      queryClient.removeQueries({ queryKey: sessionKeys.history(id) });
+      queryClient.removeQueries({ queryKey: sessionKeys.transcript(id) });
       queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });

@@ -99,6 +99,26 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 	return nil
 }
 
+// DeleteTask removes one durable task record and any ON DELETE CASCADE children
+// owned by the task tables.
+func (g *GlobalDB) DeleteTask(ctx context.Context, id string) error {
+	if err := g.checkReady(ctx, "delete task"); err != nil {
+		return err
+	}
+
+	trimmedID, err := requireTaskValue(id, "task id")
+	if err != nil {
+		return err
+	}
+
+	result, err := g.db.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, trimmedID)
+	if err != nil {
+		return fmt.Errorf("store: delete task %q: %w", trimmedID, err)
+	}
+
+	return requireRowsAffected(result, taskpkg.ErrTaskNotFound, trimmedID, "task")
+}
+
 // UpdateTask replaces the persisted canonical task record.
 func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task) error {
 	if err := g.checkReady(ctx, "update task"); err != nil {

@@ -632,7 +632,13 @@ func (h *RuntimeHarness) GetSession(
 
 // StopSession stops one session through the operator surface.
 func (h *RuntimeHarness) StopSession(ctx context.Context, sessionID string) error {
-	response, err := doRequest(ctx, h.UDSClient, h.UDSURL("/api/sessions/"+sessionID), http.MethodDelete, nil)
+	response, err := doRequest(
+		ctx,
+		h.UDSClient,
+		h.UDSURL("/api/sessions/"+sessionID+"/stop"),
+		http.MethodPost,
+		nil,
+	)
 	if err != nil {
 		return err
 	}

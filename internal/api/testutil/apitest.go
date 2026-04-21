@@ -51,6 +51,7 @@ type StubSessionManager struct {
 	EventsFn        func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	HistoryFn       func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
 	TranscriptFn    func(context.Context, string) ([]transcript.UIMessage, error)
+	DeleteFn        func(context.Context, string) error
 	StopFn          func(context.Context, string) error
 	StopWithCauseFn func(context.Context, string, session.StopCause, string) error
 	ResumeFn        func(context.Context, string) (*session.Session, error)
@@ -122,6 +123,13 @@ func (s StubSessionManager) Transcript(ctx context.Context, id string) ([]transc
 		return s.TranscriptFn(ctx, id)
 	}
 	return nil, nil
+}
+
+func (s StubSessionManager) Delete(ctx context.Context, id string) error {
+	if s.DeleteFn != nil {
+		return s.DeleteFn(ctx, id)
+	}
+	return nil
 }
 
 func (s StubSessionManager) Stop(ctx context.Context, id string) error {
@@ -227,6 +235,7 @@ type StubAutomationManager struct {
 type StubTaskManager struct {
 	CreateTaskFn       func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
 	CreateChildTaskFn  func(context.Context, string, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
+	DeleteTaskFn       func(context.Context, string, taskpkg.ActorContext) error
 	UpdateTaskFn       func(context.Context, string, taskpkg.Patch, taskpkg.ActorContext) (*taskpkg.Task, error)
 	PublishTaskFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
 	ApproveTaskFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
@@ -521,6 +530,17 @@ func (s StubTaskManager) CreateChildTask(
 		return s.CreateChildTaskFn(ctx, parentTaskID, spec, actor)
 	}
 	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) DeleteTask(
+	ctx context.Context,
+	id string,
+	actor taskpkg.ActorContext,
+) error {
+	if s.DeleteTaskFn != nil {
+		return s.DeleteTaskFn(ctx, id, actor)
+	}
+	return taskpkg.ErrTaskNotFound
 }
 
 func (s StubTaskManager) UpdateTask(
