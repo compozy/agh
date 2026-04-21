@@ -122,19 +122,17 @@ func sessionMetaChanged(before store.SessionMeta, after store.SessionMeta) bool 
 }
 
 func sessionLivenessEqual(left *store.SessionLivenessMeta, right *store.SessionLivenessMeta) bool {
-	lhs := store.CloneSessionLivenessMeta(left)
-	rhs := store.CloneSessionLivenessMeta(right)
 	switch {
-	case lhs == nil && rhs == nil:
+	case left == nil && right == nil:
 		return true
-	case lhs == nil || rhs == nil:
+	case left == nil || right == nil:
 		return false
 	}
-	return lhs.SubprocessPID == rhs.SubprocessPID &&
-		timesEqual(lhs.SubprocessStartedAt, rhs.SubprocessStartedAt) &&
-		timesEqual(lhs.LastUpdateAt, rhs.LastUpdateAt) &&
-		lhs.StallState == rhs.StallState &&
-		lhs.StallReason == rhs.StallReason
+	return left.SubprocessPID == right.SubprocessPID &&
+		timesEqual(left.SubprocessStartedAt, right.SubprocessStartedAt) &&
+		timesEqual(left.LastUpdateAt, right.LastUpdateAt) &&
+		strings.TrimSpace(left.StallState) == strings.TrimSpace(right.StallState) &&
+		strings.TrimSpace(left.StallReason) == strings.TrimSpace(right.StallReason)
 }
 
 func timesEqual(left *time.Time, right *time.Time) bool {

@@ -301,14 +301,17 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 
 	proc := session.processHandle()
 	if proc == nil {
-		return errors.New("session: agent process is not available")
+		return nil
 	}
 
 	cancelErr := m.driver.Cancel(ctx, proc)
-	if cancelErr != nil && !isProcessDone(proc) {
+	if cancelErr != nil {
+		if isProcessDone(proc) {
+			return nil
+		}
 		return fmt.Errorf("session: cancel prompt for %q: %w", target, cancelErr)
 	}
-	return cancelErr
+	return nil
 }
 
 // ApprovePermission resolves one pending interactive permission request for an active session.

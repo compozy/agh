@@ -119,295 +119,299 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 func TestRoutersExchangeBroadcastCapabilityTransfers(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(testutil.Context(t), 10*time.Second)
-	defer cancel()
+	t.Run("Should exchange broadcast capability transfers", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 10*time.Second)
+		defer cancel()
 
-	transport, err := NewTransport(ctx, testNetworkConfig())
-	if err != nil {
-		t.Fatalf("NewTransport() error = %v", err)
-	}
-	t.Cleanup(func() {
-		_ = transport.Shutdown(context.Background())
-	})
-
-	now := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
-	registryA, err := NewPeerRegistry(time.Second)
-	if err != nil {
-		t.Fatalf("NewPeerRegistry(A) error = %v", err)
-	}
-	registryB, err := NewPeerRegistry(time.Second)
-	if err != nil {
-		t.Fatalf("NewPeerRegistry(B) error = %v", err)
-	}
-
-	peerA := mustPeerCard(t, "coder.sess-a")
-	peerB := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registryA.RegisterLocal("sess-a", "builders", peerA, now); err != nil {
-		t.Fatalf("RegisterLocal(A) error = %v", err)
-	}
-	if _, err := registryB.RegisterLocal("sess-b", "builders", peerB, now); err != nil {
-		t.Fatalf("RegisterLocal(B) error = %v", err)
-	}
-
-	routerA, err := NewRouter(registryA, transport, DefaultMaxReplayAge)
-	if err != nil {
-		t.Fatalf("NewRouter(A) error = %v", err)
-	}
-	routerB, err := NewRouter(registryB, transport, DefaultMaxReplayAge)
-	if err != nil {
-		t.Fatalf("NewRouter(B) error = %v", err)
-	}
-
-	resultsA := make(chan RouteResult, 16)
-	resultsB := make(chan RouteResult, 16)
-	errCh := make(chan error, 4)
-
-	subscriptions := subscribeRouter(t, transport, routerA, peerA.PeerID, "builders", resultsA, errCh)
-	subscriptions = append(subscriptions, subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", resultsB, errCh)...)
-	for _, subscription := range subscriptions {
-		subscription := subscription
-		t.Cleanup(func() {
-			_ = subscription.Unsubscribe()
-		})
-	}
-
-	if _, err := routerA.PublishGreet(ctx, "sess-a", "ready"); err != nil {
-		t.Fatalf("routerA.PublishGreet() error = %v", err)
-	}
-	if _, err := routerB.PublishGreet(ctx, "sess-b", "ready"); err != nil {
-		t.Fatalf("routerB.PublishGreet() error = %v", err)
-	}
-
-	waitForRouterCondition(t, ctx, func() bool {
-		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC()) &&
-			registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
-	}, "peer discovery")
-
-	if _, err := routerA.Send(ctx, SendRequest{
-		SessionID: "sess-a",
-		Channel:   "builders",
-		Kind:      KindCapability,
-		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
-			ID:               "review-fix",
-			Summary:          "Review fix flow",
-			Outcome:          "A reusable review fix workflow.",
-			Version:          "1.0.0",
-			ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
-			Requirements:     []string{"workspace-write"},
-		}),
-	}); err != nil {
-		t.Fatalf("routerA.Send(capability broadcast) error = %v", err)
-	}
-
-	resultA := waitForDelivery(t, ctx, resultsA, "sess-a", KindCapability)
-	resultB := waitForDelivery(t, ctx, resultsB, "sess-b", KindCapability)
-	for _, result := range []RouteResult{resultA, resultB} {
-		if got, want := len(result.Deliveries), 1; got != want {
-			t.Fatalf("len(capability broadcast deliveries) = %d, want %d", got, want)
-		}
-		decoded, err := result.Deliveries[0].Envelope.DecodeBody()
+		transport, err := NewTransport(ctx, testNetworkConfig())
 		if err != nil {
-			t.Fatalf("DecodeBody(capability broadcast) error = %v", err)
+			t.Fatalf("NewTransport() error = %v", err)
 		}
-		body := decoded.(CapabilityBody)
-		if got, want := body.Capability.ID, "review-fix"; got != want {
-			t.Fatalf("capability broadcast id = %q, want %q", got, want)
-		}
-	}
+		t.Cleanup(func() {
+			_ = transport.Shutdown(context.Background())
+		})
 
-	select {
-	case receiveErr := <-errCh:
-		t.Fatalf("router subscription error = %v", receiveErr)
-	default:
-	}
+		now := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
+		registryA, err := NewPeerRegistry(time.Second)
+		if err != nil {
+			t.Fatalf("NewPeerRegistry(A) error = %v", err)
+		}
+		registryB, err := NewPeerRegistry(time.Second)
+		if err != nil {
+			t.Fatalf("NewPeerRegistry(B) error = %v", err)
+		}
+
+		peerA := mustPeerCard(t, "coder.sess-a")
+		peerB := mustPeerCard(t, "reviewer.sess-b")
+		if _, err := registryA.RegisterLocal("sess-a", "builders", peerA, now); err != nil {
+			t.Fatalf("RegisterLocal(A) error = %v", err)
+		}
+		if _, err := registryB.RegisterLocal("sess-b", "builders", peerB, now); err != nil {
+			t.Fatalf("RegisterLocal(B) error = %v", err)
+		}
+
+		routerA, err := NewRouter(registryA, transport, DefaultMaxReplayAge)
+		if err != nil {
+			t.Fatalf("NewRouter(A) error = %v", err)
+		}
+		routerB, err := NewRouter(registryB, transport, DefaultMaxReplayAge)
+		if err != nil {
+			t.Fatalf("NewRouter(B) error = %v", err)
+		}
+
+		resultsA := make(chan RouteResult, 16)
+		resultsB := make(chan RouteResult, 16)
+		errCh := make(chan error, 4)
+
+		subscriptions := subscribeRouter(t, transport, routerA, peerA.PeerID, "builders", resultsA, errCh)
+		subscriptions = append(subscriptions, subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", resultsB, errCh)...)
+		for _, subscription := range subscriptions {
+			subscription := subscription
+			t.Cleanup(func() {
+				_ = subscription.Unsubscribe()
+			})
+		}
+
+		if _, err := routerA.PublishGreet(ctx, "sess-a", "ready"); err != nil {
+			t.Fatalf("routerA.PublishGreet() error = %v", err)
+		}
+		if _, err := routerB.PublishGreet(ctx, "sess-b", "ready"); err != nil {
+			t.Fatalf("routerB.PublishGreet() error = %v", err)
+		}
+
+		waitForRouterCondition(t, ctx, func() bool {
+			return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC()) &&
+				registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
+		}, "peer discovery")
+
+		if _, err := routerA.Send(ctx, SendRequest{
+			SessionID: "sess-a",
+			Channel:   "builders",
+			Kind:      KindCapability,
+			Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
+				ID:               "review-fix",
+				Summary:          "Review fix flow",
+				Outcome:          "A reusable review fix workflow.",
+				Version:          "1.0.0",
+				ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
+				Requirements:     []string{"workspace-write"},
+			}),
+		}); err != nil {
+			t.Fatalf("routerA.Send(capability broadcast) error = %v", err)
+		}
+
+		resultA := waitForDelivery(t, ctx, resultsA, "sess-a", KindCapability)
+		resultB := waitForDelivery(t, ctx, resultsB, "sess-b", KindCapability)
+		for _, result := range []RouteResult{resultA, resultB} {
+			if got, want := len(result.Deliveries), 1; got != want {
+				t.Fatalf("len(capability broadcast deliveries) = %d, want %d", got, want)
+			}
+			decoded, err := result.Deliveries[0].Envelope.DecodeBody()
+			if err != nil {
+				t.Fatalf("DecodeBody(capability broadcast) error = %v", err)
+			}
+			body := decoded.(CapabilityBody)
+			if got, want := body.Capability.ID, "review-fix"; got != want {
+				t.Fatalf("capability broadcast id = %q, want %q", got, want)
+			}
+		}
+
+		select {
+		case receiveErr := <-errCh:
+			t.Fatalf("router subscription error = %v", receiveErr)
+		default:
+		}
+	})
 }
 
 func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(testutil.Context(t), 10*time.Second)
-	defer cancel()
+	t.Run("Should preserve capability lifecycle across peers", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 10*time.Second)
+		defer cancel()
 
-	transport, err := NewTransport(ctx, testNetworkConfig())
-	if err != nil {
-		t.Fatalf("NewTransport() error = %v", err)
-	}
-	t.Cleanup(func() {
-		_ = transport.Shutdown(context.Background())
-	})
-
-	now := time.Date(2026, 4, 20, 12, 30, 0, 0, time.UTC)
-	registryA, err := NewPeerRegistry(time.Second)
-	if err != nil {
-		t.Fatalf("NewPeerRegistry(A) error = %v", err)
-	}
-	registryB, err := NewPeerRegistry(time.Second)
-	if err != nil {
-		t.Fatalf("NewPeerRegistry(B) error = %v", err)
-	}
-
-	peerA := mustPeerCard(t, "coder.sess-a")
-	peerB := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registryA.RegisterLocal("sess-a", "builders", peerA, now); err != nil {
-		t.Fatalf("RegisterLocal(A) error = %v", err)
-	}
-	if _, err := registryB.RegisterLocal("sess-b", "builders", peerB, now); err != nil {
-		t.Fatalf("RegisterLocal(B) error = %v", err)
-	}
-
-	routerA, err := NewRouter(registryA, transport, DefaultMaxReplayAge)
-	if err != nil {
-		t.Fatalf("NewRouter(A) error = %v", err)
-	}
-	routerB, err := NewRouter(registryB, transport, DefaultMaxReplayAge)
-	if err != nil {
-		t.Fatalf("NewRouter(B) error = %v", err)
-	}
-
-	resultsA := make(chan RouteResult, 16)
-	resultsB := make(chan RouteResult, 16)
-	errCh := make(chan error, 4)
-
-	subscriptions := subscribeRouter(t, transport, routerA, peerA.PeerID, "builders", resultsA, errCh)
-	subscriptions = append(subscriptions, subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", resultsB, errCh)...)
-	for _, subscription := range subscriptions {
-		subscription := subscription
+		transport, err := NewTransport(ctx, testNetworkConfig())
+		if err != nil {
+			t.Fatalf("NewTransport() error = %v", err)
+		}
 		t.Cleanup(func() {
-			_ = subscription.Unsubscribe()
+			_ = transport.Shutdown(context.Background())
 		})
-	}
 
-	if _, err := routerA.PublishGreet(ctx, "sess-a", "ready"); err != nil {
-		t.Fatalf("routerA.PublishGreet() error = %v", err)
-	}
-	if _, err := routerB.PublishGreet(ctx, "sess-b", "ready"); err != nil {
-		t.Fatalf("routerB.PublishGreet() error = %v", err)
-	}
+		now := time.Date(2026, 4, 20, 12, 30, 0, 0, time.UTC)
+		registryA, err := NewPeerRegistry(time.Second)
+		if err != nil {
+			t.Fatalf("NewPeerRegistry(A) error = %v", err)
+		}
+		registryB, err := NewPeerRegistry(time.Second)
+		if err != nil {
+			t.Fatalf("NewPeerRegistry(B) error = %v", err)
+		}
 
-	waitForRouterCondition(t, ctx, func() bool {
-		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC()) &&
-			registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
-	}, "peer discovery")
+		peerA := mustPeerCard(t, "coder.sess-a")
+		peerB := mustPeerCard(t, "reviewer.sess-b")
+		if _, err := registryA.RegisterLocal("sess-a", "builders", peerA, now); err != nil {
+			t.Fatalf("RegisterLocal(A) error = %v", err)
+		}
+		if _, err := registryB.RegisterLocal("sess-b", "builders", peerB, now); err != nil {
+			t.Fatalf("RegisterLocal(B) error = %v", err)
+		}
 
-	const interactionID = "int_capability_lifecycle"
+		routerA, err := NewRouter(registryA, transport, DefaultMaxReplayAge)
+		if err != nil {
+			t.Fatalf("NewRouter(A) error = %v", err)
+		}
+		routerB, err := NewRouter(registryB, transport, DefaultMaxReplayAge)
+		if err != nil {
+			t.Fatalf("NewRouter(B) error = %v", err)
+		}
 
-	if _, err := routerA.Send(ctx, SendRequest{
-		SessionID:     "sess-a",
-		Channel:       "builders",
-		Kind:          KindCapability,
-		To:            stringPtr(peerB.PeerID),
-		InteractionID: stringPtr(interactionID),
-		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
-			ID:               "review-fix",
-			Summary:          "Review fix flow",
-			Outcome:          "A reusable review fix workflow.",
-			Version:          "1.0.0",
-			ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
-			Requirements:     []string{"workspace-write"},
-		}),
-	}); err != nil {
-		t.Fatalf("routerA.Send(capability directed) error = %v", err)
-	}
+		resultsA := make(chan RouteResult, 16)
+		resultsB := make(chan RouteResult, 16)
+		errCh := make(chan error, 4)
 
-	capabilityResult := waitForDelivery(t, ctx, resultsB, "sess-b", KindCapability)
-	if got, want := len(capabilityResult.Deliveries), 1; got != want {
-		t.Fatalf("len(capability directed deliveries) = %d, want %d", got, want)
-	}
-	capabilityEnvelope := capabilityResult.Deliveries[0].Envelope
+		subscriptions := subscribeRouter(t, transport, routerA, peerA.PeerID, "builders", resultsA, errCh)
+		subscriptions = append(subscriptions, subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", resultsB, errCh)...)
+		for _, subscription := range subscriptions {
+			subscription := subscription
+			t.Cleanup(func() {
+				_ = subscription.Unsubscribe()
+			})
+		}
 
-	if _, err := routerB.Send(ctx, SendRequest{
-		SessionID:     "sess-b",
-		Channel:       "builders",
-		Kind:          KindTrace,
-		To:            stringPtr(peerA.PeerID),
-		InteractionID: stringPtr(interactionID),
-		ReplyTo:       stringPtr(capabilityEnvelope.ID),
-		Body: mustRawJSON(t, TraceBody{
-			State:   StateNeedsInput,
-			Message: "need more detail",
-		}),
-	}); err != nil {
-		t.Fatalf("routerB.Send(trace needs_input) error = %v", err)
-	}
+		if _, err := routerA.PublishGreet(ctx, "sess-a", "ready"); err != nil {
+			t.Fatalf("routerA.PublishGreet() error = %v", err)
+		}
+		if _, err := routerB.PublishGreet(ctx, "sess-b", "ready"); err != nil {
+			t.Fatalf("routerB.PublishGreet() error = %v", err)
+		}
 
-	traceNeedsInput := waitForDelivery(t, ctx, resultsA, "sess-a", KindTrace)
-	traceNeedsInputBody, err := traceNeedsInput.Deliveries[0].Envelope.DecodeBody()
-	if err != nil {
-		t.Fatalf("DecodeBody(trace needs_input) error = %v", err)
-	}
-	if got, want := traceNeedsInputBody.(TraceBody).State, StateNeedsInput; got != want {
-		t.Fatalf("trace needs_input state = %q, want %q", got, want)
-	}
+		waitForRouterCondition(t, ctx, func() bool {
+			return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC()) &&
+				registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
+		}, "peer discovery")
 
-	if _, err := routerA.Send(ctx, SendRequest{
-		SessionID:     "sess-a",
-		Channel:       "builders",
-		Kind:          KindDirect,
-		To:            stringPtr(peerB.PeerID),
-		InteractionID: stringPtr(interactionID),
-		ReplyTo:       stringPtr(traceNeedsInput.Deliveries[0].Envelope.ID),
-		Body:          mustRawJSON(t, DirectBody{Text: "here is the missing detail", Intent: "reply"}),
-	}); err != nil {
-		t.Fatalf("routerA.Send(direct follow-up) error = %v", err)
-	}
+		const interactionID = "int_capability_lifecycle"
 
-	directResult := waitForDelivery(t, ctx, resultsB, "sess-b", KindDirect)
-	directBody, err := directResult.Deliveries[0].Envelope.DecodeBody()
-	if err != nil {
-		t.Fatalf("DecodeBody(direct follow-up) error = %v", err)
-	}
-	if got, want := directBody.(DirectBody).Text, "here is the missing detail"; got != want {
-		t.Fatalf("direct follow-up text = %q, want %q", got, want)
-	}
+		if _, err := routerA.Send(ctx, SendRequest{
+			SessionID:     "sess-a",
+			Channel:       "builders",
+			Kind:          KindCapability,
+			To:            stringPtr(peerB.PeerID),
+			InteractionID: stringPtr(interactionID),
+			Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
+				ID:               "review-fix",
+				Summary:          "Review fix flow",
+				Outcome:          "A reusable review fix workflow.",
+				Version:          "1.0.0",
+				ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
+				Requirements:     []string{"workspace-write"},
+			}),
+		}); err != nil {
+			t.Fatalf("routerA.Send(capability directed) error = %v", err)
+		}
 
-	if _, err := routerB.Send(ctx, SendRequest{
-		SessionID:     "sess-b",
-		Channel:       "builders",
-		Kind:          KindTrace,
-		To:            stringPtr(peerA.PeerID),
-		InteractionID: stringPtr(interactionID),
-		ReplyTo:       stringPtr(directResult.Deliveries[0].Envelope.ID),
-		Body: mustRawJSON(t, TraceBody{
-			State:   StateCompleted,
-			Message: "completed",
-		}),
-	}); err != nil {
-		t.Fatalf("routerB.Send(trace completed) error = %v", err)
-	}
+		capabilityResult := waitForDelivery(t, ctx, resultsB, "sess-b", KindCapability)
+		if got, want := len(capabilityResult.Deliveries), 1; got != want {
+			t.Fatalf("len(capability directed deliveries) = %d, want %d", got, want)
+		}
+		capabilityEnvelope := capabilityResult.Deliveries[0].Envelope
 
-	traceCompleted := waitForDelivery(t, ctx, resultsA, "sess-a", KindTrace)
-	traceCompletedBody, err := traceCompleted.Deliveries[0].Envelope.DecodeBody()
-	if err != nil {
-		t.Fatalf("DecodeBody(trace completed) error = %v", err)
-	}
-	if got, want := traceCompletedBody.(TraceBody).State, StateCompleted; got != want {
-		t.Fatalf("trace completed state = %q, want %q", got, want)
-	}
+		if _, err := routerB.Send(ctx, SendRequest{
+			SessionID:     "sess-b",
+			Channel:       "builders",
+			Kind:          KindTrace,
+			To:            stringPtr(peerA.PeerID),
+			InteractionID: stringPtr(interactionID),
+			ReplyTo:       stringPtr(capabilityEnvelope.ID),
+			Body: mustRawJSON(t, TraceBody{
+				State:   StateNeedsInput,
+				Message: "need more detail",
+			}),
+		}); err != nil {
+			t.Fatalf("routerB.Send(trace needs_input) error = %v", err)
+		}
 
-	if _, err := routerA.Send(ctx, SendRequest{
-		SessionID:     "sess-a",
-		Channel:       "builders",
-		Kind:          KindCapability,
-		To:            stringPtr(peerB.PeerID),
-		InteractionID: stringPtr(interactionID),
-		ReplyTo:       stringPtr(directResult.Deliveries[0].Envelope.ID),
-		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
-			ID:               "review-fix-follow-up",
-			Summary:          "Review follow-up flow",
-			Outcome:          "A post-completion follow-up workflow.",
-			Version:          "1.0.0",
-			ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
-			Requirements:     []string{"workspace-write"},
-		}),
-	}); !errors.Is(err, ErrInteractionClosed) {
-		t.Fatalf("routerA.Send(post-terminal capability) error = %v, want ErrInteractionClosed", err)
-	}
+		traceNeedsInput := waitForDelivery(t, ctx, resultsA, "sess-a", KindTrace)
+		traceNeedsInputBody, err := traceNeedsInput.Deliveries[0].Envelope.DecodeBody()
+		if err != nil {
+			t.Fatalf("DecodeBody(trace needs_input) error = %v", err)
+		}
+		if got, want := traceNeedsInputBody.(TraceBody).State, StateNeedsInput; got != want {
+			t.Fatalf("trace needs_input state = %q, want %q", got, want)
+		}
 
-	select {
-	case receiveErr := <-errCh:
-		t.Fatalf("router subscription error = %v", receiveErr)
-	default:
-	}
+		if _, err := routerA.Send(ctx, SendRequest{
+			SessionID:     "sess-a",
+			Channel:       "builders",
+			Kind:          KindDirect,
+			To:            stringPtr(peerB.PeerID),
+			InteractionID: stringPtr(interactionID),
+			ReplyTo:       stringPtr(traceNeedsInput.Deliveries[0].Envelope.ID),
+			Body:          mustRawJSON(t, DirectBody{Text: "here is the missing detail", Intent: "reply"}),
+		}); err != nil {
+			t.Fatalf("routerA.Send(direct follow-up) error = %v", err)
+		}
+
+		directResult := waitForDelivery(t, ctx, resultsB, "sess-b", KindDirect)
+		directBody, err := directResult.Deliveries[0].Envelope.DecodeBody()
+		if err != nil {
+			t.Fatalf("DecodeBody(direct follow-up) error = %v", err)
+		}
+		if got, want := directBody.(DirectBody).Text, "here is the missing detail"; got != want {
+			t.Fatalf("direct follow-up text = %q, want %q", got, want)
+		}
+
+		if _, err := routerB.Send(ctx, SendRequest{
+			SessionID:     "sess-b",
+			Channel:       "builders",
+			Kind:          KindTrace,
+			To:            stringPtr(peerA.PeerID),
+			InteractionID: stringPtr(interactionID),
+			ReplyTo:       stringPtr(directResult.Deliveries[0].Envelope.ID),
+			Body: mustRawJSON(t, TraceBody{
+				State:   StateCompleted,
+				Message: "completed",
+			}),
+		}); err != nil {
+			t.Fatalf("routerB.Send(trace completed) error = %v", err)
+		}
+
+		traceCompleted := waitForDelivery(t, ctx, resultsA, "sess-a", KindTrace)
+		traceCompletedBody, err := traceCompleted.Deliveries[0].Envelope.DecodeBody()
+		if err != nil {
+			t.Fatalf("DecodeBody(trace completed) error = %v", err)
+		}
+		if got, want := traceCompletedBody.(TraceBody).State, StateCompleted; got != want {
+			t.Fatalf("trace completed state = %q, want %q", got, want)
+		}
+
+		if _, err := routerA.Send(ctx, SendRequest{
+			SessionID:     "sess-a",
+			Channel:       "builders",
+			Kind:          KindCapability,
+			To:            stringPtr(peerB.PeerID),
+			InteractionID: stringPtr(interactionID),
+			ReplyTo:       stringPtr(directResult.Deliveries[0].Envelope.ID),
+			Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
+				ID:               "review-fix-follow-up",
+				Summary:          "Review follow-up flow",
+				Outcome:          "A post-completion follow-up workflow.",
+				Version:          "1.0.0",
+				ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
+				Requirements:     []string{"workspace-write"},
+			}),
+		}); !errors.Is(err, ErrInteractionClosed) {
+			t.Fatalf("routerA.Send(post-terminal capability) error = %v, want ErrInteractionClosed", err)
+		}
+
+		select {
+		case receiveErr := <-errCh:
+			t.Fatalf("router subscription error = %v", receiveErr)
+		default:
+		}
+	})
 }
 
 func TestHeartbeatExpiryAndFreshGreetRecovery(t *testing.T) {

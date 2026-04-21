@@ -161,12 +161,32 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 	if got, want := firstJoin.peerID, "coder."+session.ID; got != want {
 		t.Fatalf("first join peer_id = %q, want %q", got, want)
 	}
+	wantDigest, err := aghconfig.CanonicalCapabilityDigest(aghconfig.CapabilityDef{
+		ID:      "review-pr",
+		Summary: "Review pull requests",
+		Outcome: "Deliver actionable pull request feedback",
+		Version: "1.0.0",
+		ContextNeeded: []string{
+			"Pull request diff",
+			"Acceptance criteria",
+		},
+		ArtifactsExpected: []string{
+			"Review summary",
+		},
+		Requirements: []string{
+			"workspace-write",
+			"review-guidelines",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CanonicalCapabilityDigest() error = %v", err)
+	}
 	wantCapabilities := []NetworkPeerCapability{{
 		ID:                "review-pr",
 		Summary:           "Review pull requests",
 		Outcome:           "Deliver actionable pull request feedback",
 		Version:           "1.0.0",
-		Digest:            capabilityAgent.Capabilities.Capabilities[0].Digest,
+		Digest:            wantDigest,
 		ContextNeeded:     []string{"Pull request diff", "Acceptance criteria"},
 		ArtifactsExpected: []string{"Review summary"},
 		Requirements:      []string{"review-guidelines", "workspace-write"},

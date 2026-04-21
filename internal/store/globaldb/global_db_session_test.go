@@ -14,6 +14,8 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 	t.Parallel()
 
 	db := openScanSessionInfoDB(t)
+	subprocessStartedAt := time.Date(2026, 4, 3, 12, 3, 0, 0, time.UTC)
+	lastUpdateAt := time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)
 	row := db.QueryRowContext(context.Background(), `
 		SELECT
 			'sess-scan',
@@ -41,8 +43,8 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'sync failed',
 			?,
 			?`,
-		formatTimestamp(time.Date(2026, 4, 3, 12, 3, 0, 0, time.UTC)),
-		formatTimestamp(time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)),
+		formatTimestamp(subprocessStartedAt),
+		formatTimestamp(lastUpdateAt),
 		formatTimestamp(time.Date(2026, 4, 3, 12, 4, 30, 0, time.UTC)),
 		formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
 		formatTimestamp(time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)),
@@ -72,6 +74,16 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 	}
 	if got, want := info.Liveness.SubprocessPID, 42; got != want {
 		t.Fatalf("info.Liveness.SubprocessPID = %d, want %d", got, want)
+	}
+	if info.Liveness.SubprocessStartedAt == nil || !info.Liveness.SubprocessStartedAt.Equal(subprocessStartedAt) {
+		t.Fatalf(
+			"info.Liveness.SubprocessStartedAt = %#v, want %s",
+			info.Liveness.SubprocessStartedAt,
+			subprocessStartedAt,
+		)
+	}
+	if info.Liveness.LastUpdateAt == nil || !info.Liveness.LastUpdateAt.Equal(lastUpdateAt) {
+		t.Fatalf("info.Liveness.LastUpdateAt = %#v, want %s", info.Liveness.LastUpdateAt, lastUpdateAt)
 	}
 	if got, want := info.Liveness.StallState, "stalled"; got != want {
 		t.Fatalf("info.Liveness.StallState = %q, want %q", got, want)
@@ -180,6 +192,55 @@ func TestScanSessionInfoRejectsInvalidEnvironmentLastSyncAt(t *testing.T) {
 		t.Fatal("scanSessionInfo() error = nil, want invalid environment_last_sync_at failure")
 	}
 	if got, want := err.Error(), `store: parse timestamp "not-a-timestamp"`; !strings.Contains(got, want) {
+		t.Fatalf("scanSessionInfo() error = %v, want substring %q", err, want)
+	}
+}
+
+func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
+	t.Parallel()
+
+	db := openScanSessionInfoDB(t)
+	row := db.QueryRowContext(context.Background(), `
+		SELECT
+			'sess-invalid-stall',
+			'Demo',
+			'coder',
+			'ws-1',
+			'builders',
+			'user',
+			'active',
+			NULL,
+			NULL,
+			NULL,
+			42,
+			?,
+			?,
+			'stalled',
+			'',
+			'',
+			'local',
+			'',
+			'',
+			'',
+			'',
+			NULL,
+			'',
+			?,
+			?`,
+		formatTimestamp(time.Date(2026, 4, 3, 12, 3, 0, 0, time.UTC)),
+		formatTimestamp(time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)),
+		formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
+		formatTimestamp(time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)),
+	)
+
+	_, err := scanSessionInfo(row)
+	if err == nil {
+		t.Fatal("scanSessionInfo() error = nil, want invalid stall reason failure")
+	}
+	if got, want := err.Error(), "store: session stall reason required when stall state is set"; !strings.Contains(
+		got,
+		want,
+	) {
 		t.Fatalf("scanSessionInfo() error = %v, want substring %q", err, want)
 	}
 }

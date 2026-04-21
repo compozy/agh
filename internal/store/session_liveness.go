@@ -39,6 +39,9 @@ func (m *SessionLivenessMeta) Validate() error {
 	default:
 		return fmt.Errorf("store: invalid session stall state %q", m.StallState)
 	}
+	if strings.TrimSpace(m.StallState) != "" && strings.TrimSpace(m.StallReason) == "" {
+		return fmt.Errorf("store: session stall reason required when stall state is set")
+	}
 	if strings.TrimSpace(m.StallReason) != "" && strings.TrimSpace(m.StallState) == "" {
 		return fmt.Errorf("store: session stall reason requires a stall state")
 	}

@@ -113,20 +113,39 @@ func backupSessionDB(path string) ([]sessionDBBackup, error) {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
-			return nil, fmt.Errorf("session: stat event store artifact %q: %w", original, err)
+			return nil, rollbackSessionDBBackup(
+				backups,
+				fmt.Errorf("session: stat event store artifact %q: %w", original, err),
+			)
 		}
 
 		backup := original + ".clear-backup"
 		if err := os.Remove(backup); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("session: remove stale clear backup %q: %w", backup, err)
+			return nil, rollbackSessionDBBackup(
+				backups,
+				fmt.Errorf("session: remove stale clear backup %q: %w", backup, err),
+			)
 		}
 		if err := os.Rename(original, backup); err != nil {
-			return nil, fmt.Errorf("session: backup event store artifact %q: %w", original, err)
+			return nil, rollbackSessionDBBackup(
+				backups,
+				fmt.Errorf("session: backup event store artifact %q: %w", original, err),
+			)
 		}
 		backups = append(backups, sessionDBBackup{original: original, backup: backup})
 	}
 
 	return backups, nil
+}
+
+func rollbackSessionDBBackup(backups []sessionDBBackup, primary error) error {
+	if len(backups) == 0 {
+		return primary
+	}
+	if rollbackErr := restoreSessionDBArtifacts(backups); rollbackErr != nil {
+		return errors.Join(primary, fmt.Errorf("session: rollback clear backup: %w", rollbackErr))
+	}
+	return primary
 }
 
 func discardSessionDBBackup(backups []sessionDBBackup) error {
@@ -150,6 +169,18 @@ func restoreClearedConversationFailure(
 ) error {
 	var errs []error
 
+	errs = append(errs, restoreSessionDBArtifacts(backups))
+
+	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+		errs = append(errs, fmt.Errorf("session: restore cleared metadata for %q: %w", meta.ID, err))
+	}
+
+	return errors.Join(errs...)
+}
+
+func restoreSessionDBArtifacts(backups []sessionDBBackup) error {
+	var errs []error
+
 	for i := len(backups) - 1; i >= 0; i-- {
 		item := backups[i]
 		if err := os.Remove(item.original); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -158,10 +189,6 @@ func restoreClearedConversationFailure(
 		if err := os.Rename(item.backup, item.original); err != nil {
 			errs = append(errs, fmt.Errorf("session: restore cleared artifact %q: %w", item.original, err))
 		}
-	}
-
-	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
-		errs = append(errs, fmt.Errorf("session: restore cleared metadata for %q: %w", meta.ID, err))
 	}
 
 	return errors.Join(errs...)
