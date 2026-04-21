@@ -583,6 +583,7 @@ func (h *BaseHandlers) createNetworkChannelSessions(
 	for _, agentName := range agentNames {
 		sess, err := h.Sessions.Create(ctx, session.CreateOpts{
 			AgentName: agentName,
+			Provider:  "",
 			Workspace: workspaceID,
 			Channel:   channel,
 			Type:      session.SessionTypeUser,

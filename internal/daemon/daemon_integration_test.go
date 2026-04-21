@@ -200,6 +200,9 @@ func TestBootWiresTaskRuntimeWithDedicatedSessionBridge(t *testing.T) {
 	if got, want := createCall.Type, session.SessionTypeSystem; got != want {
 		t.Fatalf("createCall.Type = %q, want %q", got, want)
 	}
+	if got := createCall.Provider; got != "" {
+		t.Fatalf("createCall.Provider = %q, want explicit empty provider", got)
+	}
 	if got, want := createCall.Workspace, resolved.ID; got != want {
 		t.Fatalf("createCall.Workspace = %q, want %q", got, want)
 	}
@@ -2525,6 +2528,9 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 
 	if got := sessions.createCall(0).Type; got != session.SessionTypeDream {
 		t.Fatalf("Create() session type = %q, want %q", got, session.SessionTypeDream)
+	}
+	if got := sessions.createCall(0).Provider; got != "" {
+		t.Fatalf("Create() provider = %q, want explicit empty provider", got)
 	}
 	if got := sessions.createCall(0).Workspace; got != resolvedWorkspace.ID {
 		t.Fatalf("Create() workspace = %q, want %q", got, resolvedWorkspace.ID)

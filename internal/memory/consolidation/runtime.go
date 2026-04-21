@@ -425,6 +425,7 @@ func spawnSession(
 
 	dreamSession, err := sessions.Create(ctx, session.CreateOpts{
 		AgentName: agentName,
+		Provider:  "",
 		Name:      strings.TrimSpace(goal),
 		Workspace: strings.TrimSpace(workspace),
 		Type:      session.SessionTypeDream,

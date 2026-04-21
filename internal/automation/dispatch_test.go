@@ -51,6 +51,9 @@ func TestDispatchWorkspaceAutomationUsesWorkspaceCreateOpts(t *testing.T) {
 	if got, want := createCall.Workspace, job.WorkspaceID; got != want {
 		t.Fatalf("Create().Workspace = %q, want %q", got, want)
 	}
+	if got := createCall.Provider; got != "" {
+		t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
+	}
 	if got := createCall.WorkspacePath; got != "" {
 		t.Fatalf("Create().WorkspacePath = %q, want empty", got)
 	}
@@ -93,6 +96,9 @@ func TestDispatchGlobalAutomationUsesGlobalWorkspacePath(t *testing.T) {
 	createCall := creator.createCalls()[0]
 	if got := createCall.Workspace; got != "" {
 		t.Fatalf("Create().Workspace = %q, want empty", got)
+	}
+	if got := createCall.Provider; got != "" {
+		t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
 	}
 	if got, want := createCall.WorkspacePath, globalPath; got != want {
 		t.Fatalf("Create().WorkspacePath = %q, want %q", got, want)
@@ -776,6 +782,9 @@ func TestDispatchTriggerRendersPromptTemplateAndUsesTriggerMetadata(t *testing.T
 	}
 	if got := createCall.Workspace; got != "" {
 		t.Fatalf("Create().Workspace = %q, want empty", got)
+	}
+	if got := createCall.Provider; got != "" {
+		t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
 	}
 
 	promptCall := creator.promptCalls()[0]

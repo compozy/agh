@@ -261,6 +261,11 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		}
 		resolved := workspacepkg.ResolvedWorkspace{
 			Workspace: workspace,
+			Config: aghconfig.Config{
+				Providers: map[string]aghconfig.ProviderConfig{
+					"alpha": {Command: "alpha --acp"},
+				},
+			},
 			Agents: []aghconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "fake",
@@ -385,18 +390,25 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 	t.Run("Should get a workspace with sessions", func(t *testing.T) {
 		t.Parallel()
 
-		fixture, workspace, _, _, _, _, _, _ := setup(t)
+		fixture, workspace, resolved, _, _, _, _, _ := setup(t)
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/"+workspace.ID, nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get workspace status = %d, want %d", getResp.Code, http.StatusOK)
 		}
 
-		var getPayload struct {
-			Sessions []contract.SessionPayload `json:"sessions"`
-		}
+		var getPayload contract.WorkspaceDetailPayload
 		testutil.DecodeJSONResponse(t, getResp, &getPayload)
 		if len(getPayload.Sessions) != 1 || getPayload.Sessions[0].WorkspaceID != workspace.ID {
 			t.Fatalf("sessions payload = %#v", getPayload.Sessions)
+		}
+		expectedProviders := core.SessionProviderOptionPayloadsFromConfig(&resolved.Config)
+		if got, want := len(getPayload.Providers), len(expectedProviders); got != want {
+			t.Fatalf("len(providers) = %d, want %d (%#v)", got, want, getPayload.Providers)
+		}
+		for i, want := range expectedProviders {
+			if got := getPayload.Providers[i]; got != want {
+				t.Fatalf("providers[%d] = %#v, want %#v", i, got, want)
+			}
 		}
 	})
 

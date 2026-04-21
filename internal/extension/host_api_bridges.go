@@ -672,6 +672,7 @@ func (h *HostAPIHandler) createBridgeSession(
 
 	created, err := h.sessions.Create(ctx, session.CreateOpts{
 		AgentName: agentName,
+		Provider:  "",
 		Workspace: resolved.ID,
 		Type:      session.SessionTypeUser,
 	})

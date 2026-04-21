@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
+	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/observe"
@@ -789,6 +790,11 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 			CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		},
+		Config: aghconfig.Config{
+			Providers: map[string]aghconfig.ProviderConfig{
+				"alpha": {Command: "alpha --acp"},
+			},
+		},
 		Agents: []aghconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "fake",
@@ -821,12 +827,7 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
 
-	var response struct {
-		Workspace workspacePayload        `json:"workspace"`
-		Sessions  []sessionPayload        `json:"sessions"`
-		Agents    []agentPayload          `json:"agents"`
-		Skills    []workspaceSkillPayload `json:"skills"`
-	}
+	var response contract.WorkspaceDetailPayload
 	decodeJSONResponse(t, recorder, &response)
 	if response.Workspace.ID != "ws_alpha" || len(response.Sessions) != 1 || len(response.Agents) != 1 ||
 		len(response.Skills) != 1 {
@@ -834,6 +835,15 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 	}
 	if response.Skills[0].Name != "review" {
 		t.Fatalf("skill name = %q, want review", response.Skills[0].Name)
+	}
+	expectedProviders := core.SessionProviderOptionPayloadsFromConfig(&resolved.Config)
+	if len(response.Providers) != len(expectedProviders) {
+		t.Fatalf("len(providers) = %d, want %d (%#v)", len(response.Providers), len(expectedProviders), response)
+	}
+	for i, want := range expectedProviders {
+		if got := response.Providers[i]; got != want {
+			t.Fatalf("providers[%d] = %#v, want %#v", i, got, want)
+		}
 	}
 }
 

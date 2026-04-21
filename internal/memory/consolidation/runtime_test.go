@@ -311,6 +311,9 @@ func TestNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 	if got := sessions.createCall(0).Type; got != session.SessionTypeDream {
 		t.Fatalf("Create() type = %q, want %q", got, session.SessionTypeDream)
 	}
+	if got := sessions.createCall(0).Provider; got != "" {
+		t.Fatalf("Create() provider = %q, want explicit empty provider", got)
+	}
 	if got := sessions.createCall(0).Workspace; got != "ws-created" {
 		t.Fatalf("Create() workspace = %q, want ws-created", got)
 	}
@@ -352,6 +355,9 @@ func TestNewSessionSpawnerResolvesExplicitAliasWorkspace(t *testing.T) {
 	}
 	if got := sessions.createCall(0).Workspace; got != "ws-alias" {
 		t.Fatalf("Create() workspace = %q, want ws-alias", got)
+	}
+	if got := sessions.createCall(0).Provider; got != "" {
+		t.Fatalf("Create() provider = %q, want explicit empty provider", got)
 	}
 }
 
@@ -440,8 +446,14 @@ func TestNewSessionSpawnerDerivesRecentWorkspacesFromSessions(t *testing.T) {
 	if got := sessions.createCall(0).Workspace; got != "ws-b" {
 		t.Fatalf("Create() workspace[0] = %q, want ws-b", got)
 	}
+	if got := sessions.createCall(0).Provider; got != "" {
+		t.Fatalf("Create() provider[0] = %q, want explicit empty provider", got)
+	}
 	if got := sessions.createCall(1).Workspace; got != "ws-a" {
 		t.Fatalf("Create() workspace[1] = %q, want ws-a", got)
+	}
+	if got := sessions.createCall(1).Provider; got != "" {
+		t.Fatalf("Create() provider[1] = %q, want explicit empty provider", got)
 	}
 }
 

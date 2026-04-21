@@ -206,6 +206,44 @@ func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {
 	}
 }
 
+func TestHostAPIHandlerCreateBridgeSessionUsesExplicitEmptyProvider(t *testing.T) {
+	t.Parallel()
+
+	sessions := &recordingHostAPISessionManager{}
+	handler := &HostAPIHandler{
+		sessions: sessions,
+		workspaces: newHostAPIFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-alpha", RootDir: t.TempDir()},
+			Config: aghconfig.Config{
+				Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
+			},
+		}),
+	}
+
+	created, err := handler.createBridgeSession(testutil.Context(t), bridgepkg.BridgeInstance{
+		WorkspaceID: "ws-alpha",
+	})
+	if err != nil {
+		t.Fatalf("createBridgeSession() error = %v", err)
+	}
+	if created == nil {
+		t.Fatal("createBridgeSession() = nil, want session")
+	}
+	if got, want := len(sessions.createCalls), 1; got != want {
+		t.Fatalf("len(createCalls) = %d, want %d", got, want)
+	}
+	createCall := sessions.createCalls[0]
+	if got, want := createCall.AgentName, "coder"; got != want {
+		t.Fatalf("Create().AgentName = %q, want %q", got, want)
+	}
+	if got, want := createCall.Workspace, "ws-alpha"; got != want {
+		t.Fatalf("Create().Workspace = %q, want %q", got, want)
+	}
+	if got := createCall.Provider; got != "" {
+		t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
+	}
+}
+
 func TestHostAPIHandlerEnvironmentListReturnsActiveEnvironmentInstances(t *testing.T) {
 	t.Parallel()
 
@@ -5180,6 +5218,61 @@ func (s *hostAPISessionSource) List() []*session.Info {
 		return nil
 	}
 	return s.manager.List()
+}
+
+type recordingHostAPISessionManager struct {
+	createCalls []session.CreateOpts
+}
+
+func (m *recordingHostAPISessionManager) Create(
+	_ context.Context,
+	opts session.CreateOpts,
+) (*session.Session, error) {
+	m.createCalls = append(m.createCalls, opts)
+	return &session.Session{
+		ID:          "sess-bridge",
+		AgentName:   opts.AgentName,
+		Provider:    "claude",
+		WorkspaceID: opts.Workspace,
+		Workspace:   opts.Workspace,
+		Type:        opts.Type,
+		State:       session.StateActive,
+	}, nil
+}
+
+func (*recordingHostAPISessionManager) ListAll(context.Context) ([]*session.Info, error) {
+	return nil, nil
+}
+
+func (*recordingHostAPISessionManager) Status(context.Context, string) (*session.Info, error) {
+	return nil, nil
+}
+
+func (*recordingHostAPISessionManager) Events(
+	context.Context,
+	string,
+	store.EventQuery,
+) ([]store.SessionEvent, error) {
+	return nil, nil
+}
+
+func (*recordingHostAPISessionManager) Stop(context.Context, string) error {
+	return nil
+}
+
+func (*recordingHostAPISessionManager) Prompt(
+	context.Context,
+	string,
+	string,
+) (<-chan acp.AgentEvent, error) {
+	return nil, nil
+}
+
+func (*recordingHostAPISessionManager) ExecEnvironment(
+	context.Context,
+	session.EnvironmentExecRequest,
+) (session.EnvironmentExecResult, error) {
+	return session.EnvironmentExecResult{}, nil
 }
 
 type hostAPIFakeWorkspaceResolver struct {

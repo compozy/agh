@@ -88,6 +88,7 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 		Sessions:  SessionPayloadsFromInfos(filterSessionInfosByWorkspaceIDInternal(sessions, resolved.ID)),
 		Agents:    AgentPayloadsFromDefs(resolved.Agents),
 		Skills:    WorkspaceSkillPayloads(resolved.Skills),
+		Providers: SessionProviderOptionPayloadsFromConfig(&resolved.Config),
 	})
 }
 

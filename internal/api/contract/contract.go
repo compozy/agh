@@ -605,6 +605,11 @@ type WorkspaceSkillPayload struct {
 	Source string `json:"source"`
 }
 
+// SessionProviderOptionPayload is one workspace-visible session provider option.
+type SessionProviderOptionPayload struct {
+	Name string `json:"name"`
+}
+
 // SkillPayload is the HTTP response type for a skill.
 type SkillPayload struct {
 	Name        string             `json:"name"`
@@ -637,8 +642,9 @@ type SkillActionResponse struct {
 
 // WorkspaceDetailPayload is the shared resolved workspace detail response payload.
 type WorkspaceDetailPayload struct {
-	Workspace WorkspacePayload        `json:"workspace"`
-	Sessions  []SessionPayload        `json:"sessions,omitempty"`
-	Agents    []AgentPayload          `json:"agents,omitempty"`
-	Skills    []WorkspaceSkillPayload `json:"skills,omitempty"`
+	Workspace WorkspacePayload               `json:"workspace"`
+	Sessions  []SessionPayload               `json:"sessions,omitempty"`
+	Agents    []AgentPayload                 `json:"agents,omitempty"`
+	Skills    []WorkspaceSkillPayload        `json:"skills,omitempty"`
+	Providers []SessionProviderOptionPayload `json:"providers,omitempty"`
 }

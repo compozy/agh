@@ -102,9 +102,10 @@ func (b *taskSessionBridge) StartTaskSession(
 	}
 
 	opts := session.CreateOpts{
-		Name:    taskSessionName(spec),
-		Channel: strings.TrimSpace(spec.Run.NetworkChannel),
-		Type:    session.SessionTypeSystem,
+		Provider: "",
+		Name:     taskSessionName(spec),
+		Channel:  strings.TrimSpace(spec.Run.NetworkChannel),
+		Type:     session.SessionTypeSystem,
 	}
 	switch spec.Task.Scope.Normalize() {
 	case taskpkg.ScopeWorkspace:

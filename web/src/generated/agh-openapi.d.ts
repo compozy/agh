@@ -19327,6 +19327,9 @@ export interface operations {
               provider: string;
               tools?: string[];
             }[];
+            providers?: {
+              name: string;
+            }[];
             sessions?: {
               acp_caps?: {
                 supported_models?: string[];

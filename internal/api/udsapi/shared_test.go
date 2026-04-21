@@ -25,7 +25,6 @@ type memoryConsolidateResponse = contract.MemoryConsolidateResponse
 type memoryHealthPayload = contract.MemoryHealthPayload
 type memoryLocation = core.MemoryLocation
 type workspacePayload = contract.WorkspacePayload
-type workspaceSkillPayload = contract.WorkspaceSkillPayload
 
 func statusForMemoryError(err error) int {
 	return core.StatusForMemoryError(err)

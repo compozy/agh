@@ -1963,6 +1963,9 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 				if got, want := call.Workspace, "ws-1"; got != want {
 					t.Fatalf("Create() workspace = %q, want %q", got, want)
 				}
+				if got := call.Provider; got != "" {
+					t.Fatalf("Create() provider = %q, want explicit empty provider", got)
+				}
 				if got, want := call.Channel, "builders"; got != want {
 					t.Fatalf("Create() channel = %q, want %q", got, want)
 				}

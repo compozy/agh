@@ -90,6 +90,9 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			if got, want := createCall.Type, session.SessionTypeSystem; got != want {
 				t.Fatalf("createCall.Type = %q, want %q", got, want)
 			}
+			if got := createCall.Provider; got != "" {
+				t.Fatalf("createCall.Provider = %q, want explicit empty provider", got)
+			}
 			if got, want := createCall.Channel, "builders"; got != want {
 				t.Fatalf("createCall.Channel = %q, want %q", got, want)
 			}
@@ -511,6 +514,348 @@ func TestTaskSessionBridgeGuardsAndFallbackStopPaths(t *testing.T) {
 	}
 }
 
+func TestTaskSessionBridgeErrorPaths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a nil start spec", func(t *testing.T) {
+		t.Parallel()
+
+		bridge, err := newTaskSessionBridge(&fakeSessionManager{}, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		if _, err := bridge.StartTaskSession(context.Background(), nil); err == nil {
+			t.Fatal("StartTaskSession(nil spec) error = nil, want validation error")
+		}
+	})
+
+	t.Run("Should propagate session creation failures", func(t *testing.T) {
+		t.Parallel()
+
+		wantErr := errors.New("create failed")
+		bridge, err := newTaskSessionBridge(
+			&taskBridgeCreateErrorSessionManager{err: wantErr},
+			t.TempDir(),
+			discardLogger(),
+		)
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-workspace",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-123",
+			},
+			Run: taskpkg.Run{
+				ID:      "run-1",
+				Attempt: 1,
+			},
+		})
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("StartTaskSession(create error) error = %v, want %v", err, wantErr)
+		}
+	})
+
+	t.Run("Should reject create calls that return a nil session", func(t *testing.T) {
+		t.Parallel()
+
+		bridge, err := newTaskSessionBridge(&taskBridgeStopOnlySessionManager{}, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-workspace",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-123",
+			},
+			Run: taskpkg.Run{
+				ID:      "run-1",
+				Attempt: 1,
+			},
+		})
+		if !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("StartTaskSession(nil session) error = %v, want %v", err, taskpkg.ErrValidation)
+		}
+	})
+
+	t.Run("Should reject attach calls when the session metadata is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		bridge, err := newTaskSessionBridge(&taskBridgeNilStatusSessionManager{}, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.AttachTaskSession(context.Background(), "run-1", "sess-missing")
+		if !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
+			t.Fatalf("AttachTaskSession(nil status) error = %v, want %v", err, taskpkg.ErrSessionAttachNotAllowed)
+		}
+	})
+
+	t.Run("Should validate stop requests and propagate non-notfound failures", func(t *testing.T) {
+		t.Parallel()
+
+		wantRequestErr := errors.New("request stop failed")
+		wantForceErr := errors.New("force stop failed")
+		sessions := &fakeSessionManager{
+			requestStopErr: func(string, session.StopCause, string) error {
+				return wantRequestErr
+			},
+			stopWithCauseErr: func(string, session.StopCause, string) error {
+				return wantForceErr
+			},
+		}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		if err := bridge.RequestTaskStop(context.Background(), "   ", taskpkg.StopReasonCancellation); !errors.Is(
+			err,
+			taskpkg.ErrValidation,
+		) {
+			t.Fatalf("RequestTaskStop(blank id) error = %v, want %v", err, taskpkg.ErrValidation)
+		}
+		if err := bridge.RequestTaskStop(
+			context.Background(),
+			"sess-request",
+			taskpkg.StopReasonCancellation,
+		); !errors.Is(err, wantRequestErr) {
+			t.Fatalf("RequestTaskStop(request failure) error = %v, want %v", err, wantRequestErr)
+		}
+		if err := bridge.ForceTaskStop(
+			context.Background(),
+			"sess-force",
+			taskpkg.StopReasonCancellation,
+		); !errors.Is(err, wantForceErr) {
+			t.Fatalf("ForceTaskStop(force failure) error = %v, want %v", err, wantForceErr)
+		}
+		if err := bridge.ForceTaskStop(
+			nilTaskRuntimeContext(),
+			"sess-force",
+			taskpkg.StopReasonCancellation,
+		); err == nil {
+			t.Fatal("ForceTaskStop(nil ctx) error = nil, want validation error")
+		}
+	})
+}
+
+func TestBootTasksSkipsMissingPrerequisites(t *testing.T) {
+	t.Parallel()
+
+	daemon := &Daemon{
+		homePaths: aghconfig.HomePaths{HomeDir: t.TempDir()},
+	}
+
+	testCases := []struct {
+		name  string
+		state *bootState
+	}{
+		{
+			name:  "Should skip when the boot state is nil",
+			state: nil,
+		},
+		{
+			name: "Should skip when the registry is missing",
+			state: &bootState{
+				logger:   discardLogger(),
+				sessions: &fakeSessionManager{},
+			},
+		},
+		{
+			name: "Should skip when the session manager is missing",
+			state: &bootState{
+				logger:   discardLogger(),
+				registry: openDaemonTestGlobalDB(t),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if err := daemon.bootTasks(context.Background(), tc.state); err != nil {
+				t.Fatalf("bootTasks() error = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	homePaths := testHomePaths(t)
+	resolver, err := workspacepkg.NewResolver(
+		db,
+		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithLogger(discardLogger()),
+		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
+			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		}),
+	)
+	if err != nil {
+		t.Fatalf("workspace.NewResolver() error = %v", err)
+	}
+
+	daemon := &Daemon{
+		homePaths: homePaths,
+	}
+	state := &bootState{
+		logger:   discardLogger(),
+		registry: db,
+		sessions: &fakeSessionManager{},
+		harnessResolver: NewHarnessContextResolver(HarnessRuntimeSignals{
+			MemoryPromptSectionEnabled: true,
+			SkillsPromptSectionEnabled: true,
+			SyntheticTurnsEnabled:      true,
+			DetachedTaskRuntimeEnabled: true,
+		}),
+		workspaceResolver: resolver,
+	}
+
+	if err := daemon.bootTasks(testutil.Context(t), state); err != nil {
+		t.Fatalf("bootTasks() error = %v", err)
+	}
+	if state.tasks == nil {
+		t.Fatal("bootTasks() did not install a task runtime")
+	}
+	t.Cleanup(state.tasks.shutdown)
+	if state.tasks.manager == nil {
+		t.Fatal("bootTasks() task manager = nil, want initialized manager")
+	}
+	if state.tasks.store == nil {
+		t.Fatal("bootTasks() task store = nil, want initialized store")
+	}
+	if state.tasks.detached == nil {
+		t.Fatal("bootTasks() detached harness bridge = nil, want initialized bridge")
+	}
+	if state.tasks.reentry == nil {
+		t.Fatal("bootTasks() harness reentry bridge = nil, want initialized bridge")
+	}
+	if state.deps.Tasks == nil {
+		t.Fatal("bootTasks() runtime deps tasks = nil, want published manager")
+	}
+}
+
+func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	homePaths := testHomePaths(t)
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			{
+				ID:          "sess-live",
+				Type:        session.SessionTypeSystem,
+				State:       session.StateActive,
+				WorkspaceID: "global",
+				Workspace:   homePaths.HomeDir,
+				Channel:     "builders",
+			},
+		},
+	}
+	sessionBridge, err := newTaskSessionBridge(sessions, homePaths.HomeDir, discardLogger())
+	if err != nil {
+		t.Fatalf("newTaskSessionBridge() error = %v", err)
+	}
+	seedManager, err := taskpkg.NewManager(
+		taskpkg.WithStore(db),
+		taskpkg.WithSessionExecutor(sessionBridge),
+		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
+		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
+	)
+	if err != nil {
+		t.Fatalf("task.NewManager() error = %v", err)
+	}
+	seedActor, err := taskpkg.DeriveDaemonActorContext("boot-seed", "daemon.boot.seed")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext(seed) error = %v", err)
+	}
+	taskRecord, err := seedManager.CreateTask(context.Background(), taskpkg.CreateTask{
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Recover boot task",
+	}, seedActor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	runRecord, err := seedManager.EnqueueRun(context.Background(), taskpkg.EnqueueRun{
+		TaskID:         taskRecord.ID,
+		IdempotencyKey: "enqueue-boot-recovery",
+		NetworkChannel: "builders",
+	}, seedActor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	claimedRun, err := seedManager.ClaimRun(context.Background(), runRecord.ID, taskpkg.ClaimRun{
+		IdempotencyKey: "claim-boot-recovery",
+	}, seedActor)
+	if err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+	if _, err := seedManager.AttachRunSession(context.Background(), claimedRun.ID, "sess-live", seedActor); err != nil {
+		t.Fatalf("AttachRunSession() error = %v", err)
+	}
+
+	daemon := &Daemon{
+		homePaths: homePaths,
+	}
+	state := &bootState{
+		logger:   discardLogger(),
+		registry: db,
+		sessions: sessions,
+		harnessResolver: NewHarnessContextResolver(HarnessRuntimeSignals{
+			MemoryPromptSectionEnabled: true,
+			SkillsPromptSectionEnabled: true,
+			SyntheticTurnsEnabled:      true,
+			DetachedTaskRuntimeEnabled: true,
+		}),
+	}
+
+	if err := daemon.bootTasks(testutil.Context(t), state); err != nil {
+		t.Fatalf("bootTasks() error = %v", err)
+	}
+	if state.tasks == nil {
+		t.Fatal("bootTasks() did not install a task runtime")
+	}
+	t.Cleanup(state.tasks.shutdown)
+
+	recoveredRun, err := db.GetTaskRun(context.Background(), runRecord.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(recovered) error = %v", err)
+	}
+	if got, want := recoveredRun.Status, taskpkg.TaskRunStatusRunning; got != want {
+		t.Fatalf("recovered run status = %q, want %q", got, want)
+	}
+}
+
+func TestBootTasksRequiresHarnessResolver(t *testing.T) {
+	t.Parallel()
+
+	daemon := &Daemon{
+		homePaths: aghconfig.HomePaths{HomeDir: t.TempDir()},
+	}
+	state := &bootState{
+		logger:   discardLogger(),
+		registry: openDaemonTestGlobalDB(t),
+		sessions: &fakeSessionManager{},
+	}
+
+	err := daemon.bootTasks(testutil.Context(t), state)
+	if err == nil {
+		t.Fatal("bootTasks() error = nil, want harness resolver validation error")
+	}
+	if !strings.Contains(err.Error(), "harness resolver") {
+		t.Fatalf("bootTasks() error = %v, want harness resolver detail", err)
+	}
+}
+
 func TestTaskRuntimeHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -569,6 +914,50 @@ func TestTaskRuntimeHelpers(t *testing.T) {
 		Status: taskpkg.TaskRunStatusClaimed,
 	}); err == nil {
 		t.Fatal("planTaskRunRecovery(nil sessions) error = nil, want validation error")
+	}
+}
+
+func TestTaskRecoveryLivenessHelpers(t *testing.T) {
+	t.Parallel()
+
+	live, state, err := taskSessionRuntimeState(context.Background(), &fakeSessionManager{
+		infos: []*session.Info{
+			{ID: "sess-live", State: session.StateActive},
+		},
+	}, "sess-live")
+	if err != nil {
+		t.Fatalf("taskSessionRuntimeState(live) error = %v", err)
+	}
+	if !live {
+		t.Fatal("taskSessionRuntimeState(live) = false, want true")
+	}
+	if got, want := state, string(session.StateActive); got != want {
+		t.Fatalf("taskSessionRuntimeState(live) state = %q, want %q", got, want)
+	}
+
+	if got := taskSessionMatchesRecordedSubprocess(nil); got {
+		t.Fatal("taskSessionMatchesRecordedSubprocess(nil) = true, want false")
+	}
+	if got := taskSessionMatchesRecordedSubprocess(&store.SessionLivenessMeta{}); got {
+		t.Fatal("taskSessionMatchesRecordedSubprocess(blank) = true, want false")
+	}
+	startedAt, err := procutil.StartedAt(os.Getpid())
+	if err != nil {
+		t.Fatalf("procutil.StartedAt(self) error = %v", err)
+	}
+	if got := taskSessionMatchesRecordedSubprocess(&store.SessionLivenessMeta{
+		SubprocessPID: os.Getpid(),
+	}); got {
+		t.Fatal("taskSessionMatchesRecordedSubprocess(missing start time) = true, want false")
+	}
+	if got := taskSessionMatchesRecordedSubprocess(&store.SessionLivenessMeta{
+		SubprocessPID:       os.Getpid(),
+		SubprocessStartedAt: &startedAt,
+	}); !got {
+		t.Fatal("taskSessionMatchesRecordedSubprocess(self) = false, want true")
+	}
+	if got, want := firstTaskRecoveryDetail("", " detail ", "fallback"), "detail"; got != want {
+		t.Fatalf("firstTaskRecoveryDetail() = %q, want %q", got, want)
 	}
 }
 
@@ -936,6 +1325,141 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	}
 	if got, want := metadata.WakeTarget.SessionID, "sess-wake"; got != want {
 		t.Fatalf("recovered metadata wake target session id = %q, want %q", got, want)
+	}
+}
+
+func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
+	t.Parallel()
+
+	sessions := &fakeSessionManager{}
+	runtime, resolver, _ := newDetachedHarnessTaskRuntimeForTest(t, sessions)
+	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
+
+	ownerInfo := &session.Info{
+		ID:          "sess-owner",
+		Type:        session.SessionTypeSystem,
+		State:       session.StateActive,
+		WorkspaceID: workspace.ID,
+		Workspace:   workspace.RootDir,
+		Channel:     "builders",
+	}
+	wakeInfo := &session.Info{
+		ID:          "sess-wake",
+		Type:        session.SessionTypeSystem,
+		State:       session.StateActive,
+		WorkspaceID: workspace.ID,
+		Workspace:   workspace.RootDir,
+		Channel:     "builders",
+	}
+	liveInfo := &session.Info{
+		ID:          "sess-live",
+		Type:        session.SessionTypeSystem,
+		State:       session.StateActive,
+		WorkspaceID: workspace.ID,
+		Workspace:   workspace.RootDir,
+		Channel:     "builders",
+	}
+	failedInfo := &session.Info{
+		ID:          "sess-fail",
+		Type:        session.SessionTypeSystem,
+		State:       session.StateActive,
+		WorkspaceID: workspace.ID,
+		Workspace:   workspace.RootDir,
+		Channel:     "builders",
+	}
+	sessions.infos = []*session.Info{ownerInfo, wakeInfo, liveInfo, failedInfo}
+
+	makeSubmission := func(key string) *detachedHarnessSubmission {
+		t.Helper()
+		return submitDetachedHarnessWorkForTest(t, runtime, detachedHarnessSubmitRequest{
+			SubmissionKey:  key,
+			OwnerSessionID: "sess-owner",
+			Scope:          taskpkg.ScopeWorkspace,
+			WorkspaceID:    workspace.ID,
+			Summary:        "Recover " + key,
+			NetworkChannel: "builders",
+			TurnSource:     session.TurnSourceSynthetic,
+			WakeTarget: detachedHarnessWakeTargetInput{
+				SessionID: "sess-wake",
+			},
+		})
+	}
+
+	requeueSubmission := makeSubmission("detached-requeue")
+	markSubmission := makeSubmission("detached-mark")
+	failSubmission := makeSubmission("detached-fail")
+
+	actor, err := detachedHarnessActorContext("sess-owner")
+	if err != nil {
+		t.Fatalf("detachedHarnessActorContext() error = %v", err)
+	}
+
+	if _, err := runtime.manager.ClaimRun(context.Background(), requeueSubmission.Run.ID, taskpkg.ClaimRun{
+		IdempotencyKey: "claim-requeue",
+	}, actor); err != nil {
+		t.Fatalf("ClaimRun(requeue) error = %v", err)
+	}
+	claimed, err := runtime.manager.ClaimRun(context.Background(), markSubmission.Run.ID, taskpkg.ClaimRun{
+		IdempotencyKey: "claim-mark",
+	}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun(mark) error = %v", err)
+	}
+	if _, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-live", actor); err != nil {
+		t.Fatalf("AttachRunSession(mark) error = %v", err)
+	}
+	claimed, err = runtime.manager.ClaimRun(context.Background(), failSubmission.Run.ID, taskpkg.ClaimRun{
+		IdempotencyKey: "claim-fail",
+	}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun(fail) error = %v", err)
+	}
+	if _, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-fail", actor); err != nil {
+		t.Fatalf("AttachRunSession(fail) error = %v", err)
+	}
+	failedInfo.State = session.StateStopped
+	failedInfo.StopDetail = "daemon lost the task session"
+
+	bootActor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+	stats, err := recoverTaskRunsOnBoot(context.Background(), runtime.manager, runtime.store, sessions, bootActor)
+	if err != nil {
+		t.Fatalf("recoverTaskRunsOnBoot() error = %v", err)
+	}
+	if got, want := stats.requeued, 1; got != want {
+		t.Fatalf("stats.requeued = %d, want %d", got, want)
+	}
+	if got, want := stats.markedRunning, 1; got != want {
+		t.Fatalf("stats.markedRunning = %d, want %d", got, want)
+	}
+	if got, want := stats.failed, 1; got != want {
+		t.Fatalf("stats.failed = %d, want %d", got, want)
+	}
+
+	requeuedRun, err := runtime.store.GetTaskRun(context.Background(), requeueSubmission.Run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(requeue) error = %v", err)
+	}
+	if got, want := requeuedRun.Status, taskpkg.TaskRunStatusQueued; got != want {
+		t.Fatalf("requeued run status = %q, want %q", got, want)
+	}
+
+	markedRun, err := runtime.store.GetTaskRun(context.Background(), markSubmission.Run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(mark) error = %v", err)
+	}
+	if got, want := markedRun.Status, taskpkg.TaskRunStatusRunning; got != want {
+		t.Fatalf("marked run status = %q, want %q", got, want)
+	}
+
+	failedRun, err := runtime.store.GetTaskRun(context.Background(), failSubmission.Run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(fail) error = %v", err)
+	}
+	if got, want := failedRun.Status, taskpkg.TaskRunStatusFailed; got != want {
+		t.Fatalf("failed run status = %q, want %q", got, want)
 	}
 }
 
@@ -1910,6 +2434,46 @@ func testHarnessReentryBridgeDispatchWakeUsesRecordedSyntheticEvent(t *testing.T
 
 type taskBridgeStopOnlySessionManager struct {
 	stopCalls []fakeStopWithCauseCall
+}
+
+type taskBridgeCreateErrorSessionManager struct {
+	err error
+}
+
+type taskBridgeNilStatusSessionManager struct{}
+
+func (m *taskBridgeCreateErrorSessionManager) Create(context.Context, session.CreateOpts) (*session.Session, error) {
+	return nil, m.err
+}
+
+func (m *taskBridgeCreateErrorSessionManager) Status(context.Context, string) (*session.Info, error) {
+	return nil, session.ErrSessionNotFound
+}
+
+func (m *taskBridgeCreateErrorSessionManager) StopWithCause(
+	context.Context,
+	string,
+	session.StopCause,
+	string,
+) error {
+	return nil
+}
+
+func (m *taskBridgeNilStatusSessionManager) Create(context.Context, session.CreateOpts) (*session.Session, error) {
+	return &session.Session{ID: "unused"}, nil
+}
+
+func (m *taskBridgeNilStatusSessionManager) Status(context.Context, string) (*session.Info, error) {
+	return nil, nil
+}
+
+func (m *taskBridgeNilStatusSessionManager) StopWithCause(
+	context.Context,
+	string,
+	session.StopCause,
+	string,
+) error {
+	return nil
 }
 
 func (m *taskBridgeStopOnlySessionManager) Create(context.Context, session.CreateOpts) (*session.Session, error) {

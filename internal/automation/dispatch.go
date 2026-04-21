@@ -850,6 +850,7 @@ func (d *Dispatcher) emitRunLifecycleHooks(
 func (d *Dispatcher) createOpts(req DispatchRequest) session.CreateOpts {
 	opts := session.CreateOpts{
 		AgentName: req.agentName(),
+		Provider:  "",
 		Name:      req.name(),
 		Type:      session.SessionTypeSystem,
 	}
