@@ -79,6 +79,24 @@ func TestRootPackageScriptsExposeTheRepoLevelE2ELaneEntryPoints(t *testing.T) {
 	}
 }
 
+func TestRootPackageScriptsExposeSharedCodegenEntryPoints(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRoot(t)
+	pkg := readPackageJSON(t, filepath.Join(repoRoot, "package.json"))
+
+	want := map[string]string{
+		"codegen":       "make codegen",
+		"codegen-check": "make codegen-check",
+	}
+
+	for script, command := range want {
+		if got := pkg.Scripts[script]; got != command {
+			t.Fatalf("package.json script %q = %q, want %q", script, got, command)
+		}
+	}
+}
+
 func TestWebPackageScriptsPreserveDaemonServedModeAndNightlySplit(t *testing.T) {
 	t.Parallel()
 
@@ -99,6 +117,28 @@ func TestWebPackageScriptsPreserveDaemonServedModeAndNightlySplit(t *testing.T) 
 	}
 	if got := pkg.Scripts["test:e2e:nightly:raw"]; got != "playwright test --grep @nightly --pass-with-no-tests" {
 		t.Fatalf("web package nightly raw script = %q", got)
+	}
+}
+
+func TestWebPackageScriptsRouteSharedCodegenIntoDependentCommands(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRoot(t)
+	pkg := readPackageJSON(t, filepath.Join(repoRoot, WebDir, "package.json"))
+
+	want := map[string]string{
+		"codegen":       "bun run --cwd .. codegen",
+		"codegen-check": "bun run --cwd .. codegen-check",
+		"dev":           "bun run codegen && bun run dev:raw",
+		"build":         "bun run codegen-check && bun run build:raw",
+		"test":          "bun run codegen-check && bun run test:raw",
+		"typecheck":     "bun run codegen-check && bun run typecheck:raw",
+	}
+
+	for script, command := range want {
+		if got := pkg.Scripts[script]; got != command {
+			t.Fatalf("web package script %q = %q, want %q", script, got, command)
+		}
 	}
 }
 

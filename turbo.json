@@ -4,13 +4,15 @@
         "cmd/agh-codegen/**",
         "internal/api/contract/**",
         "internal/api/spec/**",
+        "internal/codegen/openapits/**",
         "internal/codegen/sdkts/**",
         "internal/extension/contract/**",
         "internal/extension/protocol/**",
         "internal/hooks/**",
         "internal/subprocess/handshake.go",
         "magefile.go",
-        "openapi/agh.json"
+        "openapi/agh.json",
+        "openapi/compozy-daemon.json"
     ],
     "tasks": {
         "build": {
