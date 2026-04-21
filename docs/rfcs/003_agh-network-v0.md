@@ -26,12 +26,12 @@ The agent ecosystem lacks a lightweight protocol for agent-to-agent networking t
 v0 delivers:
 
 - the complete envelope schema (wire-compatible with v1)
-- all seven message kinds: `greet`, `whois`, `say`, `direct`, `recipe`, `receipt`, `trace`
+- all seven message kinds: `greet`, `whois`, `say`, `direct`, `capability`, `receipt`, `trace`
 - the full interaction lifecycle with all six states
 - the normative NATS transport binding
 - delivery semantics, error model, and reason codes
 - minimal discovery via `greet` and `whois`
-- Peer Card and capability signaling
+- Peer Card, capability discovery, and capability transfer signaling
 
 v0 does not deliver:
 
@@ -64,7 +64,7 @@ No wire format changes are required.
 3. Define the full interaction lifecycle
 4. Define the normative NATS transport binding
 5. Support peer discovery through `greet` and `whois`
-6. Support first-class `recipe` exchange
+6. Support first-class `capability` transfer
 7. Be implementable quickly by a small team
 
 ### 2.2 Non-Goals
@@ -93,11 +93,11 @@ A `channel` value MUST match `[a-z0-9][a-z0-9_-]{0,63}`. Characters outside this
 
 An `Interaction` is the lightweight logical container for work or conversation progression. It is identified by `interaction_id` and may move through a small lifecycle.
 
-An interaction is scoped to the tuple `(channel, interaction_id)`. The same `interaction_id` string in different channels denotes different interactions. Only the two original peers — the initiator who sent the first `direct` and the target identified in `to` — MAY emit lifecycle messages (`receipt`, `trace`, `direct`) for that interaction. Messages from other peers referencing an `interaction_id` they did not initiate or were not targeted by SHOULD be ignored.
+An interaction is scoped to the tuple `(channel, interaction_id)`. The same `interaction_id` string in different channels denotes different interactions. Only the two original peers — the initiator who sent the first interaction-bearing `direct` or `capability` and the target identified in `to` — MAY emit lifecycle messages (`receipt`, `trace`, `direct`, `capability`) for that interaction. Messages from other peers referencing an `interaction_id` they did not initiate or were not targeted by SHOULD be ignored.
 
-### 3.4 Recipe
+### 3.4 Capability
 
-A `Recipe` is a first-class protocol artifact that describes a reusable procedure, pattern, or set of instructions. It is intentionally interpretive, not a deterministic workflow program.
+A `Capability` is the reusable AGH delegation artifact. The same structured capability concept is used for authored catalogs, brief discovery, rich discovery, and explicit `kind:"capability"` transfer. It is intentionally interpretive, not a deterministic workflow program.
 
 ### 3.5 Claimed Identity
 
@@ -142,7 +142,7 @@ The core defines:
 
 - canonical envelope semantics
 - message kinds
-- artifact model for `recipe`
+- capability transfer model
 - interaction lifecycle
 - minimal discovery and capability signaling
 - minimal observability primitives
@@ -286,6 +286,8 @@ A `peer_id` value (used in `from`, `to`, and Peer Card) MUST match `[a-z0-9][a-z
 
 `capabilities` is the minimal capability index advertised by the peer. Implementations MAY expose richer capability discovery metadata through `ext`.
 
+`artifacts_supported` advertises which transferable artifact kinds the peer understands. AGH v0 peers that support unified capability transfer SHOULD advertise `"capability"` in `artifacts_supported` even when `capabilities` is empty.
+
 ### 6.3 Minimal discovery
 
 The core defines minimal discovery only:
@@ -302,17 +304,25 @@ The core does not define:
 
 ### 6.4 Capability semantics
 
-Capabilities are opaque identifiers defined by implementations or future profiles. Namespaced strings are RECOMMENDED, for example:
+A capability is the single AGH delegation artifact. The same concept appears in three protocol roles:
 
-- `chat.translate`
-- `artifact.recipe.consume`
-- `workspace.patch.apply`
+- discovery index in `peer_card.capabilities`
+- optional rich discovery through explicit `whois`
+- transferable artifact through `kind:"capability"`
+
+Capability IDs are peer-local stable identifiers. Slugs are RECOMMENDED, for example:
+
+- `collect-failing-tests`
+- `fix-go-migration-tests`
+- `review-runtime-docs`
+
+On the network, the effective operational identity is `(peer_id, capability_id)`.
 
 Capability advertisements are advisory. They indicate what a peer claims it can do, but they do not imply authorization, safety, or guaranteed execution semantics.
 
-The core does not require capabilities to correspond to tools, prompts, or workflow definitions, and it does not impose a global capability taxonomy.
+The core does not require capabilities to correspond to tools, prompts, or deterministic workflow definitions, and it does not impose a global capability taxonomy.
 
-Implementations MAY expose richer capability discovery metadata using `ext`.
+Implementations MAY expose richer capability discovery metadata using `ext`, but the steady-state model remains one capability concept rather than separate discovery and transfer artifact types.
 
 ---
 
@@ -326,7 +336,7 @@ An interaction:
 
 - is identified by `interaction_id`
 - groups related messages
-- can be opened by a sender through `direct`
+- can be opened by a sender through `direct` or `capability` when `interaction_id` is present
 - can progress through a lightweight lifecycle
 
 ### 7.2 Lifecycle states
@@ -342,7 +352,7 @@ The normative lifecycle states are:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> submitted : first direct opens interaction
+    [*] --> submitted : first direct/capability with interaction_id opens interaction
 
     submitted --> working : trace working
     submitted --> needs_input : trace needs_input
@@ -424,7 +434,7 @@ The core does not define:
 
 ---
 
-## 8. Message and Artifact Kinds
+## 8. Message Kinds
 
 ### 8.1 Overview
 
@@ -434,7 +444,7 @@ The normative core kinds are:
 - `whois`
 - `say`
 - `direct`
-- `recipe`
+- `capability`
 - `receipt`
 - `trace`
 
@@ -453,8 +463,8 @@ sequenceDiagram
     A->>B: direct
     B-->>A: receipt
     B-->>A: trace
-    B->>S: recipe
-    S-->>A: recipe
+    B->>S: capability
+    S-->>A: capability
 ```
 
 ### 8.2 `greet`
@@ -534,7 +544,7 @@ Local capability authoring, file layout, and validation are runtime concerns and
 
 #### AGH rich capability discovery extension
 
-AGH MAY use envelope `ext` keys to request or return a rich capability catalog without bloating ordinary `whois` traffic.
+AGH MAY use envelope `ext` keys to request or return a rich capability catalog without bloating ordinary `whois` traffic. `whois` remains the rich-discovery path; `kind:"capability"` remains the explicit transfer path.
 
 Request keys:
 
@@ -579,6 +589,8 @@ Recommended response shape:
           "id": "create-landing-page",
           "summary": "Creates a landing page from a brief.",
           "outcome": "Landing page ready or near-ready with copy, structure, and implementation or proposal.",
+          "version": "1.2.0",
+          "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
           "context_needed": ["product", "target audience", "offer"],
           "artifacts_expected": ["copy", "page structure", "implementation"],
           "execution_outline": [
@@ -587,7 +599,8 @@ Recommended response shape:
             "draft copy",
             "compose the page",
             "refine and deliver"
-          ]
+          ],
+          "requirements": ["draft-offer-brief"]
         }
       ]
     }
@@ -601,7 +614,7 @@ Rules:
 - the response still returns the normal `peer_card`
 - the rich catalog belongs in envelope `ext`, not in `peer_card.ext`
 - each capability entry MUST include `id`, `summary`, and `outcome`
-- each capability entry MAY include `context_needed`, `artifacts_expected`, `execution_outline`, `constraints`, and `examples`
+- each capability entry MAY include `version`, `digest`, `context_needed`, `artifacts_expected`, `execution_outline`, `constraints`, `examples`, and `requirements`
 - peers SHOULD NOT include full capability catalogs in periodic `greet`
 - peers MAY return the full catalog or a filtered subset based on `agh.capability_ids`
 - if the peer has no local catalog, `agh.capability_catalog.capabilities` MUST be `[]`
@@ -651,7 +664,7 @@ The local capability catalog model and validation rules are runtime concerns and
 
 - `to` is REQUIRED
 - `interaction_id` is REQUIRED
-- the first `direct` in an interaction opens that interaction
+- a `direct` envelope with a new `interaction_id` opens that interaction unless a prior interaction-bearing `capability` already established it
 
 #### Example
 
@@ -679,25 +692,25 @@ The local capability catalog model and validation rules are runtime concerns and
 }
 ```
 
-### 8.6 `recipe`
+### 8.6 `capability`
 
-`recipe` carries or advertises a first-class recipe artifact.
+`capability` transfers one full capability document. It is the explicit transfer path for the same structured capability model used by local authoring and rich discovery.
 
 #### Body
 
 ```json
 {
-  "recipe": {
-    "recipe_id": "stable identifier",
-    "version": "semantic or content version",
-    "title": "human-readable title",
+  "capability": {
+    "id": "stable capability identifier",
     "summary": "short summary",
-    "content_type": "text/markdown or other media type",
+    "outcome": "expected result",
+    "version": "optional semantic or content version",
     "digest": "sha256:...",
-    "uri": "optional retrieval URI",
-    "inline": "optional inline content",
-    "inputs": [],
-    "outputs": [],
+    "context_needed": [],
+    "artifacts_expected": [],
+    "execution_outline": [],
+    "constraints": [],
+    "examples": [],
     "requirements": []
   }
 }
@@ -705,12 +718,18 @@ The local capability catalog model and validation rules are runtime concerns and
 
 #### Rules
 
-- `recipe.recipe_id` is REQUIRED
-- `recipe.version` is REQUIRED
-- `recipe.content_type` is REQUIRED
-- `recipe.digest` is REQUIRED
-- at least one of `recipe.uri` or `recipe.inline` MUST be present
-- `recipe` is a portable artifact, not an execution contract
+- `body.capability` is REQUIRED
+- `capability.id` is REQUIRED
+- `capability.summary` is REQUIRED
+- `capability.outcome` is REQUIRED
+- `capability.digest` is REQUIRED
+- `capability.version` MAY be present
+- `capability.requirements`, when present, MUST contain non-empty unique capability IDs after normalization
+- senders MUST compute `capability.digest` from the canonical structured capability document
+- receivers MUST reject digest mismatches as `verification_failed`
+- `capability` MAY be broadcast or directed
+- `capability` MAY open or continue an interaction when `interaction_id` is present
+- v0 validates `requirements` syntactically; receivers do not need to resolve every referenced capability ID locally before transport
 
 ### 8.7 `receipt`
 
@@ -844,7 +863,7 @@ When sending a directed message (`to != null`), the sender MUST derive the targe
 
 ### 10.3.1 Maximum envelope size
 
-Implementations MUST support envelopes up to 1 MB (1,048,576 bytes) after JSON serialization. Senders SHOULD NOT emit envelopes exceeding this limit. For `recipe` payloads that exceed this threshold, senders SHOULD use `recipe.uri` instead of `recipe.inline`.
+Implementations MUST support envelopes up to 1 MB (1,048,576 bytes) after JSON serialization. Senders SHOULD NOT emit envelopes exceeding this limit. For rich `whois` catalogs or `kind:"capability"` transfers that approach this threshold, senders SHOULD narrow the payload to the smallest relevant capability set instead of inventing an out-of-band artifact format.
 
 ### 10.4 Subject mapping
 
@@ -891,7 +910,7 @@ Periodic `greet` re-announcement serves as an implicit heartbeat. The RECOMMENDE
 - messages with `to = null` MUST be published to the broadcast subject
 - messages with `to != null` MUST be published to the target peer direct subject
 - `greet` SHOULD be broadcast
-- targeted `whois`, `direct`, `receipt`, and `trace` SHOULD use direct subjects
+- targeted `whois`, `direct`, `capability`, `receipt`, and `trace` SHOULD use direct subjects
 
 ### 10.7 Reliability posture
 
@@ -1101,50 +1120,56 @@ sequenceDiagram
 }
 ```
 
-### 13.2 Recipe advertisement followed by direct follow-up
+### 13.2 Capability discovery, transfer, and direct follow-up
 
 ```mermaid
 sequenceDiagram
-    participant Curator as recipe-curator
+    participant Curator as capability-curator
     participant Channel as builders
     participant Release as release-bot
 
-    Curator->>Channel: recipe("fix-go-migration-tests")
-    Channel-->>Release: recipe
-    Release->>Curator: direct("Can you adapt this recipe to my repo?")
+    Curator->>Channel: greet("fix-go-migration-tests" brief)
+    Release->>Curator: whois(filter=fix-go-migration-tests)
+    Curator-->>Release: whois(capability_catalog)
+    Curator->>Release: capability("fix-go-migration-tests")
+    Release->>Curator: direct("Can you adapt this to my repo?")
     Curator-->>Release: receipt(accepted)
     Curator-->>Release: trace(needs_input)
     Release->>Curator: direct("Here is the failing package path")
 ```
 
-1. Channel-visible recipe advertisement:
+1. Channel-visible brief discovery through `greet`:
 
 ```json
 {
   "protocol": "agh-network/v0",
-  "id": "msg_recipe_01",
-  "kind": "recipe",
+  "id": "msg_greet_10",
+  "kind": "greet",
   "channel": "builders",
-  "from": "recipe-curator",
+  "from": "capability-curator",
   "to": null,
   "interaction_id": null,
   "reply_to": null,
-  "trace_id": "trace_recipe_catalog_7",
+  "trace_id": "trace_capability_catalog_7",
   "causation_id": null,
   "ts": 1775606460,
   "expires_at": null,
   "body": {
-    "recipe": {
-      "recipe_id": "agh.recipe.fix-go-migration-tests",
-      "version": "1.0.0",
-      "title": "Fix failing Go migration tests",
-      "summary": "A reusable procedure for isolating, reproducing, patching, and verifying migration-related test failures.",
-      "content_type": "text/markdown",
-      "digest": "sha256:7a4eb8f9f0aa7d12b2d31eb3e0f7f3b6e2fe5c4d5bc6b4af4d5e8d17a5014a4c",
-      "uri": "https://recipes.example.net/fix-go-migration-tests.md",
-      "inputs": ["failing test output", "repository or package path"],
-      "outputs": ["patch summary", "verification notes"],
-      "requirements": ["Go toolchain", "workspace write access"]
+    "peer_card": {
+      "peer_id": "capability-curator",
+      "display_name": "Capability Curator",
+      "profiles_supported": ["agh-network-over-nats/v0"],
+      "capabilities": ["fix-go-migration-tests"],
+      "artifacts_supported": ["capability"],
+      "trust_modes_supported": ["unverified"],
+      "ext": {
+        "agh.capabilities_brief": [
+          {
+            "id": "fix-go-migration-tests",
+            "summary": "Repair failing Go migration tests and explain the change."
+          }
+        ]
+      }
     }
   },
   "proof": null,
@@ -1152,7 +1177,123 @@ sequenceDiagram
 }
 ```
 
-2. Direct follow-up opening a new interaction:
+2. Filtered rich discovery through `whois`:
+
+Request:
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_whois_11",
+  "kind": "whois",
+  "channel": "builders",
+  "from": "release-bot",
+  "to": "capability-curator",
+  "interaction_id": null,
+  "reply_to": null,
+  "trace_id": "trace_capability_catalog_7",
+  "causation_id": "msg_greet_10",
+  "ts": 1775606480,
+  "expires_at": 1775607080,
+  "body": {
+    "type": "request",
+    "query": "fix-go-migration-tests"
+  },
+  "proof": null,
+  "ext": {
+    "agh.include": ["capability_catalog"],
+    "agh.capability_ids": ["fix-go-migration-tests"]
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_whois_12",
+  "kind": "whois",
+  "channel": "builders",
+  "from": "capability-curator",
+  "to": "release-bot",
+  "interaction_id": null,
+  "reply_to": "msg_whois_11",
+  "trace_id": "trace_capability_catalog_7",
+  "causation_id": "msg_whois_11",
+  "ts": 1775606490,
+  "expires_at": null,
+  "body": {
+    "type": "response",
+    "peer_card": {
+      "peer_id": "capability-curator",
+      "display_name": "Capability Curator",
+      "profiles_supported": ["agh-network-over-nats/v0"],
+      "capabilities": ["fix-go-migration-tests"],
+      "artifacts_supported": ["capability"],
+      "trust_modes_supported": ["unverified"],
+      "ext": {
+        "agh.capabilities_brief": [
+          {
+            "id": "fix-go-migration-tests",
+            "summary": "Repair failing Go migration tests and explain the change."
+          }
+        ]
+      }
+    }
+  },
+  "proof": null,
+  "ext": {
+    "agh.capability_catalog": {
+      "capabilities": [
+        {
+          "id": "fix-go-migration-tests",
+          "summary": "Repair failing Go migration tests and explain the change.",
+          "outcome": "A validated patch summary with the corrected assertions.",
+          "version": "1.2.0",
+          "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
+          "context_needed": ["repo", "incident bundle"],
+          "requirements": ["collect-failing-tests"]
+        }
+      ]
+    }
+  }
+}
+```
+
+3. Explicit capability transfer:
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_capability_13",
+  "kind": "capability",
+  "channel": "builders",
+  "from": "capability-curator",
+  "to": "release-bot",
+  "interaction_id": null,
+  "reply_to": null,
+  "trace_id": "trace_capability_catalog_7",
+  "causation_id": "msg_whois_12",
+  "ts": 1775606500,
+  "expires_at": 1775607100,
+  "body": {
+    "capability": {
+      "id": "fix-go-migration-tests",
+      "summary": "Repair failing Go migration tests and explain the change.",
+      "outcome": "A validated patch summary with the corrected assertions.",
+      "version": "1.2.0",
+      "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
+      "context_needed": ["repo", "incident bundle"],
+      "requirements": ["collect-failing-tests"]
+    }
+  },
+  "proof": null,
+  "ext": {}
+}
+```
+
+4. Direct follow-up opening a new interaction:
 
 ```json
 {
@@ -1161,15 +1302,15 @@ sequenceDiagram
   "kind": "direct",
   "channel": "builders",
   "from": "release-bot",
-  "to": "recipe-curator",
-  "interaction_id": "int_recipe_apply_7",
-  "reply_to": "msg_recipe_01",
-  "trace_id": "trace_recipe_apply_7",
-  "causation_id": "msg_recipe_01",
+  "to": "capability-curator",
+  "interaction_id": "int_capability_apply_7",
+  "reply_to": "msg_capability_13",
+  "trace_id": "trace_capability_apply_7",
+  "causation_id": "msg_capability_13",
   "ts": 1775606500,
   "expires_at": 1775607100,
   "body": {
-    "text": "Can you help adapt this recipe to a failure in internal/store/sessiondb?",
+    "text": "Can you help adapt this capability to a failure in internal/store/sessiondb?",
     "intent": "request-guidance",
     "artifacts": []
   },
@@ -1178,7 +1319,7 @@ sequenceDiagram
 }
 ```
 
-3. `needs_input` trace requesting concrete repository context:
+5. `needs_input` trace requesting concrete repository context:
 
 ```json
 {
@@ -1186,17 +1327,17 @@ sequenceDiagram
   "id": "msg_trace_21",
   "kind": "trace",
   "channel": "builders",
-  "from": "recipe-curator",
+  "from": "capability-curator",
   "to": "release-bot",
-  "interaction_id": "int_recipe_apply_7",
+  "interaction_id": "int_capability_apply_7",
   "reply_to": "msg_direct_20",
-  "trace_id": "trace_recipe_apply_7",
+  "trace_id": "trace_capability_apply_7",
   "causation_id": "msg_direct_20",
   "ts": 1775606520,
   "expires_at": null,
   "body": {
     "state": "needs_input",
-    "message": "Send the exact package path and the failing test output so I can tailor the recipe.",
+    "message": "Send the exact package path and the failing test output so I can tailor the capability to your repo.",
     "result": {},
     "artifact_refs": []
   },
