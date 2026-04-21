@@ -10,7 +10,7 @@ import type {
   TaskStatus,
 } from "../types";
 
-export type TaskSemanticTone = "amber" | "danger" | "green" | "neutral" | "violet";
+export type TaskSemanticTone = "accent" | "amber" | "danger" | "green" | "neutral" | "violet";
 
 export interface TaskStatusSignal {
   tone: StatusDotTone;
@@ -22,24 +22,26 @@ export interface TaskStatusSignal {
  * shorthand of `done | running | pending | blocked | failed`) to the DESIGN.md §4
  * `StatusDot` tone and pulse. Used by `tasks-list-row`, detail header, kanban cards,
  * inbox rows and table cells so that the visual signal stays consistent.
+ *
+ * Color is signal, never decoration: terminal / normal states render neutral,
+ * only attention-demanding states carry a semantic tone. The `accent` + `pulse`
+ * combination is reserved for genuinely running work.
  */
 export function taskStatusSignal(status?: TaskStatus | string | null): TaskStatusSignal {
   switch (status) {
-    case "completed":
-    case "done":
-      return { tone: "success" };
     case "in_progress":
     case "running":
       return { tone: "accent", pulse: true };
-    case "ready":
-    case "pending":
-    case "draft":
-      return { tone: "info" };
     case "blocked":
       return { tone: "warning" };
     case "failed":
     case "canceled":
       return { tone: "danger" };
+    case "completed":
+    case "done":
+    case "ready":
+    case "pending":
+    case "draft":
     default:
       return { tone: "neutral" };
   }
@@ -112,18 +114,27 @@ export function taskApprovalStateLabel(state?: TaskApprovalState | null): string
   return TASK_APPROVAL_STATE_LABELS[state] ?? state;
 }
 
+/**
+ * Terminal + normal statuses (`completed`, `ready`, `draft`, `pending`, `idle`,
+ * non-live `in_progress`) resolve to `neutral`. Attention-demanding statuses
+ * keep their semantic tone. Priority never colorizes — hierarchy is driven by
+ * weight and position, not hue (see `taskPriorityTone`).
+ */
 export function taskStatusTone(status?: TaskStatus | null): TaskSemanticTone {
   switch (status) {
-    case "completed":
-      return "green";
     case "failed":
     case "canceled":
       return "danger";
-    case "in_progress":
-    case "ready":
-      return "violet";
     case "blocked":
       return "amber";
+    case "in_progress":
+      // In-flight work is only accent when its run is genuinely live; the list/
+      // table surfaces cannot check the active run from the status alone, so
+      // the default neutral keeps the row calm. The Agents panel and detail
+      // header override this locally when `liveCount > 0`.
+      return "neutral";
+    case "completed":
+    case "ready":
     case "draft":
     case "pending":
     default:
@@ -131,34 +142,24 @@ export function taskStatusTone(status?: TaskStatus | null): TaskSemanticTone {
   }
 }
 
-export function taskPriorityTone(priority?: TaskPriority | null): TaskSemanticTone {
-  switch (priority) {
-    case "urgent":
-      return "danger";
-    case "high":
-      return "amber";
-    case "medium":
-      return "violet";
-    case "low":
-      return "neutral";
-    default:
-      return "neutral";
-  }
+export function taskPriorityTone(_priority?: TaskPriority | null): TaskSemanticTone {
+  // Priority is always neutral. Hierarchy is expressed via weight and position,
+  // not color — stacking amber/violet/danger per row is decoration, not signal.
+  return "neutral";
 }
 
 export function taskRunStatusTone(status?: TaskRunStatus | null): TaskSemanticTone {
   switch (status) {
-    case "completed":
-      return "green";
     case "failed":
     case "canceled":
       return "danger";
     case "running":
-    case "starting":
-    case "claimed":
-      return "violet";
+      return "accent";
     case "queued":
       return "amber";
+    case "completed":
+    case "starting":
+    case "claimed":
     default:
       return "neutral";
   }

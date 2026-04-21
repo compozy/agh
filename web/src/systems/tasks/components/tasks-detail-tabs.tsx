@@ -55,7 +55,7 @@ export function TasksDetailTabs({ items, active, onChange }: TasksDetailTabsProp
                 className="inline-flex h-5 items-center gap-1 rounded-md bg-[color:var(--color-accent-tint)] px-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)]"
                 data-testid={`tasks-detail-tab-live-${item.id}`}
               >
-                <span className="size-1.5 animate-pulse rounded-full bg-[color:var(--color-accent)]" />
+                <span className="size-1.5 rounded-full bg-[color:var(--color-accent)]" />
                 Live
               </span>
             ) : null}

@@ -13,7 +13,7 @@ import { TasksInboxItem } from "./tasks-inbox-item";
 import { buildInboxItemFixture } from "./test-fixtures";
 
 describe("TasksInboxItem", () => {
-  it("renders an accent StatusDot when the item is unread", () => {
+  it("flags unread rows with a 2px accent left-rail (not a StatusDot)", () => {
     const item = buildInboxItemFixture({
       lane: "approvals",
       task: {
@@ -35,30 +35,34 @@ describe("TasksInboxItem", () => {
 
     render(<TasksInboxItem item={item} />);
 
-    const dot = screen.getByTestId("tasks-inbox-item-unread-task_apr");
-    expect(dot).toBeInTheDocument();
-    expect(dot).toHaveAttribute("data-slot", "status-dot");
-    expect(dot).toHaveAttribute("data-tone", "accent");
+    const row = screen.getByTestId("tasks-inbox-item-task_apr");
+    expect(row).toHaveAttribute("data-unread", "true");
+    expect(row.className).toContain("border-l-[color:var(--color-accent)]");
+
+    // The old unread StatusDot has been removed — the rail carries the signal.
+    expect(screen.queryByTestId("tasks-inbox-item-unread-task_apr")).not.toBeInTheDocument();
   });
 
-  it("omits the unread dot when the item has been read", () => {
+  it("renders a transparent left-rail when the row is read", () => {
     const item = buildInboxItemFixture({
       triage: {
         actor: { kind: "human", ref: "op" },
         archived: false,
         dismissed: false,
         read: true,
-        task_id: "task_001",
+        task_id: "task_inbox_001",
         updated_at: "2026-04-17T10:00:00Z",
       },
     });
 
     render(<TasksInboxItem item={item} />);
 
-    expect(screen.queryByTestId("tasks-inbox-item-unread-task_001")).not.toBeInTheDocument();
+    const row = screen.getByTestId("tasks-inbox-item-task_inbox_001");
+    expect(row).toHaveAttribute("data-unread", "false");
+    expect(row.className).toContain("border-l-transparent");
   });
 
-  it("renders three action buttons (Reject / Approve / Open) for approval items and fires onApprove once", () => {
+  it("renders Reject as a ghost-danger button and Approve as the single accent CTA", () => {
     const onApprove = vi.fn();
     const onReject = vi.fn();
     const item = buildInboxItemFixture({
@@ -82,7 +86,7 @@ describe("TasksInboxItem", () => {
 
     expect(screen.getByTestId("tasks-inbox-item-reject-task_apr")).toHaveAttribute(
       "data-variant",
-      "danger"
+      "destructive-ghost"
     );
     expect(screen.getByTestId("tasks-inbox-item-approve-task_apr")).toHaveAttribute(
       "data-variant",

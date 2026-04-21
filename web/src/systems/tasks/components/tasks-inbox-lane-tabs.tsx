@@ -14,6 +14,11 @@ export interface TasksInboxLaneTabsProps {
 
 const LANE_ORDER: TaskInboxLane[] = ["my_work", "approvals", "failed_runs", "blocked", "archived"];
 
+/**
+ * Lane tabs for the Inbox. Counts render as muted inline `(N)` text beside the
+ * label — no bg-colored count pills, no leading StatusDots. Unread totals are
+ * reflected at the row level via the accent left-rail, not on the tab itself.
+ */
 export function TasksInboxLaneTabs({
   inbox,
   value,
@@ -39,37 +44,25 @@ export function TasksInboxLaneTabs({
       >
         <TabsList className="h-8 overflow-x-auto" variant="line">
           <TabsTrigger
-            className="flex-none gap-2 font-mono text-[11px] uppercase tracking-[0.12em]"
+            className="flex-none gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em]"
             data-testid="tasks-inbox-lane-all"
             value="all"
           >
             <span>All</span>
             <LaneCount testId="tasks-inbox-lane-all-count" value={inbox?.total ?? 0} />
-            {(inbox?.unread_total ?? 0) > 0 ? (
-              <span
-                className="size-1.5 rounded-full bg-[color:var(--color-warning)]"
-                data-testid="tasks-inbox-lane-all-unread"
-              />
-            ) : null}
           </TabsTrigger>
           {lanes.map(lane => {
             const counts = groupCounts.get(lane);
             const label = taskInboxLaneLabel(lane);
             return (
               <TabsTrigger
-                className="flex-none gap-2 font-mono text-[11px] uppercase tracking-[0.12em]"
+                className="flex-none gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em]"
                 data-testid={`tasks-inbox-lane-${lane}`}
                 key={lane}
                 value={lane}
               >
                 <span>{label}</span>
                 <LaneCount testId={`tasks-inbox-lane-${lane}-count`} value={counts?.count ?? 0} />
-                {(counts?.unread ?? 0) > 0 ? (
-                  <span
-                    className="size-1.5 rounded-full bg-[color:var(--color-warning)]"
-                    data-testid={`tasks-inbox-lane-${lane}-unread`}
-                  />
-                ) : null}
               </TabsTrigger>
             );
           })}
@@ -87,10 +80,10 @@ interface LaneCountProps {
 function LaneCount({ value, testId }: LaneCountProps) {
   return (
     <span
-      className="rounded-md bg-[color:var(--color-surface)] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[color:var(--color-text-primary)]"
+      className="font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
       data-testid={testId}
     >
-      {value}
+      ({value})
     </span>
   );
 }

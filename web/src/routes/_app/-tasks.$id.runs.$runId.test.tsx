@@ -127,13 +127,13 @@ describe("TaskRunDetailRoute", () => {
     vi.mocked(getTask).mockResolvedValue(taskFixture as never);
   });
 
-  it("renders the run header, identity, progress, and session link", async () => {
+  it("renders the run header, identity, progress, and activity", async () => {
     renderRoute();
     await waitFor(() => expect(screen.getByTestId("tasks-run-detail-content")).toBeInTheDocument());
     expect(screen.getByTestId("task-run-detail-title")).toHaveTextContent("Run run_001");
     expect(screen.getByTestId("task-run-detail-identity-run")).toHaveTextContent("run_001");
     expect(screen.getByTestId("task-run-detail-progress-input-tokens")).toHaveTextContent("14,281");
-    expect(screen.getByTestId("task-run-detail-session-drilldown")).toBeInTheDocument();
+    expect(screen.getByTestId("task-run-detail-activity")).toBeInTheDocument();
   });
 
   it("renders a not-found state when the run cannot be fetched", async () => {

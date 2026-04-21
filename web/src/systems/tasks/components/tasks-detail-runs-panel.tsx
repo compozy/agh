@@ -70,9 +70,8 @@ export function TasksDetailRunsPanel({
   return (
     <Section
       aria-label="Task runs"
-      className="px-6 py-5"
+      className="w-full gap-6 px-6 py-5"
       data-testid="tasks-detail-runs-panel"
-      label={`Runs · ${runs.length}`}
     >
       <Table>
         <TableHeader>

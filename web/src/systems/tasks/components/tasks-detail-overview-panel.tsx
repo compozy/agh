@@ -32,7 +32,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
   const activeSignal = activeRun ? taskStatusSignal(activeRun.status) : null;
 
   return (
-    <section className="flex flex-col gap-6 px-6 py-5" data-testid="tasks-detail-overview">
+    <section className="flex w-full flex-col gap-6 px-6 py-5" data-testid="tasks-detail-overview">
       <div className="grid gap-4 md:grid-cols-3" data-testid="tasks-detail-overview-counts">
         <Metric
           data-testid="tasks-detail-overview-children"
@@ -95,7 +95,7 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
 
       <Section data-testid="tasks-detail-description" label="Description">
         {description ? (
-          <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[color:var(--color-text-primary)]">
+          <p className="max-w-prose whitespace-pre-wrap text-[13px] leading-relaxed text-[color:var(--color-text-primary)]">
             {description}
           </p>
         ) : (

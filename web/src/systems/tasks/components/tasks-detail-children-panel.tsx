@@ -64,9 +64,8 @@ export function TasksDetailChildrenPanel({
   return (
     <Section
       aria-label="Child tasks"
-      className="px-6 py-5"
+      className="w-full gap-6 px-6 py-5"
       data-testid="tasks-detail-children-panel"
-      label={`Children · ${items.length}`}
     >
       <Table>
         <TableHeader>

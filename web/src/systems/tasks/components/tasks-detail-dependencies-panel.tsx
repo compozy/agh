@@ -60,9 +60,8 @@ export function TasksDetailDependenciesPanel({
   return (
     <Section
       aria-label="Task dependencies"
-      className="px-6 py-5"
+      className="w-full gap-6 px-6 py-5"
       data-testid="tasks-detail-dependencies-panel"
-      label={`Dependencies · ${dependencies.length}`}
     >
       <Table>
         <TableHeader>

@@ -26,15 +26,21 @@ function getDot(container: HTMLElement): HTMLElement {
 }
 
 describe("TasksListRow", () => {
-  it("renders StatusDot with tone=success when task.status is the done equivalent", () => {
+  it("renders a neutral StatusDot for terminal + normal statuses", () => {
     const { container, rerender } = render(
       <TasksListRow task={buildTask({ status: "completed" })} />
     );
-    expect(getDot(container)).toHaveAttribute("data-tone", "success");
+    expect(getDot(container)).toHaveAttribute("data-tone", "neutral");
+
+    rerender(<TasksListRow task={buildTask({ status: "ready" })} />);
+    expect(getDot(container)).toHaveAttribute("data-tone", "neutral");
+
+    rerender(<TasksListRow task={buildTask({ status: "pending" })} />);
+    expect(getDot(container)).toHaveAttribute("data-tone", "neutral");
 
     // Accepts the mock shorthand ("done") for cross-layer interop.
     rerender(<TasksListRow task={buildTask({ status: "done" as never })} />);
-    expect(getDot(container)).toHaveAttribute("data-tone", "success");
+    expect(getDot(container)).toHaveAttribute("data-tone", "neutral");
   });
 
   it("renders StatusDot with tone=accent and pulse=true when task.status is the running equivalent", () => {
@@ -51,7 +57,7 @@ describe("TasksListRow", () => {
     expect(dot2).toHaveAttribute("data-pulse", "true");
   });
 
-  it("renders tone=warning for blocked, tone=danger for failed, tone=info for pending", () => {
+  it("renders attention-demanding tones only for statuses that actually demand attention", () => {
     const { container, rerender } = render(
       <TasksListRow task={buildTask({ status: "blocked" })} />
     );
@@ -60,8 +66,8 @@ describe("TasksListRow", () => {
     rerender(<TasksListRow task={buildTask({ status: "failed" })} />);
     expect(getDot(container)).toHaveAttribute("data-tone", "danger");
 
-    rerender(<TasksListRow task={buildTask({ status: "pending" })} />);
-    expect(getDot(container)).toHaveAttribute("data-tone", "info");
+    rerender(<TasksListRow task={buildTask({ status: "canceled" })} />);
+    expect(getDot(container)).toHaveAttribute("data-tone", "danger");
   });
 
   it("renders a MonoBadge showing the identifier when present", () => {

@@ -140,19 +140,10 @@ export function TasksInboxView({
                 data-testid={`tasks-inbox-group-${group.lane}`}
                 key={group.lane}
               >
-                <header className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+                <header className="flex items-baseline gap-2 font-mono text-[11px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
                   <span>{taskInboxLaneLabel(group.lane)}</span>
-                  <span data-testid={`tasks-inbox-group-count-${group.lane}`}>
-                    {group.count} {group.count === 1 ? "item" : "items"}
-                  </span>
-                  {group.unread_count > 0 ? (
-                    <span
-                      className="rounded-full bg-[color:var(--color-warning)] px-1.5 py-[1px] text-[10px] tracking-[0.12em] text-[color:var(--color-accent-ink)]"
-                      data-testid={`tasks-inbox-group-unread-${group.lane}`}
-                    >
-                      {group.unread_count} unread
-                    </span>
-                  ) : null}
+                  <span aria-hidden="true">·</span>
+                  <span data-testid={`tasks-inbox-group-count-${group.lane}`}>({group.count})</span>
                 </header>
                 <div className="flex flex-col gap-2">
                   {(group.items ?? []).map(item => (

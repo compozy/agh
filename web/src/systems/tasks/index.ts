@@ -208,8 +208,6 @@ export type {
   TaskRunIdentityPanelProps,
   TaskRunProgressPanelProps,
 } from "./components/task-run-detail-panels";
-export { TaskRunDetailSessionLink } from "./components/task-run-detail-session-link";
-export type { TaskRunDetailSessionLinkProps } from "./components/task-run-detail-session-link";
 
 export { TasksMultiAgentPanel } from "./components/tasks-multi-agent-panel";
 export type { TasksMultiAgentPanelProps } from "./components/tasks-multi-agent-panel";

@@ -118,16 +118,11 @@ function TaskDetailRoute() {
           <TasksMultiAgentPanel
             activeDescendants={page.multiAgent.activeDescendants}
             agents={page.multiAgent.nodes}
-            canLoadMoreTimeline={page.isTimelineSaturated}
             descendantCount={page.multiAgent.descendantCount}
             errorMessage={page.treeError?.message ?? null}
             liveCount={page.multiAgent.liveCount}
-            onLoadMoreTimeline={page.handleTimelineLoadMore}
             state={page.multiAgent.state}
             timeline={page.timeline}
-            timelineErrorMessage={page.timelineError?.message ?? null}
-            timelineLive={page.multiAgent.liveCount > 0}
-            timelineLoading={page.timelineLoading}
           />
         ) : null}
         {page.panel === "children" ? (

@@ -2,8 +2,9 @@ import { AlertCircle, Archive, ArchiveX, Check, Eye, RotateCcw, X } from "lucide
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Button, Pill, StatusDot } from "@agh/ui";
+import { Button, Pill } from "@agh/ui";
 
+import { cn } from "@/lib/utils";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 import {
   formatAttemptLabel,
@@ -58,11 +59,10 @@ export function TasksInboxItem({
 
   const handleSelect = () => onOpen?.(taskId);
 
+  // Unread state reads as a 2px accent left-rail + weight shift on the title;
+  // the old StatusDot + accent combination stacked too much color per row.
   const trailing = (
     <>
-      {unread ? (
-        <StatusDot data-testid={`tasks-inbox-item-unread-${taskId}`} tone="accent" />
-      ) : null}
       <Pill size="sm" variant={pillVariantFromTone(taskStatusTone(task.status))}>
         {taskStatusLabel(task.status)}
       </Pill>
@@ -109,7 +109,13 @@ export function TasksInboxItem({
 
   return (
     <TasksListRow
-      className="rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3"
+      className={cn(
+        "rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] py-3 pr-4",
+        "border-l-2 pl-4",
+        unread
+          ? 'border-l-[color:var(--color-accent)] [&_[data-slot="tasks-list-row-title"]]:font-semibold'
+          : "border-l-transparent"
+      )}
       data-lane={lane}
       data-unread={unread ? "true" : "false"}
       footer={footer}
@@ -226,7 +232,7 @@ function InboxItemFooter({
               onClick={() => onReject(taskId)}
               pending={pendingRejectId === taskId}
               testId={`tasks-inbox-item-reject-${taskId}`}
-              variant="danger"
+              variant="destructive-ghost"
             />
           ) : null}
           {isApprovalItem && onApprove ? (
@@ -256,7 +262,7 @@ function InboxItemFooter({
               onClick={() => onRetry(taskId)}
               pending={pendingRetryId === taskId}
               testId={`tasks-inbox-item-retry-${taskId}`}
-              variant="primary"
+              variant="ghost"
             />
           ) : null}
           {!isApprovalItem && !isFailedRun && onMarkRead && unread ? (
@@ -284,7 +290,7 @@ function InboxItemFooter({
             nativeButton={false}
             render={<Link params={{ id: taskId }} to="/tasks/$id" />}
             size="xs"
-            variant="outline"
+            variant="ghost"
           >
             Open
           </Button>
@@ -300,12 +306,17 @@ interface ActionButtonProps {
   onClick: () => void;
   pending: boolean;
   testId: string;
-  variant: "primary" | "ghost" | "danger";
+  /**
+   * `primary` — solid accent CTA (max one per card).
+   * `ghost` — neutral secondary action.
+   * `destructive-ghost` — ghost with `text-danger`. Solid-filled destructive
+   * buttons only belong inside a confirmation dialog, not inline on a row.
+   */
+  variant: "primary" | "ghost" | "destructive-ghost";
 }
 
 function ActionButton({ label, icon, onClick, pending, testId, variant }: ActionButtonProps) {
-  const buttonVariant =
-    variant === "primary" ? "default" : variant === "danger" ? "destructive" : "ghost";
+  const buttonVariant = variant === "primary" ? "default" : "ghost";
   return (
     <Button
       aria-label={label}
@@ -316,6 +327,10 @@ function ActionButton({ label, icon, onClick, pending, testId, variant }: Action
       size="xs"
       type="button"
       variant={buttonVariant}
+      className={cn(
+        variant === "destructive-ghost" &&
+          "text-[color:var(--color-danger)] hover:text-[color:var(--color-danger)]"
+      )}
     >
       {icon}
       {label}
