@@ -128,6 +128,9 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	if got := statusForSessionError(workspacepkg.ErrWorkspaceRootMissing); got != http.StatusGone {
 		t.Fatalf("statusForSessionError(root missing) = %d, want %d", got, http.StatusGone)
 	}
+	if got := statusForSessionError(aghconfig.ErrProviderUnavailable); got != http.StatusBadRequest {
+		t.Fatalf("statusForSessionError(provider unavailable) = %d, want %d", got, http.StatusBadRequest)
+	}
 	if got := statusForSessionError(session.ErrSessionNotActive); got != http.StatusBadRequest {
 		t.Fatalf("statusForSessionError(not active) = %d, want %d", got, http.StatusBadRequest)
 	}

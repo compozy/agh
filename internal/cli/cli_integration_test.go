@@ -232,6 +232,102 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 	}
 }
 
+func TestCLISessionProviderOverrideIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	h.runner.cfg.Providers["fake-alt"] = aghconfig.ProviderConfig{Command: "fake-alt-agent"}
+
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	defer func() {
+		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+		_ = h.runner.waitForExit()
+	}()
+
+	newOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"session",
+		"new",
+		"--agent",
+		"coder",
+		"--name",
+		"provider-demo",
+		"--provider",
+		"fake-alt",
+		"--cwd",
+		h.workspace,
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("session new --provider error = %v", err)
+	}
+
+	var created SessionRecord
+	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(session new --provider) error = %v", err)
+	}
+	if created.Provider != "fake-alt" {
+		t.Fatalf("created.Provider = %q, want %q", created.Provider, "fake-alt")
+	}
+
+	statusOut, _, err := executeRootCommand(t, h.deps, "session", "status", created.ID, "-o", "json")
+	if err != nil {
+		t.Fatalf("session status error = %v", err)
+	}
+
+	var status SessionRecord
+	if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
+		t.Fatalf("json.Unmarshal(session status) error = %v", err)
+	}
+	if status.Provider != "fake-alt" || status.State != session.StateActive {
+		t.Fatalf("status = %#v, want active fake-alt session", status)
+	}
+
+	listOut, _, err := executeRootCommand(t, h.deps, "session", "list", "--all", "-o", "json")
+	if err != nil {
+		t.Fatalf("session list error = %v", err)
+	}
+
+	var listed []SessionRecord
+	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
+		t.Fatalf("json.Unmarshal(session list) error = %v", err)
+	}
+	if got, want := len(listed), 1; got != want {
+		t.Fatalf("len(listed) = %d, want %d", got, want)
+	}
+	if listed[0].Provider != "fake-alt" {
+		t.Fatalf("listed[0].Provider = %q, want %q", listed[0].Provider, "fake-alt")
+	}
+
+	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
+	if err != nil {
+		t.Fatalf("session stop error = %v", err)
+	}
+
+	var stopped SessionRecord
+	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
+		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
+	}
+	if stopped.Provider != "fake-alt" || stopped.State != session.StateStopped {
+		t.Fatalf("stopped = %#v, want stopped fake-alt session", stopped)
+	}
+
+	resumeOut, _, err := executeRootCommand(t, h.deps, "session", "resume", created.ID, "-o", "json")
+	if err != nil {
+		t.Fatalf("session resume error = %v", err)
+	}
+
+	var resumed SessionRecord
+	if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
+		t.Fatalf("json.Unmarshal(session resume) error = %v", err)
+	}
+	if resumed.Provider != "fake-alt" || resumed.State != session.StateActive {
+		t.Fatalf("resumed = %#v, want active fake-alt session", resumed)
+	}
+}
+
 func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	t.Parallel()
 

@@ -93,10 +93,19 @@ func WaitForCommandProcessGroupExit(cmd *exec.Cmd, timeout time.Duration) error 
 // KillCommandProcessGroupAndWait forcefully terminates any remaining members of
 // the command's process group, then waits for the group to disappear.
 func KillCommandProcessGroupAndWait(cmd *exec.Cmd, timeout time.Duration) error {
-	return errors.Join(
-		SignalCommandProcessGroup(cmd, syscall.SIGKILL),
-		WaitForCommandProcessGroupExit(cmd, timeout),
-	)
+	signalErr := SignalCommandProcessGroup(cmd, syscall.SIGKILL)
+	waitErr := WaitForCommandProcessGroupExit(cmd, timeout)
+	return joinProcessGroupKillResult(signalErr, waitErr)
+}
+
+func joinProcessGroupKillResult(signalErr error, waitErr error) error {
+	// A best-effort SIGKILL can race with the process group exiting on its own.
+	// If the follow-up wait proves the group is gone, an EPERM from the signal
+	// attempt is stale noise rather than a real shutdown failure.
+	if waitErr == nil && errors.Is(signalErr, syscall.EPERM) {
+		return nil
+	}
+	return errors.Join(signalErr, waitErr)
 }
 
 func signalProcessGroupMembersLinux(pgid int, sig syscall.Signal) error {

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -126,6 +127,8 @@ func statusForSessionError(err error) int {
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
 		return http.StatusGone
 	case errors.Is(err, workspacepkg.ErrAgentNotAvailable):
+		return http.StatusBadRequest
+	case errors.Is(err, aghconfig.ErrProviderUnavailable):
 		return http.StatusBadRequest
 	case errors.Is(err, session.ErrSessionNotActive):
 		return http.StatusBadRequest

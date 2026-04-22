@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -23,16 +24,18 @@ import (
 	aghcontract "github.com/pedronauck/agh/internal/api/contract"
 	apispec "github.com/pedronauck/agh/internal/api/spec"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
 	"github.com/pedronauck/agh/internal/transcript"
 )
 
 const (
-	transportUDSApprovalAgent   = "transport-uds-approver"
-	transportUDSAutomationAgent = "transport-uds-automation-runner"
-	transportUDSFaultyAgent     = "transport-uds-faulty-runner"
-	transportUDSObserveAgent    = "transport-uds-observe"
+	transportUDSApprovalAgent    = "transport-uds-approver"
+	transportUDSAutomationAgent  = "transport-uds-automation-runner"
+	transportUDSFaultyAgent      = "transport-uds-faulty-runner"
+	transportUDSObserveAgent     = "transport-uds-observe"
+	transportUDSOverrideProvider = "qa-transport-override"
 )
 
 var errStopAfterUDSApprovalGap = errors.New("stop after documenting UDS approval gap")
@@ -182,6 +185,92 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 			httpDetail.Session.Provider,
 			created.Session.Provider,
 		)
+	}
+}
+
+func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  transportMockFixturePath(t, "automation_task_fixture.json"),
+			FixtureAgent: "automation-runner",
+			AgentName:    transportUDSAutomationAgent,
+		}},
+	})
+	registration, ok := runtimeHarness.MockAgentRegistration(transportUDSAutomationAgent)
+	if !ok {
+		t.Fatalf("MockAgentRegistration(%q) not found", transportUDSAutomationAgent)
+	}
+
+	writeTransportProviderOverrideConfig(
+		t,
+		runtimeHarness.WorkspaceRoot,
+		transportUDSOverrideProvider,
+		registration.Command,
+		true,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	var created aghcontract.SessionResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", aghcontract.CreateSessionRequest{
+		AgentName:     transportUDSAutomationAgent,
+		Provider:      transportUDSOverrideProvider,
+		WorkspacePath: runtimeHarness.WorkspaceRoot,
+	}, &created); err != nil {
+		t.Fatalf("UDS create session error = %v", err)
+	}
+
+	stopResp := mustUnixRequest(
+		t,
+		runtimeHarness.UDSClient,
+		http.MethodDelete,
+		runtimeHarness.UDSURL("/api/sessions/"+url.PathEscape(created.Session.ID)),
+		nil,
+		nil,
+	)
+	if stopResp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(stopResp.Body)
+		_ = stopResp.Body.Close()
+		t.Fatalf("UDS stop session status = %d, want %d; body=%s", stopResp.StatusCode, http.StatusNoContent, string(body))
+	}
+	_ = stopResp.Body.Close()
+
+	writeTransportProviderOverrideConfig(
+		t,
+		runtimeHarness.WorkspaceRoot,
+		transportUDSOverrideProvider,
+		registration.Command,
+		false,
+	)
+
+	resumeResp := mustUnixRequest(
+		t,
+		runtimeHarness.UDSClient,
+		http.MethodPost,
+		runtimeHarness.UDSURL("/api/sessions/"+url.PathEscape(created.Session.ID)+"/resume"),
+		nil,
+		nil,
+	)
+	body, err := io.ReadAll(resumeResp.Body)
+	closeErr := resumeResp.Body.Close()
+	if err != nil {
+		t.Fatalf("read UDS resume body error = %v", err)
+	}
+	if closeErr != nil {
+		t.Fatalf("close UDS resume body error = %v", closeErr)
+	}
+	if resumeResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("UDS resume status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusBadRequest, string(body))
+	}
+	if !strings.Contains(string(body), created.Session.ID) {
+		t.Fatalf("UDS resume body = %s, want session id %q", string(body), created.Session.ID)
+	}
+	if !strings.Contains(string(body), transportUDSOverrideProvider) {
+		t.Fatalf("UDS resume body = %s, want provider %q", string(body), transportUDSOverrideProvider)
 	}
 }
 
@@ -928,4 +1017,39 @@ func transportMockFixturePath(t testing.TB, name string) string {
 		t.Fatal("runtime.Caller(0) failed")
 	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "testutil", "acpmock", "testdata", name)
+}
+
+func writeTransportProviderOverrideConfig(
+	t testing.TB,
+	workspaceRoot string,
+	providerName string,
+	command string,
+	includeProvider bool,
+) {
+	t.Helper()
+
+	configDir := filepath.Join(workspaceRoot, aghconfig.DirName)
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", configDir, err)
+	}
+
+	var builder strings.Builder
+	if includeProvider {
+		builder.WriteString("[providers." + providerName + "]\n")
+		builder.WriteString(`command = "`)
+		builder.WriteString(escapeTransportConfigString(command))
+		builder.WriteString("\"\n")
+		builder.WriteString(`default_model = "transport-override-model"` + "\n")
+		builder.WriteString(`api_key_env = "TRANSPORT_OVERRIDE_API_KEY"` + "\n")
+	}
+
+	configPath := filepath.Join(configDir, aghconfig.ConfigName)
+	if err := os.WriteFile(configPath, []byte(builder.String()), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", configPath, err)
+	}
+}
+
+func escapeTransportConfigString(value string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
+	return replacer.Replace(strings.TrimSpace(value))
 }

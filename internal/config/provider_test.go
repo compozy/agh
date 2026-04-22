@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -257,6 +258,8 @@ func TestResolveProviderRejectsUnknownProvider(t *testing.T) {
 	cfg := Config{}
 	if _, err := cfg.ResolveProvider("unknown"); err == nil {
 		t.Fatal("ResolveProvider() error = nil, want non-nil")
+	} else if !errors.Is(err, ErrProviderUnavailable) {
+		t.Fatalf("ResolveProvider() error = %v, want ErrProviderUnavailable", err)
 	}
 }
 
