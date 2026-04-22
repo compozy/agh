@@ -12,5 +12,5 @@
 | 04 | Explicit Session Provider Contracts and Generated Surfaces | completed | high | task_02 |
 | 05 | Workspace Provider Catalog and Automatic Creator Defaults | completed | medium | task_02 |
 | 06 | Web Session Creation Dialog and Resume Failure UX | completed | high | task_04, task_05 |
-| 07 | Session Provider Override QA Plan and Regression Artifacts | pending | high | task_06 |
-| 08 | Session Provider Override QA Execution and End-to-End Validation | pending | critical | task_07 |
+| 07 | Session Provider Override QA Plan and Regression Artifacts | completed | high | task_06 |
+| 08 | Session Provider Override QA Execution and End-to-End Validation | completed | critical | task_07 |

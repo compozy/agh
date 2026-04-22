@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Session Provider Override QA Execution and End-to-End Validation
 type: test
 complexity: critical
@@ -35,11 +35,11 @@ Execute the full QA pass for session provider override using the artifacts from 
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/session-driver-override` and derive the execution matrix from task_07 artifacts
-- [ ] 8.2 Run the baseline repository verification gate and establish the pre-execution health state
-- [ ] 8.3 Execute backend, storage, transport, CLI, and browser-visible provider-override scenarios through supported repo surfaces
-- [ ] 8.4 Fix root-cause regressions, add matching regression coverage, and rerun impacted scenarios
-- [ ] 8.5 Rerun final verification gates and publish `.compozy/tasks/session-driver-override/qa/verification-report.md`
+- [x] 8.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/session-driver-override` and derive the execution matrix from task_07 artifacts
+- [x] 8.2 Run the baseline repository verification gate and establish the pre-execution health state
+- [x] 8.3 Execute backend, storage, transport, CLI, and browser-visible provider-override scenarios through supported repo surfaces
+- [x] 8.4 Fix root-cause regressions, add matching regression coverage, and rerun impacted scenarios
+- [x] 8.5 Rerun final verification gates and publish `.compozy/tasks/session-driver-override/qa/verification-report.md`
 
 ## Implementation Details
 
@@ -82,18 +82,18 @@ See the TechSpec "Testing Approach" plus the QA artifacts from task_07. The key 
 
 ## Tests
 - Unit tests:
-  - [ ] Any bug found in provider resolution gains a narrow regression that proves the exact override invariant that failed
-  - [ ] Any bug found in session persistence or resume ordering gains a regression that proves the specific lifecycle invariant that broke
-  - [ ] Any bug found in migration or repair gains a regression that proves the exact schema or repair behavior
-  - [ ] Any bug found in CLI, API, or generated contracts gains the narrowest regression that proves parity on `provider`
+  - [x] Any bug found in provider resolution gains a narrow regression that proves the exact override invariant that failed
+  - [x] Any bug found in session persistence or resume ordering gains a regression that proves the specific lifecycle invariant that broke
+  - [x] Any bug found in migration or repair gains a regression that proves the exact schema or repair behavior
+  - [x] Any bug found in CLI, API, or generated contracts gains the narrowest regression that proves parity on `provider`
 - Integration tests:
-  - [ ] Real create-session flows prove an explicit provider override reaches runtime, persistence, and returned payloads coherently
-  - [ ] Real resume flows prove the persisted provider wins even after an agent default changes
-  - [ ] Real failure flows prove create and resume fail explicitly when the requested or persisted provider is unavailable
-  - [ ] Real global DB and legacy metadata fixtures prove migration and one-time repair end to end
-  - [ ] Real CLI, HTTP, UDS, and Host API flows stay aligned on the effective provider field
-  - [ ] Real browser-visible flows prove the session creation dialog, provider picker, successful create path, and resume failure UX end to end
-  - [ ] `make verify` and `make codegen-check` pass from a clean rerun after the final QA fix set
+  - [x] Real create-session flows prove an explicit provider override reaches runtime, persistence, and returned payloads coherently
+  - [x] Real resume flows prove the persisted provider wins even after an agent default changes
+  - [x] Real failure flows prove create and resume fail explicitly when the requested or persisted provider is unavailable
+  - [x] Real global DB and legacy metadata fixtures prove migration and one-time repair end to end
+  - [x] Real CLI, HTTP, UDS, and Host API flows stay aligned on the effective provider field
+  - [x] Real browser-visible flows prove the session creation dialog, provider picker, successful create path, and resume failure UX end to end
+  - [x] `make verify` and `make codegen-check` pass from a clean rerun after the final QA fix set
 - Test coverage target: >=80%
 - All tests must pass
 

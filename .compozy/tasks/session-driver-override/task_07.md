@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Session Provider Override QA Plan and Regression Artifacts
 type: test
 complexity: high
@@ -32,11 +32,11 @@ Generate the reusable QA planning artifacts for session provider override before
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/session-driver-override`
-- [ ] 7.2 Write the feature-level provider-override QA plan with scope, risks, environments, and entry/exit criteria
-- [ ] 7.3 Generate manual test cases for backend resolution, persistence/migration, API/CLI surfaces, and web dialog/resume UX
-- [ ] 7.4 Build regression-suite definitions with explicit P0/P1 flow ordering for `/qa-execution`
-- [ ] 7.5 Validate traceability and handoff completeness for task_08
+- [x] 7.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/session-driver-override`
+- [x] 7.2 Write the feature-level provider-override QA plan with scope, risks, environments, and entry/exit criteria
+- [x] 7.3 Generate manual test cases for backend resolution, persistence/migration, API/CLI surfaces, and web dialog/resume UX
+- [x] 7.4 Build regression-suite definitions with explicit P0/P1 flow ordering for `/qa-execution`
+- [x] 7.5 Validate traceability and handoff completeness for task_08
 
 ## Implementation Details
 
@@ -73,14 +73,14 @@ See the TechSpec "Testing Approach" plus tasks 01-06. The QA plan should turn th
 
 ## Tests
 - Unit tests:
-  - [ ] `session-provider-override-test-plan.md` includes objectives, scope, environments, entry/exit criteria, and a risk table focused on resolution, persistence, migration, and UI seams
-  - [ ] Manual test cases exist for no-override behavior, explicit provider override, invalid provider create failure, persisted resume, unavailable-provider resume failure, legacy repair, CLI/API/Host API parity, and web dialog/resume flows
-  - [ ] Regression-suite documents define smoke, targeted, and full execution lanes with explicit P0/P1 ordering
-  - [ ] Each P0/P1 test case names the exact task or TechSpec rule it is proving
+  - [x] `session-provider-override-test-plan.md` includes objectives, scope, environments, entry/exit criteria, and a risk table focused on resolution, persistence, migration, and UI seams
+  - [x] Manual test cases exist for no-override behavior, explicit provider override, invalid provider create failure, persisted resume, unavailable-provider resume failure, legacy repair, CLI/API/Host API parity, and web dialog/resume flows
+  - [x] Regression-suite documents define smoke, targeted, and full execution lanes with explicit P0/P1 ordering
+  - [x] Each P0/P1 test case names the exact task or TechSpec rule it is proving
 - Integration tests:
-  - [ ] All generated artifacts land under `.compozy/tasks/session-driver-override/qa/` and can be consumed directly by `/qa-execution`
-  - [ ] The regression suite covers backend, storage, transport, CLI, and browser-visible behavior rather than only parser-level checks
-  - [ ] Any bug report created during planning references the originating test case or documented discrepancy clearly
+  - [x] All generated artifacts land under `.compozy/tasks/session-driver-override/qa/` and can be consumed directly by `/qa-execution`
+  - [x] The regression suite covers backend, storage, transport, CLI, and browser-visible behavior rather than only parser-level checks
+  - [x] Any bug report created during planning references the originating test case or documented discrepancy clearly
 - Test coverage target: >=80%
 - All tests must pass
 
