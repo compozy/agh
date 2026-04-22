@@ -461,6 +461,14 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			}}, nil
 		},
 	}
+	fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+		ListNetworkChannelsFn: func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
+			return nil, nil
+		},
+		ListNetworkMessagesFn: func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+			return nil, nil
+		},
+	}
 
 	t.Run("ShouldReturnNetworkStatus", func(t *testing.T) {
 		statusResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/status", nil)
@@ -692,13 +700,16 @@ func TestBaseHandlersCreateNetworkChannelRollsBackWhenDetailReadbackFails(t *tes
 				return nil, nil
 			},
 		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{}
 
 		resp := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodPost,
 			"/network/channels",
-			[]byte(`{"channel":"builders","workspace_id":"ws-1","agent_names":["coder","reviewer"]}`),
+			[]byte(
+				`{"channel":"builders","workspace_id":"ws-1","purpose":"Cross-agent coordination","agent_names":["coder","reviewer"]}`,
+			),
 		)
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("create channel code = %d, want %d", resp.Code, http.StatusInternalServerError)
@@ -733,12 +744,15 @@ func TestBaseHandlersNetworkChannelsIncludeHistoryOnlyChannels(t *testing.T) {
 					t.Fatalf("ListNetworkMessages() channel = %q, want empty list query", got)
 				}
 				return []store.NetworkMessageEntry{{
-					MessageID: "msg-history-only",
-					Channel:   "builders",
-					PeerFrom:  "reviewer.sess-remote",
-					Kind:      "say",
-					Text:      "History survives runtime disconnects.",
-					Timestamp: recordedAt,
+					MessageID:   "msg-history-only",
+					Channel:     "builders",
+					Direction:   network.AuditDirectionReceived,
+					PeerFrom:    "reviewer.sess-remote",
+					Kind:        "say",
+					Text:        "History survives runtime disconnects.",
+					PreviewText: "History survives runtime disconnects.",
+					Body:        json.RawMessage(`{"text":"History survives runtime disconnects."}`),
+					Timestamp:   recordedAt,
 				}}, nil
 			},
 		}
@@ -787,12 +801,15 @@ func TestBaseHandlersNetworkChannelReturnsHistoryOnlyDetails(t *testing.T) {
 					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
 				}
 				return []store.NetworkMessageEntry{{
-					MessageID: "msg-history-detail",
-					Channel:   "builders",
-					PeerFrom:  "reviewer.sess-remote",
-					Kind:      "say",
-					Text:      "Still visible from persisted history.",
-					Timestamp: recordedAt,
+					MessageID:   "msg-history-detail",
+					Channel:     "builders",
+					Direction:   network.AuditDirectionReceived,
+					PeerFrom:    "reviewer.sess-remote",
+					Kind:        "say",
+					Text:        "Still visible from persisted history.",
+					PreviewText: "Still visible from persisted history.",
+					Body:        json.RawMessage(`{"text":"Still visible from persisted history."}`),
+					Timestamp:   recordedAt,
 				}}, nil
 			},
 		}
@@ -1050,6 +1067,7 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 				return nil, network.ErrInvalidField
 			},
 		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{}
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels", nil)
 		if resp.Code != http.StatusBadRequest {
@@ -1337,45 +1355,57 @@ func TestBaseHandlersNetworkChannelEndpointsIgnoreStoppedSessions(t *testing.T) 
 				case "":
 					return []store.NetworkMessageEntry{
 						{
-							MessageID: "msg-builders-01",
-							SessionID: coderSessionID,
-							Channel:   "builders",
-							PeerFrom:  "coder.sess-coder",
-							Kind:      "say",
-							Intent:    "announce",
-							Text:      "hello builders",
-							Timestamp: createdAt.Add(2 * time.Minute),
+							MessageID:   "msg-builders-01",
+							SessionID:   coderSessionID,
+							Channel:     "builders",
+							Direction:   network.AuditDirectionSent,
+							PeerFrom:    "coder.sess-coder",
+							Kind:        "say",
+							Intent:      "announce",
+							Text:        "hello builders",
+							PreviewText: "hello builders",
+							Body:        json.RawMessage(`{"text":"hello builders","intent":"announce"}`),
+							Timestamp:   createdAt.Add(2 * time.Minute),
 						},
 						{
-							MessageID: "msg-retro-01",
-							SessionID: reviewerSessionID,
-							Channel:   "retro",
-							PeerFrom:  "reviewer.sess-reviewer",
-							Kind:      "say",
-							Text:      "retro note",
-							Timestamp: createdAt.Add(3 * time.Minute),
+							MessageID:   "msg-retro-01",
+							SessionID:   reviewerSessionID,
+							Channel:     "retro",
+							Direction:   network.AuditDirectionSent,
+							PeerFrom:    "reviewer.sess-reviewer",
+							Kind:        "say",
+							Text:        "retro note",
+							PreviewText: "retro note",
+							Body:        json.RawMessage(`{"text":"retro note"}`),
+							Timestamp:   createdAt.Add(3 * time.Minute),
 						},
 					}, nil
 				case "builders":
 					return []store.NetworkMessageEntry{{
-						MessageID: "msg-builders-01",
-						SessionID: coderSessionID,
-						Channel:   "builders",
-						PeerFrom:  "coder.sess-coder",
-						Kind:      "say",
-						Intent:    "announce",
-						Text:      "hello builders",
-						Timestamp: createdAt.Add(2 * time.Minute),
+						MessageID:   "msg-builders-01",
+						SessionID:   coderSessionID,
+						Channel:     "builders",
+						Direction:   network.AuditDirectionSent,
+						PeerFrom:    "coder.sess-coder",
+						Kind:        "say",
+						Intent:      "announce",
+						Text:        "hello builders",
+						PreviewText: "hello builders",
+						Body:        json.RawMessage(`{"text":"hello builders","intent":"announce"}`),
+						Timestamp:   createdAt.Add(2 * time.Minute),
 					}}, nil
 				case "retro":
 					return []store.NetworkMessageEntry{{
-						MessageID: "msg-retro-01",
-						SessionID: reviewerSessionID,
-						Channel:   "retro",
-						PeerFrom:  "reviewer.sess-reviewer",
-						Kind:      "say",
-						Text:      "retro note",
-						Timestamp: createdAt.Add(3 * time.Minute),
+						MessageID:   "msg-retro-01",
+						SessionID:   reviewerSessionID,
+						Channel:     "retro",
+						Direction:   network.AuditDirectionSent,
+						PeerFrom:    "reviewer.sess-reviewer",
+						Kind:        "say",
+						Text:        "retro note",
+						PreviewText: "retro note",
+						Body:        json.RawMessage(`{"text":"retro note"}`),
+						Timestamp:   createdAt.Add(3 * time.Minute),
 					}}, nil
 				default:
 					return nil, nil
@@ -1587,24 +1617,30 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 				}
 				return []store.NetworkMessageEntry{
 					{
-						MessageID: "msg-remote-01",
-						SessionID: localSessionID,
-						Channel:   "builders",
-						PeerFrom:  remotePeerID,
-						Kind:      "say",
-						Intent:    "review",
-						Text:      "Please double-check the rollout.",
-						Timestamp: createdAt.Add(time.Minute),
+						MessageID:   "msg-remote-01",
+						SessionID:   localSessionID,
+						Channel:     "builders",
+						Direction:   network.AuditDirectionReceived,
+						PeerFrom:    remotePeerID,
+						Kind:        "say",
+						Intent:      "review",
+						Text:        "Please double-check the rollout.",
+						PreviewText: "Please double-check the rollout.",
+						Body:        json.RawMessage(`{"text":"Please double-check the rollout.","intent":"review"}`),
+						Timestamp:   createdAt.Add(time.Minute),
 					},
 					{
-						MessageID: "msg-local-01",
-						SessionID: localSessionID,
-						Channel:   "builders",
-						PeerFrom:  "coder.sess-coder",
-						Kind:      "say",
-						Intent:    "announce",
-						Text:      "Starting rollout now.",
-						Timestamp: createdAt.Add(3 * time.Minute),
+						MessageID:   "msg-local-01",
+						SessionID:   localSessionID,
+						Channel:     "builders",
+						Direction:   network.AuditDirectionSent,
+						PeerFrom:    "coder.sess-coder",
+						Kind:        "say",
+						Intent:      "announce",
+						Text:        "Starting rollout now.",
+						PreviewText: "Starting rollout now.",
+						Body:        json.RawMessage(`{"text":"Starting rollout now.","intent":"announce"}`),
+						Timestamp:   createdAt.Add(3 * time.Minute),
 					},
 				}, nil
 			},
@@ -1808,7 +1844,9 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 				fixture.Engine,
 				http.MethodPost,
 				"/network/channels",
-				[]byte(`{"channel":"builders","workspace_id":"ws-1","agent_names":["coder","reviewer"]}`),
+				[]byte(
+					`{"channel":"builders","workspace_id":"ws-1","purpose":"Cross-agent coordination","agent_names":["coder","reviewer"]}`,
+				),
 			)
 			if resp.Code != http.StatusCreated {
 				t.Fatalf(

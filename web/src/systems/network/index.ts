@@ -1,5 +1,6 @@
 // Types
 export type {
+  NetworkActiveRoom,
   CreateNetworkChannelRequest,
   CreateNetworkChannelResponse,
   NetworkCapability,
@@ -13,15 +14,27 @@ export type {
   NetworkChannelsResponse,
   NetworkChannelSummary,
   NetworkCreateChannelDraft,
+  NetworkDetailsTab,
+  NetworkKindFilter,
   NetworkPeerCapabilityView,
   NetworkPeerCard,
   NetworkPeerDetail,
   NetworkPeerDetailResponse,
+  NetworkPeerMessagesQuery,
+  NetworkPeerMessagesResponse,
   NetworkPeersResponse,
   NetworkPeerSummary,
+  NetworkRoomField,
+  NetworkRoomKindMetric,
+  NetworkRoomListItem,
+  NetworkRoomMember,
+  NetworkRoomType,
+  NetworkSendRequest,
+  NetworkSendResponse,
+  NetworkSignalTone,
   NetworkStatus,
   NetworkStatusResponse,
-  NetworkTab,
+  NetworkTimelineMessage,
 } from "./types";
 
 // Adapters
@@ -32,8 +45,10 @@ export {
   getNetworkStatus,
   listNetworkChannelMessages,
   listNetworkChannels,
+  listNetworkPeerMessages,
   listNetworkPeers,
   NetworkApiError,
+  sendNetworkMessage,
 } from "./adapters/network-api";
 
 // Query infrastructure
@@ -43,23 +58,31 @@ export {
   networkChannelMessagesOptions,
   networkChannelsOptions,
   networkPeerDetailOptions,
+  networkPeerMessagesOptions,
   networkPeersOptions,
   networkStatusOptions,
 } from "./lib/query-options";
 
 // Lib
 export {
+  NETWORK_KIND_FILTERS,
   buildPeerCapabilityViews,
   createNetworkChannelDraft,
+  filterNetworkMessagesByKind,
   formatChannelMemberCount,
   formatChannelPeerCount,
   formatNetworkClockTime,
   formatNetworkDateTime,
+  formatNetworkKindLabel,
   formatNetworkNumber,
   formatNetworkRelativeTime,
   getChannelDetailDescription,
+  getNetworkKindTone,
   getMessageAuthorInitial,
+  getNetworkMessagePrimaryText,
   getNetworkMetricCards,
+  getNetworkRoomKey,
+  getNetworkStatusTone,
   getPeerDeliveredRate,
   getPeerDisplayName,
   getPeerHeartbeatLabel,
@@ -71,6 +94,7 @@ export {
   sortAgentsForNetwork,
   sortNetworkChannels,
   sortNetworkPeers,
+  toNetworkKindFilter,
   toggleDraftAgent,
 } from "./lib/network-formatters";
 
@@ -80,15 +104,12 @@ export {
   useNetworkChannelMessages,
   useNetworkChannels,
   useNetworkPeer,
+  useNetworkPeerMessages,
   useNetworkPeers,
   useNetworkStatus,
 } from "./hooks/use-network";
-export { useCreateNetworkChannel } from "./hooks/use-network-actions";
+export { useCreateNetworkChannel, useSendNetworkMessage } from "./hooks/use-network-actions";
 
 // Components
-export { NetworkChannelDetailPanel } from "./components/network-channel-detail-panel";
-export { NetworkChannelsListPanel } from "./components/network-channels-list-panel";
 export { NetworkCreateChannelDialog } from "./components/network-create-channel-dialog";
-export { NetworkEmptyState } from "./components/network-empty-state";
-export { NetworkPeerDetailPanel } from "./components/network-peer-detail-panel";
-export { NetworkPeersListPanel } from "./components/network-peers-list-panel";
+export { NetworkWorkspaceShell } from "./components/network-workspace-shell";

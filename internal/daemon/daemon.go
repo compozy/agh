@@ -90,6 +90,7 @@ type Observer interface {
 type Registry interface {
 	observe.Registry
 	store.NetworkAuditStore
+	store.NetworkChannelStore
 	store.NetworkMessageStore
 	workspacepkg.Store
 }

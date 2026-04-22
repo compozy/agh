@@ -12,29 +12,23 @@ import { workspaceDetailFixture, workspaceFixtures } from "@/systems/workspace/m
 describe("storybook story and fixture regressions", () => {
   const fromWeb = (path: string) => resolve(process.cwd(), path);
 
-  it(
-    "loads the edited story modules",
-    {
-      timeout: 20_000,
-    },
-    async () => {
-      const modules = await Promise.all([
-        import("@/systems/knowledge/components/stories/knowledge-detail-panel.stories"),
-        import("@/systems/knowledge/components/stories/knowledge-list-panel.stories"),
-        import("@/systems/network/components/stories/network-channels-list-panel.stories"),
-        import("@/systems/automation/components/stories/automation-editor-dialog.stories"),
-        import("@/systems/session/components/stories/copy-button.stories"),
-        import("@/systems/session/components/tool-renderers/stories/read-content.stories"),
-        import("@/systems/session/components/tool-renderers/stories/search-content.stories"),
-      ]);
+  it("loads the edited story modules", { timeout: 15_000 }, async () => {
+    const modules = await Promise.all([
+      import("@/systems/knowledge/components/stories/knowledge-detail-panel.stories"),
+      import("@/systems/knowledge/components/stories/knowledge-list-panel.stories"),
+      import("@/systems/network/components/stories/network-create-channel-dialog.stories"),
+      import("@/systems/automation/components/stories/automation-editor-dialog.stories"),
+      import("@/systems/session/components/stories/copy-button.stories"),
+      import("@/systems/session/components/tool-renderers/stories/read-content.stories"),
+      import("@/systems/session/components/tool-renderers/stories/search-content.stories"),
+    ]);
 
-      expect(modules).toHaveLength(7);
+    expect(modules).toHaveLength(7);
 
-      for (const module of modules) {
-        expect(module.default).toBeDefined();
-      }
+    for (const module of modules) {
+      expect(module.default).toBeDefined();
     }
-  );
+  });
 
   it("keeps the scoped story and fixture source aligned with the review fixes", async () => {
     const sources = await Promise.all([
@@ -51,7 +45,7 @@ describe("storybook story and fixture regressions", () => {
         "utf8"
       ),
       readFile(
-        fromWeb("src/systems/network/components/stories/network-channels-list-panel.stories.tsx"),
+        fromWeb("src/systems/network/components/stories/network-create-channel-dialog.stories.tsx"),
         "utf8"
       ),
       readFile(
@@ -75,7 +69,7 @@ describe("storybook story and fixture regressions", () => {
       collapsibleStory,
       knowledgeDetailStory,
       knowledgeListStory,
-      networkChannelsStory,
+      networkCreateDialogStory,
       automationEditorDialogStory,
       copyButtonStory,
       readContentStory,
@@ -92,11 +86,12 @@ describe("storybook story and fixture regressions", () => {
     expect(knowledgeListStory).toContain(
       'import { KnowledgeListPanel } from "@/systems/knowledge/components/knowledge-list-panel";'
     );
-    expect(networkChannelsStory).toContain(
-      'import { NetworkChannelsListPanel } from "@/systems/network/components/network-channels-list-panel";'
+    expect(networkCreateDialogStory).toContain(
+      'import { NetworkCreateChannelDialog } from "../network-create-channel-dialog";'
     );
-    expect(networkChannelsStory).toContain('import type { ComponentProps } from "react";');
-    expect(networkChannelsStory).not.toContain("React.ComponentProps");
+    expect(networkCreateDialogStory).toContain(
+      'purpose: "Coordinate release handoffs and deploy verification.",'
+    );
     expect(automationEditorDialogStory).toContain(
       'import { AutomationEditorDialog } from "@/systems/automation/components/automation-editor-dialog";'
     );

@@ -5,6 +5,7 @@ export {
   networkChannelMessagesFixture,
   networkChannelsFixture,
   networkPeerFixture,
+  networkPeerMessagesFixture,
   networkPeersFixture,
   networkStatusFixture,
 } from "./fixtures";

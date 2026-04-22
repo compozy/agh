@@ -161,7 +161,7 @@ func TestAuditWriterRecordsDeliveredDirection(t *testing.T) {
 	})
 }
 
-func TestAuditWriterPersistsTimelineMessagesForSayEnvelopesOnly(t *testing.T) {
+func TestAuditWriterPersistsTimelineMessagesForRenderableEnvelopes(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should persist sent say envelopes to the timeline store", func(t *testing.T) {
@@ -215,7 +215,7 @@ func TestAuditWriterPersistsTimelineMessagesForSayEnvelopesOnly(t *testing.T) {
 		}
 	})
 
-	t.Run("Should ignore non-say envelopes when writing timeline messages", func(t *testing.T) {
+	t.Run("Should persist direct envelopes with addressing metadata", func(t *testing.T) {
 		storeSink := &recordingAuditStore{}
 		writer, err := NewAuditWriter("", storeSink)
 		if err != nil {
@@ -225,12 +225,14 @@ func TestAuditWriterPersistsTimelineMessagesForSayEnvelopesOnly(t *testing.T) {
 		if err := writer.RecordSent(context.Background(), "sess-audit", testAuditEnvelope(t)); err != nil {
 			t.Fatalf("RecordSent(direct) error = %v", err)
 		}
-		if err := writer.RecordReceived(context.Background(), "sess-audit", testAuditEnvelope(t)); err != nil {
-			t.Fatalf("RecordReceived(direct) error = %v", err)
+		if got, want := len(storeSink.messages), 1; got != want {
+			t.Fatalf("len(store messages) = %d, want %d", got, want)
 		}
-
-		if got := len(storeSink.messages); got != 0 {
-			t.Fatalf("len(store messages) = %d, want 0", got)
+		if got, want := storeSink.messages[0].Direction, AuditDirectionSent; got != want {
+			t.Fatalf("messages[0].Direction = %q, want %q", got, want)
+		}
+		if got, want := storeSink.messages[0].PeerTo, "reviewer.sess-xyz"; got != want {
+			t.Fatalf("messages[0].PeerTo = %q, want %q", got, want)
 		}
 	})
 }
@@ -267,8 +269,14 @@ func TestAuditWriterRecordsCapabilityTransfersAsCapabilityAudits(t *testing.T) {
 		if got, want := entry.Direction, AuditDirectionReceived; got != want {
 			t.Fatalf("entry.Direction = %q, want %q", got, want)
 		}
-		if got := len(storeSink.messages); got != 0 {
-			t.Fatalf("len(store timeline messages) = %d, want 0 for capability transfers", got)
+		if got, want := len(storeSink.messages), 1; got != want {
+			t.Fatalf("len(store timeline messages) = %d, want %d", got, want)
+		}
+		if got, want := storeSink.messages[0].Kind, string(KindCapability); got != want {
+			t.Fatalf("messages[0].Kind = %q, want %q", got, want)
+		}
+		if got, want := storeSink.messages[0].PreviewText, "Review fix flow"; got != want {
+			t.Fatalf("messages[0].PreviewText = %q, want %q", got, want)
 		}
 	})
 }

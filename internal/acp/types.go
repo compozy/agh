@@ -392,6 +392,9 @@ type activePromptState struct {
 	sendMu sync.Mutex
 	closed bool
 
+	seenToolCalls      map[string]struct{}
+	pendingToolResults []AgentEvent
+
 	usageMu sync.Mutex
 	usage   TokenUsage
 }
@@ -472,9 +475,10 @@ func (p *AgentProcess) beginPrompt(turnID string, bufferSize int) (*activePrompt
 		bufferSize = 1
 	}
 	active := &activePromptState{
-		turnID:   turnID,
-		events:   make(chan AgentEvent, bufferSize),
-		activity: make(chan struct{}, 1),
+		turnID:        turnID,
+		events:        make(chan AgentEvent, bufferSize),
+		activity:      make(chan struct{}, 1),
+		seenToolCalls: make(map[string]struct{}),
 	}
 	p.activePrompt = active
 	return active, nil
@@ -567,9 +571,83 @@ func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
 	if active.closed {
 		return
 	}
-	active.events <- event
+	if active.deferToolResultLocked(event) {
+		return
+	}
+	if event.Type == EventTypeDone {
+		active.flushDeferredToolResultsLocked()
+	}
+	active.sendEventLocked(event)
+	if event.Type == EventTypeToolCall {
+		active.markToolCallSeenLocked(event.ToolCallID)
+		active.flushDeferredToolResultsForToolLocked(event.ToolCallID)
+	}
+}
+
+func (a *activePromptState) deferToolResultLocked(event AgentEvent) bool {
+	if a == nil || event.Type != EventTypeToolResult {
+		return false
+	}
+	toolCallID := strings.TrimSpace(event.ToolCallID)
+	if toolCallID == "" {
+		return false
+	}
+	if _, ok := a.seenToolCalls[toolCallID]; ok {
+		return false
+	}
+	a.pendingToolResults = append(a.pendingToolResults, event)
+	return true
+}
+
+func (a *activePromptState) markToolCallSeenLocked(toolCallID string) {
+	if a == nil {
+		return
+	}
+	trimmed := strings.TrimSpace(toolCallID)
+	if trimmed == "" {
+		return
+	}
+	a.seenToolCalls[trimmed] = struct{}{}
+}
+
+func (a *activePromptState) flushDeferredToolResultsForToolLocked(toolCallID string) {
+	if a == nil {
+		return
+	}
+	trimmed := strings.TrimSpace(toolCallID)
+	if trimmed == "" || len(a.pendingToolResults) == 0 {
+		return
+	}
+
+	remaining := a.pendingToolResults[:0]
+	for _, event := range a.pendingToolResults {
+		if strings.TrimSpace(event.ToolCallID) == trimmed {
+			a.sendEventLocked(event)
+			continue
+		}
+		remaining = append(remaining, event)
+	}
+	a.pendingToolResults = remaining
+}
+
+func (a *activePromptState) flushDeferredToolResultsLocked() {
+	if a == nil || len(a.pendingToolResults) == 0 {
+		return
+	}
+	pending := a.pendingToolResults
+	a.pendingToolResults = nil
+	for _, event := range pending {
+		a.sendEventLocked(event)
+	}
+}
+
+func (a *activePromptState) sendEventLocked(event AgentEvent) {
+	if a == nil {
+		return
+	}
+	a.events <- event
 	select {
-	case active.activity <- struct{}{}:
+	case a.activity <- struct{}{}:
 	default:
 	}
 }

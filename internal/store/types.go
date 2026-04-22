@@ -428,16 +428,61 @@ func (q NetworkAuditQuery) Validate() error {
 	return requirePositiveLimit(q.Limit, "network audit limit")
 }
 
-// NetworkMessageEntry is one persisted network timeline message.
+// NetworkChannelEntry stores durable channel metadata for the operator-facing
+// network workspace.
+type NetworkChannelEntry struct {
+	Channel     string
+	WorkspaceID string
+	Purpose     string
+	CreatedBy   string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// Validate ensures the persisted channel metadata is complete.
+func (e NetworkChannelEntry) Validate() error {
+	if err := requireField(e.Channel, "network channel channel"); err != nil {
+		return err
+	}
+	if err := requireField(e.WorkspaceID, "network channel workspace_id"); err != nil {
+		return err
+	}
+	if err := requireField(e.Purpose, "network channel purpose"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// NetworkChannelQuery filters persisted network channel metadata lookups.
+type NetworkChannelQuery struct {
+	Channel     string
+	WorkspaceID string
+	Limit       int
+}
+
+// Validate ensures the query uses sane bounds.
+func (q NetworkChannelQuery) Validate() error {
+	return requirePositiveLimit(q.Limit, "network channel limit")
+}
+
+// NetworkMessageEntry is one persisted network timeline envelope.
 type NetworkMessageEntry struct {
-	MessageID string
-	SessionID string
-	Channel   string
-	PeerFrom  string
-	Kind      string
-	Intent    string
-	Text      string
-	Timestamp time.Time
+	MessageID     string
+	SessionID     string
+	Channel       string
+	Direction     string
+	PeerFrom      string
+	PeerTo        string
+	Kind          string
+	InteractionID string
+	ReplyTo       string
+	TraceID       string
+	CausationID   string
+	Intent        string
+	Text          string
+	PreviewText   string
+	Body          json.RawMessage
+	Timestamp     time.Time
 }
 
 // Validate ensures the persisted network message is complete and internally consistent.
@@ -448,30 +493,51 @@ func (e NetworkMessageEntry) Validate() error {
 	if err := requireField(e.Channel, "network message channel"); err != nil {
 		return err
 	}
+	if err := requireField(e.Direction, "network message direction"); err != nil {
+		return err
+	}
+	switch strings.TrimSpace(e.Direction) {
+	case "sent", "received":
+	default:
+		return fmt.Errorf("store: unsupported network message direction %q", e.Direction)
+	}
 	if err := requireField(e.PeerFrom, "network message peer_from"); err != nil {
 		return err
 	}
 	if err := requireField(e.Kind, "network message kind"); err != nil {
 		return err
 	}
-	if err := requireField(e.Text, "network message text"); err != nil {
-		return err
+	if len(e.Body) == 0 {
+		return fmt.Errorf("store: network message body is required")
+	}
+	if !json.Valid(e.Body) {
+		return fmt.Errorf("store: network message body must be valid JSON")
 	}
 	return nil
 }
 
 // NetworkMessageQuery filters persisted network timeline lookups.
 type NetworkMessageQuery struct {
-	SessionID string
-	Channel   string
-	PeerFrom  string
-	MessageID string
-	Since     time.Time
-	Limit     int
+	SessionID       string
+	Channel         string
+	PeerID          string
+	PeerFrom        string
+	PeerTo          string
+	Kind            string
+	Direction       string
+	MessageID       string
+	BeforeMessageID string
+	AfterMessageID  string
+	DirectedOnly    bool
+	Since           time.Time
+	Limit           int
 }
 
 // Validate ensures the query uses sane bounds.
 func (q NetworkMessageQuery) Validate() error {
+	if strings.TrimSpace(q.BeforeMessageID) != "" && strings.TrimSpace(q.AfterMessageID) != "" {
+		return fmt.Errorf("store: network message query cannot specify both before and after cursors")
+	}
 	return requirePositiveLimit(q.Limit, "network message limit")
 }
 

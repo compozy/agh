@@ -6,13 +6,16 @@ import {
   getNetworkStatus,
   listNetworkChannelMessages,
   listNetworkChannels,
+  listNetworkPeerMessages,
   listNetworkPeers,
 } from "../adapters/network-api";
+import type { NetworkChannelMessagesQuery, NetworkPeerMessagesQuery } from "../types";
 import { networkKeys } from "./query-keys";
 
 const DEFAULT_STALE_TIME = 10_000;
 const DEFAULT_REFETCH_INTERVAL = 15_000;
 const MESSAGES_REFETCH_INTERVAL = 5_000;
+const DEFAULT_TIMELINE_LIMIT = 120;
 
 export function networkStatusOptions() {
   return queryOptions({
@@ -43,10 +46,15 @@ export function networkChannelDetailOptions(channel: string, enabled = true) {
   });
 }
 
-export function networkChannelMessagesOptions(channel: string, limit = 100, enabled = true) {
+export function networkChannelMessagesOptions(
+  channel: string,
+  query: NetworkChannelMessagesQuery = { limit: DEFAULT_TIMELINE_LIMIT },
+  enabled = true
+) {
   return queryOptions({
-    queryKey: networkKeys.channelMessages(channel, limit),
-    queryFn: ({ signal }) => listNetworkChannelMessages(channel, limit, signal),
+    queryKey: networkKeys.channelMessages(channel, query),
+    queryFn: ({ signal }) =>
+      listNetworkChannelMessages(channel, { limit: DEFAULT_TIMELINE_LIMIT, ...query }, signal),
     staleTime: 2_000,
     refetchInterval: MESSAGES_REFETCH_INTERVAL,
     enabled: Boolean(channel) && enabled,
@@ -69,6 +77,21 @@ export function networkPeerDetailOptions(peerId: string, enabled = true) {
     queryFn: ({ signal }) => getNetworkPeer(peerId, signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: DEFAULT_REFETCH_INTERVAL,
+    enabled: Boolean(peerId) && enabled,
+  });
+}
+
+export function networkPeerMessagesOptions(
+  peerId: string,
+  query: NetworkPeerMessagesQuery = { limit: DEFAULT_TIMELINE_LIMIT },
+  enabled = true
+) {
+  return queryOptions({
+    queryKey: networkKeys.peerMessages(peerId, query),
+    queryFn: ({ signal }) =>
+      listNetworkPeerMessages(peerId, { limit: DEFAULT_TIMELINE_LIMIT, ...query }, signal),
+    staleTime: 2_000,
+    refetchInterval: MESSAGES_REFETCH_INTERVAL,
     enabled: Boolean(peerId) && enabled,
   });
 }

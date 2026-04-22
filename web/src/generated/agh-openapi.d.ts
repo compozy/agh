@@ -663,6 +663,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/network/peers/{peer_id}/messages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the directed room timeline for one network peer */
+    get: operations["listNetworkPeerMessages"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/network/send": {
     parameters: {
       query?: never;
@@ -6448,12 +6465,18 @@ export interface operations {
             channels: {
               channel: string;
               /** Format: date-time */
-              last_message_at?: string | null;
+              created_at?: string | null;
+              created_by?: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
               local_peer_count?: number;
               message_count?: number;
               peer_count: number;
+              purpose?: string;
               remote_peer_count?: number;
               session_count?: number;
+              workspace_id?: string;
             }[];
           };
         };
@@ -6501,6 +6524,7 @@ export interface operations {
         "application/json": {
           agent_names: string[];
           channel: string;
+          purpose: string;
           workspace_id: string;
         };
       };
@@ -6516,7 +6540,15 @@ export interface operations {
             channel: {
               channel: string;
               /** Format: date-time */
-              last_message_at?: string | null;
+              created_at?: string | null;
+              created_by?: string;
+              kind_counts?: {
+                count: number;
+                kind: string;
+              }[];
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
               local_peer_count?: number;
               message_count?: number;
               peer_count: number;
@@ -6547,6 +6579,7 @@ export interface operations {
                 peer_id: string;
                 session_id?: string | null;
               }[];
+              purpose?: string;
               remote_peer_count?: number;
               session_count?: number;
               sessions?: {
@@ -6591,6 +6624,7 @@ export interface operations {
                 workspace_id?: string;
                 workspace_path?: string;
               }[];
+              workspace_id?: string;
             };
           };
         };
@@ -6669,7 +6703,15 @@ export interface operations {
             channel: {
               channel: string;
               /** Format: date-time */
-              last_message_at?: string | null;
+              created_at?: string | null;
+              created_by?: string;
+              kind_counts?: {
+                count: number;
+                kind: string;
+              }[];
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
               local_peer_count?: number;
               message_count?: number;
               peer_count: number;
@@ -6700,6 +6742,7 @@ export interface operations {
                 peer_id: string;
                 session_id?: string | null;
               }[];
+              purpose?: string;
               remote_peer_count?: number;
               session_count?: number;
               sessions?: {
@@ -6744,6 +6787,7 @@ export interface operations {
                 workspace_id?: string;
                 workspace_path?: string;
               }[];
+              workspace_id?: string;
             };
           };
         };
@@ -6803,6 +6847,10 @@ export interface operations {
   listNetworkChannelMessages: {
     parameters: {
       query?: {
+        /** @description Return messages before the specified message id */
+        before?: string;
+        /** @description Return messages after the specified message id */
+        after?: string;
         /** @description Maximum number of timeline messages to return */
         limit?: number;
       };
@@ -6823,16 +6871,25 @@ export interface operations {
         content: {
           "application/json": {
             messages: {
+              body: unknown;
+              causation_id?: string;
               channel: string;
+              direction: string;
               display_name?: string;
               intent?: string;
+              interaction_id?: string;
+              kind: string;
               local?: boolean;
               message_id: string;
-              peer_id: string;
+              peer_from: string;
+              peer_to?: string;
+              preview_text?: string;
+              reply_to?: string;
               session_id?: string;
-              text: string;
+              text?: string;
               /** Format: date-time */
               timestamp: string;
+              trace_id?: string;
             }[];
           };
         };
@@ -7147,6 +7204,108 @@ export interface operations {
               peer_id: string;
               session_id?: string | null;
             };
+          };
+        };
+      };
+      /** @description Network peer not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkPeerMessages: {
+    parameters: {
+      query?: {
+        /** @description Return messages before the specified message id */
+        before?: string;
+        /** @description Return messages after the specified message id */
+        after?: string;
+        /** @description Maximum number of timeline messages to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Network peer id */
+        peer_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            messages: {
+              body: unknown;
+              causation_id?: string;
+              channel: string;
+              direction: string;
+              display_name?: string;
+              intent?: string;
+              interaction_id?: string;
+              kind: string;
+              local?: boolean;
+              message_id: string;
+              peer_from: string;
+              peer_to?: string;
+              preview_text?: string;
+              reply_to?: string;
+              session_id?: string;
+              text?: string;
+              /** Format: date-time */
+              timestamp: string;
+              trace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid peer timeline request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
           };
         };
       };

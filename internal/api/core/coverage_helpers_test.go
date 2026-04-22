@@ -115,13 +115,13 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 		{ID: "sess-stopped", Channel: "builders", State: session.StateStopped},
 	}
 	peers := []network.PeerInfo{{PeerID: "peer-1", Channel: "operators"}}
-	if !networkChannelExists(sessions, peers, sessionChannel) {
+	if !networkChannelExists(sessions, peers, nil, sessionChannel) {
 		t.Fatal("networkChannelExists() = false, want true for visible session channel")
 	}
-	if !networkChannelExists(nil, []network.PeerInfo{{PeerID: "peer-2", Channel: "match"}}, "match") {
+	if !networkChannelExists(nil, []network.PeerInfo{{PeerID: "peer-2", Channel: "match"}}, nil, "match") {
 		t.Fatal("networkChannelExists() = false, want true for peer channel")
 	}
-	if networkChannelExists(nil, peers, "missing") {
+	if networkChannelExists(nil, peers, nil, "missing") {
 		t.Fatal("networkChannelExists() = true, want false for missing channel")
 	}
 	if !isNetworkChannelNotFound(errNetworkChannelNotFound) {
@@ -351,29 +351,16 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 		t.Fatalf("SessionPayloadFromInfo(nil) = %#v", zero)
 	}
 
-	ids := networkMessageIDSet([]store.NetworkMessageEntry{
-		{MessageID: " msg-1 "},
-		{MessageID: ""},
-		{MessageID: "msg-2"},
-	})
-	if _, ok := ids["msg-1"]; !ok {
-		t.Fatalf("networkMessageIDSet() missing trimmed msg-1: %#v", ids)
+	if got, want := networkMessagePreview(store.NetworkMessageEntry{
+		Text: "hello from text",
+	}), "hello from text"; got != want {
+		t.Fatalf("networkMessagePreview(text fallback) = %q, want %q", got, want)
 	}
-
-	directions := networkMessageDirectionMap(
-		[]store.NetworkAuditEntry{
-			{MessageID: " msg-1 ", Direction: network.AuditDirectionSent},
-			{MessageID: "msg-1", Direction: network.AuditDirectionReceived},
-			{MessageID: "msg-2", Direction: "invalid"},
-			{MessageID: "msg-3", Direction: network.AuditDirectionReceived},
-		},
-		map[string]struct{}{"msg-1": {}, "msg-2": {}},
-	)
-	if got, want := directions["msg-1"], network.AuditDirectionSent; got != want {
-		t.Fatalf("networkMessageDirectionMap(msg-1) = %q, want %q", got, want)
-	}
-	if _, ok := directions["msg-2"]; ok {
-		t.Fatalf("networkMessageDirectionMap(msg-2) unexpectedly set: %#v", directions)
+	if got, want := networkMessagePreview(store.NetworkMessageEntry{
+		Text:        "hello from text",
+		PreviewText: "hello from preview",
+	}), "hello from preview"; got != want {
+		t.Fatalf("networkMessagePreview(preview) = %q, want %q", got, want)
 	}
 
 	sessionsByID := sessionInfoMapByID([]*session.Info{
@@ -382,6 +369,32 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 	})
 	if sessionsByID["sess-1"] == nil {
 		t.Fatalf("sessionInfoMapByID() missing trimmed session id: %#v", sessionsByID)
+	}
+
+	payloadMessage := NetworkChannelMessagePayloadFromEntry(
+		store.NetworkMessageEntry{
+			MessageID:   "msg-1",
+			Channel:     "builders",
+			Direction:   network.AuditDirectionSent,
+			PeerFrom:    "peer-1",
+			PeerTo:      "peer-2",
+			Kind:        string(network.KindDirect),
+			SessionID:   "sess-1",
+			PreviewText: "hello from preview",
+			Body:        json.RawMessage(`{"text":"hello from preview"}`),
+			Timestamp:   time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
+		},
+		sessionsByID,
+		map[string]network.PeerInfo{},
+	)
+	if got, want := payloadMessage.Direction, network.AuditDirectionSent; got != want {
+		t.Fatalf("NetworkChannelMessagePayloadFromEntry().Direction = %q, want %q", got, want)
+	}
+	if got, want := payloadMessage.PeerFrom, "peer-1"; got != want {
+		t.Fatalf("NetworkChannelMessagePayloadFromEntry().PeerFrom = %q, want %q", got, want)
+	}
+	if got, want := payloadMessage.DisplayName, "Support"; got != want {
+		t.Fatalf("NetworkChannelMessagePayloadFromEntry().DisplayName = %q, want %q", got, want)
 	}
 }
 

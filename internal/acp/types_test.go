@@ -20,8 +20,14 @@ func TestEndPromptClearsActivePromptWhileEmitterIsBackpressured(t *testing.T) {
 	emitterStarted := make(chan struct{})
 	emitterDone := make(chan struct{})
 	go func() {
+		active.sendMu.Lock()
 		close(emitterStarted)
-		proc.emitPromptEvent(AgentEvent{Type: EventTypeDone, TurnID: "turn-1"})
+		active.events <- AgentEvent{Type: EventTypeDone, TurnID: "turn-1"}
+		select {
+		case active.activity <- struct{}{}:
+		default:
+		}
+		active.sendMu.Unlock()
 		close(emitterDone)
 	}()
 	<-emitterStarted
@@ -77,6 +83,57 @@ func TestEndPromptClearsActivePromptWhileEmitterIsBackpressured(t *testing.T) {
 
 	if _, ok := <-active.events; ok {
 		t.Fatal("active.events remained open after endPrompt()")
+	}
+}
+
+func TestEmitPromptEventDefersToolResultUntilToolCall(t *testing.T) {
+	t.Parallel()
+
+	proc := &AgentProcess{}
+	active, err := proc.beginPrompt("turn-1", 4)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+
+	proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-1"})
+
+	select {
+	case event := <-active.events:
+		t.Fatalf("deferred tool result emitted early: %#v", event)
+	default:
+	}
+
+	proc.emitPromptEvent(AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1"})
+
+	first := <-active.events
+	if first.Type != EventTypeToolCall {
+		t.Fatalf("first event = %q, want %q", first.Type, EventTypeToolCall)
+	}
+	second := <-active.events
+	if second.Type != EventTypeToolResult {
+		t.Fatalf("second event = %q, want %q", second.Type, EventTypeToolResult)
+	}
+}
+
+func TestEmitPromptEventFlushesDeferredToolResultsBeforeDone(t *testing.T) {
+	t.Parallel()
+
+	proc := &AgentProcess{}
+	active, err := proc.beginPrompt("turn-1", 4)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+
+	proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-1"})
+	proc.emitPromptEvent(AgentEvent{Type: EventTypeDone, TurnID: "turn-1"})
+
+	first := <-active.events
+	if first.Type != EventTypeToolResult {
+		t.Fatalf("first event = %q, want %q", first.Type, EventTypeToolResult)
+	}
+	second := <-active.events
+	if second.Type != EventTypeDone {
+		t.Fatalf("second event = %q, want %q", second.Type, EventTypeDone)
 	}
 }
 

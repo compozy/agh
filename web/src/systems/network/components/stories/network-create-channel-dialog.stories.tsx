@@ -22,6 +22,7 @@ function NetworkCreateChannelDialogHarness({ conflictMessage }: { conflictMessag
   const [draft, setDraft] = useState({
     ...createNetworkChannelDraft(),
     channelName: "deployments",
+    purpose: "Coordinate release handoffs and deploy verification.",
     selectedAgentNames: [agentFixtures[0].name, agentFixtures[1].name],
   });
 
@@ -39,6 +40,7 @@ function NetworkCreateChannelDialogHarness({ conflictMessage }: { conflictMessag
         isSubmitting={false}
         onChannelNameChange={channelName => setDraft(current => ({ ...current, channelName }))}
         onOpenChange={() => undefined}
+        onPurposeChange={purpose => setDraft(current => ({ ...current, purpose }))}
         onSubmit={() => undefined}
         onToggleAgent={agentName =>
           setDraft(current => ({

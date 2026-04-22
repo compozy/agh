@@ -10,9 +10,13 @@ import type {
   CreateNetworkChannelResponse,
   NetworkChannel,
   NetworkChannelMessage,
+  NetworkChannelMessagesQuery,
   NetworkChannelsResponse,
   NetworkPeerDetail,
+  NetworkPeerMessagesQuery,
   NetworkPeerSummary,
+  NetworkSendRequest,
+  NetworkSendResponse,
   NetworkStatus,
 } from "../types";
 
@@ -77,7 +81,7 @@ export async function getNetworkChannel(
 
 export async function listNetworkChannelMessages(
   channel: string,
-  limit = 100,
+  query: NetworkChannelMessagesQuery = {},
   signal?: AbortSignal
 ): Promise<NetworkChannelMessage[]> {
   const { data, error, response } = await apiClient.GET(
@@ -85,7 +89,7 @@ export async function listNetworkChannelMessages(
     {
       params: {
         path: { channel },
-        query: { limit },
+        query,
       },
       signal,
     }
@@ -149,6 +153,34 @@ export async function getNetworkPeer(
   return requireResponseData(data, response, `Failed to load peer "${peerId}"`).peer;
 }
 
+export async function listNetworkPeerMessages(
+  peerId: string,
+  query: NetworkPeerMessagesQuery = {},
+  signal?: AbortSignal
+): Promise<NetworkChannelMessage[]> {
+  const { data, error, response } = await apiClient.GET("/api/network/peers/{peer_id}/messages", {
+    params: {
+      path: { peer_id: peerId },
+      query,
+    },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new NetworkApiError(`Peer not found: ${peerId}`, 404);
+    }
+
+    throw new NetworkApiError(
+      defaultApiErrorMessage(`Failed to load direct history for "${peerId}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to load direct history for "${peerId}"`)
+    .messages;
+}
+
 export async function createNetworkChannel(
   body: CreateNetworkChannelRequest,
   signal?: AbortSignal
@@ -166,4 +198,23 @@ export async function createNetworkChannel(
   }
 
   return requireResponseData(data, response, "Failed to create network channel");
+}
+
+export async function sendNetworkMessage(
+  body: NetworkSendRequest,
+  signal?: AbortSignal
+): Promise<NetworkSendResponse> {
+  const { data, error, response } = await apiClient.POST("/api/network/send", {
+    body,
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    throw new NetworkApiError(
+      defaultApiErrorMessage("Failed to send network message", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to send network message");
 }

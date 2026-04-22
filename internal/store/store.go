@@ -72,6 +72,14 @@ type NetworkAuditStore interface {
 	ListNetworkAudit(ctx context.Context, query NetworkAuditQuery) ([]NetworkAuditEntry, error)
 }
 
+// NetworkChannelStore manages durable network channel metadata.
+type NetworkChannelStore interface {
+	WriteNetworkChannel(ctx context.Context, entry NetworkChannelEntry) error
+	GetNetworkChannel(ctx context.Context, channel string) (NetworkChannelEntry, error)
+	ListNetworkChannels(ctx context.Context, query NetworkChannelQuery) ([]NetworkChannelEntry, error)
+	DeleteNetworkChannel(ctx context.Context, channel string) error
+}
+
 // NetworkMessageStore manages persisted network timeline messages.
 type NetworkMessageStore interface {
 	WriteNetworkMessage(ctx context.Context, entry NetworkMessageEntry) error
@@ -85,6 +93,7 @@ type SessionRegistry interface {
 	TokenStatsStore
 	PermissionLogStore
 	NetworkAuditStore
+	NetworkChannelStore
 	NetworkMessageStore
 	Close(ctx context.Context) error
 }

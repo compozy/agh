@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -4894,6 +4895,28 @@ func (r *recordingRegistry) ListNetworkAudit(
 	store.NetworkAuditQuery,
 ) ([]store.NetworkAuditEntry, error) {
 	return nil, nil
+}
+
+func (r *recordingRegistry) WriteNetworkChannel(context.Context, store.NetworkChannelEntry) error {
+	return nil
+}
+
+func (r *recordingRegistry) GetNetworkChannel(
+	context.Context,
+	string,
+) (store.NetworkChannelEntry, error) {
+	return store.NetworkChannelEntry{}, sql.ErrNoRows
+}
+
+func (r *recordingRegistry) ListNetworkChannels(
+	context.Context,
+	store.NetworkChannelQuery,
+) ([]store.NetworkChannelEntry, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) DeleteNetworkChannel(context.Context, string) error {
+	return nil
 }
 
 func (r *recordingRegistry) WriteNetworkMessage(context.Context, store.NetworkMessageEntry) error {

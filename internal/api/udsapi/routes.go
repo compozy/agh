@@ -220,6 +220,7 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 		network.GET("/status", handlers.NetworkStatus)
 		network.GET("/peers", handlers.NetworkPeers)
 		network.GET("/peers/:peer_id", handlers.NetworkPeer)
+		network.GET("/peers/:peer_id/messages", handlers.NetworkPeerMessages)
 		network.GET("/channels", handlers.NetworkChannels)
 		network.POST("/channels", handlers.CreateNetworkChannel)
 		network.GET("/channels/:channel", handlers.NetworkChannel)

@@ -856,11 +856,15 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 	mux.HandleFunc("/api/network/channels/builders/messages", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, aghcontract.NetworkChannelMessagesResponse{
 			Messages: []aghcontract.NetworkChannelMessagePayload{{
-				MessageID: "msg-1",
-				Channel:   "builders",
-				PeerID:    "peer-1",
-				Text:      "hello",
-				Timestamp: now,
+				MessageID:   "msg-1",
+				Channel:     "builders",
+				Kind:        "say",
+				Direction:   "sent",
+				PeerFrom:    "peer-1",
+				Text:        "hello",
+				PreviewText: "hello",
+				Body:        json.RawMessage(`{"text":"hello"}`),
+				Timestamp:   now,
 			}},
 		})
 	})
@@ -933,7 +937,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				RemotePeerCount: 0,
 				SessionCount:    1,
 				MessageCount:    1,
-				LastMessageAt:   &now,
+				LastActivityAt:  &now,
 			}},
 		})
 	})

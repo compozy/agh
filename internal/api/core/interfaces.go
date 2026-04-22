@@ -106,6 +106,10 @@ type NetworkService interface {
 // NetworkStore exposes persisted network audit and timeline queries to the API layer.
 type NetworkStore interface {
 	ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
+	GetNetworkChannel(ctx context.Context, channel string) (store.NetworkChannelEntry, error)
+	ListNetworkChannels(ctx context.Context, query store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
+	WriteNetworkChannel(ctx context.Context, entry store.NetworkChannelEntry) error
+	DeleteNetworkChannel(ctx context.Context, channel string) error
 	ListNetworkMessages(ctx context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
 }
 

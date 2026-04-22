@@ -259,9 +259,6 @@ func normalizeTimelineMessageEntry(
 	envelope Envelope,
 	at time.Time,
 ) (store.NetworkMessageEntry, bool, error) {
-	if envelope.Kind != KindSay {
-		return store.NetworkMessageEntry{}, false, nil
-	}
 	switch strings.TrimSpace(direction) {
 	case AuditDirectionSent, AuditDirectionReceived:
 	default:
@@ -272,26 +269,37 @@ func normalizeTimelineMessageEntry(
 	if err != nil {
 		return store.NetworkMessageEntry{}, false, fmt.Errorf("network: decode timeline envelope body: %w", err)
 	}
-	sayBody, ok := body.(SayBody)
-	if !ok {
-		return store.NetworkMessageEntry{}, false, fmt.Errorf(
-			"network: unexpected timeline body type for %q",
-			envelope.ID,
-		)
-	}
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
 
+	peerTo := ""
+	if envelope.To != nil {
+		peerTo = strings.TrimSpace(*envelope.To)
+	}
 	entry := store.NetworkMessageEntry{
-		MessageID: strings.TrimSpace(envelope.ID),
-		SessionID: strings.TrimSpace(sessionID),
-		Channel:   strings.TrimSpace(envelope.Channel),
-		PeerFrom:  strings.TrimSpace(envelope.From),
-		Kind:      strings.TrimSpace(string(envelope.Kind)),
-		Intent:    strings.TrimSpace(sayBody.Intent),
-		Text:      sayBody.Text,
-		Timestamp: at.UTC(),
+		MessageID:     strings.TrimSpace(envelope.ID),
+		SessionID:     strings.TrimSpace(sessionID),
+		Channel:       strings.TrimSpace(envelope.Channel),
+		Direction:     strings.TrimSpace(direction),
+		PeerFrom:      strings.TrimSpace(envelope.From),
+		PeerTo:        peerTo,
+		Kind:          strings.TrimSpace(string(envelope.Kind)),
+		PreviewText:   previewForBody(body),
+		Body:          cloneRawMessage(envelope.Body),
+		Timestamp:     at.UTC(),
+		InteractionID: trimmedPointerValue(envelope.InteractionID),
+		ReplyTo:       trimmedPointerValue(envelope.ReplyTo),
+		TraceID:       trimmedPointerValue(envelope.TraceID),
+		CausationID:   trimmedPointerValue(envelope.CausationID),
+	}
+	switch value := body.(type) {
+	case SayBody:
+		entry.Intent = strings.TrimSpace(value.Intent)
+		entry.Text = value.Text
+	case DirectBody:
+		entry.Intent = strings.TrimSpace(value.Intent)
+		entry.Text = value.Text
 	}
 	if err := entry.Validate(); err != nil {
 		return store.NetworkMessageEntry{}, false, err
@@ -329,6 +337,14 @@ func normalizeTaskIngressAuditEntry(audit TaskIngressAudit, at time.Time) (store
 	}
 	return entry, nil
 }
+
+func trimmedPointerValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
 func (w *FileAuditWriter) appendFile(entry store.NetworkAuditEntry) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()

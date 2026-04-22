@@ -4,13 +4,16 @@ import type {
   NetworkCapabilityBrief,
   NetworkCapabilityCatalog,
   NetworkChannel,
-  NetworkChannelMessage,
   NetworkChannelSummary,
   NetworkCreateChannelDraft,
+  NetworkKindFilter,
   NetworkPeerCapabilityView,
   NetworkPeerDetail,
   NetworkPeerSummary,
+  NetworkSignalTone,
+  NetworkTimelineMessage,
   NetworkStatus,
+  NetworkRoomType,
 } from "../types";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
@@ -18,6 +21,36 @@ const timeFormatter = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
   minute: "2-digit",
 });
+
+export const NETWORK_KIND_FILTERS: Exclude<NetworkKindFilter, "all">[] = [
+  "say",
+  "direct",
+  "receipt",
+  "capability",
+  "greet",
+  "whois",
+  "trace",
+];
+
+const NETWORK_KIND_LABELS: Record<Exclude<NetworkKindFilter, "all">, string> = {
+  capability: "recipe",
+  direct: "direct",
+  greet: "greet",
+  receipt: "receipt",
+  say: "say",
+  trace: "trace",
+  whois: "whois",
+};
+
+const NETWORK_KIND_TONES: Record<Exclude<NetworkKindFilter, "all">, NetworkSignalTone> = {
+  capability: "info",
+  direct: "accent",
+  greet: "success",
+  receipt: "warning",
+  say: "neutral",
+  trace: "info",
+  whois: "warning",
+};
 
 interface NetworkMetricCard {
   detail?: string;
@@ -37,6 +70,7 @@ function parseTimestampOrZero(value?: string | null): number {
 export function createNetworkChannelDraft(): NetworkCreateChannelDraft {
   return {
     channelName: "",
+    purpose: "",
     selectedAgentNames: [],
   };
 }
@@ -64,8 +98,10 @@ export function formatChannelPeerCount(value?: number | null): string {
   return `${formatNetworkNumber(count)} ${count === 1 ? "peer" : "peers"}`;
 }
 
-export function formatChannelMemberCount(channel?: Pick<NetworkChannel, "peer_count">): string {
-  const count = channel?.peer_count ?? 0;
+export function formatChannelMemberCount(
+  channel?: Pick<NetworkChannel, "peer_count" | "session_count"> | null
+): string {
+  const count = channel?.peer_count ?? channel?.session_count ?? 0;
   return `${formatNetworkNumber(count)} ${count === 1 ? "member" : "members"}`;
 }
 
@@ -147,23 +183,39 @@ export function getPeerTypeLabel(peer: Pick<NetworkPeerSummary, "local">): strin
   return peer.local ? "LOCAL" : "REMOTE";
 }
 
-export function getPeerPresenceTone(peer: Pick<NetworkPeerSummary, "last_seen" | "local">) {
+export function getPeerPresenceTone(
+  peer: Pick<NetworkPeerSummary, "last_seen" | "local">
+): NetworkSignalTone {
   if (peer.local) {
-    return "bg-[color:var(--color-accent)]";
+    return "accent";
   }
 
   if (!peer.last_seen) {
-    return "bg-[color:var(--color-text-tertiary)]";
+    return "neutral";
   }
 
   const parsed = new Date(peer.last_seen);
   if (Number.isNaN(parsed.getTime())) {
-    return "bg-[color:var(--color-text-tertiary)]";
+    return "neutral";
   }
 
-  return Date.now() - parsed.getTime() <= 60_000
-    ? "bg-[color:var(--color-success)]"
-    : "bg-[color:var(--color-text-tertiary)]";
+  return Date.now() - parsed.getTime() <= 60_000 ? "success" : "neutral";
+}
+
+export function getNetworkStatusTone(status?: string | null): NetworkSignalTone {
+  switch (status?.trim()) {
+    case "online":
+    case "running":
+      return "success";
+    case "starting":
+    case "degraded":
+      return "warning";
+    case "offline":
+    case "stopped":
+      return "danger";
+    default:
+      return "neutral";
+  }
 }
 
 export function getNetworkMetricCards(
@@ -204,17 +256,21 @@ export function getNetworkMetricCards(
   ];
 }
 
+export function getNetworkRoomKey(roomType: NetworkRoomType, id: string): string {
+  return `${roomType}:${id.trim()}`;
+}
+
 export function sortNetworkChannels(channels: NetworkChannelSummary[]) {
   return [...channels].sort((left, right) => {
-    const leftMessageTime = parseTimestampOrZero(left.last_message_at);
-    const rightMessageTime = parseTimestampOrZero(right.last_message_at);
+    const leftActivity = parseTimestampOrZero(left.last_activity_at);
+    const rightActivity = parseTimestampOrZero(right.last_activity_at);
 
-    if (leftMessageTime !== rightMessageTime) {
-      return rightMessageTime - leftMessageTime;
+    if (leftActivity !== rightActivity) {
+      return rightActivity - leftActivity;
     }
 
-    if (left.peer_count !== right.peer_count) {
-      return right.peer_count - left.peer_count;
+    if ((left.message_count ?? 0) !== (right.message_count ?? 0)) {
+      return (right.message_count ?? 0) - (left.message_count ?? 0);
     }
 
     return left.channel.localeCompare(right.channel);
@@ -227,7 +283,11 @@ export function matchesChannelSearch(channel: NetworkChannelSummary, query: stri
   }
 
   const normalized = query.toLowerCase();
-  return channel.channel.toLowerCase().includes(normalized);
+  return (
+    channel.channel.toLowerCase().includes(normalized) ||
+    channel.purpose?.toLowerCase().includes(normalized) === true ||
+    channel.last_message_preview?.toLowerCase().includes(normalized) === true
+  );
 }
 
 export function sortNetworkPeers(peers: NetworkPeerSummary[]) {
@@ -260,10 +320,53 @@ export function matchesPeerSearch(peer: NetworkPeerSummary, query: string) {
   );
 }
 
+export function formatNetworkKindLabel(kind: string): string {
+  const normalized = toNetworkKindFilter(kind);
+  return normalized ? NETWORK_KIND_LABELS[normalized] : kind;
+}
+
+export function getNetworkKindTone(kind: string): NetworkSignalTone {
+  const normalized = toNetworkKindFilter(kind);
+  return normalized ? NETWORK_KIND_TONES[normalized] : "neutral";
+}
+
+export function toNetworkKindFilter(kind: string): Exclude<NetworkKindFilter, "all"> | null {
+  if (NETWORK_KIND_FILTERS.includes(kind as Exclude<NetworkKindFilter, "all">)) {
+    return kind as Exclude<NetworkKindFilter, "all">;
+  }
+
+  return null;
+}
+
+export function filterNetworkMessagesByKind(
+  messages: NetworkTimelineMessage[],
+  kind: NetworkKindFilter
+): NetworkTimelineMessage[] {
+  if (kind === "all") {
+    return messages;
+  }
+
+  return messages.filter(message => message.kind === kind);
+}
+
+export function getNetworkMessagePrimaryText(message: NetworkTimelineMessage): string {
+  const preview = message.preview_text?.trim();
+  if (preview) {
+    return preview;
+  }
+
+  const text = message.text?.trim();
+  if (text) {
+    return text;
+  }
+
+  return `(${formatNetworkKindLabel(message.kind)})`;
+}
+
 export function getMessageAuthorInitial(
-  message: Pick<NetworkChannelMessage, "display_name" | "peer_id">
+  message: Pick<NetworkTimelineMessage, "display_name" | "peer_from">
 ): string {
-  const author = (message.display_name ?? message.peer_id).trim();
+  const author = (message.display_name ?? message.peer_from).trim();
   return author.charAt(0).toUpperCase() || "?";
 }
 

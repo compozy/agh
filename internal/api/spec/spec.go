@@ -940,6 +940,27 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
+		Path:        "/api/network/peers/{peer_id}/messages",
+		OperationID: "listNetworkPeerMessages",
+		Summary:     "List the directed room timeline for one network peer",
+		Tags:        []string{"network"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("peer_id", "Network peer id"),
+			queryParam("before", "Return messages before the specified message id", false),
+			queryParam("after", "Return messages after the specified message id", false),
+			intQueryParam("limit", "Maximum number of timeline messages to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.NetworkPeerMessagesResponse{}},
+			{Status: 400, Description: "Invalid peer timeline request", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Network peer not found", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Network runtime is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
 		Path:        "/api/network/channels",
 		OperationID: "listNetworkChannels",
 		Summary:     "List materialized network channels",
@@ -994,6 +1015,8 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("channel", "Network channel"),
+			queryParam("before", "Return messages before the specified message id", false),
+			queryParam("after", "Return messages after the specified message id", false),
 			intQueryParam("limit", "Maximum number of timeline messages to return"),
 		},
 		Responses: []ResponseSpec{
