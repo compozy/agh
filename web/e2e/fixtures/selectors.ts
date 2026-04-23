@@ -37,19 +37,16 @@ export interface SessionLifecycleSelectors {
 
 export const networkOperatorTestIds = {
   appSidebar: sessionLifecycleTestIds.appSidebar,
-  channelsEmptyState: "network-channels-empty-state",
-  channelsListPanel: "network-channels-list-panel",
-  channelsTab: "network-tab-channels",
-  channelDetailPanel: "network-channel-detail-panel",
   channelNameInput: "network-channel-name-input",
   createDialog: "network-create-channel-dialog",
   createSubmit: "network-create-channel-submit",
+  detailsPanel: "network-details-panel",
+  messageList: "network-message-list",
   navNetwork: "nav-network",
-  openCreateDialog: "open-network-create-dialog",
-  queuedMessagesMetric: "network-metric-queued-msgs",
-  peerDetailPanel: "network-peer-detail-panel",
-  peersListPanel: "network-peers-list-panel",
-  peersTab: "network-tab-peers",
+  openCreateDialog: "network-open-create-dialog",
+  roomHeader: "network-room-header",
+  roomIntro: "network-room-intro",
+  workspace: "network-workspace",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
@@ -108,21 +105,17 @@ export interface NetworkOperatorSelectors {
   agentOption(agentName: string): Locator;
   channelItem(channelName: string): Locator;
   channelMessage(messageId: string): Locator;
-  channelsEmptyState: Locator;
-  channelsListPanel: Locator;
-  channelsTab: Locator;
-  channelDetailPanel: Locator;
   channelNameInput: Locator;
   createDialog: Locator;
   createSubmit: Locator;
+  detailsPanel: Locator;
+  messageList: Locator;
   navNetwork: Locator;
   openCreateDialog: Locator;
-  peerMetric(metricName: string): Locator;
-  peerDetailPanel: Locator;
   peerItem(peerId: string): Locator;
-  peersListPanel: Locator;
-  peersTab: Locator;
-  queuedMessagesMetric: Locator;
+  roomHeader: Locator;
+  roomIntro: Locator;
+  workspace: Locator;
   workspaceOnboarding: Locator;
   workspaceUseGlobal: Locator;
 }
@@ -476,24 +469,19 @@ export function networkOperatorSelectors(
   return {
     appSidebar: page.getByTestId(networkOperatorTestIds.appSidebar),
     agentOption: (agentName: string) => page.getByTestId(`network-agent-option-${agentName}`),
-    channelItem: (channelName: string) => page.getByTestId(`network-channel-item-${channelName}`),
-    channelMessage: (messageId: string) => page.getByTestId(`network-channel-message-${messageId}`),
-    channelsEmptyState: page.getByTestId(networkOperatorTestIds.channelsEmptyState),
-    channelsListPanel: page.getByTestId(networkOperatorTestIds.channelsListPanel),
-    channelsTab: page.getByTestId(networkOperatorTestIds.channelsTab),
-    channelDetailPanel: page.getByTestId(networkOperatorTestIds.channelDetailPanel),
+    channelItem: (channelName: string) => page.getByTestId(`network-room-channel-${channelName}`),
+    channelMessage: (messageId: string) => page.getByTestId(`network-message-${messageId}`),
     channelNameInput: page.getByTestId(networkOperatorTestIds.channelNameInput),
     createDialog: page.getByTestId(networkOperatorTestIds.createDialog),
     createSubmit: page.getByTestId(networkOperatorTestIds.createSubmit),
+    detailsPanel: page.getByTestId(networkOperatorTestIds.detailsPanel),
+    messageList: page.getByTestId(networkOperatorTestIds.messageList),
     navNetwork: page.getByTestId(networkOperatorTestIds.navNetwork),
     openCreateDialog: page.getByTestId(networkOperatorTestIds.openCreateDialog),
-    peerMetric: (metricName: string) =>
-      page.getByTestId(`network-peer-metric-${metricName.toLowerCase().replaceAll(" ", "-")}`),
-    peerDetailPanel: page.getByTestId(networkOperatorTestIds.peerDetailPanel),
-    peerItem: (peerId: string) => page.getByTestId(`network-peer-item-${peerId}`),
-    peersListPanel: page.getByTestId(networkOperatorTestIds.peersListPanel),
-    peersTab: page.getByTestId(networkOperatorTestIds.peersTab),
-    queuedMessagesMetric: page.getByTestId(networkOperatorTestIds.queuedMessagesMetric),
+    peerItem: (peerId: string) => page.getByTestId(`network-room-peer-${peerId}`),
+    roomHeader: page.getByTestId(networkOperatorTestIds.roomHeader),
+    roomIntro: page.getByTestId(networkOperatorTestIds.roomIntro),
+    workspace: page.getByTestId(networkOperatorTestIds.workspace),
     workspaceOnboarding: page.getByTestId(networkOperatorTestIds.workspaceOnboarding),
     workspaceUseGlobal: page.getByTestId(networkOperatorTestIds.workspaceUseGlobal),
   };

@@ -1681,6 +1681,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		udsapi.WithSessionManager(manager),
 		udsapi.WithTaskService(taskManager),
 		udsapi.WithNetworkService(networkManager),
+		udsapi.WithNetworkStore(registry),
 		udsapi.WithObserver(observer),
 		udsapi.WithAutomation(automationManager),
 		udsapi.WithBridgeService(bridgeService),
