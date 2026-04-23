@@ -173,66 +173,64 @@ function NetworkSidebarRow({
   return (
     <div
       className={cn(
-        "flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
+        "flex w-full items-start gap-1 rounded-[var(--radius-md)] border text-left transition-colors focus-within:border-[color:var(--color-accent-dim)]",
         active
           ? "border-[color:var(--color-accent-dim)] bg-[color:var(--color-accent-tint)]"
           : "border-transparent hover:border-[color:var(--color-divider)] hover:bg-[color:var(--color-surface)]"
       )}
       data-testid={`network-room-${item.roomType}-${item.id}`}
-      onKeyDown={event => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect(item);
-        }
-      }}
-      onClick={() => onSelect(item)}
-      role="button"
-      tabIndex={0}
     >
-      <div className="mt-0.5 flex items-center gap-2">
-        {isChannel ? (
-          <Hash className="size-3.5 text-[color:var(--color-text-secondary)]" />
-        ) : (
-          <StatusDot tone={item.tone} />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "truncate text-[13px] font-medium",
-              item.unreadCount > 0
-                ? "text-[color:var(--color-text-primary)]"
-                : "text-[color:var(--color-text-secondary)]"
-            )}
-          >
-            {item.title}
-          </span>
-          {item.unreadCount > 0 ? (
-            <MonoBadge className="ml-auto" tone="accent">
-              {item.unreadCount}
-            </MonoBadge>
-          ) : null}
+      <button
+        aria-current={active ? "page" : undefined}
+        className="flex min-w-0 flex-1 items-start gap-3 px-3 py-2.5 text-left focus-visible:outline-none"
+        onClick={() => onSelect(item)}
+        type="button"
+      >
+        <div className="mt-0.5 flex items-center gap-2">
+          {isChannel ? (
+            <Hash className="size-3.5 text-[color:var(--color-text-secondary)]" />
+          ) : (
+            <StatusDot tone={item.tone} />
+          )}
         </div>
-        <div className="mt-1 flex items-center gap-2">
-          <span className="truncate text-[12px] text-[color:var(--color-text-tertiary)]">
-            {item.preview}
-          </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "truncate text-[13px] font-medium",
+                item.unreadCount > 0
+                  ? "text-[color:var(--color-text-primary)]"
+                  : "text-[color:var(--color-text-secondary)]"
+              )}
+            >
+              {item.title}
+            </span>
+            {item.unreadCount > 0 ? (
+              <MonoBadge className="ml-auto" tone="accent">
+                {item.unreadCount}
+              </MonoBadge>
+            ) : null}
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="truncate text-[12px] text-[color:var(--color-text-tertiary)]">
+              {item.preview}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+              {item.meta}
+            </span>
+            <span className="text-[color:var(--color-text-tertiary)]">·</span>
+            <span className="truncate font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+              {item.subtitle}
+            </span>
+          </div>
         </div>
-        <div className="mt-1 flex items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-            {item.meta}
-          </span>
-          <span className="text-[color:var(--color-text-tertiary)]">·</span>
-          <span className="truncate font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-            {item.subtitle}
-          </span>
-        </div>
-      </div>
+      </button>
       {isChannel ? (
         <button
           aria-label={item.isStarred ? "Unstar channel" : "Star channel"}
-          className="mt-0.5 rounded-md p-1 text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-surface-elevated)] hover:text-[color:var(--color-accent)]"
+          className="mt-2 mr-2 rounded-[var(--radius-md)] p-1 text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-surface-elevated)] hover:text-[color:var(--color-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
           onClick={event => {
             event.stopPropagation();
             onToggleStar?.(item.id);
@@ -257,9 +255,9 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
   switch (message.kind) {
     case "capability":
       return (
-        <div className="space-y-3 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+        <div className="space-y-3 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <MonoBadge tone="info">recipe</MonoBadge>
+            <MonoBadge tone="info">capability</MonoBadge>
             {readString(capability, "id") ? (
               <MonoBadge uppercase={false}>{readString(capability, "id")}</MonoBadge>
             ) : null}
@@ -298,7 +296,7 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
       );
     case "receipt":
       return (
-        <div className="space-y-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+        <div className="space-y-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
           <div className="flex flex-wrap items-center gap-2">
             <MonoBadge tone="warning">receipt</MonoBadge>
             {readString(body, "status") ? (
@@ -317,7 +315,7 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
       );
     case "greet":
       return (
-        <div className="space-y-3 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+        <div className="space-y-3 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
           <div className="flex flex-wrap items-center gap-2">
             <MonoBadge tone="success">greet</MonoBadge>
             {readString(peerCard, "display_name") ? (
@@ -342,7 +340,7 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
       );
     case "whois":
       return (
-        <div className="space-y-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+        <div className="space-y-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
           <div className="flex flex-wrap items-center gap-2">
             <MonoBadge tone="warning">whois</MonoBadge>
             {readString(body, "type") ? (
@@ -361,7 +359,7 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
       );
     case "trace":
       return (
-        <div className="space-y-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
+        <div className="space-y-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
           <div className="flex flex-wrap items-center gap-2">
             <MonoBadge tone="info">trace</MonoBadge>
             {readString(body, "state") ? (
@@ -428,13 +426,13 @@ function NetworkMessageList({
 
         return (
           <article
-            className={cn("flex gap-3 rounded-xl px-3 py-3", grouped && "pt-1")}
+            className={cn("flex gap-3 rounded-[var(--radius-md)] px-3 py-3", grouped && "pt-1")}
             data-testid={`network-message-${message.message_id}`}
             key={message.message_id}
           >
             <div className="w-10 shrink-0">
               {grouped ? null : (
-                <div className="flex size-10 items-center justify-center rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] font-mono text-[12px] font-medium text-[color:var(--color-text-primary)]">
+                <div className="flex size-10 items-center justify-center rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] font-mono text-[12px] font-medium text-[color:var(--color-text-primary)]">
                   {getMessageAuthorInitial(message)}
                 </div>
               )}
@@ -683,7 +681,7 @@ export function NetworkWorkspaceShell({
                 )}
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="truncate text-[18px] font-semibold tracking-[-0.02em] text-[color:var(--color-text-primary)]">
+                    <h1 className="truncate text-[18px] font-semibold text-[color:var(--color-text-primary)]">
                       {selectedTitle ?? "Loading room"}
                     </h1>
                     {activeRoom?.lastActivityAt ? (
@@ -711,6 +709,7 @@ export function NetworkWorkspaceShell({
                   </Button>
                 ) : null}
                 <Button
+                  aria-label={isDetailsOpen ? "Close room details" : "Open room details"}
                   data-testid="network-toggle-details"
                   onClick={onToggleDetails}
                   size="icon-sm"
@@ -728,12 +727,15 @@ export function NetworkWorkspaceShell({
 
             <div className="border-b border-[color:var(--color-divider)] px-5 py-3">
               <div
+                aria-label="Timeline kind filters"
                 className="flex flex-wrap items-center gap-2"
                 data-testid="network-kind-filter-bar"
+                role="group"
               >
                 <button
+                  aria-pressed={activeKind === "all"}
                   className={cn(
-                    "rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
+                    "rounded-[var(--radius-chip)] border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
                     activeKind === "all"
                       ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]"
                       : "border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-accent-dim)] hover:text-[color:var(--color-text-primary)]"
@@ -749,8 +751,9 @@ export function NetworkWorkspaceShell({
 
                   return (
                     <button
+                      aria-pressed={activeKind === kind}
                       className={cn(
-                        "rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
+                        "rounded-[var(--radius-chip)] border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
                         activeKind === kind
                           ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]"
                           : "border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-accent-dim)] hover:text-[color:var(--color-text-primary)]"
@@ -770,7 +773,7 @@ export function NetworkWorkspaceShell({
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto">
                 <div className="px-5 py-5" data-testid="network-room-intro">
-                  <div className="rounded-2xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-5">
+                  <div className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-5">
                     <div className="flex flex-wrap items-center gap-2">
                       <MonoBadge tone="accent">
                         {activeRoom?.roomType === "channel" ? "channel" : "direct"}
@@ -779,7 +782,7 @@ export function NetworkWorkspaceShell({
                         <MonoBadge uppercase={false}>{activeRoom.purpose}</MonoBadge>
                       ) : null}
                     </div>
-                    <h2 className="mt-3 text-[16px] font-semibold tracking-[-0.02em] text-[color:var(--color-text-primary)]">
+                    <h2 className="mt-3 text-[16px] font-semibold text-[color:var(--color-text-primary)]">
                       {activeRoom?.introTitle ?? "Loading room"}
                     </h2>
                     <p className="mt-2 max-w-3xl text-[14px] leading-6 text-[color:var(--color-text-secondary)]">
@@ -797,6 +800,7 @@ export function NetworkWorkspaceShell({
               <div className="border-t border-[color:var(--color-divider)] bg-[color:var(--color-canvas)] px-5 py-4">
                 <div className="space-y-3" data-testid="network-composer">
                   <Textarea
+                    aria-label="Network message composer"
                     className="min-h-24 border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-3 py-3 text-[14px] leading-6 text-[color:var(--color-text-primary)]"
                     data-testid="network-composer-input"
                     disabled={!activeRoom?.canCompose}
@@ -849,17 +853,19 @@ export function NetworkWorkspaceShell({
                 Room details
               </span>
             </div>
-            <div className="mt-4 flex gap-2">
+            <div aria-label="Room detail tabs" className="mt-4 flex gap-2" role="tablist">
               {(["about", "members", "wire"] as const).map(tab => (
                 <button
+                  aria-selected={detailsTab === tab}
                   className={cn(
-                    "rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
+                    "rounded-[var(--radius-chip)] border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
                     detailsTab === tab
                       ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]"
                       : "border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-accent-dim)] hover:text-[color:var(--color-text-primary)]"
                   )}
                   key={tab}
                   onClick={() => onSelectDetailsTab(tab)}
+                  role="tab"
                   type="button"
                 >
                   {tab}
@@ -896,7 +902,7 @@ export function NetworkWorkspaceShell({
                     <div className="space-y-3">
                       {activeRoom.capabilities.map(capability => (
                         <div
-                          className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
+                          className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
                           key={capability.id}
                         >
                           <div className="flex flex-wrap items-center gap-2">
@@ -925,7 +931,7 @@ export function NetworkWorkspaceShell({
                 ) : (
                   activeRoom.members.map(member => (
                     <div
-                      className="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
+                      className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
                       key={member.id}
                     >
                       <div className="flex items-center gap-3">

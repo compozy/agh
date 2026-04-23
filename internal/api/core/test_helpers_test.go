@@ -191,6 +191,7 @@ func newHandlerFixtureWithAutomationAndTasks(
 	engine.GET("/daemon/status", handlers.DaemonStatus)
 	engine.GET("/network/status", handlers.NetworkStatus)
 	engine.GET("/network/peers", handlers.NetworkPeers)
+	engine.GET("/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
 	engine.GET("/network/peers/:peer_id", handlers.NetworkPeer)
 	engine.GET("/network/channels", handlers.NetworkChannels)
 	engine.POST("/network/channels", handlers.CreateNetworkChannel)

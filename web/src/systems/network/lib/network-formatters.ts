@@ -33,7 +33,7 @@ export const NETWORK_KIND_FILTERS: Exclude<NetworkKindFilter, "all">[] = [
 ];
 
 const NETWORK_KIND_LABELS: Record<Exclude<NetworkKindFilter, "all">, string> = {
-  capability: "recipe",
+  capability: "capability",
   direct: "direct",
   greet: "greet",
   receipt: "receipt",

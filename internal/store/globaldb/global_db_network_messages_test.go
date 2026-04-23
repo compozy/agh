@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -162,6 +163,17 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 			Body:        []byte(`{"text":"three"}`),
 			Timestamp:   recordedAt.Add(2 * time.Minute),
 		},
+		{
+			MessageID:   "msg-4",
+			Channel:     "retro",
+			Direction:   "received",
+			PeerFrom:    "peer-c",
+			PeerTo:      "peer-d",
+			Kind:        "direct",
+			PreviewText: "four",
+			Body:        []byte(`{"text":"four"}`),
+			Timestamp:   recordedAt.Add(3 * time.Minute),
+		},
 	}
 	for _, entry := range entries {
 		if err := globalDB.WriteNetworkMessage(testutil.Context(t), entry); err != nil {
@@ -203,6 +215,25 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 	}
 	if got, want := after[1].MessageID, "msg-3"; got != want {
 		t.Fatalf("after[1].MessageID = %q, want %q", got, want)
+	}
+
+	_, err = globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+		Channel:         "builders",
+		BeforeMessageID: "msg-4",
+		Limit:           10,
+	})
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("ListNetworkMessages(cross-channel cursor) error = %v, want sql.ErrNoRows", err)
+	}
+
+	_, err = globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+		PeerID:          "peer-a",
+		DirectedOnly:    true,
+		BeforeMessageID: "msg-4",
+		Limit:           10,
+	})
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("ListNetworkMessages(cross-peer cursor) error = %v, want sql.ErrNoRows", err)
 	}
 }
 
@@ -329,5 +360,26 @@ func TestGlobalDBListNetworkMessagesWrapsTimestampParseFailures(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "parse network message timestamp") {
 		t.Fatalf("ListNetworkMessages(invalid timestamp) error = %v, want wrapped timestamp parse context", err)
+	}
+}
+
+func TestGlobalDBWriteNetworkMessageRejectsNonCanonicalDirection(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	err := globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{
+		MessageID:   "msg_bad_direction",
+		Channel:     "builders",
+		Direction:   " sent ",
+		PeerFrom:    "coder.sess-audit",
+		Kind:        "say",
+		PreviewText: "hello",
+		Body:        []byte(`{"text":"hello"}`),
+	})
+	if err == nil {
+		t.Fatal("WriteNetworkMessage() error = nil, want non-canonical direction rejection")
+	}
+	if !strings.Contains(err.Error(), `unsupported network message direction " sent "`) {
+		t.Fatalf("WriteNetworkMessage() error = %v, want direction validation error", err)
 	}
 }

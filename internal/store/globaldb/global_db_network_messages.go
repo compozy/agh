@@ -137,28 +137,12 @@ func (g *GlobalDB) buildNetworkMessageListQuery(
 		timestamp
 	FROM network_timeline_log`
 
-	where, args := store.BuildClauses(
-		store.StringClause("session_id", query.SessionID),
-		store.StringClause("channel", query.Channel),
-		store.StringClause("peer_from", query.PeerFrom),
-		store.StringClause("peer_to", query.PeerTo),
-		store.StringClause("kind", query.Kind),
-		store.StringClause("direction", query.Direction),
-		store.StringClause("message_id", query.MessageID),
-		store.TimeClause("timestamp", ">=", query.Since),
-	)
-	if peerID := strings.TrimSpace(query.PeerID); peerID != "" {
-		where = append(where, "(peer_from = ? OR peer_to = ?)")
-		args = append(args, peerID, peerID)
-	}
-	if query.DirectedOnly {
-		where = append(where, "peer_to IS NOT NULL AND TRIM(peer_to) <> ''")
-	}
+	where, args := networkMessageFilterClauses(query, true)
 
 	reverseResults := false
 	switch {
 	case strings.TrimSpace(query.BeforeMessageID) != "":
-		cursor, cursorErr := g.lookupNetworkMessageCursor(ctx, query.BeforeMessageID)
+		cursor, cursorErr := g.lookupNetworkMessageCursor(ctx, query.BeforeMessageID, query)
 		if cursorErr != nil {
 			return "", nil, false, cursorErr
 		}
@@ -166,7 +150,7 @@ func (g *GlobalDB) buildNetworkMessageListQuery(
 		args = append(args, cursor.Timestamp, cursor.Timestamp, cursor.MessageID)
 		reverseResults = true
 	case strings.TrimSpace(query.AfterMessageID) != "":
-		cursor, cursorErr := g.lookupNetworkMessageCursor(ctx, query.AfterMessageID)
+		cursor, cursorErr := g.lookupNetworkMessageCursor(ctx, query.AfterMessageID, query)
 		if cursorErr != nil {
 			return "", nil, false, cursorErr
 		}
@@ -182,6 +166,31 @@ func (g *GlobalDB) buildNetworkMessageListQuery(
 	}
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 	return sqlQuery, args, reverseResults, nil
+}
+
+func networkMessageFilterClauses(query store.NetworkMessageQuery, includeMessageID bool) ([]string, []any) {
+	messageID := ""
+	if includeMessageID {
+		messageID = query.MessageID
+	}
+	where, args := store.BuildClauses(
+		store.StringClause("session_id", query.SessionID),
+		store.StringClause("channel", query.Channel),
+		store.StringClause("peer_from", query.PeerFrom),
+		store.StringClause("peer_to", query.PeerTo),
+		store.StringClause("kind", query.Kind),
+		store.StringClause("direction", query.Direction),
+		store.StringClause("message_id", messageID),
+		store.TimeClause("timestamp", ">=", query.Since),
+	)
+	if peerID := strings.TrimSpace(query.PeerID); peerID != "" {
+		where = append(where, "(peer_from = ? OR peer_to = ?)")
+		args = append(args, peerID, peerID)
+	}
+	if query.DirectedOnly {
+		where = append(where, "peer_to IS NOT NULL AND TRIM(peer_to) <> ''")
+	}
+	return where, args
 }
 
 func loadNetworkMessageEntries(rows *sql.Rows) ([]store.NetworkMessageEntry, error) {
@@ -208,17 +217,22 @@ func reverseNetworkMessages(entries []store.NetworkMessageEntry) {
 func (g *GlobalDB) lookupNetworkMessageCursor(
 	ctx context.Context,
 	messageID string,
+	query store.NetworkMessageQuery,
 ) (networkMessageCursor, error) {
 	trimmed := strings.TrimSpace(messageID)
 	if trimmed == "" {
 		return networkMessageCursor{}, nil
 	}
 
+	where, args := networkMessageFilterClauses(query, false)
+	where = append([]string{"message_id = ?"}, where...)
+	args = append([]any{trimmed}, args...)
+
 	var cursor networkMessageCursor
 	err := g.db.QueryRowContext(
 		ctx,
-		`SELECT message_id, timestamp FROM network_timeline_log WHERE message_id = ?`,
-		trimmed,
+		store.AppendWhere(`SELECT message_id, timestamp FROM network_timeline_log`, where),
+		args...,
 	).Scan(&cursor.MessageID, &cursor.Timestamp)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

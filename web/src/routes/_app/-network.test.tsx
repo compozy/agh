@@ -499,6 +499,35 @@ describe("network route", () => {
     expect(screen.getByTestId("network-details-panel")).toBeInTheDocument();
   });
 
+  it("exposes workspace navigation, filters, tabs, and composer controls accessibly", () => {
+    render(<NetworkPage />);
+
+    const channelRow = screen.getByTestId("network-room-channel-coord.core");
+    expect(channelRow).not.toHaveAttribute("role", "button");
+    expect(within(channelRow).getByRole("button", { name: /coord\.core/i })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(within(channelRow).getByRole("button", { name: "Star channel" })).toBeInTheDocument();
+
+    expect(screen.getByLabelText("Close room details")).toBeInTheDocument();
+    expect(screen.getByLabelText("Network message composer")).toBe(
+      screen.getByTestId("network-composer-input")
+    );
+
+    const kindFilters = screen.getByRole("group", { name: "Timeline kind filters" });
+    expect(within(kindFilters).getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    const detailsTabs = screen.getByRole("tablist", { name: "Room detail tabs" });
+    expect(within(detailsTabs).getByRole("tab", { name: "about" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+  });
+
   it("renders the disabled state when the network is turned off", () => {
     mockNetworkStatus = { enabled: false, status: "offline" };
 

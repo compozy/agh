@@ -70,7 +70,7 @@ func (h *BaseHandlers) networkPeerSessionInfoMap(
 		return nil
 	}
 
-	sessionByID := make(map[string]*session.Info, len(peers))
+	wanted := make(map[string]struct{}, len(peers))
 	for _, peer := range peers {
 		if peer.SessionID == nil {
 			continue
@@ -80,26 +80,31 @@ func (h *BaseHandlers) networkPeerSessionInfoMap(
 		if sessionID == "" {
 			continue
 		}
-		if _, seen := sessionByID[sessionID]; seen {
-			continue
-		}
+		wanted[sessionID] = struct{}{}
+	}
+	if len(wanted) == 0 {
+		return nil
+	}
 
-		info, err := h.Sessions.Status(ctx, sessionID)
-		if err != nil {
-			if h.Logger != nil {
-				h.Logger.Warn(
-					h.transportName()+": skip network peer session enrichment",
-					"session_id",
-					sessionID,
-					"peer_id",
-					strings.TrimSpace(peer.PeerID),
-					"error",
-					err,
-				)
-			}
+	infos, err := h.Sessions.ListAll(ctx)
+	if err != nil {
+		if h.Logger != nil {
+			h.Logger.Warn(
+				h.transportName()+": skip network peer session enrichment",
+				"error",
+				err,
+			)
+		}
+		return nil
+	}
+
+	sessionByID := make(map[string]*session.Info, len(wanted))
+	for _, info := range infos {
+		if info == nil {
 			continue
 		}
-		if info != nil {
+		sessionID := strings.TrimSpace(info.ID)
+		if _, ok := wanted[sessionID]; ok {
 			sessionByID[sessionID] = info
 		}
 	}

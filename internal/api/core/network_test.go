@@ -580,22 +580,17 @@ func TestBaseHandlersNetworkPeersUseBestEffortSessionEnrichment(t *testing.T) {
 
 		manager := testutil.StubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				t.Fatal("ListAll() should not be called for peer enrichment")
-				return nil, nil
-			},
-			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-				switch id {
-				case localSessionID:
-					return &session.Info{
+				return []*session.Info{
+					{
 						ID:        localSessionID,
 						Name:      "Reviewer",
 						AgentName: "reviewer",
-					}, nil
-				case brokenSessionID:
-					return nil, errors.New("status lookup failed")
-				default:
-					return nil, session.ErrSessionNotFound
-				}
+					},
+				}, nil
+			},
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				t.Fatal("Status() should not be called for peer enrichment")
+				return nil, nil
 			},
 		}
 
@@ -645,6 +640,102 @@ func TestBaseHandlersNetworkPeersUseBestEffortSessionEnrichment(t *testing.T) {
 			t.Fatalf("peers[1].display_name = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestBaseHandlersNetworkPeerMessages(t *testing.T) {
+	t.Parallel()
+
+	recordedAt := time.Date(2026, 4, 11, 20, 0, 0, 0, time.UTC)
+	localSessionID := "sess-coder"
+	remoteSessionID := "sess-reviewer"
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{
+				{
+					ID:        localSessionID,
+					Name:      "Coder",
+					AgentName: "coder",
+					State:     session.StateActive,
+				},
+				{
+					ID:        remoteSessionID,
+					Name:      "Reviewer",
+					AgentName: "reviewer",
+					State:     session.StateActive,
+				},
+			}, nil
+		},
+	}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	fixture.Handlers.Config.Network.Enabled = true
+	fixture.Handlers.Network = testutil.StubNetworkService{
+		ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+			if got, want := channel, ""; got != want {
+				t.Fatalf("ListPeers() channel = %q, want empty peer detail lookup", got)
+			}
+			return []network.PeerInfo{
+				{
+					SessionID: &localSessionID,
+					PeerID:    "coder.sess-coder",
+					Channel:   "builders",
+					Local:     true,
+					PeerCard:  network.PeerCard{PeerID: "coder.sess-coder"},
+				},
+				{
+					SessionID: &remoteSessionID,
+					PeerID:    "reviewer.sess-reviewer",
+					Channel:   "builders",
+					Local:     false,
+					PeerCard:  network.PeerCard{PeerID: "reviewer.sess-reviewer"},
+				},
+			}, nil
+		},
+	}
+	fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+		ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+			if got, want := query.PeerID, "reviewer.sess-reviewer"; got != want {
+				t.Fatalf("ListNetworkMessages() PeerID = %q, want %q", got, want)
+			}
+			if !query.DirectedOnly {
+				t.Fatal("ListNetworkMessages() DirectedOnly = false, want true")
+			}
+			return []store.NetworkMessageEntry{{
+				MessageID:   "msg-direct-01",
+				SessionID:   localSessionID,
+				Channel:     "builders",
+				Direction:   network.AuditDirectionSent,
+				PeerFrom:    "coder.sess-coder",
+				PeerTo:      "reviewer.sess-reviewer",
+				Kind:        "direct",
+				Text:        "can you review this?",
+				PreviewText: "can you review this?",
+				Body:        json.RawMessage(`{"text":"can you review this?"}`),
+				Timestamp:   recordedAt,
+			}}, nil
+		},
+	}
+
+	resp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/network/peers/reviewer.sess-reviewer/messages?limit=25",
+		nil,
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("peer messages code = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+
+	var payload contract.NetworkPeerMessagesResponse
+	testutil.DecodeJSONResponse(t, resp, &payload)
+	if got, want := len(payload.Messages), 1; got != want {
+		t.Fatalf("len(messages) = %d, want %d", got, want)
+	}
+	if got, want := payload.Messages[0].DisplayName, "Coder"; got != want {
+		t.Fatalf("message display_name = %q, want %q", got, want)
+	}
+	if got, want := payload.Messages[0].PeerTo, "reviewer.sess-reviewer"; got != want {
+		t.Fatalf("message peer_to = %q, want %q", got, want)
+	}
 }
 
 func TestBaseHandlersCreateNetworkChannelRollsBackWhenDetailReadbackFails(t *testing.T) {

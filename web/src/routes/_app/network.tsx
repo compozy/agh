@@ -24,10 +24,15 @@ function NetworkPage() {
   if (page.isPageLoading) {
     return (
       <div
+        aria-label="Loading network workspace"
         className="flex min-h-0 flex-1 items-center justify-center"
         data-testid="network-loading"
+        role="status"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2
+          aria-hidden="true"
+          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+        />
       </div>
     );
   }

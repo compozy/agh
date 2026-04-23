@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { NetworkCapabilityBrief, NetworkCapabilityCatalog } from "../types";
-import { buildPeerCapabilityViews, hasCapabilityDetail } from "./network-formatters";
+import {
+  buildPeerCapabilityViews,
+  formatNetworkKindLabel,
+  hasCapabilityDetail,
+} from "./network-formatters";
 
 describe("buildPeerCapabilityViews", () => {
   it("Should merge brief entries with their catalog counterparts by id", () => {
@@ -89,5 +93,11 @@ describe("hasCapabilityDetail", () => {
         detail: { id: "chat", summary: "Brief", outcome: "" },
       })
     ).toBe(false);
+  });
+});
+
+describe("formatNetworkKindLabel", () => {
+  it("Should keep capability timeline events aligned with the API kind name", () => {
+    expect(formatNetworkKindLabel("capability")).toBe("capability");
   });
 });

@@ -265,7 +265,7 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 		peers,
 		peers,
 		"Network Peers",
-		[]string{"Peer", "Display", "Session", "Channel", "Local", "Last Seen", "Expires"},
+		[]string{"Peer", "Display", "Session", "Channel", "Local", "Joined", "Last Seen", "Expires"},
 		"network_peers",
 		[]string{"peer_id", "display_name", "session_id", "channel", "local", "joined_at", "last_seen", "expires_at"},
 		func(peer NetworkPeerRecord) []string {
@@ -275,6 +275,7 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 				stringOrDash(optionalString(peer.SessionID)),
 				stringOrDash(peer.Channel),
 				strconv.FormatBool(peer.Local),
+				stringOrDash(formatTimePtr(peer.JoinedAt)),
 				stringOrDash(formatTimePtr(peer.LastSeen)),
 				stringOrDash(formatTimePtr(peer.ExpiresAt)),
 			}

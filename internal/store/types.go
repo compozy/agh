@@ -496,7 +496,11 @@ func (e NetworkMessageEntry) Validate() error {
 	if err := requireField(e.Direction, "network message direction"); err != nil {
 		return err
 	}
-	switch strings.TrimSpace(e.Direction) {
+	direction := strings.TrimSpace(e.Direction)
+	if direction != e.Direction {
+		return fmt.Errorf("store: unsupported network message direction %q", e.Direction)
+	}
+	switch direction {
 	case "sent", "received":
 	default:
 		return fmt.Errorf("store: unsupported network message direction %q", e.Direction)
