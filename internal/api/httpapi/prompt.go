@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -18,6 +19,8 @@ type promptRequest struct {
 	Message  string              `json:"message"`
 	Messages []uiMessageEnvelope `json:"messages"`
 }
+
+const detachedPromptDrainTimeout = 30 * time.Second
 
 type uiMessageEnvelope struct {
 	Role    string              `json:"role"`
@@ -131,8 +134,9 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	for {
 		select {
 		case <-c.Request.Context().Done():
-			h.drainPromptEventsAsync(events, cancelOnReturn)
+			cancelOnReturn()
 			cancelOnReturn = nil
+			h.drainPromptEventsAsync(context.WithoutCancel(c.Request.Context()), events)
 			return
 		case <-h.StreamDoneChannel():
 			return
@@ -144,24 +148,31 @@ func (h *Handlers) promptSession(c *gin.Context) {
 				return
 			}
 			if err := state.emit(writer, event); err != nil {
-				h.drainPromptEventsAsync(events, cancelOnReturn)
+				cancelOnReturn()
 				cancelOnReturn = nil
+				h.drainPromptEventsAsync(context.WithoutCancel(c.Request.Context()), events)
 				return
 			}
 		}
 	}
 }
 
-func (h *Handlers) drainPromptEventsAsync(events <-chan acp.AgentEvent, cancelPrompt context.CancelFunc) {
-	go func() {
-		defer cancelPrompt()
-		h.drainPromptEvents(events)
-	}()
+func (h *Handlers) drainPromptEventsAsync(ctx context.Context, events <-chan acp.AgentEvent) {
+	if h == nil || ctx == nil {
+		return
+	}
+	drainCtx, cancelDrain := context.WithTimeout(ctx, detachedPromptDrainTimeout)
+	h.promptDrainWG.Go(func() {
+		defer cancelDrain()
+		h.drainPromptEvents(drainCtx, events)
+	})
 }
 
-func (h *Handlers) drainPromptEvents(events <-chan acp.AgentEvent) {
+func (h *Handlers) drainPromptEvents(ctx context.Context, events <-chan acp.AgentEvent) {
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-h.StreamDoneChannel():
 			return
 		case _, ok := <-events:
@@ -169,6 +180,26 @@ func (h *Handlers) drainPromptEvents(events <-chan acp.AgentEvent) {
 				return
 			}
 		}
+	}
+}
+
+func (h *Handlers) waitForPromptDrains(ctx context.Context) error {
+	if h == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("httpapi: prompt drain wait context is required")
+	}
+	done := make(chan struct{})
+	go func() {
+		h.promptDrainWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("httpapi: wait for prompt drains: %w", ctx.Err())
 	}
 }
 

@@ -3,7 +3,12 @@ import { Logo } from "@agh/ui";
 
 export const baseOptions: BaseLayoutProps = {
   nav: {
-    title: <Logo variant="logo" decorative className="h-8 w-auto" />,
+    title: (
+      <>
+        <span className="sr-only">AGH home</span>
+        <Logo variant="logo" decorative className="h-8 w-auto" />
+      </>
+    ),
     url: "/",
   },
   githubUrl: "https://github.com/compozy/agh",

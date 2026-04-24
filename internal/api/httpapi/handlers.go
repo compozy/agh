@@ -3,6 +3,7 @@ package httpapi
 import (
 	"io/fs"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -45,10 +46,11 @@ type handlerConfig struct {
 // Handlers expose request/response and SSE endpoints for the AGH API.
 type Handlers struct {
 	*core.BaseHandlers
-	staticFS     fs.FS
-	resourceAuth []gin.HandlerFunc
-	Extensions   ExtensionService
-	boundHost    string
+	staticFS      fs.FS
+	resourceAuth  []gin.HandlerFunc
+	Extensions    ExtensionService
+	boundHost     string
+	promptDrainWG sync.WaitGroup
 }
 
 func newHandlers(cfg *handlerConfig) *Handlers {

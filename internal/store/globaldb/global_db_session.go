@@ -592,7 +592,7 @@ func parseSessionActivityJSON(raw string) (*store.SessionActivityMeta, error) {
 		return nil, fmt.Errorf("store: parse session activity json: %w", err)
 	}
 	if err := activity.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: validate session activity json: %w", err)
 	}
 	return store.CloneSessionActivityMeta(&activity), nil
 }

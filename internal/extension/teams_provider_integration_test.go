@@ -65,6 +65,7 @@ func TestTeamsProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 	for _, instanceID := range expectedInstanceIDs {
 		instanceID := instanceID
 		t.Run("ShouldReportReadyStateFor_"+instanceID, func(t *testing.T) {
+			t.Parallel()
 			state, ok := teamsProviderLastStateForInstance(states, instanceID)
 			if !ok {
 				t.Fatalf("adapter state for %q missing after wait: %#v", instanceID, states)

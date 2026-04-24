@@ -1802,6 +1802,30 @@ func TestGlobalDBUpdateSessionStateRejectsUnmarshalableActivity(t *testing.T) {
 	}
 }
 
+func TestGlobalDBListSessionsWrapsInvalidActivityJSONValidation(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	registerSessionForGlobalTests(t, globalDB, "sess-invalid-activity-json")
+	if _, err := globalDB.DB().ExecContext(
+		testutil.Context(t),
+		`UPDATE sessions SET activity_json = ? WHERE id = ?`,
+		`{"idle_seconds":-1}`,
+		"sess-invalid-activity-json",
+	); err != nil {
+		t.Fatalf("update invalid activity_json error = %v", err)
+	}
+
+	_, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+	if err == nil {
+		t.Fatal("ListSessions(invalid activity_json) error = nil, want validation error")
+	}
+	if !strings.Contains(err.Error(), "store: validate session activity json") ||
+		!strings.Contains(err.Error(), "store: session activity idle seconds must be zero or positive") {
+		t.Fatalf("ListSessions(invalid activity_json) error = %v, want validation context", err)
+	}
+}
+
 func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 	t.Parallel()
 

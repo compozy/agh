@@ -42,7 +42,7 @@ const LETTERING_PATHS = [
 function SymbolArtwork() {
   return (
     <>
-      <rect width="355" height="355" rx="64" fill="#E8572B" />
+      <rect width="355" height="355" rx="64" fill="#E8572A" />
       {SYMBOL_PATHS.map(d => (
         <path key={d} d={d} fill="#231F20" />
       ))}

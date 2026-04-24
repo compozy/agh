@@ -941,6 +941,69 @@ func TestPumpPromptReturnsWhenContextIsCanceledWhileWaitingForSource(t *testing.
 	}
 }
 
+func TestPumpPromptDrainsRuntimeEventsAfterTurnDone(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	source := make(chan acp.AgentEvent)
+	runtimeEvents := make(chan acp.AgentEvent, 1)
+	out := make(chan acp.AgentEvent)
+	done := make(chan struct{})
+	ctx := testutil.Context(t)
+
+	go func() {
+		defer close(done)
+		h.manager.pumpPrompt(
+			ctx,
+			session,
+			newPromptTurnDispatchState(session, "turn-runtime-drain", TurnSourceUser, ""),
+			source,
+			runtimeEvents,
+			out,
+			nil,
+		)
+	}()
+
+	source <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "turn-runtime-drain"}
+	first := receivePromptEvent(t, out)
+	if first.Type != acp.EventTypeDone {
+		t.Fatalf("first event type = %q, want %q", first.Type, acp.EventTypeDone)
+	}
+
+	runtimeEvents <- acp.AgentEvent{Type: acp.EventTypeRuntimeProgress, TurnID: "turn-runtime-drain"}
+	close(runtimeEvents)
+	second := receivePromptEvent(t, out)
+	if second.Type != acp.EventTypeRuntimeProgress {
+		t.Fatalf("second event type = %q, want %q", second.Type, acp.EventTypeRuntimeProgress)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("pumpPrompt() did not return after draining runtime events")
+	}
+}
+
+func receivePromptEvent(t *testing.T, events <-chan acp.AgentEvent) acp.AgentEvent {
+	t.Helper()
+
+	select {
+	case event, ok := <-events:
+		if !ok {
+			t.Fatal("prompt output channel closed before expected event")
+		}
+		return event
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for prompt event")
+		return acp.AgentEvent{}
+	}
+}
+
 func TestCleanupFailedStartWithoutSessionDirSkipsRemoval(t *testing.T) {
 	t.Parallel()
 

@@ -38,6 +38,8 @@ const (
 	runtimeManifestName = "runtime-manifest.json"
 )
 
+var errDaemonExitedBeforeReadiness = errors.New("daemon exited before readiness")
+
 var (
 	buildBinaryMu   sync.Mutex
 	builtBinaryPath string
@@ -420,7 +422,7 @@ func (h *RuntimeHarness) readinessFailureRetryReasons(err error) (retryHTTPPort 
 	if h == nil || err == nil {
 		return false, false
 	}
-	if !strings.Contains(err.Error(), "daemon exited before readiness") {
+	if !errors.Is(err, errDaemonExitedBeforeReadiness) {
 		return false, false
 	}
 
@@ -756,6 +758,9 @@ func (h *RuntimeHarness) PromptSessionUntil(
 	message string,
 	predicate func(SSEEvent) bool,
 ) ([]SSEEvent, error) {
+	if predicate == nil {
+		return nil, errors.New("SSE predicate is required")
+	}
 	body := map[string]string{"message": message}
 	response, err := doRequest(ctx, h.UDSClient, h.UDSURL("/api/sessions/"+sessionID+"/prompt"), http.MethodPost, body)
 	if err != nil {
@@ -1230,9 +1235,9 @@ func (h *RuntimeHarness) waitForReady(ctx context.Context, pollInterval time.Dur
 		case <-ctx.Done():
 			if exited, err := h.pollExit(); exited {
 				if err != nil {
-					return fmt.Errorf("daemon exited before readiness: %w", err)
+					return fmt.Errorf("%w: %w", errDaemonExitedBeforeReadiness, err)
 				}
-				return errors.New("daemon exited before readiness")
+				return errDaemonExitedBeforeReadiness
 			}
 			return errors.New("daemon did not become ready before timeout")
 		case err, ok := <-h.waitCh:
@@ -1244,9 +1249,9 @@ func (h *RuntimeHarness) waitForReady(ctx context.Context, pollInterval time.Dur
 			storedErr := h.processErr
 			h.processWaitMu.Unlock()
 			if storedErr != nil {
-				return fmt.Errorf("daemon exited before readiness: %w", storedErr)
+				return fmt.Errorf("%w: %w", errDaemonExitedBeforeReadiness, storedErr)
 			}
-			return errors.New("daemon exited before readiness")
+			return errDaemonExitedBeforeReadiness
 		case <-ticker.C:
 			if err := h.probeReady(ctx); err == nil {
 				return nil

@@ -444,6 +444,8 @@ func TestPayloadAndStatusHelpersCoverRemainingBranches(t *testing.T) {
 }
 
 func TestExtractPromptMessageCoversContentFallbacks(t *testing.T) {
+	t.Parallel()
+
 	message, err := extractPromptMessage(promptRequest{
 		Messages: []uiMessageEnvelope{{
 			Role:    "user",
@@ -473,5 +475,24 @@ func TestExtractPromptMessageCoversContentFallbacks(t *testing.T) {
 
 	if _, err := extractPromptMessage(promptRequest{}); err == nil {
 		t.Fatal("extractPromptMessage(empty) error = nil, want non-nil")
+	}
+}
+
+func TestDrainPromptEventsAsyncIsTracked(t *testing.T) {
+	t.Parallel()
+
+	events := make(chan acp.AgentEvent)
+	handlers := &Handlers{
+		BaseHandlers: core.NewBaseHandlers(&core.BaseHandlerConfig{}),
+	}
+
+	handlers.drainPromptEventsAsync(context.Background(), events)
+	events <- acp.AgentEvent{Type: acp.EventTypeRuntimeProgress}
+	close(events)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := handlers.waitForPromptDrains(ctx); err != nil {
+		t.Fatalf("waitForPromptDrains() error = %v", err)
 	}
 }

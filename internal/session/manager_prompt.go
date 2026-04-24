@@ -27,6 +27,54 @@ const (
 	promptSubmissionPathSynthetic  promptSubmissionPath = "synthetic"
 )
 
+type promptPumpLoopState struct {
+	source    <-chan acp.AgentEvent
+	runtime   <-chan acp.AgentEvent
+	activity  *promptActivitySupervisor
+	turnEnded bool
+}
+
+func (s *promptPumpLoopState) active() bool {
+	return s != nil && (s.source != nil || s.runtime != nil)
+}
+
+func (s *promptPumpLoopState) sourceClosedShouldReturn() bool {
+	if s == nil {
+		return true
+	}
+	s.source = nil
+	s.stopRuntime()
+	return s.runtime == nil || s.turnEnded
+}
+
+func (s *promptPumpLoopState) runtimeClosedShouldReturn() bool {
+	if s == nil {
+		return true
+	}
+	s.runtime = nil
+	return s.turnEnded || s.source == nil
+}
+
+func (s *promptPumpLoopState) turnEndedShouldReturn() bool {
+	if s == nil {
+		return true
+	}
+	s.turnEnded = true
+	s.stopRuntime()
+	return s.runtime == nil
+}
+
+func (s *promptPumpLoopState) stopRuntime() {
+	if s == nil || s.activity == nil || s.runtime == nil {
+		return
+	}
+	s.activity.stop()
+}
+
+func isPromptTerminalEvent(eventType string) bool {
+	return eventType == acp.EventTypeDone || eventType == acp.EventTypeError
+}
+
 // Prompt sends one prompt turn to an active session and mirrors the runtime stream into storage and observers.
 func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	return m.PromptWithOpts(ctx, id, PromptOpts{
@@ -386,7 +434,8 @@ func (m *Manager) pumpPrompt(
 		}
 	}()
 
-	for {
+	loop := promptPumpLoopState{source: source, runtime: runtime, activity: activity}
+	for loop.active() {
 		var (
 			event        acp.AgentEvent
 			ok           bool
@@ -395,13 +444,18 @@ func (m *Manager) pumpPrompt(
 		select {
 		case <-ctx.Done():
 			return
-		case event, ok = <-source:
+		case event, ok = <-loop.source:
 			if !ok {
-				return
+				if loop.sourceClosedShouldReturn() {
+					return
+				}
+				continue
 			}
-		case event, ok = <-runtime:
+		case event, ok = <-loop.runtime:
 			if !ok {
-				runtime = nil
+				if loop.runtimeClosedShouldReturn() {
+					return
+				}
 				continue
 			}
 			runtimeEvent = true
@@ -424,9 +478,11 @@ func (m *Manager) pumpPrompt(
 			return
 		}
 
-		if normalized.Type == acp.EventTypeDone || normalized.Type == acp.EventTypeError {
+		if isPromptTerminalEvent(normalized.Type) {
 			m.dispatchTurnEnd(ctx, turnState, normalized.Timestamp)
-			return
+			if loop.turnEndedShouldReturn() {
+				return
+			}
 		}
 	}
 }

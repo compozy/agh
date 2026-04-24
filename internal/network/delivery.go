@@ -543,7 +543,7 @@ func (c *deliveryCoordinator) retryAfterWorkerExit(sessionID string, item queued
 	}
 
 	delay := c.retryDelayFor(item.RetryAttempt)
-	go func() {
+	c.wg.Go(func() {
 		select {
 		case <-state.done:
 		case <-c.lifecycleCtx.Done():
@@ -562,7 +562,7 @@ func (c *deliveryCoordinator) retryAfterWorkerExit(sessionID string, item queued
 			}
 			c.trigger(target)
 		})
-	}()
+	})
 }
 
 func (c *deliveryCoordinator) retryDelayFor(attempt int) time.Duration {
@@ -586,27 +586,25 @@ func scheduleDeliveryRetry(ctx context.Context, delay time.Duration, fn func()) 
 	if fn == nil {
 		return
 	}
-	go func() {
-		if delay <= 0 {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				fn()
-				return
-			}
-		}
-
-		timer := time.NewTimer(delay)
-		defer timer.Stop()
-
+	if delay <= 0 {
 		select {
 		case <-ctx.Done():
 			return
-		case <-timer.C:
+		default:
 			fn()
+			return
 		}
-	}()
+	}
+
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-timer.C:
+		fn()
+	}
 }
 
 func (c *deliveryCoordinator) stats() deliveryCoordinatorStats {

@@ -1337,7 +1337,7 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 }
 
 func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) {
-	t.Run("ShouldCancelDetachedPromptContextWhenRequestEnds", func(t *testing.T) {
+	t.Run("ShouldCancelPromptBeforeDrainingEventsAfterRequestEnds", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		promptCtxCh := make(chan context.Context, 1)
 		events := make(chan acp.AgentEvent)
@@ -1381,20 +1381,21 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 			t.Fatal("handler did not return after request cancellation")
 		}
 
-		if err := promptCtx.Err(); err != nil {
-			t.Fatalf("prompt context err = %v, want nil while detached drain is active", err)
-		}
-
-		close(events)
-
 		select {
 		case <-promptCtx.Done():
 		case <-time.After(time.Second):
-			t.Fatal("prompt context was not canceled after detached drain completed")
+			t.Fatal("prompt context was not canceled when request ended")
 		}
 
 		if !errors.Is(promptCtx.Err(), context.Canceled) {
-			t.Fatalf("prompt context err = %v, want context.Canceled after detached drain completed", promptCtx.Err())
+			t.Fatalf("prompt context err = %v, want context.Canceled when request ended", promptCtx.Err())
+		}
+
+		close(events)
+		waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+		defer waitCancel()
+		if err := handlers.waitForPromptDrains(waitCtx); err != nil {
+			t.Fatalf("waitForPromptDrains() error = %v", err)
 		}
 	})
 }
