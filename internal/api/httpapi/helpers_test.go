@@ -248,7 +248,7 @@ func newTestHandlersWithAutomationBridgesTasksAndWorkspace(
 ) *Handlers {
 	t.Helper()
 
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 
@@ -293,7 +293,7 @@ func newTestHandlersWithResources(
 ) *Handlers {
 	t.Helper()
 
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 
@@ -326,7 +326,7 @@ func newTestHandlersWithResourcesAndAuth(
 	t.Helper()
 
 	homePaths := newTestHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 
@@ -360,7 +360,7 @@ func newTestHandlersWithSettingsAndExtensions(
 ) *Handlers {
 	t.Helper()
 
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := testConfigWithDisabledNetwork(homePaths)
 	cfg.HTTP.Host = boundHost
 	cfg.HTTP.Port = 2123
 
@@ -416,6 +416,10 @@ func mustStaticFS(t *testing.T) fs.FS {
 func newTestHomePaths(t *testing.T) aghconfig.HomePaths {
 	t.Helper()
 	return testutil.NewTestHomePaths(t)
+}
+
+func testConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
+	return testutil.ConfigWithDisabledNetwork(homePaths)
 }
 
 func writeAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string) {

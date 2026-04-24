@@ -345,7 +345,9 @@ func TestShutdownClosesResourceReconcileDriver(t *testing.T) {
 func TestBootEnabledNetworkLateBindsSessionCallbacksAndPersistsSafeDiagnostics(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
-	cfg.Network.Enabled = true
+	if !cfg.Network.Enabled {
+		t.Fatal("testConfig() Network.Enabled = false, want true by default")
+	}
 
 	bindableSessions := newFakeNetworkBindableSessionManager()
 	d := newTestDaemon(t, homePaths, &cfg)
@@ -420,7 +422,11 @@ func TestBootEnabledNetworkRejectsSessionManagersMissingBindingSurface(t *testin
 		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
 	}
 	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return &fakeSessionManager{}, nil
+		base := &fakeSessionManager{}
+		return nonBindableHarnessSessionManager{
+			SessionManager:    base,
+			syntheticPrompter: base,
+		}, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 		return &fakeObserver{}, nil
@@ -4324,6 +4330,25 @@ func (f *fakeSessionManager) ApprovePermission(context.Context, string, acp.Appr
 	return nil
 }
 
+func (f *fakeSessionManager) SetNetworkPeerLifecycle(session.NetworkPeerLifecycle) {}
+
+func (f *fakeSessionManager) SetTurnEndNotifier(session.TurnEndNotifier) {}
+
+func (f *fakeSessionManager) PromptNetwork(
+	context.Context,
+	string,
+	string,
+	...acp.PromptNetworkMeta,
+) (<-chan acp.AgentEvent, error) {
+	ch := make(chan acp.AgentEvent)
+	close(ch)
+	return ch, nil
+}
+
+func (f *fakeSessionManager) IsPrompting(string) bool {
+	return false
+}
+
 func (f *fakeSessionManager) recordSyntheticEvent(
 	sessionID string,
 	info *session.Info,
@@ -4446,6 +4471,32 @@ func (f *fakeNetworkBindableSessionManager) IsPrompting(sessionID string) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.prompting[sessionID]
+}
+
+type syntheticPrompter interface {
+	PromptSynthetic(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
+}
+
+type nonBindableHarnessSessionManager struct {
+	SessionManager
+	syntheticPrompter syntheticPrompter
+}
+
+var (
+	_ SessionManager                = (*fakeSessionManager)(nil)
+	_ SessionManager                = (*fakeNetworkBindableSessionManager)(nil)
+	_ SessionManager                = nonBindableHarnessSessionManager{}
+	_ networkBindableSessionManager = (*fakeNetworkBindableSessionManager)(nil)
+	_ syntheticPrompter             = (*fakeSessionManager)(nil)
+	_ syntheticPrompter             = nonBindableHarnessSessionManager{}
+)
+
+func (m nonBindableHarnessSessionManager) PromptSynthetic(
+	ctx context.Context,
+	id string,
+	opts session.SyntheticPromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	return m.syntheticPrompter.PromptSynthetic(ctx, id, opts)
 }
 
 type fakeNetworkRuntime struct {

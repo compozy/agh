@@ -35,6 +35,13 @@ import (
 
 var ErrStubWorkspaceServiceNotImplemented = errors.New("stub workspace service method not implemented")
 
+// ConfigWithDisabledNetwork returns a default test config with networking turned off.
+func ConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.Network.Enabled = false
+	return cfg
+}
+
 type StubSessionManager struct {
 	CreateFn        func(context.Context, session.CreateOpts) (*session.Session, error)
 	ListFn          func() []*session.Info

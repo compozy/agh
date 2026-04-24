@@ -429,7 +429,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
 		},
 		Network: NetworkConfig{
-			Enabled:        false,
+			Enabled:        true,
 			DefaultChannel: "default",
 			Port:           -1,
 			MaxPayload:     1 << 20,
