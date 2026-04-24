@@ -55,6 +55,7 @@ describe("useSessions", () => {
       expect(result.current.data).toHaveLength(1);
     });
 
+    expect(result.current.data?.[0]?.provider).toBe("claude");
     expect(fetchSessions).toHaveBeenCalledWith("ws_alpha", expect.any(AbortSignal));
   });
 
@@ -88,6 +89,7 @@ describe("useSession", () => {
       expect(result.current.data?.id).toBe("sess-001");
     });
 
+    expect(result.current.data?.provider).toBe("claude");
     expect(fetchSession).toHaveBeenCalledWith("sess-001", expect.any(AbortSignal));
   });
 });

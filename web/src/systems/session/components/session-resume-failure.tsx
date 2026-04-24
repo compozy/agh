@@ -44,7 +44,7 @@ export function SessionResumeFailure({
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex items-center gap-2">
             <span
-              className="text-[13px] font-semibold text-[color:var(--color-text-primary)]"
+              className="text-sm font-semibold text-[color:var(--color-text-primary)]"
               data-testid="session-resume-failure-title"
             >
               {title}
@@ -56,7 +56,7 @@ export function SessionResumeFailure({
             ) : null}
           </div>
           <p
-            className="text-[12px] leading-5 text-[color:var(--color-text-secondary)]"
+            className="text-xs leading-5 text-[color:var(--color-text-secondary)]"
             data-testid="session-resume-failure-message"
           >
             {hasProviderDetail
@@ -64,7 +64,7 @@ export function SessionResumeFailure({
               : message}
           </p>
           <dl
-            className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]"
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs uppercase tracking-[var(--tracking-mono)] text-[color:var(--color-text-tertiary)]"
             data-testid="session-resume-failure-meta"
           >
             <div className="flex items-center gap-1.5">

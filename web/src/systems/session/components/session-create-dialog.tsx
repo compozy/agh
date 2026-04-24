@@ -70,10 +70,17 @@ function SessionCreateDialog({
     onSubmit();
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isSubmitting && !nextOpen) {
+      return;
+    }
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-[30rem]"
+        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-lg"
         data-testid="session-create-dialog"
         showCloseButton={!isSubmitting}
       >
@@ -112,7 +119,7 @@ function SessionCreateDialog({
               </NativeSelect>
               {activeAgent ? (
                 <div
-                  className="mt-1 flex items-center gap-1.5 text-[12px] text-[color:var(--color-text-tertiary)]"
+                  className="mt-1 flex items-center gap-1.5 text-xs text-[color:var(--color-text-tertiary)]"
                   data-testid="session-create-agent-default"
                 >
                   <AgentIcon
@@ -151,7 +158,7 @@ function SessionCreateDialog({
               </NativeSelect>
               {providersError ? (
                 <p
-                  className="mt-1 text-[12px] text-[color:var(--color-danger)]"
+                  className="mt-1 text-xs text-[color:var(--color-danger)]"
                   data-testid="session-create-providers-error"
                   role="alert"
                 >
@@ -160,7 +167,7 @@ function SessionCreateDialog({
               ) : null}
               {!providersLoading && !providersError && !hasProviderOptions ? (
                 <p
-                  className="mt-1 text-[12px] text-[color:var(--color-warning)]"
+                  className="mt-1 text-xs text-[color:var(--color-warning)]"
                   data-testid="session-create-providers-empty"
                 >
                   No providers are configured for this workspace.
@@ -170,7 +177,7 @@ function SessionCreateDialog({
 
             {submitError ? (
               <p
-                className="text-[12px] text-[color:var(--color-danger)]"
+                className="text-xs text-[color:var(--color-danger)]"
                 data-testid="session-create-submit-error"
                 role="alert"
               >
@@ -183,7 +190,7 @@ function SessionCreateDialog({
             <Button
               data-testid="session-create-dialog-cancel"
               disabled={isSubmitting}
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
               type="button"
               variant="outline"
             >

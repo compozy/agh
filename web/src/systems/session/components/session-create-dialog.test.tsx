@@ -26,6 +26,14 @@ const providerOptions: SessionProviderOption[] = [
   { name: "gemini" },
 ];
 
+function getDialogBackdrop(): HTMLElement {
+  const backdrop = document.querySelector('[data-slot="dialog-overlay"]');
+  if (!(backdrop instanceof HTMLElement)) {
+    throw new Error("Expected dialog backdrop to be rendered.");
+  }
+  return backdrop;
+}
+
 function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCreateDialogProps {
   return {
     open: true,
@@ -49,6 +57,9 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
 describe("SessionCreateDialog", () => {
   it("renders the provider picker with every workspace provider option", () => {
     render(<SessionCreateDialog {...makeProps()} />);
+
+    expect(screen.getByTestId("session-create-dialog").className).toContain("sm:max-w-lg");
+    expect(screen.getByTestId("session-create-dialog").className).not.toContain("sm:max-w-[30rem]");
 
     const picker = screen.getByTestId("session-create-provider-select") as HTMLSelectElement;
     expect(picker).toBeEnabled();
@@ -97,6 +108,7 @@ describe("SessionCreateDialog", () => {
 
     expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
     expect(screen.getByTestId("session-create-providers-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("session-create-providers-empty").className).toContain("text-xs");
   });
 
   it("disables submit and surfaces submitError when creation fails", () => {
@@ -121,6 +133,22 @@ describe("SessionCreateDialog", () => {
     const picker = screen.getByTestId("session-create-provider-select") as HTMLSelectElement;
     expect(picker).toBeDisabled();
     expect(picker).toHaveTextContent("Loading providers…");
+  });
+
+  it("blocks backdrop dismissal while submit is in flight", () => {
+    const onOpenChange = vi.fn();
+    render(<SessionCreateDialog {...makeProps({ isSubmitting: true, onOpenChange })} />);
+
+    fireEvent.click(getDialogBackdrop());
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("allows backdrop dismissal when submit is idle", () => {
+    const onOpenChange = vi.fn();
+    render(<SessionCreateDialog {...makeProps({ onOpenChange })} />);
+
+    fireEvent.click(getDialogBackdrop());
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("closes via cancel button", () => {

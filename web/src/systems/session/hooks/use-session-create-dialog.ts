@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -15,7 +15,7 @@ interface SessionCreateDialogContext {
 
 export interface SessionCreateDialogDraft {
   agentName: string;
-  provider: string;
+  providerOverride: string;
 }
 
 export interface SessionCreateDialogState {
@@ -54,6 +54,21 @@ function pickDefaultProvider(
   return options[0]?.name ?? "";
 }
 
+function resolveSelectedProvider(
+  agentName: string,
+  providerOverride: string,
+  agent: AgentPayload | undefined,
+  options: SessionProviderOption[]
+): string {
+  if (providerOverride.length > 0 && options.some(option => option.name === providerOverride)) {
+    return providerOverride;
+  }
+  if (agentName.trim().length === 0) {
+    return "";
+  }
+  return pickDefaultProvider(agent, options);
+}
+
 function describeWorkspaceError(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
@@ -87,12 +102,29 @@ export function useSessionCreateDialog({
   );
 
   const [open, setOpenState] = useState(false);
-  const [draft, setDraft] = useState<SessionCreateDialogDraft>({ agentName: "", provider: "" });
+  const [draft, setDraft] = useState<SessionCreateDialogDraft>({
+    agentName: "",
+    providerOverride: "",
+  });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingAgentName, setPendingAgentName] = useState<string | null>(null);
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<string | null>(null);
 
   const agentList = useMemo(() => agents ?? [], [agents]);
+  const selectedAgent = useMemo(
+    () => agentList.find(agent => agent.name === draft.agentName),
+    [agentList, draft.agentName]
+  );
+  const selectedProvider = useMemo(
+    () =>
+      resolveSelectedProvider(
+        draft.agentName,
+        draft.providerOverride,
+        selectedAgent,
+        providerOptions
+      ),
+    [draft.agentName, draft.providerOverride, providerOptions, selectedAgent]
+  );
 
   const openForAgent = useCallback(
     (agentName: string) => {
@@ -103,26 +135,13 @@ export function useSessionCreateDialog({
 
       const matched = agentList.find(agent => agent.name === agentName) ?? agentList[0];
       const nextAgentName = matched?.name ?? agentName;
-      const nextProvider = pickDefaultProvider(matched, providerOptions);
 
-      setDraft({ agentName: nextAgentName, provider: nextProvider });
+      setDraft({ agentName: nextAgentName, providerOverride: "" });
       setSubmitError(null);
       setOpenState(true);
     },
-    [activeWorkspace, agentList, providerOptions]
+    [activeWorkspace, agentList]
   );
-
-  useEffect(() => {
-    if (!open) return;
-    if (draft.provider.length > 0) return;
-    if (providerOptions.length === 0) return;
-
-    const matched = agentList.find(agent => agent.name === draft.agentName);
-    const next = pickDefaultProvider(matched, providerOptions);
-    if (next.length > 0) {
-      setDraft(current => ({ ...current, provider: next }));
-    }
-  }, [agentList, draft.agentName, draft.provider, open, providerOptions]);
 
   const setOpen = useCallback((next: boolean) => {
     setOpenState(next);
@@ -131,23 +150,18 @@ export function useSessionCreateDialog({
     }
   }, []);
 
-  const onAgentChange = useCallback(
-    (agentName: string) => {
-      const matched = agentList.find(agent => agent.name === agentName);
-      const next = pickDefaultProvider(matched, providerOptions);
-      setDraft({ agentName, provider: next });
-    },
-    [agentList, providerOptions]
-  );
+  const onAgentChange = useCallback((agentName: string) => {
+    setDraft({ agentName, providerOverride: "" });
+  }, []);
 
   const onProviderChange = useCallback((provider: string) => {
-    setDraft(current => ({ ...current, provider }));
+    setDraft(current => ({ ...current, providerOverride: provider }));
   }, []);
 
   const submit = useCallback(async () => {
     if (!activeWorkspace) return;
     const agentName = draft.agentName.trim();
-    const provider = draft.provider.trim();
+    const provider = selectedProvider.trim();
     if (agentName.length === 0 || provider.length === 0) return;
 
     setSubmitError(null);
@@ -170,7 +184,7 @@ export function useSessionCreateDialog({
       setPendingAgentName(null);
       setPendingWorkspaceId(null);
     }
-  }, [activeWorkspace, createSession, draft.agentName, draft.provider, navigate]);
+  }, [activeWorkspace, createSession, draft.agentName, navigate, selectedProvider]);
 
   const providersError = workspaceDetailError ? describeWorkspaceError(workspaceDetailError) : null;
 
@@ -182,7 +196,7 @@ export function useSessionCreateDialog({
     providersLoading: workspaceId.length > 0 && workspaceDetailLoading,
     providersError,
     selectedAgentName: draft.agentName,
-    selectedProvider: draft.provider,
+    selectedProvider,
     isSubmitting: createSession.isPending,
     submitError,
     pendingAgentName,
