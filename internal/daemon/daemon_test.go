@@ -2055,29 +2055,33 @@ func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 func TestFakeSessionManagerDeleteTracksDeleteIndependently(t *testing.T) {
 	t.Parallel()
 
-	manager := &fakeSessionManager{
-		infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}},
-	}
+	t.Run("ShouldTrackDeleteIndependentlyFromStop", func(t *testing.T) {
+		t.Parallel()
 
-	if err := manager.Delete(testutil.Context(t), "sess-a"); err != nil {
-		t.Fatalf("Delete() error = %v", err)
-	}
+		manager := &fakeSessionManager{
+			infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}},
+		}
 
-	if got, want := len(manager.deleteCalls), 1; got != want {
-		t.Fatalf("len(deleteCalls) = %d, want %d", got, want)
-	}
-	if got, want := manager.deleteCalls[0], "sess-a"; got != want {
-		t.Fatalf("deleteCalls[0] = %q, want %q", got, want)
-	}
-	if got := len(manager.stopCalls); got != 0 {
-		t.Fatalf("len(stopCalls) = %d, want 0", got)
-	}
-	if got, want := len(manager.infos), 1; got != want {
-		t.Fatalf("len(infos) = %d, want %d", got, want)
-	}
-	if got, want := manager.infos[0].ID, "sess-b"; got != want {
-		t.Fatalf("infos[0].ID = %q, want %q", got, want)
-	}
+		if err := manager.Delete(testutil.Context(t), "sess-a"); err != nil {
+			t.Fatalf("Delete() error = %v", err)
+		}
+
+		if got, want := len(manager.deleteCalls), 1; got != want {
+			t.Fatalf("len(deleteCalls) = %d, want %d", got, want)
+		}
+		if got, want := manager.deleteCalls[0], "sess-a"; got != want {
+			t.Fatalf("deleteCalls[0] = %q, want %q", got, want)
+		}
+		if got := len(manager.stopCalls); got != 0 {
+			t.Fatalf("len(stopCalls) = %d, want 0", got)
+		}
+		if got, want := len(manager.infos), 1; got != want {
+			t.Fatalf("len(infos) = %d, want %d", got, want)
+		}
+		if got, want := manager.infos[0].ID, "sess-b"; got != want {
+			t.Fatalf("infos[0].ID = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestStopSessionsWaitsForInFlightFinalizations(t *testing.T) {
@@ -4045,6 +4049,8 @@ type fakeSessionManager struct {
 	waitFinalizationsCalls   int
 }
 
+var _ SessionManager = (*fakeSessionManager)(nil)
+
 type blockingStatusSessionManager struct {
 	*fakeSessionManager
 	blockSessionID string
@@ -4173,14 +4179,19 @@ func (f *fakeSessionManager) Delete(_ context.Context, id string) error {
 
 	f.deleteCalls = append(f.deleteCalls, id)
 
+	removed := false
 	filtered := f.infos[:0]
 	for _, info := range f.infos {
 		if info != nil && info.ID == id {
+			removed = true
 			continue
 		}
 		filtered = append(filtered, info)
 	}
 	f.infos = filtered
+	if !removed {
+		return session.ErrSessionNotFound
+	}
 	return nil
 }
 

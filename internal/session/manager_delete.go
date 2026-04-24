@@ -23,7 +23,7 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	}
 
 	if _, ok := m.Get(target); ok {
-		if err := m.StopWithCause(ctx, target, CauseUserRequested, "session deleted"); err != nil {
+		if err := stopSessionBeforeDelete(ctx, target, m.StopWithCause); err != nil {
 			return fmt.Errorf("session: stop %q before delete: %w", target, err)
 		}
 	}
@@ -42,4 +42,16 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 
 	m.remove(target)
 	return nil
+}
+
+func stopSessionBeforeDelete(
+	ctx context.Context,
+	target string,
+	stop func(context.Context, string, StopCause, string) error,
+) error {
+	err := stop(ctx, target, CauseUserRequested, "session deleted")
+	if err == nil || errors.Is(err, ErrSessionNotFound) {
+		return nil
+	}
+	return err
 }

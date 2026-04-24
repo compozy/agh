@@ -292,12 +292,20 @@ func (g *GlobalDB) ListDependencies(ctx context.Context, taskID string) ([]taskp
 		return nil, err
 	}
 
+	return g.listDependenciesWithExecutor(ctx, g.db, taskID)
+}
+
+func (g *GlobalDB) listDependenciesWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskID string,
+) ([]taskpkg.Dependency, error) {
 	trimmedTaskID, err := requireTaskValue(taskID, "task dependency task id")
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := g.db.QueryContext(
+	rows, err := exec.QueryContext(
 		ctx,
 		`SELECT task_id, depends_on_task_id, kind, created_at
 		 FROM task_dependencies
@@ -337,12 +345,20 @@ func (g *GlobalDB) ListDependents(ctx context.Context, dependsOnTaskID string) (
 		return nil, err
 	}
 
+	return g.listDependentsWithExecutor(ctx, g.db, dependsOnTaskID)
+}
+
+func (g *GlobalDB) listDependentsWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	dependsOnTaskID string,
+) ([]taskpkg.Dependency, error) {
 	trimmedDependsOnID, err := requireTaskValue(dependsOnTaskID, "task dependent depends_on_task_id")
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := g.db.QueryContext(
+	rows, err := exec.QueryContext(
 		ctx,
 		`SELECT task_id, depends_on_task_id, kind, created_at
 		 FROM task_dependencies

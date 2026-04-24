@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
@@ -72,6 +73,27 @@ func TestManagerDelete(t *testing.T) {
 				}
 				if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
 					t.Fatalf("Stat(session dir after delete) error = %v, want os.ErrNotExist", err)
+				}
+			},
+		},
+		{
+			name: "ShouldIgnoreConcurrentStopRacesThatReportSessionNotFound",
+			run: func(t *testing.T) {
+				called := false
+
+				err := stopSessionBeforeDelete(
+					testutil.Context(t),
+					"sess-race",
+					func(context.Context, string, StopCause, string) error {
+						called = true
+						return ErrSessionNotFound
+					},
+				)
+				if err != nil {
+					t.Fatalf("stopSessionBeforeDelete() error = %v, want nil", err)
+				}
+				if !called {
+					t.Fatal("stopSessionBeforeDelete() did not call the stop function")
 				}
 			},
 		},

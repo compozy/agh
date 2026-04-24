@@ -55,17 +55,25 @@ export function useSessionPageControls(
   const canClear = messages.length > 0 && !controlsBusy && !isRunning;
 
   const handleStop = useCallback(() => {
+    if (controlsBusy) {
+      return;
+    }
+
     if (isRunning) {
       handleCancelPrompt();
       return;
     }
 
     stopMutation.mutate(sessionId);
-  }, [handleCancelPrompt, isRunning, sessionId, stopMutation]);
+  }, [controlsBusy, handleCancelPrompt, isRunning, sessionId, stopMutation]);
 
   const handleResume = useCallback(() => {
+    if (controlsBusy) {
+      return;
+    }
+
     resumeMutation.mutate(sessionId);
-  }, [resumeMutation, sessionId]);
+  }, [controlsBusy, resumeMutation, sessionId]);
 
   const handleDelete = useCallback(() => {
     if (controlsBusy) {

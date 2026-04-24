@@ -48,6 +48,25 @@ type RecordStore interface {
 	CountDirectChildren(ctx context.Context, parentTaskID string) (int, error)
 }
 
+// DeleteTaskMutationStore is the narrowed persistence surface required to
+// execute task deletion and dependent reconciliation as one unit.
+type DeleteTaskMutationStore interface {
+	GetTask(ctx context.Context, id string) (Task, error)
+	UpdateTask(ctx context.Context, task Task) error
+	DeleteTask(ctx context.Context, id string) error
+	CountDirectChildren(ctx context.Context, parentTaskID string) (int, error)
+	ListDependencies(ctx context.Context, taskID string) ([]Dependency, error)
+	ListDependents(ctx context.Context, dependsOnTaskID string) ([]Dependency, error)
+	ListTaskRuns(ctx context.Context, query RunQuery) ([]Run, error)
+}
+
+// DeleteTaskTransactionStore optionally exposes transactional delete-task
+// execution so the manager can roll back the primary delete when dependent
+// reconciliation fails.
+type DeleteTaskTransactionStore interface {
+	WithDeleteTaskTransaction(ctx context.Context, fn func(DeleteTaskMutationStore) error) error
+}
+
 // DependencyStore is the persistence surface for durable dependency edges.
 type DependencyStore interface {
 	CreateDependency(ctx context.Context, dependency Dependency) error

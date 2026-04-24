@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"sort"
 	"strconv"
@@ -16,6 +17,17 @@ import (
 )
 
 type inMemoryManagerStore struct {
+	tasks             map[string]Task
+	dependencies      map[string]map[string]Dependency
+	runs              map[string]Run
+	triageStates      map[string]TriageState
+	events            []Event
+	eventSequenceByID map[string]int64
+	nextEventSequence int64
+	idempotencyByKey  map[string]RunIdempotency
+}
+
+type inMemoryManagerSnapshot struct {
 	tasks             map[string]Task
 	dependencies      map[string]map[string]Dependency
 	runs              map[string]Run
@@ -146,6 +158,18 @@ func newDeleteTaskStore() *deleteTaskStore {
 	}
 }
 
+func (s *deleteTaskStore) WithDeleteTaskTransaction(
+	_ context.Context,
+	fn func(DeleteTaskMutationStore) error,
+) error {
+	snapshot := s.snapshot()
+	if err := fn(s); err != nil {
+		s.restore(snapshot)
+		return err
+	}
+	return nil
+}
+
 func (s *deleteTaskStore) GetTask(ctx context.Context, id string) (Task, error) {
 	if err, ok := s.getTaskErrByID[strings.TrimSpace(id)]; ok {
 		return Task{}, err
@@ -231,6 +255,75 @@ func newInMemoryManagerStore() *inMemoryManagerStore {
 		eventSequenceByID: make(map[string]int64),
 		idempotencyByKey:  make(map[string]RunIdempotency),
 	}
+}
+
+func (s *inMemoryManagerStore) WithDeleteTaskTransaction(
+	_ context.Context,
+	fn func(DeleteTaskMutationStore) error,
+) error {
+	snapshot := s.snapshot()
+	if err := fn(s); err != nil {
+		s.restore(snapshot)
+		return err
+	}
+	return nil
+}
+
+func (s *inMemoryManagerStore) snapshot() inMemoryManagerSnapshot {
+	tasks := make(map[string]Task, len(s.tasks))
+	for id, record := range s.tasks {
+		tasks[id] = cloneTask(record)
+	}
+
+	dependencies := make(map[string]map[string]Dependency, len(s.dependencies))
+	for taskID, edges := range s.dependencies {
+		copiedEdges := make(map[string]Dependency, len(edges))
+		maps.Copy(copiedEdges, edges)
+		dependencies[taskID] = copiedEdges
+	}
+
+	runs := make(map[string]Run, len(s.runs))
+	for id, record := range s.runs {
+		runs[id] = cloneTaskRun(record)
+	}
+
+	triageStates := make(map[string]TriageState, len(s.triageStates))
+	for key, record := range s.triageStates {
+		triageStates[key] = cloneTriageState(record)
+	}
+
+	events := make([]Event, 0, len(s.events))
+	for _, event := range s.events {
+		events = append(events, cloneTaskEvent(event))
+	}
+
+	eventSequenceByID := make(map[string]int64, len(s.eventSequenceByID))
+	maps.Copy(eventSequenceByID, s.eventSequenceByID)
+
+	idempotencyByKey := make(map[string]RunIdempotency, len(s.idempotencyByKey))
+	maps.Copy(idempotencyByKey, s.idempotencyByKey)
+
+	return inMemoryManagerSnapshot{
+		tasks:             tasks,
+		dependencies:      dependencies,
+		runs:              runs,
+		triageStates:      triageStates,
+		events:            events,
+		eventSequenceByID: eventSequenceByID,
+		nextEventSequence: s.nextEventSequence,
+		idempotencyByKey:  idempotencyByKey,
+	}
+}
+
+func (s *inMemoryManagerStore) restore(snapshot inMemoryManagerSnapshot) {
+	s.tasks = snapshot.tasks
+	s.dependencies = snapshot.dependencies
+	s.runs = snapshot.runs
+	s.triageStates = snapshot.triageStates
+	s.events = snapshot.events
+	s.eventSequenceByID = snapshot.eventSequenceByID
+	s.nextEventSequence = snapshot.nextEventSequence
+	s.idempotencyByKey = snapshot.idempotencyByKey
 }
 
 func (s *inMemoryManagerStore) CreateTask(_ context.Context, taskRecord Task) error {
@@ -1716,6 +1809,20 @@ func TestManagerDeleteTask(t *testing.T) {
 						err.Error(),
 						tc.wantSubstring,
 					)
+				}
+
+				if _, getErr := store.inMemoryManagerStore.GetTask(context.Background(), primary.ID); getErr != nil {
+					t.Fatalf("GetTask(primary after failed delete) error = %v, want task preserved", getErr)
+				}
+				dependents, depErr := store.inMemoryManagerStore.ListDependents(
+					context.Background(),
+					primary.ID,
+				)
+				if depErr != nil {
+					t.Fatalf("ListDependents(primary after failed delete) error = %v", depErr)
+				}
+				if got, want := len(dependents), 1; got != want {
+					t.Fatalf("len(ListDependents(primary after failed delete)) = %d, want %d", got, want)
 				}
 			})
 		}
@@ -4724,6 +4831,12 @@ func inMemoryTaskLatestActivity(summary Summary, runs map[string]Run, events []E
 func cloneTriageState(record TriageState) TriageState {
 	cloned := record
 	cloned.Actor = record.Actor
+	return cloned
+}
+
+func cloneTaskEvent(record Event) Event {
+	cloned := record
+	cloned.Payload = cloneRawJSON(record.Payload)
 	return cloned
 }
 

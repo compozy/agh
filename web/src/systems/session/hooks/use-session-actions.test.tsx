@@ -173,6 +173,7 @@ describe("session actions", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     queryClient.setQueryData(sessionKeys.detail(createdSession.id), createdSession);
     queryClient.setQueryData(sessionKeys.transcript(createdSession.id), [
       { id: "history-1", role: "assistant", content: "existing" },
@@ -195,6 +196,7 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.history(createdSession.id))).toBeUndefined();
     expect(queryClient.getQueryData(sessionKeys.events(createdSession.id))).toBeUndefined();
     expect(useSessionStore.getState().drafts[createdSession.id]).toBeUndefined();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.lists() });
   });
 
   it("useDeleteSession preserves cached session data and drafts on failure", async () => {

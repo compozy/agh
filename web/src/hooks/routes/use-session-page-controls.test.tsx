@@ -134,20 +134,73 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.clearMutation.mutate).not.toHaveBeenCalled();
   });
 
-  it("invokes delete when controls are idle", () => {
+  it("blocks stop while another control action is pending", () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.clearMutation.isPending = true;
+
     const { result } = renderHook(() => useSessionPageControls("sess-1", "active"));
+
+    act(() => {
+      result.current.handleStop();
+    });
+
+    expect(routeHookMocks.cancelSessionPrompt).not.toHaveBeenCalled();
+    expect(routeHookMocks.stopMutation.mutate).not.toHaveBeenCalled();
+  });
+
+  it("blocks resume while another control action is pending", () => {
+    routeHookMocks.deleteMutation.isPending = true;
+
+    const { result } = renderHook(() => useSessionPageControls("sess-1", "stopped"));
+
+    act(() => {
+      result.current.handleResume();
+    });
+
+    expect(routeHookMocks.resumeMutation.mutate).not.toHaveBeenCalled();
+  });
+
+  it("runs delete success side effects when controls are idle", () => {
+    const onDeleteSuccess = vi.fn();
+    const { result } = renderHook(() =>
+      useSessionPageControls("sess-1", "active", { onDeleteSuccess })
+    );
 
     act(() => {
       result.current.handleDelete();
     });
 
     expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledTimes(1);
-    expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledWith(
-      "sess-1",
+    const [, options] = routeHookMocks.deleteMutation.mutate.mock.calls[0] ?? [];
+    expect(options).toEqual(
       expect.objectContaining({
         onError: expect.any(Function),
         onSuccess: expect.any(Function),
       })
     );
+
+    act(() => {
+      options.onSuccess();
+    });
+
+    expect(routeHookMocks.resetThread).toHaveBeenCalledTimes(1);
+    expect(routeHookMocks.toastSuccess).toHaveBeenCalledWith("Session deleted.");
+    expect(onDeleteSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the delete error toast from the mutation callback", () => {
+    const { result } = renderHook(() => useSessionPageControls("sess-1", "active"));
+
+    act(() => {
+      result.current.handleDelete();
+    });
+
+    const [, options] = routeHookMocks.deleteMutation.mutate.mock.calls[0] ?? [];
+
+    act(() => {
+      options.onError(new Error("delete failed"));
+    });
+
+    expect(routeHookMocks.toastError).toHaveBeenCalledWith("delete failed");
   });
 });

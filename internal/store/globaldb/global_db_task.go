@@ -16,6 +16,7 @@ import (
 
 var _ taskpkg.RecordStore = (*GlobalDB)(nil)
 var _ taskpkg.RunStore = (*GlobalDB)(nil)
+var _ taskpkg.DeleteTaskTransactionStore = (*GlobalDB)(nil)
 
 const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
 	SELECT MAX(activity_at)
@@ -106,12 +107,32 @@ func (g *GlobalDB) DeleteTask(ctx context.Context, id string) error {
 		return err
 	}
 
+	return g.deleteTaskWithExecutor(ctx, g.db, id)
+}
+
+// WithDeleteTaskTransaction executes one delete-task mutation flow inside a
+// single immediate transaction so reconciliation failures can roll back the
+// primary delete.
+func (g *GlobalDB) WithDeleteTaskTransaction(
+	ctx context.Context,
+	fn func(taskpkg.DeleteTaskMutationStore) error,
+) error {
+	if err := g.checkReady(ctx, "delete task transaction"); err != nil {
+		return err
+	}
+
+	return g.withTaskImmediateTransaction(ctx, "delete task", func(exec taskSQLExecutor) error {
+		return fn(&deleteTaskTxStore{global: g, exec: exec})
+	})
+}
+
+func (g *GlobalDB) deleteTaskWithExecutor(ctx context.Context, exec taskSQLExecutor, id string) error {
 	trimmedID, err := requireTaskValue(id, "task id")
 	if err != nil {
 		return err
 	}
 
-	result, err := g.db.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, trimmedID)
+	result, err := exec.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, trimmedID)
 	if err != nil {
 		return mapTaskDeleteConstraintError(trimmedID, err)
 	}
@@ -136,12 +157,20 @@ func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task) error {
 		return err
 	}
 
+	return g.updateTaskWithExecutor(ctx, g.db, record)
+}
+
+func (g *GlobalDB) updateTaskWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	record taskpkg.Task,
+) error {
 	normalized, err := g.normalizeTaskForUpdate(record)
 	if err != nil {
 		return err
 	}
 
-	current, err := g.GetTask(ctx, normalized.ID)
+	current, err := g.getTaskWithExecutor(ctx, exec, normalized.ID)
 	if err != nil {
 		return err
 	}
@@ -150,7 +179,7 @@ func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task) error {
 	}
 
 	normalized.CreatedAt = current.CreatedAt
-	result, err := g.db.ExecContext(
+	result, err := exec.ExecContext(
 		ctx,
 		`UPDATE tasks
 		 SET identifier = ?, scope = ?, workspace_id = ?, parent_task_id = ?,
@@ -298,13 +327,21 @@ func (g *GlobalDB) CountDirectChildren(ctx context.Context, parentTaskID string)
 		return 0, err
 	}
 
+	return g.countDirectChildrenWithExecutor(ctx, g.db, parentTaskID)
+}
+
+func (g *GlobalDB) countDirectChildrenWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	parentTaskID string,
+) (int, error) {
 	trimmedID, err := requireTaskValue(parentTaskID, "parent task id")
 	if err != nil {
 		return 0, err
 	}
 
 	var count int
-	if err := g.db.QueryRowContext(
+	if err := exec.QueryRowContext(
 		ctx,
 		`SELECT COUNT(1) FROM tasks WHERE parent_task_id = ?`,
 		trimmedID,
@@ -458,6 +495,15 @@ func (g *GlobalDB) ListTaskRuns(ctx context.Context, query taskpkg.RunQuery) ([]
 	if err := g.checkReady(ctx, "list task runs"); err != nil {
 		return nil, err
 	}
+
+	return g.listTaskRunsWithExecutor(ctx, g.db, query)
+}
+
+func (g *GlobalDB) listTaskRunsWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	query taskpkg.RunQuery,
+) ([]taskpkg.Run, error) {
 	if err := query.Validate("task_run_query"); err != nil {
 		return nil, err
 	}
@@ -476,7 +522,7 @@ func (g *GlobalDB) ListTaskRuns(ctx context.Context, query taskpkg.RunQuery) ([]
 	sqlQuery += " ORDER BY queued_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := exec.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query task runs: %w", err)
 	}
@@ -498,6 +544,50 @@ func (g *GlobalDB) ListTaskRuns(ctx context.Context, query taskpkg.RunQuery) ([]
 	}
 
 	return runs, nil
+}
+
+type deleteTaskTxStore struct {
+	global *GlobalDB
+	exec   taskSQLExecutor
+}
+
+var _ taskpkg.DeleteTaskMutationStore = (*deleteTaskTxStore)(nil)
+
+func (s *deleteTaskTxStore) GetTask(ctx context.Context, id string) (taskpkg.Task, error) {
+	return s.global.getTaskWithExecutor(ctx, s.exec, id)
+}
+
+func (s *deleteTaskTxStore) UpdateTask(ctx context.Context, record taskpkg.Task) error {
+	return s.global.updateTaskWithExecutor(ctx, s.exec, record)
+}
+
+func (s *deleteTaskTxStore) DeleteTask(ctx context.Context, id string) error {
+	return s.global.deleteTaskWithExecutor(ctx, s.exec, id)
+}
+
+func (s *deleteTaskTxStore) CountDirectChildren(ctx context.Context, parentTaskID string) (int, error) {
+	return s.global.countDirectChildrenWithExecutor(ctx, s.exec, parentTaskID)
+}
+
+func (s *deleteTaskTxStore) ListDependencies(
+	ctx context.Context,
+	taskID string,
+) ([]taskpkg.Dependency, error) {
+	return s.global.listDependenciesWithExecutor(ctx, s.exec, taskID)
+}
+
+func (s *deleteTaskTxStore) ListDependents(
+	ctx context.Context,
+	dependsOnTaskID string,
+) ([]taskpkg.Dependency, error) {
+	return s.global.listDependentsWithExecutor(ctx, s.exec, dependsOnTaskID)
+}
+
+func (s *deleteTaskTxStore) ListTaskRuns(
+	ctx context.Context,
+	query taskpkg.RunQuery,
+) ([]taskpkg.Run, error) {
+	return s.global.listTaskRunsWithExecutor(ctx, s.exec, query)
 }
 
 // ListTaskRunsByStatus returns persisted runs that match any of the supplied statuses.

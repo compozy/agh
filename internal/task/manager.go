@@ -276,26 +276,40 @@ func (m *Service) DeleteTask(ctx context.Context, id string, actor ActorContext)
 		return fmt.Errorf("%w: task id is required", ErrValidation)
 	}
 
-	record, err := m.store.GetTask(ctx, trimmedID)
+	if txStore, ok := m.store.(DeleteTaskTransactionStore); ok {
+		return txStore.WithDeleteTaskTransaction(ctx, func(store DeleteTaskMutationStore) error {
+			return m.deleteTaskWithStore(ctx, store, trimmedID)
+		})
+	}
+
+	return m.deleteTaskWithStore(ctx, m.store, trimmedID)
+}
+
+func (m *Service) deleteTaskWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	trimmedID string,
+) error {
+	record, err := store.GetTask(ctx, trimmedID)
 	if err != nil {
 		return fmt.Errorf("task: load task %q for delete: %w", trimmedID, err)
 	}
-	if err := m.ensureTaskDeleteAllowed(ctx, record); err != nil {
+	if err := m.ensureTaskDeleteAllowedWithStore(ctx, store, record); err != nil {
 		return err
 	}
 
-	dependents, err := m.store.ListDependents(ctx, trimmedID)
+	dependents, err := store.ListDependents(ctx, trimmedID)
 	if err != nil {
 		return fmt.Errorf("task: list dependents for task %q delete: %w", trimmedID, err)
 	}
 	dependentIDs := uniqueDependentTaskIDs(dependents)
 
-	if err := m.store.DeleteTask(ctx, trimmedID); err != nil {
+	if err := store.DeleteTask(ctx, trimmedID); err != nil {
 		return fmt.Errorf("task: delete task %q: %w", trimmedID, err)
 	}
 
 	for _, dependentID := range dependentIDs {
-		if _, err := m.reconcileTaskCascade(ctx, dependentID); err != nil {
+		if _, err := m.reconcileTaskCascadeWithStore(ctx, store, dependentID); err != nil {
 			return fmt.Errorf(
 				"task: reconcile dependent task %q after deleting %q: %w",
 				dependentID,
@@ -2006,21 +2020,25 @@ func (m *Service) taskDepth(ctx context.Context, record Task) (int, error) {
 	return depth, nil
 }
 
-func (m *Service) reconcileTask(ctx context.Context, taskID string) (Task, error) {
-	record, err := m.store.GetTask(ctx, taskID)
+func (m *Service) reconcileTaskWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	taskID string,
+) (Task, error) {
+	record, err := store.GetTask(ctx, taskID)
 	if err != nil {
 		return Task{}, err
 	}
-	dependencies, err := m.store.ListDependencies(ctx, taskID)
+	dependencies, err := store.ListDependencies(ctx, taskID)
 	if err != nil {
 		return Task{}, err
 	}
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: taskID})
+	runs, err := store.ListTaskRuns(ctx, RunQuery{TaskID: taskID})
 	if err != nil {
 		return Task{}, err
 	}
 
-	canonicalStatus, err := m.canonicalTaskStatus(ctx, record, dependencies, runs)
+	canonicalStatus, err := m.canonicalTaskStatusWithStore(ctx, store, record, dependencies, runs)
 	if err != nil {
 		return Task{}, err
 	}
@@ -2035,24 +2053,32 @@ func (m *Service) reconcileTask(ctx context.Context, taskID string) (Task, error
 	} else {
 		record.ClosedAt = time.Time{}
 	}
-	if err := m.store.UpdateTask(ctx, record); err != nil {
+	if err := store.UpdateTask(ctx, record); err != nil {
 		return Task{}, err
 	}
 	return record, nil
 }
 
 func (m *Service) reconcileTaskCascade(ctx context.Context, taskID string) (Task, error) {
-	previous, err := m.store.GetTask(ctx, taskID)
+	return m.reconcileTaskCascadeWithStore(ctx, m.store, taskID)
+}
+
+func (m *Service) reconcileTaskCascadeWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	taskID string,
+) (Task, error) {
+	previous, err := store.GetTask(ctx, taskID)
 	if err != nil {
 		return Task{}, err
 	}
 
-	reconciled, err := m.reconcileTask(ctx, taskID)
+	reconciled, err := m.reconcileTaskWithStore(ctx, store, taskID)
 	if err != nil {
 		return Task{}, err
 	}
 	if previous.Status.Normalize() != reconciled.Status.Normalize() {
-		if err := m.reconcileDependentTasks(ctx, taskID, map[string]struct{}{taskID: {}}); err != nil {
+		if err := m.reconcileDependentTasksWithStore(ctx, store, taskID, map[string]struct{}{taskID: {}}); err != nil {
 			return Task{}, err
 		}
 	}
@@ -2065,7 +2091,17 @@ func (m *Service) canonicalTaskStatus(
 	dependencies []Dependency,
 	runs []Run,
 ) (Status, error) {
-	unresolvedDependencies, err := m.hasUnresolvedDependencies(ctx, dependencies)
+	return m.canonicalTaskStatusWithStore(ctx, m.store, record, dependencies, runs)
+}
+
+func (m *Service) canonicalTaskStatusWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	record Task,
+	dependencies []Dependency,
+	runs []Run,
+) (Status, error) {
+	unresolvedDependencies, err := m.hasUnresolvedDependenciesWithStore(ctx, store, dependencies)
 	if err != nil {
 		return "", err
 	}
@@ -2200,8 +2236,12 @@ func runComesAfter(left Run, right Run) bool {
 	}
 }
 
-func (m *Service) ensureTaskDeleteAllowed(ctx context.Context, record Task) error {
-	childCount, err := m.store.CountDirectChildren(ctx, record.ID)
+func (m *Service) ensureTaskDeleteAllowedWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	record Task,
+) error {
+	childCount, err := store.CountDirectChildren(ctx, record.ID)
 	if err != nil {
 		return fmt.Errorf("task: count child tasks for delete %q: %w", record.ID, err)
 	}
@@ -2214,7 +2254,7 @@ func (m *Service) ensureTaskDeleteAllowed(ctx context.Context, record Task) erro
 		)
 	}
 
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
+	runs, err := store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
 	if err != nil {
 		return fmt.Errorf("task: list runs for delete %q: %w", record.ID, err)
 	}
@@ -2252,9 +2292,13 @@ func uniqueDependentTaskIDs(dependents []Dependency) []string {
 	return ids
 }
 
-func (m *Service) hasUnresolvedDependencies(ctx context.Context, dependencies []Dependency) (bool, error) {
+func (m *Service) hasUnresolvedDependenciesWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	dependencies []Dependency,
+) (bool, error) {
 	for _, dependency := range dependencies {
-		record, err := m.reconcileTask(ctx, dependency.DependsOnTaskID)
+		record, err := m.reconcileTaskWithStore(ctx, store, dependency.DependsOnTaskID)
 		if err != nil {
 			return false, err
 		}
@@ -2266,7 +2310,16 @@ func (m *Service) hasUnresolvedDependencies(ctx context.Context, dependencies []
 }
 
 func (m *Service) reconcileDependentTasks(ctx context.Context, taskID string, visited map[string]struct{}) error {
-	dependents, err := m.store.ListDependents(ctx, taskID)
+	return m.reconcileDependentTasksWithStore(ctx, m.store, taskID, visited)
+}
+
+func (m *Service) reconcileDependentTasksWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	taskID string,
+	visited map[string]struct{},
+) error {
+	dependents, err := store.ListDependents(ctx, taskID)
 	if err != nil {
 		return err
 	}
@@ -2278,16 +2331,16 @@ func (m *Service) reconcileDependentTasks(ctx context.Context, taskID string, vi
 		}
 		visited[dependentTaskID] = struct{}{}
 
-		previous, err := m.store.GetTask(ctx, dependentTaskID)
+		previous, err := store.GetTask(ctx, dependentTaskID)
 		if err != nil {
 			return err
 		}
-		reconciled, err := m.reconcileTask(ctx, dependentTaskID)
+		reconciled, err := m.reconcileTaskWithStore(ctx, store, dependentTaskID)
 		if err != nil {
 			return err
 		}
 		if previous.Status.Normalize() != reconciled.Status.Normalize() {
-			if err := m.reconcileDependentTasks(ctx, dependentTaskID, visited); err != nil {
+			if err := m.reconcileDependentTasksWithStore(ctx, store, dependentTaskID, visited); err != nil {
 				return err
 			}
 		}

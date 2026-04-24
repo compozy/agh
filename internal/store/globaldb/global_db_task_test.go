@@ -245,26 +245,30 @@ func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
 func TestGlobalDBDeleteTaskMapsChildConstraintToValidationError(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
+	t.Run("ShouldMapChildConstraintFailuresToTaskValidationErrors", func(t *testing.T) {
+		t.Parallel()
 
-	parent := taskRecordForTest("task-parent-delete")
-	if err := globalDB.CreateTask(testutil.Context(t), parent); err != nil {
-		t.Fatalf("CreateTask(parent) error = %v", err)
-	}
+		globalDB := openTestGlobalDB(t)
 
-	child := taskRecordForTest("task-child-delete")
-	child.ParentTaskID = parent.ID
-	if err := globalDB.CreateTask(testutil.Context(t), child); err != nil {
-		t.Fatalf("CreateTask(child) error = %v", err)
-	}
+		parent := taskRecordForTest("task-parent-delete")
+		if err := globalDB.CreateTask(testutil.Context(t), parent); err != nil {
+			t.Fatalf("CreateTask(parent) error = %v", err)
+		}
 
-	err := globalDB.DeleteTask(testutil.Context(t), parent.ID)
-	if !errors.Is(err, taskpkg.ErrValidation) {
-		t.Fatalf("DeleteTask(parent) error = %v, want %v", err, taskpkg.ErrValidation)
-	}
-	if strings.Contains(strings.ToLower(err.Error()), "foreign key constraint failed") {
-		t.Fatalf("DeleteTask(parent) error = %q, want mapped task validation error", err.Error())
-	}
+		child := taskRecordForTest("task-child-delete")
+		child.ParentTaskID = parent.ID
+		if err := globalDB.CreateTask(testutil.Context(t), child); err != nil {
+			t.Fatalf("CreateTask(child) error = %v", err)
+		}
+
+		err := globalDB.DeleteTask(testutil.Context(t), parent.ID)
+		if !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("DeleteTask(parent) error = %v, want %v", err, taskpkg.ErrValidation)
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "foreign key constraint failed") {
+			t.Fatalf("DeleteTask(parent) error = %q, want mapped task validation error", err.Error())
+		}
+	})
 }
 
 func TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings(t *testing.T) {
