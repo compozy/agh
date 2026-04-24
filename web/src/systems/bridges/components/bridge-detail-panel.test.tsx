@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -70,16 +70,20 @@ function makeProvider(overrides: Partial<BridgeProvider> = {}): BridgeProvider {
   };
 }
 
+let nextRouteIndex = 1;
+
 function makeRoute(overrides: Partial<BridgeRoute> = {}): BridgeRoute {
+  const routeId = String(nextRouteIndex++).padStart(3, "0");
+
   return {
     agent_name: "support-agent",
     bridge_instance_id: "brg_support",
     created_at: "2026-04-13T12:00:00Z",
     last_activity_at: "2026-04-13T12:15:00Z",
     peer_id: "peer_123",
-    routing_key_hash: "abc123",
+    routing_key_hash: `route_hash_${routeId}`,
     scope: "workspace",
-    session_id: "sess_123",
+    session_id: `sess_${routeId}`,
     updated_at: "2026-04-13T12:15:00Z",
     workspace_id: "ws_test",
     ...overrides,
@@ -203,7 +207,33 @@ describe("BridgeDetailPanel", () => {
       />
     );
 
-    expect(screen.getByTestId("bridge-route-sess_trace_123")).toHaveTextContent("sess_trace_123");
+    const routeRow = screen.getByTestId("bridge-route-sess_trace_123");
+
+    expect(routeRow).toHaveTextContent("sess_trace_123");
+    expect(within(routeRow).getByText("SESSION")).toHaveClass("uppercase", "tracking-[0.12em]");
+  });
+
+  it("uses unique default route identities when rendering multiple route fixtures", () => {
+    const routes = [makeRoute(), makeRoute()];
+
+    expect(new Set(routes.map(route => `${route.session_id}:${route.routing_key_hash}`)).size).toBe(
+      routes.length
+    );
+
+    render(
+      <BridgeDetailPanel
+        bridge={makeBridge()}
+        error={null}
+        health={makeHealth({ route_count: routes.length })}
+        isLoading={false}
+        isRoutesLoading={false}
+        onOpenTestDelivery={vi.fn()}
+        routes={routes}
+      />
+    );
+
+    expect(screen.getByTestId(`bridge-route-${routes[0].session_id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`bridge-route-${routes[1].session_id}`)).toBeInTheDocument();
   });
 
   it("renders disabled status with danger StatusDot and disables Send Test", () => {

@@ -155,7 +155,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
     waitUntil: "domcontentloaded",
   });
   await expect(tasksUI.runDetailContent).toBeVisible();
-  await expect(appPage).toHaveURL(new RegExp(`${activeRunPath}$`));
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(activeRunPath);
   await expect(tasksUI.runSessionDrilldown).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-run-detail", appPage);
 

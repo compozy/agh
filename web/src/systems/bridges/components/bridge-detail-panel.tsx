@@ -378,7 +378,8 @@ function BridgeEventStreamSection({
                       {route.agent_name}
                     </div>
                     <div className="mt-1 break-all font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
-                      session {route.session_id}
+                      <span className="uppercase tracking-[0.12em]">SESSION</span>{" "}
+                      <span>{route.session_id}</span>
                     </div>
                   </div>
                 </TableCell>
