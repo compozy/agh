@@ -44,10 +44,15 @@ function NetworkSettingsPage() {
   if (page.isLoading) {
     return (
       <div
+        aria-label="Loading network settings"
         className="flex flex-1 items-center justify-center"
         data-testid="settings-page-network-loading"
+        role="status"
       >
-        <Loader2 className="size-5 animate-spin text-[color:var(--color-text-tertiary)]" />
+        <Loader2
+          aria-hidden="true"
+          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+        />
       </div>
     );
   }
@@ -135,7 +140,7 @@ function OperationalLinksRow() {
       <div className="flex flex-wrap gap-2" data-testid="settings-page-network-operational-links">
         <Link
           to="/network"
-          className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
+          className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
           data-testid="settings-page-network-link-network"
         >
           <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
@@ -222,6 +227,7 @@ function ListenerSection({
         description="Enable agent-to-agent coordination inside this daemon"
         control={
           <Switch
+            aria-label="Embedded network"
             data-testid="settings-page-network-enabled-switch"
             checked={draft.enabled}
             onCheckedChange={checked => setDraft({ ...draft, enabled: checked })}
@@ -236,6 +242,7 @@ function ListenerSection({
         hint="CONFIG.TOML"
         control={
           <SettingsNumberInput
+            aria-label="Listener port"
             className="w-28"
             min={0}
             data-testid="settings-page-network-port-input"
@@ -342,6 +349,7 @@ function NumberField({
       </span>
       <div className="flex items-center gap-2">
         <SettingsNumberInput
+          aria-label={label}
           className="w-full"
           min={0}
           data-testid={testId}

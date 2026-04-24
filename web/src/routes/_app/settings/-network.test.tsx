@@ -155,6 +155,15 @@ describe("NetworkSettingsPage", () => {
     expect(screen.getByTestId("settings-page-network-default-channel-input")).toHaveValue("agh");
     expect(screen.getByTestId("settings-page-network-port-input")).toHaveValue("4222");
     expect(screen.getByTestId("settings-page-network-max-queue-depth")).toHaveValue("1024");
+    expect(screen.getByLabelText("Embedded network")).toBe(
+      screen.getByTestId("settings-page-network-enabled-switch")
+    );
+    expect(screen.getByLabelText("Listener port")).toBe(
+      screen.getByTestId("settings-page-network-port-input")
+    );
+    expect(screen.getByLabelText("Max queue depth")).toBe(
+      screen.getByTestId("settings-page-network-max-queue-depth")
+    );
   });
 
   it("wires save bar buttons to the restart-required page handlers", () => {

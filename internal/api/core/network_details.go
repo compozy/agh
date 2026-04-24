@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,13 +19,16 @@ import (
 )
 
 type networkChannelAggregate struct {
-	channel         string
-	peerCount       int
-	localPeerCount  int
-	remotePeerCount int
-	sessionCount    int
-	messageCount    int
-	lastMessageAt   *time.Time
+	channel            string
+	metadata           *store.NetworkChannelEntry
+	peerCount          int
+	localPeerCount     int
+	remotePeerCount    int
+	sessionCount       int
+	messageCount       int
+	lastActivityAt     *time.Time
+	lastMessageAt      *time.Time
+	lastMessagePreview string
 }
 
 var errNetworkChannelNotFound = errors.New("api: network channel not found")
@@ -43,6 +47,11 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
 	}
+	networkStore, err := h.networkStoreRequired()
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 
 	var req contract.CreateNetworkChannelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -54,56 +63,40 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 		return
 	}
 
-	channel, resolved, agentNames, err := h.resolveCreateNetworkChannelRequest(c.Request.Context(), req)
+	channel, purpose, resolved, agentNames, err := h.resolveCreateNetworkChannelRequest(
+		c.Request.Context(),
+		req,
+	)
 	if err != nil {
-		status := http.StatusBadRequest
-		switch {
-		case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
-			errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
-			status = StatusForWorkspaceError(err)
-		case errors.Is(err, workspacepkg.ErrAgentNotAvailable):
-			status = StatusForSessionError(err)
-		case errors.Is(err, network.ErrInvalidField):
-			status = StatusForNetworkError(err)
-		}
-		h.respondError(c, status, err)
+		h.respondError(c, statusForCreateNetworkChannelError(err), err)
 		return
 	}
 
-	createdIDs := make([]string, 0, len(agentNames))
-	for _, agentName := range agentNames {
-		sess, createErr := h.Sessions.Create(c.Request.Context(), session.CreateOpts{
-			AgentName: agentName,
-			Workspace: resolved.ID,
-			Channel:   channel,
-			Type:      session.SessionTypeUser,
-		})
-		if createErr != nil {
-			if rollbackErr := rollbackCreatedNetworkSessions(
-				c.Request.Context(),
-				h.Sessions,
-				createdIDs,
-			); rollbackErr != nil {
-				createErr = errors.Join(createErr, rollbackErr)
-			}
-			h.respondError(c, StatusForSessionError(createErr), createErr)
-			return
-		}
-		if sess != nil && sess.Info() != nil {
-			createdIDs = append(createdIDs, sess.Info().ID)
-		}
+	createdIDs, err := h.createNetworkChannelSessions(
+		c.Request.Context(),
+		channel,
+		resolved.ID,
+		agentNames,
+	)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
 	}
 
-	detail, detailErr := h.networkChannelDetailPayload(c.Request.Context(), service, channel)
-	if detailErr != nil {
-		if rollbackErr := rollbackCreatedNetworkSessions(
-			c.Request.Context(),
-			h.Sessions,
-			createdIDs,
-		); rollbackErr != nil {
-			detailErr = errors.Join(detailErr, rollbackErr)
-		}
-		h.respondError(c, http.StatusInternalServerError, detailErr)
+	detail, err := h.finalizeCreatedNetworkChannel(
+		c.Request.Context(),
+		service,
+		networkStore,
+		store.NetworkChannelEntry{
+			Channel:     channel,
+			WorkspaceID: resolved.ID,
+			Purpose:     purpose,
+			CreatedBy:   agentNames[0],
+		},
+		createdIDs,
+	)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -155,7 +148,7 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	limit, err := ParseOptionalInt(c.Query("limit"))
+	query, err := parseNetworkMessageQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -172,31 +165,26 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 		return
 	}
 
-	messages, err := networkStore.ListNetworkMessages(c.Request.Context(), store.NetworkMessageQuery{
-		Channel: channel,
-		Limit:   limit,
-	})
+	query.Channel = channel
+	messages, err := networkStore.ListNetworkMessages(c.Request.Context(), query)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("message cursor not found")))
+			return
+		}
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 
-	if len(messages) == 0 && !networkChannelExists(sessions, peers, channel) {
+	metadata, err := h.loadNetworkChannelMetadata(c.Request.Context(), networkStore, channel)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	if len(messages) == 0 && !networkChannelExists(sessions, peers, metadata, channel) {
 		notFoundErr := fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
 		h.respondError(c, http.StatusNotFound, notFoundErr)
 		return
-	}
-
-	directionByMessageID := map[string]string{}
-	if len(messages) > 0 {
-		auditEntries, auditErr := networkStore.ListNetworkAudit(c.Request.Context(), store.NetworkAuditQuery{
-			Channel: channel,
-		})
-		if auditErr != nil {
-			h.respondError(c, http.StatusInternalServerError, auditErr)
-			return
-		}
-		directionByMessageID = networkMessageDirectionMap(auditEntries, networkMessageIDSet(messages))
 	}
 
 	sessionByID := sessionInfoMapByID(sessions)
@@ -205,13 +193,79 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 	for _, entry := range messages {
 		payload = append(payload, NetworkChannelMessagePayloadFromEntry(
 			entry,
-			directionByMessageID[strings.TrimSpace(entry.MessageID)],
 			sessionByID,
 			peerByID,
 		))
 	}
 
 	c.JSON(http.StatusOK, contract.NetworkChannelMessagesResponse{Messages: payload})
+}
+
+// NetworkPeerMessages returns the directed message timeline for one network peer.
+func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
+	service, err := h.networkServiceRequired()
+	if err != nil {
+		h.respondError(c, http.StatusServiceUnavailable, err)
+		return
+	}
+	networkStore, err := h.networkStoreRequired()
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	peerID := strings.TrimSpace(c.Param("peer_id"))
+	if peerID == "" {
+		err := NewNetworkValidationError(errors.New("peer_id path is required"))
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	query, err := parseNetworkMessageQuery(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	peers, err := service.ListPeers(c.Request.Context(), "")
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	if _, ok := findPeerInfo(peers, peerID); !ok {
+		h.respondError(c, http.StatusNotFound, fmt.Errorf("api: network peer not found: %s", peerID))
+		return
+	}
+
+	sessions, err := h.Sessions.ListAll(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	query.PeerID = peerID
+	query.DirectedOnly = true
+	messages, err := networkStore.ListNetworkMessages(c.Request.Context(), query)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("message cursor not found")))
+			return
+		}
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	sessionByID := sessionInfoMapByID(sessions)
+	peerByID := peerInfoMapByID(peers)
+	payload := make([]contract.NetworkChannelMessagePayload, 0, len(messages))
+	for _, entry := range messages {
+		payload = append(payload, NetworkChannelMessagePayloadFromEntry(
+			entry,
+			sessionByID,
+			peerByID,
+		))
+	}
+
+	c.JSON(http.StatusOK, contract.NetworkPeerMessagesResponse{Messages: payload})
 }
 
 // NetworkPeer returns one selected peer detail payload.
@@ -268,27 +322,31 @@ func (h *BaseHandlers) NetworkPeer(c *gin.Context) {
 func (h *BaseHandlers) resolveCreateNetworkChannelRequest(
 	ctx context.Context,
 	req contract.CreateNetworkChannelRequest,
-) (string, workspacepkg.ResolvedWorkspace, []string, error) {
+) (string, string, workspacepkg.ResolvedWorkspace, []string, error) {
 	channel, err := normalizeNetworkChannel(req.Channel)
 	if err != nil {
-		return "", workspacepkg.ResolvedWorkspace{}, nil, err
+		return "", "", workspacepkg.ResolvedWorkspace{}, nil, err
+	}
+	purpose, err := normalizeNetworkChannelPurpose(req.Purpose)
+	if err != nil {
+		return "", "", workspacepkg.ResolvedWorkspace{}, nil, err
 	}
 
 	workspaceID := strings.TrimSpace(req.WorkspaceID)
 	if workspaceID == "" {
-		return "", workspacepkg.ResolvedWorkspace{}, nil, NewNetworkValidationError(
+		return "", "", workspacepkg.ResolvedWorkspace{}, nil, NewNetworkValidationError(
 			errors.New("workspace_id is required"),
 		)
 	}
 
 	resolved, err := h.Workspaces.Resolve(ctx, workspaceID)
 	if err != nil {
-		return "", workspacepkg.ResolvedWorkspace{}, nil, err
+		return "", "", workspacepkg.ResolvedWorkspace{}, nil, err
 	}
 
 	agentNames, err := normalizeNetworkAgentNames(req.AgentNames)
 	if err != nil {
-		return "", workspacepkg.ResolvedWorkspace{}, nil, err
+		return "", "", workspacepkg.ResolvedWorkspace{}, nil, err
 	}
 	available := make(map[string]struct{}, len(resolved.Agents))
 	for _, agent := range resolved.Agents {
@@ -298,14 +356,14 @@ func (h *BaseHandlers) resolveCreateNetworkChannelRequest(
 		if _, ok := available[agentName]; ok {
 			continue
 		}
-		return "", workspacepkg.ResolvedWorkspace{}, nil, fmt.Errorf(
+		return "", "", workspacepkg.ResolvedWorkspace{}, nil, fmt.Errorf(
 			"%w: %s",
 			workspacepkg.ErrAgentNotAvailable,
 			agentName,
 		)
 	}
 
-	return channel, resolved, agentNames, nil
+	return channel, purpose, resolved, agentNames, nil
 }
 
 func normalizeNetworkChannel(channel string) (string, error) {
@@ -340,6 +398,14 @@ func normalizeNetworkAgentNames(agentNames []string) ([]string, error) {
 	return normalized, nil
 }
 
+func normalizeNetworkChannelPurpose(purpose string) (string, error) {
+	trimmed := strings.TrimSpace(purpose)
+	if trimmed == "" {
+		return "", NewNetworkValidationError(errors.New("purpose is required"))
+	}
+	return trimmed, nil
+}
+
 func rollbackCreatedNetworkSessions(ctx context.Context, sessions SessionManager, sessionIDs []string) error {
 	if len(sessionIDs) == 0 {
 		return nil
@@ -362,6 +428,21 @@ func (h *BaseHandlers) networkChannelPayloads(
 	ctx context.Context,
 	service NetworkService,
 ) ([]contract.NetworkChannelPayload, error) {
+	aggregates, err := h.loadNetworkChannelAggregates(ctx, service)
+	if err != nil {
+		return nil, err
+	}
+	return sortedNetworkChannelPayloads(aggregates), nil
+}
+
+func (h *BaseHandlers) loadNetworkChannelAggregates(
+	ctx context.Context,
+	service NetworkService,
+) (map[string]*networkChannelAggregate, error) {
+	networkStore, err := h.networkStoreRequired()
+	if err != nil {
+		return nil, err
+	}
 	runtimePeers, err := service.ListPeers(ctx, "")
 	if err != nil {
 		return nil, err
@@ -370,57 +451,207 @@ func (h *BaseHandlers) networkChannelPayloads(
 	if err != nil {
 		return nil, err
 	}
+	channelMetadata, err := networkStore.ListNetworkChannels(ctx, store.NetworkChannelQuery{})
+	if err != nil {
+		return nil, err
+	}
+	messages, err := networkStore.ListNetworkMessages(ctx, store.NetworkMessageQuery{})
+	if err != nil {
+		return nil, err
+	}
 
 	aggregates := make(map[string]*networkChannelAggregate)
-	for _, info := range sessions {
-		if !networkChannelSessionVisible(info) {
-			continue
-		}
-		channel := strings.TrimSpace(info.Channel)
-		aggregate := ensureNetworkChannelAggregate(aggregates, channel)
-		aggregate.sessionCount++
-	}
-	for _, peer := range runtimePeers {
-		aggregate := ensureNetworkChannelAggregate(aggregates, peer.Channel)
-		aggregate.peerCount++
-		if peer.Local {
-			aggregate.localPeerCount++
-		} else {
-			aggregate.remotePeerCount++
-		}
-	}
+	applyNetworkChannelMetadata(aggregates, channelMetadata)
+	applyNetworkChannelSessions(aggregates, sessions)
+	applyNetworkChannelPeers(aggregates, runtimePeers)
+	applyNetworkChannelMessages(aggregates, messages)
+	return aggregates, nil
+}
 
-	if h != nil && h.NetworkStore != nil {
-		messages, msgErr := h.NetworkStore.ListNetworkMessages(ctx, store.NetworkMessageQuery{})
-		if msgErr != nil {
-			return nil, msgErr
-		}
-		for _, message := range messages {
-			aggregate := ensureNetworkChannelAggregate(aggregates, message.Channel)
-			aggregate.messageCount++
-			aggregate.lastMessageAt = laterTimePtr(aggregate.lastMessageAt, message.Timestamp)
-		}
-	}
-
+func sortedNetworkChannelPayloads(
+	aggregates map[string]*networkChannelAggregate,
+) []contract.NetworkChannelPayload {
 	channels := make([]contract.NetworkChannelPayload, 0, len(aggregates))
 	for _, aggregate := range aggregates {
 		if aggregate == nil {
 			continue
 		}
-		channels = append(channels, contract.NetworkChannelPayload{
-			Channel:         aggregate.channel,
-			PeerCount:       aggregate.peerCount,
-			LocalPeerCount:  aggregate.localPeerCount,
-			RemotePeerCount: aggregate.remotePeerCount,
-			SessionCount:    aggregate.sessionCount,
-			MessageCount:    aggregate.messageCount,
-			LastMessageAt:   cloneTimePtr(aggregate.lastMessageAt),
-		})
+		channels = append(channels, networkChannelPayloadFromAggregate(aggregate))
 	}
 	sort.Slice(channels, func(i int, j int) bool {
-		return channels[i].Channel < channels[j].Channel
+		left := channels[i].LastActivityAt
+		right := channels[j].LastActivityAt
+		switch {
+		case left != nil && right != nil && !left.Equal(*right):
+			return left.After(*right)
+		case left != nil:
+			return true
+		case right != nil:
+			return false
+		default:
+			return channels[i].Channel < channels[j].Channel
+		}
 	})
-	return channels, nil
+	return channels
+}
+
+func applyNetworkChannelMetadata(
+	aggregates map[string]*networkChannelAggregate,
+	metadataEntries []store.NetworkChannelEntry,
+) {
+	for _, metadata := range metadataEntries {
+		metadataCopy := metadata
+		aggregate := ensureNetworkChannelAggregate(aggregates, metadata.Channel)
+		aggregate.metadata = &metadataCopy
+		aggregate.lastActivityAt = laterTimePtr(aggregate.lastActivityAt, metadataCopy.UpdatedAt)
+	}
+}
+
+func applyNetworkChannelSessions(
+	aggregates map[string]*networkChannelAggregate,
+	sessions []*session.Info,
+) {
+	for _, info := range sessions {
+		if !networkChannelSessionVisible(info) {
+			continue
+		}
+		aggregate := ensureNetworkChannelAggregate(aggregates, info.Channel)
+		aggregate.sessionCount++
+	}
+}
+
+func applyNetworkChannelPeers(
+	aggregates map[string]*networkChannelAggregate,
+	peers []network.PeerInfo,
+) {
+	for _, peer := range peers {
+		aggregate := ensureNetworkChannelAggregate(aggregates, peer.Channel)
+		aggregate.peerCount++
+		if peer.Local {
+			aggregate.localPeerCount++
+			continue
+		}
+		aggregate.remotePeerCount++
+	}
+}
+
+func applyNetworkChannelMessages(
+	aggregates map[string]*networkChannelAggregate,
+	messages []store.NetworkMessageEntry,
+) {
+	for _, message := range messages {
+		aggregate := ensureNetworkChannelAggregate(aggregates, message.Channel)
+		aggregate.messageCount++
+		aggregate.lastActivityAt = laterTimePtr(aggregate.lastActivityAt, message.Timestamp)
+		aggregate.lastMessageAt = laterTimePtr(aggregate.lastMessageAt, message.Timestamp)
+		if preview := networkMessagePreview(message); preview != "" && aggregateMessageIsLatest(aggregate, message) {
+			aggregate.lastMessagePreview = preview
+		}
+	}
+}
+
+func aggregateMessageIsLatest(
+	aggregate *networkChannelAggregate,
+	message store.NetworkMessageEntry,
+) bool {
+	return aggregate != nil &&
+		aggregate.lastMessageAt != nil &&
+		message.Timestamp.Equal(aggregate.lastMessageAt.UTC())
+}
+
+func statusForCreateNetworkChannelError(err error) int {
+	switch {
+	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
+		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
+		return StatusForWorkspaceError(err)
+	case errors.Is(err, workspacepkg.ErrAgentNotAvailable):
+		return StatusForSessionError(err)
+	case errors.Is(err, network.ErrInvalidField):
+		return StatusForNetworkError(err)
+	default:
+		return http.StatusBadRequest
+	}
+}
+
+func (h *BaseHandlers) createNetworkChannelSessions(
+	ctx context.Context,
+	channel string,
+	workspaceID string,
+	agentNames []string,
+) ([]string, error) {
+	createdIDs := make([]string, 0, len(agentNames))
+	for _, agentName := range agentNames {
+		sess, err := h.Sessions.Create(ctx, session.CreateOpts{
+			AgentName: agentName,
+			Workspace: workspaceID,
+			Channel:   channel,
+			Type:      session.SessionTypeUser,
+		})
+		if err != nil {
+			if rollbackErr := rollbackCreatedNetworkSessions(ctx, h.Sessions, createdIDs); rollbackErr != nil {
+				err = errors.Join(err, rollbackErr)
+			}
+			return nil, err
+		}
+		if sess != nil && sess.Info() != nil {
+			createdIDs = append(createdIDs, sess.Info().ID)
+		}
+	}
+	return createdIDs, nil
+}
+
+func (h *BaseHandlers) finalizeCreatedNetworkChannel(
+	ctx context.Context,
+	service NetworkService,
+	networkStore NetworkStore,
+	entry store.NetworkChannelEntry,
+	createdIDs []string,
+) (contract.NetworkChannelDetailPayload, error) {
+	if err := networkStore.WriteNetworkChannel(ctx, entry); err != nil {
+		return contract.NetworkChannelDetailPayload{}, rollbackCreatedNetworkChannel(
+			ctx,
+			h.Sessions,
+			networkStore,
+			strings.TrimSpace(entry.Channel),
+			createdIDs,
+			err,
+			false,
+		)
+	}
+
+	detail, err := h.networkChannelDetailPayload(ctx, service, entry.Channel)
+	if err != nil {
+		return contract.NetworkChannelDetailPayload{}, rollbackCreatedNetworkChannel(
+			ctx,
+			h.Sessions,
+			networkStore,
+			strings.TrimSpace(entry.Channel),
+			createdIDs,
+			err,
+			true,
+		)
+	}
+	return detail, nil
+}
+
+func rollbackCreatedNetworkChannel(
+	ctx context.Context,
+	sessions SessionManager,
+	networkStore NetworkStore,
+	channel string,
+	createdIDs []string,
+	baseErr error,
+	deleteChannel bool,
+) error {
+	if rollbackErr := rollbackCreatedNetworkSessions(ctx, sessions, createdIDs); rollbackErr != nil {
+		baseErr = errors.Join(baseErr, rollbackErr)
+	}
+	if deleteChannel {
+		if rollbackErr := networkStore.DeleteNetworkChannel(ctx, channel); rollbackErr != nil {
+			baseErr = errors.Join(baseErr, rollbackErr)
+		}
+	}
+	return baseErr
 }
 
 func (h *BaseHandlers) networkChannelDetailPayload(
@@ -428,6 +659,10 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 	service NetworkService,
 	channel string,
 ) (contract.NetworkChannelDetailPayload, error) {
+	networkStore, err := h.networkStoreRequired()
+	if err != nil {
+		return contract.NetworkChannelDetailPayload{}, err
+	}
 	peers, err := service.ListPeers(ctx, channel)
 	if err != nil {
 		return contract.NetworkChannelDetailPayload{}, err
@@ -438,19 +673,16 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 	}
 
 	filteredSessions := sessionsForChannel(sessions, channel)
-	messageCount := 0
-	var lastMessageAt *time.Time
-	if h != nil && h.NetworkStore != nil {
-		messages, msgErr := h.NetworkStore.ListNetworkMessages(ctx, store.NetworkMessageQuery{Channel: channel})
-		if msgErr != nil {
-			return contract.NetworkChannelDetailPayload{}, msgErr
-		}
-		messageCount = len(messages)
-		if messageCount > 0 {
-			lastMessageAt = laterTimePtr(nil, messages[len(messages)-1].Timestamp)
-		}
+	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, channel)
+	if err != nil {
+		return contract.NetworkChannelDetailPayload{}, err
 	}
-	if len(filteredSessions) == 0 && len(peers) == 0 && messageCount == 0 {
+	messages, err := networkStore.ListNetworkMessages(ctx, store.NetworkMessageQuery{Channel: channel})
+	if err != nil {
+		return contract.NetworkChannelDetailPayload{}, err
+	}
+	messageCount := len(messages)
+	if len(filteredSessions) == 0 && len(peers) == 0 && messageCount == 0 && metadata == nil {
 		return contract.NetworkChannelDetailPayload{}, fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
 	}
 
@@ -464,16 +696,43 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 		payloadPeers = append(payloadPeers, networkPeerPayloadFromInfoWithSessions(peer, sessionByID))
 	}
 
+	var (
+		createdAt          *time.Time
+		lastActivityAt     *time.Time
+		purpose            string
+		workspaceID        string
+		createdBy          string
+		lastMessagePreview string
+	)
+	if metadata != nil {
+		createdAt = cloneTimePtr(&metadata.CreatedAt)
+		lastActivityAt = laterTimePtr(lastActivityAt, metadata.UpdatedAt)
+		purpose = strings.TrimSpace(metadata.Purpose)
+		workspaceID = strings.TrimSpace(metadata.WorkspaceID)
+		createdBy = strings.TrimSpace(metadata.CreatedBy)
+	}
+	kindCounts := summarizeNetworkChannelKindCounts(messages)
+	if messageCount > 0 {
+		lastActivityAt = laterTimePtr(lastActivityAt, messages[messageCount-1].Timestamp)
+		lastMessagePreview = networkMessagePreview(messages[messageCount-1])
+	}
+
 	return contract.NetworkChannelDetailPayload{
-		Channel:         channel,
-		PeerCount:       len(peers),
-		LocalPeerCount:  localPeerCount,
-		RemotePeerCount: len(peers) - localPeerCount,
-		SessionCount:    len(filteredSessions),
-		MessageCount:    messageCount,
-		LastMessageAt:   cloneTimePtr(lastMessageAt),
-		Sessions:        SessionPayloadsFromInfos(filteredSessions),
-		Peers:           payloadPeers,
+		Channel:            channel,
+		WorkspaceID:        workspaceID,
+		Purpose:            purpose,
+		CreatedBy:          createdBy,
+		CreatedAt:          createdAt,
+		PeerCount:          len(peers),
+		LocalPeerCount:     localPeerCount,
+		RemotePeerCount:    len(peers) - localPeerCount,
+		SessionCount:       len(filteredSessions),
+		MessageCount:       messageCount,
+		LastActivityAt:     cloneTimePtr(lastActivityAt),
+		LastMessagePreview: lastMessagePreview,
+		KindCounts:         kindCounts,
+		Sessions:           SessionPayloadsFromInfos(filteredSessions),
+		Peers:              payloadPeers,
 	}, nil
 }
 
@@ -502,7 +761,15 @@ func sessionsForChannel(sessions []*session.Info, channel string) []*session.Inf
 	return filtered
 }
 
-func networkChannelExists(sessions []*session.Info, peers []network.PeerInfo, channel string) bool {
+func networkChannelExists(
+	sessions []*session.Info,
+	peers []network.PeerInfo,
+	metadata *store.NetworkChannelEntry,
+	channel string,
+) bool {
+	if metadata != nil {
+		return true
+	}
 	for _, info := range sessions {
 		if networkChannelSessionVisible(info) && strings.TrimSpace(info.Channel) == channel {
 			return true
@@ -549,41 +816,121 @@ func peerInfoMapByID(peers []network.PeerInfo) map[string]network.PeerInfo {
 	return index
 }
 
-func networkMessageIDSet(messages []store.NetworkMessageEntry) map[string]struct{} {
-	ids := make(map[string]struct{}, len(messages))
-	for _, message := range messages {
-		messageID := strings.TrimSpace(message.MessageID)
-		if messageID == "" {
-			continue
-		}
-		ids[messageID] = struct{}{}
+func networkChannelPayloadFromAggregate(
+	aggregate *networkChannelAggregate,
+) contract.NetworkChannelPayload {
+	payload := contract.NetworkChannelPayload{
+		Channel:            aggregate.channel,
+		PeerCount:          aggregate.peerCount,
+		LocalPeerCount:     aggregate.localPeerCount,
+		RemotePeerCount:    aggregate.remotePeerCount,
+		SessionCount:       aggregate.sessionCount,
+		MessageCount:       aggregate.messageCount,
+		LastActivityAt:     cloneTimePtr(aggregate.lastActivityAt),
+		LastMessagePreview: strings.TrimSpace(aggregate.lastMessagePreview),
 	}
-	return ids
+	if aggregate.metadata == nil {
+		return payload
+	}
+	payload.WorkspaceID = strings.TrimSpace(aggregate.metadata.WorkspaceID)
+	payload.Purpose = strings.TrimSpace(aggregate.metadata.Purpose)
+	payload.CreatedBy = strings.TrimSpace(aggregate.metadata.CreatedBy)
+	payload.CreatedAt = cloneTimePtr(&aggregate.metadata.CreatedAt)
+	return payload
 }
 
-func networkMessageDirectionMap(
-	entries []store.NetworkAuditEntry,
-	messageIDs map[string]struct{},
-) map[string]string {
-	directions := make(map[string]string, len(messageIDs))
-	for _, entry := range entries {
-		messageID := strings.TrimSpace(entry.MessageID)
-		if messageID == "" {
-			continue
-		}
-		if _, ok := messageIDs[messageID]; !ok {
-			continue
-		}
-		direction := strings.TrimSpace(entry.Direction)
-		if direction != network.AuditDirectionSent && direction != network.AuditDirectionReceived {
-			continue
-		}
-		if _, seen := directions[messageID]; seen {
-			continue
-		}
-		directions[messageID] = direction
+func summarizeNetworkChannelKindCounts(
+	messages []store.NetworkMessageEntry,
+) []contract.NetworkChannelKindCountPayload {
+	if len(messages) == 0 {
+		return nil
 	}
-	return directions
+	counts := make(map[string]int, len(messages))
+	for _, item := range messages {
+		kind := strings.TrimSpace(item.Kind)
+		if kind == "" {
+			continue
+		}
+		counts[kind]++
+	}
+	if len(counts) == 0 {
+		return nil
+	}
+	payload := make([]contract.NetworkChannelKindCountPayload, 0, len(counts))
+	for kind, count := range counts {
+		payload = append(payload, contract.NetworkChannelKindCountPayload{
+			Kind:  kind,
+			Count: count,
+		})
+	}
+	sort.Slice(payload, func(i int, j int) bool {
+		leftRank := networkKindSortRank(payload[i].Kind)
+		rightRank := networkKindSortRank(payload[j].Kind)
+		if leftRank != rightRank {
+			return leftRank < rightRank
+		}
+		return payload[i].Kind < payload[j].Kind
+	})
+	return payload
+}
+
+func networkKindSortRank(kind string) int {
+	switch strings.TrimSpace(kind) {
+	case string(network.KindSay):
+		return 0
+	case string(network.KindDirect):
+		return 1
+	case string(network.KindReceipt):
+		return 2
+	case string(network.KindCapability):
+		return 3
+	case string(network.KindGreet):
+		return 4
+	case string(network.KindWhois):
+		return 5
+	case string(network.KindTrace):
+		return 6
+	default:
+		return 100
+	}
+}
+
+func networkMessagePreview(entry store.NetworkMessageEntry) string {
+	if preview := strings.TrimSpace(entry.PreviewText); preview != "" {
+		return preview
+	}
+	return strings.TrimSpace(entry.Text)
+}
+
+func parseNetworkMessageQuery(c *gin.Context) (store.NetworkMessageQuery, error) {
+	limit, err := ParseOptionalInt(c.Query("limit"))
+	if err != nil {
+		return store.NetworkMessageQuery{}, err
+	}
+	query := store.NetworkMessageQuery{
+		BeforeMessageID: strings.TrimSpace(c.Query("before")),
+		AfterMessageID:  strings.TrimSpace(c.Query("after")),
+		Limit:           limit,
+	}
+	if err := query.Validate(); err != nil {
+		return store.NetworkMessageQuery{}, NewNetworkValidationError(err)
+	}
+	return query, nil
+}
+
+func (h *BaseHandlers) loadNetworkChannelMetadata(
+	ctx context.Context,
+	networkStore NetworkStore,
+	channel string,
+) (*store.NetworkChannelEntry, error) {
+	entry, err := networkStore.GetNetworkChannel(ctx, channel)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &entry, nil
 }
 
 func findPeerInfo(peers []network.PeerInfo, peerID string) (network.PeerInfo, bool) {
@@ -638,30 +985,20 @@ func networkPeerDisplayName(peer network.PeerInfo, sessionsByID map[string]*sess
 // NetworkChannelMessagePayloadFromEntry converts one persisted timeline row into the shared payload.
 func NetworkChannelMessagePayloadFromEntry(
 	entry store.NetworkMessageEntry,
-	auditDirection string,
 	sessionsByID map[string]*session.Info,
 	peersByID map[string]network.PeerInfo,
 ) contract.NetworkChannelMessagePayload {
 	storedSessionID := strings.TrimSpace(entry.SessionID)
 	displayName := strings.TrimSpace(entry.PeerFrom)
-	local := false
+	local := strings.TrimSpace(entry.Direction) == network.AuditDirectionSent
 	payloadSessionID := ""
 
 	if peer, ok := peersByID[strings.TrimSpace(entry.PeerFrom)]; ok {
 		displayName = networkPeerDisplayName(peer, sessionsByID)
-		local = peer.Local
 	}
 
-	switch strings.TrimSpace(auditDirection) {
-	case network.AuditDirectionSent:
-		local = true
+	if local {
 		payloadSessionID = storedSessionID
-	case network.AuditDirectionReceived:
-		local = false
-	default:
-		if local {
-			payloadSessionID = storedSessionID
-		}
 	}
 
 	if local && payloadSessionID != "" {
@@ -675,15 +1012,24 @@ func NetworkChannelMessagePayloadFromEntry(
 	}
 
 	return contract.NetworkChannelMessagePayload{
-		MessageID:   strings.TrimSpace(entry.MessageID),
-		Channel:     strings.TrimSpace(entry.Channel),
-		PeerID:      strings.TrimSpace(entry.PeerFrom),
-		DisplayName: displayName,
-		SessionID:   payloadSessionID,
-		Local:       local,
-		Intent:      strings.TrimSpace(entry.Intent),
-		Text:        strings.TrimSpace(entry.Text),
-		Timestamp:   entry.Timestamp.UTC(),
+		MessageID:     strings.TrimSpace(entry.MessageID),
+		Channel:       strings.TrimSpace(entry.Channel),
+		Kind:          strings.TrimSpace(entry.Kind),
+		Direction:     strings.TrimSpace(entry.Direction),
+		PeerFrom:      strings.TrimSpace(entry.PeerFrom),
+		PeerTo:        strings.TrimSpace(entry.PeerTo),
+		DisplayName:   displayName,
+		SessionID:     payloadSessionID,
+		Local:         local,
+		InteractionID: strings.TrimSpace(entry.InteractionID),
+		ReplyTo:       strings.TrimSpace(entry.ReplyTo),
+		TraceID:       strings.TrimSpace(entry.TraceID),
+		CausationID:   strings.TrimSpace(entry.CausationID),
+		Intent:        strings.TrimSpace(entry.Intent),
+		Text:          strings.TrimSpace(entry.Text),
+		PreviewText:   networkMessagePreview(entry),
+		Body:          cloneRawMessage(entry.Body),
+		Timestamp:     entry.Timestamp.UTC(),
 	}
 }
 

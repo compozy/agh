@@ -5,6 +5,9 @@ import viteReact from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 
+const reactRuntimePattern =
+  /[\\/]node_modules[\\/](?:\.bun[\\/][^\\/]+[\\/]node_modules[\\/])?(?:react|react-dom|scheduler|use-sync-external-store)[\\/]/;
+
 export default defineConfig({
   plugins: [
     devtools(),
@@ -25,6 +28,21 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:2123",
         changeOrigin: true,
+      },
+    },
+  },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "react-runtime",
+              test: reactRuntimePattern,
+              priority: 10,
+            },
+          ],
+        },
       },
     },
   },

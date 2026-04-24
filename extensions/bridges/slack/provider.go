@@ -703,12 +703,12 @@ func (p *slackProvider) collectSlackConfigs(
 ) ([]resolvedInstanceConfig, string) {
 	configs := make([]resolvedInstanceConfig, 0, len(managed))
 	requestedListen := strings.TrimSpace(os.Getenv(slackListenAddrEnv))
-	usedPaths := make(map[string]string, len(managed))
+	usedPaths := make(map[string]int, len(managed))
 
 	for _, item := range managed {
 		cfg := p.resolveInstanceConfig(session, item)
 		requestedListen = applySlackListenConstraint(&cfg, requestedListen)
-		applySlackWebhookPathConflict(&cfg, usedPaths)
+		applySlackWebhookPathConflict(&cfg, usedPaths, configs)
 		configs = append(configs, cfg)
 	}
 
@@ -733,19 +733,34 @@ func applySlackListenConstraint(cfg *resolvedInstanceConfig, requestedListen str
 	return requestedListen
 }
 
-func applySlackWebhookPathConflict(cfg *resolvedInstanceConfig, usedPaths map[string]string) {
+func applySlackWebhookPathConflict(
+	cfg *resolvedInstanceConfig,
+	usedPaths map[string]int,
+	configs []resolvedInstanceConfig,
+) {
 	if cfg == nil || cfg.webhookPath == "" {
 		return
 	}
-	if owner, ok := usedPaths[cfg.webhookPath]; ok && cfg.configError == nil {
-		cfg.configError = fmt.Errorf(
+	if ownerIdx, ok := usedPaths[cfg.webhookPath]; ok {
+		ownerID := ""
+		if ownerIdx >= 0 && ownerIdx < len(configs) {
+			ownerID = configs[ownerIdx].instanceID
+		}
+		conflictErr := fmt.Errorf(
 			"slack: webhook path %q is shared by %q and %q",
 			cfg.webhookPath,
-			owner,
+			ownerID,
 			cfg.instanceID,
 		)
+		if ownerIdx >= 0 && ownerIdx < len(configs) && configs[ownerIdx].configError == nil {
+			configs[ownerIdx].configError = conflictErr
+		}
+		if cfg.configError == nil {
+			cfg.configError = conflictErr
+		}
+		return
 	}
-	usedPaths[cfg.webhookPath] = cfg.instanceID
+	usedPaths[cfg.webhookPath] = len(configs)
 }
 
 func (p *slackProvider) applySlackListenErrors(configs []resolvedInstanceConfig, requestedListen string) {
@@ -1006,12 +1021,13 @@ func (p *slackProvider) handleWebhookRequest(
 ) error {
 	contentType := strings.TrimSpace(r.Header.Get("Content-Type"))
 	if strings.Contains(contentType, "application/x-www-form-urlencoded") {
-		return p.handleFormWebhook(w, cfg, request)
+		return p.handleFormWebhook(r.Context(), w, cfg, request)
 	}
-	return p.handleJSONWebhook(w, cfg, request)
+	return p.handleJSONWebhook(r.Context(), w, cfg, request)
 }
 
 func (p *slackProvider) handleFormWebhook(
+	ctx context.Context,
 	w http.ResponseWriter,
 	cfg resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
@@ -1031,7 +1047,7 @@ func (p *slackProvider) handleFormWebhook(
 		if !allowSlackDirectMessage(cfg, mapped.User, mapped.Direct) {
 			return writeWebhookOK(w)
 		}
-		if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, mapped.Envelope); err != nil {
+		if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
 		return writeWebhookOK(w)
@@ -1060,7 +1076,7 @@ func (p *slackProvider) handleFormWebhook(
 		if !allowSlackDirectMessage(cfg, item.User, item.Direct) {
 			continue
 		}
-		if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, item.Envelope); err != nil {
+		if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, item.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
 	}
@@ -1068,6 +1084,7 @@ func (p *slackProvider) handleFormWebhook(
 }
 
 func (p *slackProvider) handleJSONWebhook(
+	ctx context.Context,
 	w http.ResponseWriter,
 	cfg resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
@@ -1090,9 +1107,9 @@ func (p *slackProvider) handleJSONWebhook(
 
 	switch strings.TrimSpace(eventType.Type) {
 	case "message", "app_mention":
-		return p.handleSlackMessageJSONEvent(w, cfg, request, payload)
+		return p.handleSlackMessageJSONEvent(ctx, w, cfg, request, payload)
 	case "reaction_added", "reaction_removed":
-		return p.handleSlackReactionJSONEvent(w, cfg, request, payload)
+		return p.handleSlackReactionJSONEvent(ctx, w, cfg, request, payload)
 	default:
 		return writeWebhookOK(w)
 	}
@@ -1115,6 +1132,7 @@ func handleSlackJSONHandshake(w http.ResponseWriter, payload slackWebhookEnvelop
 }
 
 func (p *slackProvider) handleSlackMessageJSONEvent(
+	ctx context.Context,
 	w http.ResponseWriter,
 	cfg resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
@@ -1138,10 +1156,11 @@ func (p *slackProvider) handleSlackMessageJSONEvent(
 	if ignored {
 		return writeWebhookOK(w)
 	}
-	return p.dispatchSlackWebhookEnvelope(w, cfg, mapped, true)
+	return p.dispatchSlackWebhookEnvelope(ctx, w, cfg, mapped, true)
 }
 
 func (p *slackProvider) handleSlackReactionJSONEvent(
+	ctx context.Context,
 	w http.ResponseWriter,
 	cfg resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
@@ -1155,10 +1174,11 @@ func (p *slackProvider) handleSlackReactionJSONEvent(
 	if err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	}
-	return p.dispatchSlackWebhookEnvelope(w, cfg, mapped, false)
+	return p.dispatchSlackWebhookEnvelope(ctx, w, cfg, mapped, false)
 }
 
 func (p *slackProvider) dispatchSlackWebhookEnvelope(
+	ctx context.Context,
 	w http.ResponseWriter,
 	cfg resolvedInstanceConfig,
 	mapped slackMappedInbound,
@@ -1176,7 +1196,7 @@ func (p *slackProvider) dispatchSlackWebhookEnvelope(
 		}
 		return writeWebhookOK(w)
 	}
-	if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, mapped.Envelope); err != nil {
+	if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 	}
 	return writeWebhookOK(w)
@@ -1278,6 +1298,9 @@ func (p *slackProvider) configForPath(path string) (resolvedInstanceConfig, bool
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	for _, cfg := range p.routes {
+		if cfg.configError != nil {
+			continue
+		}
 		if cfg.webhookPath == normalizeWebhookPath(path) {
 			return cfg, true
 		}

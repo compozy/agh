@@ -22,13 +22,14 @@ function NetworkCreateChannelDialogHarness({ conflictMessage }: { conflictMessag
   const [draft, setDraft] = useState({
     ...createNetworkChannelDraft(),
     channelName: "deployments",
+    purpose: "Coordinate release handoffs and deploy verification.",
     selectedAgentNames: [agentFixtures[0].name, agentFixtures[1].name],
   });
 
   return (
     <CenteredSurface className="flex-col gap-4">
       {conflictMessage ? (
-        <div className="w-full max-w-md rounded-xl border border-[color:var(--color-danger)] bg-[color:var(--color-danger-tint)] px-4 py-3 text-sm text-[color:var(--color-danger)]">
+        <div className="w-full max-w-md rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-[color:var(--color-danger-tint)] px-4 py-3 text-sm text-[color:var(--color-danger)]">
           {conflictMessage}
         </div>
       ) : null}
@@ -39,6 +40,7 @@ function NetworkCreateChannelDialogHarness({ conflictMessage }: { conflictMessag
         isSubmitting={false}
         onChannelNameChange={channelName => setDraft(current => ({ ...current, channelName }))}
         onOpenChange={() => undefined}
+        onPurposeChange={purpose => setDraft(current => ({ ...current, purpose }))}
         onSubmit={() => undefined}
         onToggleAgent={agentName =>
           setDraft(current => ({

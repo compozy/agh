@@ -15,6 +15,7 @@ import {
   Input,
   MonoBadge,
   Section,
+  Textarea,
 } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { AgentIcon, type AgentPayload } from "@/systems/agent";
@@ -28,6 +29,7 @@ interface NetworkCreateChannelDialogProps {
   isSubmitting: boolean;
   onChannelNameChange: (value: string) => void;
   onOpenChange: (open: boolean) => void;
+  onPurposeChange: (value: string) => void;
   onSubmit: () => void;
   onToggleAgent: (agentName: string) => void;
   open: boolean;
@@ -41,6 +43,7 @@ export function NetworkCreateChannelDialog({
   isSubmitting,
   onChannelNameChange,
   onOpenChange,
+  onPurposeChange,
   onSubmit,
   onToggleAgent,
   open,
@@ -81,6 +84,23 @@ export function NetworkCreateChannelDialog({
                 onChange={event => onChannelNameChange(event.target.value)}
                 placeholder="e.g. deployments"
                 value={draft.channelName}
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="network-channel-purpose">Purpose</FieldLabel>
+              <FieldDescription>
+                Required. This becomes the room intro and the right-rail about summary.
+              </FieldDescription>
+              <Textarea
+                aria-required="true"
+                className="min-h-24 border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-3 py-3 text-[13px] leading-6"
+                data-testid="network-channel-purpose-input"
+                id="network-channel-purpose"
+                onChange={event => onPurposeChange(event.target.value)}
+                placeholder="e.g. Coordinate release handoffs across coder and reviewer agents."
+                required
+                value={draft.purpose}
               />
             </Field>
 

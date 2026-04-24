@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -325,11 +326,13 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "network message entry valid",
 			validate: func() error {
 				return (NetworkMessageEntry{
-					MessageID: "msg-1",
-					Channel:   "builders",
-					PeerFrom:  "peer-a",
-					Kind:      "agent.message",
-					Text:      "hello",
+					MessageID:   "msg-1",
+					Channel:     "builders",
+					Direction:   "sent",
+					PeerFrom:    "peer-a",
+					Kind:        "say",
+					PreviewText: "hello",
+					Body:        json.RawMessage(`{"text":"hello"}`),
 				}).Validate()
 			},
 		},

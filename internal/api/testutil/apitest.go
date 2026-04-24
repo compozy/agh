@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -835,8 +836,12 @@ type StubNetworkService struct {
 }
 
 type StubNetworkStore struct {
-	ListNetworkAuditFn    func(context.Context, store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
-	ListNetworkMessagesFn func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
+	GetNetworkChannelFn    func(context.Context, string) (store.NetworkChannelEntry, error)
+	ListNetworkChannelsFn  func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
+	WriteNetworkChannelFn  func(context.Context, store.NetworkChannelEntry) error
+	DeleteNetworkChannelFn func(context.Context, string) error
+	ListNetworkAuditFn     func(context.Context, store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
+	ListNetworkMessagesFn  func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
 }
 
 func (s StubNetworkService) Send(ctx context.Context, req network.SendRequest) (string, error) {
@@ -882,6 +887,43 @@ func (s StubNetworkStore) ListNetworkAudit(
 		return s.ListNetworkAuditFn(ctx, query)
 	}
 	return nil, nil
+}
+
+func (s StubNetworkStore) GetNetworkChannel(
+	ctx context.Context,
+	channel string,
+) (store.NetworkChannelEntry, error) {
+	if s.GetNetworkChannelFn != nil {
+		return s.GetNetworkChannelFn(ctx, channel)
+	}
+	return store.NetworkChannelEntry{}, sql.ErrNoRows
+}
+
+func (s StubNetworkStore) ListNetworkChannels(
+	ctx context.Context,
+	query store.NetworkChannelQuery,
+) ([]store.NetworkChannelEntry, error) {
+	if s.ListNetworkChannelsFn != nil {
+		return s.ListNetworkChannelsFn(ctx, query)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkStore) WriteNetworkChannel(
+	ctx context.Context,
+	entry store.NetworkChannelEntry,
+) error {
+	if s.WriteNetworkChannelFn != nil {
+		return s.WriteNetworkChannelFn(ctx, entry)
+	}
+	return nil
+}
+
+func (s StubNetworkStore) DeleteNetworkChannel(ctx context.Context, channel string) error {
+	if s.DeleteNetworkChannelFn != nil {
+		return s.DeleteNetworkChannelFn(ctx, channel)
+	}
+	return nil
 }
 
 func (s StubNetworkStore) ListNetworkMessages(

@@ -630,7 +630,7 @@ func TestHandleJSONWebhookChallengeAndReaction(t *testing.T) {
 	}
 
 	challengeRecorder := httptest.NewRecorder()
-	if err := runtime.handleJSONWebhook(challengeRecorder, cfg, bridgesdk.WebhookRequest{
+	if err := runtime.handleJSONWebhook(context.Background(), challengeRecorder, cfg, bridgesdk.WebhookRequest{
 		Body:       []byte(`{"type":"url_verification","challenge":"abc123"}`),
 		ReceivedAt: now,
 	}); err != nil {
@@ -644,7 +644,7 @@ func TestHandleJSONWebhookChallengeAndReaction(t *testing.T) {
 	}
 
 	reactionRecorder := httptest.NewRecorder()
-	if err := runtime.handleJSONWebhook(reactionRecorder, cfg, bridgesdk.WebhookRequest{
+	if err := runtime.handleJSONWebhook(context.Background(), reactionRecorder, cfg, bridgesdk.WebhookRequest{
 		Body: []byte(
 			`{"type":"event_callback","team_id":"T1","event_id":"EvReaction","event":{"type":"reaction_added","user":"U1","reaction":"eyes","event_ts":"1775866803.100000","item":{"type":"message","channel":"C123","ts":"1775866803.000000"}}}`,
 		),
@@ -1034,10 +1034,15 @@ func TestHandleFormWebhookRejectsMissingPayload(t *testing.T) {
 		t.Fatalf("newSlackProvider() error = %v", err)
 	}
 	recorder := httptest.NewRecorder()
-	err = runtime.handleFormWebhook(recorder, resolvedInstanceConfig{}, bridgesdk.WebhookRequest{
-		Body:       []byte("payload="),
-		ReceivedAt: time.Now().UTC(),
-	})
+	err = runtime.handleFormWebhook(
+		context.Background(),
+		recorder,
+		resolvedInstanceConfig{},
+		bridgesdk.WebhookRequest{
+			Body:       []byte("payload="),
+			ReceivedAt: time.Now().UTC(),
+		},
+	)
 	var httpErr *bridgesdk.HTTPError
 	if !errors.As(err, &httpErr) {
 		t.Fatalf("handleFormWebhook() error type = %T, want *bridgesdk.HTTPError", err)
@@ -1445,6 +1450,38 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	bad.Instance.ProviderConfig = []byte("{")
 	if cfg := runtime.resolveInstanceConfig(session, bad); cfg.configError == nil {
 		t.Fatal("resolveInstanceConfig(bad json) configError = nil, want non-nil")
+	}
+}
+
+func TestSlackWebhookPathConflictsDegradeAllRoutes(t *testing.T) {
+	t.Parallel()
+
+	configs := make([]resolvedInstanceConfig, 0, 2)
+	usedPaths := make(map[string]int)
+
+	first := resolvedInstanceConfig{instanceID: "brg-1", webhookPath: "/slack"}
+	applySlackWebhookPathConflict(&first, usedPaths, configs)
+	configs = append(configs, first)
+
+	second := resolvedInstanceConfig{instanceID: "brg-2", webhookPath: "/slack"}
+	applySlackWebhookPathConflict(&second, usedPaths, configs)
+	configs = append(configs, second)
+
+	if configs[0].configError == nil {
+		t.Fatal("first duplicate configError = nil, want conflict degradation")
+	}
+	if configs[1].configError == nil {
+		t.Fatal("second duplicate configError = nil, want conflict degradation")
+	}
+
+	runtime, err := newSlackProvider(io.Discard)
+	if err != nil {
+		t.Fatalf("newSlackProvider() error = %v", err)
+	}
+	runtime.routes = buildSlackRouteMap(configs)
+
+	if _, ok := runtime.configForPath("/slack"); ok {
+		t.Fatal("configForPath(/slack) returned conflicted config, want deterministic rejection")
 	}
 }
 

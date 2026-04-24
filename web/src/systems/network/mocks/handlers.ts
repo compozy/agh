@@ -6,6 +6,7 @@ import {
   networkChannelMessagesFixture,
   networkChannelsFixture,
   networkPeerFixture,
+  networkPeerMessagesFixture,
   networkPeersFixture,
   networkStatusFixture,
 } from "./fixtures";
@@ -66,15 +67,30 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
+  http.get("/api/network/peers/:peer_id/messages", ({ params }) => {
+    const peerId = String(params.peer_id);
+
+    if (!networkPeersFixture.some(peer => peer.peer_id === peerId)) {
+      return HttpResponse.json({ error: `Peer not found: ${peerId}` }, { status: 404 });
+    }
+
+    return HttpResponse.json({
+      messages: networkPeerMessagesFixture,
+    });
+  }),
   http.post("/api/network/channels", async ({ request }) => {
     const body = (await request.json()) as {
       agent_names?: string[];
       channel?: string;
+      purpose?: string;
       workspace_id?: string;
     };
 
-    if (!body.channel?.trim() || !body.workspace_id?.trim()) {
-      return HttpResponse.json({ error: "Channel and workspace are required." }, { status: 400 });
+    if (!body.channel?.trim() || !body.workspace_id?.trim() || !body.purpose?.trim()) {
+      return HttpResponse.json(
+        { error: "Channel, workspace, and purpose are required." },
+        { status: 400 }
+      );
     }
 
     return HttpResponse.json(
@@ -82,6 +98,7 @@ export const handlers: HttpHandler[] = [
         channel: {
           ...createNetworkChannelFixture.channel,
           channel: body.channel.trim(),
+          purpose: body.purpose.trim(),
           sessions: createNetworkChannelFixture.channel.sessions?.map((session, index) => ({
             ...session,
             id: `sess-created-${index + 1}`,

@@ -9,25 +9,22 @@ describe("captureRouteState", () => {
     window.history.replaceState({}, "", "/network");
     document.title = "AGH";
     document.body.innerHTML = `
-      <div data-testid="network-tab-pills">
-        <button data-testid="network-tab-channels" aria-pressed="false"></button>
-        <button data-testid="network-tab-peers" aria-pressed="true"></button>
+      <div data-testid="network-workspace">
+        <div data-testid="network-room-channel-builders">
+          <button>builders</button>
+        </div>
+        <div data-testid="network-room-peer-peer_ops">
+          <button>mock-ops</button>
+        </div>
+        <div data-testid="network-room-peer-peer_patch">
+          <button aria-current="page">mock-patch-worker</button>
+        </div>
+        <section data-testid="network-room-header">
+          <h1>mock-patch-worker</h1>
+        </section>
+        <article data-testid="network-message-browser_msg_say_01"></article>
+        <article data-testid="network-message-browser_msg_direct_01"></article>
       </div>
-      <div data-testid="network-channels-list-panel">
-        <button data-testid="network-channel-item-builders"></button>
-      </div>
-      <section data-testid="network-channel-detail-panel">
-        <h2>builders</h2>
-      </section>
-      <div data-testid="network-peers-list-panel">
-        <button data-testid="network-peer-item-peer_ops"></button>
-        <button data-testid="network-peer-item-peer_patch"></button>
-      </div>
-      <section data-testid="network-peer-detail-panel">
-        <h2>mock-patch-worker</h2>
-      </section>
-      <article data-testid="network-channel-message-browser_msg_say_01"></article>
-      <article data-testid="network-channel-message-browser_msg_direct_01"></article>
     `;
 
     const routeState = await captureRouteState({
@@ -44,7 +41,6 @@ describe("captureRouteState", () => {
       network_channel_count: 1,
       network_peer_count: 2,
       network_message_count: 2,
-      network_selected_channel: "builders",
       network_selected_peer: "mock-patch-worker",
     });
   });

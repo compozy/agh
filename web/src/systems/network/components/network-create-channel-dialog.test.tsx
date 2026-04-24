@@ -17,6 +17,7 @@ describe("NetworkCreateChannelDialog", () => {
         isSubmitting={false}
         onChannelNameChange={() => undefined}
         onOpenChange={() => undefined}
+        onPurposeChange={() => undefined}
         onSubmit={onSubmit}
         onToggleAgent={() => undefined}
         open
@@ -40,6 +41,7 @@ describe("NetworkCreateChannelDialog", () => {
         isSubmitting={false}
         onChannelNameChange={onChannelNameChange}
         onOpenChange={() => undefined}
+        onPurposeChange={() => undefined}
         onSubmit={() => undefined}
         onToggleAgent={() => undefined}
         open
@@ -54,6 +56,36 @@ describe("NetworkCreateChannelDialog", () => {
     expect(onChannelNameChange).toHaveBeenCalledWith("deployments");
   });
 
+  it("Should surface the purpose input wired to onPurposeChange", () => {
+    const onPurposeChange = vi.fn();
+    render(
+      <NetworkCreateChannelDialog
+        agents={agentFixtures}
+        canSubmit
+        draft={createNetworkChannelDraft()}
+        isSubmitting={false}
+        onChannelNameChange={() => undefined}
+        onOpenChange={() => undefined}
+        onPurposeChange={onPurposeChange}
+        onSubmit={() => undefined}
+        onToggleAgent={() => undefined}
+        open
+        workspaceName="polybot"
+      />
+    );
+
+    fireEvent.change(screen.getByTestId("network-channel-purpose-input"), {
+      target: { value: "Coordinate deploy verification" },
+    });
+
+    expect(screen.getByTestId("network-channel-purpose-input")).toBeRequired();
+    expect(screen.getByTestId("network-channel-purpose-input")).toHaveAttribute(
+      "aria-required",
+      "true"
+    );
+    expect(onPurposeChange).toHaveBeenCalledWith("Coordinate deploy verification");
+  });
+
   it("Should toggle an agent when its row is clicked", () => {
     const onToggleAgent = vi.fn();
     render(
@@ -64,6 +96,7 @@ describe("NetworkCreateChannelDialog", () => {
         isSubmitting={false}
         onChannelNameChange={() => undefined}
         onOpenChange={() => undefined}
+        onPurposeChange={() => undefined}
         onSubmit={() => undefined}
         onToggleAgent={onToggleAgent}
         open
@@ -85,6 +118,7 @@ describe("NetworkCreateChannelDialog", () => {
         isSubmitting={false}
         onChannelNameChange={() => undefined}
         onOpenChange={() => undefined}
+        onPurposeChange={() => undefined}
         onSubmit={() => undefined}
         onToggleAgent={() => undefined}
         open
@@ -107,11 +141,13 @@ describe("NetworkCreateChannelDialog", () => {
         draft={{
           ...createNetworkChannelDraft(),
           channelName: "deploy",
+          purpose: "Coordinate deploy verification",
           selectedAgentNames: [agentFixtures[0]!.name],
         }}
         isSubmitting={false}
         onChannelNameChange={() => undefined}
         onOpenChange={() => undefined}
+        onPurposeChange={() => undefined}
         onSubmit={onSubmit}
         onToggleAgent={() => undefined}
         open
@@ -133,6 +169,7 @@ describe("NetworkCreateChannelDialog", () => {
         isSubmitting={false}
         onChannelNameChange={() => undefined}
         onOpenChange={onOpenChange}
+        onPurposeChange={() => undefined}
         onSubmit={() => undefined}
         onToggleAgent={() => undefined}
         open

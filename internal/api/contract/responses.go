@@ -201,6 +201,11 @@ type NetworkPeerResponse struct {
 	Peer NetworkPeerDetailPayload `json:"peer"`
 }
 
+// NetworkPeerMessagesResponse wraps the peer-room timeline payload.
+type NetworkPeerMessagesResponse struct {
+	Messages []NetworkChannelMessagePayload `json:"messages"`
+}
+
 // NetworkSendResponse wraps the outbound send result payload.
 type NetworkSendResponse struct {
 	Message NetworkSendPayload `json:"message"`

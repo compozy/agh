@@ -8912,9 +8912,20 @@
                                                     "channel": {
                                                         "type": "string"
                                                     },
-                                                    "last_message_at": {
+                                                    "created_at": {
                                                         "format": "date-time",
                                                         "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "created_by": {
+                                                        "type": "string"
+                                                    },
+                                                    "last_activity_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "last_message_preview": {
                                                         "type": "string"
                                                     },
                                                     "local_peer_count": {
@@ -8926,11 +8937,17 @@
                                                     "peer_count": {
                                                         "type": "integer"
                                                     },
+                                                    "purpose": {
+                                                        "type": "string"
+                                                    },
                                                     "remote_peer_count": {
                                                         "type": "integer"
                                                     },
                                                     "session_count": {
                                                         "type": "integer"
+                                                    },
+                                                    "workspace_id": {
+                                                        "type": "string"
                                                     }
                                                 },
                                                 "required": ["channel", "peer_count"],
@@ -9002,11 +9019,14 @@
                                     "channel": {
                                         "type": "string"
                                     },
+                                    "purpose": {
+                                        "type": "string"
+                                    },
                                     "workspace_id": {
                                         "type": "string"
                                     }
                                 },
-                                "required": ["agent_names", "channel", "workspace_id"],
+                                "required": ["agent_names", "channel", "purpose", "workspace_id"],
                                 "type": "object"
                             }
                         }
@@ -9025,9 +9045,35 @@
                                                 "channel": {
                                                     "type": "string"
                                                 },
-                                                "last_message_at": {
+                                                "created_at": {
                                                     "format": "date-time",
                                                     "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "created_by": {
+                                                    "type": "string"
+                                                },
+                                                "kind_counts": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "count": {
+                                                                "type": "integer"
+                                                            },
+                                                            "kind": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["count", "kind"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "last_activity_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "last_message_preview": {
                                                     "type": "string"
                                                 },
                                                 "local_peer_count": {
@@ -9142,6 +9188,9 @@
                                                         "type": "object"
                                                     },
                                                     "type": "array"
+                                                },
+                                                "purpose": {
+                                                    "type": "string"
                                                 },
                                                 "remote_peer_count": {
                                                     "type": "integer"
@@ -9268,6 +9317,9 @@
                                                         "type": "object"
                                                     },
                                                     "type": "array"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
                                                 }
                                             },
                                             "required": ["channel", "peer_count"],
@@ -9379,9 +9431,35 @@
                                                 "channel": {
                                                     "type": "string"
                                                 },
-                                                "last_message_at": {
+                                                "created_at": {
                                                     "format": "date-time",
                                                     "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "created_by": {
+                                                    "type": "string"
+                                                },
+                                                "kind_counts": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "count": {
+                                                                "type": "integer"
+                                                            },
+                                                            "kind": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["count", "kind"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "last_activity_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "last_message_preview": {
                                                     "type": "string"
                                                 },
                                                 "local_peer_count": {
@@ -9496,6 +9574,9 @@
                                                         "type": "object"
                                                     },
                                                     "type": "array"
+                                                },
+                                                "purpose": {
+                                                    "type": "string"
                                                 },
                                                 "remote_peer_count": {
                                                     "type": "integer"
@@ -9622,6 +9703,9 @@
                                                         "type": "object"
                                                     },
                                                     "type": "array"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
                                                 }
                                             },
                                             "required": ["channel", "peer_count"],
@@ -9722,6 +9806,22 @@
                         }
                     },
                     {
+                        "description": "Return messages before the specified message id",
+                        "in": "query",
+                        "name": "before",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Return messages after the specified message id",
+                        "in": "query",
+                        "name": "after",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "Maximum number of timeline messages to return",
                         "in": "query",
                         "name": "limit",
@@ -9740,7 +9840,14 @@
                                         "messages": {
                                             "items": {
                                                 "properties": {
+                                                    "body": {},
+                                                    "causation_id": {
+                                                        "type": "string"
+                                                    },
                                                     "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "direction": {
                                                         "type": "string"
                                                     },
                                                     "display_name": {
@@ -9749,13 +9856,28 @@
                                                     "intent": {
                                                         "type": "string"
                                                     },
+                                                    "interaction_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "type": "string"
+                                                    },
                                                     "local": {
                                                         "type": "boolean"
                                                     },
                                                     "message_id": {
                                                         "type": "string"
                                                     },
-                                                    "peer_id": {
+                                                    "peer_from": {
+                                                        "type": "string"
+                                                    },
+                                                    "peer_to": {
+                                                        "type": "string"
+                                                    },
+                                                    "preview_text": {
+                                                        "type": "string"
+                                                    },
+                                                    "reply_to": {
                                                         "type": "string"
                                                     },
                                                     "session_id": {
@@ -9767,13 +9889,18 @@
                                                     "timestamp": {
                                                         "format": "date-time",
                                                         "type": "string"
+                                                    },
+                                                    "trace_id": {
+                                                        "type": "string"
                                                     }
                                                 },
                                                 "required": [
+                                                    "body",
                                                     "channel",
+                                                    "direction",
+                                                    "kind",
                                                     "message_id",
-                                                    "peer_id",
-                                                    "text",
+                                                    "peer_from",
                                                     "timestamp"
                                                 ],
                                                 "type": "object"
@@ -10483,6 +10610,202 @@
                     }
                 },
                 "summary": "Get one visible network peer detail",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/peers/{peer_id}/messages": {
+            "get": {
+                "operationId": "listNetworkPeerMessages",
+                "parameters": [
+                    {
+                        "description": "Network peer id",
+                        "in": "path",
+                        "name": "peer_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Return messages before the specified message id",
+                        "in": "query",
+                        "name": "before",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Return messages after the specified message id",
+                        "in": "query",
+                        "name": "after",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of timeline messages to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "messages": {
+                                            "items": {
+                                                "properties": {
+                                                    "body": {},
+                                                    "causation_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "direction": {
+                                                        "type": "string"
+                                                    },
+                                                    "display_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "intent": {
+                                                        "type": "string"
+                                                    },
+                                                    "interaction_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "type": "string"
+                                                    },
+                                                    "local": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "message_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "peer_from": {
+                                                        "type": "string"
+                                                    },
+                                                    "peer_to": {
+                                                        "type": "string"
+                                                    },
+                                                    "preview_text": {
+                                                        "type": "string"
+                                                    },
+                                                    "reply_to": {
+                                                        "type": "string"
+                                                    },
+                                                    "session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "text": {
+                                                        "type": "string"
+                                                    },
+                                                    "timestamp": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "trace_id": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "body",
+                                                    "channel",
+                                                    "direction",
+                                                    "kind",
+                                                    "message_id",
+                                                    "peer_from",
+                                                    "timestamp"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["messages"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid peer timeline request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network peer not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List the directed room timeline for one network peer",
                 "tags": ["network"],
                 "x-agh-transports": ["http", "uds"]
             }

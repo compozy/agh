@@ -55,24 +55,20 @@ describe("network operator selectors", () => {
     });
 
     expect(selectors.navNetwork).toBe(`locator:${networkOperatorTestIds.navNetwork}`);
-    expect(selectors.channelsTab).toBe(`locator:${networkOperatorTestIds.channelsTab}`);
+    expect(selectors.workspace).toBe(`locator:${networkOperatorTestIds.workspace}`);
     expect(selectors.openCreateDialog).toBe(`locator:${networkOperatorTestIds.openCreateDialog}`);
     expect(selectors.channelNameInput).toBe(`locator:${networkOperatorTestIds.channelNameInput}`);
-    expect(selectors.channelDetailPanel).toBe(
-      `locator:${networkOperatorTestIds.channelDetailPanel}`
-    );
-    expect(selectors.queuedMessagesMetric).toBe(
-      `locator:${networkOperatorTestIds.queuedMessagesMetric}`
-    );
-    expect(selectors.peerDetailPanel).toBe(`locator:${networkOperatorTestIds.peerDetailPanel}`);
+    expect(selectors.roomHeader).toBe(`locator:${networkOperatorTestIds.roomHeader}`);
+    expect(selectors.roomIntro).toBe(`locator:${networkOperatorTestIds.roomIntro}`);
+    expect(selectors.detailsPanel).toBe(`locator:${networkOperatorTestIds.detailsPanel}`);
+    expect(selectors.messageList).toBe(`locator:${networkOperatorTestIds.messageList}`);
     expect(selectors.agentOption("mock-ops-coordinator")).toBe(
       "locator:network-agent-option-mock-ops-coordinator"
     );
-    expect(selectors.channelItem("builders")).toBe("locator:network-channel-item-builders");
-    expect(selectors.peerItem("peer_ops")).toBe("locator:network-peer-item-peer_ops");
-    expect(selectors.peerMetric("delivered")).toBe("locator:network-peer-metric-delivered");
+    expect(selectors.channelItem("builders")).toBe("locator:network-room-channel-builders");
+    expect(selectors.peerItem("peer_ops")).toBe("locator:network-room-peer-peer_ops");
     expect(selectors.channelMessage("browser_msg_say_01")).toBe(
-      "locator:network-channel-message-browser_msg_say_01"
+      "locator:network-message-browser_msg_say_01"
     );
   });
 });

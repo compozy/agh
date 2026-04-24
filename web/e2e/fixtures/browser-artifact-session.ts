@@ -181,8 +181,9 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)?.textContent?.trim() ||
       undefined;
     const readHeading = (testId: string) =>
-      document.querySelector<HTMLElement>(`[data-testid="${testId}"] h2`)?.textContent?.trim() ||
-      undefined;
+      document
+        .querySelector<HTMLElement>(`[data-testid="${testId}"] h1, [data-testid="${testId}"] h2`)
+        ?.textContent?.trim() || undefined;
     const countByPrefix = (prefix: string) =>
       document.querySelectorAll(`[data-testid^="${prefix}"]`).length;
     const countAutomationRunCards = () =>
@@ -198,12 +199,13 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
             !testId.startsWith("automation-run-session-link-")
         ).length;
     const networkActiveTab = document.querySelector(
-      '[data-testid="network-tab-channels"][aria-pressed="true"]'
+      '[data-testid^="network-room-channel-"] button[aria-current="page"]'
     )
       ? "channels"
-      : document.querySelector('[data-testid="network-tab-peers"][aria-pressed="true"]')
+      : document.querySelector('[data-testid^="network-room-peer-"] button[aria-current="page"]')
         ? "peers"
         : undefined;
+    const networkSelectedRoom = readHeading("network-room-header");
     const automationActiveTab = document.querySelector(
       '[data-testid="automation-kind-jobs"][aria-pressed="true"]'
     )
@@ -271,12 +273,13 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         '[data-testid="message-bubble-user"], [data-testid="message-bubble-assistant"]'
       ).length,
       network_active_tab: networkActiveTab,
-      network_channel_count: countByPrefix("network-channel-item-"),
-      network_message_count: countByPrefix("network-channel-message-"),
-      network_peer_count: countByPrefix("network-peer-item-"),
-      network_selected_channel: readHeading("network-channel-detail-panel"),
-      network_selected_peer: readHeading("network-peer-detail-panel"),
-      network_view_visible: document.querySelector('[data-testid="network-tab-pills"]') !== null,
+      network_channel_count: countByPrefix("network-room-channel-"),
+      network_message_count: countByPrefix("network-message-"),
+      network_peer_count: countByPrefix("network-room-peer-"),
+      network_selected_channel:
+        networkActiveTab === "channels" ? networkSelectedRoom?.replace(/^#/, "") : undefined,
+      network_selected_peer: networkActiveTab === "peers" ? networkSelectedRoom : undefined,
+      network_view_visible: document.querySelector('[data-testid="network-workspace"]') !== null,
       permission_prompt_visible:
         document.querySelector('[data-testid="permission-prompt"]') !== null,
       processing_indicator_visible:

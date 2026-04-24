@@ -109,23 +109,83 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 		})
 	}
 
-	sessionChannel := "builders"
-	sessions := []*session.Info{
-		{ID: "sess-visible", Channel: " builders ", State: session.StateActive},
-		{ID: "sess-stopped", Channel: "builders", State: session.StateStopped},
+	t.Run("Should report visible session channels", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := []*session.Info{
+			{ID: "sess-visible", Channel: " builders ", State: session.StateActive},
+			{ID: "sess-stopped", Channel: "builders", State: session.StateStopped},
+		}
+		peers := []network.PeerInfo{{PeerID: "peer-1", Channel: "operators"}}
+		if !networkChannelExists(sessions, peers, nil, "builders") {
+			t.Fatal("networkChannelExists() = false, want true for visible session channel")
+		}
+	})
+
+	t.Run("Should report peer-backed channels", func(t *testing.T) {
+		t.Parallel()
+
+		if !networkChannelExists(nil, []network.PeerInfo{{PeerID: "peer-2", Channel: "match"}}, nil, "match") {
+			t.Fatal("networkChannelExists() = false, want true for peer channel")
+		}
+	})
+
+	t.Run("Should report persisted metadata channels", func(t *testing.T) {
+		t.Parallel()
+
+		metadata := &store.NetworkChannelEntry{Channel: "builders"}
+		if !networkChannelExists(nil, nil, metadata, "builders") {
+			t.Fatal("networkChannelExists() = false, want true for persisted metadata")
+		}
+	})
+
+	t.Run("Should report missing channels as absent", func(t *testing.T) {
+		t.Parallel()
+
+		peers := []network.PeerInfo{{PeerID: "peer-1", Channel: "operators"}}
+		if networkChannelExists(nil, peers, nil, "missing") {
+			t.Fatal("networkChannelExists() = true, want false for missing channel")
+		}
+	})
+
+	t.Run("Should recognize network channel not-found errors", func(t *testing.T) {
+		t.Parallel()
+
+		if !isNetworkChannelNotFound(errNetworkChannelNotFound) {
+			t.Fatal("isNetworkChannelNotFound() = false, want true")
+		}
+	})
+}
+
+func TestNetworkChannelAggregateKeepsLatestMessagePreviewWhenMetadataIsNewer(t *testing.T) {
+	t.Parallel()
+
+	recordedAt := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
+	metadataAt := recordedAt.Add(10 * time.Minute)
+	aggregates := make(map[string]*networkChannelAggregate)
+
+	applyNetworkChannelMetadata(aggregates, []store.NetworkChannelEntry{{
+		Channel:   "builders",
+		UpdatedAt: metadataAt,
+	}})
+	applyNetworkChannelMessages(aggregates, []store.NetworkMessageEntry{{
+		Channel:   "builders",
+		Text:      "hello from text",
+		Timestamp: recordedAt,
+	}})
+
+	aggregate := aggregates["builders"]
+	if aggregate == nil {
+		t.Fatal("aggregate = nil, want builders aggregate")
 	}
-	peers := []network.PeerInfo{{PeerID: "peer-1", Channel: "operators"}}
-	if !networkChannelExists(sessions, peers, sessionChannel) {
-		t.Fatal("networkChannelExists() = false, want true for visible session channel")
+	if aggregate.lastActivityAt == nil || !aggregate.lastActivityAt.Equal(metadataAt) {
+		t.Fatalf("aggregate.lastActivityAt = %#v, want %s", aggregate.lastActivityAt, metadataAt)
 	}
-	if !networkChannelExists(nil, []network.PeerInfo{{PeerID: "peer-2", Channel: "match"}}, "match") {
-		t.Fatal("networkChannelExists() = false, want true for peer channel")
+	if aggregate.lastMessageAt == nil || !aggregate.lastMessageAt.Equal(recordedAt) {
+		t.Fatalf("aggregate.lastMessageAt = %#v, want %s", aggregate.lastMessageAt, recordedAt)
 	}
-	if networkChannelExists(nil, peers, "missing") {
-		t.Fatal("networkChannelExists() = true, want false for missing channel")
-	}
-	if !isNetworkChannelNotFound(errNetworkChannelNotFound) {
-		t.Fatal("isNetworkChannelNotFound() = false, want true")
+	if got, want := aggregate.lastMessagePreview, "hello from text"; got != want {
+		t.Fatalf("aggregate.lastMessagePreview = %q, want %q", got, want)
 	}
 }
 
@@ -351,38 +411,59 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 		t.Fatalf("SessionPayloadFromInfo(nil) = %#v", zero)
 	}
 
-	ids := networkMessageIDSet([]store.NetworkMessageEntry{
-		{MessageID: " msg-1 "},
-		{MessageID: ""},
-		{MessageID: "msg-2"},
-	})
-	if _, ok := ids["msg-1"]; !ok {
-		t.Fatalf("networkMessageIDSet() missing trimmed msg-1: %#v", ids)
-	}
+	t.Run("Should derive network message previews", func(t *testing.T) {
+		t.Parallel()
 
-	directions := networkMessageDirectionMap(
-		[]store.NetworkAuditEntry{
-			{MessageID: " msg-1 ", Direction: network.AuditDirectionSent},
-			{MessageID: "msg-1", Direction: network.AuditDirectionReceived},
-			{MessageID: "msg-2", Direction: "invalid"},
-			{MessageID: "msg-3", Direction: network.AuditDirectionReceived},
-		},
-		map[string]struct{}{"msg-1": {}, "msg-2": {}},
-	)
-	if got, want := directions["msg-1"], network.AuditDirectionSent; got != want {
-		t.Fatalf("networkMessageDirectionMap(msg-1) = %q, want %q", got, want)
-	}
-	if _, ok := directions["msg-2"]; ok {
-		t.Fatalf("networkMessageDirectionMap(msg-2) unexpectedly set: %#v", directions)
-	}
-
-	sessionsByID := sessionInfoMapByID([]*session.Info{
-		{ID: " sess-1 ", Name: "Support"},
-		nil,
+		if got, want := networkMessagePreview(store.NetworkMessageEntry{
+			Text: "hello from text",
+		}), "hello from text"; got != want {
+			t.Fatalf("networkMessagePreview(text fallback) = %q, want %q", got, want)
+		}
+		if got, want := networkMessagePreview(store.NetworkMessageEntry{
+			Text:        "hello from text",
+			PreviewText: "hello from preview",
+		}), "hello from preview"; got != want {
+			t.Fatalf("networkMessagePreview(preview) = %q, want %q", got, want)
+		}
 	})
-	if sessionsByID["sess-1"] == nil {
-		t.Fatalf("sessionInfoMapByID() missing trimmed session id: %#v", sessionsByID)
-	}
+
+	t.Run("Should map network channel messages to payloads", func(t *testing.T) {
+		t.Parallel()
+
+		sessionsByID := sessionInfoMapByID([]*session.Info{
+			{ID: " sess-1 ", Name: "Support"},
+			nil,
+		})
+		if sessionsByID["sess-1"] == nil {
+			t.Fatalf("sessionInfoMapByID() missing trimmed session id: %#v", sessionsByID)
+		}
+
+		payloadMessage := NetworkChannelMessagePayloadFromEntry(
+			store.NetworkMessageEntry{
+				MessageID:   "msg-1",
+				Channel:     "builders",
+				Direction:   network.AuditDirectionSent,
+				PeerFrom:    "peer-1",
+				PeerTo:      "peer-2",
+				Kind:        string(network.KindDirect),
+				SessionID:   "sess-1",
+				PreviewText: "hello from preview",
+				Body:        json.RawMessage(`{"text":"hello from preview"}`),
+				Timestamp:   time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
+			},
+			sessionsByID,
+			map[string]network.PeerInfo{},
+		)
+		if got, want := payloadMessage.Direction, network.AuditDirectionSent; got != want {
+			t.Fatalf("NetworkChannelMessagePayloadFromEntry().Direction = %q, want %q", got, want)
+		}
+		if got, want := payloadMessage.PeerFrom, "peer-1"; got != want {
+			t.Fatalf("NetworkChannelMessagePayloadFromEntry().PeerFrom = %q, want %q", got, want)
+		}
+		if got, want := payloadMessage.DisplayName, "Support"; got != want {
+			t.Fatalf("NetworkChannelMessagePayloadFromEntry().DisplayName = %q, want %q", got, want)
+		}
+	})
 }
 
 func int64Ptr(value int64) *int64 {

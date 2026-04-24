@@ -84,6 +84,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/network/inbox",
 		"GET /api/network/peers",
 		"GET /api/network/peers/:peer_id",
+		"GET /api/network/peers/:peer_id/messages",
 		"GET /api/network/channels",
 		"GET /api/network/channels/:channel",
 		"GET /api/network/channels/:channel/messages",
