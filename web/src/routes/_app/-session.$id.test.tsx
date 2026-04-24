@@ -4,21 +4,32 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "@/systems/session/types";
 
-const { mockNavigate, mockUseSession, mockUseWorkspaces, mockResume, mockStop, mockClear } =
-  vi.hoisted(() => ({
-    mockNavigate: vi.fn(),
-    mockUseSession: vi.fn(),
-    mockUseWorkspaces: vi.fn(() => ({ data: [] })),
-    mockResume: {
-      mutate: vi.fn<(id: string, opts?: { onError?: (error: unknown) => void }) => void>(),
-      isPending: false as boolean,
-    },
-    mockStop: { mutate: vi.fn(), isPending: false },
-    mockClear: {
-      mutate: vi.fn(),
-      isPending: false,
-    },
-  }));
+const {
+  mockNavigate,
+  mockUseSession,
+  mockUseWorkspaces,
+  mockResume,
+  mockStop,
+  mockClear,
+  mockDelete,
+} = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
+  mockUseSession: vi.fn(),
+  mockUseWorkspaces: vi.fn(() => ({ data: [] })),
+  mockResume: {
+    mutate: vi.fn<(id: string, opts?: { onError?: (error: unknown) => void }) => void>(),
+    isPending: false as boolean,
+  },
+  mockStop: { mutate: vi.fn(), isPending: false },
+  mockClear: {
+    mutate: vi.fn(),
+    isPending: false,
+  },
+  mockDelete: {
+    mutate: vi.fn(),
+    isPending: false,
+  },
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: (_path: string) => (opts: { component: () => ReactNode }) => ({
@@ -60,6 +71,7 @@ vi.mock("@/systems/session/hooks/use-session-actions", () => ({
   useResumeSession: () => mockResume,
   useStopSession: () => mockStop,
   useClearSessionConversation: () => mockClear,
+  useDeleteSession: () => mockDelete,
 }));
 
 vi.mock("@/systems/session/adapters/session-api", () => ({
@@ -99,6 +111,7 @@ describe("Session route — resume failure UX", () => {
     mockResume.isPending = false;
     mockStop.mutate.mockReset();
     mockClear.mutate.mockReset();
+    mockDelete.mutate.mockReset();
     mockUseSession.mockReset();
     mockUseWorkspaces.mockReset();
     mockUseWorkspaces.mockReturnValue({ data: [] });
