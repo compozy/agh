@@ -48,7 +48,11 @@ func TestGlobalDBTransactionCleanupHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("db.Close() error = %v", closeErr)
+		}
+	})
 
 	if err := rollbackTx(nil, "nil"); err != nil {
 		t.Fatalf("rollbackTx(nil) error = %v", err)
@@ -68,7 +72,11 @@ func TestGlobalDBTransactionCleanupHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Conn() error = %v", err)
 	}
-	t.Cleanup(func() { _ = conn.Close() })
+	t.Cleanup(func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			t.Errorf("conn.Close() error = %v", closeErr)
+		}
+	})
 	if err := rollbackImmediate(ctx, nil, "nil"); err != nil {
 		t.Fatalf("rollbackImmediate(nil) error = %v", err)
 	}
@@ -684,7 +692,11 @@ func TestMigrateSessionColumnsAddsProviderIdempotently(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
 		}
-		t.Cleanup(func() { _ = db.Close() })
+		t.Cleanup(func() {
+			if closeErr := db.Close(); closeErr != nil {
+				t.Errorf("db.Close() error = %v", closeErr)
+			}
+		})
 
 		if _, err := db.ExecContext(testutil.Context(t), `CREATE TABLE sessions (
 			id TEXT PRIMARY KEY,
@@ -780,7 +792,11 @@ func TestCopyMigratedSessionsPreservesProvider(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
 		}
-		t.Cleanup(func() { _ = db.Close() })
+		t.Cleanup(func() {
+			if closeErr := db.Close(); closeErr != nil {
+				t.Errorf("db.Close() error = %v", closeErr)
+			}
+		})
 
 		legacySessions, seeds, err := loadLegacySessions(testutil.Context(t), db)
 		if err != nil {

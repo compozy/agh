@@ -69,6 +69,25 @@ describe("SessionResumeFailure", () => {
     expect(screen.queryByTestId("session-resume-failure-provider")).not.toBeInTheDocument();
   });
 
+  it("does not render the agent metadata when the agent name is only whitespace", () => {
+    render(
+      <SessionResumeFailure
+        agentName="   "
+        isRetrying={false}
+        message="Resume failed unexpectedly."
+        missingProvider="codex"
+        onDismiss={vi.fn()}
+        onRetry={vi.fn()}
+        sessionId="sess_trimmed_meta"
+      />
+    );
+
+    expect(screen.getByTestId("session-resume-failure-meta")).toHaveTextContent(
+      "sess_trimmed_meta"
+    );
+    expect(screen.getByTestId("session-resume-failure-meta")).not.toHaveTextContent(/\bagent\b/i);
+  });
+
   it("invokes retry and dismiss callbacks", () => {
     const onRetry = vi.fn();
     const onDismiss = vi.fn();
@@ -102,5 +121,8 @@ describe("SessionResumeFailure", () => {
     );
 
     expect(screen.getByTestId("session-resume-failure-retry")).toBeDisabled();
+    expect(screen.getByTestId("session-resume-failure-retry").querySelector("svg")).toHaveClass(
+      "animate-spin"
+    );
   });
 });

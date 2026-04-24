@@ -7,6 +7,7 @@ import (
 	"maps"
 	"strconv"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -19,11 +20,16 @@ type capturedLogRecord struct {
 type captureLogHandler struct {
 	mu      *sync.RWMutex
 	records *[]capturedLogRecord
-	attrs   []slog.Attr
+	attrs   []boundLogAttr
 	groups  []string
 }
 
 var _ slog.Handler = (*captureLogHandler)(nil)
+
+type boundLogAttr struct {
+	attr   slog.Attr
+	groups []string
+}
 
 func newCaptureLogHandler() *captureLogHandler {
 	records := make([]capturedLogRecord, 0, 8)
@@ -68,7 +74,7 @@ func (h *captureLogHandler) Handle(_ context.Context, record slog.Record) error 
 	}
 
 	for _, attr := range h.attrs {
-		add(h.groups, attr)
+		add(attr.groups, attr.attr)
 	}
 	record.Attrs(func(attr slog.Attr) bool {
 		add(h.groups, attr)
@@ -86,15 +92,61 @@ func (h *captureLogHandler) Handle(_ context.Context, record slog.Record) error 
 }
 
 func (h *captureLogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	if len(attrs) == 0 {
+		return h
+	}
+
 	clone := *h
-	clone.attrs = append(append([]slog.Attr(nil), h.attrs...), attrs...)
+	clone.attrs = append([]boundLogAttr(nil), h.attrs...)
+	for _, attr := range attrs {
+		clone.attrs = append(clone.attrs, boundLogAttr{
+			attr:   attr,
+			groups: append([]string(nil), h.groups...),
+		})
+	}
 	return &clone
 }
 
 func (h *captureLogHandler) WithGroup(name string) slog.Handler {
+	if name == "" {
+		return h
+	}
+
 	clone := *h
 	clone.groups = append(append([]string(nil), h.groups...), name)
 	return &clone
+}
+
+func TestCaptureLogHandlerBindsAttrsToTheirCurrentGroups(t *testing.T) {
+	t.Parallel()
+
+	handler := newCaptureLogHandler()
+	logger := slog.New(handler).WithGroup("outer").With("pre", 1).WithGroup("inner")
+
+	logger.Info("grouped", "post", 2)
+
+	record, ok := handler.FindByMessage("grouped")
+	if !ok {
+		t.Fatalf("FindByMessage(grouped) = false, records = %#v", handler.Records())
+	}
+	if got, want := record.Attrs["outer.pre"], "1"; got != want {
+		t.Fatalf("Attrs[outer.pre] = %q, want %q", got, want)
+	}
+	if _, ok := record.Attrs["outer.inner.pre"]; ok {
+		t.Fatalf("Attrs unexpectedly regrouped bound attr: %#v", record.Attrs)
+	}
+	if got, want := record.Attrs["outer.inner.post"], "2"; got != want {
+		t.Fatalf("Attrs[outer.inner.post] = %q, want %q", got, want)
+	}
+}
+
+func TestCaptureLogHandlerWithEmptyGroupReturnsReceiver(t *testing.T) {
+	t.Parallel()
+
+	handler := newCaptureLogHandler()
+	if got := handler.WithGroup(""); got != handler {
+		t.Fatalf("WithGroup(\"\") returned %T %p, want original handler %p", got, got, handler)
+	}
 }
 
 func (h *captureLogHandler) Records() []capturedLogRecord {

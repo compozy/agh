@@ -24,7 +24,9 @@ export function SessionResumeFailure({
   onDismiss,
 }: SessionResumeFailureProps) {
   const normalizedMissingProvider = missingProvider?.trim() ?? "";
+  const normalizedAgentName = agentName?.trim() ?? "";
   const hasProviderDetail = normalizedMissingProvider.length > 0;
+  const hasAgentDetail = normalizedAgentName.length > 0;
   const title = hasProviderDetail ? "Resume failed: provider no longer available" : "Resume failed";
 
   return (
@@ -74,11 +76,11 @@ export function SessionResumeFailure({
                 {sessionId}
               </dd>
             </div>
-            {agentName ? (
+            {hasAgentDetail ? (
               <div className="flex items-center gap-1.5">
                 <dt>agent</dt>
                 <dd className="normal-case tracking-normal text-[color:var(--color-text-secondary)]">
-                  {agentName}
+                  {normalizedAgentName}
                 </dd>
               </div>
             ) : null}

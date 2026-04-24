@@ -634,6 +634,8 @@ func TestManagerIntegrationRemovePurgesSyntheticState(t *testing.T) {
 
 func TestManagerIntegrationSyntheticQueueStateTransitions(t *testing.T) {
 	t.Run("Should requeue a claimed synthetic prompt before clearing dispatch", func(t *testing.T) {
+		t.Parallel()
+
 		manager := &Manager{
 			syntheticQueues: map[string][]queuedSyntheticPrompt{
 				"sess-synth": {{
@@ -667,6 +669,8 @@ func TestManagerIntegrationSyntheticQueueStateTransitions(t *testing.T) {
 	})
 
 	t.Run("Should drain queued synthetic prompts while clearing dispatch", func(t *testing.T) {
+		t.Parallel()
+
 		manager := &Manager{
 			syntheticQueues: map[string][]queuedSyntheticPrompt{
 				"sess-synth": {
