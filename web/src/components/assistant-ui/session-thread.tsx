@@ -1,7 +1,16 @@
-import { type ComponentPropsWithoutRef } from "react";
-import { Loader2, SendHorizontal, Square } from "lucide-react";
+import { type ComponentPropsWithoutRef, useCallback, useState } from "react";
+import { Loader2, SendHorizontal, Square, Trash2 } from "lucide-react";
 import { AuiIf, ComposerPrimitive, MessagePrimitive, ThreadPrimitive } from "@assistant-ui/react";
 
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import { ThinkingBlock } from "@/systems/session/components/thinking-block";
@@ -12,6 +21,9 @@ interface SessionThreadProps {
   agentName: string;
   canPrompt: boolean;
   onCancelPrompt: () => void;
+  onClearConversation?: () => void;
+  canClearConversation?: boolean;
+  isClearingConversation?: boolean;
 }
 
 function SessionTextPart({ text }: { text: string }) {
@@ -93,64 +105,149 @@ function SessionComposer({
   sessionId,
   canPrompt,
   onCancelPrompt,
-}: Pick<SessionThreadProps, "sessionId" | "canPrompt" | "onCancelPrompt">) {
+  onClearConversation,
+  canClearConversation = false,
+  isClearingConversation = false,
+}: Pick<
+  SessionThreadProps,
+  | "sessionId"
+  | "canPrompt"
+  | "onCancelPrompt"
+  | "onClearConversation"
+  | "canClearConversation"
+  | "isClearingConversation"
+>) {
   const { isRunning } = useSessionComposerState(sessionId);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+
+  const handleConfirmClear = useCallback(() => {
+    setClearDialogOpen(false);
+    onClearConversation?.();
+  }, [onClearConversation]);
 
   return (
-    <div
-      className={cn(
-        "border-t px-4 py-3",
-        "border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]"
-      )}
-    >
-      <ComposerPrimitive.Root
+    <>
+      <div
         className={cn(
-          "flex flex-col gap-2 rounded-xl border px-3 pt-2.5 pb-2",
-          "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
-          "focus-within:border-[color:var(--color-accent)] transition-colors"
+          "border-t px-4 py-3",
+          "border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)]"
         )}
       >
-        <ComposerPrimitive.Input
-          disabled={!canPrompt}
-          placeholder={canPrompt ? "Send a message..." : "Session is not active"}
-          rows={1}
-          maxRows={12}
-          submitMode="enter"
+        <ComposerPrimitive.Root
           className={cn(
-            "min-h-6 w-full resize-none border-none bg-transparent p-0 text-sm leading-relaxed",
-            "text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-tertiary)]",
-            "shadow-none outline-none focus-visible:border-transparent focus-visible:ring-0",
-            "dark:bg-transparent"
+            "flex flex-col gap-2 rounded-xl border px-3 pt-2.5 pb-2",
+            "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]",
+            "focus-within:border-[color:var(--color-accent)] transition-colors"
           )}
-        />
-        <div className="flex items-center justify-end">
-          {isRunning ? (
-            <button
+        >
+          <ComposerPrimitive.Input
+            disabled={!canPrompt}
+            placeholder={canPrompt ? "Send a message..." : "Session is not active"}
+            rows={1}
+            maxRows={12}
+            submitMode="enter"
+            className={cn(
+              "min-h-6 w-full resize-none border-none bg-transparent p-0 text-sm leading-relaxed",
+              "text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-tertiary)]",
+              "shadow-none outline-none focus-visible:border-transparent focus-visible:ring-0",
+              "dark:bg-transparent"
+            )}
+          />
+          <div className="flex items-center justify-between gap-3">
+            {onClearConversation ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setClearDialogOpen(true)}
+                disabled={!canClearConversation || isRunning || isClearingConversation}
+                data-testid="composer-clear-button"
+              >
+                {isClearingConversation ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="size-3.5" />
+                )}
+                Clear conversation
+              </Button>
+            ) : (
+              <span />
+            )}
+
+            {isRunning ? (
+              <button
+                type="button"
+                onClick={onCancelPrompt}
+                className={cn(
+                  "inline-flex h-9 items-center gap-2 rounded-full px-3",
+                  "bg-[color:var(--color-danger)]/12 text-[color:var(--color-danger)]",
+                  "transition-colors hover:bg-[color:var(--color-danger)]/18"
+                )}
+              >
+                <Square className="size-3.5 fill-current" />
+                <span className="text-sm font-medium">Stop</span>
+              </button>
+            ) : (
+              <ComposerPrimitive.Send
+                className={cn(
+                  "inline-flex size-9 items-center justify-center rounded-full",
+                  "bg-[color:var(--color-accent)] text-white transition-colors",
+                  "hover:bg-[color:var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                )}
+              >
+                <SendHorizontal className="size-4" />
+              </ComposerPrimitive.Send>
+            )}
+          </div>
+        </ComposerPrimitive.Root>
+      </div>
+
+      <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+        <DialogContent
+          showCloseButton={!isClearingConversation}
+          className="max-w-md"
+          data-testid="composer-clear-dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>Clear conversation</DialogTitle>
+            <DialogDescription>
+              This removes the visible transcript for this session and starts a fresh runtime
+              conversation on the same session id.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
               type="button"
-              onClick={onCancelPrompt}
-              className={cn(
-                "inline-flex h-9 items-center gap-2 rounded-full px-3",
-                "bg-[color:var(--color-danger)]/12 text-[color:var(--color-danger)]",
-                "transition-colors hover:bg-[color:var(--color-danger)]/18"
-              )}
+              variant="ghost"
+              onClick={() => setClearDialogOpen(false)}
+              disabled={isClearingConversation}
+              data-testid="composer-clear-cancel"
             >
-              <Square className="size-3.5 fill-current" />
-              <span className="text-sm font-medium">Stop</span>
-            </button>
-          ) : (
-            <ComposerPrimitive.Send
-              className={cn(
-                "inline-flex size-9 items-center justify-center rounded-full",
-                "bg-[color:var(--color-accent)] text-white transition-colors",
-                "hover:bg-[color:var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-              )}
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmClear}
+              disabled={isClearingConversation}
+              data-testid="composer-clear-confirm"
             >
-              <SendHorizontal className="size-4" />
-            </ComposerPrimitive.Send>
-          )}
-        </div>
-      </ComposerPrimitive.Root>
-    </div>
+              {isClearingConversation ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Clearing
+                </>
+              ) : (
+                <>
+                  <Trash2 className="size-3.5" />
+                  Clear conversation
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -186,6 +283,9 @@ export function SessionThread({
   agentName,
   canPrompt,
   onCancelPrompt,
+  onClearConversation,
+  canClearConversation = false,
+  isClearingConversation = false,
 }: SessionThreadProps) {
   return (
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -204,6 +304,9 @@ export function SessionThread({
         sessionId={sessionId}
         canPrompt={canPrompt}
         onCancelPrompt={onCancelPrompt}
+        onClearConversation={onClearConversation}
+        canClearConversation={canClearConversation}
+        isClearingConversation={isClearingConversation}
       />
     </ThreadPrimitive.Root>
   );

@@ -55,6 +55,7 @@ describe("TasksDetailPreviewPanel", () => {
   });
 
   it("renders enriched detail summary, counts, deep link, and actions", () => {
+    const onDeleteTask = vi.fn();
     const onPublishTask = vi.fn();
     const onEnqueueRun = vi.fn();
     const task = buildTask();
@@ -69,6 +70,7 @@ describe("TasksDetailPreviewPanel", () => {
     render(
       <TasksDetailPreviewPanel
         detail={detail}
+        onDeleteTask={onDeleteTask}
         onEnqueueRun={onEnqueueRun}
         onPublishTask={onPublishTask}
         task={task}
@@ -85,6 +87,10 @@ describe("TasksDetailPreviewPanel", () => {
 
     fireEvent.click(screen.getByTestId("tasks-detail-preview-enqueue"));
     expect(onEnqueueRun).toHaveBeenCalledWith(task.id);
+
+    fireEvent.click(screen.getByTestId("tasks-detail-preview-delete"));
+    fireEvent.click(screen.getByTestId("tasks-detail-preview-delete-confirm"));
+    expect(onDeleteTask).toHaveBeenCalledWith(task.id);
   });
 
   it("wraps the task preview in CodeBlock with the yaml language when task.kind === 'yaml'", () => {

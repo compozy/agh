@@ -19,14 +19,13 @@ import type { SessionPayload, SessionState } from "../types";
 
 export interface ChatHeaderProps {
   session: SessionPayload;
+  onDelete: () => void;
   onStop: () => void;
   onResume: () => void;
-  onClear: () => void;
   workspaceName?: string;
-  canClear?: boolean;
+  isDeleting?: boolean;
   isStopping?: boolean;
   isResuming?: boolean;
-  isClearing?: boolean;
 }
 
 interface StateSignal {
@@ -43,25 +42,24 @@ const STATE_SIGNAL: Record<SessionState, StateSignal> = {
 
 export function ChatHeader({
   session,
+  onDelete,
   onStop,
   onResume,
-  onClear,
   workspaceName,
-  canClear = false,
+  isDeleting = false,
   isStopping = false,
   isResuming = false,
-  isClearing = false,
 }: ChatHeaderProps) {
-  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const isActive = session.state === "active" || session.state === "starting";
   const isStopped = session.state === "stopped";
   const signal = STATE_SIGNAL[session.state] ?? { tone: "neutral" };
-  const controlsBusy = isStopping || isResuming || isClearing;
+  const controlsBusy = isStopping || isResuming || isDeleting;
 
-  const handleConfirmClear = useCallback(() => {
-    setClearDialogOpen(false);
-    onClear();
-  }, [onClear]);
+  const handleConfirmDelete = useCallback(() => {
+    setDeleteDialogOpen(false);
+    onDelete();
+  }, [onDelete]);
 
   return (
     <>
@@ -122,12 +120,12 @@ export function ChatHeader({
             type="button"
             variant="ghost"
             size="icon-sm"
-            onClick={() => setClearDialogOpen(true)}
-            disabled={!canClear || controlsBusy}
-            data-testid="clear-button"
-            aria-label="Clear conversation"
+            onClick={() => setDeleteDialogOpen(true)}
+            disabled={controlsBusy}
+            data-testid="delete-button"
+            aria-label="Delete session"
           >
-            {isClearing ? (
+            {isDeleting ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
               <Trash2 className="size-3.5" />
@@ -171,45 +169,45 @@ export function ChatHeader({
         </div>
       </div>
 
-      <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent
-          showCloseButton={!isClearing}
+          showCloseButton={!isDeleting}
           className="max-w-md"
-          data-testid="clear-dialog"
+          data-testid="delete-dialog"
         >
           <DialogHeader>
-            <DialogTitle>Clear conversation</DialogTitle>
+            <DialogTitle>Delete session</DialogTitle>
             <DialogDescription>
-              This removes the full visible transcript for this session and starts a fresh runtime
-              conversation on the same session id.
+              This permanently removes <strong>{session.name?.trim() || session.id}</strong>,
+              including its transcript and history, and removes it from the session list.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setClearDialogOpen(false)}
-              disabled={isClearing}
-              data-testid="clear-dialog-cancel"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={isDeleting}
+              data-testid="delete-dialog-cancel"
             >
               Cancel
             </Button>
             <Button
               type="button"
               variant="destructive"
-              onClick={handleConfirmClear}
-              disabled={isClearing}
-              data-testid="clear-dialog-confirm"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              data-testid="delete-dialog-confirm"
             >
-              {isClearing ? (
+              {isDeleting ? (
                 <>
                   <Loader2 className="size-3.5 animate-spin" />
-                  Clearing
+                  Deleting
                 </>
               ) : (
                 <>
                   <Trash2 className="size-3.5" />
-                  Clear conversation
+                  Delete session
                 </>
               )}
             </Button>

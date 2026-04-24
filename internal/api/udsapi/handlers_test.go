@@ -95,6 +95,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/settings/providers/:name",
 		"DELETE /api/resources/:kind/:id",
 		"DELETE /api/sessions/:id",
+		"DELETE /api/tasks/:id",
 		"DELETE /api/tasks/:id/dependencies/:depends_on_id",
 		"DELETE /api/workspaces/:id",
 		"GET /api/agents",
@@ -211,6 +212,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/sessions/:id/prompt",
 		"POST /api/sessions/:id/prompt/cancel",
 		"POST /api/sessions/:id/resume",
+		"POST /api/sessions/:id/stop",
 		"POST /api/settings/actions/restart",
 		"POST /api/skills/:name/disable",
 		"POST /api/skills/:name/enable",
@@ -487,6 +489,8 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"GET /api/tasks/:id/stream":          "StreamTask",
 		"GET /api/tasks/:id/timeline":        "TaskTimeline",
 		"GET /api/tasks/:id/tree":            "TaskTree",
+		"DELETE /api/tasks/:id":              "DeleteTask",
+		"POST /api/sessions/:id/stop":        "StopSession",
 		"POST /api/tasks/:id/approve":        "ApproveTask",
 		"POST /api/tasks/:id/publish":        "PublishTask",
 		"POST /api/tasks/:id/reject":         "RejectTask",
@@ -963,6 +967,34 @@ func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 	}
 }
 
+func TestDeleteSessionHandlerReturnsNoContent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldReturnNoContent", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			DeleteFn: func(_ context.Context, id string) error {
+				if id != "sess-123" {
+					t.Fatalf("Delete() id = %q, want sess-123", id)
+				}
+				return nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(t, engine, http.MethodDelete, "/api/sessions/sess-123", nil)
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
+		}
+		if got := recorder.Body.String(); got != "" {
+			t.Fatalf("body = %q, want empty", got)
+		}
+	})
+}
+
 func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
@@ -976,7 +1008,7 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodDelete, "/api/sessions/sess-123", nil)
+	recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/stop", nil)
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
 	}

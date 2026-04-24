@@ -20,36 +20,39 @@ function SessionPageContent({
   sessionId,
   session,
   workspaceName,
+  onDeleteSuccess,
 }: {
   sessionId: string;
   session: SessionPayload;
   workspaceName?: string;
+  onDeleteSuccess: () => void;
 }) {
   const {
     canClear,
     canPrompt,
     handleCancelPrompt,
     handleClear,
+    handleDelete,
     handleResume,
     handleStop,
     isClearing,
+    isDeleting,
     isResuming,
     isStopping,
     messages,
-  } = useSessionPageControls(sessionId, session.state);
+  } = useSessionPageControls(sessionId, session.state, { onDeleteSuccess });
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <ChatHeader
           session={session}
-          onClear={handleClear}
+          onDelete={handleDelete}
           onStop={handleStop}
           onResume={handleResume}
-          canClear={canClear}
+          isDeleting={isDeleting}
           isStopping={isStopping}
           isResuming={isResuming}
-          isClearing={isClearing}
           workspaceName={workspaceName}
         />
         <SessionThread
@@ -57,6 +60,9 @@ function SessionPageContent({
           agentName={session.agent_name}
           canPrompt={canPrompt}
           onCancelPrompt={handleCancelPrompt}
+          onClearConversation={handleClear}
+          canClearConversation={canClear}
+          isClearingConversation={isClearing}
         />
       </div>
       <SessionInspector messages={messages} />
@@ -102,7 +108,14 @@ function SessionPage() {
 
   return (
     <SessionChatRuntimeProvider key={id} sessionId={id} workspaceId={session.workspace_id}>
-      <SessionPageContent sessionId={id} session={session} workspaceName={workspaceName} />
+      <SessionPageContent
+        sessionId={id}
+        session={session}
+        workspaceName={workspaceName}
+        onDeleteSuccess={() => {
+          void navigate({ to: "/" });
+        }}
+      />
     </SessionChatRuntimeProvider>
   );
 }

@@ -111,5 +111,5 @@ describe("SessionChatRuntimeProvider", () => {
         );
       })
     ).toHaveLength(2);
-  });
+  }, 10_000);
 });

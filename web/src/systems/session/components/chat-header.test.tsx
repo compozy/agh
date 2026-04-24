@@ -27,7 +27,7 @@ const baseSession: SessionPayload = {
 describe("ChatHeader", () => {
   it("renders breadcrumb with agent name and session name", () => {
     render(
-      <ChatHeader session={baseSession} onStop={vi.fn()} onResume={vi.fn()} onClear={vi.fn()} />
+      <ChatHeader session={baseSession} onDelete={vi.fn()} onStop={vi.fn()} onResume={vi.fn()} />
     );
 
     expect(screen.getByTestId("chat-breadcrumb")).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe("ChatHeader", () => {
 
   it("renders status dot with success tone for active state", () => {
     render(
-      <ChatHeader session={baseSession} onStop={vi.fn()} onResume={vi.fn()} onClear={vi.fn()} />
+      <ChatHeader session={baseSession} onDelete={vi.fn()} onStop={vi.fn()} onResume={vi.fn()} />
     );
 
     const dot = screen.getByTestId("agent-status-dot");
@@ -48,7 +48,7 @@ describe("ChatHeader", () => {
 
   it("renders status dot with warning tone and pulse for starting state", () => {
     const session = { ...baseSession, state: "starting" as const };
-    render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} onClear={vi.fn()} />);
+    render(<ChatHeader session={session} onDelete={vi.fn()} onStop={vi.fn()} onResume={vi.fn()} />);
 
     const dot = screen.getByTestId("agent-status-dot");
     expect(dot.getAttribute("data-tone")).toBe("warning");
@@ -57,7 +57,7 @@ describe("ChatHeader", () => {
 
   it("renders status dot with neutral tone for stopped state", () => {
     const session = { ...baseSession, state: "stopped" as const };
-    render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} onClear={vi.fn()} />);
+    render(<ChatHeader session={session} onDelete={vi.fn()} onStop={vi.fn()} onResume={vi.fn()} />);
 
     const dot = screen.getByTestId("agent-status-dot");
     expect(dot.getAttribute("data-tone")).toBe("neutral");
@@ -67,9 +67,9 @@ describe("ChatHeader", () => {
     render(
       <ChatHeader
         session={baseSession}
+        onDelete={vi.fn()}
         onStop={vi.fn()}
         onResume={vi.fn()}
-        onClear={vi.fn()}
         workspaceName="alpha"
       />
     );
@@ -81,14 +81,14 @@ describe("ChatHeader", () => {
 
   it("shows session ID when name is not set", () => {
     const session = { ...baseSession, name: undefined };
-    render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} onClear={vi.fn()} />);
+    render(<ChatHeader session={session} onDelete={vi.fn()} onStop={vi.fn()} onResume={vi.fn()} />);
 
     expect(screen.getByTestId("session-name")).toHaveTextContent("sess-001");
   });
 
   it("shows stop button for active session", () => {
     render(
-      <ChatHeader session={baseSession} onStop={vi.fn()} onResume={vi.fn()} onClear={vi.fn()} />
+      <ChatHeader session={baseSession} onDelete={vi.fn()} onStop={vi.fn()} onResume={vi.fn()} />
     );
 
     expect(screen.getByTestId("stop-button")).toBeInTheDocument();
@@ -97,7 +97,7 @@ describe("ChatHeader", () => {
 
   it("shows resume button for stopped session", () => {
     const session = { ...baseSession, state: "stopped" as const };
-    render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} onClear={vi.fn()} />);
+    render(<ChatHeader session={session} onDelete={vi.fn()} onStop={vi.fn()} onResume={vi.fn()} />);
 
     expect(screen.getByTestId("resume-button")).toBeInTheDocument();
     expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
@@ -106,7 +106,7 @@ describe("ChatHeader", () => {
   it("calls onStop when stop button is clicked", () => {
     const onStop = vi.fn();
     render(
-      <ChatHeader session={baseSession} onStop={onStop} onResume={vi.fn()} onClear={vi.fn()} />
+      <ChatHeader session={baseSession} onDelete={vi.fn()} onStop={onStop} onResume={vi.fn()} />
     );
 
     fireEvent.click(screen.getByTestId("stop-button"));
@@ -117,67 +117,47 @@ describe("ChatHeader", () => {
   it("calls onResume when resume button is clicked", () => {
     const onResume = vi.fn();
     const session = { ...baseSession, state: "stopped" as const };
-    render(<ChatHeader session={session} onStop={vi.fn()} onResume={onResume} onClear={vi.fn()} />);
+    render(
+      <ChatHeader session={session} onDelete={vi.fn()} onStop={vi.fn()} onResume={onResume} />
+    );
 
     fireEvent.click(screen.getByTestId("resume-button"));
 
     expect(onResume).toHaveBeenCalledOnce();
   });
 
-  it("opens a confirmation dialog before clearing the conversation", () => {
-    const onClear = vi.fn();
+  it("opens a confirmation dialog before deleting the session", () => {
+    const onDelete = vi.fn();
     render(
-      <ChatHeader
-        session={baseSession}
-        onStop={vi.fn()}
-        onResume={vi.fn()}
-        onClear={onClear}
-        canClear
-      />
+      <ChatHeader session={baseSession} onDelete={onDelete} onStop={vi.fn()} onResume={vi.fn()} />
     );
 
-    fireEvent.click(screen.getByTestId("clear-button"));
-    expect(screen.getByTestId("clear-dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("delete-button"));
+    expect(screen.getByTestId("delete-dialog")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("clear-dialog-confirm"));
-    expect(onClear).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByTestId("delete-dialog-confirm"));
+    expect(onDelete).toHaveBeenCalledOnce();
   });
 
-  it("disables the clear trigger when there is nothing to clear", () => {
-    render(
-      <ChatHeader
-        session={baseSession}
-        onStop={vi.fn()}
-        onResume={vi.fn()}
-        onClear={vi.fn()}
-        canClear={false}
-      />
-    );
-
-    expect(screen.getByTestId("clear-button")).toBeDisabled();
-  });
-
-  it("shows loading feedback on stop, resume, and clear controls", () => {
+  it("shows loading feedback on delete, stop, and resume controls", () => {
     const { rerender } = render(
       <ChatHeader
         session={baseSession}
+        onDelete={vi.fn()}
         onStop={vi.fn()}
         onResume={vi.fn()}
-        onClear={vi.fn()}
-        canClear
-        isStopping
+        isDeleting
       />
     );
 
-    expect(screen.getByTestId("stop-button").querySelector("svg")).toHaveClass("animate-spin");
+    expect(screen.getByTestId("delete-button").querySelector("svg")).toHaveClass("animate-spin");
 
     rerender(
       <ChatHeader
         session={{ ...baseSession, state: "stopped" }}
+        onDelete={vi.fn()}
         onStop={vi.fn()}
         onResume={vi.fn()}
-        onClear={vi.fn()}
-        canClear
         isResuming
       />
     );
@@ -186,19 +166,18 @@ describe("ChatHeader", () => {
     rerender(
       <ChatHeader
         session={baseSession}
+        onDelete={vi.fn()}
         onStop={vi.fn()}
         onResume={vi.fn()}
-        onClear={vi.fn()}
-        canClear
-        isClearing
+        isStopping
       />
     );
-    expect(screen.getByTestId("clear-button").querySelector("svg")).toHaveClass("animate-spin");
+    expect(screen.getByTestId("stop-button").querySelector("svg")).toHaveClass("animate-spin");
   });
 
   it("hides both stop and resume buttons during stopping state", () => {
     const session = { ...baseSession, state: "stopping" as const };
-    render(<ChatHeader session={session} onStop={vi.fn()} onResume={vi.fn()} onClear={vi.fn()} />);
+    render(<ChatHeader session={session} onDelete={vi.fn()} onStop={vi.fn()} onResume={vi.fn()} />);
 
     expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("resume-button")).not.toBeInTheDocument();

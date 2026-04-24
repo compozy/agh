@@ -803,6 +803,13 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
+	mux.HandleFunc("/api/sessions/sess-1/stop", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("/api/sessions/sess-1/resume", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)

@@ -4,18 +4,23 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useSessionStore } from "./use-session-store";
-import { useClearSessionConversation, useCreateSession } from "./use-session-actions";
+import {
+  useClearSessionConversation,
+  useCreateSession,
+  useDeleteSession,
+} from "./use-session-actions";
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionPayload } from "../types";
 
 vi.mock("../adapters/session-api", () => ({
   clearSessionConversation: vi.fn(),
   createSession: vi.fn(),
+  deleteSession: vi.fn(),
   stopSession: vi.fn(),
   resumeSession: vi.fn(),
 }));
 
-import { clearSessionConversation, createSession } from "../adapters/session-api";
+import { clearSessionConversation, createSession, deleteSession } from "../adapters/session-api";
 
 function createWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
@@ -159,6 +164,73 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.history(createdSession.id))).toEqual(
       historySnapshot
     );
+    expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
+  });
+
+  it("useDeleteSession removes cached session data and clears the draft", async () => {
+    vi.mocked(deleteSession).mockResolvedValue(undefined);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    queryClient.setQueryData(sessionKeys.detail(createdSession.id), createdSession);
+    queryClient.setQueryData(sessionKeys.transcript(createdSession.id), [
+      { id: "history-1", role: "assistant", content: "existing" },
+    ]);
+    queryClient.setQueryData(sessionKeys.history(createdSession.id), [{ id: "turn-1" }]);
+    queryClient.setQueryData(sessionKeys.events(createdSession.id), [{ id: "event-1" }]);
+    useSessionStore.getState().setDraft(createdSession.id, { text: "remove me" });
+
+    const { result } = renderHook(() => useDeleteSession(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync(createdSession.id);
+    });
+
+    expect(deleteSession).toHaveBeenCalledWith(createdSession.id);
+    expect(queryClient.getQueryData(sessionKeys.detail(createdSession.id))).toBeUndefined();
+    expect(queryClient.getQueryData(sessionKeys.transcript(createdSession.id))).toBeUndefined();
+    expect(queryClient.getQueryData(sessionKeys.history(createdSession.id))).toBeUndefined();
+    expect(queryClient.getQueryData(sessionKeys.events(createdSession.id))).toBeUndefined();
+    expect(useSessionStore.getState().drafts[createdSession.id]).toBeUndefined();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.lists() });
+  });
+
+  it("useDeleteSession preserves cached session data and drafts on failure", async () => {
+    vi.mocked(deleteSession).mockRejectedValue(new Error("delete failed"));
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData(sessionKeys.detail(createdSession.id), createdSession);
+
+    const transcriptSnapshot = [{ id: "history-1", role: "assistant", content: "existing" }];
+    const historySnapshot = [{ id: "turn-1" }];
+    const eventsSnapshot = [{ id: "event-1" }];
+    queryClient.setQueryData(sessionKeys.transcript(createdSession.id), transcriptSnapshot);
+    queryClient.setQueryData(sessionKeys.history(createdSession.id), historySnapshot);
+    queryClient.setQueryData(sessionKeys.events(createdSession.id), eventsSnapshot);
+    useSessionStore.getState().setDraft(createdSession.id, { text: "keep me" });
+
+    const { result } = renderHook(() => useDeleteSession(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync(createdSession.id)).rejects.toThrow("delete failed");
+    });
+
+    expect(queryClient.getQueryData(sessionKeys.detail(createdSession.id))).toEqual(createdSession);
+    expect(queryClient.getQueryData(sessionKeys.transcript(createdSession.id))).toEqual(
+      transcriptSnapshot
+    );
+    expect(queryClient.getQueryData(sessionKeys.history(createdSession.id))).toEqual(
+      historySnapshot
+    );
+    expect(queryClient.getQueryData(sessionKeys.events(createdSession.id))).toEqual(eventsSnapshot);
     expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
   });
 });

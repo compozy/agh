@@ -29,7 +29,9 @@ export type {
 // Adapters
 export {
   approveSession,
+  cancelSessionPrompt,
   createSession,
+  deleteSession,
   fetchSession,
   fetchSessionEvents,
   fetchSessionHistory,
@@ -63,6 +65,7 @@ export { useSession, useSessions } from "./hooks/use-sessions";
 export {
   useClearSessionConversation,
   useCreateSession,
+  useDeleteSession,
   useResumeSession,
   useStopSession,
 } from "./hooks/use-session-actions";

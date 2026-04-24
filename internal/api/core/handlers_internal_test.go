@@ -52,6 +52,8 @@ func (s sessionManagerStub) Transcript(context.Context, string) ([]transcript.UI
 	return nil, nil
 }
 
+func (s sessionManagerStub) Delete(context.Context, string) error { return nil }
+
 func (s sessionManagerStub) Stop(context.Context, string) error { return nil }
 
 func (s sessionManagerStub) StopWithCause(context.Context, string, session.StopCause, string) error {

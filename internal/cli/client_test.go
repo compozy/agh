@@ -58,7 +58,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
 					), nil
-				case req.Method == http.MethodDelete && req.URL.Path == "/api/sessions/sess-1":
+				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/stop":
 					return newHTTPResponse(http.StatusNoContent, ``), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/resume":
 					return newHTTPResponse(

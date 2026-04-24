@@ -72,8 +72,21 @@ export async function fetchSession(id: string, signal?: AbortSignal): Promise<Se
   return requireResponseData(data, response, `Failed to fetch session "${id}"`).session;
 }
 
-export async function stopSession(id: string, signal?: AbortSignal): Promise<void> {
+export async function deleteSession(id: string, signal?: AbortSignal): Promise<void> {
   const { error, response } = await apiClient.DELETE("/api/sessions/{id}", {
+    params: { path: { id } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new Error(`Session not found: ${id}`);
+    }
+    throw new Error(defaultApiErrorMessage(`Failed to delete session "${id}"`, response, error));
+  }
+}
+
+export async function stopSession(id: string, signal?: AbortSignal): Promise<void> {
+  const { error, response } = await apiClient.POST("/api/sessions/{id}/stop", {
     params: { path: { id } },
     signal,
   });

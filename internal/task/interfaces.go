@@ -10,6 +10,7 @@ import (
 type Manager interface {
 	CreateTask(ctx context.Context, spec CreateTask, actor ActorContext) (*Task, error)
 	CreateChildTask(ctx context.Context, parentTaskID string, spec CreateTask, actor ActorContext) (*Task, error)
+	DeleteTask(ctx context.Context, id string, actor ActorContext) error
 	UpdateTask(ctx context.Context, id string, patch Patch, actor ActorContext) (*Task, error)
 	PublishTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
 	ApproveTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
@@ -40,10 +41,30 @@ type Manager interface {
 // RecordStore is the persistence surface for durable task records.
 type RecordStore interface {
 	CreateTask(ctx context.Context, task Task) error
+	DeleteTask(ctx context.Context, id string) error
 	UpdateTask(ctx context.Context, task Task) error
 	GetTask(ctx context.Context, id string) (Task, error)
 	ListTasks(ctx context.Context, query Query) ([]Summary, error)
 	CountDirectChildren(ctx context.Context, parentTaskID string) (int, error)
+}
+
+// DeleteTaskMutationStore is the narrowed persistence surface required to
+// execute task deletion and dependent reconciliation as one unit.
+type DeleteTaskMutationStore interface {
+	GetTask(ctx context.Context, id string) (Task, error)
+	UpdateTask(ctx context.Context, task Task) error
+	DeleteTask(ctx context.Context, id string) error
+	CountDirectChildren(ctx context.Context, parentTaskID string) (int, error)
+	ListDependencies(ctx context.Context, taskID string) ([]Dependency, error)
+	ListDependents(ctx context.Context, dependsOnTaskID string) ([]Dependency, error)
+	ListTaskRuns(ctx context.Context, query RunQuery) ([]Run, error)
+}
+
+// DeleteTaskTransactionStore optionally exposes transactional delete-task
+// execution so the manager can roll back the primary delete when dependent
+// reconciliation fails.
+type DeleteTaskTransactionStore interface {
+	WithDeleteTaskTransaction(ctx context.Context, fn func(DeleteTaskMutationStore) error) error
 }
 
 // DependencyStore is the persistence surface for durable dependency edges.

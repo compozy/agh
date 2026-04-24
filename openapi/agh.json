@@ -14257,7 +14257,7 @@
         },
         "/api/sessions/{id}": {
             "delete": {
-                "operationId": "stopSession",
+                "operationId": "deleteSession",
                 "parameters": [
                     {
                         "description": "Session id",
@@ -14309,7 +14309,7 @@
                         "description": ""
                     }
                 },
-                "summary": "Stop a session",
+                "summary": "Delete one session and remove it from persisted history",
                 "tags": ["sessions"],
                 "x-agh-transports": ["http", "uds"]
             },
@@ -15167,6 +15167,65 @@
                     }
                 },
                 "summary": "Resume a stopped session",
+                "tags": ["sessions"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/sessions/{id}/stop": {
+            "post": {
+                "operationId": "stopSession",
+                "parameters": [
+                    {
+                        "description": "Session id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Session not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Stop a session without deleting persisted history",
                 "tags": ["sessions"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -25045,6 +25104,95 @@
             }
         },
         "/api/tasks/{id}": {
+            "delete": {
+                "operationId": "deleteTask",
+                "parameters": [
+                    {
+                        "description": "Task id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid task delete"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Task not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Task service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Delete one task",
+                "tags": ["tasks"],
+                "x-agh-transports": ["http", "uds"]
+            },
             "get": {
                 "operationId": "getTask",
                 "parameters": [

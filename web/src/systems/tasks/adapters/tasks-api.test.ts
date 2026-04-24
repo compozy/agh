@@ -24,6 +24,7 @@ import {
   completeTaskRun,
   createChildTask,
   createTask,
+  deleteTask,
   dismissTask,
   enqueueTaskRun,
   failTaskRun,
@@ -245,6 +246,28 @@ describe("getTask", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
     await expect(getTask("missing")).rejects.toThrow("Task not found: missing");
+  });
+});
+
+describe("deleteTask", () => {
+  it("calls DELETE /api/tasks/{id}", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 204 }));
+
+    await deleteTask("task_001");
+
+    await expectFetchRequest({ method: "DELETE", path: "/api/tasks/task_001" });
+  });
+
+  it("throws not-found for 404", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    const error = await deleteTask("missing").catch(err => err);
+
+    expect(error).toBeInstanceOf(TasksApiError);
+    expect(error).toMatchObject({
+      message: "Task not found: missing",
+      status: 404,
+    });
   });
 });
 

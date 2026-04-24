@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"sort"
 	"strconv"
@@ -16,6 +17,17 @@ import (
 )
 
 type inMemoryManagerStore struct {
+	tasks             map[string]Task
+	dependencies      map[string]map[string]Dependency
+	runs              map[string]Run
+	triageStates      map[string]TriageState
+	events            []Event
+	eventSequenceByID map[string]int64
+	nextEventSequence int64
+	idempotencyByKey  map[string]RunIdempotency
+}
+
+type inMemoryManagerSnapshot struct {
 	tasks             map[string]Task
 	dependencies      map[string]map[string]Dependency
 	runs              map[string]Run
@@ -78,6 +90,15 @@ type contextSensitiveEventStore struct {
 	getTaskEventRecordCanceled []bool
 }
 
+type deleteTaskStore struct {
+	*inMemoryManagerStore
+	getTaskErrByID             map[string]error
+	countDirectChildrenErrByID map[string]error
+	listTaskRunsErrByID        map[string]error
+	listDependentsErrByID      map[string]error
+	deleteTaskErrByID          map[string]error
+}
+
 type recordingTaskEventObserver struct {
 	records []EventRecord
 }
@@ -124,6 +145,64 @@ func (o *recordingTaskEventObserver) OnTaskEvent(_ context.Context, record Event
 
 func (o *panickingTaskEventObserver) OnTaskEvent(_ context.Context, _ EventRecord) {
 	panic(o.panicValue)
+}
+
+func newDeleteTaskStore() *deleteTaskStore {
+	return &deleteTaskStore{
+		inMemoryManagerStore:       newInMemoryManagerStore(),
+		getTaskErrByID:             make(map[string]error),
+		countDirectChildrenErrByID: make(map[string]error),
+		listTaskRunsErrByID:        make(map[string]error),
+		listDependentsErrByID:      make(map[string]error),
+		deleteTaskErrByID:          make(map[string]error),
+	}
+}
+
+func (s *deleteTaskStore) WithDeleteTaskTransaction(
+	_ context.Context,
+	fn func(DeleteTaskMutationStore) error,
+) error {
+	snapshot := s.snapshot()
+	if err := fn(s); err != nil {
+		s.restore(snapshot)
+		return err
+	}
+	return nil
+}
+
+func (s *deleteTaskStore) GetTask(ctx context.Context, id string) (Task, error) {
+	if err, ok := s.getTaskErrByID[strings.TrimSpace(id)]; ok {
+		return Task{}, err
+	}
+	return s.inMemoryManagerStore.GetTask(ctx, id)
+}
+
+func (s *deleteTaskStore) CountDirectChildren(ctx context.Context, parentTaskID string) (int, error) {
+	if err, ok := s.countDirectChildrenErrByID[strings.TrimSpace(parentTaskID)]; ok {
+		return 0, err
+	}
+	return s.inMemoryManagerStore.CountDirectChildren(ctx, parentTaskID)
+}
+
+func (s *deleteTaskStore) ListTaskRuns(ctx context.Context, query RunQuery) ([]Run, error) {
+	if err, ok := s.listTaskRunsErrByID[strings.TrimSpace(query.TaskID)]; ok {
+		return nil, err
+	}
+	return s.inMemoryManagerStore.ListTaskRuns(ctx, query)
+}
+
+func (s *deleteTaskStore) ListDependents(ctx context.Context, dependsOnTaskID string) ([]Dependency, error) {
+	if err, ok := s.listDependentsErrByID[strings.TrimSpace(dependsOnTaskID)]; ok {
+		return nil, err
+	}
+	return s.inMemoryManagerStore.ListDependents(ctx, dependsOnTaskID)
+}
+
+func (s *deleteTaskStore) DeleteTask(ctx context.Context, id string) error {
+	if err, ok := s.deleteTaskErrByID[strings.TrimSpace(id)]; ok {
+		return err
+	}
+	return s.inMemoryManagerStore.DeleteTask(ctx, id)
 }
 
 func (e *recordingSessionExecutor) StartTaskSession(_ context.Context, spec *StartTaskSession) (*SessionRef, error) {
@@ -178,11 +257,127 @@ func newInMemoryManagerStore() *inMemoryManagerStore {
 	}
 }
 
+func (s *inMemoryManagerStore) WithDeleteTaskTransaction(
+	_ context.Context,
+	fn func(DeleteTaskMutationStore) error,
+) error {
+	snapshot := s.snapshot()
+	if err := fn(s); err != nil {
+		s.restore(snapshot)
+		return err
+	}
+	return nil
+}
+
+func (s *inMemoryManagerStore) snapshot() inMemoryManagerSnapshot {
+	tasks := make(map[string]Task, len(s.tasks))
+	for id, record := range s.tasks {
+		tasks[id] = cloneTask(record)
+	}
+
+	dependencies := make(map[string]map[string]Dependency, len(s.dependencies))
+	for taskID, edges := range s.dependencies {
+		copiedEdges := make(map[string]Dependency, len(edges))
+		maps.Copy(copiedEdges, edges)
+		dependencies[taskID] = copiedEdges
+	}
+
+	runs := make(map[string]Run, len(s.runs))
+	for id, record := range s.runs {
+		runs[id] = cloneTaskRun(record)
+	}
+
+	triageStates := make(map[string]TriageState, len(s.triageStates))
+	for key, record := range s.triageStates {
+		triageStates[key] = cloneTriageState(record)
+	}
+
+	events := make([]Event, 0, len(s.events))
+	for _, event := range s.events {
+		events = append(events, cloneTaskEvent(event))
+	}
+
+	eventSequenceByID := make(map[string]int64, len(s.eventSequenceByID))
+	maps.Copy(eventSequenceByID, s.eventSequenceByID)
+
+	idempotencyByKey := make(map[string]RunIdempotency, len(s.idempotencyByKey))
+	maps.Copy(idempotencyByKey, s.idempotencyByKey)
+
+	return inMemoryManagerSnapshot{
+		tasks:             tasks,
+		dependencies:      dependencies,
+		runs:              runs,
+		triageStates:      triageStates,
+		events:            events,
+		eventSequenceByID: eventSequenceByID,
+		nextEventSequence: s.nextEventSequence,
+		idempotencyByKey:  idempotencyByKey,
+	}
+}
+
+func (s *inMemoryManagerStore) restore(snapshot inMemoryManagerSnapshot) {
+	s.tasks = snapshot.tasks
+	s.dependencies = snapshot.dependencies
+	s.runs = snapshot.runs
+	s.triageStates = snapshot.triageStates
+	s.events = snapshot.events
+	s.eventSequenceByID = snapshot.eventSequenceByID
+	s.nextEventSequence = snapshot.nextEventSequence
+	s.idempotencyByKey = snapshot.idempotencyByKey
+}
+
 func (s *inMemoryManagerStore) CreateTask(_ context.Context, taskRecord Task) error {
 	if _, exists := s.tasks[taskRecord.ID]; exists {
 		return fmtTestError("%w: duplicate task %q", ErrValidation, taskRecord.ID)
 	}
 	s.tasks[taskRecord.ID] = cloneTask(taskRecord)
+	return nil
+}
+
+func (s *inMemoryManagerStore) DeleteTask(_ context.Context, id string) error {
+	taskID := strings.TrimSpace(id)
+	if _, exists := s.tasks[taskID]; !exists {
+		return ErrTaskNotFound
+	}
+
+	delete(s.tasks, taskID)
+	delete(s.dependencies, taskID)
+	triagePrefix := taskID + "|"
+	for key := range s.triageStates {
+		if strings.HasPrefix(key, triagePrefix) {
+			delete(s.triageStates, key)
+		}
+	}
+
+	for dependentID, edges := range s.dependencies {
+		delete(edges, taskID)
+		if len(edges) == 0 {
+			delete(s.dependencies, dependentID)
+		}
+	}
+
+	for runID, run := range s.runs {
+		if run.TaskID == taskID {
+			delete(s.runs, runID)
+		}
+	}
+
+	filteredEvents := s.events[:0]
+	for _, event := range s.events {
+		if event.TaskID == taskID {
+			delete(s.eventSequenceByID, event.ID)
+			continue
+		}
+		filteredEvents = append(filteredEvents, event)
+	}
+	s.events = filteredEvents
+
+	for key, record := range s.idempotencyByKey {
+		if run, ok := s.runs[record.RunID]; !ok || run.TaskID == taskID {
+			delete(s.idempotencyByKey, key)
+		}
+	}
+
 	return nil
 }
 
@@ -1444,6 +1639,196 @@ func TestManagerStreamReplaysStableBacklogAndLiveDescendantEvents(t *testing.T) 
 	}
 }
 
+func TestManagerDeleteTask(t *testing.T) {
+	t.Parallel()
+
+	buildTask := func(id string, actor ActorContext) Task {
+		now := time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC)
+		return Task{
+			ID:             id,
+			Scope:          ScopeGlobal,
+			Title:          id,
+			Priority:       DefaultPriority,
+			MaxAttempts:    1,
+			Status:         TaskStatusReady,
+			ApprovalPolicy: ApprovalPolicyNone,
+			ApprovalState:  ApprovalStateNotRequired,
+			CreatedBy:      actor.Actor,
+			Origin:         actor.Origin,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+	}
+
+	t.Run("ShouldRemoveAllActorTriageStateEntriesForTheDeletedTask", func(t *testing.T) {
+		t.Parallel()
+
+		actor := validActorContext()
+		store := newDeleteTaskStore()
+		manager := newTaskManagerForTest(t, store)
+		record := buildTask("task-delete", actor)
+		now := time.Date(2026, 4, 14, 16, 0, 0, 0, time.UTC)
+
+		if err := store.CreateTask(context.Background(), record); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		if err := store.UpsertTaskTriageState(context.Background(), TriageState{
+			TaskID:             record.ID,
+			Actor:              actor.Actor,
+			Read:               true,
+			LastSeenActivityAt: now,
+			UpdatedAt:          now,
+		}); err != nil {
+			t.Fatalf("UpsertTaskTriageState(primary actor) error = %v", err)
+		}
+		if err := store.UpsertTaskTriageState(context.Background(), TriageState{
+			TaskID: record.ID,
+			Actor: ActorIdentity{
+				Kind: ActorKindHuman,
+				Ref:  "user-2",
+			},
+			Archived:           true,
+			LastSeenActivityAt: now,
+			UpdatedAt:          now,
+		}); err != nil {
+			t.Fatalf("UpsertTaskTriageState(second actor) error = %v", err)
+		}
+
+		if err := manager.DeleteTask(context.Background(), record.ID, actor); err != nil {
+			t.Fatalf("DeleteTask() error = %v", err)
+		}
+		if got := len(store.triageStates); got != 0 {
+			t.Fatalf("len(triageStates) = %d, want 0; states=%#v", got, store.triageStates)
+		}
+	})
+
+	t.Run("ShouldWrapDeletePathFailuresWithOperationContext", func(t *testing.T) {
+		t.Parallel()
+
+		loadErr := ErrTaskNotFound
+		countErr := errors.New("count failed")
+		listRunsErr := errors.New("list runs failed")
+		listDependentsErr := errors.New("list dependents failed")
+		deleteErr := errors.New("delete failed")
+		reconcileErr := errors.New("dependent load failed")
+
+		cases := []struct {
+			name          string
+			configure     func(*deleteTaskStore)
+			wantSubstring string
+			wantErr       error
+		}{
+			{
+				name: "ShouldWrapTaskLoadFailures",
+				configure: func(store *deleteTaskStore) {
+					store.getTaskErrByID["task-primary"] = loadErr
+				},
+				wantSubstring: `task: load task "task-primary" for delete`,
+				wantErr:       loadErr,
+			},
+			{
+				name: "ShouldWrapChildCountFailures",
+				configure: func(store *deleteTaskStore) {
+					store.countDirectChildrenErrByID["task-primary"] = countErr
+				},
+				wantSubstring: `task: count child tasks for delete "task-primary"`,
+				wantErr:       countErr,
+			},
+			{
+				name: "ShouldWrapRunLookupFailures",
+				configure: func(store *deleteTaskStore) {
+					store.listTaskRunsErrByID["task-primary"] = listRunsErr
+				},
+				wantSubstring: `task: list runs for delete "task-primary"`,
+				wantErr:       listRunsErr,
+			},
+			{
+				name: "ShouldWrapDependentLookupFailures",
+				configure: func(store *deleteTaskStore) {
+					store.listDependentsErrByID["task-primary"] = listDependentsErr
+				},
+				wantSubstring: `task: list dependents for task "task-primary" delete`,
+				wantErr:       listDependentsErr,
+			},
+			{
+				name: "ShouldWrapStoreDeleteFailures",
+				configure: func(store *deleteTaskStore) {
+					store.deleteTaskErrByID["task-primary"] = deleteErr
+				},
+				wantSubstring: `task: delete task "task-primary"`,
+				wantErr:       deleteErr,
+			},
+			{
+				name: "ShouldWrapDependentReconcileFailures",
+				configure: func(store *deleteTaskStore) {
+					store.getTaskErrByID["task-dependent"] = reconcileErr
+				},
+				wantSubstring: `task: reconcile dependent task "task-dependent" after deleting "task-primary"`,
+				wantErr:       reconcileErr,
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				actor := validActorContext()
+				store := newDeleteTaskStore()
+				manager := newTaskManagerForTest(t, store)
+				primary := buildTask("task-primary", actor)
+				dependent := buildTask("task-dependent", actor)
+				dependencyTime := time.Date(2026, 4, 14, 16, 30, 0, 0, time.UTC)
+
+				if err := store.CreateTask(context.Background(), primary); err != nil {
+					t.Fatalf("CreateTask(primary) error = %v", err)
+				}
+				if err := store.CreateTask(context.Background(), dependent); err != nil {
+					t.Fatalf("CreateTask(dependent) error = %v", err)
+				}
+				if err := store.CreateDependency(context.Background(), Dependency{
+					TaskID:          dependent.ID,
+					DependsOnTaskID: primary.ID,
+					Kind:            DependencyKindBlocks,
+					CreatedAt:       dependencyTime,
+				}); err != nil {
+					t.Fatalf("CreateDependency() error = %v", err)
+				}
+
+				tc.configure(store)
+
+				err := manager.DeleteTask(context.Background(), primary.ID, actor)
+				if err == nil {
+					t.Fatal("DeleteTask() error = nil, want wrapped error")
+				}
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("DeleteTask() error = %v, want wrapped %v", err, tc.wantErr)
+				}
+				if !strings.Contains(err.Error(), tc.wantSubstring) {
+					t.Fatalf(
+						"DeleteTask() error = %q, want substring %q",
+						err.Error(),
+						tc.wantSubstring,
+					)
+				}
+
+				if _, getErr := store.inMemoryManagerStore.GetTask(context.Background(), primary.ID); getErr != nil {
+					t.Fatalf("GetTask(primary after failed delete) error = %v, want task preserved", getErr)
+				}
+				dependents, depErr := store.inMemoryManagerStore.ListDependents(
+					context.Background(),
+					primary.ID,
+				)
+				if depErr != nil {
+					t.Fatalf("ListDependents(primary after failed delete) error = %v", depErr)
+				}
+				if got, want := len(dependents), 1; got != want {
+					t.Fatalf("len(ListDependents(primary after failed delete)) = %d, want %d", got, want)
+				}
+			})
+		}
+	})
+}
+
 func TestManagerCreateTaskUsesTrustedActorContext(t *testing.T) {
 	t.Parallel()
 
@@ -2589,6 +2974,73 @@ func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {
 	if summaries[0].LastActivityAt.IsZero() {
 		t.Fatal("summaries[0].LastActivityAt is zero, want latest activity timestamp")
 	}
+}
+
+func TestManagerReadPathsDoNotPersistDependencyReconciliation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("GetTask derives dependency status without writes", func(t *testing.T) {
+		t.Parallel()
+
+		manager, store, actor, blockerID, targetID := setupStaleDependencyReadScenario(t)
+
+		view, err := manager.GetTask(context.Background(), targetID, actor)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+
+		if got, want := view.Summary.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("view.Summary.Status = %q, want %q", got, want)
+		}
+		if got, want := view.Task.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("view.Task.Status = %q, want %q", got, want)
+		}
+		if len(view.DependencyReferences) != 1 {
+			t.Fatalf("len(view.DependencyReferences) = %d, want 1", len(view.DependencyReferences))
+		}
+		if got, want := view.DependencyReferences[0].DependsOn.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("view.DependencyReferences[0].DependsOn.Status = %q, want %q", got, want)
+		}
+		if got, want := store.tasks[blockerID].Status, TaskStatusReady; got != want {
+			t.Fatalf("stored blocker status after GetTask = %q, want unchanged %q", got, want)
+		}
+	})
+
+	t.Run("ListTasks derives dependency status without writes", func(t *testing.T) {
+		t.Parallel()
+
+		manager, store, actor, blockerID, targetID := setupStaleDependencyReadScenario(t)
+
+		summaries, err := manager.ListTasks(context.Background(), Query{}, actor)
+		if err != nil {
+			t.Fatalf("ListTasks() error = %v", err)
+		}
+
+		var target Summary
+		found := false
+		for _, summary := range summaries {
+			if summary.ID == targetID {
+				target = summary
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("ListTasks() did not return target %q", targetID)
+		}
+		if got, want := target.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("target.Status = %q, want %q", got, want)
+		}
+		if len(target.Dependencies) != 1 {
+			t.Fatalf("len(target.Dependencies) = %d, want 1", len(target.Dependencies))
+		}
+		if got, want := target.Dependencies[0].DependsOn.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("target.Dependencies[0].DependsOn.Status = %q, want %q", got, want)
+		}
+		if got, want := store.tasks[blockerID].Status, TaskStatusReady; got != want {
+			t.Fatalf("stored blocker status after ListTasks = %q, want unchanged %q", got, want)
+		}
+	})
 }
 
 func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
@@ -4409,6 +4861,57 @@ func newTaskManagerForTestWithOptions(t *testing.T, store Store, extraOpts ...Op
 	return manager
 }
 
+func setupStaleDependencyReadScenario(t *testing.T) (*Service, *inMemoryManagerStore, ActorContext, string, string) {
+	t.Helper()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+
+	upstream, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Upstream dependency",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(upstream) error = %v", err)
+	}
+	blocker, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Intermediate blocker",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(blocker) error = %v", err)
+	}
+	target, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Blocked target",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(target) error = %v", err)
+	}
+
+	if err := manager.AddDependency(context.Background(), AddDependency{
+		TaskID:          blocker.ID,
+		DependsOnTaskID: upstream.ID,
+		Kind:            DependencyKindBlocks,
+	}, actor); err != nil {
+		t.Fatalf("AddDependency(blocker) error = %v", err)
+	}
+	if err := manager.AddDependency(context.Background(), AddDependency{
+		TaskID:          target.ID,
+		DependsOnTaskID: blocker.ID,
+		Kind:            DependencyKindBlocks,
+	}, actor); err != nil {
+		t.Fatalf("AddDependency(target) error = %v", err)
+	}
+
+	record := store.tasks[blocker.ID]
+	record.Status = TaskStatusReady
+	store.tasks[blocker.ID] = record
+
+	return manager, store, actor, blocker.ID, target.ID
+}
+
 func cloneTask(record Task) Task {
 	cloned := record
 	cloned.Owner = cloneOwnership(record.Owner)
@@ -4446,6 +4949,12 @@ func inMemoryTaskLatestActivity(summary Summary, runs map[string]Run, events []E
 func cloneTriageState(record TriageState) TriageState {
 	cloned := record
 	cloned.Actor = record.Actor
+	return cloned
+}
+
+func cloneTaskEvent(record Event) Event {
+	cloned := record
+	cloned.Payload = cloneRawJSON(record.Payload)
 	return cloned
 }
 

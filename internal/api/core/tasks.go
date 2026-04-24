@@ -22,6 +22,7 @@ const (
 	taskActionList             = "list"
 	taskActionCreate           = "create"
 	taskActionGet              = "get"
+	taskActionDelete           = "delete"
 	taskActionPublish          = "publish"
 	taskActionUpdate           = "update"
 	taskActionCancel           = "cancel"
@@ -202,6 +203,33 @@ func (h *BaseHandlers) GetTask(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.TaskDetailResponse{Task: TaskDetailPayloadFromView(view)})
+}
+
+// DeleteTask removes one task record and any cascade-owned child rows.
+func (h *BaseHandlers) DeleteTask(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionDelete)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	if err := manager.DeleteTask(c.Request.Context(), taskID, actor); err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // UpdateTask patches one mutable task surface.

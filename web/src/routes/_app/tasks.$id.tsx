@@ -1,5 +1,6 @@
 import { AlertCircle, Loader2 } from "lucide-react";
-import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
+import { Outlet, createFileRoute, useChildMatches, useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 
 import { useTaskDetailPage } from "@/hooks/routes/use-task-detail-page";
 import {
@@ -11,6 +12,7 @@ import {
   TasksDetailTabs,
   TasksMultiAgentPanel,
   TasksTimelinePanel,
+  useDeleteTask,
 } from "@/systems/tasks";
 import type { TasksDetailTabItem } from "@/systems/tasks/components/tasks-detail-tabs";
 
@@ -20,10 +22,12 @@ export const Route = createFileRoute("/_app/tasks/$id")({
 
 function TaskDetailRoute() {
   const { id } = Route.useParams();
+  const navigate = useNavigate({ from: "/tasks/$id" });
   const childMatches = useChildMatches();
   const hasChildMatch = childMatches.length > 0;
 
   const page = useTaskDetailPage(id);
+  const deleteMutation = useDeleteTask();
 
   if (hasChildMatch) {
     return <Outlet />;
@@ -80,14 +84,26 @@ function TaskDetailRoute() {
     { id: "dependencies", label: "Dependencies", count: dependencies.length },
   ];
 
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await deleteMutation.mutateAsync({ id: taskId });
+      toast.success("Task deleted.");
+      void navigate({ to: "/tasks" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete task");
+    }
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-detail-content">
       <TasksDetailHeader
         detail={detail}
         isCancelPending={page.isCancelPending}
+        isDeletePending={deleteMutation.isPending}
         isEnqueuePending={page.isEnqueuePending}
         isPublishPending={page.isPublishPending}
         onCancel={page.handleCancelTask}
+        onDelete={handleDeleteTask}
         onEnqueueRun={page.handleEnqueueRun}
         onPublish={page.handlePublishTask}
       />

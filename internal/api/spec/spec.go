@@ -1374,8 +1374,24 @@ var operationRegistry = []OperationSpec{
 	{
 		Method:      "DELETE",
 		Path:        "/api/sessions/{id}",
+		OperationID: "deleteSession",
+		Summary:     "Delete one session and remove it from persisted history",
+		Tags:        []string{"sessions"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Session id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 204, Description: "No Content"},
+			{Status: 404, Description: "Session not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/sessions/{id}/stop",
 		OperationID: "stopSession",
-		Summary:     "Stop a session",
+		Summary:     "Stop a session without deleting persisted history",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
@@ -1544,6 +1560,24 @@ var operationRegistry = []OperationSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskDetailResponse{}},
 			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task id", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "DELETE",
+		Path:        "/api/tasks/{id}",
+		OperationID: "deleteTask",
+		Summary:     "Delete one task",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 204, Description: "No Content"},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid task delete", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},

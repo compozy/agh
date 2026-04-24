@@ -2052,6 +2052,38 @@ func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	}
 }
 
+func TestFakeSessionManagerDeleteTracksDeleteIndependently(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldTrackDeleteIndependentlyFromStop", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &fakeSessionManager{
+			infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}},
+		}
+
+		if err := manager.Delete(testutil.Context(t), "sess-a"); err != nil {
+			t.Fatalf("Delete() error = %v", err)
+		}
+
+		if got, want := len(manager.deleteCalls), 1; got != want {
+			t.Fatalf("len(deleteCalls) = %d, want %d", got, want)
+		}
+		if got, want := manager.deleteCalls[0], "sess-a"; got != want {
+			t.Fatalf("deleteCalls[0] = %q, want %q", got, want)
+		}
+		if got := len(manager.stopCalls); got != 0 {
+			t.Fatalf("len(stopCalls) = %d, want 0", got)
+		}
+		if got, want := len(manager.infos), 1; got != want {
+			t.Fatalf("len(infos) = %d, want %d", got, want)
+		}
+		if got, want := manager.infos[0].ID, "sess-b"; got != want {
+			t.Fatalf("infos[0].ID = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestStopSessionsWaitsForInFlightFinalizations(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {
@@ -4010,11 +4042,14 @@ type fakeSessionManager struct {
 	promptRelease            <-chan struct{}
 	promptCtxCancelled       chan struct{}
 	stopCalls                []string
+	deleteCalls              []string
 	stopWithCauseCalls       []fakeStopWithCauseCall
 	requestStopCalls         []fakeStopWithCauseCall
 	waitFinalizationsRelease <-chan struct{}
 	waitFinalizationsCalls   int
 }
+
+var _ SessionManager = (*fakeSessionManager)(nil)
 
 type blockingStatusSessionManager struct {
 	*fakeSessionManager
@@ -4134,6 +4169,28 @@ func (f *fakeSessionManager) Stop(_ context.Context, id string) error {
 	}
 	if f.stopErr != nil {
 		return f.stopErr(id)
+	}
+	return nil
+}
+
+func (f *fakeSessionManager) Delete(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.deleteCalls = append(f.deleteCalls, id)
+
+	removed := false
+	filtered := f.infos[:0]
+	for _, info := range f.infos {
+		if info != nil && info.ID == id {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, info)
+	}
+	f.infos = filtered
+	if !removed {
+		return session.ErrSessionNotFound
 	}
 	return nil
 }
@@ -4935,6 +4992,10 @@ func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
 }
 
 func (r *recordingRegistry) UpdateTask(context.Context, taskpkg.Task) error {
+	return nil
+}
+
+func (r *recordingRegistry) DeleteTask(context.Context, string) error {
 	return nil
 }
 

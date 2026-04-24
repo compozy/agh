@@ -35,10 +35,9 @@ export const Default: Story = {
   render: () => (
     <Frame>
       <ChatHeader
-        onClear={() => undefined}
+        onDelete={() => undefined}
         onResume={() => undefined}
         onStop={() => undefined}
-        canClear
         session={primarySessionFixture}
         workspaceName="agh-core"
       />
@@ -50,10 +49,9 @@ export const Starting: Story = {
   render: () => (
     <Frame>
       <ChatHeader
-        onClear={() => undefined}
+        onDelete={() => undefined}
         onResume={() => undefined}
         onStop={() => undefined}
-        canClear
         session={withState("starting")}
         workspaceName="agh-core"
       />
@@ -65,10 +63,9 @@ export const Stopped: Story = {
   render: () => (
     <Frame>
       <ChatHeader
-        onClear={() => undefined}
+        onDelete={() => undefined}
         onResume={() => undefined}
         onStop={() => undefined}
-        canClear
         session={withState("stopped")}
         workspaceName="agh-core"
       />

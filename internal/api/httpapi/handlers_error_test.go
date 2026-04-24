@@ -20,48 +20,79 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-func TestCreateGetResumeAndStopHandlersReturnExpectedErrors(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
-		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
-			return nil, os.ErrNotExist
+func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		body   []byte
+	}{
+		{
+			name:   "ShouldReturnNotFoundWhenCreateFails",
+			method: http.MethodPost,
+			path:   "/api/sessions",
+			body:   []byte(`{"agent_name":"coder","workspace":"alpha"}`),
 		},
-		StatusFn: func(context.Context, string) (*session.Info, error) {
-			return nil, session.ErrSessionNotFound
+		{
+			name:   "ShouldReturnNotFoundWhenSessionLookupFails",
+			method: http.MethodGet,
+			path:   "/api/sessions/missing",
 		},
-		ResumeFn: func(context.Context, string) (*session.Session, error) {
-			return nil, session.ErrSessionNotFound
+		{
+			name:   "ShouldReturnNotFoundWhenResumeFails",
+			method: http.MethodPost,
+			path:   "/api/sessions/missing/resume",
 		},
-		StopFn: func(context.Context, string) error {
-			return session.ErrSessionNotFound
+		{
+			name:   "ShouldReturnNotFoundWhenDeleteFails",
+			method: http.MethodDelete,
+			path:   "/api/sessions/missing",
+		},
+		{
+			name:   "ShouldReturnNotFoundWhenStopFails",
+			method: http.MethodPost,
+			path:   "/api/sessions/missing/stop",
 		},
 	}
-	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
 
-	createResp := performRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/api/sessions",
-		[]byte(`{"agent_name":"coder","workspace":"alpha"}`),
-	)
-	if createResp.Code != http.StatusNotFound {
-		t.Fatalf("create status = %d, want %d", createResp.Code, http.StatusNotFound)
-	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	getResp := performRequest(t, engine, http.MethodGet, "/api/sessions/missing", nil)
-	if getResp.Code != http.StatusNotFound {
-		t.Fatalf("GET status = %d, want %d", getResp.Code, http.StatusNotFound)
-	}
+			homePaths := newTestHomePaths(t)
+			manager := stubSessionManager{
+				CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+					return nil, os.ErrNotExist
+				},
+				StatusFn: func(context.Context, string) (*session.Info, error) {
+					return nil, session.ErrSessionNotFound
+				},
+				ResumeFn: func(context.Context, string) (*session.Session, error) {
+					return nil, session.ErrSessionNotFound
+				},
+				DeleteFn: func(context.Context, string) error {
+					return session.ErrSessionNotFound
+				},
+				StopFn: func(context.Context, string) error {
+					return session.ErrSessionNotFound
+				},
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
 
-	resumeResp := performRequest(t, engine, http.MethodPost, "/api/sessions/missing/resume", nil)
-	if resumeResp.Code != http.StatusNotFound {
-		t.Fatalf("resume status = %d, want %d", resumeResp.Code, http.StatusNotFound)
-	}
-
-	stopResp := performRequest(t, engine, http.MethodDelete, "/api/sessions/missing", nil)
-	if stopResp.Code != http.StatusNotFound {
-		t.Fatalf("stop status = %d, want %d", stopResp.Code, http.StatusNotFound)
+			resp := performRequest(t, engine, tt.method, tt.path, tt.body)
+			if resp.Code != http.StatusNotFound {
+				t.Fatalf(
+					"%s %s status = %d, want %d; body=%s",
+					tt.method,
+					tt.path,
+					resp.Code,
+					http.StatusNotFound,
+					resp.Body.String(),
+				)
+			}
+		})
 	}
 }
 

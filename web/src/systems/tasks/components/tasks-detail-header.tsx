@@ -18,12 +18,15 @@ import {
   taskStatusTone,
 } from "../lib/task-formatters";
 import type { TaskDetailView } from "../types";
+import { TaskDeleteAction } from "./task-delete-action";
 
 export interface TasksDetailHeaderProps {
   detail: TaskDetailView;
+  isDeletePending?: boolean;
   isPublishPending?: boolean;
   isCancelPending?: boolean;
   isEnqueuePending?: boolean;
+  onDelete?: (taskId: string) => void;
   onPublish?: () => void;
   onCancel?: () => void;
   onEnqueueRun?: () => void;
@@ -37,9 +40,11 @@ export interface TasksDetailHeaderProps {
  */
 export function TasksDetailHeader({
   detail,
+  isDeletePending = false,
   isPublishPending = false,
   isCancelPending = false,
   isEnqueuePending = false,
+  onDelete,
   onPublish,
   onCancel,
   onEnqueueRun,
@@ -86,6 +91,18 @@ export function TasksDetailHeader({
                 Edit
               </Button>
             </Link>
+            {onDelete ? (
+              <TaskDeleteAction
+                taskId={record.id}
+                taskTitle={record.title}
+                onDelete={onDelete}
+                isPending={isDeletePending}
+                triggerTestId="tasks-detail-delete"
+                dialogTestId="tasks-detail-delete-dialog"
+                cancelTestId="tasks-detail-delete-cancel"
+                confirmTestId="tasks-detail-delete-confirm"
+              />
+            ) : null}
             {canCancel && onCancel ? (
               <Button
                 data-testid="tasks-detail-cancel"

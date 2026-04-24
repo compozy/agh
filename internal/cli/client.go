@@ -684,7 +684,14 @@ func (c *unixSocketClient) GetSession(ctx context.Context, id string) (SessionRe
 }
 
 func (c *unixSocketClient) StopSession(ctx context.Context, id string) error {
-	return c.doJSON(ctx, http.MethodDelete, "/api/sessions/"+url.PathEscape(strings.TrimSpace(id)), nil, nil, nil)
+	return c.doJSON(
+		ctx,
+		http.MethodPost,
+		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/stop",
+		nil,
+		nil,
+		nil,
+	)
 }
 
 func (c *unixSocketClient) ResumeSession(ctx context.Context, id string) (SessionRecord, error) {

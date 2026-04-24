@@ -8,6 +8,7 @@ import {
   useApproveTask,
   useArchiveTask,
   useCreateTask,
+  useDeleteTask,
   useDismissTask,
   useEnqueueTaskRun,
   useMarkTaskRead,
@@ -112,6 +113,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const inboxQuery = useTaskInbox(inboxFilters, { enabled: mode === "inbox" });
 
   const createMutation = useCreateTask();
+  const deleteMutation = useDeleteTask();
   const publishMutation = usePublishTask();
   const enqueueMutation = useEnqueueTaskRun();
   const approveMutation = useApproveTask();
@@ -271,6 +273,21 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     [publishMutation]
   );
 
+  const handleDeleteTask = useCallback(
+    async (taskId: string) => {
+      try {
+        await deleteMutation.mutateAsync({ id: taskId });
+        if (effectiveSelectedTaskId === taskId) {
+          setSelectedTaskId(null);
+        }
+        toast.success("Task deleted.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to delete task");
+      }
+    },
+    [deleteMutation, effectiveSelectedTaskId]
+  );
+
   const handleApproveTask = useCallback(
     async (taskId: string) => {
       try {
@@ -362,6 +379,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     handleApproveTask,
     handleArchiveTask,
     handleCloseCreateModal,
+    handleDeleteTask,
     handleDismissTask,
     handleInboxLaneChange,
     handleInboxUnreadToggle,
@@ -388,6 +406,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     isArchiveTaskPending: archiveMutation.isPending,
     isCreateModalOpen,
     isCreatePending: createMutation.isPending || enqueueMutation.isPending,
+    isDeletePending: deleteMutation.isPending,
     isDismissTaskPending: dismissMutation.isPending,
     isEmpty,
     isFilteredEmpty,
