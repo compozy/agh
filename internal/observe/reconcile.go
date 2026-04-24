@@ -59,6 +59,7 @@ func (o *Observer) loadSessionMetadata(ctx context.Context) ([]store.SessionInfo
 			continue
 		}
 
+		sessionID := strings.TrimSpace(meta.ID)
 		meta, err = session.RepairLegacyProvider(ctx, metaPath, meta, session.LegacyProviderRepairOptions{
 			Now:               o.now,
 			Logger:            o.logger,
@@ -67,7 +68,7 @@ func (o *Observer) loadSessionMetadata(ctx context.Context) ([]store.SessionInfo
 		if err != nil {
 			o.logger.Warn(
 				"observe: skipping session with unrecoverable legacy provider metadata",
-				"session_id", strings.TrimSpace(meta.ID),
+				"session_id", sessionID,
 				"path", metaPath,
 				"error", err,
 			)

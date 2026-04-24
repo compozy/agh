@@ -50,6 +50,25 @@ describe("SessionResumeFailure", () => {
     expect(screen.queryByTestId("session-resume-failure-provider")).not.toBeInTheDocument();
   });
 
+  it("falls back to the raw message when the provider detail is only whitespace", () => {
+    render(
+      <SessionResumeFailure
+        isRetrying={false}
+        message="Resume failed unexpectedly."
+        missingProvider="   "
+        onDismiss={vi.fn()}
+        onRetry={vi.fn()}
+        sessionId="sess_trimmed"
+      />
+    );
+
+    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent("Resume failed");
+    expect(screen.getByTestId("session-resume-failure-message")).toHaveTextContent(
+      "Resume failed unexpectedly."
+    );
+    expect(screen.queryByTestId("session-resume-failure-provider")).not.toBeInTheDocument();
+  });
+
   it("invokes retry and dismiss callbacks", () => {
     const onRetry = vi.fn();
     const onDismiss = vi.fn();

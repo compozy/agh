@@ -111,7 +111,7 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-providers-empty").className).toContain("text-xs");
   });
 
-  it("disables submit and surfaces submitError when creation fails", () => {
+  it("surfaces submitError when creation fails", () => {
     render(
       <SessionCreateDialog
         {...makeProps({ submitError: "Server rejected the session", isSubmitting: false })}
@@ -121,6 +121,19 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-submit-error")).toHaveTextContent(
       "Server rejected the session"
     );
+  });
+
+  it("disables submit when the current selections are no longer available", () => {
+    render(
+      <SessionCreateDialog
+        {...makeProps({
+          selectedAgentName: "missing-agent",
+          selectedProvider: "missing-provider",
+        })}
+      />
+    );
+
+    expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
   });
 
   it("shows provider-loading state and disables the picker while loading", () => {

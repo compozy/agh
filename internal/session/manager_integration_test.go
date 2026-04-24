@@ -632,6 +632,76 @@ func TestManagerIntegrationRemovePurgesSyntheticState(t *testing.T) {
 	}
 }
 
+func TestManagerIntegrationSyntheticQueueStateTransitions(t *testing.T) {
+	t.Run("Should requeue a claimed synthetic prompt before clearing dispatch", func(t *testing.T) {
+		manager := &Manager{
+			syntheticQueues: map[string][]queuedSyntheticPrompt{
+				"sess-synth": {{
+					request: promptRequest{turnID: "turn-queued"},
+				}},
+			},
+			syntheticDispatching: map[string]bool{
+				"sess-synth": true,
+			},
+		}
+		claimed := queuedSyntheticPrompt{request: promptRequest{turnID: "turn-claimed"}}
+
+		manager.requeueSyntheticPromptFrontAndFinishDispatch("sess-synth", claimed)
+
+		manager.syntheticMu.Lock()
+		defer manager.syntheticMu.Unlock()
+
+		if manager.syntheticDispatching["sess-synth"] {
+			t.Fatal("syntheticDispatching[\"sess-synth\"] = true, want cleared")
+		}
+		queue := manager.syntheticQueues["sess-synth"]
+		if got, want := len(queue), 2; got != want {
+			t.Fatalf("len(syntheticQueues[\"sess-synth\"]) = %d, want %d", got, want)
+		}
+		if got, want := queue[0].request.turnID, "turn-claimed"; got != want {
+			t.Fatalf("queue[0].request.turnID = %q, want %q", got, want)
+		}
+		if got, want := queue[1].request.turnID, "turn-queued"; got != want {
+			t.Fatalf("queue[1].request.turnID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should drain queued synthetic prompts while clearing dispatch", func(t *testing.T) {
+		manager := &Manager{
+			syntheticQueues: map[string][]queuedSyntheticPrompt{
+				"sess-synth": {
+					{request: promptRequest{turnID: "turn-1"}},
+					{request: promptRequest{turnID: "turn-2"}},
+				},
+			},
+			syntheticDispatching: map[string]bool{
+				"sess-synth": true,
+			},
+		}
+
+		drained := manager.finishQueuedSyntheticDispatchAndDrain("sess-synth")
+
+		manager.syntheticMu.Lock()
+		defer manager.syntheticMu.Unlock()
+
+		if manager.syntheticDispatching["sess-synth"] {
+			t.Fatal("syntheticDispatching[\"sess-synth\"] = true, want cleared")
+		}
+		if got := len(manager.syntheticQueues["sess-synth"]); got != 0 {
+			t.Fatalf("len(syntheticQueues[\"sess-synth\"]) = %d, want 0", got)
+		}
+		if got, want := len(drained), 2; got != want {
+			t.Fatalf("len(drained) = %d, want %d", got, want)
+		}
+		if got, want := drained[0].request.turnID, "turn-1"; got != want {
+			t.Fatalf("drained[0].request.turnID = %q, want %q", got, want)
+		}
+		if got, want := drained[1].request.turnID, "turn-2"; got != want {
+			t.Fatalf("drained[1].request.turnID = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
 	h := newHarness(t)
 	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)

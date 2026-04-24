@@ -677,151 +677,155 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 }
 
 func TestMigrateSessionColumnsAddsProviderIdempotently(t *testing.T) {
-	t.Parallel()
+	t.Run("Should add provider column idempotently", func(t *testing.T) {
+		t.Parallel()
 
-	db, err := store.OpenSQLiteDatabase(testutil.Context(t), filepath.Join(t.TempDir(), "session-columns.db"), nil)
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+		db, err := store.OpenSQLiteDatabase(testutil.Context(t), filepath.Join(t.TempDir(), "session-columns.db"), nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+		}
+		t.Cleanup(func() { _ = db.Close() })
 
-	if _, err := db.ExecContext(testutil.Context(t), `CREATE TABLE sessions (
-		id TEXT PRIMARY KEY,
-		name TEXT,
-		agent_name TEXT NOT NULL,
-		workspace_id TEXT NOT NULL,
-		session_type TEXT NOT NULL DEFAULT 'user',
-		state TEXT NOT NULL,
-		acp_session_id TEXT,
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create sessions error = %v", err)
-	}
-	if _, err := db.ExecContext(
-		testutil.Context(t),
-		`INSERT INTO sessions (id, agent_name, workspace_id, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		"sess-provider-column",
-		"coder",
-		"ws-1",
-		"stopped",
-		"2026-04-04T12:00:00.000000000Z",
-		"2026-04-04T12:00:00.000000000Z",
-	); err != nil {
-		t.Fatalf("insert session error = %v", err)
-	}
+		if _, err := db.ExecContext(testutil.Context(t), `CREATE TABLE sessions (
+			id TEXT PRIMARY KEY,
+			name TEXT,
+			agent_name TEXT NOT NULL,
+			workspace_id TEXT NOT NULL,
+			session_type TEXT NOT NULL DEFAULT 'user',
+			state TEXT NOT NULL,
+			acp_session_id TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`); err != nil {
+			t.Fatalf("create sessions error = %v", err)
+		}
+		if _, err := db.ExecContext(
+			testutil.Context(t),
+			`INSERT INTO sessions (id, agent_name, workspace_id, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			"sess-provider-column",
+			"coder",
+			"ws-1",
+			"stopped",
+			"2026-04-04T12:00:00.000000000Z",
+			"2026-04-04T12:00:00.000000000Z",
+		); err != nil {
+			t.Fatalf("insert session error = %v", err)
+		}
 
-	if err := migrateSessionColumns(testutil.Context(t), db); err != nil {
-		t.Fatalf("migrateSessionColumns(first) error = %v", err)
-	}
-	if err := migrateSessionColumns(testutil.Context(t), db); err != nil {
-		t.Fatalf("migrateSessionColumns(second) error = %v", err)
-	}
+		if err := migrateSessionColumns(testutil.Context(t), db); err != nil {
+			t.Fatalf("migrateSessionColumns(first) error = %v", err)
+		}
+		if err := migrateSessionColumns(testutil.Context(t), db); err != nil {
+			t.Fatalf("migrateSessionColumns(second) error = %v", err)
+		}
 
-	columns, err := tableColumns(testutil.Context(t), db, "sessions")
-	if err != nil {
-		t.Fatalf("tableColumns(sessions) error = %v", err)
-	}
-	if _, ok := columns["provider"]; !ok {
-		t.Fatalf("tableColumns(sessions) missing provider in %#v", columns)
-	}
+		columns, err := tableColumns(testutil.Context(t), db, "sessions")
+		if err != nil {
+			t.Fatalf("tableColumns(sessions) error = %v", err)
+		}
+		if _, ok := columns["provider"]; !ok {
+			t.Fatalf("tableColumns(sessions) missing provider in %#v", columns)
+		}
 
-	var provider string
-	if err := db.QueryRowContext(
-		testutil.Context(t),
-		`SELECT provider FROM sessions WHERE id = ?`,
-		"sess-provider-column",
-	).Scan(&provider); err != nil {
-		t.Fatalf("QueryRowContext(provider) error = %v", err)
-	}
-	if provider != "" {
-		t.Fatalf("provider = %q, want empty default", provider)
-	}
+		var provider string
+		if err := db.QueryRowContext(
+			testutil.Context(t),
+			`SELECT provider FROM sessions WHERE id = ?`,
+			"sess-provider-column",
+		).Scan(&provider); err != nil {
+			t.Fatalf("QueryRowContext(provider) error = %v", err)
+		}
+		if provider != "" {
+			t.Fatalf("provider = %q, want empty default", provider)
+		}
+	})
 }
 
 func TestCopyMigratedSessionsPreservesProvider(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve provider when copying migrated sessions", func(t *testing.T) {
+		t.Parallel()
 
-	db, err := store.OpenSQLiteDatabase(
-		testutil.Context(t),
-		filepath.Join(t.TempDir(), "legacy-provider-copy.db"),
-		func(ctx context.Context, db *sql.DB) error {
-			return store.EnsureSchema(ctx, db, []string{
-				`CREATE TABLE IF NOT EXISTS workspaces (
-					id TEXT PRIMARY KEY,
-					root_dir TEXT NOT NULL UNIQUE,
-					add_dirs TEXT NOT NULL DEFAULT '[]',
-					name TEXT NOT NULL UNIQUE,
-					default_agent TEXT DEFAULT '',
-					environment_ref TEXT NOT NULL DEFAULT '',
-					created_at TEXT NOT NULL,
-					updated_at TEXT NOT NULL
-				);`,
-				`CREATE TABLE IF NOT EXISTS sessions (
-					id TEXT PRIMARY KEY,
-					name TEXT,
-					agent_name TEXT NOT NULL,
-					provider TEXT NOT NULL DEFAULT '',
-					workspace TEXT NOT NULL,
-					session_type TEXT NOT NULL,
-					state TEXT NOT NULL,
-					acp_session_id TEXT,
-					created_at TEXT NOT NULL,
-					updated_at TEXT NOT NULL
-				);`,
-				`INSERT INTO sessions (id, name, agent_name, provider, workspace, session_type, state, acp_session_id, created_at, updated_at)
-				 VALUES ('sess-copy-provider', 'alpha', 'coder', 'codex', '/tmp/ws-legacy', 'user', 'active', NULL, '2026-04-04T12:00:00.000000000Z', '2026-04-04T12:05:00.000000000Z');`,
-			})
-		},
-	)
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-
-	legacySessions, seeds, err := loadLegacySessions(testutil.Context(t), db)
-	if err != nil {
-		t.Fatalf("loadLegacySessions() error = %v", err)
-	}
-	if got, want := len(legacySessions), 1; got != want {
-		t.Fatalf("len(legacySessions) = %d, want %d", got, want)
-	}
-	if got, want := legacySessions[0].Provider, "codex"; got != want {
-		t.Fatalf("legacySessions[0].Provider = %q, want %q", got, want)
-	}
-
-	tx, err := db.BeginTx(testutil.Context(t), nil)
-	if err != nil {
-		t.Fatalf("BeginTx() error = %v", err)
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			t.Errorf("tx.Rollback() error = %v", rollbackErr)
+		db, err := store.OpenSQLiteDatabase(
+			testutil.Context(t),
+			filepath.Join(t.TempDir(), "legacy-provider-copy.db"),
+			func(ctx context.Context, db *sql.DB) error {
+				return store.EnsureSchema(ctx, db, []string{
+					`CREATE TABLE IF NOT EXISTS workspaces (
+						id TEXT PRIMARY KEY,
+						root_dir TEXT NOT NULL UNIQUE,
+						add_dirs TEXT NOT NULL DEFAULT '[]',
+						name TEXT NOT NULL UNIQUE,
+						default_agent TEXT DEFAULT '',
+						environment_ref TEXT NOT NULL DEFAULT '',
+						created_at TEXT NOT NULL,
+						updated_at TEXT NOT NULL
+					);`,
+					`CREATE TABLE IF NOT EXISTS sessions (
+						id TEXT PRIMARY KEY,
+						name TEXT,
+						agent_name TEXT NOT NULL,
+						provider TEXT NOT NULL DEFAULT '',
+						workspace TEXT NOT NULL,
+						session_type TEXT NOT NULL,
+						state TEXT NOT NULL,
+						acp_session_id TEXT,
+						created_at TEXT NOT NULL,
+						updated_at TEXT NOT NULL
+					);`,
+					`INSERT INTO sessions (id, name, agent_name, provider, workspace, session_type, state, acp_session_id, created_at, updated_at)
+					 VALUES ('sess-copy-provider', 'alpha', 'coder', 'codex', '/tmp/ws-legacy', 'user', 'active', NULL, '2026-04-04T12:00:00.000000000Z', '2026-04-04T12:05:00.000000000Z');`,
+				})
+			},
+		)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
 		}
-	}()
+		t.Cleanup(func() { _ = db.Close() })
 
-	if err := createMigratedGlobalTables(testutil.Context(t), tx); err != nil {
-		t.Fatalf("createMigratedGlobalTables() error = %v", err)
-	}
-	workspaceIDs, err := ensureMigratedWorkspaces(testutil.Context(t), tx, seeds)
-	if err != nil {
-		t.Fatalf("ensureMigratedWorkspaces() error = %v", err)
-	}
-	if err := copyMigratedSessions(testutil.Context(t), tx, legacySessions, workspaceIDs); err != nil {
-		t.Fatalf("copyMigratedSessions() error = %v", err)
-	}
+		legacySessions, seeds, err := loadLegacySessions(testutil.Context(t), db)
+		if err != nil {
+			t.Fatalf("loadLegacySessions() error = %v", err)
+		}
+		if got, want := len(legacySessions), 1; got != want {
+			t.Fatalf("len(legacySessions) = %d, want %d", got, want)
+		}
+		if got, want := legacySessions[0].Provider, "codex"; got != want {
+			t.Fatalf("legacySessions[0].Provider = %q, want %q", got, want)
+		}
 
-	var provider string
-	if err := tx.QueryRowContext(
-		testutil.Context(t),
-		`SELECT provider FROM sessions_new WHERE id = ?`,
-		"sess-copy-provider",
-	).Scan(&provider); err != nil {
-		t.Fatalf("QueryRowContext(provider) error = %v", err)
-	}
-	if got, want := provider, "codex"; got != want {
-		t.Fatalf("copied provider = %q, want %q", got, want)
-	}
+		tx, err := db.BeginTx(testutil.Context(t), nil)
+		if err != nil {
+			t.Fatalf("BeginTx() error = %v", err)
+		}
+		defer func() {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				t.Errorf("tx.Rollback() error = %v", rollbackErr)
+			}
+		}()
+
+		if err := createMigratedGlobalTables(testutil.Context(t), tx); err != nil {
+			t.Fatalf("createMigratedGlobalTables() error = %v", err)
+		}
+		workspaceIDs, err := ensureMigratedWorkspaces(testutil.Context(t), tx, seeds)
+		if err != nil {
+			t.Fatalf("ensureMigratedWorkspaces() error = %v", err)
+		}
+		if err := copyMigratedSessions(testutil.Context(t), tx, legacySessions, workspaceIDs); err != nil {
+			t.Fatalf("copyMigratedSessions() error = %v", err)
+		}
+
+		var provider string
+		if err := tx.QueryRowContext(
+			testutil.Context(t),
+			`SELECT provider FROM sessions_new WHERE id = ?`,
+			"sess-copy-provider",
+		).Scan(&provider); err != nil {
+			t.Fatalf("QueryRowContext(provider) error = %v", err)
+		}
+		if got, want := provider, "codex"; got != want {
+			t.Fatalf("copied provider = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestMigrateBridgeInstanceColumnsNoopAndIdempotent(t *testing.T) {

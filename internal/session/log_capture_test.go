@@ -17,16 +17,18 @@ type capturedLogRecord struct {
 }
 
 type captureLogHandler struct {
-	mu      *sync.Mutex
+	mu      *sync.RWMutex
 	records *[]capturedLogRecord
 	attrs   []slog.Attr
 	groups  []string
 }
 
+var _ slog.Handler = (*captureLogHandler)(nil)
+
 func newCaptureLogHandler() *captureLogHandler {
 	records := make([]capturedLogRecord, 0, 8)
 	return &captureLogHandler{
-		mu:      &sync.Mutex{},
+		mu:      &sync.RWMutex{},
 		records: &records,
 	}
 }
@@ -96,8 +98,8 @@ func (h *captureLogHandler) WithGroup(name string) slog.Handler {
 }
 
 func (h *captureLogHandler) Records() []capturedLogRecord {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 
 	records := make([]capturedLogRecord, 0, len(*h.records))
 	for _, record := range *h.records {
@@ -107,8 +109,8 @@ func (h *captureLogHandler) Records() []capturedLogRecord {
 }
 
 func (h *captureLogHandler) FindByMessage(message string) (capturedLogRecord, bool) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 	for _, record := range *h.records {
 		if record.Message == message {
 			return cloneCapturedLogRecord(record), true

@@ -203,12 +203,17 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			nil,
 			nil,
 		)
+		body, readErr := io.ReadAll(stopResp.Body)
+		closeErr := stopResp.Body.Close()
+		if readErr != nil {
+			t.Fatalf("read HTTP stop response body error = %v", readErr)
+		}
+		if closeErr != nil {
+			t.Fatalf("close HTTP stop response body error = %v", closeErr)
+		}
 		if stopResp.StatusCode != http.StatusNoContent {
-			body, _ := io.ReadAll(stopResp.Body)
-			_ = stopResp.Body.Close()
 			t.Fatalf("HTTP stop session status = %d, want %d; body=%s", stopResp.StatusCode, http.StatusNoContent, string(body))
 		}
-		_ = stopResp.Body.Close()
 
 		writeTransportProviderOverrideConfig(
 			t,
@@ -226,23 +231,23 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			nil,
 			nil,
 		)
-		body, err := io.ReadAll(resumeResp.Body)
-		closeErr := resumeResp.Body.Close()
+		resumeBody, err := io.ReadAll(resumeResp.Body)
+		resumeCloseErr := resumeResp.Body.Close()
 		if err != nil {
 			t.Fatalf("read HTTP resume body error = %v", err)
 		}
-		if closeErr != nil {
-			t.Fatalf("close HTTP resume body error = %v", closeErr)
+		if resumeCloseErr != nil {
+			t.Fatalf("close HTTP resume body error = %v", resumeCloseErr)
 		}
 		if resumeResp.StatusCode != http.StatusBadRequest {
-			t.Fatalf("HTTP resume status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusBadRequest, string(body))
+			t.Fatalf("HTTP resume status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusBadRequest, string(resumeBody))
 		}
 
 		var payload struct {
 			Error string `json:"error"`
 		}
-		if err := json.Unmarshal(body, &payload); err != nil {
-			t.Fatalf("Unmarshal(resume body) error = %v; body=%s", err, string(body))
+		if err := json.Unmarshal(resumeBody, &payload); err != nil {
+			t.Fatalf("Unmarshal(resume body) error = %v; body=%s", err, string(resumeBody))
 		}
 
 		if !strings.Contains(payload.Error, created.Session.ID) {
@@ -251,7 +256,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		if !strings.Contains(payload.Error, transportOverrideProvider) {
 			t.Fatalf("HTTP resume error = %s, want provider %q", payload.Error, transportOverrideProvider)
 		}
-		if !strings.Contains(payload.Error, `resolve session agent with provider "qa-transport-override"`) {
+		if !strings.Contains(payload.Error, `resolve session agent with provider "`+transportOverrideProvider+`"`) {
 			t.Fatalf("HTTP resume error = %s, want override context", payload.Error)
 		}
 	})

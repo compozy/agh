@@ -23,6 +23,11 @@ const (
 	resumeStopDetailStartIncomplete = "start did not complete"
 )
 
+var (
+	errResumeRepairContextRequired       = errors.New("session: resume repair context is required")
+	errLegacyProviderRepairContextNeeded = errors.New("session: legacy provider repair context is required")
+)
+
 // LegacyProviderRepairOptions supplies the dependencies used to repair legacy
 // session metadata that predates persisted provider state.
 type LegacyProviderRepairOptions struct {
@@ -58,7 +63,7 @@ func (m *Manager) repairInactiveMeta(
 	meta store.SessionMeta,
 ) (store.SessionMeta, error) {
 	if ctx == nil {
-		return store.SessionMeta{}, errors.New("session: resume repair context is required")
+		return store.SessionMeta{}, errResumeRepairContextRequired
 	}
 
 	repaired, err := m.repairLegacyProvider(ctx, metaPath, meta)
@@ -95,7 +100,7 @@ func RepairLegacyProvider(
 	opts LegacyProviderRepairOptions,
 ) (store.SessionMeta, error) {
 	if ctx == nil {
-		return store.SessionMeta{}, errors.New("session: legacy provider repair context is required")
+		return store.SessionMeta{}, errLegacyProviderRepairContextNeeded
 	}
 	if strings.TrimSpace(meta.Provider) != "" {
 		return meta, nil

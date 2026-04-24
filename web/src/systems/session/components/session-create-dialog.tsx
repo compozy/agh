@@ -52,17 +52,24 @@ function SessionCreateDialog({
   isSubmitting,
   submitError,
 }: SessionCreateDialogProps) {
-  const activeAgent = agents.find(agent => agent.name === selectedAgentName);
+  const trimmedSelectedAgentName = selectedAgentName.trim();
+  const trimmedSelectedProvider = selectedProvider.trim();
+  const activeAgent = agents.find(agent => agent.name === trimmedSelectedAgentName);
   const hasAgents = agents.length > 0;
   const hasProviderOptions = providerOptions.length > 0;
+  const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
+  const hasSelectedProvider = providerOptions.some(
+    option => option.name === trimmedSelectedProvider
+  );
   const workspaceSelected = workspace !== undefined;
   const canSubmit =
     !isSubmitting &&
+    !providersLoading &&
     workspaceSelected &&
     hasAgents &&
-    selectedAgentName.trim().length > 0 &&
+    hasSelectedAgent &&
     hasProviderOptions &&
-    selectedProvider.trim().length > 0;
+    hasSelectedProvider;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

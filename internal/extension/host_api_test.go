@@ -207,41 +207,43 @@ func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {
 }
 
 func TestHostAPIHandlerCreateBridgeSessionUsesExplicitEmptyProvider(t *testing.T) {
-	t.Parallel()
+	t.Run("Should use an explicit empty provider for bridge sessions", func(t *testing.T) {
+		t.Parallel()
 
-	sessions := &recordingHostAPISessionManager{}
-	handler := &HostAPIHandler{
-		sessions: sessions,
-		workspaces: newHostAPIFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-alpha", RootDir: t.TempDir()},
-			Config: aghconfig.Config{
-				Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
-			},
-		}),
-	}
+		sessions := &recordingHostAPISessionManager{}
+		handler := &HostAPIHandler{
+			sessions: sessions,
+			workspaces: newHostAPIFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{ID: "ws-alpha", RootDir: t.TempDir()},
+				Config: aghconfig.Config{
+					Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
+				},
+			}),
+		}
 
-	created, err := handler.createBridgeSession(testutil.Context(t), bridgepkg.BridgeInstance{
-		WorkspaceID: "ws-alpha",
+		created, err := handler.createBridgeSession(testutil.Context(t), bridgepkg.BridgeInstance{
+			WorkspaceID: "ws-alpha",
+		})
+		if err != nil {
+			t.Fatalf("createBridgeSession() error = %v", err)
+		}
+		if created == nil {
+			t.Fatal("createBridgeSession() = nil, want session")
+		}
+		if got, want := len(sessions.createCalls), 1; got != want {
+			t.Fatalf("len(createCalls) = %d, want %d", got, want)
+		}
+		createCall := sessions.createCalls[0]
+		if got, want := createCall.AgentName, "coder"; got != want {
+			t.Fatalf("Create().AgentName = %q, want %q", got, want)
+		}
+		if got, want := createCall.Workspace, "ws-alpha"; got != want {
+			t.Fatalf("Create().Workspace = %q, want %q", got, want)
+		}
+		if got := createCall.Provider; got != "" {
+			t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
+		}
 	})
-	if err != nil {
-		t.Fatalf("createBridgeSession() error = %v", err)
-	}
-	if created == nil {
-		t.Fatal("createBridgeSession() = nil, want session")
-	}
-	if got, want := len(sessions.createCalls), 1; got != want {
-		t.Fatalf("len(createCalls) = %d, want %d", got, want)
-	}
-	createCall := sessions.createCalls[0]
-	if got, want := createCall.AgentName, "coder"; got != want {
-		t.Fatalf("Create().AgentName = %q, want %q", got, want)
-	}
-	if got, want := createCall.Workspace, "ws-alpha"; got != want {
-		t.Fatalf("Create().Workspace = %q, want %q", got, want)
-	}
-	if got := createCall.Provider; got != "" {
-		t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
-	}
 }
 
 func TestHostAPIHandlerEnvironmentListReturnsActiveEnvironmentInstances(t *testing.T) {

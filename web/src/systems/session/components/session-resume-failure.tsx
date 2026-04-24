@@ -23,7 +23,8 @@ export function SessionResumeFailure({
   onRetry,
   onDismiss,
 }: SessionResumeFailureProps) {
-  const hasProviderDetail = Boolean(missingProvider && missingProvider.length > 0);
+  const normalizedMissingProvider = missingProvider?.trim() ?? "";
+  const hasProviderDetail = normalizedMissingProvider.length > 0;
   const title = hasProviderDetail ? "Resume failed: provider no longer available" : "Resume failed";
 
   return (
@@ -51,7 +52,7 @@ export function SessionResumeFailure({
             </span>
             {hasProviderDetail ? (
               <MonoBadge data-testid="session-resume-failure-provider" tone="danger">
-                {missingProvider}
+                {normalizedMissingProvider}
               </MonoBadge>
             ) : null}
           </div>
@@ -60,7 +61,7 @@ export function SessionResumeFailure({
             data-testid="session-resume-failure-message"
           >
             {hasProviderDetail
-              ? `This session was started with provider ${missingProvider}, which is not visible in the current workspace configuration. Add the provider back to the workspace or update the agent defaults before retrying.`
+              ? `This session was started with provider ${normalizedMissingProvider}, which is not visible in the current workspace configuration. Add the provider back to the workspace or update the agent defaults before retrying.`
               : message}
           </p>
           <dl
