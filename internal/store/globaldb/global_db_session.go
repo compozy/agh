@@ -48,7 +48,10 @@ func (g *GlobalDB) UpdateSessionState(ctx context.Context, update store.SessionS
 		updatedAt = g.now()
 	}
 
-	query, args := buildUpdateSessionStateStatement(update, updatedAt)
+	query, args, err := buildUpdateSessionStateStatement(update, updatedAt)
+	if err != nil {
+		return fmt.Errorf("store: build update session state %q: %w", update.ID, err)
+	}
 	result, err := g.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("store: update session state %q: %w", update.ID, err)
@@ -188,7 +191,11 @@ func (g *GlobalDB) ReconcileSessions(
 }
 
 func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, session store.SessionInfo) error {
-	_, err := exec.ExecContext(
+	activityJSON, err := sessionLivenessActivityJSON(session.Liveness)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(
 		ctx,
 		`INSERT INTO sessions (
 			id, name, agent_name, provider, workspace_id, session_type, channel, state,
@@ -240,7 +247,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		sessionLivenessLastUpdateAt(session.Liveness),
 		sessionLivenessStallState(session.Liveness),
 		sessionLivenessStallReason(session.Liveness),
-		sessionLivenessActivityJSON(session.Liveness),
+		activityJSON,
 		sessionEnvironmentID(session.Environment),
 		sessionEnvironmentBackend(session.Environment),
 		sessionEnvironmentProfile(session.Environment),
@@ -283,7 +290,7 @@ type sqlExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt time.Time) (string, []any) {
+func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt time.Time) (string, []any, error) {
 	assignments := []string{"state = ?"}
 	args := []any{update.State}
 
@@ -296,6 +303,10 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 		args = append(args, store.NullableStringPointer(update.StopReason), store.NullableString(update.StopDetail))
 	}
 	if update.Liveness != nil {
+		activityJSON, err := sessionLivenessActivityJSON(update.Liveness)
+		if err != nil {
+			return "", nil, err
+		}
 		assignments = append(
 			assignments,
 			"subprocess_pid = ?",
@@ -312,7 +323,7 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 			sessionLivenessLastUpdateAt(update.Liveness),
 			sessionLivenessStallState(update.Liveness),
 			sessionLivenessStallReason(update.Liveness),
-			sessionLivenessActivityJSON(update.Liveness),
+			activityJSON,
 		)
 	}
 	if update.Environment != nil {
@@ -342,7 +353,7 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 
 	assignments = append(assignments, "updated_at = ?")
 	args = append(args, store.FormatTimestamp(updatedAt), update.ID)
-	return fmt.Sprintf("UPDATE sessions SET %s WHERE id = ?", strings.Join(assignments, ", ")), args
+	return fmt.Sprintf("UPDATE sessions SET %s WHERE id = ?", strings.Join(assignments, ", ")), args, nil
 }
 
 type sessionInfoRow struct {
@@ -631,16 +642,16 @@ func sessionLivenessStallReason(meta *store.SessionLivenessMeta) string {
 	return strings.TrimSpace(meta.StallReason)
 }
 
-func sessionLivenessActivityJSON(meta *store.SessionLivenessMeta) string {
+func sessionLivenessActivityJSON(meta *store.SessionLivenessMeta) (string, error) {
 	if meta == nil || meta.Activity == nil {
-		return ""
+		return "", nil
 	}
 	activity := store.CloneSessionActivityMeta(meta.Activity)
 	data, err := json.Marshal(activity)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("store: session liveness activity marshal: %w", err)
 	}
-	return string(data)
+	return string(data), nil
 }
 
 func sessionEnvironmentBackend(meta *store.SessionEnvironmentMeta) string {

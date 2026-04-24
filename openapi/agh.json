@@ -9279,6 +9279,12 @@
                                                                         "type": "string"
                                                                     }
                                                                 },
+                                                                "required": [
+                                                                    "elapsed_seconds",
+                                                                    "idle_seconds",
+                                                                    "iteration_current",
+                                                                    "iteration_max"
+                                                                ],
                                                                 "type": "object"
                                                             },
                                                             "agent_name": {
@@ -9722,6 +9728,12 @@
                                                                         "type": "string"
                                                                     }
                                                                 },
+                                                                "required": [
+                                                                    "elapsed_seconds",
+                                                                    "idle_seconds",
+                                                                    "iteration_current",
+                                                                    "iteration_max"
+                                                                ],
                                                                 "type": "object"
                                                             },
                                                             "agent_name": {
@@ -11544,7 +11556,14 @@
                                                                 "type": "string"
                                                             }
                                                         },
-                                                        "required": ["session_id", "status"],
+                                                        "required": [
+                                                            "elapsed_seconds",
+                                                            "idle_seconds",
+                                                            "iteration_current",
+                                                            "iteration_max",
+                                                            "session_id",
+                                                            "status"
+                                                        ],
                                                         "type": "object"
                                                     },
                                                     "type": "array"
@@ -14118,6 +14137,12 @@
                                                                 "type": "string"
                                                             }
                                                         },
+                                                        "required": [
+                                                            "elapsed_seconds",
+                                                            "idle_seconds",
+                                                            "iteration_current",
+                                                            "iteration_max"
+                                                        ],
                                                         "type": "object"
                                                     },
                                                     "agent_name": {
@@ -14379,6 +14404,12 @@
                                                             "type": "string"
                                                         }
                                                     },
+                                                    "required": [
+                                                        "elapsed_seconds",
+                                                        "idle_seconds",
+                                                        "iteration_current",
+                                                        "iteration_max"
+                                                    ],
                                                     "type": "object"
                                                 },
                                                 "agent_name": {
@@ -14709,6 +14740,12 @@
                                                             "type": "string"
                                                         }
                                                     },
+                                                    "required": [
+                                                        "elapsed_seconds",
+                                                        "idle_seconds",
+                                                        "iteration_current",
+                                                        "iteration_max"
+                                                    ],
                                                     "type": "object"
                                                 },
                                                 "agent_name": {
@@ -15441,6 +15478,12 @@
                                                             "type": "string"
                                                         }
                                                     },
+                                                    "required": [
+                                                        "elapsed_seconds",
+                                                        "idle_seconds",
+                                                        "iteration_current",
+                                                        "iteration_max"
+                                                    ],
                                                     "type": "object"
                                                 },
                                                 "agent_name": {
@@ -34476,6 +34519,12 @@
                                                                 "type": "string"
                                                             }
                                                         },
+                                                        "required": [
+                                                            "elapsed_seconds",
+                                                            "idle_seconds",
+                                                            "iteration_current",
+                                                            "iteration_max"
+                                                        ],
                                                         "type": "object"
                                                     },
                                                     "agent_name": {

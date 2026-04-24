@@ -35,7 +35,7 @@ test.use({
   },
 });
 
-test("operator can edit automation, trigger a real run, and inspect the linked session transcript", async ({
+test("operator can inspect automation, trigger a real run, and inspect the linked session transcript", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -65,7 +65,7 @@ test("operator can edit automation, trigger a real run, and inspect the linked s
   );
   await expect(automationUI.runHistory).toBeVisible();
   await expect(automationUI.run(seeded.baselineRun.id)).toBeVisible();
-  await expect(automationUI.runHistory).toContainText(/completed/i);
+  await expect(automationUI.run(seeded.baselineRun.id)).toContainText(/completed/i);
   await expect(automationUI.runSessionLink(seeded.baselineRun.id)).toBeVisible();
   await expect(automationUI.runSessionLink(seeded.baselineRun.id)).toHaveAttribute(
     "href",
@@ -88,7 +88,8 @@ test("operator can edit automation, trigger a real run, and inspect the linked s
   await automationUI.item(seeded.job.id).click();
 
   await expect(automationUI.editAutomationButton).toBeVisible();
-  await automationUI.editAutomationButton.click({ force: true });
+  await expect(automationUI.editAutomationButton).toBeEnabled();
+  await automationUI.editAutomationButton.click();
   await expect(automationUI.jobForm).toBeVisible();
   await expect(automationUI.jobNameInput).toHaveValue(seeded.job.name);
   await expect(automationUI.jobScheduleExpr).toHaveValue(

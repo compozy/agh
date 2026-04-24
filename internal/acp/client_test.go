@@ -358,38 +358,42 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 }
 
 func TestPromptActivityReporterReportsWhilePromptIsInFlight(t *testing.T) {
-	ctx, cancel := context.WithCancel(testutil.Context(t))
-	defer cancel()
+	t.Run("ShouldReportWhilePromptIsInFlight", func(t *testing.T) {
+		t.Parallel()
 
-	reports := make(chan PromptActivityReport, 4)
-	stop := startPromptActivityReporter(ctx, PromptRequest{
-		TurnID:                    "turn-reporter",
-		Message:                   "hello",
-		ActivityHeartbeatInterval: 5 * time.Millisecond,
-		ActivityReporter: func(report PromptActivityReport) {
-			select {
-			case reports <- report:
-			default:
-			}
-		},
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
+
+		reports := make(chan PromptActivityReport, 4)
+		stop := startPromptActivityReporter(ctx, PromptRequest{
+			TurnID:                    "turn-reporter",
+			Message:                   "hello",
+			ActivityHeartbeatInterval: 5 * time.Millisecond,
+			ActivityReporter: func(report PromptActivityReport) {
+				select {
+				case reports <- report:
+				default:
+				}
+			},
+		})
+		defer stop()
+
+		first := readPromptActivityReport(t, reports)
+		if got, want := first.Kind, "agent_waiting"; got != want {
+			t.Fatalf("first report kind = %q, want %q", got, want)
+		}
+		if first.Timestamp.IsZero() {
+			t.Fatal("first report timestamp is zero")
+		}
+
+		second := readPromptActivityReport(t, reports)
+		if got, want := second.Kind, "agent_waiting"; got != want {
+			t.Fatalf("second report kind = %q, want %q", got, want)
+		}
+		if second.Timestamp.Before(first.Timestamp) {
+			t.Fatalf("second report timestamp %s before first %s", second.Timestamp, first.Timestamp)
+		}
 	})
-	defer stop()
-
-	first := readPromptActivityReport(t, reports)
-	if got, want := first.Kind, "agent_waiting"; got != want {
-		t.Fatalf("first report kind = %q, want %q", got, want)
-	}
-	if first.Timestamp.IsZero() {
-		t.Fatal("first report timestamp is zero")
-	}
-
-	second := readPromptActivityReport(t, reports)
-	if got, want := second.Kind, "agent_waiting"; got != want {
-		t.Fatalf("second report kind = %q, want %q", got, want)
-	}
-	if second.Timestamp.Before(first.Timestamp) {
-		t.Fatalf("second report timestamp %s before first %s", second.Timestamp, first.Timestamp)
-	}
 }
 
 func readPromptActivityReport(t *testing.T, reports <-chan PromptActivityReport) PromptActivityReport {

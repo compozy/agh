@@ -47,9 +47,6 @@ func newPromptActivitySupervisor(
 	turnState *promptTurnDispatchState,
 	config aghconfig.SessionSupervisionConfig,
 ) *promptActivitySupervisor {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	supervisorCtx, cancel := context.WithCancel(ctx)
 	startedAt := time.Now().UTC()
 	if manager != nil && manager.now != nil {

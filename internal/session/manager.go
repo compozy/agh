@@ -338,7 +338,10 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.supervision == (aghconfig.SessionSupervisionConfig{}) {
 		m.supervision = aghconfig.DefaultSessionSupervisionConfig()
 	}
-	return m.supervision.Validate()
+	if err := m.supervision.Validate(); err != nil {
+		return fmt.Errorf("session: %w", err)
+	}
+	return nil
 }
 
 // Get returns the active in-memory session by id.

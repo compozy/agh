@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1138,13 +1139,21 @@ func TestAccessorsAndValidationHelpers(t *testing.T) {
 	if err := (PromptRequest{}).Validate(); err == nil {
 		t.Fatal("PromptRequest.Validate() error = nil, want validation error")
 	}
-	if err := (PromptRequest{
-		TurnID:                    "turn-negative-heartbeat",
-		Message:                   "hello",
-		ActivityHeartbeatInterval: -time.Second,
-	}).Validate(); err == nil {
-		t.Fatal("PromptRequest.Validate(negative heartbeat) error = nil, want validation error")
-	}
+	t.Run("ShouldRejectNegativeHeartbeatInterval", func(t *testing.T) {
+		t.Parallel()
+
+		err := (PromptRequest{
+			TurnID:                    "turn-negative-heartbeat",
+			Message:                   "hello",
+			ActivityHeartbeatInterval: -time.Second,
+		}).Validate()
+		if err == nil {
+			t.Fatal("PromptRequest.Validate(negative heartbeat) error = nil, want validation error")
+		}
+		if !strings.Contains(err.Error(), "heartbeat") {
+			t.Fatalf("PromptRequest.Validate(negative heartbeat) error = %v, want heartbeat context", err)
+		}
+	})
 
 	proc := &AgentProcess{stderr: &lockedBuffer{}}
 	if _, err := proc.stderr.Write([]byte("boom")); err != nil {

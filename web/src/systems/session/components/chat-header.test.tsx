@@ -95,7 +95,10 @@ describe("ChatHeader", () => {
           ...baseSession,
           activity: {
             current_tool: "Read",
+            elapsed_seconds: 0,
             idle_seconds: 12,
+            iteration_current: 0,
+            iteration_max: 0,
             last_activity_kind: "tool_call",
           },
         }}

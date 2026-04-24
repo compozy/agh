@@ -801,6 +801,14 @@ func (c SessionSupervisionConfig) Validate() error {
 		)
 	case c.InactivityTimeout < 0:
 		return fmt.Errorf("session.supervision.inactivity_timeout must be zero or positive: %s", c.InactivityTimeout)
+	case c.InactivityWarningAfter > 0 &&
+		c.InactivityTimeout > 0 &&
+		c.InactivityWarningAfter > c.InactivityTimeout:
+		return fmt.Errorf(
+			"session.supervision.inactivity_warning_after must be <= session.supervision.inactivity_timeout: %s > %s",
+			c.InactivityWarningAfter,
+			c.InactivityTimeout,
+		)
 	case c.TimeoutCancelGrace <= 0:
 		return fmt.Errorf("session.supervision.timeout_cancel_grace must be positive: %s", c.TimeoutCancelGrace)
 	default:

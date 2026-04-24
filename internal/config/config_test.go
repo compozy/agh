@@ -622,6 +622,25 @@ func TestSessionLimitsConfigValidateRejectsNegativeTimeout(t *testing.T) {
 	})
 }
 
+func TestSessionSupervisionConfigValidateRejectsWarningAfterTimeout(t *testing.T) {
+	t.Run("Should reject warning threshold after timeout", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultSessionSupervisionConfig()
+		cfg.InactivityWarningAfter = 2 * time.Minute
+		cfg.InactivityTimeout = time.Minute
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("SessionSupervisionConfig.Validate() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "session.supervision.inactivity_warning_after") ||
+			!strings.Contains(err.Error(), "session.supervision.inactivity_timeout") {
+			t.Fatalf("SessionSupervisionConfig.Validate() error = %v, want threshold context", err)
+		}
+	})
+}
+
 func TestLoadWorkspaceAddsValuesWithoutClobberingGlobal(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")

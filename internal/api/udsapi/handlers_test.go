@@ -1156,6 +1156,69 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 			t.Fatalf("prompt context err = %v, want context.Canceled after detached drain completed", promptCtx.Err())
 		}
 	})
+
+	t.Run("ShouldCancelTheDetachedPromptContextWhenStreamShutsDown", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		promptCtxCh := make(chan context.Context, 1)
+		events := make(chan acp.AgentEvent)
+		manager := stubSessionManager{
+			PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
+				promptCtxCh <- ctx
+				return events, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		streamDone := make(chan struct{})
+		handlers.setStreamDone(streamDone)
+		engine := newTestRouter(t, handlers)
+
+		requestCtx, cancel := context.WithCancel(context.Background())
+		req := httptest.NewRequestWithContext(
+			requestCtx,
+			http.MethodPost,
+			"/api/sessions/sess-123/prompt",
+			strings.NewReader(`{"message":"hello"}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+
+		recorder := httptest.NewRecorder()
+		done := make(chan struct{})
+		go func() {
+			engine.ServeHTTP(recorder, req)
+			close(done)
+		}()
+
+		var promptCtx context.Context
+		select {
+		case promptCtx = <-promptCtxCh:
+		case <-time.After(time.Second):
+			t.Fatal("Prompt() was not invoked")
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("handler did not return after request cancellation")
+		}
+
+		if err := promptCtx.Err(); err != nil {
+			t.Fatalf("prompt context err = %v, want nil before stream shutdown", err)
+		}
+
+		close(streamDone)
+
+		select {
+		case <-promptCtx.Done():
+		case <-time.After(time.Second):
+			t.Fatal("prompt context was not canceled after stream shutdown")
+		}
+
+		if !errors.Is(promptCtx.Err(), context.Canceled) {
+			t.Fatalf("prompt context err = %v, want context.Canceled after stream shutdown", promptCtx.Err())
+		}
+	})
 }
 
 func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {

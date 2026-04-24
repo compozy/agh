@@ -428,8 +428,17 @@ func (h *RuntimeHarness) readinessFailureRetryReasons(err error) (retryHTTPPort 
 	if readErr != nil {
 		return false, false
 	}
-	return strings.Contains(processLog, "address already in use"),
-		strings.Contains(processLog, "listen unix") && strings.Contains(processLog, "bind: file exists")
+	return processLogHasHTTPPortConflict(processLog), processLogHasSocketPathConflict(processLog)
+}
+
+func processLogHasHTTPPortConflict(processLog string) bool {
+	return strings.Contains(processLog, "listen tcp") && strings.Contains(processLog, "bind: address already in use")
+}
+
+func processLogHasSocketPathConflict(processLog string) bool {
+	return strings.Contains(processLog, "listen unix") &&
+		(strings.Contains(processLog, "bind: file exists") ||
+			strings.Contains(processLog, "bind: address already in use"))
 }
 
 func (h *RuntimeHarness) readProcessLog() (string, error) {

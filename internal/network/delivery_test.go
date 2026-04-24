@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -518,9 +519,13 @@ func TestDeliveryCoordinatorRetryDelayUsesExponentialCap(t *testing.T) {
 		{attempt: 99, want: defaultDeliveryRetryMaxDelay},
 	}
 	for _, tc := range cases {
-		if got := coordinator.retryDelayFor(tc.attempt); got != tc.want {
-			t.Fatalf("retryDelayFor(%d) = %s, want %s", tc.attempt, got, tc.want)
-		}
+		t.Run(fmt.Sprintf("ShouldUseExpectedRetryDelayForAttempt%d", tc.attempt), func(t *testing.T) {
+			t.Parallel()
+
+			if got := coordinator.retryDelayFor(tc.attempt); got != tc.want {
+				t.Fatalf("retryDelayFor(%d) = %s, want %s", tc.attempt, got, tc.want)
+			}
+		})
 	}
 }
 

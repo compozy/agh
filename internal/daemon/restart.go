@@ -773,6 +773,9 @@ func (h *relaunchHelper) waitForReady(
 	operationID string,
 	process restartProcess,
 ) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	waitCtx, cancel := withTimeoutCap(ctx, h.cfg.ReadyTimeout)
 	defer cancel()
 
@@ -800,28 +803,7 @@ func (h *relaunchHelper) waitForReady(
 				errReplacementDaemonExitedBeforeReady,
 			)
 		case <-waitCtx.Done():
-			if exited, err := waitForProcessExitAfterReadyTimeout(
-				processErrCh,
-				h.cfg.ExitDrainWait,
-			); exited {
-				if err != nil {
-					return h.fail(
-						store,
-						operationID,
-						fmt.Errorf("%w: %w", errReplacementDaemonExitedBeforeReady, err),
-					)
-				}
-				return h.fail(
-					store,
-					operationID,
-					errReplacementDaemonExitedBeforeReady,
-				)
-			}
-			return h.fail(
-				store,
-				operationID,
-				errors.New("daemon: replacement daemon did not become ready before timeout"),
-			)
+			return h.handleReadyWaitDone(ctx, waitCtx, store, operationID, processErrCh)
 		case <-ticker.C:
 			operation, err := store.Get(operationID)
 			if err != nil {
@@ -841,7 +823,58 @@ func (h *relaunchHelper) waitForReady(
 	}
 }
 
-func waitForProcessExitAfterReadyTimeout(processErrCh <-chan error, grace time.Duration) (bool, error) {
+func (h *relaunchHelper) handleReadyWaitDone(
+	ctx context.Context,
+	waitCtx context.Context,
+	store *restartStore,
+	operationID string,
+	processErrCh <-chan error,
+) error {
+	if err := replacementReadinessCanceledError(waitCtx); err != nil {
+		return h.fail(store, operationID, err)
+	}
+	exited, err := waitForProcessExitAfterReadyTimeout(ctx, processErrCh, h.cfg.ExitDrainWait)
+	if exited {
+		if err != nil {
+			return h.fail(
+				store,
+				operationID,
+				fmt.Errorf("%w: %w", errReplacementDaemonExitedBeforeReady, err),
+			)
+		}
+		return h.fail(store, operationID, errReplacementDaemonExitedBeforeReady)
+	}
+	if err != nil {
+		if cancelErr := replacementReadinessCanceledError(ctx); cancelErr != nil {
+			return h.fail(store, operationID, cancelErr)
+		}
+		return h.fail(
+			store,
+			operationID,
+			fmt.Errorf("daemon: wait for replacement daemon exit after readiness timeout: %w", err),
+		)
+	}
+	return h.fail(store, operationID, errors.New("daemon: replacement daemon did not become ready before timeout"))
+}
+
+func replacementReadinessCanceledError(ctx context.Context) error {
+	if ctx == nil || !errors.Is(ctx.Err(), context.Canceled) {
+		return nil
+	}
+	cause := context.Cause(ctx)
+	if cause == nil {
+		cause = ctx.Err()
+	} else if !errors.Is(cause, ctx.Err()) {
+		cause = errors.Join(ctx.Err(), cause)
+	}
+	return fmt.Errorf("daemon: replacement daemon readiness canceled: %w", cause)
+}
+
+func waitForProcessExitAfterReadyTimeout(
+	ctx context.Context,
+	processErrCh <-chan error,
+	grace time.Duration,
+) (bool, error) {
 	select {
 	case err := <-processErrCh:
 		return true, err
@@ -859,6 +892,8 @@ func waitForProcessExitAfterReadyTimeout(processErrCh <-chan error, grace time.D
 		return true, err
 	case <-timer.C:
 		return false, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
 	}
 }
 

@@ -63,13 +63,16 @@ func TestTeamsProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 		return teamsProviderStatesReady(states, expectedInstanceIDs...)
 	})
 	for _, instanceID := range expectedInstanceIDs {
-		state, ok := teamsProviderLastStateForInstance(states, instanceID)
-		if !ok {
-			t.Fatalf("adapter state for %q missing after wait: %#v", instanceID, states)
-		}
-		if got, want := state.Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
-			t.Fatalf("adapter state for %q = %q (error=%q), want %q", instanceID, got, state.Error, want)
-		}
+		instanceID := instanceID
+		t.Run("ShouldReportReadyStateFor_"+instanceID, func(t *testing.T) {
+			state, ok := teamsProviderLastStateForInstance(states, instanceID)
+			if !ok {
+				t.Fatalf("adapter state for %q missing after wait: %#v", instanceID, states)
+			}
+			if got, want := state.Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
+				t.Fatalf("adapter state for %q = %q (error=%q), want %q", instanceID, got, state.Error, want)
+			}
+		})
 	}
 
 	report := harness.Report(t)

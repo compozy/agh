@@ -1337,64 +1337,66 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 }
 
 func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	promptCtxCh := make(chan context.Context, 1)
-	events := make(chan acp.AgentEvent)
-	manager := stubSessionManager{
-		PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
-			promptCtxCh <- ctx
-			return events, nil
-		},
-	}
-	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
-	engine := newTestRouter(t, handlers)
+	t.Run("ShouldCancelDetachedPromptContextWhenRequestEnds", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		promptCtxCh := make(chan context.Context, 1)
+		events := make(chan acp.AgentEvent)
+		manager := stubSessionManager{
+			PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
+				promptCtxCh <- ctx
+				return events, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
 
-	requestCtx, cancel := context.WithCancel(context.Background())
-	req := httptest.NewRequestWithContext(
-		requestCtx,
-		http.MethodPost,
-		"/api/sessions/sess-123/prompt",
-		strings.NewReader(`{"message":"hello"}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
+		requestCtx, cancel := context.WithCancel(context.Background())
+		req := httptest.NewRequestWithContext(
+			requestCtx,
+			http.MethodPost,
+			"/api/sessions/sess-123/prompt",
+			strings.NewReader(`{"message":"hello"}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
 
-	recorder := httptest.NewRecorder()
-	done := make(chan struct{})
-	go func() {
-		engine.ServeHTTP(recorder, req)
-		close(done)
-	}()
+		recorder := httptest.NewRecorder()
+		done := make(chan struct{})
+		go func() {
+			engine.ServeHTTP(recorder, req)
+			close(done)
+		}()
 
-	var promptCtx context.Context
-	select {
-	case promptCtx = <-promptCtxCh:
-	case <-time.After(time.Second):
-		t.Fatal("Prompt() was not invoked")
-	}
+		var promptCtx context.Context
+		select {
+		case promptCtx = <-promptCtxCh:
+		case <-time.After(time.Second):
+			t.Fatal("Prompt() was not invoked")
+		}
 
-	cancel()
+		cancel()
 
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("handler did not return after request cancellation")
-	}
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("handler did not return after request cancellation")
+		}
 
-	if err := promptCtx.Err(); err != nil {
-		t.Fatalf("prompt context err = %v, want nil while detached drain is active", err)
-	}
+		if err := promptCtx.Err(); err != nil {
+			t.Fatalf("prompt context err = %v, want nil while detached drain is active", err)
+		}
 
-	close(events)
+		close(events)
 
-	select {
-	case <-promptCtx.Done():
-	case <-time.After(time.Second):
-		t.Fatal("prompt context was not canceled after detached drain completed")
-	}
+		select {
+		case <-promptCtx.Done():
+		case <-time.After(time.Second):
+			t.Fatal("prompt context was not canceled after detached drain completed")
+		}
 
-	if !errors.Is(promptCtx.Err(), context.Canceled) {
-		t.Fatalf("prompt context err = %v, want context.Canceled after detached drain completed", promptCtx.Err())
-	}
+		if !errors.Is(promptCtx.Err(), context.Canceled) {
+			t.Fatalf("prompt context err = %v, want context.Canceled after detached drain completed", promptCtx.Err())
+		}
+	})
 }
 
 func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {

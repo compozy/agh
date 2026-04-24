@@ -279,6 +279,34 @@ func TestRuntimeHarnessStartRetryHelpersRebindHTTPPortAndCleanStaleState(t *test
 	if !harness.readinessFailureShouldRetry(errors.New("daemon exited before readiness: exit status 1")) {
 		t.Fatal("readinessFailureShouldRetry() = false, want true for socket bind conflict")
 	}
+	if retryHTTPPort, retrySocketPath := harness.readinessFailureRetryReasons(
+		errors.New("daemon exited before readiness: exit status 1"),
+	); retryHTTPPort || !retrySocketPath {
+		t.Fatalf(
+			"readinessFailureRetryReasons(socket conflict) = (%v, %v), want (false, true)",
+			retryHTTPPort,
+			retrySocketPath,
+		)
+	}
+
+	if err := os.WriteFile(
+		processLogPath,
+		[]byte(
+			"error: daemon: start uds server: udsapi: listen on \"/tmp/agh.sock\": listen unix /tmp/agh.sock: bind: address already in use\n",
+		),
+		0o600,
+	); err != nil {
+		t.Fatalf("os.WriteFile(%q) socket address conflict error = %v", processLogPath, err)
+	}
+	if retryHTTPPort, retrySocketPath := harness.readinessFailureRetryReasons(
+		errors.New("daemon exited before readiness: exit status 1"),
+	); retryHTTPPort || !retrySocketPath {
+		t.Fatalf(
+			"readinessFailureRetryReasons(socket address conflict) = (%v, %v), want (false, true)",
+			retryHTTPPort,
+			retrySocketPath,
+		)
+	}
 
 	previousSocket := harness.Config.Daemon.Socket
 	if err := harness.reseedRuntimeSocketPath(t); err != nil {

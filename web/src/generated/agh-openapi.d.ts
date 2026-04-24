@@ -6610,11 +6610,11 @@ export interface operations {
                 activity?: {
                   current_tool?: string;
                   /** Format: int64 */
-                  elapsed_seconds?: number;
+                  elapsed_seconds: number;
                   /** Format: int64 */
-                  idle_seconds?: number;
-                  iteration_current?: number;
-                  iteration_max?: number;
+                  idle_seconds: number;
+                  iteration_current: number;
+                  iteration_max: number;
                   /** Format: date-time */
                   last_activity_at?: string | null;
                   last_activity_detail?: string;
@@ -6794,11 +6794,11 @@ export interface operations {
                 activity?: {
                   current_tool?: string;
                   /** Format: int64 */
-                  elapsed_seconds?: number;
+                  elapsed_seconds: number;
                   /** Format: int64 */
-                  idle_seconds?: number;
-                  iteration_current?: number;
-                  iteration_max?: number;
+                  idle_seconds: number;
+                  iteration_current: number;
+                  iteration_max: number;
                   /** Format: date-time */
                   last_activity_at?: string | null;
                   last_activity_detail?: string;
@@ -7710,11 +7710,11 @@ export interface operations {
               activities?: {
                 current_tool?: string;
                 /** Format: int64 */
-                elapsed_seconds?: number;
+                elapsed_seconds: number;
                 /** Format: int64 */
-                idle_seconds?: number;
-                iteration_current?: number;
-                iteration_max?: number;
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
                 /** Format: date-time */
                 last_activity_at?: string | null;
                 last_activity_detail?: string;
@@ -8878,11 +8878,11 @@ export interface operations {
               activity?: {
                 current_tool?: string;
                 /** Format: int64 */
-                elapsed_seconds?: number;
+                elapsed_seconds: number;
                 /** Format: int64 */
-                idle_seconds?: number;
-                iteration_current?: number;
-                iteration_max?: number;
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
                 /** Format: date-time */
                 last_activity_at?: string | null;
                 last_activity_detail?: string;
@@ -9002,11 +9002,11 @@ export interface operations {
               activity?: {
                 current_tool?: string;
                 /** Format: int64 */
-                elapsed_seconds?: number;
+                elapsed_seconds: number;
                 /** Format: int64 */
-                idle_seconds?: number;
-                iteration_current?: number;
-                iteration_max?: number;
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
                 /** Format: date-time */
                 last_activity_at?: string | null;
                 last_activity_detail?: string;
@@ -9139,11 +9139,11 @@ export interface operations {
               activity?: {
                 current_tool?: string;
                 /** Format: int64 */
-                elapsed_seconds?: number;
+                elapsed_seconds: number;
                 /** Format: int64 */
-                idle_seconds?: number;
-                iteration_current?: number;
-                iteration_max?: number;
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
                 /** Format: date-time */
                 last_activity_at?: string | null;
                 last_activity_detail?: string;
@@ -9559,11 +9559,11 @@ export interface operations {
               activity?: {
                 current_tool?: string;
                 /** Format: int64 */
-                elapsed_seconds?: number;
+                elapsed_seconds: number;
                 /** Format: int64 */
-                idle_seconds?: number;
-                iteration_current?: number;
-                iteration_max?: number;
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
                 /** Format: date-time */
                 last_activity_at?: string | null;
                 last_activity_detail?: string;
@@ -19484,11 +19484,11 @@ export interface operations {
               activity?: {
                 current_tool?: string;
                 /** Format: int64 */
-                elapsed_seconds?: number;
+                elapsed_seconds: number;
                 /** Format: int64 */
-                idle_seconds?: number;
-                iteration_current?: number;
-                iteration_max?: number;
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
                 /** Format: date-time */
                 last_activity_at?: string | null;
                 last_activity_detail?: string;

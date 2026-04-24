@@ -445,6 +445,29 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("ShouldWrapInvalidSupervisionConfigWithSessionContext", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NewManager(
+			WithHomePaths(homePaths),
+			WithDriver(newFakeDriver()),
+			WithWorkspaceResolver(resolver),
+			WithSessionSupervision(aghconfig.SessionSupervisionConfig{
+				ActivityHeartbeatInterval: -time.Second,
+				ProgressNotifyInterval:    time.Minute,
+				InactivityWarningAfter:    time.Minute,
+				InactivityTimeout:         2 * time.Minute,
+				TimeoutCancelGrace:        time.Second,
+			}),
+		)
+		if err == nil {
+			t.Fatal("NewManager(invalid supervision) error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "session: session.supervision.activity_heartbeat_interval") {
+			t.Fatalf("NewManager(invalid supervision) error = %v, want session supervision context", err)
+		}
+	})
 }
 
 func TestHelperFunctionsAndUtilities(t *testing.T) {

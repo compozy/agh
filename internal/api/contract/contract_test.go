@@ -81,6 +81,35 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 	})
 }
 
+func TestRuntimeActivityJSONPreservesZeroMetrics(t *testing.T) {
+	t.Run("Should preserve zero metrics in runtime activity payload", func(t *testing.T) {
+		t.Parallel()
+
+		var got map[string]any
+		marshalJSON(t, contract.RuntimeActivityPayload{}, &got)
+
+		assertZeroMetricField(t, got, "iteration_current")
+		assertZeroMetricField(t, got, "iteration_max")
+		assertZeroMetricField(t, got, "idle_seconds")
+		assertZeroMetricField(t, got, "elapsed_seconds")
+	})
+
+	t.Run("Should preserve zero metrics in session activity health payload", func(t *testing.T) {
+		t.Parallel()
+
+		var got map[string]any
+		marshalJSON(t, contract.SessionActivityHealthPayload{
+			SessionID: "sess-health",
+			Status:    "active",
+		}, &got)
+
+		assertZeroMetricField(t, got, "iteration_current")
+		assertZeroMetricField(t, got, "iteration_max")
+		assertZeroMetricField(t, got, "idle_seconds")
+		assertZeroMetricField(t, got, "elapsed_seconds")
+	})
+}
+
 func TestCreateSessionRequestJSONShape(t *testing.T) {
 	t.Parallel()
 
@@ -835,5 +864,17 @@ func marshalJSON[T any](t *testing.T, value any, target *T) {
 	}
 	if err := json.Unmarshal(data, target); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+}
+
+func assertZeroMetricField(t *testing.T, payload map[string]any, field string) {
+	t.Helper()
+
+	value, exists := payload[field]
+	if !exists {
+		t.Fatalf("payload missing zero metric field %q: %#v", field, payload)
+	}
+	if value != float64(0) {
+		t.Fatalf("payload[%q] = %#v, want JSON zero", field, value)
 	}
 }

@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
 	core "github.com/pedronauck/agh/internal/api/core"
 )
+
+const detachedPromptDrainTimeout = 30 * time.Second
 
 type promptRequest struct {
 	Message string `json:"message"`
@@ -49,7 +52,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	for {
 		select {
 		case <-c.Request.Context().Done():
-			h.drainPromptEventsAsync(events, cancelOnReturn)
+			h.drainPromptEventsAsync(promptCtx, events, cancelOnReturn)
 			cancelOnReturn = nil
 			return
 		case <-h.StreamDoneChannel():
@@ -62,7 +65,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 				Name: event.Type,
 				Data: core.AgentEventPayloadFromEvent(event),
 			}); err != nil {
-				h.drainPromptEventsAsync(events, cancelOnReturn)
+				h.drainPromptEventsAsync(promptCtx, events, cancelOnReturn)
 				cancelOnReturn = nil
 				return
 			}
@@ -70,16 +73,31 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	}
 }
 
-func (h *Handlers) drainPromptEventsAsync(events <-chan acp.AgentEvent, cancelPrompt context.CancelFunc) {
-	go func() {
+func (h *Handlers) drainPromptEventsAsync(
+	ctx context.Context,
+	events <-chan acp.AgentEvent,
+	cancelPrompt context.CancelFunc,
+) {
+	if h == nil || cancelPrompt == nil {
+		return
+	}
+	if ctx == nil {
+		cancelPrompt()
+		return
+	}
+	drainCtx, cancelDrain := context.WithTimeout(ctx, detachedPromptDrainTimeout)
+	h.promptDrainWG.Go(func() {
+		defer cancelDrain()
 		defer cancelPrompt()
-		h.drainPromptEvents(events)
-	}()
+		h.drainPromptEvents(drainCtx, events)
+	})
 }
 
-func (h *Handlers) drainPromptEvents(events <-chan acp.AgentEvent) {
+func (h *Handlers) drainPromptEvents(ctx context.Context, events <-chan acp.AgentEvent) {
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-h.StreamDoneChannel():
 			return
 		case _, ok := <-events:
@@ -87,5 +105,25 @@ func (h *Handlers) drainPromptEvents(events <-chan acp.AgentEvent) {
 				return
 			}
 		}
+	}
+}
+
+func (h *Handlers) waitForPromptDrains(ctx context.Context) error {
+	if h == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("udsapi: prompt drain wait context is required")
+	}
+	done := make(chan struct{})
+	go func() {
+		h.promptDrainWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("udsapi: wait for prompt drains: %w", ctx.Err())
 	}
 }
