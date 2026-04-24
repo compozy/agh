@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -96,6 +97,36 @@ func TestReadSSERecordsInferSemanticEventsFromJSONFrames(t *testing.T) {
 	want := []string{"agent_message", "permission", "tool_call", "error", "done"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("record events = %#v, want %#v", got, want)
+	}
+}
+
+func TestReadSSERecordsUntilReturnsBeforeEOF(t *testing.T) {
+	t.Parallel()
+
+	reader, writer := io.Pipe()
+	releaseWriter := make(chan struct{})
+	writerDone := make(chan struct{})
+	go func() {
+		defer close(writerDone)
+		_, _ = writer.Write([]byte("event: runtime_progress\ndata: {\"type\":\"runtime_progress\"}\n\n"))
+		<-releaseWriter
+		_ = writer.Close()
+	}()
+
+	records, err := readSSERecordsUntil(reader, func(record SSEEvent) bool {
+		return record.Event == "runtime_progress"
+	})
+	close(releaseWriter)
+	<-writerDone
+	_ = reader.Close()
+	if err != nil {
+		t.Fatalf("readSSERecordsUntil() error = %v", err)
+	}
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("len(records) = %d, want %d", got, want)
+	}
+	if got, want := records[0].Event, "runtime_progress"; got != want {
+		t.Fatalf("records[0].Event = %q, want %q", got, want)
 	}
 }
 

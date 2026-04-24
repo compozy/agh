@@ -104,6 +104,7 @@ type canonicalEventPayload struct {
 	Error      string                   `json:"error,omitempty"`
 	Synthetic  *acp.PromptSyntheticMeta `json:"synthetic,omitempty"`
 	Usage      *acp.TokenUsage          `json:"usage,omitempty"`
+	Runtime    *acp.RuntimeActivity     `json:"runtime,omitempty"`
 	Raw        json.RawMessage          `json:"raw,omitempty"`
 }
 
@@ -751,6 +752,7 @@ func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 		Error:      event.Error,
 		Synthetic:  clonePromptSyntheticMeta(event.Synthetic),
 		Usage:      event.Usage,
+		Runtime:    cloneRuntimeActivity(event.Runtime),
 	}
 
 	if len(event.Raw) > 0 {
@@ -816,9 +818,30 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Error:      strings.TrimSpace(decoded.Error),
 		Synthetic:  clonePromptSyntheticMeta(decoded.Synthetic),
 		Usage:      decoded.Usage,
+		Runtime:    cloneRuntimeActivity(decoded.Runtime),
 		Raw:        acp.CloneRawMessage(decoded.Raw),
 	}
 	return event, nil
+}
+
+func cloneRuntimeActivity(activity *acp.RuntimeActivity) *acp.RuntimeActivity {
+	if activity == nil {
+		return nil
+	}
+	cloned := *activity
+	if activity.TurnStartedAt != nil {
+		turnStartedAt := activity.TurnStartedAt.UTC()
+		cloned.TurnStartedAt = &turnStartedAt
+	}
+	if activity.LastActivityAt != nil {
+		lastActivityAt := activity.LastActivityAt.UTC()
+		cloned.LastActivityAt = &lastActivityAt
+	}
+	if activity.LastProgressAt != nil {
+		lastProgressAt := activity.LastProgressAt.UTC()
+		cloned.LastProgressAt = &lastProgressAt
+	}
+	return &cloned
 }
 
 func clonePromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSyntheticMeta {

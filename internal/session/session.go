@@ -344,7 +344,15 @@ func (s *Session) rollbackActivation(now time.Time) {
 	}
 }
 
-func (s *Session) observeACPUpdate(now time.Time) {
+func (s *Session) observeRuntimeActivity(activity store.SessionActivityMeta, now time.Time) {
+	s.observeRuntimeActivityState(activity, now, true)
+}
+
+func (s *Session) observeRuntimeEventActivity(activity store.SessionActivityMeta, now time.Time) {
+	s.observeRuntimeActivityState(activity, now, false)
+}
+
+func (s *Session) observeRuntimeActivityState(activity store.SessionActivityMeta, now time.Time, clearStall bool) {
 	if s == nil || now.IsZero() {
 		return
 	}
@@ -355,11 +363,59 @@ func (s *Session) observeACPUpdate(now time.Time) {
 	if s.Liveness == nil {
 		s.Liveness = &store.SessionLivenessMeta{}
 	}
+	cloned := store.CloneSessionActivityMeta(&activity)
+	s.Liveness.Activity = cloned
 	lastUpdateAt := now.UTC()
+	if cloned != nil && cloned.LastActivityAt != nil && !cloned.LastActivityAt.IsZero() {
+		lastUpdateAt = cloned.LastActivityAt.UTC()
+	}
 	s.Liveness.LastUpdateAt = &lastUpdateAt
-	s.Liveness.StallState = ""
-	s.Liveness.StallReason = ""
-	s.UpdatedAt = now
+	if clearStall {
+		s.Liveness.StallState = ""
+		s.Liveness.StallReason = ""
+	}
+	s.UpdatedAt = now.UTC()
+}
+
+func (s *Session) clearRuntimeActivity(now time.Time) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.Liveness != nil {
+		s.Liveness.Activity = nil
+		s.Liveness.StallState = ""
+		s.Liveness.StallReason = ""
+	}
+	if !now.IsZero() {
+		s.UpdatedAt = now.UTC()
+	}
+}
+
+func (s *Session) markRuntimeStalled(reason string, now time.Time) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.Liveness == nil {
+		s.Liveness = &store.SessionLivenessMeta{}
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = store.SessionStallReasonActivityTimeout
+	}
+	s.Liveness.StallState = store.SessionStallStateDetected
+	s.Liveness.StallReason = strings.TrimSpace(reason)
+	if !now.IsZero() {
+		lastUpdateAt := now.UTC()
+		s.Liveness.LastUpdateAt = &lastUpdateAt
+		s.UpdatedAt = now.UTC()
+	}
 }
 
 func (s *Session) markExited(now time.Time) {
@@ -375,6 +431,7 @@ func (s *Session) markExited(now time.Time) {
 		s.Liveness.SubprocessStartedAt = nil
 		s.Liveness.StallState = ""
 		s.Liveness.StallReason = ""
+		s.Liveness.Activity = nil
 	}
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
@@ -522,7 +579,7 @@ func (s *Session) stopWasRequested() bool {
 	defer s.mu.RUnlock()
 
 	switch s.stopCause {
-	case CauseFailed, CauseUserRequested, CauseShutdown, CauseHookDenied:
+	case CauseFailed, CauseUserRequested, CauseShutdown, CauseHookDenied, CauseTimeout:
 		return true
 	default:
 		return false

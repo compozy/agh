@@ -62,6 +62,7 @@ var globalSchemaStatements = append([]string{
 		last_update_at TEXT,
 		stall_state    TEXT NOT NULL DEFAULT '',
 		stall_reason   TEXT NOT NULL DEFAULT '',
+		activity_json  TEXT NOT NULL DEFAULT '',
 		environment_id TEXT NOT NULL DEFAULT '',
 		environment_backend TEXT NOT NULL DEFAULT 'local',
 		environment_profile TEXT NOT NULL DEFAULT '',

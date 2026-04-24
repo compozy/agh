@@ -12,6 +12,7 @@ import (
 	"time"
 
 	aghcontract "github.com/pedronauck/agh/internal/api/contract"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
@@ -92,53 +93,38 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	harness, session := startFaultyMockSession(t)
+	harness, session := startFaultyMockSession(t, func(cfg *aghconfig.Config) {
+		cfg.Session.Supervision.ActivityHeartbeatInterval = 20 * time.Millisecond
+		cfg.Session.Supervision.ProgressNotifyInterval = 20 * time.Millisecond
+		cfg.Session.Supervision.InactivityWarningAfter = 0
+		cfg.Session.Supervision.InactivityTimeout = 0
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	type promptResult struct {
-		stream []e2etest.SSEEvent
-		err    error
+	stream, err := harness.PromptSessionHTTPUntil(ctx, session.ID, "block until canceled", func(event e2etest.SSEEvent) bool {
+		return event.Event == "runtime_progress"
+	})
+	if err != nil {
+		t.Fatalf("PromptSessionHTTPUntil(blocked progress) error = %v", err)
+	}
+	if !sseStreamContainsEvent(stream, "runtime_progress") {
+		t.Fatalf("prompt stream = %#v, want runtime_progress before explicit stop", stream)
 	}
 
-	resultCh := make(chan promptResult, 1)
-	go func() {
-		stream, err := harness.PromptSessionHTTP(ctx, session.ID, "block until canceled")
-		resultCh <- promptResult{stream: stream, err: err}
-	}()
-
-	waitForRuntimeCondition(t, "blocked ACP prompt to be recorded", 10*time.Second, func() bool {
-		eventsResp, err := harness.SessionEvents(ctx, session.ID)
-		if err != nil {
-			return false
-		}
-		for _, event := range eventsResp.Events {
-			if event.Type == "user_message" {
-				return true
-			}
-		}
-		return false
+	sessionStream, err := harness.StreamSessionHTTPUntil(ctx, session.ID, func(event e2etest.SSEEvent) bool {
+		return event.Event == "runtime_progress"
 	})
+	if err != nil {
+		t.Fatalf("StreamSessionHTTPUntil(runtime_progress) error = %v", err)
+	}
+	if !sseStreamContainsEvent(sessionStream, "runtime_progress") {
+		t.Fatalf("session stream = %#v, want runtime_progress replay", sessionStream)
+	}
 
 	if err := harness.StopSession(ctx, session.ID); err != nil {
 		t.Fatalf("StopSession(%q) error = %v", session.ID, err)
-	}
-
-	var result promptResult
-	select {
-	case result = <-resultCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("timed out waiting for blocked ACP prompt to finish after stop")
-	}
-	if result.err != nil {
-		t.Fatalf("PromptSessionHTTP(blocked cancel) error = %v", result.err)
-	}
-	if !sseStreamContainsEvent(result.stream, "error") {
-		t.Fatalf("prompt stream = %#v, want transport error when the blocked peer is stopped", result.stream)
-	}
-	if !sseStreamContainsEvent(result.stream, "done") {
-		t.Fatalf("prompt stream = %#v, want terminal done marker after cancellation", result.stream)
 	}
 
 	waitForRuntimeCondition(t, "blocked ACP session stopped", 10*time.Second, func() bool {
@@ -173,6 +159,9 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 
 	eventsResp := mustSessionEvents(t, ctx, harness, session.ID)
 	events := decodeAgentEvents(t, eventsResp.Events)
+	if !containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "runtime_progress"}) {
+		t.Fatalf("events = %#v, want runtime_progress before blocked peer stop", events)
+	}
 	if !containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "error"}) {
 		t.Fatalf("events = %#v, want error event after blocked peer disconnect", events)
 	}
@@ -188,10 +177,22 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 	}
 }
 
-func startFaultyMockSession(t testing.TB) (*e2etest.RuntimeHarness, aghcontract.SessionPayload) {
+func startFaultyMockSession(
+	t testing.TB,
+	mutateConfig ...func(*aghconfig.Config),
+) (*e2etest.RuntimeHarness, aghcontract.SessionPayload) {
 	t.Helper()
 
 	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{
+			Mutate: func(cfg *aghconfig.Config) {
+				for _, mutate := range mutateConfig {
+					if mutate != nil {
+						mutate(cfg)
+					}
+				}
+			},
+		},
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  mockFixturePath(t, "driver_fault_fixture.json"),
 			FixtureAgent: "faulty",

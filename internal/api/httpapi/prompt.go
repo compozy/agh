@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 )
 
@@ -30,21 +31,22 @@ type uiMessageTextPart struct {
 }
 
 type agentEventPayload struct {
-	Type       string             `json:"type"`
-	SessionID  string             `json:"session_id,omitempty"`
-	TurnID     string             `json:"turn_id,omitempty"`
-	RequestID  string             `json:"request_id,omitempty"`
-	Timestamp  string             `json:"timestamp,omitempty"`
-	Text       string             `json:"text,omitempty"`
-	Title      string             `json:"title,omitempty"`
-	ToolCallID string             `json:"tool_call_id,omitempty"`
-	StopReason string             `json:"stop_reason,omitempty"`
-	Action     string             `json:"action,omitempty"`
-	Resource   string             `json:"resource,omitempty"`
-	Decision   string             `json:"decision,omitempty"`
-	Error      string             `json:"error,omitempty"`
-	Usage      *tokenUsagePayload `json:"usage,omitempty"`
-	Raw        json.RawMessage    `json:"raw,omitempty"`
+	Type       string                           `json:"type"`
+	SessionID  string                           `json:"session_id,omitempty"`
+	TurnID     string                           `json:"turn_id,omitempty"`
+	RequestID  string                           `json:"request_id,omitempty"`
+	Timestamp  string                           `json:"timestamp,omitempty"`
+	Text       string                           `json:"text,omitempty"`
+	Title      string                           `json:"title,omitempty"`
+	ToolCallID string                           `json:"tool_call_id,omitempty"`
+	StopReason string                           `json:"stop_reason,omitempty"`
+	Action     string                           `json:"action,omitempty"`
+	Resource   string                           `json:"resource,omitempty"`
+	Decision   string                           `json:"decision,omitempty"`
+	Error      string                           `json:"error,omitempty"`
+	Usage      *tokenUsagePayload               `json:"usage,omitempty"`
+	Runtime    *contract.RuntimeActivityPayload `json:"runtime,omitempty"`
+	Raw        json.RawMessage                  `json:"raw,omitempty"`
 }
 
 type tokenUsagePayload struct {
@@ -555,6 +557,7 @@ func agentEventPayloadFromEvent(event acp.AgentEvent) agentEventPayload {
 		Decision:   base.Decision,
 		Error:      base.Error,
 		Usage:      tokenUsagePayloadFromUsage(event.Usage),
+		Runtime:    base.Runtime,
 		Raw:        base.Raw,
 	}
 	if !event.Timestamp.IsZero() {

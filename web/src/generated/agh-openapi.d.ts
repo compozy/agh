@@ -6607,6 +6607,26 @@ export interface operations {
                   supports_load_session: boolean;
                 } | null;
                 acp_session_id?: string;
+                activity?: {
+                  current_tool?: string;
+                  /** Format: int64 */
+                  elapsed_seconds?: number;
+                  /** Format: int64 */
+                  idle_seconds?: number;
+                  iteration_current?: number;
+                  iteration_max?: number;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_activity_detail?: string;
+                  last_activity_kind?: string;
+                  /** Format: date-time */
+                  last_progress_at?: string | null;
+                  tool_call_id?: string;
+                  turn_id?: string;
+                  turn_source?: string;
+                  /** Format: date-time */
+                  turn_started_at?: string | null;
+                } | null;
                 agent_name: string;
                 channel?: string;
                 /** Format: date-time */
@@ -6771,6 +6791,26 @@ export interface operations {
                   supports_load_session: boolean;
                 } | null;
                 acp_session_id?: string;
+                activity?: {
+                  current_tool?: string;
+                  /** Format: int64 */
+                  elapsed_seconds?: number;
+                  /** Format: int64 */
+                  idle_seconds?: number;
+                  iteration_current?: number;
+                  iteration_max?: number;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_activity_detail?: string;
+                  last_activity_kind?: string;
+                  /** Format: date-time */
+                  last_progress_at?: string | null;
+                  tool_call_id?: string;
+                  turn_id?: string;
+                  turn_source?: string;
+                  /** Format: date-time */
+                  turn_started_at?: string | null;
+                } | null;
                 agent_name: string;
                 channel?: string;
                 /** Format: date-time */
@@ -7667,6 +7707,30 @@ export interface operations {
             health: {
               active_agents: number;
               active_sessions: number;
+              activities?: {
+                current_tool?: string;
+                /** Format: int64 */
+                elapsed_seconds?: number;
+                /** Format: int64 */
+                idle_seconds?: number;
+                iteration_current?: number;
+                iteration_max?: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                session_id: string;
+                stall_reason?: string;
+                stall_state?: string;
+                status: string;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              }[];
               bridges: {
                 auth_failures_total: number;
                 delivery_backlog: number;
@@ -8811,6 +8875,26 @@ export interface operations {
                 supports_load_session: boolean;
               } | null;
               acp_session_id?: string;
+              activity?: {
+                current_tool?: string;
+                /** Format: int64 */
+                elapsed_seconds?: number;
+                /** Format: int64 */
+                idle_seconds?: number;
+                iteration_current?: number;
+                iteration_max?: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
               agent_name: string;
               channel?: string;
               /** Format: date-time */
@@ -8915,6 +8999,26 @@ export interface operations {
                 supports_load_session: boolean;
               } | null;
               acp_session_id?: string;
+              activity?: {
+                current_tool?: string;
+                /** Format: int64 */
+                elapsed_seconds?: number;
+                /** Format: int64 */
+                idle_seconds?: number;
+                iteration_current?: number;
+                iteration_max?: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
               agent_name: string;
               channel?: string;
               /** Format: date-time */
@@ -9032,6 +9136,26 @@ export interface operations {
                 supports_load_session: boolean;
               } | null;
               acp_session_id?: string;
+              activity?: {
+                current_tool?: string;
+                /** Format: int64 */
+                elapsed_seconds?: number;
+                /** Format: int64 */
+                idle_seconds?: number;
+                iteration_current?: number;
+                iteration_max?: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
               agent_name: string;
               channel?: string;
               /** Format: date-time */
@@ -9432,6 +9556,26 @@ export interface operations {
                 supports_load_session: boolean;
               } | null;
               acp_session_id?: string;
+              activity?: {
+                current_tool?: string;
+                /** Format: int64 */
+                elapsed_seconds?: number;
+                /** Format: int64 */
+                idle_seconds?: number;
+                iteration_current?: number;
+                iteration_max?: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
               agent_name: string;
               channel?: string;
               /** Format: date-time */
@@ -19337,6 +19481,26 @@ export interface operations {
                 supports_load_session: boolean;
               } | null;
               acp_session_id?: string;
+              activity?: {
+                current_tool?: string;
+                /** Format: int64 */
+                elapsed_seconds?: number;
+                /** Format: int64 */
+                idle_seconds?: number;
+                iteration_current?: number;
+                iteration_max?: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
               agent_name: string;
               channel?: string;
               /** Format: date-time */

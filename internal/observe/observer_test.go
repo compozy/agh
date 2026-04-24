@@ -414,8 +414,25 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
+	lastActivityAt := h.now.Add(30 * time.Minute)
+	turnStartedAt := h.now.Add(20 * time.Minute)
 	h.source.sessions = []*session.Info{
-		{ID: "sess-active-1", AgentName: "coder", State: session.StateActive},
+		{
+			ID:        "sess-active-1",
+			AgentName: "coder",
+			State:     session.StateActive,
+			Liveness: &store.SessionLivenessMeta{
+				Activity: &store.SessionActivityMeta{
+					TurnID:             "turn-active",
+					TurnSource:         "user",
+					TurnStartedAt:      &turnStartedAt,
+					LastActivityAt:     &lastActivityAt,
+					LastActivityKind:   "agent_waiting",
+					LastActivityDetail: "waiting for provider",
+					CurrentTool:        "delegate_task",
+				},
+			},
+		},
 		{ID: "sess-active-2", AgentName: "coder", State: session.StateStopping},
 		{ID: "sess-stopped", State: session.StateStopped},
 	}
@@ -432,6 +449,16 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 	}
 	if health.Version != "1.2.3" {
 		t.Fatalf("Health().Version = %q, want 1.2.3", health.Version)
+	}
+	if got, want := len(health.Activities), 1; got != want {
+		t.Fatalf("len(Health().Activities) = %d, want %d: %#v", got, want, health.Activities)
+	}
+	activity := health.Activities[0]
+	if activity.SessionID != "sess-active-1" || activity.Status != "active" || activity.CurrentTool != "delegate_task" {
+		t.Fatalf("Health().Activities[0] = %#v, want active delegate_task activity", activity)
+	}
+	if got, want := activity.IdleSeconds, int64(30*60); got != want {
+		t.Fatalf("Health().Activities[0].IdleSeconds = %d, want %d", got, want)
 	}
 }
 

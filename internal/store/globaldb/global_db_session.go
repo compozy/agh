@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -74,6 +75,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 	sqlQuery := `SELECT id, name, agent_name, provider, workspace_id, channel, session_type,
 		state, acp_session_id, stop_reason, stop_detail,
 		subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
+		activity_json,
 		environment_id, environment_backend, environment_profile, environment_instance_id,
 		environment_state, environment_provider_state_json,
 		environment_last_sync_at, environment_last_sync_error,
@@ -191,11 +193,11 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		`INSERT INTO sessions (
 			id, name, agent_name, provider, workspace_id, session_type, channel, state,
 			acp_session_id, stop_reason, stop_detail,
-			subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
+			subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason, activity_json,
 			environment_id, environment_backend, environment_profile, environment_instance_id,
 			environment_state, environment_provider_state_json,
 			environment_last_sync_at, environment_last_sync_error, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			agent_name = excluded.agent_name,
@@ -212,6 +214,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			last_update_at = excluded.last_update_at,
 			stall_state = excluded.stall_state,
 			stall_reason = excluded.stall_reason,
+			activity_json = excluded.activity_json,
 			environment_id = excluded.environment_id,
 			environment_backend = excluded.environment_backend,
 			environment_profile = excluded.environment_profile,
@@ -237,6 +240,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		sessionLivenessLastUpdateAt(session.Liveness),
 		sessionLivenessStallState(session.Liveness),
 		sessionLivenessStallReason(session.Liveness),
+		sessionLivenessActivityJSON(session.Liveness),
 		sessionEnvironmentID(session.Environment),
 		sessionEnvironmentBackend(session.Environment),
 		sessionEnvironmentProfile(session.Environment),
@@ -299,6 +303,7 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 			"last_update_at = ?",
 			"stall_state = ?",
 			"stall_reason = ?",
+			"activity_json = ?",
 		)
 		args = append(
 			args,
@@ -307,6 +312,7 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 			sessionLivenessLastUpdateAt(update.Liveness),
 			sessionLivenessStallState(update.Liveness),
 			sessionLivenessStallReason(update.Liveness),
+			sessionLivenessActivityJSON(update.Liveness),
 		)
 	}
 	if update.Environment != nil {
@@ -352,6 +358,7 @@ type sessionInfoRow struct {
 	lastUpdateAt         sql.NullString
 	stallState           string
 	stallReason          string
+	activityJSON         string
 	envID                string
 	envBackend           string
 	envProfile           string
@@ -390,6 +397,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		row.lastUpdateAt,
 		row.stallState,
 		row.stallReason,
+		row.activityJSON,
 	)
 	if err != nil {
 		return store.SessionInfo{}, err
@@ -439,6 +447,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.lastUpdateAt,
 		&row.stallState,
 		&row.stallReason,
+		&row.activityJSON,
 		&row.envID,
 		&row.envBackend,
 		&row.envProfile,
@@ -519,12 +528,14 @@ func scanSessionLiveness(
 	lastUpdateAt sql.NullString,
 	stallState string,
 	stallReason string,
+	activityJSON string,
 ) (*store.SessionLivenessMeta, error) {
 	if subprocessPID <= 0 &&
 		(!subprocessStartedAt.Valid || strings.TrimSpace(subprocessStartedAt.String) == "") &&
 		(!lastUpdateAt.Valid || strings.TrimSpace(lastUpdateAt.String) == "") &&
 		strings.TrimSpace(stallState) == "" &&
-		strings.TrimSpace(stallReason) == "" {
+		strings.TrimSpace(stallReason) == "" &&
+		strings.TrimSpace(activityJSON) == "" {
 		return nil, nil
 	}
 
@@ -547,10 +558,32 @@ func scanSessionLiveness(
 		}
 		meta.LastUpdateAt = &parsed
 	}
+	if strings.TrimSpace(activityJSON) != "" {
+		activity, err := parseSessionActivityJSON(activityJSON)
+		if err != nil {
+			return nil, err
+		}
+		meta.Activity = activity
+	}
 	if err := meta.Validate(); err != nil {
 		return nil, err
 	}
 	return meta, nil
+}
+
+func parseSessionActivityJSON(raw string) (*store.SessionActivityMeta, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	var activity store.SessionActivityMeta
+	if err := json.Unmarshal([]byte(trimmed), &activity); err != nil {
+		return nil, fmt.Errorf("store: parse session activity json: %w", err)
+	}
+	if err := activity.Validate(); err != nil {
+		return nil, err
+	}
+	return store.CloneSessionActivityMeta(&activity), nil
 }
 
 func sessionEnvironmentID(meta *store.SessionEnvironmentMeta) string {
@@ -596,6 +629,18 @@ func sessionLivenessStallReason(meta *store.SessionLivenessMeta) string {
 		return ""
 	}
 	return strings.TrimSpace(meta.StallReason)
+}
+
+func sessionLivenessActivityJSON(meta *store.SessionLivenessMeta) string {
+	if meta == nil || meta.Activity == nil {
+		return ""
+	}
+	activity := store.CloneSessionActivityMeta(meta.Activity)
+	data, err := json.Marshal(activity)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 func sessionEnvironmentBackend(meta *store.SessionEnvironmentMeta) string {

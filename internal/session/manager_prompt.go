@@ -117,19 +117,25 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 			dispatchMessage = augmented
 		}
 	}
+	activity := newPromptActivitySupervisor(ctx, m, session, turnState, m.supervision)
+	activity.start()
 	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{
-		TurnID:  req.turnID,
-		Message: dispatchMessage,
-		Meta:    req.meta,
+		TurnID:                    req.turnID,
+		Message:                   dispatchMessage,
+		Meta:                      req.meta,
+		ActivityReporter:          activity.report,
+		ActivityHeartbeatInterval: m.supervision.ActivityHeartbeatInterval,
 	})
 	if err != nil {
+		activity.stop()
+		activity.finish(m.now())
 		return nil, fmt.Errorf("session: prompt session %q: %w", req.target, err)
 	}
 
 	out := make(chan acp.AgentEvent, m.promptBufSize)
 	clearTurnSource = false
 	// pumpPrompt terminates when the driver closes the source channel or the request context ends.
-	go m.pumpPrompt(ctx, session, turnState, source, out)
+	go m.pumpPrompt(ctx, session, turnState, source, activity.eventsChannel(), out, activity)
 	return out, nil
 }
 
@@ -357,10 +363,16 @@ func (m *Manager) pumpPrompt(
 	session *Session,
 	turnState *promptTurnDispatchState,
 	source <-chan acp.AgentEvent,
+	runtime <-chan acp.AgentEvent,
 	out chan<- acp.AgentEvent,
+	activity *promptActivitySupervisor,
 ) {
 	defer close(out)
 	defer func() {
+		if activity != nil {
+			activity.stop()
+			activity.finish(m.now())
+		}
 		m.finishPromptMessage(ctx, turnState, time.Time{})
 		m.dispatchTurnEnd(ctx, turnState, time.Time{})
 		if session != nil {
@@ -376,8 +388,9 @@ func (m *Manager) pumpPrompt(
 
 	for {
 		var (
-			event acp.AgentEvent
-			ok    bool
+			event        acp.AgentEvent
+			ok           bool
+			runtimeEvent bool
 		)
 		select {
 		case <-ctx.Done():
@@ -386,16 +399,18 @@ func (m *Manager) pumpPrompt(
 			if !ok {
 				return
 			}
+		case event, ok = <-runtime:
+			if !ok {
+				runtime = nil
+				continue
+			}
+			runtimeEvent = true
 		}
 
 		normalized := m.normalizeEvent(session, turnState.turnID, event)
 		normalized = m.preparePromptEvent(ctx, turnState, normalized)
-		if session != nil {
-			session.observeACPUpdate(normalized.Timestamp)
-			if err := m.writeMeta(session); err != nil {
-				m.sessionLogger(session).
-					Warn("session: persist liveness update failed", "turn_id", turnState.turnID, "error", err)
-			}
+		if activity != nil && !runtimeEvent {
+			activity.observeEvent(normalized)
 		}
 		if err := m.recordEvent(ctx, session, normalized); err != nil {
 			m.sessionLogger(session).

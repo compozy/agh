@@ -1138,6 +1138,13 @@ func TestAccessorsAndValidationHelpers(t *testing.T) {
 	if err := (PromptRequest{}).Validate(); err == nil {
 		t.Fatal("PromptRequest.Validate() error = nil, want validation error")
 	}
+	if err := (PromptRequest{
+		TurnID:                    "turn-negative-heartbeat",
+		Message:                   "hello",
+		ActivityHeartbeatInterval: -time.Second,
+	}).Validate(); err == nil {
+		t.Fatal("PromptRequest.Validate(negative heartbeat) error = nil, want validation error")
+	}
 
 	proc := &AgentProcess{stderr: &lockedBuffer{}}
 	if _, err := proc.stderr.Write([]byte("boom")); err != nil {

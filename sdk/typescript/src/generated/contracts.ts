@@ -1449,6 +1449,26 @@ export interface TaskHealth {
   recovery_since_start: TaskRecoveryTotals;
 }
 
+export interface SessionActivityHealth {
+  session_id: string;
+  turn_id?: string;
+  turn_source?: string;
+  turn_started_at?: ISODateTime;
+  last_activity_at?: ISODateTime;
+  last_activity_kind?: string;
+  last_activity_detail?: string;
+  current_tool?: string;
+  tool_call_id?: string;
+  last_progress_at?: ISODateTime;
+  iteration_current?: number;
+  iteration_max?: number;
+  idle_seconds?: number;
+  elapsed_seconds?: number;
+  status: string;
+  stall_state?: string;
+  stall_reason?: string;
+}
+
 export interface ObserveHealth {
   status: string;
   uptime_seconds: number;
@@ -1458,6 +1478,7 @@ export interface ObserveHealth {
   session_db_size_bytes: number;
   bridges: BridgeAggregateHealth;
   tasks: TaskHealth;
+  activities?: SessionActivityHealth[];
   version: string;
 }
 

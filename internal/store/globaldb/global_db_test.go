@@ -1136,6 +1136,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"last_update_at",
 			"stall_state",
 			"stall_reason",
+			"activity_json",
 			"environment_id",
 			"environment_backend",
 			"environment_profile",
@@ -1336,6 +1337,7 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"last_update_at",
 			"stall_state",
 			"stall_reason",
+			"activity_json",
 		},
 	)
 	assertTableColumns(
@@ -2113,6 +2115,7 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"last_update_at",
 			"stall_state",
 			"stall_reason",
+			"activity_json",
 			"environment_id",
 			"environment_backend",
 			"environment_profile",

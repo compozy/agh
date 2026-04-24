@@ -82,6 +82,7 @@ type Manager struct {
 	workspace        workspacepkg.RuntimeResolver
 	openStore        StoreOpener
 	assembler        PromptAssembler
+	supervision      aghconfig.SessionSupervisionConfig
 	lifecycleCtx     context.Context
 	now              func() time.Time
 	newSessionID     IDGenerator
@@ -239,6 +240,13 @@ func WithPromptBufferSize(size int) Option {
 	}
 }
 
+// WithSessionSupervision overrides runtime activity supervision settings.
+func WithSessionSupervision(config aghconfig.SessionSupervisionConfig) Option {
+	return func(manager *Manager) {
+		manager.supervision = config
+	}
+}
+
 // NewManager constructs a session manager with sensible defaults.
 func NewManager(opts ...Option) (*Manager, error) {
 	homePaths, err := aghconfig.ResolveHomePaths()
@@ -258,6 +266,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
+		supervision:  aghconfig.DefaultSessionSupervisionConfig(),
 		lifecycleCtx: context.Background(),
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -280,46 +289,56 @@ func NewManager(opts ...Option) (*Manager, error) {
 		}
 	}
 
-	if manager.logger == nil {
-		manager.logger = slog.Default()
-	}
-	if manager.driver == nil {
-		return nil, errors.New("session: agent driver is required")
-	}
-	if manager.openStore == nil {
-		return nil, errors.New("session: store opener is required")
-	}
-	if manager.lifecycleCtx == nil {
-		manager.lifecycleCtx = context.Background()
-	}
-	if manager.now == nil {
-		manager.now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-	if manager.newSessionID == nil {
-		manager.newSessionID = func() string {
-			return newID("sess")
-		}
-	}
-	if manager.newEnvironmentID == nil {
-		manager.newEnvironmentID = func() string {
-			return newID("env")
-		}
-	}
-	if manager.newTurnID == nil {
-		manager.newTurnID = func() string {
-			return newID("turn")
-		}
-	}
-	if manager.promptBufSize <= 0 {
-		manager.promptBufSize = defaultPromptBufferSize
+	if err := manager.applyRuntimeDefaults(); err != nil {
+		return nil, err
 	}
 	if err := aghconfig.EnsureHomeLayout(manager.homePaths); err != nil {
 		return nil, fmt.Errorf("session: ensure home layout: %w", err)
 	}
 
 	return manager, nil
+}
+
+func (m *Manager) applyRuntimeDefaults() error {
+	if m.logger == nil {
+		m.logger = slog.Default()
+	}
+	if m.driver == nil {
+		return errors.New("session: agent driver is required")
+	}
+	if m.openStore == nil {
+		return errors.New("session: store opener is required")
+	}
+	if m.lifecycleCtx == nil {
+		m.lifecycleCtx = context.Background()
+	}
+	if m.now == nil {
+		m.now = func() time.Time {
+			return time.Now().UTC()
+		}
+	}
+	if m.newSessionID == nil {
+		m.newSessionID = func() string {
+			return newID("sess")
+		}
+	}
+	if m.newEnvironmentID == nil {
+		m.newEnvironmentID = func() string {
+			return newID("env")
+		}
+	}
+	if m.newTurnID == nil {
+		m.newTurnID = func() string {
+			return newID("turn")
+		}
+	}
+	if m.promptBufSize <= 0 {
+		m.promptBufSize = defaultPromptBufferSize
+	}
+	if m.supervision == (aghconfig.SessionSupervisionConfig{}) {
+		m.supervision = aghconfig.DefaultSessionSupervisionConfig()
+	}
+	return m.supervision.Validate()
 }
 
 // Get returns the active in-memory session by id.

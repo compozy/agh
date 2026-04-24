@@ -57,6 +57,7 @@ type configSeedFile struct {
 	HTTP         *configSeedHTTPSection                  `toml:"http,omitempty"`
 	Defaults     *configSeedDefaultsSection              `toml:"defaults,omitempty"`
 	Permissions  *configSeedPermissionsSection           `toml:"permissions,omitempty"`
+	Session      *aghconfig.SessionConfig                `toml:"session,omitempty"`
 	Network      *aghconfig.NetworkConfig                `toml:"network,omitempty"`
 	Providers    map[string]aghconfig.ProviderConfig     `toml:"providers,omitempty"`
 	Environments map[string]aghconfig.EnvironmentProfile `toml:"environments,omitempty"`
@@ -160,6 +161,7 @@ func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) e
 			Provider:    cfg.Defaults.Provider,
 			Environment: cfg.Defaults.Environment,
 		},
+		Session:      cloneSessionConfig(cfg.Session),
 		Network:      &cfg.Network,
 		Providers:    cloneProviders(cfg.Providers),
 		Environments: cloneEnvironmentProfiles(cfg.Environments),
@@ -187,6 +189,11 @@ func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) e
 		return fmt.Errorf("close config %q: %w", homePaths.ConfigFile, err)
 	}
 	return nil
+}
+
+func cloneSessionConfig(cfg aghconfig.SessionConfig) *aghconfig.SessionConfig {
+	cloned := cfg
+	return &cloned
 }
 
 // SeedWorkspace creates an isolated workspace root and any requested files.

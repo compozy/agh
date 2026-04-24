@@ -111,6 +111,68 @@ func (h *RuntimeHarness) PromptSessionHTTPWithEvents(
 	return readSSERecordsWithCallback(response.Body, 0, onEvent)
 }
 
+// PromptSessionHTTPUntil sends one prompt through the public HTTP API and
+// returns as soon as the streamed SSE records satisfy predicate.
+func (h *RuntimeHarness) PromptSessionHTTPUntil(
+	ctx context.Context,
+	sessionID string,
+	message string,
+	predicate func(SSEEvent) bool,
+) ([]SSEEvent, error) {
+	body := map[string]string{"message": message}
+	response, err := doRequest(
+		ctx,
+		h.HTTPClient,
+		h.HTTPURL("/api/sessions/"+url.PathEscape(sessionID)+"/prompt"),
+		http.MethodPost,
+		body,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		payload, readErr := io.ReadAll(response.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("read HTTP prompt failure response: %w", readErr)
+		}
+		return nil, fmt.Errorf("HTTP prompt session status %d: %s", response.StatusCode, bytes.TrimSpace(payload))
+	}
+
+	return readSSERecordsUntil(response.Body, predicate)
+}
+
+// StreamSessionHTTPUntil opens the public HTTP session event stream and returns
+// as soon as streamed SSE records satisfy predicate.
+func (h *RuntimeHarness) StreamSessionHTTPUntil(
+	ctx context.Context,
+	sessionID string,
+	predicate func(SSEEvent) bool,
+) ([]SSEEvent, error) {
+	response, err := doRequest(
+		ctx,
+		h.HTTPClient,
+		h.HTTPURL("/api/sessions/"+url.PathEscape(sessionID)+"/stream"),
+		http.MethodGet,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		payload, readErr := io.ReadAll(response.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("read HTTP session stream failure response: %w", readErr)
+		}
+		return nil, fmt.Errorf("HTTP session stream status %d: %s", response.StatusCode, bytes.TrimSpace(payload))
+	}
+
+	return readSSERecordsUntil(response.Body, predicate)
+}
+
 // ApproveSessionPermission resolves one live permission request through the public HTTP surface.
 func (h *RuntimeHarness) ApproveSessionPermission(
 	ctx context.Context,

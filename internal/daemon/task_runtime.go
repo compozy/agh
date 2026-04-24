@@ -515,9 +515,9 @@ func classifyRecoveredTaskSession(info *session.Info, now time.Time) (string, st
 				"session liveness monitor marked the process stalled",
 			)
 		}
-		if liveness.LastUpdateAt != nil &&
-			!liveness.LastUpdateAt.IsZero() &&
-			now.Sub(liveness.LastUpdateAt.UTC()) >= session.DefaultLivenessStallAfter &&
+		if lastActivityAt := taskSessionLastActivityAt(liveness); lastActivityAt != nil &&
+			!lastActivityAt.IsZero() &&
+			now.Sub(lastActivityAt.UTC()) >= session.DefaultLivenessStallAfter &&
 			taskSessionMatchesRecordedSubprocess(liveness) {
 			return taskRecoveryClassificationStalled, firstTaskRecoveryDetail(
 				liveness.StallReason,
@@ -536,6 +536,18 @@ func classifyRecoveredTaskSession(info *session.Info, now time.Time) (string, st
 		info.StopDetail,
 		"bound session is not live",
 	)
+}
+
+func taskSessionLastActivityAt(liveness *store.SessionLivenessMeta) *time.Time {
+	if liveness == nil {
+		return nil
+	}
+	if liveness.Activity != nil &&
+		liveness.Activity.LastActivityAt != nil &&
+		!liveness.Activity.LastActivityAt.IsZero() {
+		return liveness.Activity.LastActivityAt
+	}
+	return liveness.LastUpdateAt
 }
 
 func taskSessionMatchesRecordedSubprocess(liveness *store.SessionLivenessMeta) bool {

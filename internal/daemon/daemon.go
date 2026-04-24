@@ -269,6 +269,7 @@ type SessionManagerDeps struct {
 	MCPResolver          session.MCPResolver
 	WorkspaceResolver    workspacepkg.RuntimeResolver
 	EnvironmentRegistry  *environment.Registry
+	SessionSupervision   aghconfig.SessionSupervisionConfig
 }
 
 // Daemon is the sole AGH composition root.
@@ -516,6 +517,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithMCPResolver(deps.MCPResolver),
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			session.WithEnvironmentRegistry(deps.EnvironmentRegistry),
+			session.WithSessionSupervision(deps.SessionSupervision),
 		)
 	}
 }

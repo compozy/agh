@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
@@ -78,6 +79,41 @@ func TestSeedConfigPersistsNetworkOverlay(t *testing.T) {
 	}
 	if got, want := loaded.Network.DefaultChannel, "builders"; got != want {
 		t.Fatalf("loaded.Network.DefaultChannel = %q, want %q", got, want)
+	}
+}
+
+func TestSeedConfigPersistsSessionSupervisionOverlay(t *testing.T) {
+	t.Parallel()
+
+	homePaths := NewHomePaths(t)
+	SeedConfig(t, homePaths, ConfigSeedOptions{
+		Mutate: func(cfg *aghconfig.Config) {
+			cfg.Session.Supervision.ActivityHeartbeatInterval = 20 * time.Millisecond
+			cfg.Session.Supervision.ProgressNotifyInterval = 30 * time.Millisecond
+			cfg.Session.Supervision.InactivityWarningAfter = 40 * time.Millisecond
+			cfg.Session.Supervision.InactivityTimeout = 50 * time.Millisecond
+			cfg.Session.Supervision.TimeoutCancelGrace = 60 * time.Millisecond
+		},
+	})
+
+	loaded, err := aghconfig.LoadForHome(homePaths)
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+	if got, want := loaded.Session.Supervision.ActivityHeartbeatInterval, 20*time.Millisecond; got != want {
+		t.Fatalf("ActivityHeartbeatInterval = %s, want %s", got, want)
+	}
+	if got, want := loaded.Session.Supervision.ProgressNotifyInterval, 30*time.Millisecond; got != want {
+		t.Fatalf("ProgressNotifyInterval = %s, want %s", got, want)
+	}
+	if got, want := loaded.Session.Supervision.InactivityWarningAfter, 40*time.Millisecond; got != want {
+		t.Fatalf("InactivityWarningAfter = %s, want %s", got, want)
+	}
+	if got, want := loaded.Session.Supervision.InactivityTimeout, 50*time.Millisecond; got != want {
+		t.Fatalf("InactivityTimeout = %s, want %s", got, want)
+	}
+	if got, want := loaded.Session.Supervision.TimeoutCancelGrace, 60*time.Millisecond; got != want {
+		t.Fatalf("TimeoutCancelGrace = %s, want %s", got, want)
 	}
 }
 

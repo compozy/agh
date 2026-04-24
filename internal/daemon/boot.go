@@ -492,6 +492,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		MCPResolver:          mcpResolverDependency(state.mcpResolver),
 		WorkspaceResolver:    state.workspaceResolver,
 		EnvironmentRegistry:  state.environmentRegistry,
+		SessionSupervision:   state.cfg.Session.Supervision,
 	}
 }
 

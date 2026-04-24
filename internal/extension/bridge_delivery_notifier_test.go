@@ -155,11 +155,21 @@ func TestBridgeDeliveryNotifierProjectsEventsAndForwardsLifecycle(t *testing.T) 
 		t.Fatalf("projected content = %q, want %q", got, want)
 	}
 
+	notifier.OnAgentEvent(testutil.Context(t), registration.SessionID, acp.AgentEvent{
+		Type:      acp.EventTypeRuntimeProgress,
+		TurnID:    registration.TurnID,
+		Timestamp: time.Date(2026, time.April, 11, 12, 13, 0, 0, time.UTC),
+		Text:      "Still working...",
+	})
+	if got, want := len(transport.snapshotCalls()), 1; got != want {
+		t.Fatalf("delivery calls after runtime progress = %d, want %d", got, want)
+	}
+
 	notifier.OnAgentEvent(testutil.Context(t), registration.SessionID, "ignored")
 	createdCount, stoppedCount, forwarded := downstream.snapshot()
-	if createdCount != 1 || stoppedCount != 0 || len(forwarded) != 2 {
+	if createdCount != 1 || stoppedCount != 0 || len(forwarded) != 3 {
 		t.Fatalf(
-			"downstream lifecycle/events = created:%d stopped:%d events:%d, want 1/0/2",
+			"downstream lifecycle/events = created:%d stopped:%d events:%d, want 1/0/3",
 			createdCount,
 			stoppedCount,
 			len(forwarded),
@@ -179,9 +189,9 @@ func TestBridgeDeliveryNotifierProjectsEventsAndForwardsLifecycle(t *testing.T) 
 	}
 
 	createdCount, stoppedCount, forwarded = downstream.snapshot()
-	if createdCount != 1 || stoppedCount != 1 || len(forwarded) != 2 {
+	if createdCount != 1 || stoppedCount != 1 || len(forwarded) != 3 {
 		t.Fatalf(
-			"downstream lifecycle/events after stop = created:%d stopped:%d events:%d, want 1/1/2",
+			"downstream lifecycle/events after stop = created:%d stopped:%d events:%d, want 1/1/3",
 			createdCount,
 			stoppedCount,
 			len(forwarded),

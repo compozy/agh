@@ -331,8 +331,25 @@ func TestHealthFallsBackToRegistryWithoutSessionSource(t *testing.T) {
 	h.observer.sessionSource = nil
 
 	now := h.now
+	lastActivityAt := now.Add(-40 * time.Minute)
 	for _, info := range []store.SessionInfo{
-		{ID: "sess-active", AgentName: "coder", WorkspaceID: h.workspaceID, State: "active", CreatedAt: now, UpdatedAt: now},
+		{
+			ID:          "sess-active",
+			AgentName:   "coder",
+			WorkspaceID: h.workspaceID,
+			State:       "active",
+			Liveness: &store.SessionLivenessMeta{
+				StallState:  store.SessionStallStateDetected,
+				StallReason: store.SessionStallReasonActivityTimeout,
+				Activity: &store.SessionActivityMeta{
+					TurnID:           "turn-stalled",
+					LastActivityAt:   &lastActivityAt,
+					LastActivityKind: "timeout",
+				},
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
 		{ID: "sess-stopped", AgentName: "coder", WorkspaceID: h.workspaceID, State: "stopped", CreatedAt: now, UpdatedAt: now},
 		{ID: "sess-orphaned", AgentName: "coder", WorkspaceID: h.workspaceID, State: "orphaned", CreatedAt: now, UpdatedAt: now},
 	} {
@@ -347,6 +364,9 @@ func TestHealthFallsBackToRegistryWithoutSessionSource(t *testing.T) {
 	}
 	if health.ActiveSessions != 1 || health.ActiveAgents != 1 {
 		t.Fatalf("Health() = %#v, want 1 active session/agent", health)
+	}
+	if len(health.Activities) != 1 || health.Activities[0].Status != "stalled" {
+		t.Fatalf("Health().Activities = %#v, want one stalled activity", health.Activities)
 	}
 }
 

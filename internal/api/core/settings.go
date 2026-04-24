@@ -950,7 +950,8 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
 	}
 	if err := (aghconfig.SessionConfig{
-		Limits: aghconfig.SessionLimitsConfig{Timeout: value.SessionTimeout},
+		Limits:      aghconfig.SessionLimitsConfig{Timeout: value.SessionTimeout},
+		Supervision: aghconfig.DefaultSessionSupervisionConfig(),
 	}).Validate(); err != nil {
 		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
 	}

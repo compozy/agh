@@ -594,6 +594,7 @@ func sessionColumnSpecs() []migrationColumnSpec {
 		{name: "last_update_at", sql: `ALTER TABLE sessions ADD COLUMN last_update_at TEXT`},
 		{name: "stall_state", sql: `ALTER TABLE sessions ADD COLUMN stall_state TEXT NOT NULL DEFAULT ''`},
 		{name: "stall_reason", sql: `ALTER TABLE sessions ADD COLUMN stall_reason TEXT NOT NULL DEFAULT ''`},
+		{name: "activity_json", sql: `ALTER TABLE sessions ADD COLUMN activity_json TEXT NOT NULL DEFAULT ''`},
 		{name: "environment_id", sql: `ALTER TABLE sessions ADD COLUMN environment_id TEXT NOT NULL DEFAULT ''`},
 		{
 			name: "environment_backend",

@@ -43,9 +43,27 @@ type SessionPayload struct {
 	StopDetail   string                     `json:"stop_detail,omitempty"`
 	ACPSessionID string                     `json:"acp_session_id,omitempty"`
 	ACPCaps      *ACPCapsPayload            `json:"acp_caps,omitempty"`
+	Activity     *RuntimeActivityPayload    `json:"activity,omitempty"`
 	Environment  *SessionEnvironmentPayload `json:"environment,omitempty"`
 	CreatedAt    time.Time                  `json:"created_at"`
 	UpdatedAt    time.Time                  `json:"updated_at"`
+}
+
+// RuntimeActivityPayload is the shared JSON representation of active prompt supervision state.
+type RuntimeActivityPayload struct {
+	TurnID             string     `json:"turn_id,omitempty"`
+	TurnSource         string     `json:"turn_source,omitempty"`
+	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
+	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
+	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
+	CurrentTool        string     `json:"current_tool,omitempty"`
+	ToolCallID         string     `json:"tool_call_id,omitempty"`
+	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
+	IterationCurrent   int        `json:"iteration_current,omitempty"`
+	IterationMax       int        `json:"iteration_max,omitempty"`
+	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
+	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
 }
 
 // SessionEnvironmentPayload is the shared session environment response payload.
@@ -108,21 +126,22 @@ type AgentMCPServerJSON struct {
 
 // AgentEventPayload is the shared raw agent-event streaming payload.
 type AgentEventPayload struct {
-	Type       string             `json:"type"`
-	SessionID  string             `json:"session_id,omitempty"`
-	TurnID     string             `json:"turn_id,omitempty"`
-	RequestID  string             `json:"request_id,omitempty"`
-	Timestamp  time.Time          `json:"timestamp"`
-	Text       string             `json:"text,omitempty"`
-	Title      string             `json:"title,omitempty"`
-	ToolCallID string             `json:"tool_call_id,omitempty"`
-	StopReason string             `json:"stop_reason,omitempty"`
-	Action     string             `json:"action,omitempty"`
-	Resource   string             `json:"resource,omitempty"`
-	Decision   string             `json:"decision,omitempty"`
-	Error      string             `json:"error,omitempty"`
-	Usage      *TokenUsagePayload `json:"usage,omitempty"`
-	Raw        json.RawMessage    `json:"raw,omitempty"`
+	Type       string                  `json:"type"`
+	SessionID  string                  `json:"session_id,omitempty"`
+	TurnID     string                  `json:"turn_id,omitempty"`
+	RequestID  string                  `json:"request_id,omitempty"`
+	Timestamp  time.Time               `json:"timestamp"`
+	Text       string                  `json:"text,omitempty"`
+	Title      string                  `json:"title,omitempty"`
+	ToolCallID string                  `json:"tool_call_id,omitempty"`
+	StopReason string                  `json:"stop_reason,omitempty"`
+	Action     string                  `json:"action,omitempty"`
+	Resource   string                  `json:"resource,omitempty"`
+	Decision   string                  `json:"decision,omitempty"`
+	Error      string                  `json:"error,omitempty"`
+	Usage      *TokenUsagePayload      `json:"usage,omitempty"`
+	Runtime    *RuntimeActivityPayload `json:"runtime,omitempty"`
+	Raw        json.RawMessage         `json:"raw,omitempty"`
 }
 
 // TokenUsagePayload is the shared token-usage response payload.
@@ -153,14 +172,37 @@ type ObserveEventPayload struct {
 
 // ObserveHealthPayload is the shared observability health response payload.
 type ObserveHealthPayload struct {
-	Status             string                       `json:"status"`
-	UptimeSeconds      int64                        `json:"uptime_seconds"`
-	ActiveSessions     int                          `json:"active_sessions"`
-	ActiveAgents       int                          `json:"active_agents"`
-	GlobalDBSizeBytes  int64                        `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64                        `json:"session_db_size_bytes"`
-	Bridges            BridgeAggregateHealthPayload `json:"bridges"`
-	Version            string                       `json:"version"`
+	Status             string                         `json:"status"`
+	UptimeSeconds      int64                          `json:"uptime_seconds"`
+	ActiveSessions     int                            `json:"active_sessions"`
+	ActiveAgents       int                            `json:"active_agents"`
+	GlobalDBSizeBytes  int64                          `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64                          `json:"session_db_size_bytes"`
+	Bridges            BridgeAggregateHealthPayload   `json:"bridges"`
+	Activities         []SessionActivityHealthPayload `json:"activities,omitempty"`
+	Version            string                         `json:"version"`
+}
+
+// SessionActivityHealthPayload exposes active runtime supervision state in the
+// observability health response.
+type SessionActivityHealthPayload struct {
+	SessionID          string     `json:"session_id"`
+	TurnID             string     `json:"turn_id,omitempty"`
+	TurnSource         string     `json:"turn_source,omitempty"`
+	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
+	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
+	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
+	CurrentTool        string     `json:"current_tool,omitempty"`
+	ToolCallID         string     `json:"tool_call_id,omitempty"`
+	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
+	IterationCurrent   int        `json:"iteration_current,omitempty"`
+	IterationMax       int        `json:"iteration_max,omitempty"`
+	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
+	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
+	Status             string     `json:"status"`
+	StallState         string     `json:"stall_state,omitempty"`
+	StallReason        string     `json:"stall_reason,omitempty"`
 }
 
 // HookCatalogQuery captures the shared resolved-hook catalog filters.

@@ -9228,6 +9228,59 @@
                                                             "acp_session_id": {
                                                                 "type": "string"
                                                             },
+                                                            "activity": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "current_tool": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "elapsed_seconds": {
+                                                                        "format": "int64",
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "idle_seconds": {
+                                                                        "format": "int64",
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "iteration_current": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "iteration_max": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "last_activity_at": {
+                                                                        "format": "date-time",
+                                                                        "nullable": true,
+                                                                        "type": "string"
+                                                                    },
+                                                                    "last_activity_detail": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "last_activity_kind": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "last_progress_at": {
+                                                                        "format": "date-time",
+                                                                        "nullable": true,
+                                                                        "type": "string"
+                                                                    },
+                                                                    "tool_call_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "turn_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "turn_source": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "turn_started_at": {
+                                                                        "format": "date-time",
+                                                                        "nullable": true,
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
                                                             "agent_name": {
                                                                 "type": "string"
                                                             },
@@ -9617,6 +9670,59 @@
                                                             },
                                                             "acp_session_id": {
                                                                 "type": "string"
+                                                            },
+                                                            "activity": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "current_tool": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "elapsed_seconds": {
+                                                                        "format": "int64",
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "idle_seconds": {
+                                                                        "format": "int64",
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "iteration_current": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "iteration_max": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "last_activity_at": {
+                                                                        "format": "date-time",
+                                                                        "nullable": true,
+                                                                        "type": "string"
+                                                                    },
+                                                                    "last_activity_detail": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "last_activity_kind": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "last_progress_at": {
+                                                                        "format": "date-time",
+                                                                        "nullable": true,
+                                                                        "type": "string"
+                                                                    },
+                                                                    "tool_call_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "turn_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "turn_source": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "turn_started_at": {
+                                                                        "format": "date-time",
+                                                                        "nullable": true,
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
                                                             },
                                                             "agent_name": {
                                                                 "type": "string"
@@ -11374,6 +11480,74 @@
                                                 },
                                                 "active_sessions": {
                                                     "type": "integer"
+                                                },
+                                                "activities": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "current_tool": {
+                                                                "type": "string"
+                                                            },
+                                                            "elapsed_seconds": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "idle_seconds": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "iteration_current": {
+                                                                "type": "integer"
+                                                            },
+                                                            "iteration_max": {
+                                                                "type": "integer"
+                                                            },
+                                                            "last_activity_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "last_activity_detail": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_activity_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_progress_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "session_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "stall_reason": {
+                                                                "type": "string"
+                                                            },
+                                                            "stall_state": {
+                                                                "type": "string"
+                                                            },
+                                                            "status": {
+                                                                "type": "string"
+                                                            },
+                                                            "tool_call_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_source": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_started_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["session_id", "status"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
                                                 },
                                                 "bridges": {
                                                     "properties": {
@@ -13893,6 +14067,59 @@
                                                     "acp_session_id": {
                                                         "type": "string"
                                                     },
+                                                    "activity": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "current_tool": {
+                                                                "type": "string"
+                                                            },
+                                                            "elapsed_seconds": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "idle_seconds": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "iteration_current": {
+                                                                "type": "integer"
+                                                            },
+                                                            "iteration_max": {
+                                                                "type": "integer"
+                                                            },
+                                                            "last_activity_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "last_activity_detail": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_activity_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_progress_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "tool_call_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_source": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_started_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
                                                     "agent_name": {
                                                         "type": "string"
                                                     },
@@ -14100,6 +14327,59 @@
                                                 },
                                                 "acp_session_id": {
                                                     "type": "string"
+                                                },
+                                                "activity": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "current_tool": {
+                                                            "type": "string"
+                                                        },
+                                                        "elapsed_seconds": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "idle_seconds": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "iteration_current": {
+                                                            "type": "integer"
+                                                        },
+                                                        "iteration_max": {
+                                                            "type": "integer"
+                                                        },
+                                                        "last_activity_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_activity_detail": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_activity_kind": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_progress_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "tool_call_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "turn_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "turn_source": {
+                                                            "type": "string"
+                                                        },
+                                                        "turn_started_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
                                                 },
                                                 "agent_name": {
                                                     "type": "string"
@@ -14377,6 +14657,59 @@
                                                 },
                                                 "acp_session_id": {
                                                     "type": "string"
+                                                },
+                                                "activity": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "current_tool": {
+                                                            "type": "string"
+                                                        },
+                                                        "elapsed_seconds": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "idle_seconds": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "iteration_current": {
+                                                            "type": "integer"
+                                                        },
+                                                        "iteration_max": {
+                                                            "type": "integer"
+                                                        },
+                                                        "last_activity_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_activity_detail": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_activity_kind": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_progress_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "tool_call_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "turn_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "turn_source": {
+                                                            "type": "string"
+                                                        },
+                                                        "turn_started_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
                                                 },
                                                 "agent_name": {
                                                     "type": "string"
@@ -15056,6 +15389,59 @@
                                                 },
                                                 "acp_session_id": {
                                                     "type": "string"
+                                                },
+                                                "activity": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "current_tool": {
+                                                            "type": "string"
+                                                        },
+                                                        "elapsed_seconds": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "idle_seconds": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "iteration_current": {
+                                                            "type": "integer"
+                                                        },
+                                                        "iteration_max": {
+                                                            "type": "integer"
+                                                        },
+                                                        "last_activity_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_activity_detail": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_activity_kind": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_progress_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "tool_call_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "turn_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "turn_source": {
+                                                            "type": "string"
+                                                        },
+                                                        "turn_started_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
                                                 },
                                                 "agent_name": {
                                                     "type": "string"
@@ -34038,6 +34424,59 @@
                                                     },
                                                     "acp_session_id": {
                                                         "type": "string"
+                                                    },
+                                                    "activity": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "current_tool": {
+                                                                "type": "string"
+                                                            },
+                                                            "elapsed_seconds": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "idle_seconds": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "iteration_current": {
+                                                                "type": "integer"
+                                                            },
+                                                            "iteration_max": {
+                                                                "type": "integer"
+                                                            },
+                                                            "last_activity_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "last_activity_detail": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_activity_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_progress_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "tool_call_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_source": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_started_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
                                                     },
                                                     "agent_name": {
                                                         "type": "string"

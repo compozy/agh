@@ -739,6 +739,32 @@ func (h *RuntimeHarness) PromptSessionWithEvents(
 	return readSSERecordsWithCallback(response.Body, 0, onEvent)
 }
 
+// PromptSessionUntil sends one prompt through the operator surface and returns
+// as soon as the streamed SSE records satisfy predicate.
+func (h *RuntimeHarness) PromptSessionUntil(
+	ctx context.Context,
+	sessionID string,
+	message string,
+	predicate func(SSEEvent) bool,
+) ([]SSEEvent, error) {
+	body := map[string]string{"message": message}
+	response, err := doRequest(ctx, h.UDSClient, h.UDSURL("/api/sessions/"+sessionID+"/prompt"), http.MethodPost, body)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		payload, readErr := io.ReadAll(response.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("read prompt failure response: %w", readErr)
+		}
+		return nil, fmt.Errorf("prompt session status %d: %s", response.StatusCode, bytes.TrimSpace(payload))
+	}
+
+	return readSSERecordsUntil(response.Body, predicate)
+}
+
 // SessionTranscript fetches the persisted transcript for one session.
 func (h *RuntimeHarness) SessionTranscript(
 	ctx context.Context,
@@ -1374,6 +1400,25 @@ func readSSERecordsWithCallback(
 	limit int,
 	onRecord func(SSEEvent) error,
 ) ([]SSEEvent, error) {
+	return readSSERecordsMatching(reader, limit, onRecord, nil)
+}
+
+func readSSERecordsUntil(
+	reader io.Reader,
+	predicate func(SSEEvent) bool,
+) ([]SSEEvent, error) {
+	if predicate == nil {
+		return nil, errors.New("SSE predicate is required")
+	}
+	return readSSERecordsMatching(reader, 0, nil, predicate)
+}
+
+func readSSERecordsMatching(
+	reader io.Reader,
+	limit int,
+	onRecord func(SSEEvent) error,
+	predicate func(SSEEvent) bool,
+) ([]SSEEvent, error) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 16*1024), 1024*1024)
 
@@ -1381,48 +1426,63 @@ func readSSERecordsWithCallback(
 	current := SSEEvent{}
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line == "" {
-			if current.ID != "" || current.Event != "" || len(current.Data) > 0 {
-				normalizeSSEEvent(&current)
-				records = append(records, current)
-				if onRecord != nil {
-					if err := onRecord(current); err != nil {
-						return nil, fmt.Errorf("handle SSE record: %w", err)
-					}
-				}
-				current = SSEEvent{}
-				if limit > 0 && len(records) >= limit {
-					return records, nil
-				}
-			}
+		if line != "" {
+			applySSELine(&current, line)
 			continue
 		}
-
-		switch {
-		case strings.HasPrefix(line, "id: "):
-			current.ID = strings.TrimPrefix(line, "id: ")
-		case strings.HasPrefix(line, "event: "):
-			current.Event = strings.TrimPrefix(line, "event: ")
-		case strings.HasPrefix(line, "data: "):
-			if len(current.Data) > 0 {
-				current.Data = append(current.Data, '\n')
-			}
-			current.Data = append(current.Data, strings.TrimPrefix(line, "data: ")...)
+		var matched bool
+		var err error
+		records, matched, err = appendSSERecord(records, current, onRecord, predicate)
+		if err != nil {
+			return nil, err
+		}
+		current = SSEEvent{}
+		if matched || (limit > 0 && len(records) >= limit) {
+			return records, nil
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scan SSE stream: %w", err)
 	}
-	if current.ID != "" || current.Event != "" || len(current.Data) > 0 {
-		normalizeSSEEvent(&current)
-		records = append(records, current)
-		if onRecord != nil {
-			if err := onRecord(current); err != nil {
-				return nil, fmt.Errorf("handle SSE record: %w", err)
-			}
-		}
+	var err error
+	records, _, err = appendSSERecord(records, current, onRecord, predicate)
+	if err != nil {
+		return nil, err
 	}
 	return records, nil
+}
+
+func applySSELine(record *SSEEvent, line string) {
+	switch {
+	case strings.HasPrefix(line, "id: "):
+		record.ID = strings.TrimPrefix(line, "id: ")
+	case strings.HasPrefix(line, "event: "):
+		record.Event = strings.TrimPrefix(line, "event: ")
+	case strings.HasPrefix(line, "data: "):
+		if len(record.Data) > 0 {
+			record.Data = append(record.Data, '\n')
+		}
+		record.Data = append(record.Data, strings.TrimPrefix(line, "data: ")...)
+	}
+}
+
+func appendSSERecord(
+	records []SSEEvent,
+	record SSEEvent,
+	onRecord func(SSEEvent) error,
+	predicate func(SSEEvent) bool,
+) ([]SSEEvent, bool, error) {
+	if record.ID == "" && record.Event == "" && len(record.Data) == 0 {
+		return records, false, nil
+	}
+	normalizeSSEEvent(&record)
+	records = append(records, record)
+	if onRecord != nil {
+		if err := onRecord(record); err != nil {
+			return nil, false, fmt.Errorf("handle SSE record: %w", err)
+		}
+	}
+	return records, predicate != nil && predicate(record), nil
 }
 
 func normalizeSSEEvent(record *SSEEvent) {

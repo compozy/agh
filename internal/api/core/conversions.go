@@ -54,10 +54,66 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 	if caps := ACPCapsPayloadFromInfo(info.ACPCaps); caps != nil {
 		payload.ACPCaps = caps
 	}
+	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, time.Now().UTC()); activity != nil {
+		payload.Activity = activity
+	}
 	if environment := SessionEnvironmentPayloadFromMeta(info.Environment); environment != nil {
 		payload.Environment = environment
 	}
 	return payload
+}
+
+// RuntimeActivityPayloadFromSessionMeta converts persisted session activity metadata into the shared payload.
+func RuntimeActivityPayloadFromSessionMeta(
+	liveness *store.SessionLivenessMeta,
+	now time.Time,
+) *contract.RuntimeActivityPayload {
+	if liveness == nil || liveness.Activity == nil {
+		return nil
+	}
+	activity := store.CloneSessionActivityMeta(liveness.Activity)
+	payload := &contract.RuntimeActivityPayload{
+		TurnID:             activity.TurnID,
+		TurnSource:         activity.TurnSource,
+		TurnStartedAt:      cloneTimePtr(activity.TurnStartedAt),
+		LastActivityAt:     cloneTimePtr(activity.LastActivityAt),
+		LastActivityKind:   activity.LastActivityKind,
+		LastActivityDetail: activity.LastActivityDetail,
+		CurrentTool:        activity.CurrentTool,
+		ToolCallID:         activity.ToolCallID,
+		LastProgressAt:     cloneTimePtr(activity.LastProgressAt),
+		IterationCurrent:   activity.IterationCurrent,
+		IterationMax:       activity.IterationMax,
+		IdleSeconds:        store.SessionActivityIdleSeconds(activity, now),
+	}
+	if !now.IsZero() && activity.TurnStartedAt != nil && !activity.TurnStartedAt.IsZero() {
+		elapsed := now.UTC().Sub(activity.TurnStartedAt.UTC())
+		if elapsed > 0 {
+			payload.ElapsedSeconds = int64(elapsed.Seconds())
+		}
+	}
+	return payload
+}
+
+func runtimeActivityPayloadFromEvent(activity *acp.RuntimeActivity) *contract.RuntimeActivityPayload {
+	if activity == nil {
+		return nil
+	}
+	return &contract.RuntimeActivityPayload{
+		TurnID:             strings.TrimSpace(activity.TurnID),
+		TurnSource:         strings.TrimSpace(activity.TurnSource),
+		TurnStartedAt:      cloneTimePtr(activity.TurnStartedAt),
+		LastActivityAt:     cloneTimePtr(activity.LastActivityAt),
+		LastActivityKind:   strings.TrimSpace(activity.LastActivityKind),
+		LastActivityDetail: strings.TrimSpace(activity.LastActivityDetail),
+		CurrentTool:        strings.TrimSpace(activity.CurrentTool),
+		ToolCallID:         strings.TrimSpace(activity.ToolCallID),
+		LastProgressAt:     cloneTimePtr(activity.LastProgressAt),
+		IterationCurrent:   activity.IterationCurrent,
+		IterationMax:       activity.IterationMax,
+		IdleSeconds:        activity.IdleSeconds,
+		ElapsedSeconds:     activity.ElapsedSeconds,
+	}
 }
 
 // SessionEnvironmentPayloadFromMeta converts session environment metadata into the shared payload.
@@ -173,6 +229,7 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		Decision:   event.Decision,
 		Error:      event.Error,
 		Usage:      TokenUsagePayloadFromUsage(event.Usage),
+		Runtime:    runtimeActivityPayloadFromEvent(event.Runtime),
 		Raw:        payloadJSONBytes(event.Raw),
 	}
 }
@@ -221,8 +278,42 @@ func ObserveHealthPayloadFromHealth(health observepkg.Health) contract.ObserveHe
 		GlobalDBSizeBytes:  health.GlobalDBSizeBytes,
 		SessionDBSizeBytes: health.SessionDBSizeBytes,
 		Bridges:            BridgeAggregateHealthPayloadFromObserve(health.Bridges),
+		Activities:         SessionActivityHealthPayloadsFromObserve(health.Activities),
 		Version:            health.Version,
 	}
+}
+
+// SessionActivityHealthPayloadsFromObserve converts observer activity health
+// rows into the shared health response payload.
+func SessionActivityHealthPayloadsFromObserve(
+	activities []observepkg.SessionActivityHealth,
+) []contract.SessionActivityHealthPayload {
+	if len(activities) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SessionActivityHealthPayload, 0, len(activities))
+	for _, activity := range activities {
+		payloads = append(payloads, contract.SessionActivityHealthPayload{
+			SessionID:          strings.TrimSpace(activity.SessionID),
+			TurnID:             strings.TrimSpace(activity.TurnID),
+			TurnSource:         strings.TrimSpace(activity.TurnSource),
+			TurnStartedAt:      cloneTimePtr(activity.TurnStartedAt),
+			LastActivityAt:     cloneTimePtr(activity.LastActivityAt),
+			LastActivityKind:   strings.TrimSpace(activity.LastActivityKind),
+			LastActivityDetail: strings.TrimSpace(activity.LastActivityDetail),
+			CurrentTool:        strings.TrimSpace(activity.CurrentTool),
+			ToolCallID:         strings.TrimSpace(activity.ToolCallID),
+			LastProgressAt:     cloneTimePtr(activity.LastProgressAt),
+			IterationCurrent:   activity.IterationCurrent,
+			IterationMax:       activity.IterationMax,
+			IdleSeconds:        activity.IdleSeconds,
+			ElapsedSeconds:     activity.ElapsedSeconds,
+			Status:             strings.TrimSpace(activity.Status),
+			StallState:         strings.TrimSpace(activity.StallState),
+			StallReason:        strings.TrimSpace(activity.StallReason),
+		})
+	}
+	return payloads
 }
 
 // AutomationHealthPayloadFromStatus converts manager status into the shared

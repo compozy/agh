@@ -468,6 +468,37 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 	})
 }
 
+func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
+	t.Parallel()
+
+	lastActivityAt := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+	health := ObserveHealthPayloadFromHealth(observepkg.Health{
+		Status:         "ok",
+		ActiveSessions: 1,
+		Activities: []observepkg.SessionActivityHealth{{
+			SessionID:        " sess-activity ",
+			TurnID:           " turn-activity ",
+			LastActivityAt:   &lastActivityAt,
+			LastActivityKind: "warning",
+			CurrentTool:      "delegate_task",
+			IdleSeconds:      900,
+			Status:           "warning",
+		}},
+	})
+
+	if got, want := len(health.Activities), 1; got != want {
+		t.Fatalf("len(Activities) = %d, want %d", got, want)
+	}
+	activity := health.Activities[0]
+	if activity.SessionID != "sess-activity" ||
+		activity.TurnID != "turn-activity" ||
+		activity.Status != "warning" ||
+		activity.CurrentTool != "delegate_task" ||
+		activity.IdleSeconds != 900 {
+		t.Fatalf("Activities[0] = %#v, want trimmed runtime activity", activity)
+	}
+}
+
 func int64Ptr(value int64) *int64 {
 	return &value
 }

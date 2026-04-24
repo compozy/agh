@@ -92,6 +92,7 @@ func (o *Observer) loadSessionMetadata(ctx context.Context) ([]store.SessionInfo
 			ACPSessionID: normalized.ACPSessionID,
 			StopReason:   stopReason,
 			StopDetail:   normalized.StopDetail,
+			Liveness:     store.CloneSessionLivenessMeta(normalized.Liveness),
 			Environment:  cloneSessionEnvironmentMeta(normalized.Environment),
 			CreatedAt:    normalized.CreatedAt,
 			UpdatedAt:    normalized.UpdatedAt,

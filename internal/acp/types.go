@@ -39,6 +39,10 @@ const (
 	EventTypeUsage = "usage"
 	// EventTypeSystem is emitted for system-level ACP updates.
 	EventTypeSystem = "system"
+	// EventTypeRuntimeProgress is emitted by AGH while a prompt remains active.
+	EventTypeRuntimeProgress = "runtime_progress"
+	// EventTypeRuntimeWarning is emitted by AGH when active prompt activity is stale.
+	EventTypeRuntimeWarning = "runtime_warning"
 	// EventTypeDone is emitted when a prompt turn finishes.
 	EventTypeDone = "done"
 	// EventTypeError is emitted when prompt processing fails.
@@ -99,9 +103,11 @@ func (o StartOpts) Validate() error {
 
 // PromptRequest describes one prompt turn sent to an active ACP session.
 type PromptRequest struct {
-	TurnID  string
-	Message string
-	Meta    PromptMeta
+	TurnID                    string
+	Message                   string
+	Meta                      PromptMeta
+	ActivityReporter          PromptActivityReporter
+	ActivityHeartbeatInterval time.Duration
 }
 
 // Validate ensures the prompt request can be sent to the agent.
@@ -112,10 +118,23 @@ func (r PromptRequest) Validate() error {
 	if strings.TrimSpace(r.Message) == "" {
 		return errors.New("acp: prompt message is required")
 	}
+	if r.ActivityHeartbeatInterval < 0 {
+		return errors.New("acp: prompt activity heartbeat interval must be zero or positive")
+	}
 	if err := r.Meta.Validate(); err != nil {
 		return err
 	}
 	return nil
+}
+
+// PromptActivityReporter receives runtime activity observed while a prompt is in flight.
+type PromptActivityReporter func(PromptActivityReport)
+
+// PromptActivityReport is a low-frequency runtime heartbeat emitted by the driver.
+type PromptActivityReport struct {
+	Timestamp time.Time
+	Kind      string
+	Detail    string
 }
 
 const (
@@ -280,6 +299,24 @@ type TokenUsage struct {
 	Timestamp        time.Time
 }
 
+// RuntimeActivity is the structured activity payload attached to AGH runtime
+// progress and warning events.
+type RuntimeActivity struct {
+	TurnID             string     `json:"turn_id,omitempty"`
+	TurnSource         string     `json:"turn_source,omitempty"`
+	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
+	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
+	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
+	CurrentTool        string     `json:"current_tool,omitempty"`
+	ToolCallID         string     `json:"tool_call_id,omitempty"`
+	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
+	IterationCurrent   int        `json:"iteration_current,omitempty"`
+	IterationMax       int        `json:"iteration_max,omitempty"`
+	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
+	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
+}
+
 // Merge overlays non-nil usage fields from other into the receiver.
 func (u TokenUsage) Merge(other TokenUsage) TokenUsage {
 	merged := u
@@ -333,6 +370,7 @@ type AgentEvent struct {
 	Error      string
 	Synthetic  *PromptSyntheticMeta
 	Usage      *TokenUsage
+	Runtime    *RuntimeActivity
 	Raw        json.RawMessage
 }
 

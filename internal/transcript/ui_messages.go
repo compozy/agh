@@ -70,6 +70,7 @@ type UIAgentEventPayload struct {
 	Decision   string               `json:"decision,omitempty"`
 	Error      string               `json:"error,omitempty"`
 	Usage      *UITokenUsagePayload `json:"usage,omitempty"`
+	Runtime    *acp.RuntimeActivity `json:"runtime,omitempty"`
 	Raw        json.RawMessage      `json:"raw,omitempty"`
 }
 
@@ -121,6 +122,7 @@ func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
 		Decision:   event.Decision,
 		Error:      event.Error,
 		Usage:      uiTokenUsagePayloadFromUsage(event.Usage),
+		Runtime:    cloneRuntimeActivity(event.Runtime),
 		Raw:        payloadJSONBytes(event.Raw),
 	}
 	if !event.Timestamp.IsZero() {

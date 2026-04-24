@@ -100,10 +100,11 @@ func sessionMetaIsStalled(meta store.SessionMeta, now time.Time) bool {
 	if strings.TrimSpace(meta.Liveness.StallState) == store.SessionStallStateDetected {
 		return true
 	}
-	if meta.Liveness.LastUpdateAt == nil || meta.Liveness.LastUpdateAt.IsZero() || now.IsZero() {
+	lastActivityAt := sessionMetaLastActivityAt(meta.Liveness)
+	if lastActivityAt == nil || lastActivityAt.IsZero() || now.IsZero() {
 		return false
 	}
-	return now.UTC().Sub(meta.Liveness.LastUpdateAt.UTC()) >= DefaultLivenessStallAfter
+	return now.UTC().Sub(lastActivityAt.UTC()) >= DefaultLivenessStallAfter
 }
 
 func sessionMetaOwnsLiveSubprocess(meta store.SessionMeta) bool {
@@ -132,7 +133,41 @@ func sessionLivenessEqual(left *store.SessionLivenessMeta, right *store.SessionL
 		timesEqual(left.SubprocessStartedAt, right.SubprocessStartedAt) &&
 		timesEqual(left.LastUpdateAt, right.LastUpdateAt) &&
 		strings.TrimSpace(left.StallState) == strings.TrimSpace(right.StallState) &&
-		strings.TrimSpace(left.StallReason) == strings.TrimSpace(right.StallReason)
+		strings.TrimSpace(left.StallReason) == strings.TrimSpace(right.StallReason) &&
+		sessionActivityEqual(left.Activity, right.Activity)
+}
+
+func sessionMetaLastActivityAt(liveness *store.SessionLivenessMeta) *time.Time {
+	if liveness == nil {
+		return nil
+	}
+	if liveness.Activity != nil &&
+		liveness.Activity.LastActivityAt != nil &&
+		!liveness.Activity.LastActivityAt.IsZero() {
+		return liveness.Activity.LastActivityAt
+	}
+	return liveness.LastUpdateAt
+}
+
+func sessionActivityEqual(left *store.SessionActivityMeta, right *store.SessionActivityMeta) bool {
+	switch {
+	case left == nil && right == nil:
+		return true
+	case left == nil || right == nil:
+		return false
+	}
+	return strings.TrimSpace(left.TurnID) == strings.TrimSpace(right.TurnID) &&
+		strings.TrimSpace(left.TurnSource) == strings.TrimSpace(right.TurnSource) &&
+		timesEqual(left.TurnStartedAt, right.TurnStartedAt) &&
+		timesEqual(left.LastActivityAt, right.LastActivityAt) &&
+		strings.TrimSpace(left.LastActivityKind) == strings.TrimSpace(right.LastActivityKind) &&
+		strings.TrimSpace(left.LastActivityDetail) == strings.TrimSpace(right.LastActivityDetail) &&
+		strings.TrimSpace(left.CurrentTool) == strings.TrimSpace(right.CurrentTool) &&
+		strings.TrimSpace(left.ToolCallID) == strings.TrimSpace(right.ToolCallID) &&
+		timesEqual(left.LastProgressAt, right.LastProgressAt) &&
+		left.IterationCurrent == right.IterationCurrent &&
+		left.IterationMax == right.IterationMax &&
+		left.IdleSeconds == right.IdleSeconds
 }
 
 func timesEqual(left *time.Time, right *time.Time) bool {

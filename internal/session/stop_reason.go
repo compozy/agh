@@ -39,6 +39,11 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 			return store.StopAgentCrashed, waitErr.Error()
 		}
 		return store.StopError, "process exited unexpectedly"
+	case CauseTimeout:
+		if trimmedDetail == "" {
+			trimmedDetail = store.SessionStallReasonActivityTimeout
+		}
+		return store.StopTimeout, trimmedDetail
 	case CauseCompleted:
 		return store.StopCompleted, ""
 	case CauseFailed:

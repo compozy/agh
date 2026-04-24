@@ -600,6 +600,9 @@ func (d *Driver) stopExecCommand(ctx context.Context, proc *AgentProcess, errs [
 func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *activePromptState, req PromptRequest) {
 	defer proc.endPrompt(active)
 
+	stopReporter := startPromptActivityReporter(ctx, req)
+	defer stopReporter()
+
 	cancellationDone := make(chan struct{})
 	go func() {
 		select {
@@ -670,6 +673,45 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	}
 	d.waitForPromptQuiescence(active)
 	proc.emitPromptEvent(doneEvent)
+}
+
+func startPromptActivityReporter(ctx context.Context, req PromptRequest) func() {
+	if req.ActivityReporter == nil {
+		return func() {}
+	}
+	interval := req.ActivityHeartbeatInterval
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+
+	done := make(chan struct{})
+	report := func(ts time.Time) {
+		req.ActivityReporter(PromptActivityReport{
+			Timestamp: ts,
+			Kind:      "agent_waiting",
+			Detail:    "waiting for session/prompt response",
+		})
+	}
+	report(timeNowUTC())
+
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-done:
+				return
+			case ts := <-ticker.C:
+				report(ts.UTC())
+			}
+		}
+	}()
+
+	return func() {
+		close(done)
+	}
 }
 
 func (p *AgentProcess) waitForExit() {

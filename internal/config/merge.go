@@ -54,11 +54,20 @@ type limitsOverlay struct {
 }
 
 type sessionOverlay struct {
-	Limits sessionLimitsOverlay `toml:"limits"`
+	Limits      sessionLimitsOverlay      `toml:"limits"`
+	Supervision sessionSupervisionOverlay `toml:"supervision"`
 }
 
 type sessionLimitsOverlay struct {
 	Timeout *time.Duration `toml:"timeout"`
+}
+
+type sessionSupervisionOverlay struct {
+	ActivityHeartbeatInterval *time.Duration `toml:"activity_heartbeat_interval"`
+	ProgressNotifyInterval    *time.Duration `toml:"progress_notify_interval"`
+	InactivityWarningAfter    *time.Duration `toml:"inactivity_warning_after"`
+	InactivityTimeout         *time.Duration `toml:"inactivity_timeout"`
+	TimeoutCancelGrace        *time.Duration `toml:"timeout_cancel_grace"`
 }
 
 type permissionsOverlay struct {
@@ -292,11 +301,30 @@ func (o limitsOverlay) Apply(dst *LimitsConfig) {
 
 func (o sessionOverlay) Apply(dst *SessionConfig) {
 	o.Limits.Apply(&dst.Limits)
+	o.Supervision.Apply(&dst.Supervision)
 }
 
 func (o sessionLimitsOverlay) Apply(dst *SessionLimitsConfig) {
 	if o.Timeout != nil {
 		dst.Timeout = *o.Timeout
+	}
+}
+
+func (o sessionSupervisionOverlay) Apply(dst *SessionSupervisionConfig) {
+	if o.ActivityHeartbeatInterval != nil {
+		dst.ActivityHeartbeatInterval = *o.ActivityHeartbeatInterval
+	}
+	if o.ProgressNotifyInterval != nil {
+		dst.ProgressNotifyInterval = *o.ProgressNotifyInterval
+	}
+	if o.InactivityWarningAfter != nil {
+		dst.InactivityWarningAfter = *o.InactivityWarningAfter
+	}
+	if o.InactivityTimeout != nil {
+		dst.InactivityTimeout = *o.InactivityTimeout
+	}
+	if o.TimeoutCancelGrace != nil {
+		dst.TimeoutCancelGrace = *o.TimeoutCancelGrace
 	}
 }
 

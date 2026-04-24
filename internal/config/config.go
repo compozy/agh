@@ -56,12 +56,22 @@ type LimitsConfig struct {
 
 // SessionConfig defines session-scoped runtime controls.
 type SessionConfig struct {
-	Limits SessionLimitsConfig `toml:"limits"`
+	Limits      SessionLimitsConfig      `toml:"limits"`
+	Supervision SessionSupervisionConfig `toml:"supervision"`
 }
 
 // SessionLimitsConfig defines runtime limits applied to every session.
 type SessionLimitsConfig struct {
 	Timeout time.Duration `toml:"timeout,omitempty"`
+}
+
+// SessionSupervisionConfig defines runtime activity monitoring controls applied to sessions.
+type SessionSupervisionConfig struct {
+	ActivityHeartbeatInterval time.Duration `toml:"activity_heartbeat_interval,omitempty"`
+	ProgressNotifyInterval    time.Duration `toml:"progress_notify_interval,omitempty"`
+	InactivityWarningAfter    time.Duration `toml:"inactivity_warning_after,omitempty"`
+	InactivityTimeout         time.Duration `toml:"inactivity_timeout,omitempty"`
+	TimeoutCancelGrace        time.Duration `toml:"timeout_cancel_grace,omitempty"`
 }
 
 // PermissionMode is the static permission policy applied by the daemon.
@@ -386,7 +396,8 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			MaxConcurrentAgents: 20,
 		},
 		Session: SessionConfig{
-			Limits: SessionLimitsConfig{},
+			Limits:      SessionLimitsConfig{},
+			Supervision: DefaultSessionSupervisionConfig(),
 		},
 		Permissions: PermissionsConfig{
 			Mode: PermissionModeApproveAll,
@@ -743,7 +754,10 @@ func (c LimitsConfig) Validate() error {
 
 // Validate ensures session-scoped controls are internally consistent.
 func (c SessionConfig) Validate() error {
-	return c.Limits.Validate()
+	if err := c.Limits.Validate(); err != nil {
+		return err
+	}
+	return c.Supervision.Validate()
 }
 
 // Validate ensures session timeout settings are internally consistent.
@@ -752,6 +766,46 @@ func (c SessionLimitsConfig) Validate() error {
 		return fmt.Errorf("session.limits.timeout must be zero or positive: %s", c.Timeout)
 	}
 	return nil
+}
+
+// DefaultSessionSupervisionConfig returns the default runtime activity supervision settings.
+func DefaultSessionSupervisionConfig() SessionSupervisionConfig {
+	return SessionSupervisionConfig{
+		ActivityHeartbeatInterval: 30 * time.Second,
+		ProgressNotifyInterval:    10 * time.Minute,
+		InactivityWarningAfter:    15 * time.Minute,
+		InactivityTimeout:         30 * time.Minute,
+		TimeoutCancelGrace:        30 * time.Second,
+	}
+}
+
+// Validate ensures session supervision settings are internally consistent.
+func (c SessionSupervisionConfig) Validate() error {
+	switch {
+	case c.ActivityHeartbeatInterval <= 0:
+		return fmt.Errorf(
+			"session.supervision.activity_heartbeat_interval must be positive: %s",
+			c.ActivityHeartbeatInterval,
+		)
+	case c.ProgressNotifyInterval < 0:
+		return fmt.Errorf(
+			"session.supervision.progress_notify_interval "+
+				"must be zero or positive: %s",
+			c.ProgressNotifyInterval,
+		)
+	case c.InactivityWarningAfter < 0:
+		return fmt.Errorf(
+			"session.supervision.inactivity_warning_after "+
+				"must be zero or positive: %s",
+			c.InactivityWarningAfter,
+		)
+	case c.InactivityTimeout < 0:
+		return fmt.Errorf("session.supervision.inactivity_timeout must be zero or positive: %s", c.InactivityTimeout)
+	case c.TimeoutCancelGrace <= 0:
+		return fmt.Errorf("session.supervision.timeout_cancel_grace must be positive: %s", c.TimeoutCancelGrace)
+	default:
+		return nil
+	}
 }
 
 // Validate ensures the permission mode is supported.
