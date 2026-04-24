@@ -15438,8 +15438,8 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description Task not found */
-      404: {
+      /** @description Invalid task delete */
+      400: {
         headers: {
           [name: string]: unknown;
         };
@@ -15449,8 +15449,8 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task delete */
-      422: {
+      /** @description Task not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };

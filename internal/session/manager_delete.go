@@ -19,12 +19,12 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 
 	target, err := normalizeStoredSessionID(id)
 	if err != nil {
-		return err
+		return fmt.Errorf("session: normalize delete id %q: %w", id, err)
 	}
 
 	if _, ok := m.Get(target); ok {
 		if err := m.StopWithCause(ctx, target, CauseUserRequested, "session deleted"); err != nil {
-			return err
+			return fmt.Errorf("session: stop %q before delete: %w", target, err)
 		}
 	}
 

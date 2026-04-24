@@ -25121,6 +25121,22 @@
                     "204": {
                         "description": "No Content"
                     },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid task delete"
+                    },
                     "404": {
                         "content": {
                             "application/json": {
@@ -25136,22 +25152,6 @@
                             }
                         },
                         "description": "Task not found"
-                    },
-                    "422": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "error": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": ["error"],
-                                    "type": "object"
-                                }
-                            }
-                        },
-                        "description": "Invalid task delete"
                     },
                     "500": {
                         "content": {

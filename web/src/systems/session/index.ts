@@ -29,6 +29,7 @@ export type {
 // Adapters
 export {
   approveSession,
+  cancelSessionPrompt,
   createSession,
   deleteSession,
   fetchSession,

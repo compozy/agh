@@ -113,10 +113,21 @@ func (g *GlobalDB) DeleteTask(ctx context.Context, id string) error {
 
 	result, err := g.db.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, trimmedID)
 	if err != nil {
-		return fmt.Errorf("store: delete task %q: %w", trimmedID, err)
+		return mapTaskDeleteConstraintError(trimmedID, err)
 	}
 
 	return requireRowsAffected(result, taskpkg.ErrTaskNotFound, trimmedID, "task")
+}
+
+func mapTaskDeleteConstraintError(id string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if strings.Contains(strings.ToLower(err.Error()), "foreign key constraint failed") {
+		return fmt.Errorf("%w: task %q has child tasks; delete children first", taskpkg.ErrValidation, id)
+	}
+	return fmt.Errorf("store: delete task %q: %w", id, err)
 }
 
 // UpdateTask replaces the persisted canonical task record.

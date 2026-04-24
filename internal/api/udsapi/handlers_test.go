@@ -968,25 +968,31 @@ func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 }
 
 func TestDeleteSessionHandlerReturnsNoContent(t *testing.T) {
-	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
-		DeleteFn: func(_ context.Context, id string) error {
-			if id != "sess-123" {
-				t.Fatalf("Delete() id = %q, want sess-123", id)
-			}
-			return nil
-		},
-	}
-	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
-	engine := newTestRouter(t, handlers)
+	t.Parallel()
 
-	recorder := performRequest(t, engine, http.MethodDelete, "/api/sessions/sess-123", nil)
-	if recorder.Code != http.StatusNoContent {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
-	}
-	if got := recorder.Body.String(); got != "" {
-		t.Fatalf("body = %q, want empty", got)
-	}
+	t.Run("ShouldReturnNoContent", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			DeleteFn: func(_ context.Context, id string) error {
+				if id != "sess-123" {
+					t.Fatalf("Delete() id = %q, want sess-123", id)
+				}
+				return nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(t, engine, http.MethodDelete, "/api/sessions/sess-123", nil)
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
+		}
+		if got := recorder.Body.String(); got != "" {
+			t.Fatalf("body = %q, want empty", got)
+		}
+	})
 }
 
 func TestStopSessionHandlerReturnsStopped(t *testing.T) {

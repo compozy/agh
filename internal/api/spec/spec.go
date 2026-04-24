@@ -1577,7 +1577,7 @@ var operationRegistry = []OperationSpec{
 		Responses: []ResponseSpec{
 			{Status: 204, Description: "No Content"},
 			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Invalid task delete", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid task delete", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},

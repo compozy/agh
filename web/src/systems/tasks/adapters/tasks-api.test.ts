@@ -261,7 +261,13 @@ describe("deleteTask", () => {
   it("throws not-found for 404", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(deleteTask("missing")).rejects.toThrow("Task not found: missing");
+    const error = await deleteTask("missing").catch(err => err);
+
+    expect(error).toBeInstanceOf(TasksApiError);
+    expect(error).toMatchObject({
+      message: "Task not found: missing",
+      status: 404,
+    });
   });
 });
 

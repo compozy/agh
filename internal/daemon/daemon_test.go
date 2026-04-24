@@ -2052,6 +2052,34 @@ func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	}
 }
 
+func TestFakeSessionManagerDeleteTracksDeleteIndependently(t *testing.T) {
+	t.Parallel()
+
+	manager := &fakeSessionManager{
+		infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}},
+	}
+
+	if err := manager.Delete(testutil.Context(t), "sess-a"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+
+	if got, want := len(manager.deleteCalls), 1; got != want {
+		t.Fatalf("len(deleteCalls) = %d, want %d", got, want)
+	}
+	if got, want := manager.deleteCalls[0], "sess-a"; got != want {
+		t.Fatalf("deleteCalls[0] = %q, want %q", got, want)
+	}
+	if got := len(manager.stopCalls); got != 0 {
+		t.Fatalf("len(stopCalls) = %d, want 0", got)
+	}
+	if got, want := len(manager.infos), 1; got != want {
+		t.Fatalf("len(infos) = %d, want %d", got, want)
+	}
+	if got, want := manager.infos[0].ID, "sess-b"; got != want {
+		t.Fatalf("infos[0].ID = %q, want %q", got, want)
+	}
+}
+
 func TestStopSessionsWaitsForInFlightFinalizations(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {
@@ -4010,6 +4038,7 @@ type fakeSessionManager struct {
 	promptRelease            <-chan struct{}
 	promptCtxCancelled       chan struct{}
 	stopCalls                []string
+	deleteCalls              []string
 	stopWithCauseCalls       []fakeStopWithCauseCall
 	requestStopCalls         []fakeStopWithCauseCall
 	waitFinalizationsRelease <-chan struct{}
@@ -4138,10 +4167,20 @@ func (f *fakeSessionManager) Stop(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeSessionManager) Delete(ctx context.Context, id string) error {
-	if err := f.Stop(ctx, id); err != nil {
-		return err
+func (f *fakeSessionManager) Delete(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.deleteCalls = append(f.deleteCalls, id)
+
+	filtered := f.infos[:0]
+	for _, info := range f.infos {
+		if info != nil && info.ID == id {
+			continue
+		}
+		filtered = append(filtered, info)
 	}
+	f.infos = filtered
 	return nil
 }
 

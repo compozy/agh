@@ -278,7 +278,7 @@ func (m *Service) DeleteTask(ctx context.Context, id string, actor ActorContext)
 
 	record, err := m.store.GetTask(ctx, trimmedID)
 	if err != nil {
-		return err
+		return fmt.Errorf("task: load task %q for delete: %w", trimmedID, err)
 	}
 	if err := m.ensureTaskDeleteAllowed(ctx, record); err != nil {
 		return err
@@ -286,17 +286,22 @@ func (m *Service) DeleteTask(ctx context.Context, id string, actor ActorContext)
 
 	dependents, err := m.store.ListDependents(ctx, trimmedID)
 	if err != nil {
-		return err
+		return fmt.Errorf("task: list dependents for task %q delete: %w", trimmedID, err)
 	}
 	dependentIDs := uniqueDependentTaskIDs(dependents)
 
 	if err := m.store.DeleteTask(ctx, trimmedID); err != nil {
-		return err
+		return fmt.Errorf("task: delete task %q: %w", trimmedID, err)
 	}
 
 	for _, dependentID := range dependentIDs {
 		if _, err := m.reconcileTaskCascade(ctx, dependentID); err != nil {
-			return err
+			return fmt.Errorf(
+				"task: reconcile dependent task %q after deleting %q: %w",
+				dependentID,
+				trimmedID,
+				err,
+			)
 		}
 	}
 
@@ -2198,7 +2203,7 @@ func runComesAfter(left Run, right Run) bool {
 func (m *Service) ensureTaskDeleteAllowed(ctx context.Context, record Task) error {
 	childCount, err := m.store.CountDirectChildren(ctx, record.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("task: count child tasks for delete %q: %w", record.ID, err)
 	}
 	if childCount > 0 {
 		return fmt.Errorf(
@@ -2211,7 +2216,7 @@ func (m *Service) ensureTaskDeleteAllowed(ctx context.Context, record Task) erro
 
 	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
 	if err != nil {
-		return err
+		return fmt.Errorf("task: list runs for delete %q: %w", record.ID, err)
 	}
 	if hasOpenRun(runs) {
 		return fmt.Errorf(

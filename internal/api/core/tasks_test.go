@@ -978,6 +978,7 @@ func TestBaseHandlersTaskServiceUnavailable(t *testing.T) {
 		{method: http.MethodGet, path: "/tasks"},
 		{method: http.MethodPost, path: "/tasks", body: []byte(`{"scope":"global","title":"Review task API"}`)},
 		{method: http.MethodGet, path: "/tasks/task-1"},
+		{method: http.MethodDelete, path: "/tasks/task-1"},
 		{method: http.MethodPatch, path: "/tasks/task-1", body: []byte(`{"title":"Renamed task"}`)},
 		{method: http.MethodPost, path: "/tasks/task-1/cancel", body: []byte(`{}`)},
 		{
@@ -1034,6 +1035,9 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 			},
 			GetTaskFn: func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error) {
 				return nil, taskpkg.ErrTaskNotFound
+			},
+			DeleteTaskFn: func(context.Context, string, taskpkg.ActorContext) error {
+				return taskpkg.ErrValidation
 			},
 			ListTaskRunsFn: func(context.Context, string, taskpkg.RunQuery, taskpkg.ActorContext) ([]taskpkg.Run, error) {
 				return nil, taskpkg.ErrTaskNotFound
@@ -1094,6 +1098,7 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 			want:   http.StatusForbidden,
 		},
 		{method: http.MethodGet, path: "/tasks/task-1", want: http.StatusNotFound},
+		{method: http.MethodDelete, path: "/tasks/task-1", want: http.StatusBadRequest},
 		{
 			method: http.MethodPatch,
 			path:   "/tasks/task-1",

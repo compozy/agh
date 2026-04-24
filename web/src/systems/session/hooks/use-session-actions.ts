@@ -78,12 +78,12 @@ export function useDeleteSession() {
     mutationFn: (id: string) => deleteSession(id),
     onSuccess: (_data, id) => {
       useSessionStore.getState().clearDraft(id);
-    },
-    onSettled: (_data, _error, id) => {
       queryClient.removeQueries({ queryKey: sessionKeys.detail(id) });
       queryClient.removeQueries({ queryKey: sessionKeys.history(id) });
       queryClient.removeQueries({ queryKey: sessionKeys.transcript(id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+      queryClient.removeQueries({ queryKey: sessionKeys.events(id) });
+
+      return queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });
 }
