@@ -35,32 +35,50 @@ func TestPrepareRuntimeLayoutCreatesIsolatedPaths(t *testing.T) {
 func TestPrepareRuntimeLayoutUsesEnabledNetworkByDefaultAndAllowsExplicitDisable(t *testing.T) {
 	t.Parallel()
 
-	defaulted := prepareRuntimeLayout(t, RuntimeHarnessOptions{})
-	if !defaulted.Config.Network.Enabled {
-		t.Fatal("defaulted.Config.Network.Enabled = false, want true by default")
+	tests := []struct {
+		name string
+		opts RuntimeHarnessOptions
+		want bool
+	}{
+		{
+			name: "ShouldEnableNetworkByDefault",
+			opts: RuntimeHarnessOptions{},
+			want: true,
+		},
+		{
+			name: "ShouldAllowExplicitDisableFromConfigSeed",
+			opts: RuntimeHarnessOptions{
+				ConfigSeed: ConfigSeedOptions{
+					Mutate: func(cfg *aghconfig.Config) {
+						cfg.Network.Enabled = false
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "ShouldOverrideDisabledSeedWhenEnableNetworkIsRequested",
+			opts: RuntimeHarnessOptions{
+				EnableNetwork: true,
+				ConfigSeed: ConfigSeedOptions{
+					Mutate: func(cfg *aghconfig.Config) {
+						cfg.Network.Enabled = false
+					},
+				},
+			},
+			want: true,
+		},
 	}
 
-	disabled := prepareRuntimeLayout(t, RuntimeHarnessOptions{
-		ConfigSeed: ConfigSeedOptions{
-			Mutate: func(cfg *aghconfig.Config) {
-				cfg.Network.Enabled = false
-			},
-		},
-	})
-	if disabled.Config.Network.Enabled {
-		t.Fatal("disabled.Config.Network.Enabled = true, want explicit false override")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	enabled := prepareRuntimeLayout(t, RuntimeHarnessOptions{
-		EnableNetwork: true,
-		ConfigSeed: ConfigSeedOptions{
-			Mutate: func(cfg *aghconfig.Config) {
-				cfg.Network.Enabled = false
-			},
-		},
-	})
-	if !enabled.Config.Network.Enabled {
-		t.Fatal("enabled.Config.Network.Enabled = false, want true when EnableNetwork is requested")
+			layout := prepareRuntimeLayout(t, tt.opts)
+			if got := layout.Config.Network.Enabled; got != tt.want {
+				t.Fatalf("layout.Config.Network.Enabled = %t, want %t", got, tt.want)
+			}
+		})
 	}
 }
 

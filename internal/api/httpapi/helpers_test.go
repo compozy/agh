@@ -419,9 +419,7 @@ func newTestHomePaths(t *testing.T) aghconfig.HomePaths {
 }
 
 func testConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
-	cfg := aghconfig.DefaultWithHome(homePaths)
-	cfg.Network.Enabled = false
-	return cfg
+	return testutil.ConfigWithDisabledNetwork(homePaths)
 }
 
 func writeAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string) {

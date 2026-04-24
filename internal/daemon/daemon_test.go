@@ -4482,6 +4482,15 @@ type nonBindableHarnessSessionManager struct {
 	syntheticPrompter syntheticPrompter
 }
 
+var (
+	_ SessionManager                = (*fakeSessionManager)(nil)
+	_ SessionManager                = (*fakeNetworkBindableSessionManager)(nil)
+	_ SessionManager                = nonBindableHarnessSessionManager{}
+	_ networkBindableSessionManager = (*fakeNetworkBindableSessionManager)(nil)
+	_ syntheticPrompter             = (*fakeSessionManager)(nil)
+	_ syntheticPrompter             = nonBindableHarnessSessionManager{}
+)
+
 func (m nonBindableHarnessSessionManager) PromptSynthetic(
 	ctx context.Context,
 	id string,

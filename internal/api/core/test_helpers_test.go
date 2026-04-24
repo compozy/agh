@@ -46,9 +46,7 @@ type handlerFixture struct {
 }
 
 func testConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
-	cfg := aghconfig.DefaultWithHome(homePaths)
-	cfg.Network.Enabled = false
-	return cfg
+	return testutil.ConfigWithDisabledNetwork(homePaths)
 }
 
 func newHandlerFixture(
