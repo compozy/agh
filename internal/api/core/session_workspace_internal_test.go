@@ -194,14 +194,26 @@ func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 		},
 	}
 
+	expectedNames := make([]string, 0, len(aghconfig.BuiltinProviders())+len(cfg.Providers))
+	for name := range aghconfig.BuiltinProviders() {
+		if _, err := cfg.ResolveProvider(name); err == nil {
+			expectedNames = append(expectedNames, name)
+		}
+	}
+	for name := range cfg.Providers {
+		if _, err := cfg.ResolveProvider(name); err == nil {
+			expectedNames = append(expectedNames, name)
+		}
+	}
+
 	payloads := SessionProviderOptionPayloadsFromConfig(cfg)
-	expected := []string{"alpha", "claude", "codex", "copilot", "cursor", "gemini", "kiro", "opencode", "pi"}
+	expected := sessionProviderOptionPayloads(expectedNames)
 	if got, want := len(payloads), len(expected); got != want {
 		t.Fatalf("len(payloads) = %d, want %d (%#v)", got, want, payloads)
 	}
 	for i, want := range expected {
-		if got := payloads[i].Name; got != want {
-			t.Fatalf("payloads[%d].Name = %q, want %q (%#v)", i, got, want, payloads)
+		if got := payloads[i].Name; got != want.Name {
+			t.Fatalf("payloads[%d].Name = %q, want %q (%#v)", i, got, want.Name, payloads)
 		}
 	}
 }

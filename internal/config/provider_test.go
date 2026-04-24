@@ -310,172 +310,179 @@ func TestResolveAgentFallsBackToDefaultsProvider(t *testing.T) {
 	}
 }
 
-func TestResolveSessionAgentWithoutOverrideMatchesResolveAgent(t *testing.T) {
+func TestResolveSessionAgent(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
+	t.Run("Should match ResolveAgent when provider override is empty", func(t *testing.T) {
+		t.Parallel()
 
-	cfg := DefaultWithHome(homePaths)
-	cfg.MCPServers = []MCPServer{
-		{Name: "global", Command: "global-command"},
-	}
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 
-	agent := AgentDef{
-		Name:        "coder",
-		Provider:    "claude",
-		Command:     "agent-command",
-		Model:       "agent-model",
-		Permissions: string(PermissionModeApproveReads),
-		Prompt:      "prompt",
-		Tools:       []string{"bash"},
-		MCPServers: []MCPServer{
-			{Name: "agent", Command: "agent-command"},
-		},
-	}
+		cfg := DefaultWithHome(homePaths)
+		cfg.MCPServers = []MCPServer{
+			{Name: "global", Command: "global-command"},
+		}
 
-	got, err := cfg.ResolveSessionAgent(agent, "")
-	if err != nil {
-		t.Fatalf("ResolveSessionAgent() error = %v", err)
-	}
+		agent := AgentDef{
+			Name:        "coder",
+			Provider:    "claude",
+			Command:     "agent-command",
+			Model:       "agent-model",
+			Permissions: string(PermissionModeApproveReads),
+			Prompt:      "prompt",
+			Tools:       []string{"bash"},
+			MCPServers: []MCPServer{
+				{Name: "agent", Command: "agent-command"},
+			},
+		}
 
-	want, err := cfg.ResolveAgent(agent)
-	if err != nil {
-		t.Fatalf("ResolveAgent() error = %v", err)
-	}
+		got, err := cfg.ResolveSessionAgent(agent, "")
+		if err != nil {
+			t.Fatalf("ResolveSessionAgent() error = %v", err)
+		}
 
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("ResolveSessionAgent() = %#v, want %#v", got, want)
-	}
-}
+		want, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
 
-func TestResolveSessionAgentOverrideUsesWorkspaceMergedProviderRuntime(t *testing.T) {
-	t.Parallel()
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("ResolveSessionAgent() = %#v, want %#v", got, want)
+		}
+	})
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
+	t.Run("Should use workspace-merged runtime fields from the override provider", func(t *testing.T) {
+		t.Parallel()
 
-	cfg := DefaultWithHome(homePaths)
-	cfg.MCPServers = []MCPServer{
-		{Name: "global", Command: "global-command"},
-	}
-	cfg.Providers["claude"] = ProviderConfig{
-		Command:      "workspace-claude-command",
-		DefaultModel: "workspace-claude-model",
-		MCPServers: []MCPServer{
-			{Name: "provider-claude", Command: "provider-claude-command"},
-		},
-	}
-	cfg.Providers["codex"] = ProviderConfig{
-		Command:      "workspace-codex-command",
-		DefaultModel: "workspace-codex-model",
-		MCPServers: []MCPServer{
-			{Name: "provider-codex", Command: "provider-codex-command"},
-			{Name: "shared-provider", Command: "shared-provider-codex", Args: []string{"--codex"}},
-		},
-	}
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 
-	agent := AgentDef{
-		Name:     "coder",
-		Provider: "claude",
-		Command:  "agent-command",
-		Model:    "agent-model",
-		Prompt:   "prompt",
-		MCPServers: []MCPServer{
-			{Name: "agent", Command: "agent-command"},
-		},
-	}
+		cfg := DefaultWithHome(homePaths)
+		cfg.MCPServers = []MCPServer{
+			{Name: "global", Command: "global-command"},
+		}
+		cfg.Providers["claude"] = ProviderConfig{
+			Command:      "workspace-claude-command",
+			DefaultModel: "workspace-claude-model",
+			MCPServers: []MCPServer{
+				{Name: "provider-claude", Command: "provider-claude-command"},
+			},
+		}
+		cfg.Providers["codex"] = ProviderConfig{
+			Command:      "workspace-codex-command",
+			DefaultModel: "workspace-codex-model",
+			MCPServers: []MCPServer{
+				{Name: "provider-codex", Command: "provider-codex-command"},
+				{Name: "shared-provider", Command: "shared-provider-codex", Args: []string{"--codex"}},
+			},
+		}
 
-	resolved, err := cfg.ResolveSessionAgent(agent, "codex")
-	if err != nil {
-		t.Fatalf("ResolveSessionAgent() error = %v", err)
-	}
+		agent := AgentDef{
+			Name:     "coder",
+			Provider: "claude",
+			Command:  "agent-command",
+			Model:    "agent-model",
+			Prompt:   "prompt",
+			MCPServers: []MCPServer{
+				{Name: "agent", Command: "agent-command"},
+			},
+		}
 
-	if got, want := resolved.Provider, "codex"; got != want {
-		t.Fatalf("ResolveSessionAgent() Provider = %q, want %q", got, want)
-	}
-	if got, want := resolved.Command, "workspace-codex-command"; got != want {
-		t.Fatalf("ResolveSessionAgent() Command = %q, want %q", got, want)
-	}
-	if got, want := resolved.Model, "workspace-codex-model"; got != want {
-		t.Fatalf("ResolveSessionAgent() Model = %q, want %q", got, want)
-	}
-	if resolved.Command == agent.Command {
-		t.Fatalf(
-			"ResolveSessionAgent() Command = %q, want provider-owned command instead of agent override",
-			resolved.Command,
-		)
-	}
-	if resolved.Model == agent.Model {
-		t.Fatalf(
-			"ResolveSessionAgent() Model = %q, want provider-owned default instead of agent override",
-			resolved.Model,
-		)
-	}
-	if got, want := resolved.APIKeyEnv, "OPENAI_API_KEY"; got != want {
-		t.Fatalf("ResolveSessionAgent() APIKeyEnv = %q, want %q", got, want)
-	}
+		resolved, err := cfg.ResolveSessionAgent(agent, "codex")
+		if err != nil {
+			t.Fatalf("ResolveSessionAgent() error = %v", err)
+		}
 
-	if got, want := len(resolved.MCPServers), 4; got != want {
-		t.Fatalf("ResolveSessionAgent() MCPServers len = %d, want %d (%#v)", got, want, resolved.MCPServers)
-	}
-	if got, want := resolved.MCPServers[0].Name, "global"; got != want {
-		t.Fatalf("ResolveSessionAgent() MCPServers[0].Name = %q, want %q", got, want)
-	}
-	if got, want := mcpServerByName(
-		t,
-		resolved.MCPServers,
-		"provider-codex",
-	).Command, "provider-codex-command"; got != want {
-		t.Fatalf("ResolveSessionAgent() provider-codex Command = %q, want %q", got, want)
-	}
-	if got, want := mcpServerByName(
-		t,
-		resolved.MCPServers,
-		"shared-provider",
-	).Command, "shared-provider-codex"; got != want {
-		t.Fatalf("ResolveSessionAgent() shared-provider Command = %q, want %q", got, want)
-	}
-	if hasMCPServer(resolved.MCPServers, "provider-claude") {
-		t.Fatalf(
-			"ResolveSessionAgent() MCPServers = %#v, want provider-owned layer from selected provider only",
+		if got, want := resolved.Provider, "codex"; got != want {
+			t.Fatalf("ResolveSessionAgent() Provider = %q, want %q", got, want)
+		}
+		if got, want := resolved.Command, "workspace-codex-command"; got != want {
+			t.Fatalf("ResolveSessionAgent() Command = %q, want %q", got, want)
+		}
+		if got, want := resolved.Model, "workspace-codex-model"; got != want {
+			t.Fatalf("ResolveSessionAgent() Model = %q, want %q", got, want)
+		}
+		if resolved.Command == agent.Command {
+			t.Fatalf(
+				"ResolveSessionAgent() Command = %q, want provider-owned command instead of agent override",
+				resolved.Command,
+			)
+		}
+		if resolved.Model == agent.Model {
+			t.Fatalf(
+				"ResolveSessionAgent() Model = %q, want provider-owned default instead of agent override",
+				resolved.Model,
+			)
+		}
+		if got, want := resolved.APIKeyEnv, "OPENAI_API_KEY"; got != want {
+			t.Fatalf("ResolveSessionAgent() APIKeyEnv = %q, want %q", got, want)
+		}
+
+		if got, want := len(resolved.MCPServers), 4; got != want {
+			t.Fatalf("ResolveSessionAgent() MCPServers len = %d, want %d (%#v)", got, want, resolved.MCPServers)
+		}
+		if got, want := resolved.MCPServers[0].Name, "global"; got != want {
+			t.Fatalf("ResolveSessionAgent() MCPServers[0].Name = %q, want %q", got, want)
+		}
+		if got, want := mcpServerByName(
+			t,
 			resolved.MCPServers,
-		)
-	}
-	if !hasMCPServer(resolved.MCPServers, "agent") {
-		t.Fatalf("ResolveSessionAgent() MCPServers = %#v, want agent-local layer preserved", resolved.MCPServers)
-	}
-}
+			"provider-codex",
+		).Command, "provider-codex-command"; got != want {
+			t.Fatalf("ResolveSessionAgent() provider-codex Command = %q, want %q", got, want)
+		}
+		if got, want := mcpServerByName(
+			t,
+			resolved.MCPServers,
+			"shared-provider",
+		).Command, "shared-provider-codex"; got != want {
+			t.Fatalf("ResolveSessionAgent() shared-provider Command = %q, want %q", got, want)
+		}
+		if hasMCPServer(resolved.MCPServers, "provider-claude") {
+			t.Fatalf(
+				"ResolveSessionAgent() MCPServers = %#v, want provider-owned layer from selected provider only",
+				resolved.MCPServers,
+			)
+		}
+		if !hasMCPServer(resolved.MCPServers, "agent") {
+			t.Fatalf("ResolveSessionAgent() MCPServers = %#v, want agent-local layer preserved", resolved.MCPServers)
+		}
+	})
 
-func TestResolveSessionAgentRejectsUnknownOverrideProvider(t *testing.T) {
-	t.Parallel()
+	t.Run("Should reject an unknown override provider with the wrapped provider error", func(t *testing.T) {
+		t.Parallel()
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 
-	cfg := DefaultWithHome(homePaths)
-	agent := AgentDef{
-		Name:     "coder",
-		Provider: "claude",
-		Prompt:   "prompt",
-	}
+		cfg := DefaultWithHome(homePaths)
+		agent := AgentDef{
+			Name:     "coder",
+			Provider: "claude",
+			Prompt:   "prompt",
+		}
 
-	_, err = cfg.ResolveSessionAgent(agent, "missing")
-	if err == nil {
-		t.Fatal("ResolveSessionAgent() error = nil, want unknown provider failure")
-	}
-	if !strings.Contains(err.Error(), `resolve session agent with provider "missing"`) {
-		t.Fatalf("ResolveSessionAgent() error = %q, want session override context", err.Error())
-	}
-	if !strings.Contains(err.Error(), `unknown provider "missing"`) {
-		t.Fatalf("ResolveSessionAgent() error = %q, want unknown provider detail", err.Error())
-	}
+		_, err = cfg.ResolveSessionAgent(agent, "missing")
+		if err == nil {
+			t.Fatal("ResolveSessionAgent() error = nil, want unknown provider failure")
+		}
+		if !errors.Is(err, ErrProviderUnavailable) {
+			t.Fatalf("ResolveSessionAgent() error = %v, want ErrProviderUnavailable", err)
+		}
+		if !strings.Contains(err.Error(), `resolve session agent with provider "missing"`) {
+			t.Fatalf("ResolveSessionAgent() error = %q, want session override context", err.Error())
+		}
+		if !strings.Contains(err.Error(), `unknown provider "missing"`) {
+			t.Fatalf("ResolveSessionAgent() error = %q, want unknown provider detail", err.Error())
+		}
+	})
 }
 
 func TestMCPServerValidateRejectsMissingFields(t *testing.T) {

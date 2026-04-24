@@ -34,7 +34,7 @@ func (m *Manager) PromptSynthetic(
 		return nil, err
 	}
 
-	session, err := m.lookupPromptSession(req.target)
+	session, err := m.lookupPromptSession(ctx, req.target)
 	if err != nil {
 		return nil, err
 	}
@@ -140,17 +140,21 @@ func (m *Manager) startNextQueuedSyntheticPrompt(sessionID string) {
 		return
 	}
 
-	session, err := m.lookupPromptSession(target)
+	item, ok := m.claimQueuedSyntheticPrompt(target)
+	if !ok {
+		return
+	}
+
+	session, err := m.lookupPromptSession(item.ctx, target)
 	if err != nil {
+		m.finishQueuedSyntheticDispatch(target)
+		m.emitQueuedSyntheticDispatchError(item, err)
 		m.failQueuedSyntheticPrompts(target, err)
 		return
 	}
 	if session.IsPrompting() {
-		return
-	}
-
-	item, ok := m.claimQueuedSyntheticPrompt(target)
-	if !ok {
+		m.finishQueuedSyntheticDispatch(target)
+		m.requeueSyntheticPromptFront(target, item)
 		return
 	}
 

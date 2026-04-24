@@ -5241,11 +5241,11 @@ func (m *recordingHostAPISessionManager) Create(
 }
 
 func (*recordingHostAPISessionManager) ListAll(context.Context) ([]*session.Info, error) {
-	return nil, nil
+	return nil, errors.New("unexpected ListAll call")
 }
 
 func (*recordingHostAPISessionManager) Status(context.Context, string) (*session.Info, error) {
-	return nil, nil
+	return nil, errors.New("unexpected Status call")
 }
 
 func (*recordingHostAPISessionManager) Events(
@@ -5253,11 +5253,11 @@ func (*recordingHostAPISessionManager) Events(
 	string,
 	store.EventQuery,
 ) ([]store.SessionEvent, error) {
-	return nil, nil
+	return nil, errors.New("unexpected Events call")
 }
 
 func (*recordingHostAPISessionManager) Stop(context.Context, string) error {
-	return nil
+	return errors.New("unexpected Stop call")
 }
 
 func (*recordingHostAPISessionManager) Prompt(
@@ -5265,14 +5265,14 @@ func (*recordingHostAPISessionManager) Prompt(
 	string,
 	string,
 ) (<-chan acp.AgentEvent, error) {
-	return nil, nil
+	return nil, errors.New("unexpected Prompt call")
 }
 
 func (*recordingHostAPISessionManager) ExecEnvironment(
 	context.Context,
 	session.EnvironmentExecRequest,
 ) (session.EnvironmentExecResult, error) {
-	return session.EnvironmentExecResult{}, nil
+	return session.EnvironmentExecResult{}, errors.New("unexpected ExecEnvironment call")
 }
 
 type hostAPIFakeWorkspaceResolver struct {

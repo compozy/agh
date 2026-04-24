@@ -5,12 +5,14 @@ import { toast } from "sonner";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
-import { ChatHeader } from "@/systems/session/components/chat-header";
-import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
-import { SessionInspector } from "@/systems/session/components/session-inspector";
-import { SessionResumeFailure } from "@/systems/session/components/session-resume-failure";
-import { useSession } from "@/systems/session/hooks/use-sessions";
-import type { SessionPayload } from "@/systems/session/types";
+import {
+  ChatHeader,
+  SessionChatRuntimeProvider,
+  SessionInspector,
+  SessionResumeFailure,
+  useSession,
+  type SessionPayload,
+} from "@/systems/session";
 import { useWorkspaces } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/session/$id")({

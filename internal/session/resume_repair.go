@@ -58,7 +58,7 @@ func (m *Manager) repairInactiveMeta(
 	meta store.SessionMeta,
 ) (store.SessionMeta, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return store.SessionMeta{}, errors.New("session: resume repair context is required")
 	}
 
 	repaired, err := m.repairLegacyProvider(ctx, metaPath, meta)
@@ -94,11 +94,11 @@ func RepairLegacyProvider(
 	meta store.SessionMeta,
 	opts LegacyProviderRepairOptions,
 ) (store.SessionMeta, error) {
+	if ctx == nil {
+		return store.SessionMeta{}, errors.New("session: legacy provider repair context is required")
+	}
 	if strings.TrimSpace(meta.Provider) != "" {
 		return meta, nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	now := opts.Now
 	if now == nil {

@@ -235,6 +235,41 @@ func validResumeMeta(h *harness, sessionID string) store.SessionMeta {
 	}
 }
 
+func TestRepairInactiveMetaRejectsNilContext(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	meta := validResumeMeta(h, "sess-nil-repair-context")
+
+	_, err := h.manager.repairInactiveMeta(nil, filepath.Join(t.TempDir(), "meta.json"), meta)
+	if err == nil {
+		t.Fatal("repairInactiveMeta(nil) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "resume repair context is required") {
+		t.Fatalf("repairInactiveMeta(nil) error = %q, want context requirement", err.Error())
+	}
+}
+
+func TestRepairLegacyProviderRejectsNilContext(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	meta := validResumeMeta(h, "sess-nil-legacy-repair")
+
+	_, err := RepairLegacyProvider(nil, filepath.Join(t.TempDir(), "meta.json"), meta, LegacyProviderRepairOptions{
+		Now:               h.manager.now,
+		Logger:            h.manager.logger,
+		WorkspaceResolver: h.resolver,
+		AgentResolver:     h.manager.agentResolver,
+	})
+	if err == nil {
+		t.Fatal("RepairLegacyProvider(nil) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "legacy provider repair context is required") {
+		t.Fatalf("RepairLegacyProvider(nil) error = %q, want context requirement", err.Error())
+	}
+}
+
 func writeResumeEventStore(t *testing.T, homePaths aghconfig.HomePaths, sessionID string, contents []byte) string {
 	t.Helper()
 

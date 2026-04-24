@@ -68,7 +68,7 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 }
 
 func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<-chan acp.AgentEvent, error) {
-	session, err := m.lookupPromptSession(req.target)
+	session, err := m.lookupPromptSession(ctx, req.target)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,7 @@ func (m *Manager) newPromptTurnID() string {
 	return turnID
 }
 
-func (m *Manager) lookupPromptSession(target string) (*Session, error) {
+func (m *Manager) lookupPromptSession(ctx context.Context, target string) (*Session, error) {
 	session, err := m.lookup(target)
 	if err == nil {
 		return session, nil
@@ -228,7 +228,7 @@ func (m *Manager) lookupPromptSession(target string) (*Session, error) {
 		return nil, err
 	}
 
-	meta, metaErr := m.readMetaWithContext(context.Background(), target)
+	meta, metaErr := m.readMetaWithContext(ctx, target)
 	switch {
 	case metaErr == nil:
 		return nil, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, meta.State)

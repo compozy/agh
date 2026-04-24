@@ -177,39 +177,43 @@ func TestSessionInfoAndMetaIncludeStopFields(t *testing.T) {
 func TestSessionMetaRoundTripIncludesProvider(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 21, 12, 0, 0, 0, time.UTC)
-	session := &Session{
-		ID:          "sess-provider",
-		Name:        "Provider Session",
-		AgentName:   "coder",
-		Provider:    "codex",
-		WorkspaceID: "ws-provider",
-		Workspace:   t.TempDir(),
-		State:       StateActive,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
+	t.Run("Should persist and reload provider in session metadata", func(t *testing.T) {
+		t.Parallel()
 
-	meta := session.Meta()
-	if got := meta.Provider; got != "codex" {
-		t.Fatalf("Meta().Provider = %q, want %q", got, "codex")
-	}
-	if got := session.Info().Provider; got != "codex" {
-		t.Fatalf("Info().Provider = %q, want %q", got, "codex")
-	}
+		now := time.Date(2026, 4, 21, 12, 0, 0, 0, time.UTC)
+		session := &Session{
+			ID:          "sess-provider",
+			Name:        "Provider Session",
+			AgentName:   "coder",
+			Provider:    "codex",
+			WorkspaceID: "ws-provider",
+			Workspace:   t.TempDir(),
+			State:       StateActive,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
 
-	metaPath := filepath.Join(t.TempDir(), "meta.json")
-	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
-		t.Fatalf("WriteSessionMeta() error = %v", err)
-	}
+		meta := session.Meta()
+		if got := meta.Provider; got != "codex" {
+			t.Fatalf("Meta().Provider = %q, want %q", got, "codex")
+		}
+		if got := session.Info().Provider; got != "codex" {
+			t.Fatalf("Info().Provider = %q, want %q", got, "codex")
+		}
 
-	readBack, err := store.ReadSessionMeta(metaPath)
-	if err != nil {
-		t.Fatalf("ReadSessionMeta() error = %v", err)
-	}
-	if got := readBack.Provider; got != "codex" {
-		t.Fatalf("ReadSessionMeta().Provider = %q, want %q", got, "codex")
-	}
+		metaPath := filepath.Join(t.TempDir(), "meta.json")
+		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+
+		readBack, err := store.ReadSessionMeta(metaPath)
+		if err != nil {
+			t.Fatalf("ReadSessionMeta() error = %v", err)
+		}
+		if got := readBack.Provider; got != "codex" {
+			t.Fatalf("ReadSessionMeta().Provider = %q, want %q", got, "codex")
+		}
+	})
 }
 
 func TestBeginPromptSetupReturnsErrSessionNotActive(t *testing.T) {

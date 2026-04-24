@@ -57,7 +57,9 @@ func TestManagerIntegrationProviderPersistsAcrossCreateStatusListAndResume(t *te
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+		if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+			t.Errorf("Stop(%q) cleanup error = %v", resumed.ID, err)
+		}
 	})
 
 	if got := resumed.Info().Provider; got != "codex" {
@@ -120,7 +122,9 @@ func TestManagerIntegrationLegacyProviderRepairPersistsAndResumeStaysDeterminist
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+		if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+			t.Errorf("Stop(%q) cleanup error = %v", resumed.ID, err)
+		}
 	})
 
 	if got, want := resumed.Info().Provider, "claude"; got != want {

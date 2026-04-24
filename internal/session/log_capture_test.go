@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"strconv"
 	"sync"
 	"time"
@@ -97,7 +98,12 @@ func (h *captureLogHandler) WithGroup(name string) slog.Handler {
 func (h *captureLogHandler) Records() []capturedLogRecord {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return append([]capturedLogRecord(nil), (*h.records)...)
+
+	records := make([]capturedLogRecord, 0, len(*h.records))
+	for _, record := range *h.records {
+		records = append(records, cloneCapturedLogRecord(record))
+	}
+	return records
 }
 
 func (h *captureLogHandler) FindByMessage(message string) (capturedLogRecord, bool) {
@@ -105,10 +111,25 @@ func (h *captureLogHandler) FindByMessage(message string) (capturedLogRecord, bo
 	defer h.mu.Unlock()
 	for _, record := range *h.records {
 		if record.Message == message {
-			return record, true
+			return cloneCapturedLogRecord(record), true
 		}
 	}
 	return capturedLogRecord{}, false
+}
+
+func cloneCapturedLogRecord(record capturedLogRecord) capturedLogRecord {
+	record.Attrs = cloneCapturedLogAttrs(record.Attrs)
+	return record
+}
+
+func cloneCapturedLogAttrs(attrs map[string]string) map[string]string {
+	if len(attrs) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]string, len(attrs))
+	maps.Copy(cloned, attrs)
+	return cloned
 }
 
 func slogValueString(value slog.Value) string {

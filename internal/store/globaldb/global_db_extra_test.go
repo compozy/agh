@@ -794,7 +794,11 @@ func TestCopyMigratedSessionsPreservesProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeginTx() error = %v", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			t.Errorf("tx.Rollback() error = %v", rollbackErr)
+		}
+	}()
 
 	if err := createMigratedGlobalTables(testutil.Context(t), tx); err != nil {
 		t.Fatalf("createMigratedGlobalTables() error = %v", err)

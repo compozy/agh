@@ -65,11 +65,13 @@ func (o *Observer) loadSessionMetadata(ctx context.Context) ([]store.SessionInfo
 			WorkspaceResolver: o.workspaceResolver,
 		})
 		if err != nil {
-			return nil, fmt.Errorf(
-				"observe: repair legacy provider for session %q: %w",
-				strings.TrimSpace(meta.ID),
-				err,
+			o.logger.Warn(
+				"observe: skipping session with unrecoverable legacy provider metadata",
+				"session_id", strings.TrimSpace(meta.ID),
+				"path", metaPath,
+				"error", err,
 			)
+			continue
 		}
 
 		normalized := o.normalizeRecoveredMeta(metaPath, meta)
