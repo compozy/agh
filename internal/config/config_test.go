@@ -641,6 +641,46 @@ func TestSessionSupervisionConfigValidateRejectsWarningAfterTimeout(t *testing.T
 	})
 }
 
+func TestObservabilityConfigValidateRetentionDays(t *testing.T) {
+	t.Run("Should allow zero as keep history", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := validObservabilityConfigForTest()
+		cfg.RetentionDays = 0
+
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("ObservabilityConfig.Validate() error = %v, want nil for keep-history retention", err)
+		}
+	})
+
+	t.Run("Should reject negative retention days", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := validObservabilityConfigForTest()
+		cfg.RetentionDays = -1
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("ObservabilityConfig.Validate() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "observability.retention_days must be zero or positive") {
+			t.Fatalf("ObservabilityConfig.Validate() error = %v, want retention_days context", err)
+		}
+	})
+}
+
+func validObservabilityConfigForTest() ObservabilityConfig {
+	return ObservabilityConfig{
+		Enabled:        true,
+		MaxGlobalBytes: 1,
+		Transcripts: ObservabilityTranscriptConfig{
+			Enabled:            true,
+			SegmentBytes:       1,
+			MaxBytesPerSession: 1,
+		},
+	}
+}
+
 func TestLoadWorkspaceAddsValuesWithoutClobberingGlobal(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")

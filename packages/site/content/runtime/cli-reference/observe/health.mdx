@@ -37,12 +37,24 @@ Example:
 agh observe health -o json
 ```
 
-The JSON payload includes active runtime supervision state in `activities` when sessions have an
-active prompt turn. Each activity row reports the session ID, turn ID, last activity age, current
-tool when known, stall state, and whether the session is healthy, warning, or stalled.
+The JSON payload includes storage and retention health under `health.persistence` and
+`health.retention`. Persistence reports the global and session database byte counts plus the
+current storage status. Retention reports whether the sweep is enabled, the configured retention
+window, last sweep status, last sweep/cutoff timestamps, and deleted row counts for event
+summaries, token stats, and permission logs.
+
+The payload also includes active runtime supervision state in `health.activities` when sessions
+have an active prompt turn. Each activity row reports the session ID, turn ID, last activity age,
+current tool when known, stall state, and whether the session is healthy, warning, or stalled.
 
 Use this when watching long-running sessions from automation:
 
 ```bash
-agh observe health -o json | jq '.activities[] | {session_id, status, current_tool, idle_seconds}'
+agh observe health -o json | jq '.health.activities[] | {session_id, status, current_tool, idle_seconds}'
+```
+
+Check retention status from automation:
+
+```bash
+agh observe health -o json | jq '.health.retention | {enabled, retention_days, last_sweep_status, last_cutoff_at}'
 ```

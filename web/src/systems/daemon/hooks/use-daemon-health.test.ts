@@ -34,6 +34,20 @@ const healthFixture = {
   },
   global_db_size_bytes: 0,
   session_db_size_bytes: 0,
+  persistence: {
+    status: "ok",
+    global_db_size_bytes: 0,
+    session_db_size_bytes: 0,
+  },
+  retention: {
+    enabled: false,
+    retention_days: 0,
+    sweep_interval_seconds: 86_400,
+    last_sweep_status: "disabled",
+    deleted_event_summaries: 0,
+    deleted_token_stats: 0,
+    deleted_permission_log_rows: 0,
+  },
   version: "0.1.0",
 } as const;
 

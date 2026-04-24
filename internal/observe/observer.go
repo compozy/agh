@@ -122,6 +122,11 @@ type Observer struct {
 	openHookStore         HookStoreOpener
 	taskHealthConfig      TaskHealthConfig
 	taskDashboardConfig   taskDashboardConfig
+	retention             RetentionConfig
+	retentionHealth       RetentionHealth
+	retentionCancel       context.CancelFunc
+	retentionWG           sync.WaitGroup
+	retentionMu           sync.RWMutex
 }
 
 var _ session.Notifier = (*Observer)(nil)
@@ -221,6 +226,20 @@ func WithTaskDashboardConfig(cfg TaskDashboardConfig) Option {
 	}
 }
 
+// WithObservabilityConfig applies observability settings that affect observer-owned background work.
+func WithObservabilityConfig(cfg aghconfig.ObservabilityConfig) Option {
+	return func(observer *Observer) {
+		observer.retention = RetentionConfigFromObservability(cfg)
+	}
+}
+
+// WithRetentionConfig overrides retention behavior, mainly for tests.
+func WithRetentionConfig(cfg RetentionConfig) Option {
+	return func(observer *Observer) {
+		observer.retention = cfg
+	}
+}
+
 func defaultTaskDashboardConfig() taskDashboardConfig {
 	return taskDashboardConfig{
 		activeRunLimit:   4,
@@ -308,6 +327,8 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		}
 	}
+	observer.retention = normalizeRetentionConfig(observer.retention)
+	observer.setRetentionHealth(observer.initialRetentionHealth())
 
 	if observer.registry == nil {
 		if err := aghconfig.EnsureHomeLayout(observer.homePaths); err != nil {

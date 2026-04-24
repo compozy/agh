@@ -3,8 +3,10 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -105,6 +107,83 @@ func (g *GlobalDB) ListEventSummaries(
 	}
 
 	return summaries, nil
+}
+
+// SweepObservability removes global observability rows older than cutoff.
+func (g *GlobalDB) SweepObservability(
+	ctx context.Context,
+	cutoff time.Time,
+) (result store.ObservabilityRetentionSweepResult, err error) {
+	if err := g.checkReady(ctx, "sweep observability"); err != nil {
+		return store.ObservabilityRetentionSweepResult{}, err
+	}
+	if cutoff.IsZero() {
+		return store.ObservabilityRetentionSweepResult{}, errors.New(
+			"store: observability retention cutoff is required",
+		)
+	}
+
+	result = store.ObservabilityRetentionSweepResult{CutoffAt: cutoff.UTC()}
+	cutoffValue := store.FormatTimestamp(result.CutoffAt)
+
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return store.ObservabilityRetentionSweepResult{}, fmt.Errorf(
+			"store: begin observability retention sweep: %w",
+			err,
+		)
+	}
+	defer func() {
+		joinCleanupError(&err, rollbackTx(tx, "observability retention sweep"))
+	}()
+
+	if result.DeletedEventSummaries, err = deleteRowsBefore(
+		ctx,
+		tx,
+		"event_summaries",
+		`DELETE FROM event_summaries WHERE timestamp < ?`,
+		cutoffValue,
+	); err != nil {
+		return store.ObservabilityRetentionSweepResult{}, err
+	}
+	if result.DeletedTokenStats, err = deleteRowsBefore(
+		ctx,
+		tx,
+		"token_stats",
+		`DELETE FROM token_stats WHERE updated_at < ?`,
+		cutoffValue,
+	); err != nil {
+		return store.ObservabilityRetentionSweepResult{}, err
+	}
+	if result.DeletedPermissionLogs, err = deleteRowsBefore(
+		ctx,
+		tx,
+		"permission_log",
+		`DELETE FROM permission_log WHERE timestamp < ?`,
+		cutoffValue,
+	); err != nil {
+		return store.ObservabilityRetentionSweepResult{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return store.ObservabilityRetentionSweepResult{}, fmt.Errorf(
+			"store: commit observability retention sweep: %w",
+			err,
+		)
+	}
+	return result, nil
+}
+
+func deleteRowsBefore(ctx context.Context, tx *sql.Tx, label string, query string, cutoff string) (int64, error) {
+	result, err := tx.ExecContext(ctx, query, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("store: delete old %s rows: %w", label, err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("store: count deleted %s rows: %w", label, err)
+	}
+	return count, nil
 }
 
 // UpdateTokenStats merges one or more turns of token usage into the session aggregate.

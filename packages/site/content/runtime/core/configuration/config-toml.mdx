@@ -323,11 +323,11 @@ Provider keys override built-ins with the same name or create a custom provider.
 
 ## `[observability]`
 
-| Field              | Type    | Default      | Valid values      | Description                                                |
-| ------------------ | ------- | ------------ | ----------------- | ---------------------------------------------------------- |
-| `enabled`          | boolean | `true`       | `true` or `false` | Enables global event summary and health observation paths. |
-| `retention_days`   | integer | `7`          | Positive integer. | Retention window for global event summaries.               |
-| `max_global_bytes` | integer | `1073741824` | Positive integer. | Size cap for global observability storage.                 |
+| Field              | Type    | Default      | Valid values      | Description                                                                                       |
+| ------------------ | ------- | ------------ | ----------------- | ------------------------------------------------------------------------------------------------- |
+| `enabled`          | boolean | `true`       | `true` or `false` | Enables global event summary and health observation paths.                                        |
+| `retention_days`   | integer | `7`          | Zero or positive. | Retention window for global event summaries, token stats, and permission logs. `0` keeps history. |
+| `max_global_bytes` | integer | `1073741824` | Positive integer. | Size cap for global observability storage.                                                        |
 
 ## `[observability.transcripts]`
 

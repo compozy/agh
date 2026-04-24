@@ -840,8 +840,8 @@ func (m PermissionMode) Validate(path string) error {
 
 // Validate ensures observability settings are sensible.
 func (c ObservabilityConfig) Validate() error {
-	if c.RetentionDays <= 0 {
-		return fmt.Errorf("observability.retention_days must be positive: %d", c.RetentionDays)
+	if c.RetentionDays < 0 {
+		return fmt.Errorf("observability.retention_days must be zero or positive: %d", c.RetentionDays)
 	}
 	if c.MaxGlobalBytes <= 0 {
 		return fmt.Errorf("observability.max_global_bytes must be positive: %d", c.MaxGlobalBytes)

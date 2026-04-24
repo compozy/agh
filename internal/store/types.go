@@ -254,6 +254,15 @@ func (q EventSummaryQuery) Validate() error {
 	return requirePositiveLimit(q.Limit, "event summary limit")
 }
 
+// ObservabilityRetentionSweepResult reports how many global observability rows
+// were deleted by one retention sweep.
+type ObservabilityRetentionSweepResult struct {
+	CutoffAt              time.Time
+	DeletedEventSummaries int64
+	DeletedTokenStats     int64
+	DeletedPermissionLogs int64
+}
+
 // TokenStats is the aggregated usage record for a session in the global database.
 type TokenStats struct {
 	ID           string

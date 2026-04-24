@@ -269,7 +269,10 @@ func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEven
 }
 
 // ObserveHealthPayloadFromHealth converts the observer health snapshot into the shared payload.
-func ObserveHealthPayloadFromHealth(health observepkg.Health) contract.ObserveHealthPayload {
+func ObserveHealthPayloadFromHealth(health *observepkg.Health) contract.ObserveHealthPayload {
+	if health == nil {
+		return contract.ObserveHealthPayload{}
+	}
 	return contract.ObserveHealthPayload{
 		Status:             health.Status,
 		UptimeSeconds:      health.UptimeSeconds,
@@ -277,9 +280,40 @@ func ObserveHealthPayloadFromHealth(health observepkg.Health) contract.ObserveHe
 		ActiveAgents:       health.ActiveAgents,
 		GlobalDBSizeBytes:  health.GlobalDBSizeBytes,
 		SessionDBSizeBytes: health.SessionDBSizeBytes,
+		Persistence:        ObservePersistenceHealthPayloadFromHealth(health.Persistence),
+		Retention:          ObserveRetentionHealthPayloadFromHealth(health.Retention),
 		Bridges:            BridgeAggregateHealthPayloadFromObserve(health.Bridges),
 		Activities:         SessionActivityHealthPayloadsFromObserve(health.Activities),
 		Version:            health.Version,
+	}
+}
+
+// ObservePersistenceHealthPayloadFromHealth converts persistence health into the shared payload.
+func ObservePersistenceHealthPayloadFromHealth(
+	health observepkg.PersistenceHealth,
+) contract.ObservePersistenceHealthPayload {
+	return contract.ObservePersistenceHealthPayload{
+		Status:             strings.TrimSpace(health.Status),
+		GlobalDBSizeBytes:  health.GlobalDBSizeBytes,
+		SessionDBSizeBytes: health.SessionDBSizeBytes,
+	}
+}
+
+// ObserveRetentionHealthPayloadFromHealth converts retention health into the shared payload.
+func ObserveRetentionHealthPayloadFromHealth(
+	health observepkg.RetentionHealth,
+) contract.ObserveRetentionHealthPayload {
+	return contract.ObserveRetentionHealthPayload{
+		Enabled:                  health.Enabled,
+		RetentionDays:            health.RetentionDays,
+		SweepIntervalSeconds:     health.SweepIntervalSeconds,
+		LastSweepStatus:          strings.TrimSpace(health.LastSweepStatus),
+		LastSweepAt:              cloneTimePtr(health.LastSweepAt),
+		LastCutoffAt:             cloneTimePtr(health.LastCutoffAt),
+		LastSweepError:           strings.TrimSpace(health.LastSweepError),
+		DeletedEventSummaries:    health.DeletedEventSummaries,
+		DeletedTokenStats:        health.DeletedTokenStats,
+		DeletedPermissionLogRows: health.DeletedPermissionLogRows,
 	}
 }
 

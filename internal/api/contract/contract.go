@@ -172,15 +172,40 @@ type ObserveEventPayload struct {
 
 // ObserveHealthPayload is the shared observability health response payload.
 type ObserveHealthPayload struct {
-	Status             string                         `json:"status"`
-	UptimeSeconds      int64                          `json:"uptime_seconds"`
-	ActiveSessions     int                            `json:"active_sessions"`
-	ActiveAgents       int                            `json:"active_agents"`
-	GlobalDBSizeBytes  int64                          `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64                          `json:"session_db_size_bytes"`
-	Bridges            BridgeAggregateHealthPayload   `json:"bridges"`
-	Activities         []SessionActivityHealthPayload `json:"activities,omitempty"`
-	Version            string                         `json:"version"`
+	Status             string                          `json:"status"`
+	UptimeSeconds      int64                           `json:"uptime_seconds"`
+	ActiveSessions     int                             `json:"active_sessions"`
+	ActiveAgents       int                             `json:"active_agents"`
+	GlobalDBSizeBytes  int64                           `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64                           `json:"session_db_size_bytes"`
+	Persistence        ObservePersistenceHealthPayload `json:"persistence"`
+	Retention          ObserveRetentionHealthPayload   `json:"retention"`
+	Bridges            BridgeAggregateHealthPayload    `json:"bridges"`
+	Activities         []SessionActivityHealthPayload  `json:"activities,omitempty"`
+	Version            string                          `json:"version"`
+}
+
+// ObservePersistenceHealthPayload captures store health fields shared by
+// lifecycle, memory, and operator diagnostics.
+type ObservePersistenceHealthPayload struct {
+	Status             string `json:"status"`
+	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
+}
+
+// ObserveRetentionHealthPayload captures the observable state of configured
+// retention sweeps.
+type ObserveRetentionHealthPayload struct {
+	Enabled                  bool       `json:"enabled"`
+	RetentionDays            int        `json:"retention_days"`
+	SweepIntervalSeconds     int64      `json:"sweep_interval_seconds"`
+	LastSweepStatus          string     `json:"last_sweep_status"`
+	LastSweepAt              *time.Time `json:"last_sweep_at,omitempty"`
+	LastCutoffAt             *time.Time `json:"last_cutoff_at,omitempty"`
+	LastSweepError           string     `json:"last_sweep_error,omitempty"`
+	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
+	DeletedTokenStats        int64      `json:"deleted_token_stats"`
+	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
 }
 
 // SessionActivityHealthPayload exposes active runtime supervision state in the

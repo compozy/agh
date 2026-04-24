@@ -23,6 +23,22 @@ export const daemonHealthFixture: HealthPayload = {
   },
   global_db_size_bytes: 1_048_576,
   session_db_size_bytes: 786_432,
+  persistence: {
+    status: "ok",
+    global_db_size_bytes: 1_048_576,
+    session_db_size_bytes: 786_432,
+  },
+  retention: {
+    enabled: true,
+    retention_days: 7,
+    sweep_interval_seconds: 86_400,
+    last_sweep_status: "ok",
+    last_sweep_at: "2026-04-17T18:00:00Z",
+    last_cutoff_at: "2026-04-10T18:00:00Z",
+    deleted_event_summaries: 0,
+    deleted_token_stats: 0,
+    deleted_permission_log_rows: 0,
+  },
   version: "0.1.0-storybook",
 };
 

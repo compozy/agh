@@ -90,6 +90,84 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 	}
 }
 
+func TestSweepRetentionUsesConfiguredCutoff(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.observer.retention = RetentionConfig{
+		Enabled:       true,
+		RetentionDays: 7,
+		SweepInterval: time.Hour,
+	}
+	h.observer.setRetentionHealth(h.observer.initialRetentionHealth())
+
+	sess := newSession("sess-retention", session.StateActive, h.workspace, h.now)
+	h.observer.OnSessionCreated(testutil.Context(t), sess)
+
+	healthNow := h.now.Add(time.Hour)
+	cutoff := healthNow.AddDate(0, 0, -7)
+	h.recordEvent(t, sess.ID, "agent_message", cutoff.Add(-time.Nanosecond), "old event")
+	h.recordEvent(t, sess.ID, "agent_message", cutoff, "cutoff event")
+	h.recordEvent(t, sess.ID, "agent_message", cutoff.Add(time.Nanosecond), "fresh event")
+
+	health, err := h.observer.SweepRetention(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("SweepRetention() error = %v", err)
+	}
+	if !health.Enabled || health.RetentionDays != 7 || health.LastSweepStatus != retentionSweepStatusOK {
+		t.Fatalf("SweepRetention() health = %#v, want enabled ok seven-day retention", health)
+	}
+	if health.LastCutoffAt == nil || !health.LastCutoffAt.Equal(cutoff) {
+		t.Fatalf("SweepRetention().LastCutoffAt = %#v, want %s", health.LastCutoffAt, cutoff)
+	}
+	if health.DeletedEventSummaries != 1 {
+		t.Fatalf("SweepRetention().DeletedEventSummaries = %d, want 1", health.DeletedEventSummaries)
+	}
+
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+	if err != nil {
+		t.Fatalf("QueryEvents() error = %v", err)
+	}
+	if got, want := len(events), 2; got != want {
+		t.Fatalf("len(events) = %d, want %d: %#v", got, want, events)
+	}
+	if events[0].Summary != "cutoff event" || events[1].Summary != "fresh event" {
+		t.Fatalf("events after retention = %#v, want cutoff and fresh events", events)
+	}
+}
+
+func TestSweepRetentionDisabledKeepsHistory(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.observer.retention = RetentionConfig{
+		Enabled:       false,
+		RetentionDays: 0,
+		SweepInterval: time.Hour,
+	}
+	h.observer.setRetentionHealth(h.observer.initialRetentionHealth())
+
+	sess := newSession("sess-keep-history", session.StateActive, h.workspace, h.now)
+	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.recordEvent(t, sess.ID, "agent_message", h.now.AddDate(-1, 0, 0), "old retained event")
+
+	health, err := h.observer.SweepRetention(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("SweepRetention(disabled) error = %v", err)
+	}
+	if health.Enabled || health.LastSweepStatus != retentionSweepStatusDisabled {
+		t.Fatalf("SweepRetention(disabled) health = %#v, want disabled status", health)
+	}
+
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+	if err != nil {
+		t.Fatalf("QueryEvents() error = %v", err)
+	}
+	if got, want := len(events), 1; got != want {
+		t.Fatalf("len(events) = %d, want %d: %#v", got, want, events)
+	}
+}
+
 func TestOnAgentEventUpdatesTokenStatsWithNullableValues(t *testing.T) {
 	t.Parallel()
 
@@ -449,6 +527,14 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 	}
 	if health.Version != "1.2.3" {
 		t.Fatalf("Health().Version = %q, want 1.2.3", health.Version)
+	}
+	if health.Persistence.Status != "ok" ||
+		health.Persistence.GlobalDBSizeBytes != health.GlobalDBSizeBytes ||
+		health.Persistence.SessionDBSizeBytes != health.SessionDBSizeBytes {
+		t.Fatalf("Health().Persistence = %#v, want ok status with DB sizes", health.Persistence)
+	}
+	if health.Retention.LastSweepStatus != retentionSweepStatusDisabled {
+		t.Fatalf("Health().Retention = %#v, want disabled default retention state", health.Retention)
 	}
 	if got, want := len(health.Activities), 1; got != want {
 		t.Fatalf("len(Health().Activities) = %d, want %d: %#v", got, want, health.Activities)

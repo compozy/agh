@@ -1366,6 +1366,25 @@ export interface ObserveEventsParams {
   limit?: number;
 }
 
+export interface PersistenceHealth {
+  status: string;
+  global_db_size_bytes: number;
+  session_db_size_bytes: number;
+}
+
+export interface RetentionHealth {
+  enabled: boolean;
+  retention_days: number;
+  sweep_interval_seconds: number;
+  last_sweep_status: string;
+  last_sweep_at?: ISODateTime;
+  last_cutoff_at?: ISODateTime;
+  last_sweep_error?: string;
+  deleted_event_summaries: number;
+  deleted_token_stats: number;
+  deleted_permission_log_rows: number;
+}
+
 export interface BridgeStatusCounts {
   disabled: number;
   starting: number;
@@ -1476,6 +1495,8 @@ export interface ObserveHealth {
   active_agents: number;
   global_db_size_bytes: number;
   session_db_size_bytes: number;
+  persistence: PersistenceHealth;
+  retention: RetentionHealth;
   bridges: BridgeAggregateHealth;
   tasks: TaskHealth;
   activities?: SessionActivityHealth[];

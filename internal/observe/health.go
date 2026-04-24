@@ -28,10 +28,20 @@ type Health struct {
 	ActiveAgents       int                     `json:"active_agents"`
 	GlobalDBSizeBytes  int64                   `json:"global_db_size_bytes"`
 	SessionDBSizeBytes int64                   `json:"session_db_size_bytes"`
+	Persistence        PersistenceHealth       `json:"persistence"`
+	Retention          RetentionHealth         `json:"retention"`
 	Bridges            BridgeAggregateHealth   `json:"bridges"`
 	Tasks              TaskHealth              `json:"tasks"`
 	Activities         []SessionActivityHealth `json:"activities,omitempty"`
 	Version            string                  `json:"version"`
+}
+
+// PersistenceHealth captures store health that later hardening tracks can extend
+// without overloading unrelated API payloads.
+type PersistenceHealth struct {
+	Status             string `json:"status"`
+	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
 }
 
 // SessionActivityHealth captures the active runtime supervision state exposed
@@ -83,19 +93,34 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 	}
 
 	uptimeSeconds := max(int64(o.now().Sub(o.startedAt).Seconds()), 0)
+	retentionHealth := o.retentionHealthSnapshot()
+	persistenceHealth := PersistenceHealth{
+		Status:             persistenceStatus(retentionHealth),
+		GlobalDBSizeBytes:  globalDBSize,
+		SessionDBSizeBytes: sessionDBSize,
+	}
 
 	return Health{
-		Status:             "ok",
+		Status:             persistenceHealth.Status,
 		UptimeSeconds:      uptimeSeconds,
 		ActiveSessions:     activeSessions,
 		ActiveAgents:       activeAgents,
 		GlobalDBSizeBytes:  globalDBSize,
 		SessionDBSizeBytes: sessionDBSize,
+		Persistence:        persistenceHealth,
+		Retention:          retentionHealth,
 		Bridges:            bridgeHealth,
 		Tasks:              taskHealth,
 		Activities:         activities,
 		Version:            o.versionSource().Version,
 	}, nil
+}
+
+func persistenceStatus(retention RetentionHealth) string {
+	if retention.LastSweepStatus == retentionSweepStatusError {
+		return "degraded"
+	}
+	return "ok"
 }
 
 func (o *Observer) activeSnapshot(ctx context.Context) (int, int, []SessionActivityHealth, error) {

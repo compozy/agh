@@ -7749,6 +7749,31 @@ export interface operations {
               };
               /** Format: int64 */
               global_db_size_bytes: number;
+              persistence: {
+                /** Format: int64 */
+                global_db_size_bytes: number;
+                /** Format: int64 */
+                session_db_size_bytes: number;
+                status: string;
+              };
+              retention: {
+                /** Format: int64 */
+                deleted_event_summaries: number;
+                /** Format: int64 */
+                deleted_permission_log_rows: number;
+                /** Format: int64 */
+                deleted_token_stats: number;
+                enabled: boolean;
+                /** Format: date-time */
+                last_cutoff_at?: string | null;
+                /** Format: date-time */
+                last_sweep_at?: string | null;
+                last_sweep_error?: string;
+                last_sweep_status: string;
+                retention_days: number;
+                /** Format: int64 */
+                sweep_interval_seconds: number;
+              };
               /** Format: int64 */
               session_db_size_bytes: number;
               status: string;

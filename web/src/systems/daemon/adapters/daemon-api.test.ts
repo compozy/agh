@@ -29,6 +29,22 @@ describe("fetchHealth", () => {
       },
       global_db_size_bytes: 1048576,
       session_db_size_bytes: 524288,
+      persistence: {
+        status: "ok",
+        global_db_size_bytes: 1048576,
+        session_db_size_bytes: 524288,
+      },
+      retention: {
+        enabled: true,
+        retention_days: 7,
+        sweep_interval_seconds: 86400,
+        last_sweep_status: "ok",
+        last_sweep_at: "2026-04-17T18:00:00Z",
+        last_cutoff_at: "2026-04-10T18:00:00Z",
+        deleted_event_summaries: 0,
+        deleted_token_stats: 0,
+        deleted_permission_log_rows: 0,
+      },
       version: "0.1.0",
     },
   };

@@ -185,6 +185,9 @@ func observeHealthBundle(health HealthStatus) outputBundle {
 				{Label: "Active Agents", Value: strconv.Itoa(health.ActiveAgents)},
 				{Label: "Global DB Bytes", Value: int64OrDash(health.GlobalDBSizeBytes)},
 				{Label: "Session DB Bytes", Value: int64OrDash(health.SessionDBSizeBytes)},
+				{Label: "Persistence", Value: stringOrDash(health.Persistence.Status)},
+				{Label: "Retention", Value: stringOrDash(observeRetentionSummary(health))},
+				{Label: "Retention Last Sweep", Value: stringOrDash(formatTimePtr(health.Retention.LastSweepAt))},
 				{Label: "Version", Value: stringOrDash(health.Version)},
 			}), nil
 		},
@@ -196,6 +199,8 @@ func observeHealthBundle(health HealthStatus) outputBundle {
 				"active_agents",
 				"global_db_size_bytes",
 				"session_db_size_bytes",
+				"persistence",
+				"retention",
 				"version",
 			}, []string{
 				health.Status,
@@ -204,8 +209,23 @@ func observeHealthBundle(health HealthStatus) outputBundle {
 				strconv.Itoa(health.ActiveAgents),
 				strconv.FormatInt(health.GlobalDBSizeBytes, 10),
 				strconv.FormatInt(health.SessionDBSizeBytes, 10),
+				health.Persistence.Status,
+				observeRetentionSummary(health),
 				health.Version,
 			}), nil
 		},
 	}
+}
+
+func observeRetentionSummary(health HealthStatus) string {
+	retention := health.Retention
+	if !retention.Enabled {
+		return "disabled"
+	}
+	return fmt.Sprintf(
+		"%s (%d days, deleted %d rows)",
+		stringOrDash(retention.LastSweepStatus),
+		retention.RetentionDays,
+		retention.DeletedEventSummaries+retention.DeletedTokenStats+retention.DeletedPermissionLogRows,
+	)
 }

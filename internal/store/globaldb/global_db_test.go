@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -76,6 +77,73 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	)
 	assertJournalModeWAL(t, globalDB.db)
 	assertSynchronousNormal(t, globalDB.db)
+}
+
+func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	registerSessionForGlobalTests(t, globalDB, "sess-retention")
+
+	cutoff := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+	old := cutoff.Add(-time.Nanosecond)
+	boundary := cutoff
+	fresh := cutoff.Add(time.Nanosecond)
+
+	for _, event := range []EventSummary{
+		{ID: "sum-old", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: old},
+		{ID: "sum-boundary", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: boundary},
+		{ID: "sum-fresh", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: fresh},
+	} {
+		if err := globalDB.WriteEventSummary(ctx, event); err != nil {
+			t.Fatalf("WriteEventSummary(%q) error = %v", event.ID, err)
+		}
+	}
+
+	for _, update := range []TokenStatsUpdate{
+		{SessionID: "sess-retention", AgentName: "coder-old", Turns: 1, UpdatedAt: old},
+		{SessionID: "sess-retention", AgentName: "coder-boundary", Turns: 1, UpdatedAt: boundary},
+		{SessionID: "sess-retention", AgentName: "coder-fresh", Turns: 1, UpdatedAt: fresh},
+	} {
+		if err := globalDB.UpdateTokenStats(ctx, update); err != nil {
+			t.Fatalf("UpdateTokenStats(%q) error = %v", update.AgentName, err)
+		}
+	}
+
+	for _, entry := range []PermissionLogEntry{
+		{
+			ID: "perm-old", SessionID: "sess-retention", AgentName: "coder", Action: "fs/read",
+			Resource: "old.md", Decision: "allow", PolicyUsed: "approve-all", Timestamp: old,
+		},
+		{
+			ID: "perm-boundary", SessionID: "sess-retention", AgentName: "coder", Action: "fs/read",
+			Resource: "boundary.md", Decision: "allow", PolicyUsed: "approve-all", Timestamp: boundary,
+		},
+		{
+			ID: "perm-fresh", SessionID: "sess-retention", AgentName: "coder", Action: "fs/read",
+			Resource: "fresh.md", Decision: "allow", PolicyUsed: "approve-all", Timestamp: fresh,
+		},
+	} {
+		if err := globalDB.WritePermissionLog(ctx, entry); err != nil {
+			t.Fatalf("WritePermissionLog(%q) error = %v", entry.ID, err)
+		}
+	}
+
+	result, err := globalDB.SweepObservability(ctx, cutoff)
+	if err != nil {
+		t.Fatalf("SweepObservability() error = %v", err)
+	}
+	if result.DeletedEventSummaries != 1 || result.DeletedTokenStats != 1 || result.DeletedPermissionLogs != 1 {
+		t.Fatalf("SweepObservability() = %#v, want one deleted row per observe table", result)
+	}
+	if !result.CutoffAt.Equal(cutoff) {
+		t.Fatalf("SweepObservability().CutoffAt = %s, want %s", result.CutoffAt, cutoff)
+	}
+
+	assertEventSummaryIDs(t, globalDB, []string{"sum-boundary", "sum-fresh"})
+	assertTokenStatAgents(t, globalDB, []string{"coder-boundary", "coder-fresh"})
+	assertPermissionLogIDs(t, globalDB, []string{"perm-boundary", "perm-fresh"})
 }
 
 func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testing.T) {
@@ -2443,6 +2511,60 @@ func registerWorkspaceForGlobalTests(t *testing.T, globalDB *GlobalDB, name stri
 		UpdatedAt: time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC),
 	})
 	return workspace.ID
+}
+
+func assertEventSummaryIDs(t *testing.T, globalDB *GlobalDB, want []string) {
+	t.Helper()
+
+	events, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+	if err != nil {
+		t.Fatalf("ListEventSummaries() error = %v", err)
+	}
+	got := make([]string, 0, len(events))
+	for _, event := range events {
+		got = append(got, event.ID)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("event summary ids = %#v, want %#v", got, want)
+	}
+}
+
+func assertTokenStatAgents(t *testing.T, globalDB *GlobalDB, want []string) {
+	t.Helper()
+
+	stats, err := globalDB.ListTokenStats(testutil.Context(t), TokenStatsQuery{})
+	if err != nil {
+		t.Fatalf("ListTokenStats() error = %v", err)
+	}
+	got := make([]string, 0, len(stats))
+	for _, stat := range stats {
+		got = append(got, stat.AgentName)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("token stat agents = %#v, want %#v", got, want)
+	}
+}
+
+func assertPermissionLogIDs(t *testing.T, globalDB *GlobalDB, want []string) {
+	t.Helper()
+
+	entries, err := globalDB.ListPermissionLog(testutil.Context(t), PermissionLogQuery{})
+	if err != nil {
+		t.Fatalf("ListPermissionLog() error = %v", err)
+	}
+	got := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		got = append(got, entry.ID)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("permission log ids = %#v, want %#v", got, want)
+	}
 }
 
 func assertWorkspaceEqual(t *testing.T, got aghworkspace.Workspace, want aghworkspace.Workspace) {

@@ -473,9 +473,28 @@ func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
 		t.Parallel()
 
 		lastActivityAt := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
-		health := ObserveHealthPayloadFromHealth(observepkg.Health{
+		lastSweepAt := lastActivityAt.Add(-time.Hour)
+		lastCutoffAt := lastSweepAt.AddDate(0, 0, -14)
+		input := observepkg.Health{
 			Status:         "ok",
 			ActiveSessions: 1,
+			Persistence: observepkg.PersistenceHealth{
+				Status:             " degraded ",
+				GlobalDBSizeBytes:  4096,
+				SessionDBSizeBytes: 2048,
+			},
+			Retention: observepkg.RetentionHealth{
+				Enabled:                  true,
+				RetentionDays:            14,
+				SweepIntervalSeconds:     86400,
+				LastSweepStatus:          " ok ",
+				LastSweepAt:              &lastSweepAt,
+				LastCutoffAt:             &lastCutoffAt,
+				LastSweepError:           " cleared ",
+				DeletedEventSummaries:    3,
+				DeletedTokenStats:        2,
+				DeletedPermissionLogRows: 1,
+			},
 			Activities: []observepkg.SessionActivityHealth{{
 				SessionID:        " sess-activity ",
 				TurnID:           " turn-activity ",
@@ -485,7 +504,8 @@ func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
 				IdleSeconds:      900,
 				Status:           "warning",
 			}},
-		})
+		}
+		health := ObserveHealthPayloadFromHealth(&input)
 
 		if got, want := len(health.Activities), 1; got != want {
 			t.Fatalf("len(Activities) = %d, want %d", got, want)
@@ -497,6 +517,31 @@ func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
 			activity.CurrentTool != "delegate_task" ||
 			activity.IdleSeconds != 900 {
 			t.Fatalf("Activities[0] = %#v, want trimmed runtime activity", activity)
+		}
+		if health.Persistence.Status != "degraded" ||
+			health.Persistence.GlobalDBSizeBytes != 4096 ||
+			health.Persistence.SessionDBSizeBytes != 2048 {
+			t.Fatalf("Persistence = %#v, want typed persistence health", health.Persistence)
+		}
+		if !health.Retention.Enabled ||
+			health.Retention.RetentionDays != 14 ||
+			health.Retention.SweepIntervalSeconds != 86400 ||
+			health.Retention.LastSweepStatus != "ok" ||
+			health.Retention.LastSweepError != "cleared" ||
+			health.Retention.DeletedEventSummaries != 3 ||
+			health.Retention.DeletedTokenStats != 2 ||
+			health.Retention.DeletedPermissionLogRows != 1 {
+			t.Fatalf("Retention = %#v, want typed retention health", health.Retention)
+		}
+		if health.Retention.LastSweepAt == nil ||
+			health.Retention.LastSweepAt == &lastSweepAt ||
+			!health.Retention.LastSweepAt.Equal(lastSweepAt) {
+			t.Fatalf("Retention.LastSweepAt = %#v, want cloned %s", health.Retention.LastSweepAt, lastSweepAt)
+		}
+		if health.Retention.LastCutoffAt == nil ||
+			health.Retention.LastCutoffAt == &lastCutoffAt ||
+			!health.Retention.LastCutoffAt.Equal(lastCutoffAt) {
+			t.Fatalf("Retention.LastCutoffAt = %#v, want cloned %s", health.Retention.LastCutoffAt, lastCutoffAt)
 		}
 	})
 }

@@ -11635,6 +11635,79 @@
                                                     "format": "int64",
                                                     "type": "integer"
                                                 },
+                                                "persistence": {
+                                                    "properties": {
+                                                        "global_db_size_bytes": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "session_db_size_bytes": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "status": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "global_db_size_bytes",
+                                                        "session_db_size_bytes",
+                                                        "status"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "retention": {
+                                                    "properties": {
+                                                        "deleted_event_summaries": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "deleted_permission_log_rows": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "deleted_token_stats": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "last_cutoff_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_sweep_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_sweep_error": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_sweep_status": {
+                                                            "type": "string"
+                                                        },
+                                                        "retention_days": {
+                                                            "type": "integer"
+                                                        },
+                                                        "sweep_interval_seconds": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "deleted_event_summaries",
+                                                        "deleted_permission_log_rows",
+                                                        "deleted_token_stats",
+                                                        "enabled",
+                                                        "last_sweep_status",
+                                                        "retention_days",
+                                                        "sweep_interval_seconds"
+                                                    ],
+                                                    "type": "object"
+                                                },
                                                 "session_db_size_bytes": {
                                                     "format": "int64",
                                                     "type": "integer"
@@ -11655,6 +11728,8 @@
                                                 "active_sessions",
                                                 "bridges",
                                                 "global_db_size_bytes",
+                                                "persistence",
+                                                "retention",
                                                 "session_db_size_bytes",
                                                 "status",
                                                 "uptime_seconds",
