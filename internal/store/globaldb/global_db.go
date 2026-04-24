@@ -494,6 +494,14 @@ var globalSchemaStatements = append([]string{
 	`CREATE INDEX IF NOT EXISTS idx_bridge_ingest_dedup_expires ON bridge_ingest_dedup(expires_at);`,
 }, resources.SchemaStatements()...)
 
+var globalSchemaMigrations = []store.Migration{
+	{
+		Version:    1,
+		Name:       "create_global_schema",
+		Statements: globalSchemaStatements,
+	},
+}
+
 // GlobalDB owns the global session index and observability database.
 type GlobalDB struct {
 	db     *sql.DB
@@ -575,9 +583,6 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 func openGlobalSQLite(ctx context.Context, path string) (*sql.DB, error) {
 	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
 		if err := migrateGlobalSchema(ctx, db); err != nil {
-			return err
-		}
-		if err := store.EnsureSchema(ctx, db, globalSchemaStatements); err != nil {
 			return err
 		}
 		return reconcileLegacySessionMetaWorkspaceIDs(ctx, db, sessionsDirForDatabasePath(path))

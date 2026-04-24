@@ -80,27 +80,26 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	if !hasSessions {
-		return nil
-	}
+	if hasSessions {
+		columns, err := tableColumns(ctx, db, "sessions")
+		if err != nil {
+			return err
+		}
 
-	columns, err := tableColumns(ctx, db, "sessions")
-	if err != nil {
-		return err
-	}
+		_, hasWorkspaceID := columns["workspace_id"]
+		_, hasLegacyWorkspace := columns["workspace"]
+		if !hasWorkspaceID && hasLegacyWorkspace {
+			if err := migrateLegacyGlobalSessions(ctx, db); err != nil {
+				return err
+			}
+		}
 
-	_, hasWorkspaceID := columns["workspace_id"]
-	_, hasLegacyWorkspace := columns["workspace"]
-	if !hasWorkspaceID && hasLegacyWorkspace {
-		if err := migrateLegacyGlobalSessions(ctx, db); err != nil {
+		if err := migrateSessionColumns(ctx, db); err != nil {
 			return err
 		}
 	}
 
-	if err := migrateSessionColumns(ctx, db); err != nil {
-		return err
-	}
-	return nil
+	return store.RunMigrations(ctx, db, globalSchemaMigrations)
 }
 
 func migrateWorkspaceColumns(ctx context.Context, db *sql.DB) error {

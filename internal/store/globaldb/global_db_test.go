@@ -65,6 +65,7 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	assertTablesPresent(
 		t,
 		globalDB.db,
+		"schema_migrations",
 		"workspaces",
 		"sessions",
 		"event_summaries",
@@ -75,6 +76,87 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	)
 	assertJournalModeWAL(t, globalDB.db)
 	assertSynchronousNormal(t, globalDB.db)
+}
+
+func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	first, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(first) error = %v", err)
+	}
+	firstRecords, err := store.AppliedMigrations(ctx, first.db)
+	if err != nil {
+		t.Fatalf("AppliedMigrations(first) error = %v", err)
+	}
+	if got, want := len(firstRecords), 1; got != want {
+		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
+	}
+	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
+		t.Fatalf("firstRecords[0] = %#v, want create_global_schema v1", firstRecords[0])
+	}
+	if err := first.Close(ctx); err != nil {
+		t.Fatalf("Close(first) error = %v", err)
+	}
+
+	second, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(second) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := second.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(second) error = %v", err)
+		}
+	})
+	secondRecords, err := store.AppliedMigrations(ctx, second.db)
+	if err != nil {
+		t.Fatalf("AppliedMigrations(second) error = %v", err)
+	}
+	if got, want := len(secondRecords), 1; got != want {
+		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
+	}
+	if !secondRecords[0].AppliedAt.Equal(firstRecords[0].AppliedAt) {
+		t.Fatalf(
+			"second applied_at = %s, want unchanged %s",
+			secondRecords[0].AppliedAt,
+			firstRecords[0].AppliedAt,
+		)
+	}
+}
+
+func TestOpenGlobalDBFailsOnSchemaMigrationIntegrityMismatch(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	globalDB, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(initial) error = %v", err)
+	}
+	if err := globalDB.Close(ctx); err != nil {
+		t.Fatalf("Close(initial) error = %v", err)
+	}
+
+	db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`UPDATE schema_migrations SET checksum = 'tampered' WHERE version = 1`,
+	); err != nil {
+		t.Fatalf("tamper schema_migrations error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("db.Close() error = %v", err)
+	}
+
+	_, err = OpenGlobalDB(ctx, path)
+	if err == nil || !strings.Contains(err.Error(), "migration 1 integrity mismatch") {
+		t.Fatalf("OpenGlobalDB(tampered) error = %v, want integrity mismatch", err)
+	}
 }
 
 func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
@@ -2274,6 +2356,7 @@ func TestGlobalDBRecoversFromCorruption(t *testing.T) {
 	assertTablesPresent(
 		t,
 		globalDB.db,
+		"schema_migrations",
 		"workspaces",
 		"sessions",
 		"event_summaries",

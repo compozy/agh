@@ -25,9 +25,57 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 
 	sessionDB := openTestSessionDB(t, "sess-open")
 
-	assertTablesPresent(t, sessionDB.db, "events", "token_usage")
+	assertTablesPresent(t, sessionDB.db, "schema_migrations", "events", "token_usage")
 	assertJournalModeWAL(t, sessionDB.db)
 	assertSynchronousNormal(t, sessionDB.db)
+}
+
+func TestOpenSessionDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	path := filepath.Join(t.TempDir(), SessionDatabaseName)
+	first, err := OpenSessionDB(ctx, "sess-idempotent", path)
+	if err != nil {
+		t.Fatalf("OpenSessionDB(first) error = %v", err)
+	}
+	firstRecords, err := store.AppliedMigrations(ctx, first.db)
+	if err != nil {
+		t.Fatalf("AppliedMigrations(first) error = %v", err)
+	}
+	if got, want := len(firstRecords), 1; got != want {
+		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
+	}
+	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_session_schema" {
+		t.Fatalf("firstRecords[0] = %#v, want create_session_schema v1", firstRecords[0])
+	}
+	if err := first.Close(ctx); err != nil {
+		t.Fatalf("Close(first) error = %v", err)
+	}
+
+	second, err := OpenSessionDB(ctx, "sess-idempotent", path)
+	if err != nil {
+		t.Fatalf("OpenSessionDB(second) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := second.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(second) error = %v", err)
+		}
+	})
+	secondRecords, err := store.AppliedMigrations(ctx, second.db)
+	if err != nil {
+		t.Fatalf("AppliedMigrations(second) error = %v", err)
+	}
+	if got, want := len(secondRecords), 1; got != want {
+		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
+	}
+	if !secondRecords[0].AppliedAt.Equal(firstRecords[0].AppliedAt) {
+		t.Fatalf(
+			"second applied_at = %s, want unchanged %s",
+			secondRecords[0].AppliedAt,
+			firstRecords[0].AppliedAt,
+		)
+	}
 }
 
 func TestSessionDBRecordAutoIncrementSequence(t *testing.T) {
@@ -274,7 +322,7 @@ func TestSessionDBRecoversFromCorruption(t *testing.T) {
 		}
 	})
 
-	assertTablesPresent(t, sessionDB.db, "events", "token_usage")
+	assertTablesPresent(t, sessionDB.db, "schema_migrations", "events", "token_usage")
 
 	matches, err := filepath.Glob(path + ".corrupt.*")
 	if err != nil {
