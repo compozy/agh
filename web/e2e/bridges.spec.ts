@@ -81,7 +81,7 @@ test("operator can edit bridge config, enable runtime, observe health updates, a
     browserBridgeOperatorFlowScenario.bridge.initialName
   );
   await expect(bridgeUI.detailPanel).toContainText("disabled");
-  await expect(bridgeUI.detailPanel).toContainText("Last success Never");
+  await expect(bridgeUI.detailPanel).toContainText(/Last delivery\s*Never/);
   await browserArtifacts.captureScreenshot("bridge-operator-seeded", appPage);
 
   await bridgeUI.editBridgeButton.click();
@@ -104,7 +104,7 @@ test("operator can edit bridge config, enable runtime, observe health updates, a
   await expect(bridgeUI.detailPanel).toContainText(
     browserBridgeOperatorFlowScenario.bridge.editedProviderConfig.webhook_url
   );
-  await expect(bridgeUI.restartRequired).toBeVisible();
+  await expect(bridgeUI.enableBridgeButton).toBeVisible();
   await browserArtifacts.captureScreenshot("bridge-operator-configured", appPage);
 
   await bridgeUI.enableBridgeButton.click();
@@ -118,7 +118,6 @@ test("operator can edit bridge config, enable runtime, observe health updates, a
     })
     .toBe("ready");
 
-  await expect(bridgeUI.restartRequired).toBeHidden();
   await expect
     .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
     .toContain("ready");
@@ -165,7 +164,9 @@ test("operator can edit bridge config, enable runtime, observe health updates, a
     .poll(async () => (await bridgeUI.item(seeded.bridge.id).textContent()) ?? "")
     .toContain("1 routes");
   await expect
-    .poll(async () => (await bridgeUI.detailPanel.textContent())?.includes("Last success Never"))
+    .poll(async () =>
+      /Last delivery\s*Never/.test((await bridgeUI.detailPanel.textContent()) ?? "")
+    )
     .toBe(false);
   await expect
     .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")

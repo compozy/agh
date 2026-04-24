@@ -354,6 +354,74 @@ func TestResolveSessionAgent(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve agent runtime fields when override matches agent provider", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		cfg := DefaultWithHome(homePaths)
+		cfg.Providers["claude"] = ProviderConfig{
+			Command:      "provider-claude-command",
+			DefaultModel: "provider-claude-model",
+		}
+
+		agent := AgentDef{
+			Name:     "coder",
+			Provider: "claude",
+			Command:  "agent-command",
+			Model:    "agent-model",
+			Prompt:   "prompt",
+		}
+
+		resolved, err := cfg.ResolveSessionAgent(agent, "claude")
+		if err != nil {
+			t.Fatalf("ResolveSessionAgent() error = %v", err)
+		}
+		if got, want := resolved.Command, "agent-command"; got != want {
+			t.Fatalf("ResolveSessionAgent() Command = %q, want %q", got, want)
+		}
+		if got, want := resolved.Model, "agent-model"; got != want {
+			t.Fatalf("ResolveSessionAgent() Model = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve agent runtime fields when override matches default provider", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		cfg := DefaultWithHome(homePaths)
+		cfg.Defaults.Provider = "claude"
+		cfg.Providers["claude"] = ProviderConfig{
+			Command:      "provider-claude-command",
+			DefaultModel: "provider-claude-model",
+		}
+
+		agent := AgentDef{
+			Name:    "coder",
+			Command: "agent-command",
+			Model:   "agent-model",
+			Prompt:  "prompt",
+		}
+
+		resolved, err := cfg.ResolveSessionAgent(agent, "claude")
+		if err != nil {
+			t.Fatalf("ResolveSessionAgent() error = %v", err)
+		}
+		if got, want := resolved.Command, "agent-command"; got != want {
+			t.Fatalf("ResolveSessionAgent() Command = %q, want %q", got, want)
+		}
+		if got, want := resolved.Model, "agent-model"; got != want {
+			t.Fatalf("ResolveSessionAgent() Model = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should use workspace-merged runtime fields from the override provider", func(t *testing.T) {
 		t.Parallel()
 

@@ -544,6 +544,7 @@ func mustCreateNetworkChannel(
 
 	detail, err := harness.CreateNetworkChannel(ctx, aghcontract.CreateNetworkChannelRequest{
 		Channel:     channel,
+		Purpose:     "Release validation channel for " + channel,
 		WorkspaceID: harness.WorkspaceID,
 		AgentNames:  append([]string(nil), agentNames...),
 	})

@@ -97,7 +97,12 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	}
 
 	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
-	defer cancelPrompt()
+	cancelOnReturn := cancelPrompt
+	defer func() {
+		if cancelOnReturn != nil {
+			cancelOnReturn()
+		}
+	}()
 	events, err := h.Sessions.Prompt(promptCtx, c.Param("id"), message)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
@@ -124,6 +129,8 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	for {
 		select {
 		case <-c.Request.Context().Done():
+			h.drainPromptEventsAsync(events, cancelOnReturn)
+			cancelOnReturn = nil
 			return
 		case <-h.StreamDoneChannel():
 			return
@@ -135,6 +142,28 @@ func (h *Handlers) promptSession(c *gin.Context) {
 				return
 			}
 			if err := state.emit(writer, event); err != nil {
+				h.drainPromptEventsAsync(events, cancelOnReturn)
+				cancelOnReturn = nil
+				return
+			}
+		}
+	}
+}
+
+func (h *Handlers) drainPromptEventsAsync(events <-chan acp.AgentEvent, cancelPrompt context.CancelFunc) {
+	go func() {
+		defer cancelPrompt()
+		h.drainPromptEvents(events)
+	}()
+}
+
+func (h *Handlers) drainPromptEvents(events <-chan acp.AgentEvent) {
+	for {
+		select {
+		case <-h.StreamDoneChannel():
+			return
+		case _, ok := <-events:
+			if !ok {
 				return
 			}
 		}

@@ -46,12 +46,11 @@ describe("captureRouteState", () => {
   });
 
   it("captures automation route context, selected item, and session-link state", async () => {
-    window.history.replaceState({}, "", "/automation");
+    window.history.replaceState({}, "", "/jobs");
     document.title = "AGH";
     document.body.innerHTML = `
-      <div data-testid="automation-kind-tabs">
-        <button data-testid="automation-kind-jobs" aria-pressed="true"></button>
-        <button data-testid="automation-kind-triggers" aria-pressed="false"></button>
+      <div data-testid="jobs-shell">
+        <button data-testid="jobs-scope-all" aria-pressed="true"></button>
       </div>
       <aside data-testid="automation-list-panel">
         <button data-testid="automation-item-job_daily_review"></button>
@@ -73,7 +72,7 @@ describe("captureRouteState", () => {
     });
 
     expect(routeState).toMatchObject({
-      pathname: "/automation",
+      pathname: "/jobs",
       title: "AGH",
       automation_view_visible: true,
       automation_active_tab: "jobs",

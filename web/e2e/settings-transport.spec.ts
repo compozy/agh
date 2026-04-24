@@ -43,14 +43,12 @@ test("operator sees non-loopback HTTP mutation restrictions with explicit operat
   await expect(settingsUI.hooksExtensions.page).toBeVisible();
   await expect(settingsUI.hooksExtensions.transportParity).toContainText("return 403 on HTTP");
 
-  await settingsUI.hooksExtensions.policyRegistryInput.fill("github");
-  await settingsUI.hooksExtensions.policyBaseURLInput.fill(
-    "https://extensions.example/non-loopback"
+  await expect(settingsUI.hooksExtensions.policyRegistryInput).toBeDisabled();
+  await expect(settingsUI.hooksExtensions.policyBaseURLInput).toBeDisabled();
+  await expect(settingsUI.hooksExtensions.policySave).toBeDisabled();
+  await expect(settingsUI.hooksExtensions.policyControls).toContainText(
+    "Policy edits are unavailable over HTTP"
   );
-  await expect(settingsUI.hooksExtensions.policySave).toBeEnabled();
-  await settingsUI.hooksExtensions.policySave.click();
-
-  await expect(settingsUI.hooksExtensions.policyControls).toContainText("loopback host");
 
   await browserArtifacts.captureScreenshot("tc-int-013-non-loopback-http-restrictions", appPage);
 });

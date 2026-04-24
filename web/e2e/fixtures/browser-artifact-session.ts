@@ -206,11 +206,9 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         ? "peers"
         : undefined;
     const networkSelectedRoom = readHeading("network-room-header");
-    const automationActiveTab = document.querySelector(
-      '[data-testid="automation-kind-jobs"][aria-pressed="true"]'
-    )
+    const automationActiveTab = document.querySelector('[data-testid="jobs-shell"]')
       ? "jobs"
-      : document.querySelector('[data-testid="automation-kind-triggers"][aria-pressed="true"]')
+      : document.querySelector('[data-testid="triggers-shell"]')
         ? "triggers"
         : undefined;
     const automationSelectedItem =
@@ -249,7 +247,8 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       automation_selected_item: automationSelectedItem,
       automation_session_link_count: countByPrefix("automation-run-session-link-"),
       automation_view_visible:
-        document.querySelector('[data-testid="automation-kind-tabs"]') !== null,
+        document.querySelector('[data-testid="jobs-shell"]') !== null ||
+        document.querySelector('[data-testid="triggers-shell"]') !== null,
       bridge_create_dialog_open:
         document.querySelector('[data-testid="bridge-create-dialog"]') !== null,
       bridge_detail_visible: document.querySelector('[data-testid="bridge-detail-panel"]') !== null,

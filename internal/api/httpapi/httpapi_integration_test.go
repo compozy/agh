@@ -2123,6 +2123,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	cfg := aghconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
+	cfg.Network.Enabled = false
 	cfg.Providers = map[string]aghconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
 	}
@@ -2543,7 +2544,14 @@ Loop:
 func stopIntegrationSession(t *testing.T, runtime integrationRuntime, sessionID string) {
 	t.Helper()
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodDelete, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID), nil, nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stop"),
+		nil,
+		nil,
+	)
 	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()

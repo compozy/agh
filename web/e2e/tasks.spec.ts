@@ -63,13 +63,14 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await browserArtifacts.captureScreenshot("tasks-list-seeded", appPage);
 
   await tasksUI.openCreate.click();
-  await expect(tasksUI.createModal).toBeVisible();
+  await expect(appPage).toHaveURL(/\/tasks\/new$/);
+  await expect(tasksUI.createEditorSurface).toBeVisible();
   await tasksUI.createPriority("high").click();
   await tasksUI.createTitle.fill(createdDraftTitle);
   await tasksUI.createDescription.fill(createdDraftDescription);
   await expect(tasksUI.createSaveDraft).toBeEnabled();
   await tasksUI.createSaveDraft.click();
-  await expect(tasksUI.createModal).toBeHidden();
+  await expect(tasksUI.createEditorSurface).toBeHidden();
 
   let createdDraftId = "";
   await expect
@@ -89,8 +90,8 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
 
   await expect(tasksUI.taskCard(createdDraftId)).toBeVisible();
   await tasksUI.taskCard(createdDraftId).click();
-  await expect(tasksUI.detailPreviewPanel).toContainText(createdDraftTitle);
-  await expect(tasksUI.detailPreviewPublish).toBeVisible();
+  await expect(tasksUI.detailContent).toContainText(createdDraftTitle);
+  await expect(tasksUI.detailPublish).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-draft-created", appPage);
 
   const publishResponsePromise = appPage.waitForResponse(response => {
@@ -99,7 +100,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
       response.url().endsWith(`/api/tasks/${encodeURIComponent(createdDraftId)}/publish`)
     );
   });
-  await tasksUI.detailPreviewPublish.click();
+  await tasksUI.detailPublish.click();
   const publishResponse = await publishResponsePromise;
   expect(publishResponse.ok()).toBeTruthy();
   await expect(publishResponse.json()).resolves.toMatchObject({
@@ -119,10 +120,9 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
       return payload.task.summary?.status ?? payload.task.task?.status ?? "";
     })
     .toBe("ready");
-  await expect(tasksUI.detailPreviewPublish).toBeHidden();
+  await expect(tasksUI.detailPublish).toBeHidden();
   await browserArtifacts.captureScreenshot("tasks-draft-published", appPage);
 
-  await tasksUI.detailPreviewDeeplink.click();
   await expect(tasksUI.detailContent).toBeVisible();
   await expect(tasksUI.detailContent).toContainText(createdDraftTitle);
   await expect(tasksUI.detailTab("timeline")).toBeVisible();
@@ -147,11 +147,15 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await expect(tasksUI.dashboardActiveRun(seeded.runningRun.id)).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-dashboard", appPage);
 
-  await tasksUI.dashboardActiveRunLink(seeded.runningRun.id).click();
+  const activeRunPath = `/tasks/${seeded.runningTask.id}/runs/${seeded.runningRun.id}`;
+  const activeRunLink = tasksUI.dashboardActiveRunLink(seeded.runningRun.id);
+  await expect(activeRunLink).toBeVisible();
+  await expect(activeRunLink).toHaveAttribute("href", activeRunPath);
+  await appPage.goto(runtime.url(activeRunPath), {
+    waitUntil: "domcontentloaded",
+  });
   await expect(tasksUI.runDetailContent).toBeVisible();
-  await expect(appPage).toHaveURL(
-    new RegExp(`/tasks/${seeded.runningTask.id}/runs/${seeded.runningRun.id}$`)
-  );
+  await expect(appPage).toHaveURL(new RegExp(`${activeRunPath}$`));
   await expect(tasksUI.runSessionDrilldown).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-run-detail", appPage);
 

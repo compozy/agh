@@ -2007,6 +2007,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	workspace := t.TempDir()
 	cfg := aghconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = socketPath
+	cfg.Network.Enabled = false
 	cfg.Providers = map[string]aghconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
 	}
@@ -2386,7 +2387,7 @@ Loop:
 func stopIntegrationSession(t *testing.T, runtime integrationRuntime, sessionID string) {
 	t.Helper()
 
-	resp := mustUnixRequest(t, runtime.client, http.MethodDelete, "http://unix/api/sessions/"+sessionID, nil, nil)
+	resp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/sessions/"+sessionID+"/stop", nil, nil)
 	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()

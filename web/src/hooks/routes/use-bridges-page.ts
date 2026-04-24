@@ -347,7 +347,7 @@ function useBridgesPage() {
       });
 
       setEditDialogOpen(false);
-      markRestartRequired(result.bridge.id);
+      markRestartRequired(selectedBridge.id);
       toast.success(`Updated bridge ${result.bridge.display_name}. Restart to apply changes.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update bridge");

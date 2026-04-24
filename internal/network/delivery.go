@@ -40,6 +40,11 @@ var (
 
 const capabilityBodyExample = `  --body '{"capability":{"id":"reply-workflow","summary":"Compact inline checklist.","outcome":"A reusable reply workflow.","version":"1.0.0","digest":"sha256:replace-me","execution_outline":["Inspect request","Draft response"],"requirements":["workspace-write"]}}' \`
 
+const (
+	defaultDeliveryRetryBaseDelay = 250 * time.Millisecond
+	defaultDeliveryRetryMaxDelay  = 5 * time.Second
+)
+
 type deliveryPrompter interface {
 	PromptNetwork(
 		ctx context.Context,
@@ -52,12 +57,17 @@ type deliveryPrompter interface {
 
 type deliveryOption func(*deliveryCoordinator)
 
+type deliveryRetryScheduler func(context.Context, time.Duration, func())
+
 type deliveryCoordinator struct {
-	lifecycleCtx  context.Context
-	prompter      deliveryPrompter
-	maxQueueDepth int
-	logger        *slog.Logger
-	now           func() time.Time
+	lifecycleCtx   context.Context
+	prompter       deliveryPrompter
+	maxQueueDepth  int
+	logger         *slog.Logger
+	now            func() time.Time
+	retryBaseDelay time.Duration
+	retryMaxDelay  time.Duration
+	scheduleRetry  deliveryRetryScheduler
 
 	mu       sync.Mutex
 	queues   map[string]*inboundQueue
@@ -89,6 +99,7 @@ type queuedEnvelope struct {
 	Envelope     Envelope
 	AcceptedAt   time.Time
 	DeliveryMode string
+	RetryAttempt int
 }
 
 type deliveryCoordinatorStats struct {
@@ -118,6 +129,12 @@ func withDeliveryDeliveredHook(
 	}
 }
 
+func withDeliveryRetryScheduler(scheduler deliveryRetryScheduler) deliveryOption {
+	return func(coordinator *deliveryCoordinator) {
+		coordinator.scheduleRetry = scheduler
+	}
+}
+
 func newDeliveryCoordinator(
 	ctx context.Context,
 	maxQueueDepth int,
@@ -142,8 +159,11 @@ func newDeliveryCoordinator(
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		queues:   make(map[string]*inboundQueue),
-		inFlight: make(map[string]queuedEnvelope),
+		retryBaseDelay: defaultDeliveryRetryBaseDelay,
+		retryMaxDelay:  defaultDeliveryRetryMaxDelay,
+		scheduleRetry:  scheduleDeliveryRetry,
+		queues:         make(map[string]*inboundQueue),
+		inFlight:       make(map[string]queuedEnvelope),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -157,6 +177,15 @@ func newDeliveryCoordinator(
 		coordinator.now = func() time.Time {
 			return time.Now().UTC()
 		}
+	}
+	if coordinator.retryBaseDelay <= 0 {
+		coordinator.retryBaseDelay = defaultDeliveryRetryBaseDelay
+	}
+	if coordinator.retryMaxDelay < coordinator.retryBaseDelay {
+		coordinator.retryMaxDelay = defaultDeliveryRetryMaxDelay
+	}
+	if coordinator.scheduleRetry == nil {
+		coordinator.scheduleRetry = scheduleDeliveryRetry
 	}
 
 	return coordinator, nil
@@ -390,15 +419,17 @@ func (c *deliveryCoordinator) handleRenderFailure(
 	err error,
 ) {
 	c.clearInFlight(sessionID)
+	item = item.withNextRetryAttempt()
 	c.requeueFront(sessionID, item)
 	c.logger.Warn(
 		"network.message.render_failed",
 		"session_id", sessionID,
 		"envelope_id", item.Envelope.ID,
 		"error", err,
+		"retry_attempt", item.RetryAttempt,
 	)
 	if json.Valid(item.Envelope.Body) {
-		c.retryAfterWorkerExit(sessionID, state)
+		c.retryAfterWorkerExit(sessionID, item, state)
 	}
 }
 
@@ -409,14 +440,16 @@ func (c *deliveryCoordinator) handleDeliveryFailure(
 	err error,
 ) {
 	c.clearInFlight(sessionID)
+	item = item.withNextRetryAttempt()
 	c.requeueFront(sessionID, item)
 	c.logger.Warn(
 		"network.message.delivery_failed",
 		"session_id", sessionID,
 		"envelope_id", item.Envelope.ID,
 		"error", err,
+		"retry_attempt", item.RetryAttempt,
 	)
-	c.retryAfterWorkerExit(sessionID, state)
+	c.retryAfterWorkerExit(sessionID, item, state)
 }
 
 func (c *deliveryCoordinator) handleInterruptedDelivery(sessionID string, item queuedEnvelope) {
@@ -488,7 +521,7 @@ func (c *deliveryCoordinator) requeueFront(sessionID string, item queuedEnvelope
 	queue.prepend(item)
 }
 
-func (c *deliveryCoordinator) retryAfterWorkerExit(sessionID string, state *deliveryState) {
+func (c *deliveryCoordinator) retryAfterWorkerExit(sessionID string, item queuedEnvelope, state *deliveryState) {
 	if c == nil || state == nil {
 		return
 	}
@@ -498,6 +531,7 @@ func (c *deliveryCoordinator) retryAfterWorkerExit(sessionID string, state *deli
 		return
 	}
 
+	delay := c.retryDelayFor(item.RetryAttempt)
 	go func() {
 		select {
 		case <-state.done:
@@ -505,16 +539,62 @@ func (c *deliveryCoordinator) retryAfterWorkerExit(sessionID string, state *deli
 			return
 		}
 
-		if err := c.lifecycleCtx.Err(); err != nil {
-			return
+		c.scheduleRetry(c.lifecycleCtx, delay, func() {
+			if err := c.lifecycleCtx.Err(); err != nil {
+				return
+			}
+			if c.prompter.IsPrompting(target) {
+				return
+			}
+			if c.queueDepth(target) == 0 {
+				return
+			}
+			c.trigger(target)
+		})
+	}()
+}
+
+func (c *deliveryCoordinator) retryDelayFor(attempt int) time.Duration {
+	if c == nil {
+		return defaultDeliveryRetryBaseDelay
+	}
+	delay := c.retryBaseDelay
+	for i := 1; i < attempt; i++ {
+		if delay >= c.retryMaxDelay/2 {
+			return c.retryMaxDelay
 		}
-		if c.prompter.IsPrompting(target) {
-			return
+		delay *= 2
+	}
+	if delay > c.retryMaxDelay {
+		return c.retryMaxDelay
+	}
+	return delay
+}
+
+func scheduleDeliveryRetry(ctx context.Context, delay time.Duration, fn func()) {
+	if fn == nil {
+		return
+	}
+	go func() {
+		if delay <= 0 {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				fn()
+				return
+			}
 		}
-		if c.queueDepth(target) == 0 {
+
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+
+		select {
+		case <-ctx.Done():
 			return
+		case <-timer.C:
+			fn()
 		}
-		c.trigger(target)
 	}()
 }
 
@@ -621,6 +701,12 @@ func (q *inboundQueue) dequeue() (queuedEnvelope, bool) {
 	copy(q.items[0:], q.items[1:])
 	q.items = q.items[:len(q.items)-1]
 	return envelope, true
+}
+
+func (item queuedEnvelope) withNextRetryAttempt() queuedEnvelope {
+	next := cloneQueuedEnvelope(item)
+	next.RetryAttempt++
+	return next
 }
 
 func (q *inboundQueue) snapshot() []Envelope {
@@ -990,5 +1076,6 @@ func cloneQueuedEnvelope(item queuedEnvelope) queuedEnvelope {
 		Envelope:     cloneEnvelope(item.Envelope),
 		AcceptedAt:   item.AcceptedAt,
 		DeliveryMode: item.DeliveryMode,
+		RetryAttempt: item.RetryAttempt,
 	}
 }

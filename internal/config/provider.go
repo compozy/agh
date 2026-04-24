@@ -196,6 +196,14 @@ func (c *Config) ResolveSessionAgent(agent AgentDef, providerOverride string) (R
 		return c.ResolveAgent(agent)
 	}
 
+	effectiveProvider := strings.TrimSpace(agent.Provider)
+	if effectiveProvider == "" && c != nil {
+		effectiveProvider = strings.TrimSpace(c.Defaults.Provider)
+	}
+	if override == effectiveProvider {
+		return c.ResolveAgent(agent)
+	}
+
 	sessionAgent := agent
 	sessionAgent.Provider = override
 	sessionAgent.Command = ""

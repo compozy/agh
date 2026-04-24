@@ -9,7 +9,7 @@ import { expect, test } from "@playwright/test";
 const storybookHost = "127.0.0.1";
 const storybookPort = 6106;
 const storybookBaseURL = `http://${storybookHost}:${storybookPort}`;
-const storyURL = `${storybookBaseURL}/iframe.html?id=components-design-system-panel--default&viewMode=story`;
+const storyURL = `${storybookBaseURL}/iframe.html?id=components-designsystemshowcase--default&viewMode=story`;
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 test("registers the MSW worker and bypasses unknown requests in web Storybook", async ({
@@ -47,9 +47,8 @@ test("registers the MSW worker and bypasses unknown requests in web Storybook", 
     });
 
     await page.goto(storyURL, { waitUntil: "domcontentloaded" });
-    await expect(
-      page.getByText("Dense surfaces still need calm internal hierarchy.")
-    ).toBeVisible();
+    await expect(page.getByTestId("design-system-showcase")).toBeVisible();
+    await expect(page.getByText("AGH design system")).toBeVisible();
 
     await expect
       .poll(() => browserConsole.find(entry => entry.includes("[MSW]")), {

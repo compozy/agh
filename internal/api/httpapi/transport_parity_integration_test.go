@@ -198,8 +198,8 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		stopResp := mustHTTPRequest(
 			t,
 			runtimeHarness.HTTPClient,
-			http.MethodDelete,
-			runtimeHarness.HTTPURL("/api/sessions/"+url.PathEscape(created.Session.ID)),
+			http.MethodPost,
+			runtimeHarness.HTTPURL("/api/sessions/"+url.PathEscape(created.Session.ID)+"/stop"),
 			nil,
 			nil,
 		)

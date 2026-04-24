@@ -26,7 +26,12 @@ import {
 describe("session lifecycle selectors", () => {
   it("maps the onboarding, session, and approval surfaces to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const getByRole = vi.fn(
+      (role: string, options?: { name: string }) =>
+        `role:${role}:${options?.name}` as unknown as Locator
+    );
     const selectors = sessionLifecycleSelectors({
+      getByRole,
       getByTestId,
     });
 
@@ -36,7 +41,9 @@ describe("session lifecycle selectors", () => {
     expect(selectors.workspaceUseGlobal).toBe(
       `locator:${sessionLifecycleTestIds.workspaceUseGlobal}`
     );
-    expect(selectors.chatView).toBe(`locator:${sessionLifecycleTestIds.chatView}`);
+    expect(selectors.chatView).toBe("role:main:undefined");
+    expect(selectors.composerTextarea).toBe("role:textbox:Session prompt");
+    expect(selectors.composerSendButton).toBe("role:button:Send message");
     expect(selectors.permissionPrompt).toBe(`locator:${sessionLifecycleTestIds.permissionPrompt}`);
     expect(selectors.permissionAllowOnce).toBe(
       `locator:${sessionLifecycleTestIds.permissionAllowOnce}`
@@ -74,19 +81,23 @@ describe("network operator selectors", () => {
 });
 
 describe("automation operator selectors", () => {
-  it("maps the automation navigation, editor, detail, and run-history surfaces to stable test IDs", () => {
+  it("maps the jobs/triggers navigation, editor, detail, and run-history surfaces to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
     const selectors = automationOperatorSelectors({
       getByTestId,
     });
 
-    expect(selectors.navAutomation).toBe(`locator:${automationOperatorTestIds.navAutomation}`);
-    expect(selectors.kindJobs).toBe(`locator:${automationOperatorTestIds.automationKindJobs}`);
-    expect(selectors.kindTriggers).toBe(
-      `locator:${automationOperatorTestIds.automationKindTriggers}`
+    expect(selectors.navJobs).toBe(`locator:${automationOperatorTestIds.navJobs}`);
+    expect(selectors.navTriggers).toBe(`locator:${automationOperatorTestIds.navTriggers}`);
+    expect(selectors.jobsShell).toBe(`locator:${automationOperatorTestIds.jobsShell}`);
+    expect(selectors.triggersShell).toBe(`locator:${automationOperatorTestIds.triggersShell}`);
+    expect(selectors.jobsScopeAll).toBe(`locator:${automationOperatorTestIds.jobsScopeAll}`);
+    expect(selectors.triggersScopeAll).toBe(
+      `locator:${automationOperatorTestIds.triggersScopeAll}`
     );
-    expect(selectors.createAutomationButton).toBe(
-      `locator:${automationOperatorTestIds.createAutomationButton}`
+    expect(selectors.createJobButton).toBe(`locator:${automationOperatorTestIds.createJobButton}`);
+    expect(selectors.createTriggerButton).toBe(
+      `locator:${automationOperatorTestIds.createTriggerButton}`
     );
     expect(selectors.detailPanel).toBe(
       `locator:${automationOperatorTestIds.automationDetailPanel}`
@@ -243,7 +254,7 @@ describe("settings operator selectors", () => {
 });
 
 describe("tasks operator selectors", () => {
-  it("maps the tasks shell, modal, detail, aggregate, and inbox surfaces to stable test IDs", () => {
+  it("maps the tasks shell, editor, detail, aggregate, and inbox surfaces to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
     const selectors = tasksOperatorSelectors({
       getByTestId,
@@ -254,15 +265,15 @@ describe("tasks operator selectors", () => {
     expect(selectors.modeDashboard).toBe(`locator:${tasksOperatorTestIds.modeDashboard}`);
     expect(selectors.modeInbox).toBe(`locator:${tasksOperatorTestIds.modeInbox}`);
     expect(selectors.openCreate).toBe(`locator:${tasksOperatorTestIds.openCreate}`);
-    expect(selectors.createModal).toBe(`locator:${tasksOperatorTestIds.createModal}`);
+    expect(selectors.createEditorSurface).toBe(
+      `locator:${tasksOperatorTestIds.createEditorSurface}`
+    );
     expect(selectors.createTitle).toBe(`locator:${tasksOperatorTestIds.createTitle}`);
     expect(selectors.createDescription).toBe(`locator:${tasksOperatorTestIds.createDescription}`);
     expect(selectors.createSaveDraft).toBe(`locator:${tasksOperatorTestIds.createSaveDraft}`);
     expect(selectors.createSubmit).toBe(`locator:${tasksOperatorTestIds.createSubmit}`);
-    expect(selectors.createTemplate("one_shot")).toBe(
-      "locator:tasks-create-modal-template-one_shot"
-    );
-    expect(selectors.createPriority("high")).toBe("locator:tasks-create-modal-priority-high");
+    expect(selectors.createTemplate("one_shot")).toBe("locator:task-editor-template-one_shot");
+    expect(selectors.createPriority("high")).toBe("locator:task-editor-priority-high");
     expect(selectors.taskCard("task_browser_01")).toBe("locator:task-card-task_browser_01");
     expect(selectors.taskCardPublish("task_browser_01")).toBe(
       "locator:task-card-publish-task_browser_01"
@@ -274,6 +285,7 @@ describe("tasks operator selectors", () => {
     expect(selectors.detailPreviewDeeplink).toBe(
       `locator:${tasksOperatorTestIds.detailPreviewDeeplink}`
     );
+    expect(selectors.detailPublish).toBe(`locator:${tasksOperatorTestIds.detailPublish}`);
     expect(selectors.detailContent).toBe(`locator:${tasksOperatorTestIds.detailContent}`);
     expect(selectors.detailBreadcrumbTasks).toBe(
       `locator:${tasksOperatorTestIds.detailBreadcrumbTasks}`

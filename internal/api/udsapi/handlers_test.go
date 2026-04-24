@@ -1095,7 +1095,7 @@ func TestPromptSessionHandlerReturnsSSEStream(t *testing.T) {
 	})
 }
 
-func TestPromptSessionHandlerCancelsDetachedPromptContextWhenRequestEnds(t *testing.T) {
+func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) {
 	t.Run("ShouldCancelTheDetachedPromptContextWhenTheRequestEnds", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		promptCtxCh := make(chan context.Context, 1)
@@ -1140,11 +1140,21 @@ func TestPromptSessionHandlerCancelsDetachedPromptContextWhenRequestEnds(t *test
 			t.Fatal("handler did not return after request cancellation")
 		}
 
-		if !errors.Is(promptCtx.Err(), context.Canceled) {
-			t.Fatalf("prompt context err = %v, want context.Canceled after request cancellation", promptCtx.Err())
+		if err := promptCtx.Err(); err != nil {
+			t.Fatalf("prompt context err = %v, want nil while detached drain is active", err)
 		}
 
 		close(events)
+
+		select {
+		case <-promptCtx.Done():
+		case <-time.After(time.Second):
+			t.Fatal("prompt context was not canceled after detached drain completed")
+		}
+
+		if !errors.Is(promptCtx.Err(), context.Canceled) {
+			t.Fatalf("prompt context err = %v, want context.Canceled after detached drain completed", promptCtx.Err())
+		}
 	})
 }
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/testutil"
 )
+
+var socketPathCounter atomic.Uint64
 
 // AgentSeed defines one persisted AGENT.md fixture.
 type AgentSeed struct {
@@ -353,7 +356,12 @@ func shortSocketPath(t testing.TB) string {
 
 	path := filepath.Join(
 		os.TempDir(),
-		fmt.Sprintf("agh-e2e-%d-%d.sock", os.Getpid(), time.Now().UTC().UnixNano()),
+		fmt.Sprintf(
+			"agh-e2e-%d-%d-%d.sock",
+			os.Getpid(),
+			time.Now().UTC().UnixNano(),
+			socketPathCounter.Add(1),
+		),
 	)
 	t.Cleanup(func() {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {

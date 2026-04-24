@@ -227,8 +227,8 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 	stopResp := mustUnixRequest(
 		t,
 		runtimeHarness.UDSClient,
-		http.MethodDelete,
-		runtimeHarness.UDSURL("/api/sessions/"+url.PathEscape(created.Session.ID)),
+		http.MethodPost,
+		runtimeHarness.UDSURL("/api/sessions/"+url.PathEscape(created.Session.ID)+"/stop"),
 		nil,
 		nil,
 	)

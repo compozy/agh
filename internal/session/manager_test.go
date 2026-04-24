@@ -613,6 +613,63 @@ func TestResumeFallsBackToFreshStartWhenStoredACPSessionIsMissing(t *testing.T) 
 	}
 }
 
+func TestResumeMissingACPStateFallbackPreservesRecoveredCrashClassification(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	originalACP := session.Info().ACPSessionID
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	meta := readMeta(t, session.MetaPath())
+	meta.State = string(StateActive)
+	meta.StopReason = nil
+	meta.StopDetail = ""
+	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+		t.Fatalf("WriteSessionMeta() error = %v", err)
+	}
+
+	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+		if opts.ResumeSessionID != "" {
+			return nil, fmt.Errorf(
+				"%w: load session %q for %q: %w",
+				acp.ErrLoadSessionFailed,
+				opts.ResumeSessionID,
+				opts.AgentName,
+				&acpsdk.RequestError{
+					Code:    -32002,
+					Message: "Resource not found: " + opts.ResumeSessionID,
+				},
+			)
+		}
+		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume(missing ACP state after crash repair) error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
+		t.Fatalf("first resume start ResumeSessionID = %q, want %q", got, originalACP)
+	}
+	if got := h.driver.startCalls[2].ResumeSessionID; got != "" {
+		t.Fatalf("fallback resume start ResumeSessionID = %q, want empty", got)
+	}
+	if got := resumed.Info().StopReason; got != store.StopAgentCrashed {
+		t.Fatalf("resumed StopReason = %q, want %q", got, store.StopAgentCrashed)
+	}
+	if got := resumed.Info().StopDetail; got != resumeStopDetailAgentCrashed {
+		t.Fatalf("resumed StopDetail = %q, want %q", got, resumeStopDetailAgentCrashed)
+	}
+}
+
 func TestResumeFailureRestoresStoppedMetadata(t *testing.T) {
 	t.Parallel()
 

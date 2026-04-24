@@ -235,6 +235,30 @@ func TestRuntimeHarnessStartRetryHelpersRebindHTTPPortAndCleanStaleState(t *test
 	if !strings.Contains(string(configContents), fmt.Sprintf("port = %d", harness.Config.HTTP.Port)) {
 		t.Fatalf("config contents = %s, want rewritten port %d", string(configContents), harness.Config.HTTP.Port)
 	}
+
+	if err := os.WriteFile(
+		processLogPath,
+		[]byte(
+			"error: daemon: start uds server: udsapi: listen on \"/tmp/agh.sock\": listen unix /tmp/agh.sock: bind: file exists\n",
+		),
+		0o600,
+	); err != nil {
+		t.Fatalf("os.WriteFile(%q) socket conflict error = %v", processLogPath, err)
+	}
+	if !harness.readinessFailureShouldRetry(errors.New("daemon exited before readiness: exit status 1")) {
+		t.Fatal("readinessFailureShouldRetry() = false, want true for socket bind conflict")
+	}
+
+	previousSocket := harness.Config.Daemon.Socket
+	if err := harness.reseedRuntimeSocketPath(t); err != nil {
+		t.Fatalf("reseedRuntimeSocketPath() error = %v", err)
+	}
+	if harness.Config.Daemon.Socket == previousSocket {
+		t.Fatalf("reseedRuntimeSocketPath() kept socket %q, want new path", previousSocket)
+	}
+	if harness.UDSClient == nil {
+		t.Fatal("reseedRuntimeSocketPath() left UDSClient nil")
+	}
 }
 
 func TestCLIClientRunInDirResolvesRelativePathsAgainstBaseWorkdir(t *testing.T) {

@@ -174,11 +174,12 @@ func startRuntimeProcess(
 		if err == nil {
 			return
 		}
+		retryHTTPPort, retrySocketPath := harness.readinessFailureRetryReasons(err)
 
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		cleanupErr := harness.cleanupFailedStart(cleanupCtx)
 		cleanupCancel()
-		if attempt == maxStartAttempts || !harness.readinessFailureShouldRetry(err) {
+		if attempt == maxStartAttempts || (!retryHTTPPort && !retrySocketPath) {
 			if cleanupErr != nil {
 				t.Fatalf("cleanup failed start after readiness error = %v (readiness error = %v)", cleanupErr, err)
 			}
@@ -187,8 +188,15 @@ func startRuntimeProcess(
 		if cleanupErr != nil {
 			t.Fatalf("cleanup failed start before retry error = %v (readiness error = %v)", cleanupErr, err)
 		}
-		if err := harness.reseedRuntimeHTTPPort(t); err != nil {
-			t.Fatalf("reseed runtime HTTP port error = %v", err)
+		if retryHTTPPort {
+			if err := harness.reseedRuntimeHTTPPort(t); err != nil {
+				t.Fatalf("reseed runtime HTTP port error = %v", err)
+			}
+		}
+		if retrySocketPath {
+			if err := harness.reseedRuntimeSocketPath(t); err != nil {
+				t.Fatalf("reseed runtime UDS socket error = %v", err)
+			}
 		}
 	}
 }
@@ -404,18 +412,24 @@ func (h *RuntimeHarness) resetProcessState() {
 }
 
 func (h *RuntimeHarness) readinessFailureShouldRetry(err error) bool {
+	retryHTTPPort, retrySocketPath := h.readinessFailureRetryReasons(err)
+	return retryHTTPPort || retrySocketPath
+}
+
+func (h *RuntimeHarness) readinessFailureRetryReasons(err error) (retryHTTPPort bool, retrySocketPath bool) {
 	if h == nil || err == nil {
-		return false
+		return false, false
 	}
 	if !strings.Contains(err.Error(), "daemon exited before readiness") {
-		return false
+		return false, false
 	}
 
 	processLog, readErr := h.readProcessLog()
 	if readErr != nil {
-		return false
+		return false, false
 	}
-	return strings.Contains(processLog, "address already in use")
+	return strings.Contains(processLog, "address already in use"),
+		strings.Contains(processLog, "listen unix") && strings.Contains(processLog, "bind: file exists")
 }
 
 func (h *RuntimeHarness) readProcessLog() (string, error) {
@@ -447,6 +461,24 @@ func (h *RuntimeHarness) reseedRuntimeHTTPPort(t testing.TB) error {
 
 	h.Config.HTTP.Port = nextPort
 	h.HTTPBaseURL = fmt.Sprintf("http://%s:%d", h.Config.HTTP.Host, nextPort)
+	return writeSeedConfigFile(h.HomePaths, &h.Config)
+}
+
+func (h *RuntimeHarness) reseedRuntimeSocketPath(t testing.TB) error {
+	t.Helper()
+
+	if h == nil {
+		return errors.New("runtime harness is required")
+	}
+
+	previousSocket := h.Config.Daemon.Socket
+	nextSocket := shortSocketPath(t)
+	for nextSocket == previousSocket {
+		nextSocket = shortSocketPath(t)
+	}
+
+	h.Config.Daemon.Socket = nextSocket
+	h.UDSClient = newUDSClient(nextSocket)
 	return writeSeedConfigFile(h.HomePaths, &h.Config)
 }
 
@@ -1161,6 +1193,12 @@ func (h *RuntimeHarness) waitForReady(ctx context.Context, pollInterval time.Dur
 	for {
 		select {
 		case <-ctx.Done():
+			if exited, err := h.pollExit(); exited {
+				if err != nil {
+					return fmt.Errorf("daemon exited before readiness: %w", err)
+				}
+				return errors.New("daemon exited before readiness")
+			}
 			return errors.New("daemon did not become ready before timeout")
 		case err, ok := <-h.waitCh:
 			h.processWaitMu.Lock()

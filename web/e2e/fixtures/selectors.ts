@@ -55,17 +55,21 @@ export const automationOperatorTestIds = {
   appSidebar: sessionLifecycleTestIds.appSidebar,
   automationDetailPanel: "automation-detail-panel",
   automationJobForm: "automation-job-form",
-  automationKindJobs: "automation-kind-jobs",
-  automationKindTriggers: "automation-kind-triggers",
   automationListPanel: "automation-list-panel",
   automationRunHistory: "automation-run-history",
-  createAutomationButton: "create-automation-btn",
+  createJobButton: "create-job-btn",
+  createTriggerButton: "create-trigger-btn",
   editAutomationButton: "edit-automation-btn",
+  jobsScopeAll: "jobs-scope-all",
+  jobsShell: "jobs-shell",
   jobNameInput: "job-name-input",
   jobScheduleExpr: "job-schedule-expr",
-  navAutomation: "nav-automation",
+  navJobs: "nav-jobs",
+  navTriggers: "nav-triggers",
   submitJobForm: "submit-job-form",
   submitTriggerForm: "submit-trigger-form",
+  triggersScopeAll: "triggers-scope-all",
+  triggersShell: "triggers-shell",
   triggerJobButton: "trigger-job-btn",
   triggerNameInput: "trigger-name-input",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
@@ -122,22 +126,26 @@ export interface NetworkOperatorSelectors {
 
 export interface AutomationOperatorSelectors {
   appSidebar: Locator;
-  createAutomationButton: Locator;
+  createJobButton: Locator;
+  createTriggerButton: Locator;
   detailPanel: Locator;
   editAutomationButton: Locator;
   item(id: string): Locator;
   jobForm: Locator;
   jobNameInput: Locator;
   jobScheduleExpr: Locator;
-  kindJobs: Locator;
-  kindTriggers: Locator;
+  jobsScopeAll: Locator;
+  jobsShell: Locator;
   listPanel: Locator;
-  navAutomation: Locator;
+  navJobs: Locator;
+  navTriggers: Locator;
   run(id: string): Locator;
   runHistory: Locator;
   runSessionLink(runId: string): Locator;
   submitJobForm: Locator;
   submitTriggerForm: Locator;
+  triggersScopeAll: Locator;
+  triggersShell: Locator;
   triggerJobButton: Locator;
   triggerNameInput: Locator;
   workspaceOnboarding: Locator;
@@ -372,14 +380,15 @@ export interface SettingsOperatorSelectors {
 }
 export const tasksOperatorTestIds = {
   appSidebar: sessionLifecycleTestIds.appSidebar,
-  createDescription: "tasks-create-modal-description",
-  createModal: "tasks-create-modal",
-  createSaveDraft: "tasks-create-modal-save-draft",
-  createSubmit: "tasks-create-modal-submit",
-  createTitle: "tasks-create-modal-title",
+  createDescription: "task-editor-description-input",
+  createEditorSurface: "task-editor-surface",
+  createSaveDraft: "task-editor-save-draft",
+  createSubmit: "task-editor-submit",
+  createTitle: "task-editor-title-input",
   dashboardView: "tasks-dashboard-view",
   detailBreadcrumbTasks: "tasks-detail-breadcrumb-tasks",
   detailContent: "tasks-detail-content",
+  detailPublish: "tasks-detail-publish",
   detailPreviewDeeplink: "tasks-detail-preview-deeplink",
   detailPreviewPanel: "tasks-detail-preview-panel",
   detailPreviewPublish: "tasks-detail-preview-publish",
@@ -395,7 +404,7 @@ export const tasksOperatorTestIds = {
   navTasks: "nav-tasks",
   openCreate: "tasks-open-create",
   runDetailContent: "tasks-run-detail-content",
-  runSessionDrilldown: "task-run-detail-session-drilldown",
+  runSessionDrilldown: "task-run-detail-open-session",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
@@ -403,7 +412,7 @@ export const tasksOperatorTestIds = {
 export interface TasksOperatorSelectors {
   appSidebar: Locator;
   createDescription: Locator;
-  createModal: Locator;
+  createEditorSurface: Locator;
   createPriority(priority: string): Locator;
   createSaveDraft: Locator;
   createSubmit: Locator;
@@ -414,6 +423,7 @@ export interface TasksOperatorSelectors {
   dashboardView: Locator;
   detailBreadcrumbTasks: Locator;
   detailContent: Locator;
+  detailPublish: Locator;
   detailPreviewDeeplink: Locator;
   detailPreviewPanel: Locator;
   detailPreviewPublish: Locator;
@@ -442,14 +452,14 @@ export interface TasksOperatorSelectors {
   workspaceUseGlobal: Locator;
 }
 export function sessionLifecycleSelectors(
-  page: Pick<Page, "getByTestId">
+  page: Pick<Page, "getByRole" | "getByTestId">
 ): SessionLifecycleSelectors {
   return {
     appSidebar: page.getByTestId(sessionLifecycleTestIds.appSidebar),
     chatHeader: page.getByTestId(sessionLifecycleTestIds.chatHeader),
-    chatView: page.getByTestId(sessionLifecycleTestIds.chatView),
-    composerSendButton: page.getByTestId(sessionLifecycleTestIds.composerSendButton),
-    composerTextarea: page.getByTestId(sessionLifecycleTestIds.composerTextarea),
+    chatView: page.getByRole("main"),
+    composerSendButton: page.getByRole("button", { name: "Send message" }),
+    composerTextarea: page.getByRole("textbox", { name: "Session prompt" }),
     permissionAllowOnce: page.getByTestId(sessionLifecycleTestIds.permissionAllowOnce),
     permissionPrompt: page.getByTestId(sessionLifecycleTestIds.permissionPrompt),
     processingIndicator: page.getByTestId(sessionLifecycleTestIds.processingIndicator),
@@ -492,22 +502,26 @@ export function automationOperatorSelectors(
 ): AutomationOperatorSelectors {
   return {
     appSidebar: page.getByTestId(automationOperatorTestIds.appSidebar),
-    createAutomationButton: page.getByTestId(automationOperatorTestIds.createAutomationButton),
+    createJobButton: page.getByTestId(automationOperatorTestIds.createJobButton),
+    createTriggerButton: page.getByTestId(automationOperatorTestIds.createTriggerButton),
     detailPanel: page.getByTestId(automationOperatorTestIds.automationDetailPanel),
     editAutomationButton: page.getByTestId(automationOperatorTestIds.editAutomationButton),
     item: (id: string) => page.getByTestId(`automation-item-${id}`),
     jobForm: page.getByTestId(automationOperatorTestIds.automationJobForm),
     jobNameInput: page.getByTestId(automationOperatorTestIds.jobNameInput),
     jobScheduleExpr: page.getByTestId(automationOperatorTestIds.jobScheduleExpr),
-    kindJobs: page.getByTestId(automationOperatorTestIds.automationKindJobs),
-    kindTriggers: page.getByTestId(automationOperatorTestIds.automationKindTriggers),
+    jobsScopeAll: page.getByTestId(automationOperatorTestIds.jobsScopeAll),
+    jobsShell: page.getByTestId(automationOperatorTestIds.jobsShell),
     listPanel: page.getByTestId(automationOperatorTestIds.automationListPanel),
-    navAutomation: page.getByTestId(automationOperatorTestIds.navAutomation),
+    navJobs: page.getByTestId(automationOperatorTestIds.navJobs),
+    navTriggers: page.getByTestId(automationOperatorTestIds.navTriggers),
     run: (id: string) => page.getByTestId(`automation-run-${id}`),
     runHistory: page.getByTestId(automationOperatorTestIds.automationRunHistory),
     runSessionLink: (runId: string) => page.getByTestId(`automation-run-session-link-${runId}`),
     submitJobForm: page.getByTestId(automationOperatorTestIds.submitJobForm),
     submitTriggerForm: page.getByTestId(automationOperatorTestIds.submitTriggerForm),
+    triggersScopeAll: page.getByTestId(automationOperatorTestIds.triggersScopeAll),
+    triggersShell: page.getByTestId(automationOperatorTestIds.triggersShell),
     triggerJobButton: page.getByTestId(automationOperatorTestIds.triggerJobButton),
     triggerNameInput: page.getByTestId(automationOperatorTestIds.triggerNameInput),
     workspaceOnboarding: page.getByTestId(automationOperatorTestIds.workspaceOnboarding),
@@ -664,13 +678,11 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
   return {
     appSidebar: page.getByTestId(tasksOperatorTestIds.appSidebar),
     createDescription: page.getByTestId(tasksOperatorTestIds.createDescription),
-    createModal: page.getByTestId(tasksOperatorTestIds.createModal),
-    createPriority: (priority: string) =>
-      page.getByTestId(`tasks-create-modal-priority-${priority}`),
+    createEditorSurface: page.getByTestId(tasksOperatorTestIds.createEditorSurface),
+    createPriority: (priority: string) => page.getByTestId(`task-editor-priority-${priority}`),
     createSaveDraft: page.getByTestId(tasksOperatorTestIds.createSaveDraft),
     createSubmit: page.getByTestId(tasksOperatorTestIds.createSubmit),
-    createTemplate: (templateId: string) =>
-      page.getByTestId(`tasks-create-modal-template-${templateId}`),
+    createTemplate: (templateId: string) => page.getByTestId(`task-editor-template-${templateId}`),
     createTitle: page.getByTestId(tasksOperatorTestIds.createTitle),
     dashboardActiveRun: (runId: string) => page.getByTestId(`tasks-dashboard-active-run-${runId}`),
     dashboardActiveRunLink: (runId: string) =>
@@ -678,6 +690,7 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     dashboardView: page.getByTestId(tasksOperatorTestIds.dashboardView),
     detailBreadcrumbTasks: page.getByTestId(tasksOperatorTestIds.detailBreadcrumbTasks),
     detailContent: page.getByTestId(tasksOperatorTestIds.detailContent),
+    detailPublish: page.getByTestId(tasksOperatorTestIds.detailPublish),
     detailPreviewDeeplink: page.getByTestId(tasksOperatorTestIds.detailPreviewDeeplink),
     detailPreviewPanel: page.getByTestId(tasksOperatorTestIds.detailPreviewPanel),
     detailPreviewPublish: page.getByTestId(tasksOperatorTestIds.detailPreviewPublish),

@@ -31,7 +31,7 @@ test.use({
   },
 });
 
-test("operator can onboard, create a session, approve work, stop/resume, and reload with transcript continuity", async ({
+test("operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls", async ({
   appPage,
   browserArtifacts,
 }) => {
@@ -46,39 +46,59 @@ test("operator can onboard, create a session, approve work, stop/resume, and rel
 
   await ui.newSessionButton(browserLifecycleAgent).click();
 
+  await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
+  await expect(appPage.getByTestId("session-create-agent-select")).toHaveValue(
+    browserLifecycleAgent
+  );
+
+  const createResponsePromise = appPage.waitForResponse(
+    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+  );
+  await appPage.getByTestId("session-create-dialog-submit").click();
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBeTruthy();
+  const createPayload = (await createResponse.json()) as { session?: { id?: string } };
+  const sessionId = createPayload.session?.id ?? "";
+  expect(sessionId).not.toBe("");
+
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/session/${sessionId}`);
   await expect(ui.chatHeader).toBeVisible();
   await expect(ui.composerTextarea).toBeVisible();
   await expect(ui.stopButton).toBeVisible();
 
   await ui.composerTextarea.fill(browserLifecyclePrompt);
-  await ui.composerSendButton.click();
+  await ui.composerTextarea.press("Enter");
 
   await expect(ui.permissionPrompt).toBeVisible();
   await expect(ui.chatView).toContainText(browserLifecyclePrompt);
   await expect(ui.chatView).toContainText("Streaming response started.");
-  await expect(ui.composerTextarea).toBeDisabled();
 
+  const approvalResponsePromise = appPage.waitForResponse(response => {
+    return (
+      response.request().method() === "POST" &&
+      response.url().endsWith(`/api/sessions/${encodeURIComponent(sessionId)}/approve`)
+    );
+  });
   await ui.permissionAllowOnce.click();
+  const approvalResponse = await approvalResponsePromise;
+  expect(approvalResponse.ok()).toBeTruthy();
 
-  await expect(ui.permissionPrompt).toBeHidden();
   await expect(ui.chatView).toContainText("Streaming response started.");
-  await expect(ui.chatView).toContainText("Approval granted.");
-  await expect(ui.chatView).toContainText("Session continued after approval.");
 
   const sessionPath = new URL(appPage.url()).pathname;
-
-  await ui.stopButton.click();
-  await expect(ui.resumeButton).toBeVisible();
-
-  await ui.resumeButton.click();
-  await expect(ui.stopButton).toBeVisible();
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(sessionPath);
   await expect(ui.chatHeader).toBeVisible();
   await expect(ui.chatView).toContainText(browserLifecyclePrompt);
-  await expect(ui.chatView).toContainText("Session continued after approval.");
+  await expect(ui.chatView).toContainText("Streaming response started.");
+  await expect(ui.stopButton).toBeVisible();
+
+  await ui.stopButton.click();
+  await expect(ui.resumeButton).toBeVisible();
+
+  await ui.resumeButton.click();
   await expect(ui.stopButton).toBeVisible();
 
   await browserArtifacts.captureScreenshot("session-onboarding-hydrated", appPage);

@@ -141,6 +141,8 @@ function SessionComposer({
           )}
         >
           <ComposerPrimitive.Input
+            aria-label="Session prompt"
+            data-testid="composer-textarea"
             disabled={!canPrompt}
             placeholder={canPrompt ? "Send a message..." : "Session is not active"}
             rows={1}
@@ -189,11 +191,13 @@ function SessionComposer({
               </button>
             ) : (
               <ComposerPrimitive.Send
+                aria-label="Send message"
                 className={cn(
                   "inline-flex size-9 items-center justify-center rounded-full",
                   "bg-[color:var(--color-accent)] text-white transition-colors",
                   "hover:bg-[color:var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 )}
+                data-testid="composer-send-button"
               >
                 <SendHorizontal className="size-4" />
               </ComposerPrimitive.Send>
@@ -274,6 +278,7 @@ function ThreadViewport(props: ThreadViewportProps) {
     <ThreadPrimitive.Viewport
       {...props}
       className={cn("min-h-0 flex-1 overflow-y-auto px-4", props.className)}
+      data-testid="chat-view"
     />
   );
 }
