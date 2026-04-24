@@ -2976,6 +2976,73 @@ func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {
 	}
 }
 
+func TestManagerReadPathsDoNotPersistDependencyReconciliation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("GetTask derives dependency status without writes", func(t *testing.T) {
+		t.Parallel()
+
+		manager, store, actor, blockerID, targetID := setupStaleDependencyReadScenario(t)
+
+		view, err := manager.GetTask(context.Background(), targetID, actor)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+
+		if got, want := view.Summary.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("view.Summary.Status = %q, want %q", got, want)
+		}
+		if got, want := view.Task.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("view.Task.Status = %q, want %q", got, want)
+		}
+		if len(view.DependencyReferences) != 1 {
+			t.Fatalf("len(view.DependencyReferences) = %d, want 1", len(view.DependencyReferences))
+		}
+		if got, want := view.DependencyReferences[0].DependsOn.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("view.DependencyReferences[0].DependsOn.Status = %q, want %q", got, want)
+		}
+		if got, want := store.tasks[blockerID].Status, TaskStatusReady; got != want {
+			t.Fatalf("stored blocker status after GetTask = %q, want unchanged %q", got, want)
+		}
+	})
+
+	t.Run("ListTasks derives dependency status without writes", func(t *testing.T) {
+		t.Parallel()
+
+		manager, store, actor, blockerID, targetID := setupStaleDependencyReadScenario(t)
+
+		summaries, err := manager.ListTasks(context.Background(), Query{}, actor)
+		if err != nil {
+			t.Fatalf("ListTasks() error = %v", err)
+		}
+
+		var target Summary
+		found := false
+		for _, summary := range summaries {
+			if summary.ID == targetID {
+				target = summary
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("ListTasks() did not return target %q", targetID)
+		}
+		if got, want := target.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("target.Status = %q, want %q", got, want)
+		}
+		if len(target.Dependencies) != 1 {
+			t.Fatalf("len(target.Dependencies) = %d, want 1", len(target.Dependencies))
+		}
+		if got, want := target.Dependencies[0].DependsOn.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("target.Dependencies[0].DependsOn.Status = %q, want %q", got, want)
+		}
+		if got, want := store.tasks[blockerID].Status, TaskStatusReady; got != want {
+			t.Fatalf("stored blocker status after ListTasks = %q, want unchanged %q", got, want)
+		}
+	})
+}
+
 func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
 	t.Parallel()
 
@@ -4792,6 +4859,57 @@ func newTaskManagerForTestWithOptions(t *testing.T, store Store, extraOpts ...Op
 		t.Fatalf("NewManager() error = %v", err)
 	}
 	return manager
+}
+
+func setupStaleDependencyReadScenario(t *testing.T) (*Service, *inMemoryManagerStore, ActorContext, string, string) {
+	t.Helper()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+
+	upstream, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Upstream dependency",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(upstream) error = %v", err)
+	}
+	blocker, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Intermediate blocker",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(blocker) error = %v", err)
+	}
+	target, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Blocked target",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(target) error = %v", err)
+	}
+
+	if err := manager.AddDependency(context.Background(), AddDependency{
+		TaskID:          blocker.ID,
+		DependsOnTaskID: upstream.ID,
+		Kind:            DependencyKindBlocks,
+	}, actor); err != nil {
+		t.Fatalf("AddDependency(blocker) error = %v", err)
+	}
+	if err := manager.AddDependency(context.Background(), AddDependency{
+		TaskID:          target.ID,
+		DependsOnTaskID: blocker.ID,
+		Kind:            DependencyKindBlocks,
+	}, actor); err != nil {
+		t.Fatalf("AddDependency(target) error = %v", err)
+	}
+
+	record := store.tasks[blocker.ID]
+	record.Status = TaskStatusReady
+	store.tasks[blocker.ID] = record
+
+	return manager, store, actor, blocker.ID, target.ID
 }
 
 func cloneTask(record Task) Task {

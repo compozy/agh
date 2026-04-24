@@ -2101,7 +2101,42 @@ func (m *Service) canonicalTaskStatusWithStore(
 	dependencies []Dependency,
 	runs []Run,
 ) (Status, error) {
-	unresolvedDependencies, err := m.hasUnresolvedDependenciesWithStore(ctx, store, dependencies)
+	return m.canonicalTaskStatusReadOnlyWithStore(
+		ctx,
+		store,
+		record,
+		dependencies,
+		runs,
+		make(map[string]struct{}, len(dependencies)+1),
+	)
+}
+
+func (m *Service) canonicalTaskStatusReadOnlyWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	record Task,
+	dependencies []Dependency,
+	runs []Run,
+	visited map[string]struct{},
+) (Status, error) {
+	taskID := strings.TrimSpace(record.ID)
+	if taskID != "" {
+		if _, seen := visited[taskID]; seen {
+			// Defensive termination guard: dependency cycles are invalid, but read
+			// paths should still terminate without mutating persisted state.
+			return taskStatusFromPolicySnapshot(
+				record.Status,
+				true,
+				taskApprovalBlocked(record),
+				taskAttemptsExhausted(record, runs),
+				runs,
+			), nil
+		}
+		visited[taskID] = struct{}{}
+		defer delete(visited, taskID)
+	}
+
+	unresolvedDependencies, err := m.hasUnresolvedDependenciesReadOnlyWithStore(ctx, store, dependencies, visited)
 	if err != nil {
 		return "", err
 	}
@@ -2292,17 +2327,38 @@ func uniqueDependentTaskIDs(dependents []Dependency) []string {
 	return ids
 }
 
-func (m *Service) hasUnresolvedDependenciesWithStore(
+func (m *Service) hasUnresolvedDependenciesReadOnlyWithStore(
 	ctx context.Context,
 	store DeleteTaskMutationStore,
 	dependencies []Dependency,
+	visited map[string]struct{},
 ) (bool, error) {
 	for _, dependency := range dependencies {
-		record, err := m.reconcileTaskWithStore(ctx, store, dependency.DependsOnTaskID)
+		dependencyTaskID := strings.TrimSpace(dependency.DependsOnTaskID)
+		record, err := store.GetTask(ctx, dependencyTaskID)
 		if err != nil {
 			return false, err
 		}
-		if record.Status.Normalize() != TaskStatusCompleted {
+		nestedDependencies, err := store.ListDependencies(ctx, dependencyTaskID)
+		if err != nil {
+			return false, err
+		}
+		nestedRuns, err := store.ListTaskRuns(ctx, RunQuery{TaskID: dependencyTaskID})
+		if err != nil {
+			return false, err
+		}
+		status, err := m.canonicalTaskStatusReadOnlyWithStore(
+			ctx,
+			store,
+			record,
+			nestedDependencies,
+			nestedRuns,
+			visited,
+		)
+		if err != nil {
+			return false, err
+		}
+		if status.Normalize() != TaskStatusCompleted {
 			return true, nil
 		}
 	}

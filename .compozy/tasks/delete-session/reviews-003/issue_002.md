@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/task/manager.go
 line: 2105
 author: coderabbitai[bot]
@@ -46,5 +46,15 @@ canonicalTaskStatus and callers to use the new read-only pathway.
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `canonicalTaskStatusWithStore()` asks `hasUnresolvedDependenciesWithStore()` whether dependencies are resolved, and that helper currently calls `reconcileTaskWithStore()` for each dependency. `reconcileTaskWithStore()` can persist through `store.UpdateTask()`, so read-only paths such as `GetTask`, `ListTasks`, and dependency-reference hydration can write task records while computing display status.
+- Evidence: `GetTask`, `ListTasks`, `enrichTaskSummaryFromState`, and `taskReference` all route through `canonicalTaskStatus(...)`; the dependency walk in `hasUnresolvedDependenciesWithStore()` is therefore reachable under read authority and currently crosses a mutating reconciliation boundary.
+- Fix approach: replace the dependency-status walk used by canonical reads with a recursive, side-effect-free status calculator that only uses `GetTask`, `ListDependencies`, and `ListTaskRuns`. Keep persistence inside explicit reconciliation paths such as `reconcileTaskWithStore()` and `reconcileTaskCascadeWithStore()`.
+- Test plan: add regression coverage in `internal/task/manager_test.go` to prove `GetTask`/`ListTasks` compute dependency-derived statuses correctly without mutating stored dependency records. This requires one additional test file beyond the scoped code file because `internal/task/manager.go` has no co-located test cases for this read-only behavior.
+
+## Resolution
+
+- Reworked canonical dependency-status evaluation in `internal/task/manager.go` so read-time status calculation uses a recursive, side-effect-free helper instead of `reconcileTaskWithStore()`.
+- Left persistence inside explicit reconciliation flows only; `GetTask`, `ListTasks`, and dependency-reference reads now derive the right status without calling `UpdateTask()`.
+- Added regression coverage in `internal/task/manager_test.go` that seeds a stale dependency record, exercises both `GetTask` and `ListTasks`, and asserts the returned derived status is correct while the stored dependency status remains unchanged.
+- Verified with `go test ./internal/session ./internal/task` and `make verify` (both exit `0`).

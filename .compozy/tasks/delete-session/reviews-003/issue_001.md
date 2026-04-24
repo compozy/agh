@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/session/manager_delete_test.go
 line: 13
 severity: nitpick
@@ -21,5 +21,13 @@ As per coding guidelines, "Add `t.Parallel()` to independent subtests in Go test
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `valid`
+- Root cause: `TestManagerDelete` uses a table-driven `t.Run(...)` loop but does not mark the independent subtests as parallelizable, so the suite misses the concurrency the workspace Go testing guidelines expect.
+- Evidence: each case either creates its own `newHarness(t)` with `t.TempDir()`-backed state or exercises the pure `stopSessionBeforeDelete(...)` helper without shared mutable fixtures, so there is no inter-test coupling that would block `t.Parallel()`.
+- Fix approach: add `t.Parallel()` to the parent test and each subtest closure so the suite can execute concurrently while preserving isolated setup and assertions.
+
+## Resolution
+
+- Added `t.Parallel()` to `TestManagerDelete` and to each table-driven subtest in `internal/session/manager_delete_test.go`.
+- Kept the existing harness-per-case structure intact, so the change improves execution concurrency without changing session-delete behavior.
+- Verified with `go test ./internal/session ./internal/task` and `make verify` (both exit `0`).

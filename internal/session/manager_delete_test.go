@@ -11,6 +11,8 @@ import (
 )
 
 func TestManagerDelete(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		run  func(*testing.T)
@@ -120,6 +122,7 @@ func TestManagerDelete(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			tc.run(t)
 		})
 	}
