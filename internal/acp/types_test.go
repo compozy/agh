@@ -227,6 +227,9 @@ func TestEmitPromptEventDeferredToolResultsStayBounded(t *testing.T) {
 		if second.Type != EventTypeToolResult {
 			t.Fatalf("newest tool result event = %q, want %q", second.Type, EventTypeToolResult)
 		}
+		if got, want := second.ToolCallID, "tool-128"; got != want {
+			t.Fatalf("newest tool result ToolCallID = %q, want %q", got, want)
+		}
 	})
 }
 

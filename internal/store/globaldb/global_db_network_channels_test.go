@@ -12,8 +12,52 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
-func TestOpenGlobalDBCreatesNetworkChannelsSchema(t *testing.T) {
-	t.Parallel()
+func TestNetworkChannels(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(*testing.T)
+	}{
+		{
+			name: "Should create the network channels schema on open",
+			run:  assertOpenGlobalDBCreatesNetworkChannelsSchema,
+		},
+		{
+			name: "Should write and list network channels",
+			run:  assertGlobalDBWriteAndListNetworkChannels,
+		},
+		{
+			name: "Should return sql.ErrNoRows for missing network channels",
+			run:  assertGlobalDBGetNetworkChannelNotFound,
+		},
+		{
+			name: "Should delete a network channel",
+			run:  assertGlobalDBDeleteNetworkChannel,
+		},
+		{
+			name: "Should cascade network channels when a workspace is deleted",
+			run:  assertGlobalDBDeleteWorkspaceCascadesNetworkChannels,
+		},
+		{
+			name: "Should wrap timestamp parse failures when listing network channels",
+			run:  assertGlobalDBListNetworkChannelsWrapsTimestampParseFailures,
+		},
+		{
+			name: "Should rebuild network channels with a workspace foreign key during migration",
+			run:  assertMigrateGlobalSchemaRebuildsNetworkChannelsWithWorkspaceForeignKey,
+		},
+	}
+
+	for _, tt := range tests {
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.run(t)
+		})
+	}
+}
+
+func assertOpenGlobalDBCreatesNetworkChannelsSchema(t *testing.T) {
+	t.Helper()
 
 	globalDB := openTestGlobalDB(t)
 
@@ -36,8 +80,8 @@ func TestOpenGlobalDBCreatesNetworkChannelsSchema(t *testing.T) {
 	assertIndexesPresent(t, globalDB.db, "network_channels", "idx_network_channels_workspace_updated_at")
 }
 
-func TestGlobalDBWriteAndListNetworkChannels(t *testing.T) {
-	t.Parallel()
+func assertGlobalDBWriteAndListNetworkChannels(t *testing.T) {
+	t.Helper()
 
 	globalDB := openTestGlobalDB(t)
 	workspaceID := registerWorkspaceForGlobalTests(
@@ -110,8 +154,8 @@ func TestGlobalDBWriteAndListNetworkChannels(t *testing.T) {
 	}
 }
 
-func TestGlobalDBGetNetworkChannelNotFound(t *testing.T) {
-	t.Parallel()
+func assertGlobalDBGetNetworkChannelNotFound(t *testing.T) {
+	t.Helper()
 
 	globalDB := openTestGlobalDB(t)
 	_, err := globalDB.GetNetworkChannel(testutil.Context(t), "missing")
@@ -120,8 +164,8 @@ func TestGlobalDBGetNetworkChannelNotFound(t *testing.T) {
 	}
 }
 
-func TestGlobalDBDeleteNetworkChannel(t *testing.T) {
-	t.Parallel()
+func assertGlobalDBDeleteNetworkChannel(t *testing.T) {
+	t.Helper()
 
 	globalDB := openTestGlobalDB(t)
 	workspaceID := registerWorkspaceForGlobalTests(
@@ -146,8 +190,8 @@ func TestGlobalDBDeleteNetworkChannel(t *testing.T) {
 	}
 }
 
-func TestGlobalDBDeleteWorkspaceCascadesNetworkChannels(t *testing.T) {
-	t.Parallel()
+func assertGlobalDBDeleteWorkspaceCascadesNetworkChannels(t *testing.T) {
+	t.Helper()
 
 	globalDB := openTestGlobalDB(t)
 	workspaceID := registerWorkspaceForGlobalTests(
@@ -173,8 +217,8 @@ func TestGlobalDBDeleteWorkspaceCascadesNetworkChannels(t *testing.T) {
 	}
 }
 
-func TestGlobalDBListNetworkChannelsWrapsTimestampParseFailures(t *testing.T) {
-	t.Parallel()
+func assertGlobalDBListNetworkChannelsWrapsTimestampParseFailures(t *testing.T) {
+	t.Helper()
 
 	globalDB := openTestGlobalDB(t)
 	workspaceID := registerWorkspaceForGlobalTests(
@@ -212,15 +256,19 @@ func TestGlobalDBListNetworkChannelsWrapsTimestampParseFailures(t *testing.T) {
 	}
 }
 
-func TestMigrateGlobalSchemaRebuildsNetworkChannelsWithWorkspaceForeignKey(t *testing.T) {
-	t.Parallel()
+func assertMigrateGlobalSchemaRebuildsNetworkChannelsWithWorkspaceForeignKey(t *testing.T) {
+	t.Helper()
 
 	ctx := testutil.Context(t)
 	db, err := store.OpenSQLiteDatabase(ctx, filepath.Join(t.TempDir(), "network-channels-migrate.db"), nil)
 	if err != nil {
 		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("db.Close() error = %v", err)
+		}
+	})
 
 	statements := []string{
 		`CREATE TABLE workspaces (
@@ -245,6 +293,8 @@ func TestMigrateGlobalSchemaRebuildsNetworkChannelsWithWorkspaceForeignKey(t *te
 		`INSERT INTO network_channels (channel, workspace_id, purpose, created_by, created_at, updated_at)
 		 VALUES ('coord.core', 'ws-alpha', 'Coordination', 'codex', '2026-04-11T12:00:00Z', '2026-04-11T12:00:00Z')`,
 		`INSERT INTO network_channels (channel, workspace_id, purpose, created_by, created_at, updated_at)
+		 VALUES ('coord.trimmed', ' ws-alpha ', 'Trimmed coordination', 'claude', '2026-04-11T12:01:00Z', '2026-04-11T12:01:00Z')`,
+		`INSERT INTO network_channels (channel, workspace_id, purpose, created_by, created_at, updated_at)
 		 VALUES ('orphaned', 'ws-missing', 'Stale row', 'codex', '2026-04-11T12:00:00Z', '2026-04-11T12:00:00Z')`,
 	}
 	for _, stmt := range statements {
@@ -265,25 +315,50 @@ func TestMigrateGlobalSchemaRebuildsNetworkChannelsWithWorkspaceForeignKey(t *te
 		t.Fatal("network_channels is missing a workspaces foreign key after migration")
 	}
 
-	rows, err := db.QueryContext(ctx, `SELECT channel FROM network_channels ORDER BY channel ASC`)
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT channel, workspace_id FROM network_channels ORDER BY channel ASC`,
+	)
 	if err != nil {
 		t.Fatalf("QueryContext(list migrated network channels) error = %v", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	channels := make([]string, 0, 1)
+	type migratedChannel struct {
+		channel     string
+		workspaceID string
+	}
+
+	channels := make([]migratedChannel, 0, 2)
 	for rows.Next() {
-		var channel string
-		if err := rows.Scan(&channel); err != nil {
-			t.Fatalf("Scan(channel) error = %v", err)
+		var channel migratedChannel
+		if err := rows.Scan(&channel.channel, &channel.workspaceID); err != nil {
+			t.Fatalf("Scan(channel, workspace_id) error = %v", err)
 		}
 		channels = append(channels, channel)
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("rows.Err(list migrated network channels) error = %v", err)
 	}
-	if got, want := channels, []string{"coord.core"}; !testutil.EqualStringSlices(got, want) {
-		t.Fatalf("migrated channels = %#v, want %#v", got, want)
+	if got, want := len(channels), 2; got != want {
+		t.Fatalf("len(migrated channels) = %d, want %d", got, want)
+	}
+	if got, want := []string{
+		channels[0].channel,
+		channels[1].channel,
+	}, []string{
+		"coord.core",
+		"coord.trimmed",
+	}; !testutil.EqualStringSlices(
+		got,
+		want,
+	) {
+		t.Fatalf("migrated channel names = %#v, want %#v", got, want)
+	}
+	for _, channel := range channels {
+		if got, want := channel.workspaceID, "ws-alpha"; got != want {
+			t.Fatalf("channel %q workspace_id = %q, want %q", channel.channel, got, want)
+		}
 	}
 
 	if _, err := db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, "ws-alpha"); err != nil {

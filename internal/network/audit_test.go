@@ -166,83 +166,126 @@ func TestAuditWriterRecordsDeliveredDirection(t *testing.T) {
 func TestAuditWriterPersistsTimelineMessagesForRenderableEnvelopes(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should persist sent say envelopes to the timeline store", func(t *testing.T) {
-		t.Parallel()
+	recordedAt := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name      string
+		sessionID string
+		envelope  func(*testing.T) Envelope
+		record    func(context.Context, *FileAuditWriter, string, Envelope) error
+		assert    func(*testing.T, store.NetworkMessageEntry)
+	}{
+		{
+			name:      "Should persist sent say envelopes to the timeline store",
+			sessionID: "sess-audit",
+			envelope:  testSayAuditEnvelope,
+			record: func(ctx context.Context, writer *FileAuditWriter, sessionID string, envelope Envelope) error {
+				return writer.RecordSent(ctx, sessionID, envelope)
+			},
+			assert: func(t *testing.T, entry store.NetworkMessageEntry) {
+				t.Helper()
 
-		storeSink := &recordingAuditStore{}
-		writer, err := NewAuditWriter("", storeSink)
-		if err != nil {
-			t.Fatalf("NewAuditWriter() error = %v", err)
-		}
-		recordedAt := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-		writer.now = func() time.Time { return recordedAt }
+				if got, want := entry.Direction, AuditDirectionSent; got != want {
+					t.Fatalf("messages[0].Direction = %q, want %q", got, want)
+				}
+				if got, want := entry.MessageID, "msg_say_01"; got != want {
+					t.Fatalf("messages[0].MessageID = %q, want %q", got, want)
+				}
+				if got, want := entry.Intent, "announce"; got != want {
+					t.Fatalf("messages[0].Intent = %q, want %q", got, want)
+				}
+				if got, want := entry.Text, "  hello builders  \n"; got != want {
+					t.Fatalf("messages[0].Text = %q, want %q", got, want)
+				}
+			},
+		},
+		{
+			name:      "Should persist received say envelopes to the timeline store",
+			sessionID: "sess-remote",
+			envelope:  testSayAuditEnvelope,
+			record: func(ctx context.Context, writer *FileAuditWriter, sessionID string, envelope Envelope) error {
+				return writer.RecordReceived(ctx, sessionID, envelope)
+			},
+			assert: func(t *testing.T, entry store.NetworkMessageEntry) {
+				t.Helper()
 
-		if err := writer.RecordSent(context.Background(), "sess-audit", testSayAuditEnvelope(t)); err != nil {
-			t.Fatalf("RecordSent(say) error = %v", err)
-		}
+				if got, want := entry.Direction, AuditDirectionReceived; got != want {
+					t.Fatalf("messages[0].Direction = %q, want %q", got, want)
+				}
+				if got, want := entry.SessionID, "sess-remote"; got != want {
+					t.Fatalf("messages[0].SessionID = %q, want %q", got, want)
+				}
+				if got, want := entry.MessageID, "msg_say_01"; got != want {
+					t.Fatalf("messages[0].MessageID = %q, want %q", got, want)
+				}
+			},
+		},
+		{
+			name:      "Should persist sent direct envelopes with addressing metadata",
+			sessionID: "sess-audit",
+			envelope:  testAuditEnvelope,
+			record: func(ctx context.Context, writer *FileAuditWriter, sessionID string, envelope Envelope) error {
+				return writer.RecordSent(ctx, sessionID, envelope)
+			},
+			assert: func(t *testing.T, entry store.NetworkMessageEntry) {
+				t.Helper()
 
-		if got, want := len(storeSink.messages), 1; got != want {
-			t.Fatalf("len(store messages) = %d, want %d", got, want)
-		}
-		if got, want := storeSink.messages[0].MessageID, "msg_say_01"; got != want {
-			t.Fatalf("messages[0].MessageID = %q, want %q", got, want)
-		}
-		if got, want := storeSink.messages[0].Intent, "announce"; got != want {
-			t.Fatalf("messages[0].Intent = %q, want %q", got, want)
-		}
-		if got, want := storeSink.messages[0].Text, "  hello builders  \n"; got != want {
-			t.Fatalf("messages[0].Text = %q, want %q", got, want)
-		}
-	})
+				if got, want := entry.Direction, AuditDirectionSent; got != want {
+					t.Fatalf("messages[0].Direction = %q, want %q", got, want)
+				}
+				if got, want := entry.PeerFrom, "coder.sess-audit"; got != want {
+					t.Fatalf("messages[0].PeerFrom = %q, want %q", got, want)
+				}
+				if got, want := entry.PeerTo, "reviewer.sess-xyz"; got != want {
+					t.Fatalf("messages[0].PeerTo = %q, want %q", got, want)
+				}
+			},
+		},
+		{
+			name:      "Should persist received direct envelopes with addressing metadata",
+			sessionID: "sess-audit",
+			envelope:  testReceivedDirectAuditEnvelope,
+			record: func(ctx context.Context, writer *FileAuditWriter, sessionID string, envelope Envelope) error {
+				return writer.RecordReceived(ctx, sessionID, envelope)
+			},
+			assert: func(t *testing.T, entry store.NetworkMessageEntry) {
+				t.Helper()
 
-	t.Run("Should persist received say envelopes to the timeline store", func(t *testing.T) {
-		t.Parallel()
+				if got, want := entry.Direction, AuditDirectionReceived; got != want {
+					t.Fatalf("messages[0].Direction = %q, want %q", got, want)
+				}
+				if got, want := entry.PeerFrom, "reviewer.sess-xyz"; got != want {
+					t.Fatalf("messages[0].PeerFrom = %q, want %q", got, want)
+				}
+				if got, want := entry.PeerTo, "coder.sess-audit"; got != want {
+					t.Fatalf("messages[0].PeerTo = %q, want %q", got, want)
+				}
+			},
+		},
+	}
 
-		storeSink := &recordingAuditStore{}
-		writer, err := NewAuditWriter("", storeSink)
-		if err != nil {
-			t.Fatalf("NewAuditWriter() error = %v", err)
-		}
-		recordedAt := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-		writer.now = func() time.Time { return recordedAt }
+	for _, tt := range tests {
 
-		if err := writer.RecordReceived(context.Background(), "sess-remote", testSayAuditEnvelope(t)); err != nil {
-			t.Fatalf("RecordReceived(say) error = %v", err)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		if got, want := len(storeSink.messages), 1; got != want {
-			t.Fatalf("len(store messages) = %d, want %d", got, want)
-		}
-		if got, want := storeSink.messages[0].SessionID, "sess-remote"; got != want {
-			t.Fatalf("messages[0].SessionID = %q, want %q", got, want)
-		}
-		if got, want := storeSink.messages[0].MessageID, "msg_say_01"; got != want {
-			t.Fatalf("messages[0].MessageID = %q, want %q", got, want)
-		}
-	})
+			storeSink := &recordingAuditStore{}
+			writer, err := NewAuditWriter("", storeSink)
+			if err != nil {
+				t.Fatalf("NewAuditWriter() error = %v", err)
+			}
+			writer.now = func() time.Time { return recordedAt }
 
-	t.Run("Should persist direct envelopes with addressing metadata", func(t *testing.T) {
-		t.Parallel()
+			if err := tt.record(context.Background(), writer, tt.sessionID, tt.envelope(t)); err != nil {
+				t.Fatalf("record envelope error = %v", err)
+			}
 
-		storeSink := &recordingAuditStore{}
-		writer, err := NewAuditWriter("", storeSink)
-		if err != nil {
-			t.Fatalf("NewAuditWriter() error = %v", err)
-		}
+			if got, want := len(storeSink.messages), 1; got != want {
+				t.Fatalf("len(store messages) = %d, want %d", got, want)
+			}
 
-		if err := writer.RecordSent(context.Background(), "sess-audit", testAuditEnvelope(t)); err != nil {
-			t.Fatalf("RecordSent(direct) error = %v", err)
-		}
-		if got, want := len(storeSink.messages), 1; got != want {
-			t.Fatalf("len(store messages) = %d, want %d", got, want)
-		}
-		if got, want := storeSink.messages[0].Direction, AuditDirectionSent; got != want {
-			t.Fatalf("messages[0].Direction = %q, want %q", got, want)
-		}
-		if got, want := storeSink.messages[0].PeerTo, "reviewer.sess-xyz"; got != want {
-			t.Fatalf("messages[0].PeerTo = %q, want %q", got, want)
-		}
-	})
+			tt.assert(t, storeSink.messages[0])
+		})
+	}
 }
 
 func TestAuditWriterRecordsCapabilityTransfersAsCapabilityAudits(t *testing.T) {
@@ -488,6 +531,22 @@ func testAuditEnvelope(t *testing.T) Envelope {
 		InteractionID: stringPtr("int_patch_42"),
 		TS:            time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
 		Body:          mustRawJSON(t, map[string]any{"text": "Please inspect auth.go"}),
+	}
+}
+
+func testReceivedDirectAuditEnvelope(t *testing.T) Envelope {
+	t.Helper()
+
+	return Envelope{
+		Protocol:      ProtocolV0,
+		ID:            "msg_direct_02",
+		Kind:          KindDirect,
+		Channel:       "builders",
+		From:          "reviewer.sess-xyz",
+		To:            stringPtr("coder.sess-audit"),
+		InteractionID: stringPtr("int_patch_43"),
+		TS:            time.Date(2026, 4, 10, 12, 1, 0, 0, time.UTC).Unix(),
+		Body:          mustRawJSON(t, map[string]any{"text": "Please confirm the auth fix landed"}),
 	}
 }
 

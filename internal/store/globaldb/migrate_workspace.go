@@ -801,7 +801,7 @@ func migrateNetworkChannelsTable(ctx context.Context, db *sql.DB) (err error) {
 		`INSERT INTO network_channels_new (
 			channel, workspace_id, purpose, created_by, created_at, updated_at
 		) SELECT
-			channel, workspace_id, purpose, created_by, created_at, updated_at
+			channel, TRIM(workspace_id), purpose, created_by, created_at, updated_at
 		FROM network_channels
 		WHERE TRIM(workspace_id) IN (SELECT id FROM workspaces)`,
 		`DROP TABLE network_channels`,
