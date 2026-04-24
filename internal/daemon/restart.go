@@ -795,6 +795,23 @@ func (h *relaunchHelper) waitForReady(
 				errReplacementDaemonExitedBeforeReady,
 			)
 		case <-waitCtx.Done():
+			if exited, err := waitForProcessExitAfterReadyTimeout(
+				processErrCh,
+				h.cfg.PollInterval,
+			); exited {
+				if err != nil {
+					return h.fail(
+						store,
+						operationID,
+						fmt.Errorf("%w: %w", errReplacementDaemonExitedBeforeReady, err),
+					)
+				}
+				return h.fail(
+					store,
+					operationID,
+					errReplacementDaemonExitedBeforeReady,
+				)
+			}
 			return h.fail(
 				store,
 				operationID,
@@ -816,6 +833,27 @@ func (h *relaunchHelper) waitForReady(
 				return fmt.Errorf("daemon: restart operation failed: %s", operation.FailureReason)
 			}
 		}
+	}
+}
+
+func waitForProcessExitAfterReadyTimeout(processErrCh <-chan error, grace time.Duration) (bool, error) {
+	select {
+	case err := <-processErrCh:
+		return true, err
+	default:
+	}
+	if grace <= 0 {
+		return false, nil
+	}
+
+	timer := time.NewTimer(grace)
+	defer timer.Stop()
+
+	select {
+	case err := <-processErrCh:
+		return true, err
+	case <-timer.C:
+		return false, nil
 	}
 }
 

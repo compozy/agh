@@ -70,6 +70,22 @@ function makeProvider(overrides: Partial<BridgeProvider> = {}): BridgeProvider {
   };
 }
 
+function makeRoute(overrides: Partial<BridgeRoute> = {}): BridgeRoute {
+  return {
+    agent_name: "support-agent",
+    bridge_instance_id: "brg_support",
+    created_at: "2026-04-13T12:00:00Z",
+    last_activity_at: "2026-04-13T12:15:00Z",
+    peer_id: "peer_123",
+    routing_key_hash: "abc123",
+    scope: "workspace",
+    session_id: "sess_123",
+    updated_at: "2026-04-13T12:15:00Z",
+    workspace_id: "ws_test",
+    ...overrides,
+  };
+}
+
 describe("BridgeDetailPanel", () => {
   it("renders loading, error, and empty states", () => {
     const { rerender } = render(
@@ -172,6 +188,22 @@ describe("BridgeDetailPanel", () => {
     );
 
     expect(screen.getByTestId("bridge-routes-empty")).toHaveTextContent("No routes");
+  });
+
+  it("renders bridge route session ids for operator traceability", () => {
+    render(
+      <BridgeDetailPanel
+        bridge={makeBridge()}
+        error={null}
+        health={makeHealth({ route_count: 1 })}
+        isLoading={false}
+        isRoutesLoading={false}
+        onOpenTestDelivery={vi.fn()}
+        routes={[makeRoute({ session_id: "sess_trace_123" })]}
+      />
+    );
+
+    expect(screen.getByTestId("bridge-route-sess_trace_123")).toHaveTextContent("sess_trace_123");
   });
 
   it("renders disabled status with danger StatusDot and disables Send Test", () => {

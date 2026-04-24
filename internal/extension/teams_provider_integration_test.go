@@ -58,11 +58,18 @@ func TestTeamsProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 	})
 
 	harness.WaitForHandshake(t, 10*time.Second)
+	expectedInstanceIDs := []string{"brg-teams-a", "brg-teams-b"}
 	states := harness.WaitForStates(t, 10*time.Second, func(states []extensiontest.StateRecord) bool {
-		return len(states) >= 2
+		return teamsProviderStatesReady(states, expectedInstanceIDs...)
 	})
-	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
-		t.Fatalf("last adapter state = %q (error=%q), want %q", got, states[len(states)-1].Error, want)
+	for _, instanceID := range expectedInstanceIDs {
+		state, ok := teamsProviderLastStateForInstance(states, instanceID)
+		if !ok {
+			t.Fatalf("adapter state for %q missing after wait: %#v", instanceID, states)
+		}
+		if got, want := state.Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
+			t.Fatalf("adapter state for %q = %q (error=%q), want %q", instanceID, got, state.Error, want)
+		}
 	}
 
 	report := harness.Report(t)
@@ -336,6 +343,33 @@ func teamsManagedInstanceConfig(instanceID string, tenantID string, mockAPI *tea
 			{BindingName: "app_tenant_id", Kind: "token", Value: tenantID},
 		},
 	}
+}
+
+func teamsProviderStatesReady(states []extensiontest.StateRecord, instanceIDs ...string) bool {
+	for _, instanceID := range instanceIDs {
+		state, ok := teamsProviderLastStateForInstance(states, instanceID)
+		if !ok || state.Status.Normalize() != bridgepkg.BridgeStatusReady {
+			return false
+		}
+	}
+	return true
+}
+
+func teamsProviderLastStateForInstance(
+	states []extensiontest.StateRecord,
+	instanceID string,
+) (extensiontest.StateRecord, bool) {
+	target := strings.TrimSpace(instanceID)
+	for i := len(states) - 1; i >= 0; i-- {
+		stateID := strings.TrimSpace(states[i].BridgeInstanceID)
+		if stateID == "" {
+			stateID = strings.TrimSpace(states[i].Instance.ID)
+		}
+		if stateID == target {
+			return states[i], true
+		}
+	}
+	return extensiontest.StateRecord{}, false
 }
 
 func teamsProviderMessageWebhook(serviceURL string, text string) map[string]any {

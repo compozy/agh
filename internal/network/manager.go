@@ -291,6 +291,7 @@ func (m *Manager) initDeliveries(cfg aghconfig.NetworkConfig, prompter deliveryP
 		withDeliveryLogger(m.logger),
 		withDeliveryClock(m.now),
 		withDeliveryDeliveredHook(m.recordDelivered),
+		withDeliveryDroppedHook(m.recordDropped),
 	)
 	if err != nil {
 		return err
@@ -1169,6 +1170,10 @@ func (m *Manager) recordDelivered(sessionID string, envelope Envelope, _ string,
 		return
 	}
 	m.stats.recordDelivered(envelope)
+}
+
+func (m *Manager) recordDropped(sessionID string, envelope Envelope, reason string) {
+	m.recordAuditRejected(m.lifecycleCtx, sessionID, envelope, reason)
 }
 
 func transportListener(transport *Transport) (string, int) {

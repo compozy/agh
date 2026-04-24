@@ -43,6 +43,7 @@ const capabilityBodyExample = `  --body '{"capability":{"id":"reply-workflow","s
 const (
 	defaultDeliveryRetryBaseDelay = 250 * time.Millisecond
 	defaultDeliveryRetryMaxDelay  = 5 * time.Second
+	deliveryDropReasonQueueFull   = "queue_overflow"
 )
 
 type deliveryPrompter interface {
@@ -77,6 +78,7 @@ type deliveryCoordinator struct {
 	wg         sync.WaitGroup
 
 	onDelivered func(sessionID string, envelope Envelope, mode string, latency time.Duration)
+	onDropped   func(sessionID string, envelope Envelope, reason string)
 }
 
 type deliveryState struct {
@@ -126,6 +128,12 @@ func withDeliveryDeliveredHook(
 ) deliveryOption {
 	return func(coordinator *deliveryCoordinator) {
 		coordinator.onDelivered = hook
+	}
+}
+
+func withDeliveryDroppedHook(hook func(sessionID string, envelope Envelope, reason string)) deliveryOption {
+	return func(coordinator *deliveryCoordinator) {
+		coordinator.onDropped = hook
 	}
 }
 
@@ -229,6 +237,9 @@ func (c *deliveryCoordinator) acceptOne(ctx context.Context, delivery Delivery) 
 			"dropped_envelope_id", result.Dropped.ID,
 			"queue_depth", result.Depth,
 		)
+		if c.onDropped != nil {
+			c.onDropped(sessionID, cloneEnvelope(*result.Dropped), deliveryDropReasonQueueFull)
+		}
 	}
 	if result.DeliveryMode == "queued" {
 		c.logger.Info(

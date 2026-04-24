@@ -486,6 +486,82 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 	})
 }
 
+func TestManagerAuditsBusyQueueOverflowAsRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	cfg := testManagerConfig()
+	cfg.MaxQueueDepth = 1
+	prompter := newFakeDeliveryPrompter()
+	auditor := &recordingAuditWriter{}
+	manager, err := NewManager(
+		ctx,
+		cfg,
+		prompter,
+		"",
+		nil,
+		WithManagerAuditWriter(auditor),
+		WithManagerLogger(discardManagerLogger()),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if err := manager.JoinChannel(ctx, testJoinRequest("sess-busy", "reviewer.sess-busy", "builders")); err != nil {
+		t.Fatalf("JoinChannel() error = %v", err)
+	}
+	prompter.setPrompting("sess-busy", true)
+
+	firstID, err := manager.Send(ctx, SendRequest{
+		SessionID: "sess-busy",
+		Channel:   "builders",
+		Kind:      KindSay,
+		Body:      mustRawJSON(t, map[string]any{"text": "overflow first"}),
+	})
+	if err != nil {
+		t.Fatalf("Send(first) error = %v", err)
+	}
+	secondID, err := manager.Send(ctx, SendRequest{
+		SessionID: "sess-busy",
+		Channel:   "builders",
+		Kind:      KindSay,
+		Body:      mustRawJSON(t, map[string]any{"text": "overflow second"}),
+	})
+	if err != nil {
+		t.Fatalf("Send(second) error = %v", err)
+	}
+
+	waitCtx, waitCancel := context.WithTimeout(ctx, 2*time.Second)
+	defer waitCancel()
+	waitForCondition(waitCtx, t, func() bool {
+		inbox, inboxErr := manager.Inbox(ctx, "sess-busy")
+		return inboxErr == nil && len(inbox) == 1 && inbox[0].ID == secondID
+	}, "queue overflow to retain newest message")
+
+	rejected := auditor.rejectedForMessage(firstID)
+	if len(rejected) != 1 {
+		t.Fatalf("rejected audit count for dropped message %q = %d, want 1", firstID, len(rejected))
+	}
+	if got, want := rejected[0].reason, "queue_overflow"; got != want {
+		t.Fatalf("rejected audit reason = %q, want %q", got, want)
+	}
+
+	status, err := manager.Status(ctx)
+	if err != nil {
+		t.Fatalf("Status(after overflow) error = %v", err)
+	}
+	if got, want := status.MessagesRejected, int64(1); got != want {
+		t.Fatalf("Status.MessagesRejected = %d, want %d", got, want)
+	}
+}
+
 func TestCleanupSubscriptionHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -1290,6 +1366,19 @@ func (w *recordingAuditWriter) receivedForMessage(messageID string) []auditCall 
 
 	filtered := make([]auditCall, 0)
 	for _, call := range w.received {
+		if call.envelope.ID == messageID {
+			filtered = append(filtered, call)
+		}
+	}
+	return filtered
+}
+
+func (w *recordingAuditWriter) rejectedForMessage(messageID string) []auditCall {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	filtered := make([]auditCall, 0)
+	for _, call := range w.rejected {
 		if call.envelope.ID == messageID {
 			filtered = append(filtered, call)
 		}

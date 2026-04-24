@@ -372,8 +372,15 @@ function BridgeEventStreamSection({
                     <MonoBadge tone="success">ACTIVE</MonoBadge>
                   </div>
                 </TableCell>
-                <TableCell className="text-[13px] text-[color:var(--color-text-primary)]">
-                  {route.agent_name}
+                <TableCell>
+                  <div className="min-w-0">
+                    <div className="text-[13px] text-[color:var(--color-text-primary)]">
+                      {route.agent_name}
+                    </div>
+                    <div className="mt-1 break-all font-mono text-[11px] text-[color:var(--color-text-tertiary)]">
+                      session {route.session_id}
+                    </div>
+                  </div>
                 </TableCell>
                 <TableCell className="font-mono text-[12px] text-[color:var(--color-text-secondary)]">
                   {describeBridgeRouteTarget(route)}
