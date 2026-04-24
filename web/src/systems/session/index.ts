@@ -68,7 +68,6 @@ export {
 } from "./hooks/use-session-actions";
 
 // Components
-export { SessionSidebarItem } from "./components/session-sidebar-item";
 export { ToolCallCard, type ToolCallCardProps } from "./components/tool-call-card";
 export { ChatHeader, type ChatHeaderProps } from "./components/chat-header";
 export {
@@ -76,10 +75,6 @@ export {
   type SessionChatRuntimeProviderProps,
 } from "./components/session-chat-runtime-provider";
 export { ThinkingBlock, type ThinkingBlockProps } from "./components/thinking-block";
-export {
-  ProcessingIndicator,
-  type ProcessingIndicatorProps,
-} from "./components/processing-indicator";
 export { PermissionPrompt, type PermissionPromptProps } from "./components/permission-prompt";
 export {
   SessionInspector,

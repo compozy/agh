@@ -198,4 +198,9 @@ describe("SkillDetailPanel", () => {
     await user.click(screen.getByTestId("retry-view-content-btn"));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
+
+  it("Should not render the legacy CLI placeholder action", () => {
+    renderPanel();
+    expect(screen.queryByTestId("view-in-cli-btn")).not.toBeInTheDocument();
+  });
 });

@@ -1,4 +1,4 @@
-import { AlertCircle, ExternalLink, Loader2, Wrench } from "lucide-react";
+import { AlertCircle, Loader2, Wrench } from "lucide-react";
 
 import {
   Button,
@@ -350,21 +350,6 @@ function SkillDetailPanel({
         <SkillCapabilitiesSection skill={skill} />
         <SkillRecentCallsSection skill={skill} />
       </div>
-
-      <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-[color:var(--color-divider)] px-6 py-4">
-        <Button
-          aria-disabled="true"
-          data-testid="view-in-cli-btn"
-          disabled
-          size="sm"
-          title="CLI deep links are not implemented yet"
-          type="button"
-          variant="ghost"
-        >
-          <ExternalLink className="size-3.5" />
-          View in CLI
-        </Button>
-      </footer>
     </div>
   );
 }

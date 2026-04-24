@@ -528,7 +528,6 @@ function useAutomationTriggersPage() {
     onToggleEnabled: (enabled: boolean) => {
       void handleToggleEnabled(enabled);
     },
-    onTriggerNow: () => undefined,
     runs: triggerRunsQuery.data ?? [],
     runsError: triggerRunsQuery.error,
     runsLoading: triggerRunsQuery.isLoading,

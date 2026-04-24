@@ -62,7 +62,7 @@ interface AutomationDetailPanelProps {
   onDelete: () => void;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
-  onTriggerNow: () => void;
+  onTriggerNow?: () => void;
   runs: AutomationRun[];
   runsError: Error | null;
   runsLoading: boolean;
@@ -431,7 +431,7 @@ export function AutomationDetailPanel({
             >
               {isTogglePending ? "Saving…" : item.enabled ? "Disable" : "Enable"}
             </Button>
-            {isJob ? (
+            {isJob && onTriggerNow ? (
               <Button
                 data-testid="trigger-job-btn"
                 disabled={isTriggerPending}

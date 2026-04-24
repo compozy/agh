@@ -10,7 +10,7 @@ import {
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
     "routes/app/settings/index",
-    "Default settings landing route rendered through the real app shell and settings navigation."
+    "Settings root route redirecting to the default General section inside the real app shell."
   ),
 };
 
@@ -18,10 +18,10 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Settings landing page with the left navigation and placeholder content.
+ * Settings root route resolving to the default General section.
  */
 export const Default: Story = {
   args: {},
-  parameters: appRouteParameters("/settings"),
+  parameters: appRouteParameters("/settings/general"),
   render: () => <StorybookWorkspaceSetup />,
 };
