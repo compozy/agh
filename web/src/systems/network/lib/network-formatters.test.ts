@@ -97,7 +97,14 @@ describe("hasCapabilityDetail", () => {
 });
 
 describe("formatNetworkKindLabel", () => {
-  it("Should keep capability timeline events aligned with the API kind name", () => {
-    expect(formatNetworkKindLabel("capability")).toBe("capability");
+  it.each(["capability", "say", "direct", "trace", "receipt", "greet", "whois"] as const)(
+    "Should keep the %s timeline event aligned with the API kind name",
+    kind => {
+      expect(formatNetworkKindLabel(kind)).toBe(kind);
+    }
+  );
+
+  it("Should preserve unknown kind strings as-is", () => {
+    expect(formatNetworkKindLabel("custom-signal")).toBe("custom-signal");
   });
 });

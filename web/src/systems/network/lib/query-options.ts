@@ -48,13 +48,17 @@ export function networkChannelDetailOptions(channel: string, enabled = true) {
 
 export function networkChannelMessagesOptions(
   channel: string,
-  query: NetworkChannelMessagesQuery = { limit: DEFAULT_TIMELINE_LIMIT },
+  query: NetworkChannelMessagesQuery = {},
   enabled = true
 ) {
+  const normalizedQuery = {
+    ...query,
+    limit: query.limit ?? DEFAULT_TIMELINE_LIMIT,
+  };
+
   return queryOptions({
-    queryKey: networkKeys.channelMessages(channel, query),
-    queryFn: ({ signal }) =>
-      listNetworkChannelMessages(channel, { limit: DEFAULT_TIMELINE_LIMIT, ...query }, signal),
+    queryKey: networkKeys.channelMessages(channel, normalizedQuery),
+    queryFn: ({ signal }) => listNetworkChannelMessages(channel, normalizedQuery, signal),
     staleTime: 2_000,
     refetchInterval: MESSAGES_REFETCH_INTERVAL,
     enabled: Boolean(channel) && enabled,
@@ -83,13 +87,17 @@ export function networkPeerDetailOptions(peerId: string, enabled = true) {
 
 export function networkPeerMessagesOptions(
   peerId: string,
-  query: NetworkPeerMessagesQuery = { limit: DEFAULT_TIMELINE_LIMIT },
+  query: NetworkPeerMessagesQuery = {},
   enabled = true
 ) {
+  const normalizedQuery = {
+    ...query,
+    limit: query.limit ?? DEFAULT_TIMELINE_LIMIT,
+  };
+
   return queryOptions({
-    queryKey: networkKeys.peerMessages(peerId, query),
-    queryFn: ({ signal }) =>
-      listNetworkPeerMessages(peerId, { limit: DEFAULT_TIMELINE_LIMIT, ...query }, signal),
+    queryKey: networkKeys.peerMessages(peerId, normalizedQuery),
+    queryFn: ({ signal }) => listNetworkPeerMessages(peerId, normalizedQuery, signal),
     staleTime: 2_000,
     refetchInterval: MESSAGES_REFETCH_INTERVAL,
     enabled: Boolean(peerId) && enabled,

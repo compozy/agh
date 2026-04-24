@@ -22,6 +22,7 @@ import {
   getMessageAuthorInitial,
   getNetworkKindTone,
   getNetworkMessagePrimaryText,
+  getNetworkStatusTone,
 } from "../lib/network-formatters";
 import type {
   NetworkActiveRoom,
@@ -563,7 +564,7 @@ export function NetworkWorkspaceShell({
               <div className="flex items-center gap-2">
                 <StatusDot
                   pulse={status.status === "running" || status.status === "online"}
-                  tone="success"
+                  tone={getNetworkStatusTone(status.status)}
                 />
                 <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
                   {(status.local_peers ?? 0) + (status.remote_peers ?? 0)} peers

@@ -75,10 +75,7 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json({
-      messages: networkPeerMessagesFixture.map(message => ({
-        ...message,
-        peer_from: message.peer_from === networkPeerFixture.peer_id ? peerId : message.peer_from,
-      })),
+      messages: networkPeerMessagesFixture,
     });
   }),
   http.post("/api/network/channels", async ({ request }) => {
