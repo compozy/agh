@@ -21,9 +21,10 @@ const (
 	// RestartOperationEnvKey carries the restart operation id from the helper to the replacement daemon.
 	RestartOperationEnvKey = "AGH_INTERNAL_RESTART_OPERATION_ID"
 
-	defaultRestartPollInterval = 100 * time.Millisecond
-	defaultRestartReleaseWait  = 15 * time.Second
-	defaultRestartReadyWait    = 20 * time.Second
+	defaultRestartPollInterval  = 100 * time.Millisecond
+	defaultRestartReleaseWait   = 15 * time.Second
+	defaultRestartReadyWait     = 20 * time.Second
+	defaultRestartExitDrainWait = 500 * time.Millisecond
 )
 
 var (
@@ -560,6 +561,7 @@ type RelaunchHelperConfig struct {
 	PollInterval   time.Duration
 	ReleaseTimeout time.Duration
 	ReadyTimeout   time.Duration
+	ExitDrainWait  time.Duration
 }
 
 type relaunchHelper struct {
@@ -592,6 +594,9 @@ func newRelaunchHelper(cfg RelaunchHelperConfig) *relaunchHelper {
 	}
 	if cfg.ReadyTimeout <= 0 {
 		cfg.ReadyTimeout = defaultRestartReadyWait
+	}
+	if cfg.ExitDrainWait <= 0 {
+		cfg.ExitDrainWait = defaultRestartExitDrainWait
 	}
 
 	return &relaunchHelper{
@@ -797,7 +802,7 @@ func (h *relaunchHelper) waitForReady(
 		case <-waitCtx.Done():
 			if exited, err := waitForProcessExitAfterReadyTimeout(
 				processErrCh,
-				h.cfg.PollInterval,
+				h.cfg.ExitDrainWait,
 			); exited {
 				if err != nil {
 					return h.fail(

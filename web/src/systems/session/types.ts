@@ -47,6 +47,22 @@ export interface TokenUsagePayload {
   timestamp?: string;
 }
 
+export interface RuntimeActivityPayload {
+  turn_id?: string;
+  turn_source?: string;
+  turn_started_at?: string | null;
+  last_activity_at?: string | null;
+  last_activity_kind?: string;
+  last_activity_detail?: string;
+  current_tool?: string;
+  tool_call_id?: string;
+  last_progress_at?: string | null;
+  iteration_current?: number;
+  iteration_max?: number;
+  idle_seconds?: number;
+  elapsed_seconds?: number;
+}
+
 export interface AgentEventPayload {
   type: string;
   session_id?: string;
@@ -62,6 +78,7 @@ export interface AgentEventPayload {
   decision?: string;
   error?: string;
   usage?: TokenUsagePayload;
+  runtime?: RuntimeActivityPayload;
   raw?: unknown;
 }
 

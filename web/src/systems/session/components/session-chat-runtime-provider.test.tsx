@@ -57,10 +57,11 @@ function renderSessionThread() {
 }
 
 describe("SessionChatRuntimeProvider", () => {
-  const transcriptMessages = sessionTranscriptFixture.slice(0, 2);
+  let transcriptMessages = sessionTranscriptFixture.slice(0, 2);
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    transcriptMessages = sessionTranscriptFixture.slice(0, 2);
     fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const pathname = getPathname(input);
 
@@ -111,5 +112,39 @@ describe("SessionChatRuntimeProvider", () => {
         );
       })
     ).toHaveLength(2);
+  }, 10_000);
+
+  it("renders runtime progress events as activity notices instead of assistant text", async () => {
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: "transcript_runtime_001",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-agh-event",
+            data: {
+              type: "runtime_progress",
+              text: "Still working",
+              runtime: {
+                turn_id: "turn_001",
+                current_tool: "Bash",
+                elapsed_seconds: 610,
+                idle_seconds: 30,
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("runtime-activity-notice")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("runtime-activity-notice")).toHaveTextContent("Still working");
+    expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent("Using Bash");
   }, 10_000);
 });

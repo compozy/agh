@@ -25,29 +25,30 @@ will fail config loading as an unknown key.
 
 ## Quick Reference
 
-| Section                       | Purpose                                                              | Default                                                    |
-| ----------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `[daemon]`                    | Unix domain socket path for CLI and UDS API traffic.                 | `socket = "$AGH_HOME/daemon.sock"`                         |
-| `[http]`                      | HTTP and SSE bind address.                                           | `host = "localhost"`, `port = 2123`                        |
-| `[defaults]`                  | Default agent and provider resolution.                               | `agent = "general"`, `provider = ""`                       |
-| `[limits]`                    | Daemon-level session and agent caps.                                 | `max_sessions = 10`, `max_concurrent_agents = 20`          |
-| `[session.limits]`            | Session-scoped timeout.                                              | `timeout = "0s"`                                           |
-| `[permissions]`               | Default permission mode.                                             | `mode = "approve-all"`                                     |
-| `[[mcp_servers]]`             | Top-level MCP servers passed to agents.                              | empty list                                                 |
-| `[providers.<name>]`          | Built-in provider override or custom provider definition.            | empty map plus built-ins                                   |
-| `[observability]`             | Event summary retention and global byte cap.                         | enabled, 7 days, 1 GiB                                     |
-| `[observability.transcripts]` | Transcript segment sizing and per-session cap.                       | enabled, 1 MiB segments, 256 MiB per session               |
-| `[log]`                       | Structured log level.                                                | `level = "info"`                                           |
-| `[memory]`                    | Persistent memory runtime and global memory directory.               | enabled, `$AGH_HOME/memory`                                |
-| `[memory.dream]`              | Background memory consolidation.                                     | enabled, agent `general`, 24 hours, 3 sessions, 30 minutes |
-| `[skills]`                    | Skill discovery, polling, disable list, and marketplace trust gates. | enabled, poll every 3 seconds                              |
-| `[skills.marketplace]`        | Skill registry override.                                             | unset                                                      |
-| `[extensions.marketplace]`    | Extension registry override.                                         | unset                                                      |
-| `[automation]`                | Automation scheduler defaults.                                       | enabled, UTC, 5 concurrent jobs                            |
-| `[[automation.jobs]]`         | Scheduled automation jobs.                                           | empty list                                                 |
-| `[[automation.triggers]]`     | Event-driven automation triggers.                                    | empty list                                                 |
-| `[[hooks.declarations]]`      | Config-defined runtime hooks.                                        | empty list                                                 |
-| `[network]`                   | Experimental AGH network runtime.                                    | enabled, channel `default`                                 |
+| Section                       | Purpose                                                                         | Default                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `[daemon]`                    | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                |
+| `[http]`                      | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                               |
+| `[defaults]`                  | Default agent and provider resolution.                                          | `agent = "general"`, `provider = ""`                                              |
+| `[limits]`                    | Daemon-level session and agent caps.                                            | `max_sessions = 10`, `max_concurrent_agents = 20`                                 |
+| `[session.limits]`            | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                  |
+| `[session.supervision]`       | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes |
+| `[permissions]`               | Default permission mode.                                                        | `mode = "approve-all"`                                                            |
+| `[[mcp_servers]]`             | Top-level MCP servers passed to agents.                                         | empty list                                                                        |
+| `[providers.<name>]`          | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                          |
+| `[observability]`             | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                            |
+| `[observability.transcripts]` | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                      |
+| `[log]`                       | Structured log level.                                                           | `level = "info"`                                                                  |
+| `[memory]`                    | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                       |
+| `[memory.dream]`              | Background memory consolidation.                                                | enabled, agent `general`, 24 hours, 3 sessions, 30 minutes                        |
+| `[skills]`                    | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                     |
+| `[skills.marketplace]`        | Skill registry override.                                                        | unset                                                                             |
+| `[extensions.marketplace]`    | Extension registry override.                                                    | unset                                                                             |
+| `[automation]`                | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                   |
+| `[[automation.jobs]]`         | Scheduled automation jobs.                                                      | empty list                                                                        |
+| `[[automation.triggers]]`     | Event-driven automation triggers.                                               | empty list                                                                        |
+| `[[hooks.declarations]]`      | Config-defined runtime hooks.                                                   | empty list                                                                        |
+| `[network]`                   | Experimental AGH network runtime.                                               | enabled, channel `default`                                                        |
 
 ## Load And Merge Order
 
@@ -93,8 +94,20 @@ max_sessions = 10
 max_concurrent_agents = 20
 
 [session.limits]
-# 0 means no configured timeout. Use Go durations such as "30m" or "2h".
+# 0 means no configured wall-clock timeout. Use Go durations such as "30m" or "2h".
 timeout = "0s"
+
+[session.supervision]
+# Short heartbeats update durable liveness only. They are not persisted as session events.
+activity_heartbeat_interval = "30s"
+# 0 disables periodic progress events.
+progress_notify_interval = "10m"
+# 0 disables inactivity warnings.
+inactivity_warning_after = "15m"
+# 0 disables inactivity timeout.
+inactivity_timeout = "30m"
+# Grace period after cooperative prompt cancel before AGH stops the session as timeout.
+timeout_cancel_grace = "30s"
 
 [permissions]
 # Valid values: deny-all, approve-reads, approve-all.
@@ -247,9 +260,26 @@ max_queue_depth = 100
 
 ## `[session.limits]`
 
-| Field     | Type     | Default | Valid values                  | Description                                              |
-| --------- | -------- | ------- | ----------------------------- | -------------------------------------------------------- |
-| `timeout` | duration | `0s`    | Zero or positive Go duration. | Session-level timeout. Zero means no configured timeout. |
+| Field     | Type     | Default | Valid values                  | Description                                                                    |
+| --------- | -------- | ------- | ----------------------------- | ------------------------------------------------------------------------------ |
+| `timeout` | duration | `0s`    | Zero or positive Go duration. | Session-level wall-clock timeout. Zero means no configured wall-clock timeout. |
+
+## `[session.supervision]`
+
+Session supervision keeps long-running prompts observable without turning every heartbeat into a
+stored event. AGH updates session metadata on short heartbeats and only writes durable events for
+lower-frequency progress, warnings, and timeout classification.
+
+This timeout is based on inactivity, not total runtime. A prompt can run for hours as long as AGH
+continues to observe runtime activity or controlled waiting heartbeats.
+
+| Field                         | Type     | Default | Valid values                  | Description                                                                                   |
+| ----------------------------- | -------- | ------- | ----------------------------- | --------------------------------------------------------------------------------------------- |
+| `activity_heartbeat_interval` | duration | `30s`   | Positive Go duration.         | Cadence for metadata-only activity heartbeats while a prompt is waiting on ACP/provider work. |
+| `progress_notify_interval`    | duration | `10m`   | Zero or positive Go duration. | Cadence for persisted `runtime_progress` events. Zero disables periodic progress events.      |
+| `inactivity_warning_after`    | duration | `15m`   | Zero or positive Go duration. | Idle age before AGH emits one `runtime_warning`. Zero disables the warning.                   |
+| `inactivity_timeout`          | duration | `30m`   | Zero or positive Go duration. | Idle age before AGH cancels the prompt cooperatively. Zero disables inactivity timeout.       |
+| `timeout_cancel_grace`        | duration | `30s`   | Positive Go duration.         | Grace period after timeout cancel before AGH stops the session with stop reason `timeout`.    |
 
 ## `[permissions]`
 

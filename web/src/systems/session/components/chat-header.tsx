@@ -15,6 +15,7 @@ import {
 } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
+import { SessionActivityInline } from "./runtime-activity-notice";
 import type { SessionPayload, SessionState } from "../types";
 
 export interface ChatHeaderProps {
@@ -130,6 +131,8 @@ export function ChatHeader({
               </MonoBadge>
             </>
           ) : null}
+
+          <SessionActivityInline activity={session.activity} />
         </div>
 
         <div className="flex shrink-0 items-center gap-1">

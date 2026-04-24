@@ -23,7 +23,11 @@ export function sessionDetailOptions(id: string) {
   return queryOptions({
     queryKey: sessionKeys.detail(id),
     queryFn: ({ signal }) => fetchSession(id, signal),
-    staleTime: 5_000,
+    refetchInterval: query => {
+      const state = query.state.data?.state;
+      return state === "active" || state === "starting" || state === "stopping" ? 5_000 : false;
+    },
+    staleTime: 2_000,
     enabled: !!id,
   });
 }

@@ -4,9 +4,10 @@ import { AlertCircle, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { PermissionPrompt } from "../components/permission-prompt";
+import { RuntimeActivityNotice } from "../components/runtime-activity-notice";
 import { ToolCallCard } from "../components/tool-call-card";
 import { isAgentEventPayload, parseToolUseResult, toPermissionRequest } from "./message-parts";
-import type { AghPermissionData, UIMessage } from "../types";
+import type { AgentEventPayload, AghPermissionData, UIMessage } from "../types";
 
 type SessionToolPartProps = ToolCallMessagePartProps<Record<string, unknown>, unknown>;
 
@@ -98,5 +99,12 @@ export function createAghPermissionDataUI(sessionId: string) {
     render: ({ data }) => (
       <PermissionPrompt permission={toPermissionRequest(data)} sessionId={sessionId} />
     ),
+  });
+}
+
+export function createAghEventDataUI() {
+  return makeAssistantDataUI<AgentEventPayload>({
+    name: "agh-event",
+    render: ({ data }) => <RuntimeActivityNotice event={data} />,
   });
 }

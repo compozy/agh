@@ -36,3 +36,13 @@ Example:
 ```bash
 agh observe health -o json
 ```
+
+The JSON payload includes active runtime supervision state in `activities` when sessions have an
+active prompt turn. Each activity row reports the session ID, turn ID, last activity age, current
+tool when known, stall state, and whether the session is healthy, warning, or stalled.
+
+Use this when watching long-running sessions from automation:
+
+```bash
+agh observe health -o json | jq '.activities[] | {session_id, status, current_tool, idle_seconds}'
+```

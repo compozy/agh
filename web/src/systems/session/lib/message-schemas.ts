@@ -34,6 +34,23 @@ const aghEventDataSchema = z
         timestamp: z.string().optional(),
       })
       .optional(),
+    runtime: z
+      .object({
+        turn_id: z.string().optional(),
+        turn_source: z.string().optional(),
+        turn_started_at: z.string().nullable().optional(),
+        last_activity_at: z.string().nullable().optional(),
+        last_activity_kind: z.string().optional(),
+        last_activity_detail: z.string().optional(),
+        current_tool: z.string().optional(),
+        tool_call_id: z.string().optional(),
+        last_progress_at: z.string().nullable().optional(),
+        iteration_current: z.number().optional(),
+        iteration_max: z.number().optional(),
+        idle_seconds: z.number().optional(),
+        elapsed_seconds: z.number().optional(),
+      })
+      .optional(),
     raw: z.unknown().optional(),
   })
   .passthrough();

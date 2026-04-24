@@ -2,12 +2,22 @@ import { useMemo, type ReactNode } from "react";
 import { AssistantRuntimeProvider, DataRenderers, Tools, useAui } from "@assistant-ui/react";
 
 import { useSessionChatRuntime } from "../hooks/use-session-chat-runtime";
-import { createAghPermissionDataUI, sessionToolkit } from "../lib/session-toolkit";
+import {
+  createAghEventDataUI,
+  createAghPermissionDataUI,
+  sessionToolkit,
+} from "../lib/session-toolkit";
 
 function SessionRuntimeExtensions({ sessionId }: { sessionId: string }) {
   const PermissionDataUI = useMemo(() => createAghPermissionDataUI(sessionId), [sessionId]);
+  const EventDataUI = useMemo(() => createAghEventDataUI(), []);
 
-  return <PermissionDataUI />;
+  return (
+    <>
+      <PermissionDataUI />
+      <EventDataUI />
+    </>
+  );
 }
 
 export interface SessionChatRuntimeProviderProps {
