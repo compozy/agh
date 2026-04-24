@@ -127,7 +127,11 @@ func (m *Manager) resolveWorkspaceSessionAgent(
 	provider string,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 ) (aghconfig.ResolvedAgent, error) {
-	return resolveWorkspaceSessionAgent(agentName, provider, resolvedWorkspace, m.agentResolver)
+	var resolver AgentResolver
+	if m != nil {
+		resolver = m.agentResolver
+	}
+	return resolveWorkspaceSessionAgent(agentName, provider, resolvedWorkspace, resolver)
 }
 
 func resolveWorkspaceSessionAgent(
@@ -136,6 +140,10 @@ func resolveWorkspaceSessionAgent(
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 	agentResolver AgentResolver,
 ) (aghconfig.ResolvedAgent, error) {
+	if resolvedWorkspace == nil {
+		return aghconfig.ResolvedAgent{}, errors.New("session: resolved workspace is required")
+	}
+
 	var (
 		agentDef aghconfig.AgentDef
 		err      error

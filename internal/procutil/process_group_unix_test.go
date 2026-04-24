@@ -18,7 +18,7 @@ func TestJoinProcessGroupKillResult(t *testing.T) {
 		signalErr error
 		waitErr   error
 		wantNil   bool
-		wantIs    error
+		wantIs    []error
 	}{
 		{
 			name:      "Should suppress EPERM when wait succeeds",
@@ -29,12 +29,18 @@ func TestJoinProcessGroupKillResult(t *testing.T) {
 			name:      "Should preserve wait failure when signal returns EPERM",
 			signalErr: fmt.Errorf("signal process group (pid 123, sig killed): %w", syscall.EPERM),
 			waitErr:   waitErr,
-			wantIs:    waitErr,
+			wantIs:    []error{waitErr},
 		},
 		{
 			name:      "Should preserve non-EPERM signal failure",
 			signalErr: fmt.Errorf("signal process group members: %w", syscall.ESRCH),
-			wantIs:    syscall.ESRCH,
+			wantIs:    []error{syscall.ESRCH},
+		},
+		{
+			name:      "Should join non-EPERM signal failure with wait failure",
+			signalErr: fmt.Errorf("signal process group members: %w", syscall.ESRCH),
+			waitErr:   waitErr,
+			wantIs:    []error{syscall.ESRCH, waitErr},
 		},
 	}
 
@@ -49,8 +55,10 @@ func TestJoinProcessGroupKillResult(t *testing.T) {
 				}
 				return
 			}
-			if !errors.Is(err, tc.wantIs) {
-				t.Fatalf("joinProcessGroupKillResult() error = %v, want wrapped %v", err, tc.wantIs)
+			for _, wantErr := range tc.wantIs {
+				if !errors.Is(err, wantErr) {
+					t.Fatalf("joinProcessGroupKillResult() error = %v, want wrapped %v", err, wantErr)
+				}
 			}
 		})
 	}

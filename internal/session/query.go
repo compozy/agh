@@ -193,10 +193,6 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
 	return recorder, cleanup, nil
 }
 
-func (m *Manager) readMeta(id string) (store.SessionMeta, error) {
-	return m.readMetaWithContext(context.Background(), id)
-}
-
 func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.SessionMeta, error) {
 	target, err := normalizeStoredSessionID(id)
 	if err != nil {

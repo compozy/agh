@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -32,7 +33,9 @@ func TestCreateWithProviderOverridePropagatesToSessionRuntime(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
+			t.Fatalf("cleanup Stop(%q) error = %v", session.ID, stopErr)
+		}
 	})
 
 	if got := session.Info().Provider; got != "codex" {
@@ -60,6 +63,9 @@ func TestCreateWithInvalidProviderFailsBeforePersistenceAndLogs(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("Create() error = nil, want invalid provider failure")
+	}
+	if !errors.Is(err, aghconfig.ErrProviderUnavailable) {
+		t.Fatalf("Create() error = %v, want ErrProviderUnavailable", err)
 	}
 	if !strings.Contains(err.Error(), "missing-provider") {
 		t.Fatalf("Create() error = %q, want missing provider detail", err.Error())
@@ -205,6 +211,9 @@ func TestResumeFailsWhenPersistedProviderUnavailable(t *testing.T) {
 	_, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err == nil {
 		t.Fatal("Resume() error = nil, want unavailable provider failure")
+	}
+	if !errors.Is(err, aghconfig.ErrProviderUnavailable) {
+		t.Fatalf("Resume() error = %v, want ErrProviderUnavailable", err)
 	}
 	if !strings.Contains(err.Error(), session.ID) {
 		t.Fatalf("Resume() error = %q, want session id detail", err.Error())

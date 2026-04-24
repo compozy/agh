@@ -550,11 +550,11 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	if _, err := h.manager.readMeta("   "); err == nil {
+	if _, err := h.manager.readMetaWithContext(testutil.Context(t), "   "); err == nil {
 		t.Fatal("readMeta(blank) error = nil, want non-nil")
 	}
-	if _, err := h.manager.readMeta("missing"); !errors.Is(err, ErrSessionNotFound) {
-		t.Fatalf("readMeta(missing) error = %v, want ErrSessionNotFound", err)
+	if _, err := h.manager.readMetaWithContext(testutil.Context(t), "missing"); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("readMetaWithContext(missing) error = %v, want ErrSessionNotFound", err)
 	}
 
 	invalidDir := filepath.Join(h.homePaths.SessionsDir, "invalid")
@@ -564,8 +564,8 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	if err := os.WriteFile(store.SessionMetaFile(invalidDir), []byte("{"), 0o644); err != nil {
 		t.Fatalf("WriteFile(invalid meta) error = %v", err)
 	}
-	if _, err := h.manager.readMeta("invalid"); err == nil {
-		t.Fatal("readMeta(invalid) error = nil, want non-nil")
+	if _, err := h.manager.readMetaWithContext(testutil.Context(t), "invalid"); err == nil {
+		t.Fatal("readMetaWithContext(invalid) error = nil, want non-nil")
 	}
 
 	acpID := "  acp-123  "

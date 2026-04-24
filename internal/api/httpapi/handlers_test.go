@@ -939,9 +939,13 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 	if response.Skills[0].Name != "review" {
 		t.Fatalf("skill name = %q, want review", response.Skills[0].Name)
 	}
-	expectedProviders := core.SessionProviderOptionPayloadsFromConfig(&resolved.Config)
-	if !slices.Equal(response.Providers, expectedProviders) {
-		t.Fatalf("providers = %#v, want %#v", response.Providers, expectedProviders)
+	providerNames := make([]string, 0, len(response.Providers))
+	for _, provider := range response.Providers {
+		providerNames = append(providerNames, provider.Name)
+	}
+	expectedNames := []string{"alpha", "claude", "codex", "copilot", "cursor", "gemini", "kiro", "opencode", "pi"}
+	if !slices.Equal(providerNames, expectedNames) {
+		t.Fatalf("provider names = %#v, want %#v", providerNames, expectedNames)
 	}
 }
 

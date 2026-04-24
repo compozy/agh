@@ -706,6 +706,47 @@ func TestManagerIntegrationSyntheticQueueStateTransitions(t *testing.T) {
 	})
 }
 
+func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
+	t.Run("Should reject a nil resolved workspace", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := resolveWorkspaceSessionAgent("coder", "", nil, nil)
+		if err == nil {
+			t.Fatal("resolveWorkspaceSessionAgent(nil workspace) error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "resolved workspace is required") {
+			t.Fatalf("resolveWorkspaceSessionAgent(nil workspace) error = %v", err)
+		}
+	})
+
+	t.Run("Should allow a nil manager receiver when a workspace is provided", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		resolvedWorkspace := &workspacepkg.ResolvedWorkspace{
+			Config: aghconfig.DefaultWithHome(homePaths),
+			Agents: []aghconfig.AgentDef{{
+				Name:     "coder",
+				Provider: "claude",
+				Prompt:   "You are a coding assistant.",
+			}},
+		}
+
+		var manager *Manager
+		resolved, err := manager.resolveWorkspaceSessionAgent("coder", "", resolvedWorkspace)
+		if err != nil {
+			t.Fatalf("resolveWorkspaceSessionAgent(nil manager) error = %v", err)
+		}
+		if got, want := resolved.Provider, "claude"; got != want {
+			t.Fatalf("resolveWorkspaceSessionAgent(nil manager) provider = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeACPStart(t *testing.T) {
 	h := newHarness(t)
 	networkSkill, err := bundled.LoadContent(testBundledNetworkSkillName)
