@@ -21,6 +21,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   ConnectionIndicator,
+  Logo,
   type ConnectionStatus,
   Sidebar,
   StatusDot,
@@ -51,14 +52,9 @@ function RailSlot({
         to="/"
         aria-label="Go to dashboard"
         data-testid="app-logo"
-        className="mb-1 inline-flex size-7 items-center justify-center rounded-md bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)] transition-colors hover:bg-[color:var(--color-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-canvas-deep)]"
+        className="mb-1 inline-flex size-7 items-center justify-center rounded-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-canvas-deep)]"
       >
-        <span
-          aria-hidden="true"
-          className="font-wordmark text-[18px] leading-none tracking-[-0.02em]"
-        >
-          a
-        </span>
+        <Logo variant="symbol" decorative className="size-7" />
       </Link>
       {workspaces?.map(workspace => {
         const isActive = workspace.id === activeWorkspaceId;

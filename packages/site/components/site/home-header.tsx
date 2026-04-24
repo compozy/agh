@@ -1,10 +1,9 @@
 "use client";
 
-import { buttonVariants, cn } from "@agh/ui";
+import { Logo, buttonVariants, cn } from "@agh/ui";
 import { usePathname } from "fumadocs-core/framework";
 import { useHomeLayout } from "fumadocs-ui/layouts/home";
 import Link from "next/link";
-import { Logo } from "@/components/logo";
 import { baseOptions } from "@/lib/layout.shared";
 import type { ComponentProps } from "react";
 
@@ -49,8 +48,8 @@ export function HomeHeader(props: ComponentProps<"header">) {
       )}
     >
       <div className="mx-auto flex h-14 w-full max-w-(--site-layout-width) items-center gap-3 lg:gap-5">
-        <Link href="/" className="shrink-0">
-          <Logo />
+        <Link href="/" aria-label="AGH home" className="shrink-0">
+          <Logo variant="logo" decorative className="h-8 w-auto" />
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">

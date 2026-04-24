@@ -46,6 +46,7 @@ export {
 } from "./components/table";
 export { Kbd, KbdGroup } from "./components/kbd";
 export { UIProvider, type UIProviderProps } from "./components/ui-provider";
+export { Logo, type LogoProps, type LogoVariant } from "./components/logo";
 export {
   Dialog,
   DialogClose,

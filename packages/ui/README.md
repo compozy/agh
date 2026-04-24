@@ -42,6 +42,7 @@ Provider plumbing, typography atoms, and the `cn` class-merger.
 | `UIProvider` · `UIProviderProps`     | [`ui-provider.stories.tsx`](./src/components/stories/ui-provider.stories.tsx) | Root `MotionConfig` wrapper. Sets `reducedMotion="user"` by default and `transition={{ duration: 0.15, ease: "easeOut" }}`. |
 | `DirectionProvider` · `useDirection` | [`direction.stories.tsx`](./src/components/stories/direction.stories.tsx)     | RTL/LTR direction context for downstream primitives.                                                                        |
 | `cn`                                 | —                                                                             | `clsx` + `tailwind-merge` wrapper. Always compose classnames through `cn` so Tailwind conflicts collapse deterministically. |
+| `Logo` · `LogoProps` · `LogoVariant` | [`logo.stories.tsx`](./src/components/stories/logo.stories.tsx)               | AGH brand mark with `logo`, `symbol`, and `lettering` variants plus accessible/decorative modes.                            |
 | `Label`                              | [`label.stories.tsx`](./src/components/stories/label.stories.tsx)             | Form-label atom.                                                                                                            |
 | `Separator`                          | [`separator.stories.tsx`](./src/components/stories/separator.stories.tsx)     | 1px hairline — `--color-divider`.                                                                                           |
 

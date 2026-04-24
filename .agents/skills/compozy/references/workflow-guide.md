@@ -63,27 +63,28 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 3. Review the proposed task breakdown.
 4. Task files are generated with YAML frontmatter: `status`, `title`, `type`, `complexity`, `dependencies`.
 5. Tasks are enriched with codebase patterns and implementation context.
-6. Validation runs via `compozy validate-tasks`.
+6. Validation runs via `compozy tasks validate`.
 7. Output: `task_01.md` through `task_N.md`, `_tasks.md` master list.
 
 **Task types:** `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`. Custom types can be registered in `.compozy/config.toml` under `[tasks].types`.
 
 ## Phase 5: Execution
 
-**Command:** `compozy start --name <slug> --ide <runtime>`
+**Command:** `compozy tasks run <slug> --ide <runtime>`
 
 1. Compozy reads task files from `.compozy/tasks/<slug>/` in order, respecting dependencies.
-2. For each pending task, Compozy constructs a prompt including the task spec, PRD, TechSpec, ADRs, and workflow memory.
-3. The configured ACP runtime executes the task using the `cy-execute-task` skill.
-4. Each task: read spec -> implement -> validate with `cy-final-verify` -> update tracking -> optional commit.
-5. Workflow memory is maintained across tasks via `cy-workflow-memory`.
+2. The CLI auto-starts the home-scoped daemon when needed and starts the run through daemon transport.
+3. For each pending task, Compozy constructs a prompt including the task spec, PRD, TechSpec, ADRs, and workflow memory.
+4. The configured ACP runtime executes the task using the `cy-execute-task` skill.
+5. Each task: read spec -> implement -> validate with `cy-final-verify` -> update tracking -> optional commit.
+6. Workflow memory is maintained across tasks via `cy-workflow-memory`.
 
 **Key flags:**
 - `--auto-commit` -- create a local commit after each task completes cleanly.
 - `--dry-run` -- generate prompts without running the IDE tool.
 - `--include-completed` -- re-process tasks already marked as completed.
 
-**Interactive mode:** When run without flags, an interactive TUI form collects the workflow name, IDE, and options.
+**Interactive mode:** In interactive terminals, `tasks run` attaches to the TUI by default; use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior.
 
 ## Phase 6: Review
 
@@ -97,7 +98,7 @@ Invoke inside an agent session. The skill performs a comprehensive code review o
 
 ### Path B: External Provider Review
 
-**Command:** `compozy fetch-reviews --provider coderabbit --pr <N> --name <slug>`
+**Command:** `compozy reviews fetch <slug> --provider coderabbit --pr <N>`
 
 Fetches review comments from an external provider (currently CodeRabbit) and writes them as issue markdown files under `reviews-NNN/`.
 
@@ -105,7 +106,7 @@ Fetches review comments from an external provider (currently CodeRabbit) and wri
 
 ## Phase 7: Remediation
 
-**Command:** `compozy fix-reviews --name <slug> --ide <runtime>`
+**Command:** `compozy reviews fix <slug> --ide <runtime>`
 
 1. Compozy reads issue files from the latest (or specified) review round.
 2. For each batch of issues, the configured ACP runtime executes the `cy-fix-reviews` skill.
@@ -125,7 +126,7 @@ Fetches review comments from an external provider (currently CodeRabbit) and wri
 
 Moves fully completed workflows from `.compozy/tasks/<slug>/` to `.compozy/tasks/_archived/<timestamp>-<slug>/`.
 
-**Eligibility:** All task files must be completed, and all review round `_meta.md` files must be fully resolved.
+**Eligibility:** Run `compozy sync` first. Archive eligibility is computed from synced daemon state: all task items must be completed and all synced review issues must be resolved.
 
 ## Ad Hoc Execution
 

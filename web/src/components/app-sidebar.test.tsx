@@ -133,9 +133,14 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("workspace-avatar-ws_beta")).toHaveTextContent("B");
     });
 
-    it("renders the app logo with accent background", () => {
+    it("renders the shared app symbol logo", () => {
       renderSidebar(makeProps());
-      expect(screen.getByTestId("app-logo").className).toContain("bg-[color:var(--color-accent)]");
+      const link = screen.getByTestId("app-logo");
+      const logo = link.querySelector('[data-slot="logo"]');
+
+      expect(logo).not.toBeNull();
+      expect(logo).toHaveAttribute("data-variant", "symbol");
+      expect(logo).toHaveAttribute("viewBox", "0 0 355 355");
     });
 
     it("links the app logo back to the dashboard", () => {
