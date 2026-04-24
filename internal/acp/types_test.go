@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -89,52 +90,144 @@ func TestEndPromptClearsActivePromptWhileEmitterIsBackpressured(t *testing.T) {
 func TestEmitPromptEventDefersToolResultUntilToolCall(t *testing.T) {
 	t.Parallel()
 
-	proc := &AgentProcess{}
-	active, err := proc.beginPrompt("turn-1", 4)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
+	t.Run("Should defer tool results until the tool call", func(t *testing.T) {
+		t.Parallel()
 
-	proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-1"})
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-1", 4)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
 
-	select {
-	case event := <-active.events:
-		t.Fatalf("deferred tool result emitted early: %#v", event)
-	default:
-	}
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-1"})
 
-	proc.emitPromptEvent(AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1"})
+		select {
+		case event := <-active.events:
+			t.Fatalf("deferred tool result emitted early: %#v", event)
+		default:
+		}
 
-	first := <-active.events
-	if first.Type != EventTypeToolCall {
-		t.Fatalf("first event = %q, want %q", first.Type, EventTypeToolCall)
-	}
-	second := <-active.events
-	if second.Type != EventTypeToolResult {
-		t.Fatalf("second event = %q, want %q", second.Type, EventTypeToolResult)
-	}
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1"})
+
+		first := <-active.events
+		if first.Type != EventTypeToolCall {
+			t.Fatalf("first event = %q, want %q", first.Type, EventTypeToolCall)
+		}
+		second := <-active.events
+		if second.Type != EventTypeToolResult {
+			t.Fatalf("second event = %q, want %q", second.Type, EventTypeToolResult)
+		}
+	})
 }
 
 func TestEmitPromptEventFlushesDeferredToolResultsBeforeDone(t *testing.T) {
 	t.Parallel()
 
-	proc := &AgentProcess{}
-	active, err := proc.beginPrompt("turn-1", 4)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
+	t.Run("Should flush deferred tool results before done", func(t *testing.T) {
+		t.Parallel()
 
-	proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-1"})
-	proc.emitPromptEvent(AgentEvent{Type: EventTypeDone, TurnID: "turn-1"})
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-1", 4)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
 
-	first := <-active.events
-	if first.Type != EventTypeToolResult {
-		t.Fatalf("first event = %q, want %q", first.Type, EventTypeToolResult)
-	}
-	second := <-active.events
-	if second.Type != EventTypeDone {
-		t.Fatalf("second event = %q, want %q", second.Type, EventTypeDone)
-	}
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-1"})
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeDone, TurnID: "turn-1"})
+
+		first := <-active.events
+		if first.Type != EventTypeToolResult {
+			t.Fatalf("first event = %q, want %q", first.Type, EventTypeToolResult)
+		}
+		second := <-active.events
+		if second.Type != EventTypeDone {
+			t.Fatalf("second event = %q, want %q", second.Type, EventTypeDone)
+		}
+	})
+}
+
+func TestEmitPromptEventDeferredToolResultsStayBounded(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should dedupe deferred tool results by tool call id", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-1", 8)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-1"})
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-1"})
+
+		if got, want := len(active.pendingToolResults), 1; got != want {
+			t.Fatalf("len(active.pendingToolResults) = %d, want %d", got, want)
+		}
+
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-1"})
+
+		first := <-active.events
+		if first.Type != EventTypeToolCall {
+			t.Fatalf("first event = %q, want %q", first.Type, EventTypeToolCall)
+		}
+		second := <-active.events
+		if second.Type != EventTypeToolResult {
+			t.Fatalf("second event = %q, want %q", second.Type, EventTypeToolResult)
+		}
+
+		select {
+		case event := <-active.events:
+			t.Fatalf("unexpected extra deferred event = %#v", event)
+		default:
+		}
+	})
+
+	t.Run("Should drop the oldest deferred tool result when the cap is reached", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{}
+		active, err := proc.beginPrompt("turn-1", maxPendingToolResults*2)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+
+		for i := 0; i <= maxPendingToolResults; i++ {
+			toolCallID := "tool-" + strconv.Itoa(i)
+			proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: toolCallID})
+		}
+
+		if got, want := len(active.pendingToolResults), maxPendingToolResults; got != want {
+			t.Fatalf("len(active.pendingToolResults) = %d, want %d", got, want)
+		}
+		if _, ok := active.pendingToolResultIDs["tool-0"]; ok {
+			t.Fatal("oldest deferred tool result remained buffered after the cap was exceeded")
+		}
+		if _, ok := active.pendingToolResultIDs["tool-128"]; !ok {
+			t.Fatal("newest deferred tool result was not retained after the cap was exceeded")
+		}
+
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-0"})
+		event := <-active.events
+		if event.Type != EventTypeToolCall {
+			t.Fatalf("oldest tool call event = %q, want %q", event.Type, EventTypeToolCall)
+		}
+		select {
+		case event := <-active.events:
+			t.Fatalf("dropped oldest tool result was still emitted: %#v", event)
+		default:
+		}
+
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-128"})
+		first := <-active.events
+		if first.Type != EventTypeToolCall {
+			t.Fatalf("newest tool call event = %q, want %q", first.Type, EventTypeToolCall)
+		}
+		second := <-active.events
+		if second.Type != EventTypeToolResult {
+			t.Fatalf("newest tool result event = %q, want %q", second.Type, EventTypeToolResult)
+		}
+	})
 }
 
 func TestLockedBufferRetainsOnlyTheLatestBytes(t *testing.T) {

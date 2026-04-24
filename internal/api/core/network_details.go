@@ -27,6 +27,7 @@ type networkChannelAggregate struct {
 	sessionCount       int
 	messageCount       int
 	lastActivityAt     *time.Time
+	lastMessageAt      *time.Time
 	lastMessagePreview string
 }
 
@@ -542,6 +543,7 @@ func applyNetworkChannelMessages(
 		aggregate := ensureNetworkChannelAggregate(aggregates, message.Channel)
 		aggregate.messageCount++
 		aggregate.lastActivityAt = laterTimePtr(aggregate.lastActivityAt, message.Timestamp)
+		aggregate.lastMessageAt = laterTimePtr(aggregate.lastMessageAt, message.Timestamp)
 		if preview := networkMessagePreview(message); preview != "" && aggregateMessageIsLatest(aggregate, message) {
 			aggregate.lastMessagePreview = preview
 		}
@@ -553,8 +555,8 @@ func aggregateMessageIsLatest(
 	message store.NetworkMessageEntry,
 ) bool {
 	return aggregate != nil &&
-		aggregate.lastActivityAt != nil &&
-		message.Timestamp.Equal(aggregate.lastActivityAt.UTC())
+		aggregate.lastMessageAt != nil &&
+		message.Timestamp.Equal(aggregate.lastMessageAt.UTC())
 }
 
 func statusForCreateNetworkChannelError(err error) int {

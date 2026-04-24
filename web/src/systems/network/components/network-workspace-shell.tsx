@@ -281,10 +281,10 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
                 Execution Outline
               </span>
               <div className="space-y-1">
-                {readStringList(capability, "execution_outline").map(step => (
+                {readStringList(capability, "execution_outline").map((step, stepIndex) => (
                   <p
                     className="text-[12px] leading-5 text-[color:var(--color-text-secondary)]"
-                    key={step}
+                    key={`${stepIndex}-${step}`}
                   >
                     {step}
                   </p>

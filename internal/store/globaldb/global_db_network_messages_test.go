@@ -143,13 +143,23 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 			Timestamp:   recordedAt,
 		},
 		{
-			MessageID:   "msg-2",
+			MessageID:   "msg-2a",
 			Channel:     "builders",
 			Direction:   "sent",
 			PeerFrom:    "peer-a",
 			Kind:        "say",
-			PreviewText: "two",
-			Body:        []byte(`{"text":"two"}`),
+			PreviewText: "two a",
+			Body:        []byte(`{"text":"two a"}`),
+			Timestamp:   recordedAt.Add(time.Minute),
+		},
+		{
+			MessageID:   "msg-2b",
+			Channel:     "builders",
+			Direction:   "sent",
+			PeerFrom:    "peer-a",
+			Kind:        "say",
+			PreviewText: "two b",
+			Body:        []byte(`{"text":"two b"}`),
 			Timestamp:   recordedAt.Add(time.Minute),
 		},
 		{
@@ -183,7 +193,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 
 	before, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
 		Channel:         "builders",
-		BeforeMessageID: "msg-3",
+		BeforeMessageID: "msg-2b",
 		Limit:           10,
 	})
 	if err != nil {
@@ -195,13 +205,13 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 	if got, want := before[0].MessageID, "msg-1"; got != want {
 		t.Fatalf("before[0].MessageID = %q, want %q", got, want)
 	}
-	if got, want := before[1].MessageID, "msg-2"; got != want {
+	if got, want := before[1].MessageID, "msg-2a"; got != want {
 		t.Fatalf("before[1].MessageID = %q, want %q", got, want)
 	}
 
 	after, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
 		Channel:        "builders",
-		AfterMessageID: "msg-1",
+		AfterMessageID: "msg-2a",
 		Limit:          10,
 	})
 	if err != nil {
@@ -210,7 +220,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 	if got, want := len(after), 2; got != want {
 		t.Fatalf("len(after) = %d, want %d", got, want)
 	}
-	if got, want := after[0].MessageID, "msg-2"; got != want {
+	if got, want := after[0].MessageID, "msg-2b"; got != want {
 		t.Fatalf("after[0].MessageID = %q, want %q", got, want)
 	}
 	if got, want := after[1].MessageID, "msg-3"; got != want {

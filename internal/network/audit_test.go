@@ -143,6 +143,8 @@ func TestAuditWriterRecordsDeliveredDirection(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should record delivered direction in the audit sink", func(t *testing.T) {
+		t.Parallel()
+
 		storeSink := &recordingAuditStore{}
 		writer, err := NewAuditWriter("", storeSink)
 		if err != nil {
@@ -165,6 +167,8 @@ func TestAuditWriterPersistsTimelineMessagesForRenderableEnvelopes(t *testing.T)
 	t.Parallel()
 
 	t.Run("Should persist sent say envelopes to the timeline store", func(t *testing.T) {
+		t.Parallel()
+
 		storeSink := &recordingAuditStore{}
 		writer, err := NewAuditWriter("", storeSink)
 		if err != nil {
@@ -192,6 +196,8 @@ func TestAuditWriterPersistsTimelineMessagesForRenderableEnvelopes(t *testing.T)
 	})
 
 	t.Run("Should persist received say envelopes to the timeline store", func(t *testing.T) {
+		t.Parallel()
+
 		storeSink := &recordingAuditStore{}
 		writer, err := NewAuditWriter("", storeSink)
 		if err != nil {
@@ -216,6 +222,8 @@ func TestAuditWriterPersistsTimelineMessagesForRenderableEnvelopes(t *testing.T)
 	})
 
 	t.Run("Should persist direct envelopes with addressing metadata", func(t *testing.T) {
+		t.Parallel()
+
 		storeSink := &recordingAuditStore{}
 		writer, err := NewAuditWriter("", storeSink)
 		if err != nil {

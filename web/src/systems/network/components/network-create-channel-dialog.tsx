@@ -93,11 +93,13 @@ export function NetworkCreateChannelDialog({
                 Required. This becomes the room intro and the right-rail about summary.
               </FieldDescription>
               <Textarea
+                aria-required="true"
                 className="min-h-24 border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-3 py-3 text-[13px] leading-6"
                 data-testid="network-channel-purpose-input"
                 id="network-channel-purpose"
                 onChange={event => onPurposeChange(event.target.value)}
                 placeholder="e.g. Coordinate release handoffs across coder and reviewer agents."
+                required
                 value={draft.purpose}
               />
             </Field>

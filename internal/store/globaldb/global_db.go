@@ -134,7 +134,7 @@ var globalSchemaStatements = append([]string{
 	`CREATE INDEX IF NOT EXISTS idx_net_audit_session ON network_audit_log(session_id);`,
 	`CREATE TABLE IF NOT EXISTS network_channels (
 		channel      TEXT PRIMARY KEY,
-		workspace_id TEXT NOT NULL,
+		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 		purpose      TEXT NOT NULL,
 		created_by   TEXT NOT NULL DEFAULT '',
 		created_at   TEXT NOT NULL,
@@ -142,6 +142,7 @@ var globalSchemaStatements = append([]string{
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace ON network_channels(workspace_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_channels_updated_at ON network_channels(updated_at);`,
+	`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace_updated_at ON network_channels(workspace_id, updated_at DESC, channel ASC);`,
 	`CREATE TABLE IF NOT EXISTS network_timeline_log (
 		message_id     TEXT PRIMARY KEY,
 		session_id     TEXT,

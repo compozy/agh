@@ -460,6 +460,8 @@ function makePeerActiveRoom({
 }
 
 function validateNetworkSearch(search: Record<string, unknown>): NetworkRouteSearch {
+  const channel = normalizeSearchValue(search.channel);
+  const peer = normalizeSearchValue(search.peer);
   const kindValue = normalizeSearchValue(search.kind);
   const normalizedKind =
     kindValue === "all" || (kindValue && toNetworkKindFilter(kindValue))
@@ -467,10 +469,10 @@ function validateNetworkSearch(search: Record<string, unknown>): NetworkRouteSea
       : undefined;
 
   return {
-    channel: normalizeSearchValue(search.channel),
+    channel,
     details: search.details === "closed" ? "closed" : undefined,
     kind: normalizedKind === "all" ? undefined : normalizedKind,
-    peer: normalizeSearchValue(search.peer),
+    peer: channel ? undefined : peer,
   };
 }
 
@@ -530,6 +532,8 @@ function useNetworkPage(search: NetworkRouteSearch = {}) {
     () => sortNetworkPeers(allPeers.filter(peer => matchesPeerSearch(peer, deferredSidebarQuery))),
     [allPeers, deferredSidebarQuery]
   );
+  const sortedChannels = useMemo(() => sortNetworkChannels(allChannels), [allChannels]);
+  const sortedPeers = useMemo(() => sortNetworkPeers(allPeers), [allPeers]);
 
   const selectedRoomKey =
     search.peer != null
@@ -558,19 +562,38 @@ function useNetworkPage(search: NetworkRouteSearch = {}) {
     () => filteredPeers.map(peer => makePeerRoomItem(peer, readMarkers, selectedRoomKey)),
     [filteredPeers, readMarkers, selectedRoomKey]
   );
+  const allStarredChannelRooms = useMemo(
+    () =>
+      sortedChannels
+        .filter(channel => starredChannels.includes(channel.channel))
+        .map(channel => makeChannelRoomItem(channel, true, readMarkers, selectedRoomKey)),
+    [readMarkers, selectedRoomKey, sortedChannels, starredChannels]
+  );
+  const allChannelRooms = useMemo(
+    () =>
+      sortedChannels
+        .filter(channel => !starredChannels.includes(channel.channel))
+        .map(channel => makeChannelRoomItem(channel, false, readMarkers, selectedRoomKey)),
+    [readMarkers, selectedRoomKey, sortedChannels, starredChannels]
+  );
+  const allDirectRooms = useMemo(
+    () => sortedPeers.map(peer => makePeerRoomItem(peer, readMarkers, selectedRoomKey)),
+    [readMarkers, selectedRoomKey, sortedPeers]
+  );
 
   const activeRoomItem = useMemo(() => {
     if (search.peer) {
-      return directRooms.find(room => room.id === search.peer) ?? null;
+      return allDirectRooms.find(room => room.id === search.peer) ?? null;
     }
     if (search.channel) {
       return (
-        [...starredChannelRooms, ...channelRooms].find(room => room.id === search.channel) ?? null
+        [...allStarredChannelRooms, ...allChannelRooms].find(room => room.id === search.channel) ??
+        null
       );
     }
 
-    return starredChannelRooms[0] ?? channelRooms[0] ?? directRooms[0] ?? null;
-  }, [channelRooms, directRooms, search.channel, search.peer, starredChannelRooms]);
+    return allStarredChannelRooms[0] ?? allChannelRooms[0] ?? allDirectRooms[0] ?? null;
+  }, [allChannelRooms, allDirectRooms, allStarredChannelRooms, search.channel, search.peer]);
 
   useEffect(() => {
     if (!activeRoomItem) {

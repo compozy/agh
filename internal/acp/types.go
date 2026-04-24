@@ -392,12 +392,15 @@ type activePromptState struct {
 	sendMu sync.Mutex
 	closed bool
 
-	seenToolCalls      map[string]struct{}
-	pendingToolResults []AgentEvent
+	seenToolCalls        map[string]struct{}
+	pendingToolResults   []AgentEvent
+	pendingToolResultIDs map[string]struct{}
 
 	usageMu sync.Mutex
 	usage   TokenUsage
 }
+
+const maxPendingToolResults = 128
 
 type pendingPermission struct {
 	requestID string
@@ -475,10 +478,11 @@ func (p *AgentProcess) beginPrompt(turnID string, bufferSize int) (*activePrompt
 		bufferSize = 1
 	}
 	active := &activePromptState{
-		turnID:        turnID,
-		events:        make(chan AgentEvent, bufferSize),
-		activity:      make(chan struct{}, 1),
-		seenToolCalls: make(map[string]struct{}),
+		turnID:               turnID,
+		events:               make(chan AgentEvent, bufferSize),
+		activity:             make(chan struct{}, 1),
+		seenToolCalls:        make(map[string]struct{}),
+		pendingToolResultIDs: make(map[string]struct{}),
 	}
 	p.activePrompt = active
 	return active, nil
@@ -595,7 +599,14 @@ func (a *activePromptState) deferToolResultLocked(event AgentEvent) bool {
 	if _, ok := a.seenToolCalls[toolCallID]; ok {
 		return false
 	}
+	if _, ok := a.pendingToolResultIDs[toolCallID]; ok {
+		return true
+	}
+	if len(a.pendingToolResults) >= maxPendingToolResults {
+		a.dropOldestPendingToolResultLocked()
+	}
 	a.pendingToolResults = append(a.pendingToolResults, event)
+	a.pendingToolResultIDs[toolCallID] = struct{}{}
 	return true
 }
 
@@ -620,14 +631,20 @@ func (a *activePromptState) flushDeferredToolResultsForToolLocked(toolCallID str
 	}
 
 	remaining := a.pendingToolResults[:0]
+	remainingIDs := make(map[string]struct{}, len(a.pendingToolResultIDs))
 	for _, event := range a.pendingToolResults {
-		if strings.TrimSpace(event.ToolCallID) == trimmed {
+		eventToolCallID := strings.TrimSpace(event.ToolCallID)
+		if eventToolCallID == trimmed {
 			a.sendEventLocked(event)
 			continue
 		}
 		remaining = append(remaining, event)
+		if eventToolCallID != "" {
+			remainingIDs[eventToolCallID] = struct{}{}
+		}
 	}
 	a.pendingToolResults = remaining
+	a.pendingToolResultIDs = remainingIDs
 }
 
 func (a *activePromptState) flushDeferredToolResultsLocked() {
@@ -636,9 +653,19 @@ func (a *activePromptState) flushDeferredToolResultsLocked() {
 	}
 	pending := a.pendingToolResults
 	a.pendingToolResults = nil
+	a.pendingToolResultIDs = make(map[string]struct{})
 	for _, event := range pending {
 		a.sendEventLocked(event)
 	}
+}
+
+func (a *activePromptState) dropOldestPendingToolResultLocked() {
+	if a == nil || len(a.pendingToolResults) == 0 {
+		return
+	}
+	oldest := a.pendingToolResults[0]
+	delete(a.pendingToolResultIDs, strings.TrimSpace(oldest.ToolCallID))
+	a.pendingToolResults = append(a.pendingToolResults[:0], a.pendingToolResults[1:]...)
 }
 
 func (a *activePromptState) sendEventLocked(event AgentEvent) {

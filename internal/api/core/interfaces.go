@@ -103,7 +103,7 @@ type NetworkService interface {
 	Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error)
 }
 
-// NetworkStore exposes persisted network audit and timeline queries to the API layer.
+// NetworkStore exposes persisted network audit, channel metadata CRUD, and timeline queries to the API layer.
 type NetworkStore interface {
 	ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
 	GetNetworkChannel(ctx context.Context, channel string) (store.NetworkChannelEntry, error)

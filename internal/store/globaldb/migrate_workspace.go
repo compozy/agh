@@ -69,6 +69,12 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	if err := migrateTaskTables(ctx, db); err != nil {
 		return err
 	}
+	if err := migrateNetworkAuditTable(ctx, db); err != nil {
+		return err
+	}
+	if err := migrateNetworkChannelsTable(ctx, db); err != nil {
+		return err
+	}
 	hasSessions, err := tableExists(ctx, db, "sessions")
 	if err != nil {
 		return err
@@ -93,7 +99,7 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	if err := migrateSessionColumns(ctx, db); err != nil {
 		return err
 	}
-	return migrateNetworkAuditTable(ctx, db)
+	return nil
 }
 
 func migrateWorkspaceColumns(ctx context.Context, db *sql.DB) error {
@@ -736,6 +742,79 @@ func migrateNetworkAuditTable(ctx context.Context, db *sql.DB) (err error) {
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("store: commit network audit migration: %w", err)
+	}
+	return nil
+}
+
+func migrateNetworkChannelsTable(ctx context.Context, db *sql.DB) (err error) {
+	exists, err := tableExists(ctx, db, "network_channels")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	hasWorkspaceFK, err := tableHasForeignKey(ctx, db, "network_channels", "workspaces")
+	if err != nil {
+		return err
+	}
+	if hasWorkspaceFK {
+		return nil
+	}
+
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("store: open network channels migration connection: %w", err)
+	}
+	cleanupCtx := context.WithoutCancel(ctx)
+	foreignKeysDisabled := false
+	defer func() {
+		if foreignKeysDisabled {
+			joinCleanupError(&err, restoreForeignKeys(cleanupCtx, conn))
+		}
+		_ = conn.Close()
+	}()
+
+	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		return fmt.Errorf("store: disable foreign keys for network channels migration: %w", err)
+	}
+	foreignKeysDisabled = true
+
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin network channels migration transaction: %w", err)
+	}
+	defer func() {
+		joinCleanupError(&err, rollbackTx(tx, "network channels migration"))
+	}()
+
+	statements := []string{
+		`CREATE TABLE network_channels_new (
+			channel      TEXT PRIMARY KEY,
+			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			purpose      TEXT NOT NULL,
+			created_by   TEXT NOT NULL DEFAULT '',
+			created_at   TEXT NOT NULL,
+			updated_at   TEXT NOT NULL
+		);`,
+		`INSERT INTO network_channels_new (
+			channel, workspace_id, purpose, created_by, created_at, updated_at
+		) SELECT
+			channel, workspace_id, purpose, created_by, created_at, updated_at
+		FROM network_channels
+		WHERE TRIM(workspace_id) IN (SELECT id FROM workspaces)`,
+		`DROP TABLE network_channels`,
+		`ALTER TABLE network_channels_new RENAME TO network_channels`,
+	}
+	for _, stmt := range statements {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: migrate network_channels table: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit network channels migration: %w", err)
 	}
 	return nil
 }

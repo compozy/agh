@@ -616,4 +616,59 @@ describe("network route", () => {
       within(screen.getByTestId("network-room-header")).getByText("#coord.core")
     ).toBeInTheDocument();
   });
+
+  it("prefers a valid channel target when stale peer and channel params are both present", () => {
+    routerState.searchParams = { channel: "coord.core", peer: "peer_missing" };
+
+    render(<NetworkPage />);
+
+    expect(
+      within(screen.getByTestId("network-room-header")).getByText("#coord.core")
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the active room selected when sidebar filtering excludes it", async () => {
+    const user = userEvent.setup();
+    routerState.searchParams = { channel: "ops.alerts" };
+
+    render(<NetworkPage />);
+
+    expect(
+      within(screen.getByTestId("network-room-header")).getByText("#ops.alerts")
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByTestId("network-sidebar-search"), "coord");
+
+    expect(
+      within(screen.getByTestId("network-room-header")).getByText("#ops.alerts")
+    ).toBeInTheDocument();
+  });
+
+  it("renders duplicate execution outline steps without duplicate key warnings", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockChannelMessages = [
+      makeChannelMessage({
+        body: {
+          capability: {
+            execution_outline: ["Repeat step", "Repeat step"],
+            outcome: "Next step ready",
+            summary: "Coordinate review handoff",
+          },
+        },
+        kind: "capability",
+        message_id: "msg_cap",
+        preview_text: "Coordinate review handoff",
+        text: "Coordinate review handoff",
+      }),
+    ];
+
+    render(<NetworkPage />);
+
+    expect(screen.getAllByText("Repeat step")).toHaveLength(2);
+    expect(
+      errorSpy.mock.calls.filter(([message]) => String(message).includes("same key"))
+    ).toHaveLength(0);
+
+    errorSpy.mockRestore();
+  });
 });

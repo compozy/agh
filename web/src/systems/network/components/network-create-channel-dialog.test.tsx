@@ -78,6 +78,11 @@ describe("NetworkCreateChannelDialog", () => {
       target: { value: "Coordinate deploy verification" },
     });
 
+    expect(screen.getByTestId("network-channel-purpose-input")).toBeRequired();
+    expect(screen.getByTestId("network-channel-purpose-input")).toHaveAttribute(
+      "aria-required",
+      "true"
+    );
     expect(onPurposeChange).toHaveBeenCalledWith("Coordinate deploy verification");
   });
 

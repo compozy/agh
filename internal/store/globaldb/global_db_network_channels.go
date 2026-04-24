@@ -12,6 +12,8 @@ import (
 
 // WriteNetworkChannel upserts durable network channel metadata.
 func (g *GlobalDB) WriteNetworkChannel(ctx context.Context, entry store.NetworkChannelEntry) error {
+	entry.Channel = strings.TrimSpace(entry.Channel)
+	entry.CreatedBy = strings.TrimSpace(entry.CreatedBy)
 	if err := g.checkReady(ctx, "write network channel"); err != nil {
 		return err
 	}
@@ -35,18 +37,18 @@ func (g *GlobalDB) WriteNetworkChannel(ctx context.Context, entry store.NetworkC
 			created_at,
 			updated_at
 		) VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(channel) DO UPDATE SET
-			workspace_id = excluded.workspace_id,
-			purpose = excluded.purpose,
-			updated_at = excluded.updated_at,
-			created_by = CASE
+			ON CONFLICT(channel) DO UPDATE SET
+				workspace_id = excluded.workspace_id,
+				purpose = excluded.purpose,
+				updated_at = excluded.updated_at,
+				created_by = CASE
 				WHEN TRIM(network_channels.created_by) = '' THEN excluded.created_by
 				ELSE network_channels.created_by
 			END`,
 		entry.Channel,
 		entry.WorkspaceID,
 		entry.Purpose,
-		strings.TrimSpace(entry.CreatedBy),
+		entry.CreatedBy,
 		store.FormatTimestamp(entry.CreatedAt),
 		store.FormatTimestamp(entry.UpdatedAt),
 	); err != nil {
