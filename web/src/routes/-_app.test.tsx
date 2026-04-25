@@ -256,13 +256,13 @@ describe("AppLayout", () => {
     );
   });
 
-  it("prefers the router latest pathname when the selected location lags behind navigation", () => {
-    mockPathname = "/";
-    mockLatestPathname = "/network";
+  it("uses the reactive location pathname when router latest location is stale", () => {
+    mockPathname = "/jobs";
+    mockLatestPathname = "/";
 
     render(<AppLayout />);
 
-    expect(screen.getByTestId("app-route-motion")).toHaveAttribute("data-route-key", "/network");
+    expect(screen.getByTestId("app-route-motion")).toHaveAttribute("data-route-key", "/jobs");
   });
 
   it("uses the 200ms ease-out fade under default motion preferences", () => {

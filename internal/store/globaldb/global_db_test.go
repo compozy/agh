@@ -75,6 +75,16 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		"permission_log",
 		"extensions",
 	)
+	assertTableColumns(t, globalDB.db, "memory_operation_log", []string{
+		"id",
+		"type",
+		"agent_name",
+		"summary",
+		"timestamp",
+		"scope",
+		"workspace_root",
+		"filename",
+	})
 	assertJournalModeWAL(t, globalDB.db)
 	assertSynchronousNormal(t, globalDB.db)
 }
@@ -159,7 +169,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(first) error = %v", err)
 	}
-	if got, want := len(firstRecords), 5; got != want {
+	if got, want := len(firstRecords), 6; got != want {
 		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
 	}
 	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
@@ -176,6 +186,9 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	}
 	if firstRecords[4].Version != 5 || firstRecords[4].Name != "add_tool_process_records" {
 		t.Fatalf("firstRecords[4] = %#v, want add_tool_process_records v5", firstRecords[4])
+	}
+	if firstRecords[5].Version != 6 || firstRecords[5].Name != "add_memory_operation_scope" {
+		t.Fatalf("firstRecords[5] = %#v, want add_memory_operation_scope v6", firstRecords[5])
 	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
@@ -194,7 +207,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(second) error = %v", err)
 	}
-	if got, want := len(secondRecords), 5; got != want {
+	if got, want := len(secondRecords), 6; got != want {
 		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
 	}
 	for i := range firstRecords {

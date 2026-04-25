@@ -107,6 +107,7 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 	buildReferenceArtifacts(t, repoRoot)
 
 	harness := newReferenceHarness(t, repoRoot)
+	promptEnhancerInstallSource := referencePromptEnhancerInstallSource(t, repoRoot)
 
 	secret := harness.installExtension(t, "sdk/examples/secret-guard")
 	if secret.Name != "secret-guard" {
@@ -116,7 +117,7 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 		t.Fatalf("secret install status = %#v, want active/healthy", secret)
 	}
 
-	promptEnhancer := harness.installExtension(t, "sdk/examples/prompt-enhancer")
+	promptEnhancer := harness.installExtension(t, promptEnhancerInstallSource)
 	if promptEnhancer.Name != "prompt-enhancer" {
 		t.Fatalf("prompt install name = %q, want prompt-enhancer", promptEnhancer.Name)
 	}
@@ -341,7 +342,10 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 func (h *referenceHarness) installExtension(t *testing.T, relativePath string) cli.ExtensionRecord {
 	t.Helper()
 
-	root := filepath.Join(h.repoRoot, relativePath)
+	root := relativePath
+	if !filepath.IsAbs(root) {
+		root = filepath.Join(h.repoRoot, relativePath)
+	}
 	checksum, err := extensionpkg.ComputeDirectoryChecksum(root)
 	if err != nil {
 		t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", root, err)
@@ -597,6 +601,77 @@ func buildReferenceArtifacts(t *testing.T, repoRoot string) {
 	runCommand(t, repoRoot, "go", "build", "-o", "./sdk/examples/secret-guard/bin/secret-guard", "./sdk/examples/secret-guard")
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@agh/extension-sdk")
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@agh/example-prompt-enhancer")
+}
+
+func referencePromptEnhancerInstallSource(t *testing.T, repoRoot string) string {
+	t.Helper()
+
+	sourceDir := filepath.Join(repoRoot, "sdk", "examples", "prompt-enhancer")
+	targetDir := filepath.Join(t.TempDir(), "prompt-enhancer")
+
+	copyReferenceFile(t, filepath.Join(sourceDir, "extension.toml"), filepath.Join(targetDir, "extension.toml"))
+	copyReferenceFile(t, filepath.Join(sourceDir, "package.json"), filepath.Join(targetDir, "package.json"))
+	copyReferenceDir(t, filepath.Join(sourceDir, "dist"), filepath.Join(targetDir, "dist"))
+
+	sdkSource := filepath.Join(repoRoot, "sdk", "typescript")
+	sdkTarget := filepath.Join(targetDir, "node_modules", "@agh", "extension-sdk")
+	copyReferenceFile(t, filepath.Join(sdkSource, "package.json"), filepath.Join(sdkTarget, "package.json"))
+	copyReferenceDir(t, filepath.Join(sdkSource, "dist"), filepath.Join(sdkTarget, "dist"))
+
+	return targetDir
+}
+
+func copyReferenceDir(t *testing.T, sourceDir string, targetDir string) {
+	t.Helper()
+
+	if err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+		targetPath := filepath.Join(targetDir, rel)
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("unexpected symlink in reference fixture source %q", path)
+		}
+		if info.IsDir() {
+			return os.MkdirAll(targetPath, info.Mode().Perm())
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		return copyFileWithMode(path, targetPath, info.Mode().Perm())
+	}); err != nil {
+		t.Fatalf("copy reference dir %q to %q: %v", sourceDir, targetDir, err)
+	}
+}
+
+func copyReferenceFile(t *testing.T, sourcePath string, targetPath string) {
+	t.Helper()
+
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		t.Fatalf("stat reference file %q: %v", sourcePath, err)
+	}
+	if !info.Mode().IsRegular() {
+		t.Fatalf("reference file %q mode = %v, want regular file", sourcePath, info.Mode())
+	}
+	if err := copyFileWithMode(sourcePath, targetPath, info.Mode().Perm()); err != nil {
+		t.Fatalf("copy reference file %q to %q: %v", sourcePath, targetPath, err)
+	}
+}
+
+func copyFileWithMode(sourcePath string, targetPath string, mode os.FileMode) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+	payload, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(targetPath, payload, mode)
 }
 
 func runCommand(t *testing.T, dir string, name string, args ...string) {

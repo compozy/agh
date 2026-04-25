@@ -1,0 +1,251 @@
+{
+  "scope": "global",
+  "redacted": true,
+  "entries": [
+    {
+      "path": "automation.default_fire_limit.max",
+      "value": 12,
+      "redacted": false
+    },
+    {
+      "path": "automation.default_fire_limit.window",
+      "value": "1h",
+      "redacted": false
+    },
+    {
+      "path": "automation.enabled",
+      "value": true,
+      "redacted": false
+    },
+    {
+      "path": "automation.max_concurrent_jobs",
+      "value": 5,
+      "redacted": false
+    },
+    {
+      "path": "automation.timezone",
+      "value": "UTC",
+      "redacted": false
+    },
+    {
+      "path": "daemon.socket",
+      "value": "/tmp/agh-hermes-setup.LRM8b9/daemon.sock",
+      "redacted": false
+    },
+    {
+      "path": "defaults.agent",
+      "value": "general",
+      "redacted": false
+    },
+    {
+      "path": "environments.dev.backend",
+      "value": "local",
+      "redacted": false
+    },
+    {
+      "path": "environments.dev.env.API_TOKEN",
+      "value": "[redacted]",
+      "redacted": true
+    },
+    {
+      "path": "extensions",
+      "value": {},
+      "redacted": false
+    },
+    {
+      "path": "hooks",
+      "value": {},
+      "redacted": false
+    },
+    {
+      "path": "http.host",
+      "value": "127.0.0.1",
+      "redacted": false
+    },
+    {
+      "path": "http.port",
+      "value": 32123,
+      "redacted": false
+    },
+    {
+      "path": "limits.max_concurrent_agents",
+      "value": 20,
+      "redacted": false
+    },
+    {
+      "path": "limits.max_sessions",
+      "value": 10,
+      "redacted": false
+    },
+    {
+      "path": "log.level",
+      "value": "info",
+      "redacted": false
+    },
+    {
+      "path": "mcp_servers[0].command",
+      "value": "mcp-filesystem",
+      "redacted": false
+    },
+    {
+      "path": "mcp_servers[0].env.MCP_TOKEN",
+      "value": "[redacted]",
+      "redacted": true
+    },
+    {
+      "path": "mcp_servers[0].name",
+      "value": "filesystem",
+      "redacted": false
+    },
+    {
+      "path": "memory.dream.agent",
+      "value": "general",
+      "redacted": false
+    },
+    {
+      "path": "memory.dream.check_interval",
+      "value": "30m0s",
+      "redacted": false
+    },
+    {
+      "path": "memory.dream.enabled",
+      "value": true,
+      "redacted": false
+    },
+    {
+      "path": "memory.dream.min_hours",
+      "value": 24,
+      "redacted": false
+    },
+    {
+      "path": "memory.dream.min_sessions",
+      "value": 3,
+      "redacted": false
+    },
+    {
+      "path": "memory.enabled",
+      "value": true,
+      "redacted": false
+    },
+    {
+      "path": "memory.global_dir",
+      "value": "/tmp/agh-hermes-setup.LRM8b9/memory",
+      "redacted": false
+    },
+    {
+      "path": "network.default_channel",
+      "value": "default",
+      "redacted": false
+    },
+    {
+      "path": "network.enabled",
+      "value": true,
+      "redacted": false
+    },
+    {
+      "path": "network.greet_interval",
+      "value": 30,
+      "redacted": false
+    },
+    {
+      "path": "network.max_payload",
+      "value": 1048576,
+      "redacted": false
+    },
+    {
+      "path": "network.max_queue_depth",
+      "value": 100,
+      "redacted": false
+    },
+    {
+      "path": "network.max_replay_age",
+      "value": 300,
+      "redacted": false
+    },
+    {
+      "path": "network.port",
+      "value": -1,
+      "redacted": false
+    },
+    {
+      "path": "observability.enabled",
+      "value": true,
+      "redacted": false
+    },
+    {
+      "path": "observability.max_global_bytes",
+      "value": 1073741824,
+      "redacted": false
+    },
+    {
+      "path": "observability.retention_days",
+      "value": 7,
+      "redacted": false
+    },
+    {
+      "path": "observability.transcripts.enabled",
+      "value": true,
+      "redacted": false
+    },
+    {
+      "path": "observability.transcripts.max_bytes_per_session",
+      "value": 268435456,
+      "redacted": false
+    },
+    {
+      "path": "observability.transcripts.segment_bytes",
+      "value": 1048576,
+      "redacted": false
+    },
+    {
+      "path": "permissions.mode",
+      "value": "approve-all",
+      "redacted": false
+    },
+    {
+      "path": "providers",
+      "value": {},
+      "redacted": false
+    },
+    {
+      "path": "session.limits",
+      "value": {},
+      "redacted": false
+    },
+    {
+      "path": "session.supervision.activity_heartbeat_interval",
+      "value": "30s",
+      "redacted": false
+    },
+    {
+      "path": "session.supervision.inactivity_timeout",
+      "value": "30m0s",
+      "redacted": false
+    },
+    {
+      "path": "session.supervision.inactivity_warning_after",
+      "value": "15m0s",
+      "redacted": false
+    },
+    {
+      "path": "session.supervision.progress_notify_interval",
+      "value": "10m0s",
+      "redacted": false
+    },
+    {
+      "path": "session.supervision.timeout_cancel_grace",
+      "value": "30s",
+      "redacted": false
+    },
+    {
+      "path": "skills.enabled",
+      "value": true,
+      "redacted": false
+    },
+    {
+      "path": "skills.poll_interval",
+      "value": "3s",
+      "redacted": false
+    }
+  ]
+}

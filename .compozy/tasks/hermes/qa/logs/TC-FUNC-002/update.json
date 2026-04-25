@@ -1,0 +1,8 @@
+{
+  "command": "update",
+  "status": "manual",
+  "managed": false,
+  "home_dir": "/tmp/agh-hermes-setup.LRM8b9",
+  "message": "No in-place updater is configured for this unmanaged AGH binary; no files were changed.",
+  "recommendation": "Install a newer release archive, rerun `go install`, or rebuild from source."
+}

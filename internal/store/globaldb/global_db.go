@@ -525,6 +525,48 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateToolProcessRecords,
 		Checksum: "2026-04-24-add-tool-process-records",
 	},
+	{
+		Version:  6,
+		Name:     "add_memory_operation_scope",
+		Up:       migrateMemoryOperationScopeColumns,
+		Checksum: "2026-04-25-add-memory-operation-scope",
+	},
+}
+
+func migrateMemoryOperationScopeColumns(ctx context.Context, tx *sql.Tx) error {
+	columns, err := tableColumns(ctx, tx, "memory_operation_log")
+	if err != nil {
+		return err
+	}
+	specs := []struct {
+		name string
+		sql  string
+	}{
+		{name: "scope", sql: `ALTER TABLE memory_operation_log ADD COLUMN scope TEXT NOT NULL DEFAULT ''`},
+		{
+			name: "workspace_root",
+			sql:  `ALTER TABLE memory_operation_log ADD COLUMN workspace_root TEXT NOT NULL DEFAULT ''`,
+		},
+		{name: "filename", sql: `ALTER TABLE memory_operation_log ADD COLUMN filename TEXT NOT NULL DEFAULT ''`},
+	}
+	for _, spec := range specs {
+		if _, ok := columns[spec.name]; ok {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, spec.sql); err != nil {
+			return fmt.Errorf("store: add memory_operation_log.%s column: %w", spec.name, err)
+		}
+	}
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_scope ON memory_operation_log(scope);`,
+		`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_workspace_root ON memory_operation_log(workspace_root);`,
+	}
+	for _, stmt := range indexes {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: migrate memory operation scope indexes: %w", err)
+		}
+	}
+	return nil
 }
 
 func migrateMCPAuthTokens(ctx context.Context, tx *sql.Tx) error {

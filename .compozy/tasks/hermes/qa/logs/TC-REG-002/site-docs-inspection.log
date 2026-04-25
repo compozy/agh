@@ -1,0 +1,159 @@
+packages/site/content/runtime/cli-reference/automation/runs/index.mdx:47:Dispatch or transport failures are reported separately as `delivery_error` and `delivery_error_at`
+packages/site/content/runtime/cli-reference/automation/runs/get.mdx:41:fire. If the scheduler advanced the cursor but delivery failed, `delivery_error` and
+packages/site/content/runtime/cli-reference/automation/runs/get.mdx:42:`delivery_error_at` contain the delivery diagnostic while the normal run `error` field remains
+packages/site/content/runtime/cli-reference/automation/runs/get.mdx:43:reserved for execution lifecycle failures.
+packages/site/content/runtime/cli-reference/observe/health.mdx:40:The JSON payload includes storage and retention health under `health.persistence` and
+packages/site/content/runtime/cli-reference/observe/health.mdx:41:`health.retention`. Persistence reports the global and session database byte counts plus the
+packages/site/content/runtime/cli-reference/observe/health.mdx:42:current storage status. Retention reports whether the sweep is enabled, the configured retention
+packages/site/content/runtime/cli-reference/observe/health.mdx:50:Lifecycle failure diagnostics are summarized under `health.failures`. This includes the total count,
+packages/site/content/runtime/cli-reference/observe/health.mdx:51:a `by_kind` map keyed by stable failure kind, and a bounded `recent` list with session ID, provider,
+packages/site/content/runtime/cli-reference/observe/health.mdx:52:redacted summary, and crash bundle path when one exists. Downstream ACP command probes are exposed
+packages/site/content/runtime/cli-reference/observe/health.mdx:59:to distinguish scheduler cursor state from run delivery failures.
+packages/site/content/runtime/cli-reference/observe/health.mdx:67:Check retention status from automation:
+packages/site/content/runtime/cli-reference/observe/health.mdx:70:agh observe health -o json | jq '.health.retention | {enabled, retention_days, last_sweep_status, last_cutoff_at}'
+packages/site/content/runtime/cli-reference/observe/health.mdx:73:Check recent lifecycle failures:
+packages/site/content/runtime/cli-reference/observe/health.mdx:76:agh observe health -o json | jq '.health.failures | {status, total, by_kind, recent}'
+packages/site/content/runtime/cli-reference/observe/health.mdx:88:agh observe health -o json | jq '.health.automation.scheduled_jobs[] | {job_id, next_run_at, last_fire_id, catch_up_policy, misfire_count}'
+packages/site/content/runtime/cli-reference/automation/jobs/index.mdx:45:`next_run`, `scheduler.next_run_at`, `scheduler.last_scheduled_at`, `scheduler.last_fire_id`,
+packages/site/content/runtime/cli-reference/automation/jobs/get.mdx:43:- `scheduler.last_scheduled_at` and `scheduler.last_fire_id` identify the last claimed scheduled fire
+packages/site/content/runtime/cli-reference/index.mdx:99:    description="Use this group for remote MCP OAuth login, token status, refresh diagnostics, and logout."
+packages/site/content/runtime/cli-reference/index.mdx:183:    description="Use this command to confirm the binary version before debugging or filing issues."
+packages/site/content/runtime/cli-reference/index.mdx:205:| `[log].level`                        | `info`                                     | Controls daemon structured logging. Accepted values are `debug`, `info`, `warn`, and `error`.                                                                |
+packages/site/content/runtime/cli-reference/index.mdx:226:level = "debug"
+packages/site/content/runtime/cli-reference/memory/history.mdx:2:title: "agh memory history"
+packages/site/content/runtime/cli-reference/memory/history.mdx:6:## agh memory history
+packages/site/content/runtime/cli-reference/memory/history.mdx:11:agh memory history [flags]
+packages/site/content/runtime/cli-reference/memory/history.mdx:18:  agh memory history
+packages/site/content/runtime/cli-reference/memory/history.mdx:21:  agh memory history --scope workspace --operation memory.write --since 24h
+packages/site/content/runtime/cli-reference/memory/history.mdx:51:agh memory history --scope workspace --operation memory.write -o json
+packages/site/content/runtime/cli-reference/memory/history.mdx:54:Operation history is bounded and redacted before it is returned. Use it for audit and debugging
+packages/site/content/runtime/cli-reference/task/run/fail.mdx:19:      --metadata string   Optional failure metadata JSON
+packages/site/content/runtime/cli-reference/memory/index.mdx:38:| [agh memory history](/runtime/cli-reference/memory/history) | Show memory operation history |
+packages/site/content/runtime/core/operations/troubleshooting.mdx:11:  surfaces usually tell you whether the failure is process discovery, runtime health, or a deeper
+packages/site/content/runtime/core/operations/troubleshooting.mdx:40:| Diagnosis  | The detached child failed before `/api/daemon/status` became available over UDS. Common causes are invalid config, a port conflict, a socket path conflict, or database open failure. |
+packages/site/content/runtime/cli-reference/extension/status.mdx:28:Extension manifests may declare `requires_env`. Status output reports those names and the
+packages/site/content/runtime/cli-reference/extension/status.mdx:29:`missing_env` subset that is unset or empty for the current AGH process environment. AGH never prints
+packages/site/content/runtime/core/operations/production.mdx:67:| Log level            | `[log].level` is `info` or `warn` for unattended operation; use `debug` only for short investigations.  |
+packages/site/content/runtime/core/operations/production.mdx:77:- restart on unexpected failure
+packages/site/content/runtime/core/operations/production.mdx:83:## 4. Configure log retention
+packages/site/content/runtime/core/operations/production.mdx:175:Restart=on-failure
+packages/site/content/runtime/core/operations/production.mdx:215:- [Troubleshooting](/runtime/core/operations/troubleshooting) maps common failures to fixes.
+packages/site/content/runtime/core/hooks/event-catalog.mdx:24:  Tools --> Events["Event persistence"]
+packages/site/content/runtime/core/hooks/declaration.mdx:33:| `required`                                          | no                        | If `true`, the hook must be `sync`; execution failure aborts the dispatch.                          |
+packages/site/content/runtime/core/hooks/declaration.mdx:85:failure. Async execution defaults to `4` workers, queue capacity `64`, and `10s` shutdown drain
+packages/site/content/runtime/core/operations/index.mdx:12:  any operational issue. Most failures resolve from those three signals before anything deeper is
+packages/site/content/runtime/core/automation/jobs.mdx:91:  `last_fire_id`, `catch_up_policy`, and `misfire_count`
+packages/site/content/runtime/core/automation/jobs.mdx:259:history back to the scheduler cursor. Delivery failures are recorded as `delivery_error` and
+packages/site/content/runtime/core/automation/jobs.mdx:260:`delivery_error_at`; they do not roll back or rewrite scheduler cursor state.
+packages/site/content/runtime/core/memory/best-practices.mdx:175:- OAuth tokens
+packages/site/content/runtime/core/operations/database.mdx:25:| `$AGH_HOME/agh.db`                          | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
+packages/site/content/runtime/core/operations/database.mdx:109:List active tool process checkpoints:
+packages/site/content/runtime/cli-reference/config/check.mdx:18:      --repair-env         Repair a structured workspace .env before validating
+packages/site/content/runtime/cli-reference/config/check.mdx:42:Use `--repair-env` to explicitly rewrite a structured workspace `.env` when AGH detects bounded
+packages/site/content/runtime/cli-reference/config/validate.mdx:18:      --repair-env         Repair a structured workspace .env before validating
+packages/site/content/runtime/cli-reference/config/validate.mdx:42:Use `--repair-env` to explicitly rewrite a structured workspace `.env` when AGH detects bounded
+packages/site/content/runtime/core/memory/system.mdx:167:| `agh memory history` | Inspect recent memory writes, deletes, searches, and reindex operations with scope, workspace, filename, and redacted summaries.             |
+packages/site/content/runtime/core/operations/daemon.mdx:26:Use foreground mode when you are debugging startup or when a service manager should own the process:
+packages/site/content/runtime/core/operations/daemon.mdx:97:## Understand tool process recovery
+packages/site/content/runtime/core/operations/daemon.mdx:110:- records with a PID and matching start-time evidence remain active for scoped interruption
+packages/site/content/runtime/core/operations/daemon.mdx:118:then interrupts only registered tool processes owned by the same session turn. A terminal, hook, or
+packages/site/content/runtime/core/operations/daemon.mdx:120:resetting the whole session: the registry targets the matching tool process and leaves unrelated
+packages/site/content/runtime/core/operations/daemon.mdx:160:The default log level is `info`. Supported levels are `debug`, `info`, `warn`, and `error`; configure
+packages/site/content/runtime/core/operations/daemon.mdx:199:Restart=on-failure
+packages/site/content/runtime/core/operations/daemon.mdx:269:- [Troubleshooting](/runtime/core/operations/troubleshooting) lists common daemon startup and socket failures.
+packages/site/content/runtime/core/agents/providers.mdx:8:permissions, MCP server wiring, and event persistence.
+packages/site/content/runtime/core/agents/definitions.mdx:205:## Common validation failures
+packages/site/content/runtime/core/bridges/routing.mdx:201:| `resume` | Send a snapshot after a transport, adapter, or acknowledgement failure.          |
+packages/site/content/runtime/core/bridges/routing.mdx:222:| Delivery transport fails or returns an invalid acknowledgement           | The broker records the failure and retries with a resume snapshot.                                    |
+packages/site/content/runtime/core/automation/triggers.mdx:43:| `session.stopped`            | Session lifecycle observer   | Summarize work, collect failures, or schedule follow-up review.            |
+packages/site/content/runtime/core/getting-started/installation.mdx:58:Tagged releases publish archive checksums, cosign checksum signatures, SBOMs, a Homebrew cask, and
+packages/site/content/runtime/core/getting-started/installation.mdx:59:Linux `.deb` and `.rpm` packages.
+packages/site/content/runtime/core/getting-started/installation.mdx:65:For Linux package installs, download the `.deb` or `.rpm` for your architecture from the GitHub
+packages/site/content/runtime/core/getting-started/installation.mdx:66:release, verify it against `checksums.txt`, then install it with your distribution package manager.
+packages/site/content/runtime/core/getting-started/installation.mdx:98:Use `agh config validate --repair-env --workspace <path>` when a workspace `.env` needs an explicit,
+packages/site/content/runtime/core/workspaces/resolver.mdx:221:| Root exists but is a file        | Validation error; HTTP status `500` through resolver paths or `400` for API path validation failures. |
+packages/site/content/runtime/core/agents/capabilities.mdx:94:outcome = "A normalized incident bundle for a debugging follow-up."
+packages/site/content/runtime/core/agents/capabilities.mdx:105:execution_outline = ["inspect failure", "patch assertions", "rerun targeted tests"]
+packages/site/content/runtime/core/agents/capabilities.mdx:106:constraints = ["Keep fixes scoped to the reported failure"]
+packages/site/content/runtime/core/agents/capabilities.mdx:117:      "outcome": "A normalized incident bundle for a debugging follow-up.",
+packages/site/content/runtime/core/agents/capabilities.mdx:154:  "execution_outline": ["inspect failure", "patch assertions", "rerun targeted tests"],
+packages/site/content/runtime/core/agents/capabilities.mdx:155:  "constraints": ["Keep fixes scoped to the reported failure"],
+packages/site/content/runtime/core/agents/capabilities.mdx:188:validation error is a hard failure at load time. There is no warning mode.
+packages/site/content/runtime/core/agents/capabilities.mdx:294:outcome = "A normalized incident bundle for a debugging follow-up."
+packages/site/content/runtime/core/bridges/setup.mdx:107:3. Store the Bot User OAuth token in the daemon environment as `SLACK_BOT_TOKEN`.
+packages/site/content/runtime/core/bridges/setup.mdx:399:| Routes exist but replies do not appear | Bot has send permissions, delivery target dimensions are valid, and bridge health does not show delivery failures. |
+packages/site/content/runtime/core/sessions/lifecycle.mdx:102:failure mode, not total elapsed time.
+packages/site/content/runtime/core/sessions/lifecycle.mdx:190:lifecycle failure did AGH classify, and what evidence is available?" When a lifecycle failure occurs,
+packages/site/content/runtime/core/sessions/lifecycle.mdx:191:AGH persists a `failure` object with:
+packages/site/content/runtime/core/sessions/lifecycle.mdx:193:- `kind`: stable machine-readable failure kind
+packages/site/content/runtime/core/sessions/lifecycle.mdx:195:- `crash_bundle_path`: path to a redacted crash bundle when AGH captured one
+packages/site/content/runtime/core/sessions/lifecycle.mdx:197:The same failure object is exposed through session status, session list JSON, session SSE terminal
+packages/site/content/runtime/core/sessions/lifecycle.mdx:201:agh session status sess-1234 -o json | jq '.session.failure'
+packages/site/content/runtime/core/sessions/lifecycle.mdx:204:Current failure kinds are:
+packages/site/content/runtime/core/sessions/lifecycle.mdx:208:| `startup_failure`      | AGH could not finish preparing, launching, initializing, or resuming the provider.       |
+packages/site/content/runtime/core/sessions/lifecycle.mdx:209:| `handshake_failure`    | The subprocess launched but ACP initialization did not complete.                         |
+packages/site/content/runtime/core/sessions/lifecycle.mdx:210:| `load_session_failure` | ACP `session/load` failed while resuming an existing provider session.                   |
+packages/site/content/runtime/core/sessions/lifecycle.mdx:211:| `protocol_failure`     | ACP returned a structured protocol/request error outside a prompt-specific path.         |
+packages/site/content/runtime/core/sessions/lifecycle.mdx:212:| `prompt_failure`       | ACP prompt submission or prompt streaming failed.                                        |
+packages/site/content/runtime/core/sessions/lifecycle.mdx:214:| `permission_failure`   | A lifecycle hook or permission boundary denied continuation.                             |
+packages/site/content/runtime/core/sessions/lifecycle.mdx:216:| `transport_failure`    | The ACP stdio transport closed or failed while AGH expected protocol traffic.            |
+packages/site/content/runtime/core/sessions/lifecycle.mdx:218:| `unknown_failure`      | AGH had an error but no more specific kind was available.                                |
+packages/site/content/runtime/core/sessions/lifecycle.mdx:221:with schema `agh.session_crash_bundle.v1`, session identity, provider identity, failure kind,
+packages/site/content/runtime/core/sessions/lifecycle.mdx:232:- stale `starting` becomes `stopped` with `error`, `startup_failure`, and detail `start did not complete`
+packages/site/content/runtime/core/sessions/lifecycle.mdx:240:- `meta.json`: durable session metadata such as state, workspace, stop reason, failure diagnostics, and ACP session ID
+packages/site/content/runtime/core/bridges/index.mdx:11:That split keeps AGH responsible for sessions, routing, persistence, and delivery bookkeeping while
+packages/site/content/runtime/core/bridges/index.mdx:195:route count, delivery backlog, dropped delivery count, delivery failures, auth failures, last success,
+packages/site/content/runtime/core/configuration/config-toml.mdx:38:| `[observability]`             | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                            |
+packages/site/content/runtime/core/configuration/config-toml.mdx:147:retention_days = 7
+packages/site/content/runtime/core/configuration/config-toml.mdx:312:| `auth`      | object       | empty              | OAuth 2.1 PKCE settings.  | Remote auth metadata and client settings. Invalid for `stdio`.                              |
+packages/site/content/runtime/core/configuration/config-toml.mdx:316:OAuth-enabled remote servers store only metadata in config. Token material is kept in the AGH
+packages/site/content/runtime/core/configuration/config-toml.mdx:323:| `client_id`          | string       | yes      | OAuth client ID.                                                            |
+packages/site/content/runtime/core/configuration/config-toml.mdx:325:| `issuer_url`         | string URL   | conditional | Issuer for OAuth metadata discovery.                                      |
+packages/site/content/runtime/core/configuration/config-toml.mdx:326:| `metadata_url`       | string URL   | conditional | Explicit OAuth authorization-server metadata URL.                         |
+packages/site/content/runtime/core/configuration/config-toml.mdx:330:| `scopes`             | string array | no       | Requested OAuth scopes.                                                     |
+packages/site/content/runtime/core/configuration/config-toml.mdx:370:| `retention_days`   | integer | `7`          | Zero or positive. | Retention window for global event summaries, token stats, and permission logs. `0` keeps history. |
+packages/site/content/runtime/core/configuration/config-toml.mdx:378:| `segment_bytes`         | integer | `1048576`   | Positive integer. | Segment size for transcript retention.                    |
+packages/site/content/runtime/core/configuration/config-toml.mdx:385:| `level` | string | `info`  | `debug`, `info`, `warn`, `error` | Structured daemon log level. |
+packages/site/content/runtime/core/configuration/config-toml.mdx:497:| `required`         | boolean      | `false`                                             | `true` or `false`; required hooks must be `sync`.                     | Whether a hook failure blocks the source operation.                   |
+packages/site/content/runtime/core/skills/bundled.mdx:74:- `agh memory history`
+packages/site/content/runtime/core/skills/index.mdx:85:codebase, direct session-level `SKILL.md` paths are not a public authoring surface. Session-specific
+packages/site/content/runtime/core/configuration/index.mdx:50:same validated persistence path as the settings API. Use `agh config validate` or its
+packages/site/content/runtime/core/skills/skill-md.mdx:261:| Hook parse failure              | A hook has an unknown field, invalid event, or missing command.                | Use current dot-form hook events and supported hook fields.   |
+packages/site/content/runtime/core/extensions/develop.mdx:339:tarball, computes the install checksum, stores registry metadata, and can later run
+packages/site/content/runtime/core/extensions/develop.mdx:344:The extension supervisor monitors health checks and process exits. On failure, AGH records the
+packages/site/content/runtime/core/extensions/develop.mdx:345:failure, applies exponential restart backoff, and relaunches the subprocess. After repeated
+packages/site/content/runtime/core/extensions/develop.mdx:346:consecutive failures, AGH disables the extension, unregisters resources, marks it inactive, and
+packages/site/content/runtime/core/configuration/mcp-json.mdx:18:| `<server>.auth`      | object       | empty              | OAuth 2.1 PKCE config.                | Remote auth metadata and client settings.      |
+packages/site/content/runtime/core/configuration/mcp-json.mdx:102:| `auth`      | object       | empty              | OAuth config listed below.                              | Remote MCP auth configuration. Only valid for remote transports.                    |
+packages/site/content/runtime/core/configuration/mcp-json.mdx:106:## Remote OAuth Auth Object
+packages/site/content/runtime/core/configuration/mcp-json.mdx:108:Remote MCP servers can use OAuth 2.1 authorization code with PKCE. The config contains only
+packages/site/content/runtime/core/configuration/mcp-json.mdx:109:metadata and client settings; access tokens, refresh tokens, authorization codes, PKCE verifiers,
+packages/site/content/runtime/core/configuration/mcp-json.mdx:115:| `type`              | string       | required | `oauth2_pkce`                                                  | Enables the OAuth 2.1 PKCE lifecycle.                                 |
+packages/site/content/runtime/core/configuration/mcp-json.mdx:116:| `client_id`         | string       | required | Non-empty.                                                     | OAuth client ID registered with the remote MCP provider.               |
+packages/site/content/runtime/core/configuration/mcp-json.mdx:119:| `metadata_url`      | string URL   | optional | Absolute `http` or `https` URL.                                | Explicit OAuth authorization-server metadata URL.                      |
+packages/site/content/runtime/core/configuration/mcp-json.mdx:123:| `scopes`            | string array | empty    | Non-empty strings when present.                                | Requested OAuth scopes.                                               |
+packages/site/content/runtime/core/configuration/mcp-json.mdx:176:| Incomplete OAuth metadata            | Validation error.    |
+packages/site/content/runtime/core/sessions/events.mdx:89:| `session_stopped`  | Session finalization                                                          | `stop_reason`, optional `failure`, optional `error`, optional `text`              |
+packages/site/content/runtime/core/sessions/events.mdx:148:| `failure`      | Typed lifecycle failure object with `kind`, redacted `summary`, and optional `crash_bundle_path`               |
+packages/site/content/runtime/core/sessions/events.mdx:231:`session_stopped` SSE event and closes the stream. When the stopped session has failure
+packages/site/content/runtime/core/sessions/events.mdx:232:diagnostics, that terminal payload includes the same `failure` object stored in session metadata.
+packages/site/content/runtime/core/sessions/events.mdx:234:Example terminal failure payload:
+packages/site/content/runtime/core/sessions/events.mdx:242:  "failure": {
+packages/site/content/runtime/core/sessions/events.mdx:251:## SQLite persistence
+packages/site/content/runtime/core/sessions/resume.mdx:96:Any other `session/load` failure is returned as an error.
+packages/site/content/runtime/core/configuration/env-vars.mdx:126:| `AGH_BRIDGE_GCHAT_AUTH_URL`            | Google Chat | Google OAuth token URL         | URL.                  | Google Chat auth endpoint override.           |
+packages/site/content/runtime/core/configuration/env-vars.mdx:131:| `AGH_BRIDGE_LINEAR_TOKEN_URL`          | Linear      | Linear OAuth token URL         | URL.                  | Linear OAuth token endpoint override.         |
+packages/site/content/runtime/core/configuration/env-vars.mdx:136:| `AGH_BRIDGE_TEAMS_TOKEN_URL`           | Teams       | Microsoft OAuth token URL      | URL.                  | Teams OAuth token endpoint override.          |
+packages/site/content/runtime/core/configuration/agent-md.mdx:194:| `required`      | boolean      | `false`                                             | `true` or `false`; required hooks must be `sync`.                     | Whether hook failure blocks the source operation. |
+packages/site/content/runtime/core/configuration/agent-md.mdx:268:Inspect the codebase and answer questions with file-backed references.
+packages/site/content/runtime/core/extensions/install.mdx:37:If the daemon is running, the CLI sends the path and checksum to the daemon over UDS. The daemon
+packages/site/content/runtime/core/extensions/install.mdx:53:requires_env = ["DAYTONA_API_KEY", "DAYTONA_ORGANIZATION_ID"]
+packages/site/content/runtime/core/extensions/install.mdx:56:AGH validates `requires_env` as environment variable names during install and status loading.
+packages/site/content/runtime/core/extensions/install.mdx:59:`missing_env`.
+packages/site/content/runtime/core/extensions/install.mdx:78:| `requires_env`              | Manifest-declared environment variable names required by the extension.                                                   |
+packages/site/content/runtime/core/extensions/install.mdx:79:| `missing_env`               | Required environment variable names that are unset or empty in the current AGH process environment.                       |
+packages/site/content/runtime/core/extensions/install.mdx:164:4. AGH validates the manifest and computes the install checksum.
+packages/site/content/runtime/cli-reference/mcp/auth/login.mdx:3:description: "Run OAuth login for a remote MCP server"
+packages/site/content/runtime/cli-reference/mcp/auth/login.mdx:8:Run OAuth login for a remote MCP server
+packages/site/content/runtime/cli-reference/mcp/auth/login.mdx:19:      --redirect-url string   OAuth redirect URL
+packages/site/content/runtime/cli-reference/mcp/auth/index.mdx:35:| [agh mcp auth login](/runtime/cli-reference/mcp/auth/login) | Run OAuth login for a remote MCP server |

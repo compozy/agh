@@ -1,0 +1,7 @@
+[0m[2m[35m$[0m [2m[1mplaywright test --grep-invert @nightly --grep "operator can inspect automation"[0m
+
+[2mRunning [22m1[2m test using [22m1[2m worker[22m
+
+  [32m✓[39m  [2m1 [22me2e/automation.spec.ts:38:1 › operator can inspect automation, trigger a real run, and inspect the linked session transcript[2m (7.1s)[22m
+
+[32m  1 passed[39m[2m (7.6s)[22m

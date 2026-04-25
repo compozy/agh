@@ -1,0 +1,12 @@
+{
+  "status": "stopped",
+  "pid": 61586,
+  "started_at": "2026-04-25T05:00:45.145329Z",
+  "socket": "/tmp/agh-hermes-failure.NbJEUi/daemon.sock",
+  "http_host": "localhost",
+  "http_port": 2123,
+  "user_home_dir": "",
+  "active_sessions": 0,
+  "total_sessions": 0,
+  "version": "92adb526-dirty"
+}

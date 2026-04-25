@@ -1,0 +1,24 @@
+[0m[2m[35m$[0m [2m[1mbun run codegen-check && bun run test:e2e:daemon-served:raw[0m
+[0m[2m[35m$[0m [2m[1mbun run --cwd .. codegen-check[0m
+[0m[2m[35m$[0m [2m[1mmake codegen-check[0m
+[0m[2m[35m$[0m [2m[1mplaywright test --grep-invert @nightly[0m
+
+[2mRunning [22m15[2m tests using [22m1[2m worker[22m
+
+  [32m✓[39m  [2m 1 [22me2e/automation.spec.ts:38:1 › operator can inspect automation, trigger a real run, and inspect the linked session transcript[2m (1.6s)[22m
+  [32m✓[39m  [2m 2 [22me2e/bridges.spec.ts:53:1 › operator can edit bridge config, enable runtime, observe health updates, and resolve delivery targets[2m (6.7s)[22m
+  [32m✓[39m  [2m 3 [22me2e/harness-smoke.spec.ts:6:1 › boots against the daemon-served onboarding shell and captures a trace plus screenshot bundle[2m (493ms)[22m
+  [32m✓[39m  [2m 4 [22me2e/harness-smoke.spec.ts:28:1 › captures console and network diagnostics after a forced failure path[2m (391ms)[22m
+  [32m✓[39m  [2m 5 [22me2e/network.spec.ts:46:1 › operator can create a network channel, inspect peers, observe timeline state, and reload without losing visibility[2m (16.8s)[22m
+  [32m✓[39m  [2m 6 [22me2e/session-onboarding.spec.ts:34:1 › operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls[2m (1.5s)[22m
+  [32m✓[39m  [2m 7 [22me2e/session-provider-override.spec.ts:59:1 › operator can create a provider-override session and gets an inline resume failure when that provider disappears[2m (1.5s)[22m
+  [32m✓[39m  [2m 8 [22me2e/settings-transport.spec.ts:17:1 › operator sees non-loopback HTTP mutation restrictions with explicit operator messaging[2m (816ms)[22m
+  [32m✓[39m  [2m 9 [22me2e/settings.spec.ts:23:1 › operator can navigate the settings shell and complete a restart-aware general save that survives refresh polling[2m (1.6s)[22m
+  [32m✓[39m  [2m10 [22me2e/settings.spec.ts:117:1 › operator can distinguish skills actions that apply now from policy changes that require restart[2m (922ms)[22m
+  [32m✓[39m  [2m11 [22me2e/settings.spec.ts:166:1 › operator can replace a builtin provider with a config overlay and delete it back to builtin fallback[2m (1.1s)[22m
+  [32m✓[39m  [2m12 [22me2e/settings.spec.ts:218:1 › operator can manage MCP servers across global and workspace scopes with visible target semantics[2m (1.2s)[22m
+  [32m✓[39m  [2m13 [22me2e/settings.spec.ts:294:1 › operator can distinguish restart-aware hook edits from immediate extension operations on hooks and extensions[2m (1.9s)[22m
+  [32m✓[39m  [2m14 [22me2e/storybook-bootstrap.spec.ts:15:1 › registers the MSW worker and bypasses unknown requests in web Storybook[2m (7.4s)[22m
+  [32m✓[39m  [2m15 [22me2e/tasks.spec.ts:38:1 › operator can execute the shipped Tasks flow through the shared daemon-served browser lane[2m (1.9s)[22m
+
+[32m  15 passed[39m[2m (46.4s)[22m

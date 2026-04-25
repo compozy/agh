@@ -1,0 +1,48 @@
+{
+  "commands": {
+    "build": [
+      "make build",
+      "npm run build",
+      "go build ./..."
+    ],
+    "install": [
+      "make deps",
+      "npm install",
+      "go mod download"
+    ],
+    "lint": [
+      "make lint",
+      "make fmt",
+      "npm run lint",
+      "npm run typecheck",
+      "npm run format:check"
+    ],
+    "start": [
+      "npm run dev"
+    ],
+    "test": [
+      "make test",
+      "npm test",
+      "npm run test:e2e",
+      "go test ./..."
+    ],
+    "verify": [
+      "make verify"
+    ]
+  },
+  "notes": [
+    "Prefer repository-defined umbrella commands over ecosystem defaults.",
+    "Treat every discovered command as a candidate until repository instructions or CI confirm ownership."
+  ],
+  "root": "/Users/pedronauck/Dev/compozy/agh",
+  "signals": [
+    "Makefile",
+    "package.json",
+    "go.mod",
+    ".github/workflows"
+  ],
+  "web_ui": {
+    "detected": true,
+    "has_start_command": true
+  }
+}

@@ -33,11 +33,7 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout() {
   const page = useAppLayout();
-  const router = useRouter();
-  const locationPathname = useLocation({ select: location => location.pathname });
-  // Keep the motion shell keyed to the browser's latest path so pending-route
-  // resolution cannot remount the active screen later and discard local UI state.
-  const pathname = router.latestLocation.pathname || locationPathname;
+  const pathname = useLocation({ select: location => location.pathname });
   const reducedMotion = useReducedMotionConfig();
   const duration = resolveRouteTransitionDuration(Boolean(reducedMotion));
 

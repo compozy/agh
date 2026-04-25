@@ -1,0 +1,14 @@
+  🔍 Resolving [2/2] [23D[0K  🔍 Resolving [3/2] [23D[0K  🔍 Resolving [4/4] [23D[0K  🔍 Resolving [8/7] [23D[0K[0m[1m51 |[0m     [0m[35mif[0m (error.value === [0m[35mvoid[0m [0m[33m0[0m)
+[0m[1m52 |[0m       [0m[35mthrow[0m [0m[35mnew[0m [0m[1mError[0m([0m[32m"Serialized error must have either an error or a value"[0m)[0m[2m;[0m
+[0m[1m53 |[0m     [0m[35mreturn[0m ([0m[33m0[0m, import_serializers.parseSerializedValue)(error.value, [0m[35mvoid[0m [0m[33m0[0m)[0m[2m;[0m
+[0m[1m54 |[0m   }
+[0m[1m55 |[0m   [0m[35mif[0m (error.error.name === [0m[32m"TimeoutError"[0m) {
+[0m[1m56 |[0m     [0m[35mconst[0m e2 = [0m[35mnew[0m [0m[1mTimeoutError[0m(error.error.message)[0m[2m;[0m
+                        [31m[1m^[0m
+[0m[31mTimeoutError[0m[2m:[0m [1mfor: Timeout 15000ms exceeded.
+Call log:
+[2m  - waiting for locator('[data-testid="settings-page-automation-status-line"]') to be visible[22m
+[0m
+[0m      [2mat [0m[0m[36m/Users/pedronauck/.bun/install/cache/playwright-core@1.59.1@@@1/lib/client/errors.js[0m[2m:[0m[33m56[0m[2m:[33m20[0m
+[0m
+[2mBun v1.3.11 (macOS arm64)[0m

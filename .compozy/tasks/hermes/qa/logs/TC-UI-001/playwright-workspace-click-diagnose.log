@@ -1,0 +1,58 @@
+{
+  "url": "http://127.0.0.1:3001/settings/automation",
+  "text": "P pedronauck AGENTS Run `agh install` to bootstrap AGH WORKSPACE Network Tasks Bridges Jobs Triggers Knowledge Skills CONNECTED v92adb526-dirty Settings SETTINGS General Providers MCP Servers Environments Memory Skills Automation Network Observability Hooks & Extensions SETTINGS / AUTOMATION Automation Restart daemon daemon running · 0/0 jobs active · 0/0 triggers active OPERATIONAL manage jobs, triggers, and run history Open Jobs Open Triggers MANAGER read-only ENGINE running SCHEDULER running JOBS (ENABLED/TOTAL) 0 / 0 TRIGGERS (ENABLED/TOTAL) 0 / 0 NEXT FIRE — LAST SYNCED 4/25/2026, 2:18:58 AM ENGINE persisted to config.toml Automation engine Runs jobs and triggers on the daemon Timezone Used for cron schedule resolution IANA LIMITS resource caps Max concurrent jobs Caps the number of jobs running simultaneously DEFAULT Default fire limit Maximum invocations per window for new triggers FIRES per DEFAULT No unsaved changes Discard Save changes Workspace ready: pedronauck",
+  "events": [
+    {
+      "type": "console:debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "type": "console:debug",
+      "text": "[vite] connected."
+    },
+    {
+      "type": "console:info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:3001/api/settings/automation"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:3001/api/settings/automation"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:3001/api/agents"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:3001/api/workspaces"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:3001/api/observe/health"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:3001/api/daemon/status"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:3001/api/workspaces/resolve"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:3001/api/workspaces"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:3001/api/sessions?workspace=ws_9b3f60889768ff03"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:3001/api/workspaces/ws_9b3f60889768ff03"
+    }
+  ]
+}

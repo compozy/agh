@@ -1,0 +1,460 @@
+[0m[2m[35m$[0m [2m[1mbun run source:generate[0m
+[0m[2m[35m$[0m [2m[1mfumadocs-mdx source.config.ts .source[0m
+[MDX] generated files in 7.8115840000000105ms
+[0m[2m[35m$[0m [2m[1mvitest run[0m
+(node:11237) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v4.1.4 /Users/pedronauck/Dev/compozy/agh/packages/site
+
+(node:11241) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11240) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11242) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11238) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11244) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11239) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11243) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ |site| components/landing/__tests__/landing.test.tsx (21 tests | 2 failed) 240ms
+     × renders the five-tile runtime bento without an extra section header 45ms
+     × renders five extensibility cards 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |site| components/landing/__tests__/landing.test.tsx > BentoSection > renders the five-tile runtime bento without an extra section header
+TestingLibraryElementError: Unable to find an accessible element with the role "heading" and name "Every step. Always replayable."
+
+Here are the accessible roles:
+
+  region:
+
+  Name "AGH runtime map":
+  [36m<section[39m
+    [33maria-label[39m=[32m"AGH runtime map"[39m
+    [33mclass[39m=[32m"scroll-mt-24 border-y border-(--color-divider) bg-(--color-canvas-deep) px-4 py-6 sm:px-5 md:py-10 lg:px-5 lg:py-24"[39m
+    [33mid[39m=[32m"runtime-map"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  article:
+
+  Name "":
+  [36m<article[39m
+    [33mclass[39m=[32m"group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-[#11100f] p-7 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))] sm:p-8 xl:p-10 min-h-[540px] md:min-h-[560px] lg:col-start-1 lg:row-start-1 lg:min-h-0"[39m
+    [33mdata-testid[39m=[32m"bento-runtime"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<article[39m
+    [33mclass[39m=[32m"group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-[#11100f] p-7 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))] sm:p-8 xl:p-10 min-h-[420px] md:col-span-2 md:min-h-[500px] lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:min-h-0"[39m
+    [33mdata-testid[39m=[32m"bento-network"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<article[39m
+    [33mclass[39m=[32m"group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-[#11100f] p-7 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))] sm:p-8 xl:p-10 min-h-[360px] md:min-h-[390px] lg:col-start-1 lg:row-start-2 lg:min-h-0"[39m
+    [33mdata-testid[39m=[32m"bento-bridges"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<article[39m
+    [33mclass[39m=[32m"group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-[#11100f] p-7 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))] sm:p-8 xl:p-10 min-h-[390px] lg:min-h-0"[39m
+    [33mdata-testid[39m=[32m"bento-memory"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<article[39m
+    [33mclass[39m=[32m"group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-[#11100f] p-7 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))] sm:p-8 xl:p-10 min-h-[390px] lg:min-h-0"[39m
+    [33mdata-testid[39m=[32m"bento-trace"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  img:
+
+  Name "AGH runtime device showing durable agent sessions and status indicators.":
+  [36m<img[39m
+    [33malt[39m=[32m"AGH runtime device showing durable agent sessions and status indicators."[39m
+    [33mclass[39m=[32m"h-full w-full select-none opacity-95 object-cover"[39m
+    [33mdecoding[39m=[32m"async"[39m
+    [33mloading[39m=[32m"eager"[39m
+    [33msrc[39m=[32m"/images/bento-illustrations/runtime-v2.png"[39m
+  [36m/>[39m
+
+  Name "AGH network diagram showing discovery, delegation, receipt, and peers.":
+  [36m<img[39m
+    [33malt[39m=[32m"AGH network diagram showing discovery, delegation, receipt, and peers."[39m
+    [33mclass[39m=[32m"h-full w-full select-none opacity-95 object-contain object-[40%_100%]"[39m
+    [33mdecoding[39m=[32m"async"[39m
+    [33mloading[39m=[32m"eager"[39m
+    [33msrc[39m=[32m"/images/bento-illustrations/network-v2.png"[39m
+  [36m/>[39m
+
+  Name "Bridge events from Slack, Discord, and Telegram entering an AGH device.":
+  [36m<img[39m
+    [33malt[39m=[32m"Bridge events from Slack, Discord, and Telegram entering an AGH device."[39m
+    [33mclass[39m=[32m"h-full w-full select-none opacity-95 object-cover object-[30%_100%]"[39m
+    [33mdecoding[39m=[32m"async"[39m
+    [33mloading[39m=[32m"lazy"[39m
+    [33msrc[39m=[32m"/images/bento-illustrations/bridges-v2.png"[39m
+  [36m/>[39m
+
+  Name "Skill document carrying deployment intent into AGH memory.":
+  [36m<img[39m
+    [33malt[39m=[32m"Skill document carrying deployment intent into AGH memory."[39m
+    [33mclass[39m=[32m"h-full w-full select-none opacity-95 object-cover object-[50%_80%]"[39m
+    [33mdecoding[39m=[32m"async"[39m
+    [33mheight[39m=[32m"1462"[39m
+    [33mloading[39m=[32m"lazy"[39m
+    [33msrc[39m=[32m"/images/bento-illustrations/memory-v2.png"[39m
+    [33mwidth[39m=[32m"1076"[39m
+  [36m/>[39m
+
+  Name "Replay trace timeline with session events and health status.":
+  [36m<img[39m
+    [33malt[39m=[32m"Replay trace timeline with session events and health status."[39m
+    [33mclass[39m=[32m"h-full w-full select-none opacity-95 object-cover object-[50%_70%]"[39m
+    [33mdecoding[39m=[32m"async"[39m
+    [33mloading[39m=[32m"lazy"[39m
+    [33msrc[39m=[32m"/images/bento-illustrations/trace-v2.png"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "Your agents. Under control.":
+  [36m<h3[39m
+    [33maria-label[39m=[32m"Your agents. Under control."[39m
+    [33mclass[39m=[32m"font-display text-[2rem] font-normal leading-[1.08] text-(--color-text-primary) sm:text-[2.35rem] xl:text-[2.5rem]"[39m
+  [36m/>[39m
+
+  Name "Built-in network. Delegate. Deliver. Done.":
+  [36m<h3[39m
+    [33maria-label[39m=[32m"Built-in network. Delegate. Deliver. Done."[39m
+    [33mclass[39m=[32m"font-display text-[1.9rem] font-normal leading-[1.08] text-(--color-text-primary) sm:text-[2.2rem] xl:text-[2.50rem]"[39m
+  [36m/>[39m
+
+  Name "From anywhere. Into a session.":
+  [36m<h3[39m
+    [33maria-label[39m=[32m"From anywhere. Into a session."[39m
+    [33mclass[39m=[32m"font-display text-[1.65rem] font-normal leading-[1.08] text-(--color-text-primary) sm:text-[1.9rem] xl:text-[2rem]"[39m
+  [36m/>[39m
+
+  Name "Context that remembers.":
+  [36m<h3[39m
+    [33maria-label[39m=[32m"Context that remembers."[39m
+    [33mclass[39m=[32m"font-display text-[1.8rem] font-normal leading-[1.08] text-(--color-text-primary) sm:text-[2rem] xl:text-[2.2rem]"[39m
+  [36m/>[39m
+
+  Name "Every step Traceable.":
+  [36m<h3[39m
+    [33maria-label[39m=[32m"Every step Traceable."[39m
+    [33mclass[39m=[32m"font-display text-[1.8rem] font-normal leading-[1.08] text-(--color-text-primary) sm:text-[2rem] xl:text-[2.2rem]"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"AGH runtime map"[39m
+      [33mclass[39m=[32m"scroll-mt-24 border-y border-(--color-divider) bg-(--color-canvas-deep) px-4 py-6 sm:px-5 md:py-10 lg:px-5 lg:py-24"[39m
+      [33mid[39m=[32m"runtime-map"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"mx-auto grid w-full max-w-[1200px] gap-4 md:grid-cols-2 lg:aspect-[1536/1200] lg:grid-cols-[minmax(0,0.67fr)_minmax(0,1fr)] lg:grid-rows-[2.5fr_2fr]"[39m
+        [33mdata-testid[39m=[32m"bento-grid"[39m
+      [36m>[39m
+        [36m<article[39m
+          [33mclass[39m=[32m"group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-[#11100f] p-7 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))] sm:p-8 xl:p-10 min-h-[540px] md:min-h-[560px] lg:col-start-1 lg:row-start-1 lg:min-h-0"[39m
+          [33mdata-testid[39m=[32m"bento-runtime"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"absolute inset-x-0 bottom-0 top-[0%] pointer-events-none"[39m
+          [36m>[39m
+            [36m<img[39m
+              [33malt[39m=[32m"AGH runtime device showing durable agent sessions and status indicators."[39m
+              [33mclass[39m=[32m"h-full w-full select-none opacity-95 object-cover"[39m
+              [33mdecoding[39m=[32m"async"[39m
+              [33mloading[39m=[32m"eager"[39m
+              [33msrc[39m=[32m"/images/bento-illustrations/runtime-v2.png"[39m
+            [36m/>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(14,14,15,0.68)_0%,rgba(14,14,15,0.18)_42%,rgba(14,14,15,0)_68%)]"[39m
+          [36m/>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"relative z-10 max-w-[21rem]"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"mb-5 flex items-center gap-3 font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-database h-4 w-4"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<ellipse[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"5"[39m
+                  [33mrx[39m=[32m"9"[39m
+                  [33mry[39m=[32m"3"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M3 5V19A9 3 0 0 0 21 19V5"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M3 12A9 3 0 0 0 21 12"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mRuntime[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<h3[39m
+              [33maria-label[39m=[32m"Your agents. Under control."[39m
+              [33mclass[39m=[32m"font-display text-[2rem] font-normal leading-[1.08] text-(--color-text-primary) sm:text-[2.35rem] xl:text-[2.5rem]"[39m
+            [36m>[39m
+              [0mYour agents.[0m
+              [36m<br />[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"text-(--color-accent)"[39m
+              [36m>[39m
+                [0mUnder control.[0m
+              [36m</span>[39m
+            [36m</h3>[39m
+            [36m<span[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"mt-5 block h-px w-8 bg-(--color-accent)"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</article>[39m
+        [36m<article[39m
+          [33mclass[39m=[32m"group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-[#11100f] p-7 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))] sm:p-8 xl:p-10 min-h-[420px] md:col-span-2 md:min-h-[500px] lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:min-h-0"[39m
+          [33mdata-testid[39m=[32m"bento-network"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"absolute inset-0 pointer-events-none"[39m
+          [36m>[39m
+            [36m<img[39m
+              [33malt[39m=[32m"AGH network diagram showing discovery, delegation, receipt, and peers."[39m
+              [33mclass[39m=[32m"h-full w-full select-none opacity-95 object-contain object-[40%_100%]"[39m
+              [33mdecoding[39m=[32m"async"[39m
+              [33mloading[39m=[32m"eager"[39m
+              [33msrc[39m=[32m"/images/bento-illustrations/network-v2.png"[39m
+            [36m/>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(14,14,15,0.94)_0%,rgba(14,14,15,0.78)_21%,rgba(14,14,15,0)_48%)]"[39m
+          [36m/>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"relative z-10 max-w-[30rem]"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"mb-5 flex items-center gap-3 font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-network h-4 w-4"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"6"[39m
+                  [33mrx[39m=[32m"1"[39m
+                  [33mwidth[39m=[32m"6"[39m
+                  [33mx[39m=[32m"16"[39m
+                  [33my[39m=[32m"16"[39m
+                [36m/>[39m
+              ...
+ ❯ Object.getElementError ../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ ../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ ../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ components/landing/__tests__/landing.test.tsx:114:21
+    112|       "Every step. Always replayable.",
+    113|     ]) {
+    114|       expect(screen.getByRole("heading", { name: title })).toBeDefined…
+       |                     ^
+    115|     }
+    116|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  |site| components/landing/__tests__/landing.test.tsx > ExtensibilitySection > renders five extensibility cards
+TestingLibraryElementError: Unable to find an element with the text: Memory. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33mclass[39m=[32m"px-4 bg-(--color-canvas) py-20 md:py-28"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"mx-auto max-w-(--site-layout-width)"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"max-w-[700px] text-left"[39m
+        [36m>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"font-mono text-[11px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)"[39m
+          [36m>[39m
+            [0mExtensibility[0m
+          [36m</p>[39m
+          [36m<h2[39m
+            [33mclass[39m=[32m"mt-5 text-(--color-text-primary) text-[clamp(2.2rem,4.6vw,3.6rem)] leading-[1.02] font-normal tracking-[-0.03em]"[39m
+          [36m>[39m
+            [0mHooks, skills, automation, extensions.[0m
+          [36m</h2>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"mt-5 text-base leading-relaxed text-(--color-text-secondary) max-w-[62ch]"[39m
+          [36m>[39m
+            [0mThe daemon is extensible at every seam you actually need. No plugins to write — contracts are plain files.[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"mt-20 grid gap-4 md:grid-cols-2 lg:grid-cols-4"[39m
+        [36m>[39m
+          [36m<article[39m
+            [33mclass[39m=[32m"flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-6 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))]"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex h-10 w-10 items-center justify-center rounded-[10px] bg-(--color-surface-elevated) text-(--color-accent)"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-file-code-corner h-4 w-4"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M4 12.15V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2h-3.35"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M14 2v5a1 1 0 0 0 1 1h5"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"m5 16-3 3 3 3"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"m9 22 3-3-3-3"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)"[39m
+            [36m>[39m
+              [0mHooks[0m
+            [36m</p>[39m
+            [36m<h3[39m
+              [33mclass[39m=[32m"text-base font-medium leading-snug text-(--color-text-primary)"[39m
+            [36m>[39m
+              [0mObserve and mutate lifecycle events[0m
+            [36m</h3>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"text-sm leading-relaxed text-(--color-text-secondary)"[39m
+            [36m>[39m
+              [0mRun shell, builtin, or sub-agent actions on ~40 lifecycle events — session start, tool call, permission request, network receipt.[0m
+            [36m</p>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"mt-auto inline-flex items-center gap-1 pt-2 font-mono text-[10px] uppercase tracking-(--tracking-mono) text-(--color-text-tertiary) transition-colors hover:text-(--color-accent)"[39m
+              [33mhref[39m=[32m"/runtime"[39m
+            [36m>[39m
+              [0mhooks catalog[0m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-arrow-up-right h-3 w-3"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M7 7h10v10"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M7 17 17 7"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</a>[39m
+          [36m</article>[39m
+          [36m<article[39m
+            [33mclass[39m=[32m"flex flex-col gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-6 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))]"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex h-10 w-10 items-center justify-center rounded-[10px] bg-(--color-surface-elevated) text-(--color-accent)"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-sparkles h-4 w-4"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M20 2v4"[39m
+                [36m/>[39m
+ ...
+ ❯ Object.getElementError ../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ ../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ ../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ components/landing/__tests__/landing.test.tsx:226:21
+    224|     const eyebrows = ["Hooks", "Skills", "Memory", "Automation", "Exte…
+    225|     for (const label of eyebrows) {
+    226|       expect(screen.getByText(label)).toBeDefined();
+       |                     ^
+    227|     }
+    228|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 6 passed (7)
+      Tests  2 failed | 34 passed (36)
+   Start at  02:16:30
+   Duration  1.35s (transform 544ms, setup 0ms, import 1.76s, tests 386ms, environment 2.32s)
+
+[0m[31merror[0m[2m:[0m script [1m"test"[0m exited with code 1[0m

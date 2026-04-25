@@ -1,0 +1,1 @@
+env/extension ok: .env repaired; requires_env/missing_env names surfaced without values

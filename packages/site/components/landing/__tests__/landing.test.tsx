@@ -98,6 +98,7 @@ describe("BentoSection", () => {
     render(<BentoSection />);
 
     expect(screen.getByTestId("bento-grid")).toBeDefined();
+    expect(screen.getAllByRole("article")).toHaveLength(5);
     expect(screen.queryByText("The runtime surface in five parts.")).toBeNull();
 
     for (const label of ["Runtime", "Network", "Bridges", "Memory", "Trace"]) {
@@ -109,12 +110,10 @@ describe("BentoSection", () => {
       "Built-in network. Delegate. Deliver. Done.",
       "From anywhere. Into a session.",
       "Context that remembers.",
-      "Every step. Always replayable.",
+      "Every step Traceable.",
     ]) {
       expect(screen.getByRole("heading", { name: title })).toBeDefined();
     }
-
-    expect(screen.getByText("One local daemon. Every session. Every event.")).toBeDefined();
   });
 
   it("uses the five exported bento illustration assets", () => {
@@ -219,9 +218,10 @@ describe("BridgesSection", () => {
 });
 
 describe("ExtensibilitySection", () => {
-  it("renders five extensibility cards", () => {
+  it("renders four extensibility cards", () => {
     render(<ExtensibilitySection />);
-    const eyebrows = ["Hooks", "Skills", "Memory", "Automation", "Extensions"];
+    expect(screen.getAllByRole("article")).toHaveLength(4);
+    const eyebrows = ["Hooks", "Skills", "Automation", "Extensions"];
     for (const label of eyebrows) {
       expect(screen.getByText(label)).toBeDefined();
     }
