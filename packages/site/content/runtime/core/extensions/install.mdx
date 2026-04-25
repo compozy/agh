@@ -147,6 +147,10 @@ Marketplace install flow:
 6. AGH persists registry metadata: source tier `marketplace`, slug, registry name, and remote
    version.
 
+Managed installs do not allow runtime dependency symlinks to escape the extracted extension root.
+If a packaged `node_modules` or runtime dependency symlink resolves outside that root, installation
+fails instead of copying content from the host filesystem.
+
 After install, restart the daemon to activate the new extension if it is already running.
 
 ## Check For Updates

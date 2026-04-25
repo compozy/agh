@@ -1,5 +1,6 @@
 export { Hero } from "./hero";
 export { FeaturesSection } from "./features-section";
+export { BentoSection } from "./bento-section";
 export { SupportedAgents } from "./supported-agents";
 export { NetworkSection } from "./network-section";
 export { RuntimeSection } from "./runtime-section";

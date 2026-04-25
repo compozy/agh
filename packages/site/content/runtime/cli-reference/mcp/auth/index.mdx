@@ -1,0 +1,37 @@
+---
+title: "agh mcp auth"
+description: "Authenticate remote MCP servers"
+---
+
+## agh mcp auth
+
+Authenticate remote MCP servers
+
+### Options
+
+```
+  -h, --help   help for auth
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `toon` for compact agent-readable summaries
+
+
+## Subcommands
+
+| Command | Description |
+| ------- | ----------- |
+| [agh mcp auth login](/runtime/cli-reference/mcp/auth/login) | Run OAuth login for a remote MCP server |
+| [agh mcp auth logout](/runtime/cli-reference/mcp/auth/logout) | Revoke or delete remote MCP auth tokens |
+| [agh mcp auth status](/runtime/cli-reference/mcp/auth/status) | Show redacted remote MCP auth status |

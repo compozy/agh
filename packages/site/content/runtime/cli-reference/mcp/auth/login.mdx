@@ -1,0 +1,41 @@
+---
+title: "agh mcp auth login"
+description: "Run OAuth login for a remote MCP server"
+---
+
+## agh mcp auth login
+
+Run OAuth login for a remote MCP server
+
+```
+agh mcp auth login <server> [flags]
+```
+
+### Options
+
+```
+  -h, --help                  help for login
+      --manual-code string    Exchange an authorization code without starting the loopback listener
+      --redirect-url string   OAuth redirect URL
+      --timeout duration      Loopback login timeout (default 2m0s)
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh mcp auth login <server> -o json
+```

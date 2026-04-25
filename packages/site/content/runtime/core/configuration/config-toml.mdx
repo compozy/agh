@@ -119,6 +119,18 @@ command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you/work"]
 env = { LOG_LEVEL = "info" }
 
+[[mcp_servers]]
+name = "remote-docs"
+transport = "sse"
+url = "https://mcp.example.com/sse"
+
+[mcp_servers.auth]
+type = "oauth2_pkce"
+issuer_url = "https://auth.example.com"
+client_id = "agh-desktop"
+client_secret_env = "REMOTE_DOCS_MCP_CLIENT_SECRET"
+scopes = ["mcp.read", "mcp.write"]
+
 [providers.claude]
 # Overrides the built-in Claude provider command/model/key environment variable.
 command = "npx -y @agentclientprotocol/claude-agent-acp@0.24.2"
@@ -290,13 +302,43 @@ continues to observe runtime activity or controlled waiting heartbeats.
 ## `[[mcp_servers]]`
 
 Top-level MCP servers are merged with provider, agent, and skill MCP servers during session startup.
+They can point at local stdio processes or remote HTTP/SSE MCP endpoints.
 
-| Field     | Type         | Default  | Valid values              | Description                                                                                |
-| --------- | ------------ | -------- | ------------------------- | ------------------------------------------------------------------------------------------ |
-| `name`    | string       | required | Non-empty after trimming. | Stable server key used for merge and replacement.                                          |
-| `command` | string       | required | Non-empty command.        | Executable command for the MCP server.                                                     |
-| `args`    | string array | empty    | Strings.                  | Process arguments passed to the command.                                                   |
-| `env`     | string map   | empty    | String keys and values.   | Literal environment values passed to the MCP server. AGH does not perform shell expansion. |
+| Field       | Type         | Default            | Valid values              | Description                                                                                |
+| ----------- | ------------ | ------------------ | ------------------------- | ------------------------------------------------------------------------------------------ |
+| `name`      | string       | required           | Non-empty after trimming. | Stable server key used for merge and replacement.                                          |
+| `transport` | string       | inferred           | `stdio`, `http`, `sse`.   | Transport kind. Command servers default to `stdio`; URL servers default to `http`.          |
+| `command`   | string       | required for stdio | Non-empty command.        | Executable command for a local stdio MCP server. Invalid for remote transports.             |
+| `url`       | string URL   | required for remote | Absolute URL.             | Remote MCP endpoint for `http` or `sse` transports. Invalid for `stdio`.                    |
+| `auth`      | object       | empty              | OAuth 2.1 PKCE settings.  | Remote auth metadata and client settings. Invalid for `stdio`.                              |
+| `args`      | string array | empty              | Strings.                  | Process arguments passed to the command.                                                   |
+| `env`       | string map   | empty              | String keys and values.   | Literal environment values passed to the MCP server. AGH does not perform shell expansion. |
+
+OAuth-enabled remote servers store only metadata in config. Token material is kept in the AGH
+global database with private filesystem permissions and is exposed through API, settings, CLI, and
+logs only as redacted status.
+
+| `auth` field         | Type         | Required | Description                                                                 |
+| -------------------- | ------------ | -------- | --------------------------------------------------------------------------- |
+| `type`               | string       | yes      | Must be `oauth2_pkce`.                                                      |
+| `client_id`          | string       | yes      | OAuth client ID.                                                            |
+| `client_secret_env`  | string       | no       | Environment variable name containing the client secret, when required.       |
+| `issuer_url`         | string URL   | conditional | Issuer for OAuth metadata discovery.                                      |
+| `metadata_url`       | string URL   | conditional | Explicit OAuth authorization-server metadata URL.                         |
+| `authorization_url`  | string URL   | conditional | Direct authorization endpoint. Pair with `token_url`.                     |
+| `token_url`          | string URL   | conditional | Direct token endpoint. Pair with `authorization_url`.                     |
+| `revocation_url`     | string URL   | no       | Optional endpoint used by `agh mcp auth logout`.                            |
+| `scopes`             | string array | no       | Requested OAuth scopes.                                                     |
+
+Configure one of `metadata_url`, `issuer_url`, or both `authorization_url` and `token_url`, then
+authenticate with:
+
+```bash
+agh mcp auth login remote-docs
+agh mcp auth status remote-docs
+agh mcp auth status remote-docs --refresh
+agh mcp auth logout remote-docs
+```
 
 ## `[providers.<name>]`
 

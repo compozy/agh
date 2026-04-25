@@ -239,6 +239,10 @@ If frontmatter and sidecar JSON declare the same server name, the sidecar replac
 frontmatter server object. See [mcp.json Reference](/runtime/core/configuration/mcp-json) for the shared
 JSON schema.
 
+Skill-local sidecars are loaded only when they resolve inside the skill directory. AGH rejects
+`SKILL.md`, `mcp.json`, and hashed resource paths that escape the approved skill root through
+symlinks.
+
 ## Marketplace Provenance Sidecar
 
 Marketplace-installed skills include `.agh-meta.json` next to `SKILL.md`. Users normally do not

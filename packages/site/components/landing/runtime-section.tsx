@@ -2,7 +2,6 @@ import { Activity, Database, ShieldCheck, Terminal } from "lucide-react";
 import { CodeBlock } from "./primitives/code-block";
 import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
-import { RuntimeMicroDiagram } from "./runtime-micro-diagram";
 
 const FEATURES = [
   {
@@ -49,8 +48,8 @@ agh session resume <session-id>`;
 
 export function RuntimeSection() {
   return (
-    <SectionFrame background="canvas" padY="lg">
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,260px)_1fr] lg:items-start lg:gap-16">
+    <SectionFrame className="relative" background="canvas" padY="lg">
+      <div className="grid gap-12 lg:grid-cols-[minmax(0,360px)_1fr] lg:items-start lg:gap-16">
         <div className="h-full flex flex-col justify-between lg:sticky lg:top-24">
           <div>
             <p className="font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
@@ -65,8 +64,14 @@ export function RuntimeSection() {
               state, and one operator surface shared by the CLI, API, and web UI.
             </p>
           </div>
-          <div className="hidden lg:block">
-            <RuntimeMicroDiagram />
+          <div className="absolute bottom-0 left-0 invisible lg:visible">
+            <img
+              src="/images/runtime/illustration_1.png"
+              alt="AGH daemon connecting CLI, API, and web UI surfaces to sessions, memory, skills, workspaces, and observability."
+              loading="lazy"
+              decoding="async"
+              className="max-w-[424px] select-none object-contain opacity-95"
+            />
           </div>
         </div>
 

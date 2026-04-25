@@ -18,6 +18,7 @@
         "skill",
         "---Runtime---",
         "daemon",
+        "mcp",
         "memory",
         "network",
         "observe",
