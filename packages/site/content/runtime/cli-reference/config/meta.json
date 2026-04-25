@@ -1,0 +1,4 @@
+{
+    "title": "Config",
+    "pages": ["index", "check", "edit", "get", "list", "path", "set", "show", "validate"]
+}

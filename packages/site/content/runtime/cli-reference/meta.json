@@ -25,6 +25,9 @@
         "bridge",
         "---System---",
         "install",
+        "config",
+        "update",
+        "uninstall",
         "whoami",
         "version",
         "completion"

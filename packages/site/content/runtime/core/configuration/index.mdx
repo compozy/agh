@@ -32,3 +32,14 @@ for the change you actually want.
 
 That order mirrors how operators usually troubleshoot AGH: global defaults first, path resolution
 second, then file-format specifics and agent sidecars.
+
+## CLI Inspection and Mutation
+
+Use `agh config path` before editing to confirm the selected global or workspace overlay. Prefer
+`agh config set <path> <value>` for supported scalar and list settings because it writes through the
+same validated persistence path as the settings API. Use `agh config validate` or its
+`agh config check` alias after hand edits.
+
+Inspection commands are redacted by default. `agh config show`, `agh config list`, and
+`agh config get <path>` replace MCP and environment map values with `[redacted]` so copied
+diagnostics do not leak runtime credentials.

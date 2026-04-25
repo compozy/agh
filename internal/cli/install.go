@@ -34,6 +34,8 @@ type installRecord struct {
 	ConfigFile   string `json:"config_file"`
 	AgentFile    string `json:"agent_file"`
 	CreatedAgent bool   `json:"created_agent"`
+	Managed      bool   `json:"managed"`
+	Manager      string `json:"manager,omitempty"`
 }
 
 type installWizardStep int
@@ -99,6 +101,8 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 				ConfigFile:   homePaths.ConfigFile,
 				AgentFile:    agentPath,
 				CreatedAgent: createdAgent,
+				Managed:      detectManagedState(deps).Managed,
+				Manager:      detectManagedState(deps).Manager,
 			}
 			return writeCommandOutput(cmd, installBundle(record))
 		},
@@ -170,11 +174,14 @@ func installBundle(record installRecord) outputBundle {
 				{Label: "Config File", Value: stringOrDash(record.ConfigFile)},
 				{Label: "Agent File", Value: stringOrDash(record.AgentFile)},
 				{Label: "Agent Status", Value: status},
+				{Label: "Managed", Value: fmt.Sprintf("%t", record.Managed)},
+				{Label: "Manager", Value: stringOrDash(record.Manager)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("install", []string{
-				"agent_name", "provider", "model", "permissions", "config_file", "agent_file", "created_agent",
+				"agent_name", "provider", "model", "permissions", "config_file", "agent_file",
+				"created_agent", "managed", "manager",
 			}, []string{
 				record.AgentName,
 				record.Provider,
@@ -183,6 +190,8 @@ func installBundle(record installRecord) outputBundle {
 				record.ConfigFile,
 				record.AgentFile,
 				fmt.Sprintf("%t", record.CreatedAgent),
+				fmt.Sprintf("%t", record.Managed),
+				record.Manager,
 			}), nil
 		},
 	}
