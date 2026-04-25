@@ -58,6 +58,7 @@ type commandDeps struct {
 	startTimeout                 time.Duration
 	stopTimeout                  time.Duration
 	spawnDetached                func(context.Context, aghconfig.HomePaths) (daemonProcess, error)
+	newMCPAuthClient             newMCPAuthClientFunc
 }
 
 // NewRootCommand constructs the AGH v1 CLI command tree.
@@ -100,6 +101,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskCommand(deps))
 	cmd.AddCommand(newSkillCommand(deps))
 	cmd.AddCommand(newMemoryCommand(deps))
+	cmd.AddCommand(newMCPCommand(deps))
 	cmd.AddCommand(newObserveCommand(deps))
 	cmd.AddCommand(newWhoamiCommand(deps))
 	cmd.AddCommand(newDocCommand())
@@ -178,6 +180,7 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	if d.newClient == nil {
 		d.newClient = NewClient
 	}
+	d = d.withMCPAuthDefaults()
 	if d.newDaemon == nil {
 		d.newDaemon = func() (daemonRunner, error) {
 			return aghdaemon.New()

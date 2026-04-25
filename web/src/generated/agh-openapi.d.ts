@@ -1892,11 +1892,24 @@ export interface operations {
               command?: string;
               mcp_servers?: {
                 args?: string[];
-                command: string;
+                auth?: {
+                  authorization_url?: string;
+                  client_id?: string;
+                  client_secret_env?: string;
+                  issuer_url?: string;
+                  metadata_url?: string;
+                  revocation_url?: string;
+                  scopes?: string[];
+                  token_url?: string;
+                  type?: string;
+                } | null;
+                command?: string;
                 env?: {
                   [key: string]: string;
                 };
                 name: string;
+                transport?: string;
+                url?: string;
               }[];
               model?: string;
               name: string;
@@ -1950,11 +1963,24 @@ export interface operations {
               command?: string;
               mcp_servers?: {
                 args?: string[];
-                command: string;
+                auth?: {
+                  authorization_url?: string;
+                  client_id?: string;
+                  client_secret_env?: string;
+                  issuer_url?: string;
+                  metadata_url?: string;
+                  revocation_url?: string;
+                  scopes?: string[];
+                  token_url?: string;
+                  type?: string;
+                } | null;
+                command?: string;
                 env?: {
                   [key: string]: string;
                 };
                 name: string;
+                transport?: string;
+                url?: string;
               }[];
               model?: string;
               name: string;
@@ -11766,7 +11792,36 @@ export interface operations {
             collection: "providers" | "mcp-servers" | "environments" | "hooks";
             mcp_servers: {
               args?: string[];
-              command: string;
+              auth?: {
+                authorization_url?: string;
+                client_id?: string;
+                client_secret_env?: string;
+                issuer_url?: string;
+                metadata_url?: string;
+                revocation_url?: string;
+                scopes?: string[];
+                token_url?: string;
+                type?: string;
+              } | null;
+              auth_status?: {
+                auth_type?: string;
+                authorization_url?: string;
+                client_id?: string;
+                diagnostic?: string;
+                /** Format: date-time */
+                expires_at?: string | null;
+                issuer?: string;
+                refreshable: boolean;
+                remote_url?: string;
+                revocation_url?: string;
+                scopes?: string[];
+                server_name: string;
+                status: string;
+                token_present: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              } | null;
+              command?: string;
               env?: {
                 [key: string]: string;
               };
@@ -11805,6 +11860,8 @@ export interface operations {
                   workspace_id?: string;
                 }[];
               };
+              transport: string;
+              url?: string;
               workspace_id?: string;
             }[];
             /** @enum {string} */
@@ -11877,11 +11934,24 @@ export interface operations {
         "application/json": {
           server: {
             args?: string[];
-            command: string;
+            auth?: {
+              authorization_url?: string;
+              client_id?: string;
+              client_secret_env?: string;
+              issuer_url?: string;
+              metadata_url?: string;
+              revocation_url?: string;
+              scopes?: string[];
+              token_url?: string;
+              type?: string;
+            } | null;
+            command?: string;
             env?: {
               [key: string]: string;
             };
             name: string;
+            transport?: string;
+            url?: string;
           };
         };
       };
@@ -19717,11 +19787,24 @@ export interface operations {
               command?: string;
               mcp_servers?: {
                 args?: string[];
-                command: string;
+                auth?: {
+                  authorization_url?: string;
+                  client_id?: string;
+                  client_secret_env?: string;
+                  issuer_url?: string;
+                  metadata_url?: string;
+                  revocation_url?: string;
+                  scopes?: string[];
+                  token_url?: string;
+                  type?: string;
+                } | null;
+                command?: string;
                 env?: {
                   [key: string]: string;
                 };
                 name: string;
+                transport?: string;
+                url?: string;
               }[];
               model?: string;
               name: string;

@@ -114,7 +114,7 @@ func TestAgentPayloadFromDef(t *testing.T) {
 	if payload.Name != "coder" || payload.Provider != "fake" || len(payload.MCPServers) != 1 {
 		t.Fatalf("payload = %#v", payload)
 	}
-	if payload.MCPServers[0].Env["TOKEN"] != "secret" {
+	if payload.MCPServers[0].Env["TOKEN"] != aghconfig.RedactedValue() {
 		t.Fatalf("payload mcp env = %#v", payload.MCPServers[0].Env)
 	}
 }

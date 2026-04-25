@@ -30,6 +30,42 @@
                                                                     },
                                                                     "type": "array"
                                                                 },
+                                                                "auth": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "authorization_url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "client_id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "client_secret_env": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "issuer_url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "metadata_url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "revocation_url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "scopes": {
+                                                                            "items": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": "array"
+                                                                        },
+                                                                        "token_url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
                                                                 "command": {
                                                                     "type": "string"
                                                                 },
@@ -41,9 +77,15 @@
                                                                 },
                                                                 "name": {
                                                                     "type": "string"
+                                                                },
+                                                                "transport": {
+                                                                    "type": "string"
+                                                                },
+                                                                "url": {
+                                                                    "type": "string"
                                                                 }
                                                             },
-                                                            "required": ["command", "name"],
+                                                            "required": ["name"],
                                                             "type": "object"
                                                         },
                                                         "type": "array"
@@ -142,6 +184,42 @@
                                                                 },
                                                                 "type": "array"
                                                             },
+                                                            "auth": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "authorization_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "client_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "client_secret_env": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "issuer_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "metadata_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "revocation_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "scopes": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "token_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
                                                             "command": {
                                                                 "type": "string"
                                                             },
@@ -153,9 +231,15 @@
                                                             },
                                                             "name": {
                                                                 "type": "string"
+                                                            },
+                                                            "transport": {
+                                                                "type": "string"
+                                                            },
+                                                            "url": {
+                                                                "type": "string"
                                                             }
                                                         },
-                                                        "required": ["command", "name"],
+                                                        "required": ["name"],
                                                         "type": "object"
                                                     },
                                                     "type": "array"
@@ -19957,6 +20041,103 @@
                                                         },
                                                         "type": "array"
                                                     },
+                                                    "auth": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "authorization_url": {
+                                                                "type": "string"
+                                                            },
+                                                            "client_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "client_secret_env": {
+                                                                "type": "string"
+                                                            },
+                                                            "issuer_url": {
+                                                                "type": "string"
+                                                            },
+                                                            "metadata_url": {
+                                                                "type": "string"
+                                                            },
+                                                            "revocation_url": {
+                                                                "type": "string"
+                                                            },
+                                                            "scopes": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "token_url": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "auth_status": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "auth_type": {
+                                                                "type": "string"
+                                                            },
+                                                            "authorization_url": {
+                                                                "type": "string"
+                                                            },
+                                                            "client_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "diagnostic": {
+                                                                "type": "string"
+                                                            },
+                                                            "expires_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "issuer": {
+                                                                "type": "string"
+                                                            },
+                                                            "refreshable": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "remote_url": {
+                                                                "type": "string"
+                                                            },
+                                                            "revocation_url": {
+                                                                "type": "string"
+                                                            },
+                                                            "scopes": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "server_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "status": {
+                                                                "type": "string"
+                                                            },
+                                                            "token_present": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "updated_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "refreshable",
+                                                            "server_name",
+                                                            "status",
+                                                            "token_present"
+                                                        ],
+                                                        "type": "object"
+                                                    },
                                                     "command": {
                                                         "type": "string"
                                                     },
@@ -20049,15 +20230,21 @@
                                                         ],
                                                         "type": "object"
                                                     },
+                                                    "transport": {
+                                                        "type": "string"
+                                                    },
+                                                    "url": {
+                                                        "type": "string"
+                                                    },
                                                     "workspace_id": {
                                                         "type": "string"
                                                     }
                                                 },
                                                 "required": [
-                                                    "command",
                                                     "name",
                                                     "scope",
-                                                    "source_metadata"
+                                                    "source_metadata",
+                                                    "transport"
                                                 ],
                                                 "type": "object"
                                             },
@@ -20391,6 +20578,42 @@
                                                 },
                                                 "type": "array"
                                             },
+                                            "auth": {
+                                                "nullable": true,
+                                                "properties": {
+                                                    "authorization_url": {
+                                                        "type": "string"
+                                                    },
+                                                    "client_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "client_secret_env": {
+                                                        "type": "string"
+                                                    },
+                                                    "issuer_url": {
+                                                        "type": "string"
+                                                    },
+                                                    "metadata_url": {
+                                                        "type": "string"
+                                                    },
+                                                    "revocation_url": {
+                                                        "type": "string"
+                                                    },
+                                                    "scopes": {
+                                                        "items": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "array"
+                                                    },
+                                                    "token_url": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
                                             "command": {
                                                 "type": "string"
                                             },
@@ -20402,9 +20625,15 @@
                                             },
                                             "name": {
                                                 "type": "string"
+                                            },
+                                            "transport": {
+                                                "type": "string"
+                                            },
+                                            "url": {
+                                                "type": "string"
                                             }
                                         },
-                                        "required": ["command", "name"],
+                                        "required": ["name"],
                                         "type": "object"
                                     }
                                 },
@@ -35100,6 +35329,42 @@
                                                                     },
                                                                     "type": "array"
                                                                 },
+                                                                "auth": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "authorization_url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "client_id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "client_secret_env": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "issuer_url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "metadata_url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "revocation_url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "scopes": {
+                                                                            "items": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": "array"
+                                                                        },
+                                                                        "token_url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
                                                                 "command": {
                                                                     "type": "string"
                                                                 },
@@ -35111,9 +35376,15 @@
                                                                 },
                                                                 "name": {
                                                                     "type": "string"
+                                                                },
+                                                                "transport": {
+                                                                    "type": "string"
+                                                                },
+                                                                "url": {
+                                                                    "type": "string"
                                                                 }
                                                             },
-                                                            "required": ["command", "name"],
+                                                            "required": ["name"],
                                                             "type": "object"
                                                         },
                                                         "type": "array"

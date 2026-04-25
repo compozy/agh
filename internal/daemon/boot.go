@@ -1329,6 +1329,7 @@ func (d *Daemon) bootSettings(_ context.Context, state *bootState) error {
 		ObservabilityRuntime:       surface,
 		Extensions:                 surface,
 		TransportParity:            surface,
+		MCPAuth:                    surface,
 		RestartActionAvailable:     true,
 		ConsolidateActionAvailable: state.dreamRuntime != nil && state.dreamRuntime.Enabled(),
 		LogTailAvailable:           strings.TrimSpace(d.homePaths.LogFile) != "",

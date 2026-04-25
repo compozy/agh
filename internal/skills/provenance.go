@@ -201,6 +201,9 @@ func writeHashEntry(hasher hash.Hash, root string, relPath string, buffer []byte
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
+		if err := ensurePathWithinRoot(root, absPath); err != nil {
+			return fmt.Errorf("skills: reject hashed symlink %q: %w", absPath, err)
+		}
 		target, err := os.Readlink(absPath)
 		if err != nil {
 			return fmt.Errorf("skills: read hashed symlink %q: %w", absPath, err)

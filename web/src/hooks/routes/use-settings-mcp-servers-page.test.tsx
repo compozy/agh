@@ -52,6 +52,7 @@ const polybotWorkspace: WorkspacePayload = {
 
 const filesystemEntry: SettingsMCPServerCollection["mcp_servers"][number] = {
   name: "filesystem",
+  transport: "stdio",
   command: "npx -y @modelcontextprotocol/server-filesystem",
   args: ["~/Dev"],
   scope: "global",
@@ -64,6 +65,7 @@ const filesystemEntry: SettingsMCPServerCollection["mcp_servers"][number] = {
 
 const githubEntry: SettingsMCPServerCollection["mcp_servers"][number] = {
   name: "github",
+  transport: "stdio",
   command: "npx -y @modelcontextprotocol/server-github",
   env: { GITHUB_TOKEN: "env:GITHUB_TOKEN" },
   scope: "global",
@@ -82,6 +84,7 @@ const globalCollection: SettingsMCPServerCollection = {
 
 const workspaceEntry: SettingsMCPServerCollection["mcp_servers"][number] = {
   name: "paper",
+  transport: "stdio",
   command: "npx -y @paper-design/mcp-paper",
   scope: "workspace",
   workspace_id: polybotWorkspace.id,
@@ -265,6 +268,7 @@ describe("useSettingsMCPServersPage", () => {
       {
         server: {
           name: "filesystem",
+          transport: "stdio",
           command: "npx filesystem-v2",
           args: ["~/Dev"],
         },
@@ -309,7 +313,7 @@ describe("useSettingsMCPServersPage", () => {
     expect(putSettingsMCPServer).toHaveBeenCalledWith(
       "new-server",
       {
-        server: { name: "new-server", command: "npx new" },
+        server: { name: "new-server", transport: "stdio", command: "npx new" },
       },
       { scope: "global", target: "sidecar" }
     );
@@ -353,7 +357,7 @@ describe("useSettingsMCPServersPage", () => {
     expect(putSettingsMCPServer).toHaveBeenCalledWith(
       "paper",
       {
-        server: { name: "paper", command: "npx paper-v2" },
+        server: { name: "paper", transport: "stdio", command: "npx paper-v2" },
       },
       { scope: "workspace", workspace_id: polybotWorkspace.id, target: "auto" }
     );

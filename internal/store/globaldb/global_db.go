@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -512,6 +513,37 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateAutomationSchedulerState,
 		Checksum: "2026-04-24-add-automation-scheduler-state",
 	},
+	{
+		Version:  4,
+		Name:     "add_mcp_auth_tokens",
+		Up:       migrateMCPAuthTokens,
+		Checksum: "2026-04-25-add-mcp-auth-tokens",
+	},
+}
+
+func migrateMCPAuthTokens(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS mcp_auth_tokens (
+			server_name    TEXT PRIMARY KEY,
+			issuer         TEXT NOT NULL DEFAULT '',
+			client_id      TEXT NOT NULL,
+			scopes_json    TEXT NOT NULL DEFAULT '[]',
+			access_token   TEXT NOT NULL,
+			refresh_token  TEXT NOT NULL DEFAULT '',
+			token_type     TEXT NOT NULL DEFAULT 'Bearer',
+			expires_at     TEXT,
+			obtained_at    TEXT NOT NULL,
+			updated_at     TEXT NOT NULL
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_mcp_auth_tokens_updated_at
+			ON mcp_auth_tokens(updated_at);`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: migrate MCP auth tokens: %w", err)
+		}
+	}
+	return nil
 }
 
 func migrateAutomationSchedulerState(ctx context.Context, tx *sql.Tx) error {
@@ -593,6 +625,10 @@ func OpenGlobalDB(ctx context.Context, path string) (*GlobalDB, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := enforcePrivateGlobalDBFiles(path); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 
 	return &GlobalDB{
 		db:   db,
@@ -601,6 +637,33 @@ func OpenGlobalDB(ctx context.Context, path string) (*GlobalDB, error) {
 			return time.Now().UTC()
 		},
 	}, nil
+}
+
+func enforcePrivateGlobalDBFiles(path string) error {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return nil
+	}
+	for _, candidate := range []string{trimmed, trimmed + "-wal", trimmed + "-shm"} {
+		info, err := os.Stat(candidate)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("store: stat global database file %q: %w", candidate, err)
+		}
+		if info.IsDir() {
+			continue
+		}
+		mode := info.Mode().Perm()
+		if mode&0o077 == 0 {
+			continue
+		}
+		if err := os.Chmod(candidate, mode&0o700); err != nil {
+			return fmt.Errorf("store: restrict global database file permissions %q: %w", candidate, err)
+		}
+	}
+	return nil
 }
 
 func (g *GlobalDB) checkReady(ctx context.Context, action string) error {

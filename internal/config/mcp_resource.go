@@ -32,10 +32,13 @@ func validateMCPServerSpec(
 
 	normalized := cloneMCPServer(spec)
 	normalized.Name = strings.TrimSpace(spec.Name)
+	normalized.Transport = MCPServerTransport(strings.TrimSpace(string(spec.Transport)))
 	normalized.Command = strings.TrimSpace(spec.Command)
+	normalized.URL = strings.TrimSpace(spec.URL)
 	for idx, arg := range normalized.Args {
 		normalized.Args[idx] = strings.TrimSpace(arg)
 	}
+	normalized.Auth = normalizeMCPAuthConfig(normalized.Auth)
 	if len(normalized.Env) > 0 {
 		keys := make([]string, 0, len(normalized.Env))
 		for key := range normalized.Env {
@@ -61,4 +64,19 @@ func validateMCPServerSpec(
 		return MCPServer{}, fmt.Errorf("config: validate mcp resource spec: %w", err)
 	}
 	return normalized, nil
+}
+
+func normalizeMCPAuthConfig(auth MCPAuthConfig) MCPAuthConfig {
+	auth.Type = MCPAuthType(strings.TrimSpace(string(auth.Type)))
+	auth.IssuerURL = strings.TrimSpace(auth.IssuerURL)
+	auth.MetadataURL = strings.TrimSpace(auth.MetadataURL)
+	auth.AuthorizationURL = strings.TrimSpace(auth.AuthorizationURL)
+	auth.TokenURL = strings.TrimSpace(auth.TokenURL)
+	auth.RevocationURL = strings.TrimSpace(auth.RevocationURL)
+	auth.ClientID = strings.TrimSpace(auth.ClientID)
+	auth.ClientSecretEnv = strings.TrimSpace(auth.ClientSecretEnv)
+	for idx, scope := range auth.Scopes {
+		auth.Scopes[idx] = strings.TrimSpace(scope)
+	}
+	return auth
 }

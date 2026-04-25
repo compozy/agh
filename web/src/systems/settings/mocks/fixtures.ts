@@ -322,6 +322,7 @@ export const settingsEnvironmentFixtures: SettingsEnvironmentEntry[] = [
 export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
   {
     name: "filesystem",
+    transport: "stdio",
     command: "npx -y @modelcontextprotocol/server-filesystem",
     args: ["~/Dev"],
     scope: "global",
@@ -333,6 +334,7 @@ export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
   },
   {
     name: "github",
+    transport: "stdio",
     command: "npx -y @modelcontextprotocol/server-github",
     env: { GITHUB_TOKEN: "env:GITHUB_TOKEN" },
     scope: "global",

@@ -130,10 +130,13 @@ type AgentPayload struct {
 
 // AgentMCPServerJSON is the shared MCP server response payload.
 type AgentMCPServerJSON struct {
-	Name    string            `json:"name"`
-	Command string            `json:"command"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
+	Name      string                        `json:"name"`
+	Transport string                        `json:"transport,omitempty"`
+	Command   string                        `json:"command,omitempty"`
+	Args      []string                      `json:"args,omitempty"`
+	Env       map[string]string             `json:"env,omitempty"`
+	URL       string                        `json:"url,omitempty"`
+	Auth      *SettingsMCPAuthConfigPayload `json:"auth,omitempty"`
 }
 
 // AgentEventPayload is the shared raw agent-event streaming payload.

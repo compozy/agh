@@ -62,7 +62,28 @@ describe("settings openapi contract", () => {
       "auto" | "config" | "sidecar" | undefined
     >();
     expectTypeOf<PutSettingsMCPServerBody["server"]["name"]>().toEqualTypeOf<string>();
-    expectTypeOf<PutSettingsMCPServerBody["server"]["command"]>().toEqualTypeOf<string>();
+    expectTypeOf<PutSettingsMCPServerBody["server"]["transport"]>().toEqualTypeOf<
+      string | undefined
+    >();
+    expectTypeOf<PutSettingsMCPServerBody["server"]["command"]>().toEqualTypeOf<
+      string | undefined
+    >();
+    expectTypeOf<PutSettingsMCPServerBody["server"]["url"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<PutSettingsMCPServerBody["server"]["auth"]>().toEqualTypeOf<
+      | {
+          authorization_url?: string;
+          client_id?: string;
+          client_secret_env?: string;
+          issuer_url?: string;
+          metadata_url?: string;
+          revocation_url?: string;
+          scopes?: string[];
+          token_url?: string;
+          type?: string;
+        }
+      | null
+      | undefined
+    >();
     expectTypeOf<PutSettingsMCPServerBody["server"]["args"]>().toEqualTypeOf<
       string[] | undefined
     >();
@@ -80,6 +101,31 @@ describe("settings openapi contract", () => {
     expectTypeOf<
       ListSettingsMCPServersResponse["mcp_servers"][number]["name"]
     >().toEqualTypeOf<string>();
+    expectTypeOf<
+      ListSettingsMCPServersResponse["mcp_servers"][number]["transport"]
+    >().toEqualTypeOf<string>();
+    expectTypeOf<
+      ListSettingsMCPServersResponse["mcp_servers"][number]["auth_status"]
+    >().toEqualTypeOf<
+      | {
+          auth_type?: string;
+          authorization_url?: string;
+          client_id?: string;
+          diagnostic?: string;
+          expires_at?: string | null;
+          issuer?: string;
+          refreshable: boolean;
+          remote_url?: string;
+          revocation_url?: string;
+          scopes?: string[];
+          server_name: string;
+          status: string;
+          token_present: boolean;
+          updated_at?: string | null;
+        }
+      | null
+      | undefined
+    >();
     expectTypeOf<ListSettingsMCPServersResponse["mcp_servers"][number]["scope"]>().toEqualTypeOf<
       "global" | "workspace"
     >();

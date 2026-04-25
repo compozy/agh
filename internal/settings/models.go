@@ -9,6 +9,7 @@ import (
 	automationmodel "github.com/pedronauck/agh/internal/automation/model"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	"github.com/pedronauck/agh/internal/resources"
 )
 
@@ -430,6 +431,9 @@ type ProviderSettings struct {
 	APIKeyEnv    string
 }
 
+// MCPAuthStatus is a redacted remote MCP authentication status.
+type MCPAuthStatus = mcpauth.Status
+
 // ProviderFallback reports the builtin provider revealed when an overlay is removed.
 type ProviderFallback struct {
 	Source   SourceRef
@@ -450,9 +454,13 @@ type ProviderItem struct {
 // MCPServerItem is one MCP server collection row.
 type MCPServerItem struct {
 	Name           string
+	Transport      aghconfig.MCPServerTransport
 	Command        string
 	Args           []string
 	Env            map[string]string
+	URL            string
+	Auth           aghconfig.MCPAuthConfig
+	AuthStatus     *mcpauth.Status
 	Scope          ScopeKind
 	WorkspaceID    string
 	SourceMetadata SourceMetadata
@@ -547,6 +555,20 @@ func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
 		cloned := make(map[string]string, len(value.Env))
 		maps.Copy(cloned, value.Env)
 		value.Env = cloned
+	}
+	value.Auth.Scopes = append([]string(nil), value.Auth.Scopes...)
+	if value.AuthStatus != nil {
+		status := *value.AuthStatus
+		status.Scopes = append([]string(nil), value.AuthStatus.Scopes...)
+		if value.AuthStatus.ExpiresAt != nil {
+			expiresAt := *value.AuthStatus.ExpiresAt
+			status.ExpiresAt = &expiresAt
+		}
+		if value.AuthStatus.UpdatedAt != nil {
+			updatedAt := *value.AuthStatus.UpdatedAt
+			status.UpdatedAt = &updatedAt
+		}
+		value.AuthStatus = &status
 	}
 	value.SourceMetadata = cloneSourceMetadata(value.SourceMetadata)
 	return value

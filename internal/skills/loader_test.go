@@ -250,6 +250,36 @@ func TestParseSkillFile(t *testing.T) {
 	}
 }
 
+func TestParseSkillFileRejectsSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	outside := t.TempDir()
+	outsideSkill := writeSkillFile(t, outside, skillFileName, strings.Join([]string{
+		"---",
+		"name: escaped",
+		"description: Outside skill",
+		"---",
+		"secret",
+	}, "\n"))
+	skillDir := filepath.Join(root, "skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(skillDir) error = %v", err)
+	}
+	linkPath := filepath.Join(skillDir, skillFileName)
+	if err := os.Symlink(outsideSkill, linkPath); err != nil {
+		t.Skipf("os.Symlink(SKILL.md) unavailable: %v", err)
+	}
+
+	_, err := ParseSkillFile(linkPath)
+	if err == nil {
+		t.Fatal("ParseSkillFile() error = nil, want symlink escape rejection")
+	}
+	if !strings.Contains(err.Error(), "escapes skill root") {
+		t.Fatalf("ParseSkillFile() error = %v, want escape rejection", err)
+	}
+}
+
 func TestReadSkillContent(t *testing.T) {
 	t.Parallel()
 

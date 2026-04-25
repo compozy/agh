@@ -1,0 +1,248 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
+)
+
+func TestMCPAuthStatusReportsRedactedState(t *testing.T) {
+	t.Parallel()
+
+	deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{
+		statusFn: func(_ context.Context, cfg mcpauth.ServerConfig) (mcpauth.Status, error) {
+			return mcpauth.Status{
+				ServerName:   cfg.ServerName,
+				Status:       mcpauth.StatusAuthenticated,
+				ClientID:     cfg.ClientID,
+				Scopes:       []string{"read"},
+				TokenPresent: true,
+				Refreshable:  true,
+			}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "mcp", "auth", "status", "linear", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand(mcp auth status) error = %v", err)
+	}
+	if strings.Contains(stdout, "access-token") || strings.Contains(stdout, "refresh-token") ||
+		strings.Contains(stdout, "client-secret") {
+		t.Fatalf("status output leaked secret material: %s", stdout)
+	}
+	var statuses []mcpauth.Status
+	if err := json.Unmarshal([]byte(stdout), &statuses); err != nil {
+		t.Fatalf("json.Unmarshal(status) error = %v", err)
+	}
+	if len(statuses) != 1 || statuses[0].Status != mcpauth.StatusAuthenticated {
+		t.Fatalf("statuses = %#v", statuses)
+	}
+}
+
+func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
+	t.Parallel()
+
+	deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{
+		beginFn: func(_ context.Context, cfg mcpauth.ServerConfig, redirectURL string) (mcpauth.LoginState, error) {
+			return mcpauth.LoginState{
+				ServerName:       cfg.ServerName,
+				RedirectURL:      redirectURL,
+				State:            "state-1",
+				Verifier:         "sensitive-verifier",
+				AuthorizationURL: "https://auth.example/authorize?state=state-1",
+				Config:           cfg,
+			}, nil
+		},
+		exchangeFn: func(_ context.Context, state mcpauth.LoginState, callbackURL string) (mcpauth.Status, error) {
+			if !strings.Contains(callbackURL, "code=manual-code") ||
+				!strings.Contains(callbackURL, "state="+state.State) {
+				t.Fatalf("callbackURL = %q", callbackURL)
+			}
+			return mcpauth.Status{ServerName: state.ServerName, Status: mcpauth.StatusAuthenticated}, nil
+		},
+	})
+
+	stdout, stderr, err := executeRootCommand(
+		t,
+		deps,
+		"mcp",
+		"auth",
+		"login",
+		"linear",
+		"--manual-code",
+		"manual-code",
+		"--redirect-url",
+		"http://127.0.0.1/callback",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("executeRootCommand(mcp auth login) error = %v", err)
+	}
+	if strings.Contains(stdout+stderr, "sensitive-verifier") {
+		t.Fatalf("login output leaked PKCE verifier: stdout=%q stderr=%q", stdout, stderr)
+	}
+	var status mcpauth.Status
+	if err := json.Unmarshal([]byte(stdout), &status); err != nil {
+		t.Fatalf("json.Unmarshal(login status) error = %v", err)
+	}
+	if status.Status != mcpauth.StatusAuthenticated {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestMCPAuthLogoutCallsAuthClient(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{
+		logoutFn: func(_ context.Context, cfg mcpauth.ServerConfig) (mcpauth.Status, error) {
+			called = true
+			return mcpauth.Status{ServerName: cfg.ServerName, Status: mcpauth.StatusNeedsLogin}, nil
+		},
+	})
+
+	if _, _, err := executeRootCommand(t, deps, "mcp", "auth", "logout", "linear"); err != nil {
+		t.Fatalf("executeRootCommand(mcp auth logout) error = %v", err)
+	}
+	if !called {
+		t.Fatal("Logout was not called")
+	}
+}
+
+func TestListenForMCPAuthCallbackRequiresLoopbackRedirect(t *testing.T) {
+	t.Parallel()
+
+	if listener, _, err := listenForMCPAuthCallback(
+		context.Background(),
+		"http://0.0.0.0:0/callback",
+	); err == nil {
+		_ = listener.Close()
+		t.Fatal("listenForMCPAuthCallback(non-loopback) error = nil, want failure")
+	} else if !strings.Contains(err.Error(), "loopback") {
+		t.Fatalf("listenForMCPAuthCallback(non-loopback) error = %v, want loopback failure", err)
+	}
+
+	listener, actualRedirectURL, err := listenForMCPAuthCallback(
+		context.Background(),
+		"http://127.0.0.1:0/callback",
+	)
+	if err != nil {
+		t.Fatalf("listenForMCPAuthCallback(loopback) error = %v", err)
+	}
+	defer func() {
+		if err := listener.Close(); err != nil {
+			t.Fatalf("listener.Close() error = %v", err)
+		}
+	}()
+	if strings.Contains(actualRedirectURL, ":0/") {
+		t.Fatalf("actualRedirectURL = %q, want bound listener port", actualRedirectURL)
+	}
+}
+
+func newMCPAuthTestDeps(t *testing.T, client *stubMCPAuthClient) commandDeps {
+	t.Helper()
+
+	deps := newTestDeps(t, &stubClient{})
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.MCPServers = []aghconfig.MCPServer{{
+		Name:      "linear",
+		Transport: aghconfig.MCPServerTransportSSE,
+		URL:       "https://mcp.example/sse",
+		Auth: aghconfig.MCPAuthConfig{
+			Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+			AuthorizationURL: "https://auth.example/authorize",
+			TokenURL:         "https://auth.example/token",
+			ClientID:         "client-id",
+			ClientSecretEnv:  "LINEAR_CLIENT_SECRET",
+			Scopes:           []string{"read"},
+		},
+	}}
+	deps.loadConfig = func() (aghconfig.Config, error) {
+		return cfg, nil
+	}
+	deps.resolveHome = func() (aghconfig.HomePaths, error) {
+		return homePaths, nil
+	}
+	deps.getenv = func(key string) string {
+		if key == "LINEAR_CLIENT_SECRET" {
+			return "client-secret"
+		}
+		return ""
+	}
+	deps.newMCPAuthClient = func(
+		context.Context,
+		aghconfig.HomePaths,
+	) (mcpAuthClient, func(context.Context) error, error) {
+		return client, func(context.Context) error { return nil }, nil
+	}
+	return deps
+}
+
+type stubMCPAuthClient struct {
+	beginFn    func(context.Context, mcpauth.ServerConfig, string) (mcpauth.LoginState, error)
+	exchangeFn func(context.Context, mcpauth.LoginState, string) (mcpauth.Status, error)
+	refreshFn  func(context.Context, mcpauth.ServerConfig) (mcpauth.Status, error)
+	statusFn   func(context.Context, mcpauth.ServerConfig) (mcpauth.Status, error)
+	logoutFn   func(context.Context, mcpauth.ServerConfig) (mcpauth.Status, error)
+}
+
+func (s *stubMCPAuthClient) BeginLogin(
+	ctx context.Context,
+	cfg mcpauth.ServerConfig,
+	redirectURL string,
+) (mcpauth.LoginState, error) {
+	if s.beginFn != nil {
+		return s.beginFn(ctx, cfg, redirectURL)
+	}
+	return mcpauth.LoginState{}, nil
+}
+
+func (s *stubMCPAuthClient) Exchange(
+	ctx context.Context,
+	state mcpauth.LoginState,
+	callbackURL string,
+) (mcpauth.Status, error) {
+	if s.exchangeFn != nil {
+		return s.exchangeFn(ctx, state, callbackURL)
+	}
+	return mcpauth.Status{}, nil
+}
+
+func (s *stubMCPAuthClient) Refresh(
+	ctx context.Context,
+	cfg mcpauth.ServerConfig,
+) (mcpauth.Status, error) {
+	if s.refreshFn != nil {
+		return s.refreshFn(ctx, cfg)
+	}
+	return mcpauth.Status{ServerName: cfg.ServerName, Status: mcpauth.StatusAuthenticated}, nil
+}
+
+func (s *stubMCPAuthClient) Status(
+	ctx context.Context,
+	cfg mcpauth.ServerConfig,
+) (mcpauth.Status, error) {
+	if s.statusFn != nil {
+		return s.statusFn(ctx, cfg)
+	}
+	return mcpauth.Status{ServerName: cfg.ServerName, Status: mcpauth.StatusNeedsLogin}, nil
+}
+
+func (s *stubMCPAuthClient) Logout(
+	ctx context.Context,
+	cfg mcpauth.ServerConfig,
+) (mcpauth.Status, error) {
+	if s.logoutFn != nil {
+		return s.logoutFn(ctx, cfg)
+	}
+	return mcpauth.Status{ServerName: cfg.ServerName, Status: mcpauth.StatusNeedsLogin}, nil
+}

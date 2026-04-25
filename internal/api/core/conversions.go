@@ -204,17 +204,16 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) 
 func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
 	mcpServers := make([]contract.AgentMCPServerJSON, 0, len(agent.MCPServers))
 	for _, server := range agent.MCPServers {
-		var env map[string]string
-		if len(server.Env) > 0 {
-			env = make(map[string]string, len(server.Env))
-			maps.Copy(env, server.Env)
-		}
+		redacted := aghconfig.RedactedMCPServer(server)
 
 		mcpServers = append(mcpServers, contract.AgentMCPServerJSON{
-			Name:    server.Name,
-			Command: server.Command,
-			Args:    append([]string(nil), server.Args...),
-			Env:     env,
+			Name:      redacted.Name,
+			Transport: string(redacted.Transport),
+			Command:   redacted.Command,
+			Args:      append([]string(nil), redacted.Args...),
+			Env:       redacted.Env,
+			URL:       redacted.URL,
+			Auth:      settingsMCPAuthConfigPayload(redacted.Auth),
 		})
 	}
 
@@ -1438,15 +1437,58 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 	for _, value := range values {
 		payloads = append(payloads, contract.SettingsMCPServerItemPayload{
 			Name:           strings.TrimSpace(value.Name),
+			Transport:      strings.TrimSpace(string(value.Transport)),
 			Command:        strings.TrimSpace(value.Command),
 			Args:           cloneStrings(value.Args),
 			Env:            cloneStringMap(value.Env),
+			URL:            strings.TrimSpace(value.URL),
+			Auth:           settingsMCPAuthConfigPayload(value.Auth),
+			AuthStatus:     settingsMCPAuthStatusPayload(value.AuthStatus),
 			Scope:          contract.SettingsScopeKind(value.Scope),
 			WorkspaceID:    strings.TrimSpace(value.WorkspaceID),
 			SourceMetadata: settingsSourceMetadataPayload(value.SourceMetadata),
 		})
 	}
 	return payloads
+}
+
+func settingsMCPAuthConfigPayload(value aghconfig.MCPAuthConfig) *contract.SettingsMCPAuthConfigPayload {
+	if value.IsZero() {
+		return nil
+	}
+	return &contract.SettingsMCPAuthConfigPayload{
+		Type:             strings.TrimSpace(string(value.Type)),
+		IssuerURL:        strings.TrimSpace(value.IssuerURL),
+		MetadataURL:      strings.TrimSpace(value.MetadataURL),
+		AuthorizationURL: strings.TrimSpace(value.AuthorizationURL),
+		TokenURL:         strings.TrimSpace(value.TokenURL),
+		RevocationURL:    strings.TrimSpace(value.RevocationURL),
+		ClientID:         strings.TrimSpace(value.ClientID),
+		ClientSecretEnv:  strings.TrimSpace(value.ClientSecretEnv),
+		Scopes:           cloneStrings(value.Scopes),
+	}
+}
+
+func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.SettingsMCPAuthStatusPayload {
+	if value == nil {
+		return nil
+	}
+	return &contract.SettingsMCPAuthStatusPayload{
+		ServerName:       strings.TrimSpace(value.ServerName),
+		Status:           strings.TrimSpace(string(value.Status)),
+		RemoteURL:        strings.TrimSpace(value.RemoteURL),
+		AuthType:         strings.TrimSpace(value.AuthType),
+		ClientID:         strings.TrimSpace(value.ClientID),
+		Issuer:           strings.TrimSpace(value.Issuer),
+		Scopes:           cloneStrings(value.Scopes),
+		ExpiresAt:        cloneTimePtr(value.ExpiresAt),
+		UpdatedAt:        cloneTimePtr(value.UpdatedAt),
+		Refreshable:      value.Refreshable,
+		TokenPresent:     value.TokenPresent,
+		RevocationURL:    strings.TrimSpace(value.RevocationURL),
+		Diagnostic:       strings.TrimSpace(value.Diagnostic),
+		AuthorizationURL: strings.TrimSpace(value.AuthorizationURL),
+	}
 }
 
 func settingsEnvironmentItemPayloads(values []settingspkg.EnvironmentItem) []contract.SettingsEnvironmentItemPayload {

@@ -21,9 +21,12 @@ type mcpJSONDocument struct {
 }
 
 type mcpJSONServer struct {
-	Command string            `json:"command"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
+	Transport MCPServerTransport `json:"transport,omitempty"`
+	Command   string             `json:"command,omitempty"`
+	Args      []string           `json:"args,omitempty"`
+	Env       map[string]string  `json:"env,omitempty"`
+	URL       string             `json:"url,omitempty"`
+	Auth      MCPAuthConfig      `json:"auth"`
 }
 
 // ParseMCPServersJSON parses an MCP JSON document into canonical MCP server values.
@@ -116,10 +119,13 @@ func sortedMCPJSONServers(values map[string]mcpJSONServer) []MCPServer {
 	for _, name := range names {
 		entry := values[name]
 		servers = append(servers, MCPServer{
-			Name:    normalizeMCPServerName(name),
-			Command: strings.TrimSpace(entry.Command),
-			Args:    append([]string(nil), entry.Args...),
-			Env:     mergeStringMaps(nil, entry.Env),
+			Name:      normalizeMCPServerName(name),
+			Transport: MCPServerTransport(strings.TrimSpace(string(entry.Transport))),
+			Command:   strings.TrimSpace(entry.Command),
+			Args:      append([]string(nil), entry.Args...),
+			Env:       mergeStringMaps(nil, entry.Env),
+			URL:       strings.TrimSpace(entry.URL),
+			Auth:      normalizeMCPAuthConfig(entry.Auth),
 		})
 	}
 

@@ -16,7 +16,20 @@ describe("agent contract types", () => {
 
     expectTypeOf<AgentMCPServer>().toMatchTypeOf<{
       name: string;
-      command: string;
+      transport?: string;
+      command?: string;
+      url?: string;
+      auth?: {
+        authorization_url?: string;
+        client_id?: string;
+        client_secret_env?: string;
+        issuer_url?: string;
+        metadata_url?: string;
+        revocation_url?: string;
+        scopes?: string[];
+        token_url?: string;
+        type?: string;
+      } | null;
       args?: string[];
       env?: Record<string, string>;
     }>();
