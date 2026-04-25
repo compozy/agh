@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -205,8 +206,8 @@ func (o *Observer) collectFailureHealth(ctx context.Context) (FailureHealth, err
 	health := FailureHealth{
 		Status: observeHealthStatusOK,
 		ByKind: make(map[store.FailureKind]int),
-		Recent: make([]SessionFailureHealth, 0),
 	}
+	recent := make([]SessionFailureHealth, 0, len(sessions))
 	for _, info := range sessions {
 		if info.Failure == nil {
 			continue
@@ -217,25 +218,30 @@ func (o *Observer) collectFailureHealth(ctx context.Context) (FailureHealth, err
 		}
 		health.Total++
 		health.ByKind[failure.Kind]++
-		if len(health.Recent) < 10 {
-			health.Recent = append(health.Recent, SessionFailureHealth{
-				SessionID:       strings.TrimSpace(info.ID),
-				AgentName:       strings.TrimSpace(info.AgentName),
-				Provider:        strings.TrimSpace(info.Provider),
-				WorkspaceID:     strings.TrimSpace(info.WorkspaceID),
-				State:           strings.TrimSpace(info.State),
-				FailureKind:     failure.Kind,
-				Summary:         diagnostics.RedactAndBound(failure.Summary, maxFailureHealthBytes),
-				CrashBundlePath: diagnostics.RedactAndBound(failure.CrashBundlePath, maxFailureHealthBytes),
-				UpdatedAt:       info.UpdatedAt,
-			})
-		}
+		recent = append(recent, SessionFailureHealth{
+			SessionID:       strings.TrimSpace(info.ID),
+			AgentName:       strings.TrimSpace(info.AgentName),
+			Provider:        strings.TrimSpace(info.Provider),
+			WorkspaceID:     strings.TrimSpace(info.WorkspaceID),
+			State:           strings.TrimSpace(info.State),
+			FailureKind:     failure.Kind,
+			Summary:         diagnostics.RedactAndBound(failure.Summary, maxFailureHealthBytes),
+			CrashBundlePath: diagnostics.RedactAndBound(failure.CrashBundlePath, maxFailureHealthBytes),
+			UpdatedAt:       info.UpdatedAt,
+		})
 	}
 	if health.Total == 0 {
 		health.ByKind = nil
 		health.Recent = nil
 	} else {
 		health.Status = observeHealthStatusDegraded
+		sort.SliceStable(recent, func(i, j int) bool {
+			return recent[i].UpdatedAt.After(recent[j].UpdatedAt)
+		})
+		if len(recent) > 10 {
+			recent = recent[:10]
+		}
+		health.Recent = recent
 	}
 	return health, nil
 }

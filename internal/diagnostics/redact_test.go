@@ -33,10 +33,21 @@ func TestRedactHandlesQuotedJSONSecretsAndBounds(t *testing.T) {
 	t.Run("Should keep non positive byte budgets bounded", func(t *testing.T) {
 		t.Parallel()
 
-		for _, maxBytes := range []int{0, -1} {
-			if got := RedactAndBound("token=super-secret", maxBytes); got != "" {
-				t.Fatalf("RedactAndBound(maxBytes=%d) = %q, want empty bounded result", maxBytes, got)
-			}
+		testCases := []struct {
+			name     string
+			maxBytes int
+		}{
+			{name: "Should return empty bounded result for zero bytes", maxBytes: 0},
+			{name: "Should return empty bounded result for negative bytes", maxBytes: -1},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				if got := RedactAndBound("token=super-secret", tc.maxBytes); got != "" {
+					t.Fatalf("RedactAndBound(maxBytes=%d) = %q, want empty bounded result", tc.maxBytes, got)
+				}
+			})
 		}
 	})
 }

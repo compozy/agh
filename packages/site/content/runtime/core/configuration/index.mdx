@@ -19,16 +19,16 @@ for the change you actually want.
 
 ## Start with the decision table
 
-| If you want to change... | Primary surface | Reach for this when... |
-| ------------------------ | --------------- | ---------------------- |
-| Machine-wide defaults | `~/.agh/config.toml` | The daemon, default provider, permissions mode, HTTP bind address, automation defaults, or marketplace trust should change for every workspace on one machine. |
-| One workspace | `<workspace>/.agh/config.toml` | A repository needs different defaults, limits, or permissions than the rest of the machine. |
-| One agent | `AGENT.md` | A specific agent needs a different prompt, provider, permission mode, or MCP attachment. |
-| One agent's advertised capabilities | [capability catalog](/runtime/core/agents/capabilities) next to `AGENT.md` | Other peers need outcome-oriented discovery metadata about what that agent can do. |
-| One skill | `SKILL.md` | You are defining reusable instructions, optional MCP metadata, or skill-owned hooks. |
-| MCP server configuration | `mcp.json` | MCP declarations are easier to manage as JSON sidecars than inline frontmatter. |
-| Provider credentials | environment variables | The daemon must inherit API keys or other runtime secrets before it starts agent subprocesses. |
-| Filesystem locations and precedence | file-locations reference | You need to know where AGH looks for agents, skills, sessions, memory, or overlays. |
+| If you want to change...            | Primary surface                                                            | Reach for this when...                                                                                                                                         |
+| ----------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Machine-wide defaults               | `~/.agh/config.toml`                                                       | The daemon, default provider, permissions mode, HTTP bind address, automation defaults, or marketplace trust should change for every workspace on one machine. |
+| One workspace                       | `<workspace>/.agh/config.toml`                                             | A repository needs different defaults, limits, or permissions than the rest of the machine.                                                                    |
+| One agent                           | `AGENT.md`                                                                 | A specific agent needs a different prompt, provider, permission mode, or MCP attachment.                                                                       |
+| One agent's advertised capabilities | [capability catalog](/runtime/core/agents/capabilities) next to `AGENT.md` | Other peers need outcome-oriented discovery metadata about what that agent can do.                                                                             |
+| One skill                           | `SKILL.md`                                                                 | You are defining reusable instructions, optional MCP metadata, or skill-owned hooks.                                                                           |
+| MCP server configuration            | `mcp.json`                                                                 | MCP declarations are easier to manage as JSON sidecars than inline frontmatter.                                                                                |
+| Provider credentials                | environment variables                                                      | The daemon must inherit API keys or other runtime secrets before it starts agent subprocesses.                                                                 |
+| Filesystem locations and precedence | file-locations reference                                                   | You need to know where AGH looks for agents, skills, sessions, memory, or overlays.                                                                            |
 
 ## Read in this order
 

@@ -176,7 +176,7 @@ A conformance suite SHOULD be fixture-driven and transport-agnostic at the core 
 | Message kind fixtures | All seven message kinds, required body fields, invalid body shapes, broadcast versus directed constraints.                   |
 | Lifecycle fixtures    | Opening interactions, receipts, traces, terminal states, invalid state regressions, actor ownership.                         |
 | Delivery fixtures     | Duplicate IDs, expired messages, unsupported kinds, reason codes, receipt behavior.                                          |
-| Extension fixtures    | Unknown extension keys, extension namespace validation, extension processing after core validation.                           |
+| Extension fixtures    | Unknown extension keys, extension namespace validation, extension processing after core validation.                          |
 | Trust fixtures        | Valid Ed25519 + JCS example, malformed proofs, key mismatches, fingerprint mismatches, proof stripping.                      |
 | NATS fixtures         | Broadcast subjects, direct subjects, verified route tokens, unverified route tokens, request-reply correlation preservation. |
 | JetStream fixtures    | Optional replay and redelivery tests that prove core deduplication and receipts remain authoritative.                        |

@@ -8,16 +8,16 @@ workspace, agent, and skill scopes.
 
 ## Quick Reference
 
-| Field                | Type         | Default            | Valid values                          | Description                                    |
-| -------------------- | ------------ | ------------------ | ------------------------------------- | ---------------------------------------------- |
-| `mcpServers`         | object map   | empty              | Server-name keys with server objects. | Camel-case top-level MCP server map.           |
-| `mcp_servers`        | object map   | empty              | Server-name keys with server objects. | Snake-case top-level MCP server map.           |
-| `<server>.transport` | string       | inferred           | `stdio`, `http`, or `sse`.            | MCP transport. `url` without transport is HTTP. |
-| `<server>.command`   | string       | required for stdio | Non-empty after trimming.             | Local MCP server command.                      |
-| `<server>.url`       | string URL   | required for remote | Absolute URL.                         | Remote MCP endpoint for `http` or `sse`.       |
-| `<server>.auth`      | object       | empty              | OAuth 2.1 PKCE config.                | Remote auth metadata and client settings.      |
-| `<server>.args`      | string array | empty              | Strings.                              | Command arguments for stdio servers.           |
-| `<server>.env`       | string map   | empty              | String keys and values.               | Literal environment values for stdio servers.  |
+| Field                | Type         | Default             | Valid values                          | Description                                     |
+| -------------------- | ------------ | ------------------- | ------------------------------------- | ----------------------------------------------- |
+| `mcpServers`         | object map   | empty               | Server-name keys with server objects. | Camel-case top-level MCP server map.            |
+| `mcp_servers`        | object map   | empty               | Server-name keys with server objects. | Snake-case top-level MCP server map.            |
+| `<server>.transport` | string       | inferred            | `stdio`, `http`, or `sse`.            | MCP transport. `url` without transport is HTTP. |
+| `<server>.command`   | string       | required for stdio  | Non-empty after trimming.             | Local MCP server command.                       |
+| `<server>.url`       | string URL   | required for remote | Absolute URL.                         | Remote MCP endpoint for `http` or `sse`.        |
+| `<server>.auth`      | object       | empty               | OAuth 2.1 PKCE config.                | Remote auth metadata and client settings.       |
+| `<server>.args`      | string array | empty               | Strings.                              | Command arguments for stdio servers.            |
+| `<server>.env`       | string map   | empty               | String keys and values.               | Literal environment values for stdio servers.   |
 
 Unknown JSON fields fail parsing. Trailing JSON values after the first document also fail parsing.
 Missing `mcp.json` files are treated as absent.
@@ -93,15 +93,15 @@ If both top-level keys are present in the same file and both define the same ser
 
 ## Server Object
 
-| Field       | Type         | Default            | Valid values                                            | Description                                                                        |
-| ----------- | ------------ | ------------------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Map key     | string       | required           | Non-empty after trimming. Duplicate trimmed names fail. | Server `name`.                                                                     |
-| `transport` | string       | inferred           | `stdio`, `http`, or `sse`.                              | Transport kind. Local command servers default to `stdio`; URL servers default to `http`. |
-| `command`   | string       | required for stdio | Non-empty after trimming.                               | Executable command. Only valid with `stdio` transport.                              |
-| `url`       | string URL   | required for remote | Absolute URL.                                           | Remote MCP endpoint. Required for `http` and `sse`; invalid for `stdio`.            |
-| `auth`      | object       | empty              | OAuth config listed below.                              | Remote MCP auth configuration. Only valid for remote transports.                    |
-| `args`      | string array | empty              | Strings.                                                | Process arguments for stdio servers.                                               |
-| `env`       | string map   | empty              | String keys and values.                                 | Literal environment values. AGH does not expand `$VAR`, `~`, or shell syntax here. |
+| Field       | Type         | Default             | Valid values                                            | Description                                                                              |
+| ----------- | ------------ | ------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Map key     | string       | required            | Non-empty after trimming. Duplicate trimmed names fail. | Server `name`.                                                                           |
+| `transport` | string       | inferred            | `stdio`, `http`, or `sse`.                              | Transport kind. Local command servers default to `stdio`; URL servers default to `http`. |
+| `command`   | string       | required for stdio  | Non-empty after trimming.                               | Executable command. Only valid with `stdio` transport.                                   |
+| `url`       | string URL   | required for remote | Absolute URL.                                           | Remote MCP endpoint. Required for `http` and `sse`; invalid for `stdio`.                 |
+| `auth`      | object       | empty               | OAuth config listed below.                              | Remote MCP auth configuration. Only valid for remote transports.                         |
+| `args`      | string array | empty               | Strings.                                                | Process arguments for stdio servers.                                                     |
+| `env`       | string map   | empty               | String keys and values.                                 | Literal environment values. AGH does not expand `$VAR`, `~`, or shell syntax here.       |
 
 ## Remote OAuth Auth Object
 
@@ -110,17 +110,17 @@ metadata and client settings; access tokens, refresh tokens, authorization codes
 and client-secret values are stored or handled by the auth subsystem and are never written to
 `mcp.json`.
 
-| Field               | Type         | Default  | Valid values                                                   | Description                                                           |
-| ------------------- | ------------ | -------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `type`              | string       | required | `oauth2_pkce`                                                  | Enables the OAuth 2.1 PKCE lifecycle.                                 |
-| `client_id`         | string       | required | Non-empty.                                                     | OAuth client ID registered with the remote MCP provider.               |
-| `client_secret_env` | string       | empty    | Environment variable name.                                     | Optional env var containing the client secret when the provider needs one. |
-| `issuer_url`        | string URL   | optional | Absolute `http` or `https` URL.                                | Issuer used for `/.well-known/oauth-authorization-server` discovery.   |
-| `metadata_url`      | string URL   | optional | Absolute `http` or `https` URL.                                | Explicit OAuth authorization-server metadata URL.                      |
-| `authorization_url` | string URL   | optional | Absolute `http` or `https` URL.                                | Direct authorization endpoint. Must be paired with `token_url`.        |
-| `token_url`         | string URL   | optional | Absolute `http` or `https` URL.                                | Direct token endpoint. Must be paired with `authorization_url`.        |
-| `revocation_url`    | string URL   | optional | Absolute `http` or `https` URL.                                | Optional token revocation endpoint used by `agh mcp auth logout`.      |
-| `scopes`            | string array | empty    | Non-empty strings when present.                                | Requested OAuth scopes.                                               |
+| Field               | Type         | Default  | Valid values                    | Description                                                                |
+| ------------------- | ------------ | -------- | ------------------------------- | -------------------------------------------------------------------------- |
+| `type`              | string       | required | `oauth2_pkce`                   | Enables the OAuth 2.1 PKCE lifecycle.                                      |
+| `client_id`         | string       | required | Non-empty.                      | OAuth client ID registered with the remote MCP provider.                   |
+| `client_secret_env` | string       | empty    | Environment variable name.      | Optional env var containing the client secret when the provider needs one. |
+| `issuer_url`        | string URL   | optional | Absolute `http` or `https` URL. | Issuer used for `/.well-known/oauth-authorization-server` discovery.       |
+| `metadata_url`      | string URL   | optional | Absolute `http` or `https` URL. | Explicit OAuth authorization-server metadata URL.                          |
+| `authorization_url` | string URL   | optional | Absolute `http` or `https` URL. | Direct authorization endpoint. Must be paired with `token_url`.            |
+| `token_url`         | string URL   | optional | Absolute `http` or `https` URL. | Direct token endpoint. Must be paired with `authorization_url`.            |
+| `revocation_url`    | string URL   | optional | Absolute `http` or `https` URL. | Optional token revocation endpoint used by `agh mcp auth logout`.          |
+| `scopes`            | string array | empty    | Non-empty strings when present. | Requested OAuth scopes.                                                    |
 
 One of `metadata_url`, `issuer_url`, or the pair `authorization_url` plus `token_url` is required.
 
@@ -128,13 +128,13 @@ One of `metadata_url`, `issuer_url`, or the pair `authorization_url` plus `token
 
 `mcp.json` uses whole-object replacement. TOML uses field-level merging.
 
-| Situation                                                | Behavior                                                                                                 |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Situation                                                | Behavior                                                                                                              |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Same-name TOML `[[mcp_servers]]` overlay                 | Fields merge by name. Non-empty transport, command, URL, auth fields, args, and env keys overlay the existing server. |
-| Same-name `mcp.json` sidecar overlay                     | The sidecar replaces the entire existing server object.                                                  |
-| Same-name inline `AGENT.md` and agent-local `mcp.json`   | Agent-local sidecar replaces the whole inline server object.                                             |
-| Same-name `SKILL.md` metadata and skill-local `mcp.json` | Skill-local sidecar replaces the whole frontmatter server object.                                        |
-| Duplicate names inside one JSON document after trimming  | Loading fails.                                                                                           |
+| Same-name `mcp.json` sidecar overlay                     | The sidecar replaces the entire existing server object.                                                               |
+| Same-name inline `AGENT.md` and agent-local `mcp.json`   | Agent-local sidecar replaces the whole inline server object.                                                          |
+| Same-name `SKILL.md` metadata and skill-local `mcp.json` | Skill-local sidecar replaces the whole frontmatter server object.                                                     |
+| Duplicate names inside one JSON document after trimming  | Loading fails.                                                                                                        |
 
 ## Runtime Precedence
 

@@ -63,6 +63,7 @@ env = { GITHUB_TOKEN = "x" }
 enabled = true
 retention_days = 14
 max_global_bytes = 2048
+agent_probe_timeout = "9s"
 
 [observability.transcripts]
 enabled = true
@@ -134,7 +135,8 @@ max_queue_depth = 250
 	if cfg.Permissions.Mode != PermissionModeApproveAll {
 		t.Fatalf("Load() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
 	}
-	if cfg.Observability.RetentionDays != 14 || cfg.Observability.MaxGlobalBytes != 2048 {
+	if cfg.Observability.RetentionDays != 14 || cfg.Observability.MaxGlobalBytes != 2048 ||
+		cfg.Observability.AgentProbeTimeout != 9*time.Second {
 		t.Fatalf("Load() Observability = %#v", cfg.Observability)
 	}
 	if cfg.Observability.Transcripts.SegmentBytes != 512 || cfg.Observability.Transcripts.MaxBytesPerSession != 4096 {
@@ -754,6 +756,21 @@ func TestObservabilityConfigValidateRetentionDays(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "observability.retention_days must be zero or positive") {
 			t.Fatalf("ObservabilityConfig.Validate() error = %v, want retention_days context", err)
+		}
+	})
+
+	t.Run("Should reject negative agent probe timeout", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := validObservabilityConfigForTest()
+		cfg.AgentProbeTimeout = -time.Second
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("ObservabilityConfig.Validate() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "observability.agent_probe_timeout must be zero or positive") {
+			t.Fatalf("ObservabilityConfig.Validate() error = %v, want agent_probe_timeout context", err)
 		}
 	})
 }

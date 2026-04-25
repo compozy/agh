@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,7 +51,22 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 		t.Fatalf("managed update record = %#v, want deferred brew recommendation", update)
 	}
 
-	uninstallOut, _, err := executeRootCommand(t, deps, "uninstall", "-o", "json")
+	deps.resolveHome = func() (aghconfig.HomePaths, error) {
+		return aghconfig.HomePaths{}, errors.New("broken local home")
+	}
+
+	updateOut, _, err = executeRootCommand(t, deps, "update", "-o", "json")
+	if err != nil {
+		t.Fatalf("managed update with broken local home error = %v", err)
+	}
+	if err := json.Unmarshal([]byte(updateOut), &update); err != nil {
+		t.Fatalf("json.Unmarshal(update with broken home) error = %v", err)
+	}
+	if update.Status != lifecycleStatusDeferred || update.HomeDir != "" {
+		t.Fatalf("managed update with broken local home = %#v, want deferred without home", update)
+	}
+
+	uninstallOut, _, err := executeRootCommand(t, deps, "uninstall", "--purge", "-o", "json")
 	if err != nil {
 		t.Fatalf("managed uninstall error = %v", err)
 	}

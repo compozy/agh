@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
-import path from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const globalCSS = readFileSync(path.join(process.cwd(), "app", "global.css"), "utf8");
-const layoutSource = readFileSync(path.join(process.cwd(), "app", "layout.tsx"), "utf8");
+const appDir = dirname(fileURLToPath(import.meta.url));
+const globalCSS = readFileSync(resolve(appDir, "global.css"), "utf8");
+const layoutSource = readFileSync(resolve(appDir, "layout.tsx"), "utf8");
 
 describe("site global styles", () => {
   it("maps the display font token from a dedicated Playfair source variable", () => {

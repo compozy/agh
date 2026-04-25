@@ -34,24 +34,24 @@ No production users exist. Never sacrifice code quality for backward compatibili
 
 Activate skills **before** writing code. Match task domain → activate all required skills:
 
-| Domain                  | Required Skills                                              | Conditional Skills                       |
-| ----------------------- | ------------------------------------------------------------ | ---------------------------------------- |
-| Go / Runtime            | `golang-pro`                                                 | `context7`                               |
-| Config / Logging        | `golang-pro`                                                 |                                          |
-| Bug fix                 | `systematic-debugging` + `no-workarounds`                    | `testing-anti-patterns`                  |
-| Writing Go tests        | `testing-anti-patterns` + `golang-pro`                       | `vitest` (only for test tooling docs)    |
-| Task completion         | `cy-final-verify`                                            |                                          |
-| Architecture audit      | `architectural-analysis`                                     | `adversarial-review` + `refactoring-analysis` |
-| Concurrency / races     | `deadlock-finder-and-fixer` + `golang-pro`                   | `systematic-debugging`                   |
-| Performance / hot paths | `extreme-software-optimization` + `golang-pro`               |                                          |
-| Security review         | `security-review`                                            | `ubs`                                    |
-| Creative / new features | `brainstorming`                                              | `cy-idea-factory`                        |
-| PRD / TechSpec          | `cy-create-prd` + `cy-create-techspec` + `cy-create-tasks`   |                                          |
-| Execute a PRD task      | `cy-execute-task`                                            | `cy-workflow-memory`                     |
-| Review round / fixes    | `cy-review-round` + `cy-fix-reviews`                         | `fix-coderabbit-review`                  |
-| Git rebase / conflicts  | `git-rebase`                                                 |                                          |
-| External docs lookup    | `context7` + `find-docs`                                     | `exa-web-search-free`                    |
-| UI / Design (any surface) | `agh-design` + `design-taste-frontend` + `minimalist-ui`   | `frontend-design` + `interface-design`   |
+| Domain                    | Required Skills                                            | Conditional Skills                            |
+| ------------------------- | ---------------------------------------------------------- | --------------------------------------------- |
+| Go / Runtime              | `golang-pro`                                               | `context7`                                    |
+| Config / Logging          | `golang-pro`                                               |                                               |
+| Bug fix                   | `systematic-debugging` + `no-workarounds`                  | `testing-anti-patterns`                       |
+| Writing Go tests          | `testing-anti-patterns` + `golang-pro`                     | `vitest` (only for test tooling docs)         |
+| Task completion           | `cy-final-verify`                                          |                                               |
+| Architecture audit        | `architectural-analysis`                                   | `adversarial-review` + `refactoring-analysis` |
+| Concurrency / races       | `deadlock-finder-and-fixer` + `golang-pro`                 | `systematic-debugging`                        |
+| Performance / hot paths   | `extreme-software-optimization` + `golang-pro`             |                                               |
+| Security review           | `security-review`                                          | `ubs`                                         |
+| Creative / new features   | `brainstorming`                                            | `cy-idea-factory`                             |
+| PRD / TechSpec            | `cy-create-prd` + `cy-create-techspec` + `cy-create-tasks` |                                               |
+| Execute a PRD task        | `cy-execute-task`                                          | `cy-workflow-memory`                          |
+| Review round / fixes      | `cy-review-round` + `cy-fix-reviews`                       | `fix-coderabbit-review`                       |
+| Git rebase / conflicts    | `git-rebase`                                               |                                               |
+| External docs lookup      | `context7` + `find-docs`                                   | `exa-web-search-free`                         |
+| UI / Design (any surface) | `agh-design` + `design-taste-frontend` + `minimalist-ui`   | `frontend-design` + `interface-design`        |
 
 Web-specific skill dispatch is in `web/CLAUDE.md` and `web/AGENTS.md`.
 

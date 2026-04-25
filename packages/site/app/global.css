@@ -39,9 +39,9 @@
 
 /*
  * Override Fumadocs UI tokens with the DESIGN.md dark operator palette.
- * RootProvider forces the `.dark` class on <html>, so only these values
- * are ever applied. Canvas (#121212) → Surface (#1C1C1E) → Elevated
- * (#2C2C2E), single warm accent #E8572A.
+ * The root layout pins `.dark` on <html>; docs routes additionally mount
+ * Fumadocs RootProvider with forced dark theme. Canvas → Surface → Elevated,
+ * single warm accent #E8572A.
  */
 .dark {
   --color-fd-background: #141312;

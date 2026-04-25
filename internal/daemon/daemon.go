@@ -559,7 +559,7 @@ func (d *Daemon) applyObserverFactoryDefault() {
 			observe.WithObservabilityConfig(deps.Config.Observability),
 			observe.WithAgentProbeSource(
 				agentProbeTargetSource(&deps.Config, deps.AgentCatalog, deps.Logger),
-				2*time.Second,
+				deps.Config.Observability.AgentProbeTimeoutOrDefault(),
 			),
 		)
 	}

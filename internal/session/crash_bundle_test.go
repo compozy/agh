@@ -1,6 +1,7 @@
 package session
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,11 +21,13 @@ func TestCrashBundleFileName(t *testing.T) {
 
 		firstName := crashBundleFileName(sessionID, store.FailureProcess, first)
 		secondName := crashBundleFileName(sessionID, store.FailureProcess, second)
+		firstToken := strconv.FormatInt(first.UnixNano(), 10)
+		secondToken := strconv.FormatInt(second.UnixNano(), 10)
 
 		if firstName == secondName {
 			t.Fatalf("crashBundleFileName() reused %q for distinct timestamps", firstName)
 		}
-		if !strings.Contains(firstName, "101") || !strings.Contains(secondName, "202") {
+		if !strings.Contains(firstName, firstToken) || !strings.Contains(secondName, secondToken) {
 			t.Fatalf("crash bundle names = %q, %q; want timestamp suffixes preserved", firstName, secondName)
 		}
 		if len(strings.TrimSuffix(firstName, ".json")) > crashBundleNameMaxBytes ||

@@ -20,11 +20,11 @@ Set the home path used by the commands below:
 export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
 ```
 
-| Path                                        | Purpose                                                                                                                                                     |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Path                                        | Purpose                                                                                                                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `$AGH_HOME/agh.db`                          | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
-| `$AGH_HOME/sessions/<session-id>/events.db` | Full event store for one AGH session.                                                                                                                       |
-| `$AGH_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                 |
+| `$AGH_HOME/sessions/<session-id>/events.db` | Full event store for one AGH session.                                                                                                                                                 |
+| `$AGH_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                                           |
 
 The global database is an index and catalog. The per-session `events.db` files hold the detailed
 session timeline.

@@ -2236,43 +2236,47 @@ func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 func TestRunShutsDownWhenObserverRetentionStartFails(t *testing.T) {
 	t.Parallel()
 
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	retentionErr := errors.New("retention start failed")
-	observer := &failingRetentionObserver{startErr: retentionErr}
-	httpShutdown := false
-	udsShutdown := false
+	t.Run("ShouldShutDownWhenObserverRetentionStartFails", func(t *testing.T) {
+		t.Parallel()
 
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.acquireLock = func(path string, _ int) (*Lock, error) {
-		return &Lock{path: path}, nil
-	}
-	d.openRegistry = func(context.Context, string) (Registry, error) {
-		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
-	}
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return &fakeSessionManager{}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return observer, nil
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http", onShutdown: func() { httpShutdown = true }}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds", onShutdown: func() { udsShutdown = true }}, nil
-	}
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		retentionErr := errors.New("retention start failed")
+		observer := &failingRetentionObserver{startErr: retentionErr}
+		httpShutdown := false
+		udsShutdown := false
 
-	err := d.Run(context.Background())
-	if !errors.Is(err, retentionErr) {
-		t.Fatalf("Run() error = %v, want retention start failure", err)
-	}
-	if !observer.shutdownCalled {
-		t.Fatal("observer.ShutdownRetention() was not called")
-	}
-	if !httpShutdown || !udsShutdown {
-		t.Fatalf("server shutdown flags = http:%v uds:%v, want both true", httpShutdown, udsShutdown)
-	}
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.acquireLock = func(path string, _ int) (*Lock, error) {
+			return &Lock{path: path}, nil
+		}
+		d.openRegistry = func(context.Context, string) (Registry, error) {
+			return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return observer, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http", onShutdown: func() { httpShutdown = true }}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds", onShutdown: func() { udsShutdown = true }}, nil
+		}
+
+		err := d.Run(context.Background())
+		if !errors.Is(err, retentionErr) {
+			t.Fatalf("Run() error = %v, want retention start failure", err)
+		}
+		if !observer.shutdownCalled {
+			t.Fatal("observer.ShutdownRetention() was not called")
+		}
+		if !httpShutdown || !udsShutdown {
+			t.Fatalf("server shutdown flags = http:%v uds:%v, want both true", httpShutdown, udsShutdown)
+		}
+	})
 }
 
 func TestBoundariesUsesConfiguredRoot(t *testing.T) {

@@ -350,7 +350,7 @@ func (s *Store) Search(ctx context.Context, query string, opts SearchOptions) ([
 			ctx,
 			OperationRecord{
 				Operation: OperationSearch,
-				Scope:     scope.Normalize(),
+				Scope:     operationRecordScope(scope, workspaceRoot),
 				Workspace: workspaceRoot,
 				Summary:   fmt.Sprintf("query=%q results=%d", strings.TrimSpace(query), len(results)),
 			},
@@ -393,7 +393,7 @@ func (s *Store) Reindex(ctx context.Context, opts ReindexOptions) (ReindexResult
 		ctx,
 		OperationRecord{
 			Operation: OperationReindex,
-			Scope:     scope.Normalize(),
+			Scope:     operationRecordScope(scope, workspaceRoot),
 			Workspace: workspaceRoot,
 			Summary: fmt.Sprintf(
 				"scope=%s workspace=%s indexed=%d",
@@ -485,10 +485,22 @@ func (s *Store) History(ctx context.Context, query OperationHistoryQuery) ([]Ope
 		return []OperationRecord{}, nil
 	}
 	normalized := query
-	normalized.Scope = query.Scope.Normalize()
-	normalized.Workspace = canonicalWorkspaceRoot(query.Workspace)
+	scope, workspaceRoot, err := s.normalizeScopeAndWorkspace(query.Scope, query.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	normalized.Scope = scope
+	normalized.Workspace = workspaceRoot
 	normalized.Operation = query.Operation.Normalize()
 	return s.catalog.listOperations(ctx, normalized)
+}
+
+func operationRecordScope(scope Scope, workspaceRoot string) Scope {
+	normalized := scope.Normalize()
+	if normalized == "" && strings.TrimSpace(workspaceRoot) != "" {
+		return ScopeWorkspace
+	}
+	return normalized
 }
 
 func (s *Store) dirForScope(scope Scope) (string, error) {

@@ -1,12 +1,14 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const packagesUiMain = (await import("../../../packages/ui/.storybook/main")).default;
 const packagesUiPreviewModule = await import("../../../packages/ui/.storybook/preview");
 const packagesUiPreview = packagesUiPreviewModule.default;
 
-const packagesUiPreviewPath = resolve(process.cwd(), "../packages/ui/.storybook/preview.ts");
+const testDir = dirname(fileURLToPath(import.meta.url));
+const packagesUiPreviewPath = resolve(testDir, "../../../packages/ui/.storybook/preview.ts");
 const packagesUiPreviewSource = readFileSync(packagesUiPreviewPath, "utf8");
 
 describe("packages/ui Storybook config", () => {

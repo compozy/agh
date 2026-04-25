@@ -1,11 +1,13 @@
 # Session Chat Production Hardening
 
 ## Summary
+
 - Corrigir o chat de sessão separando histórico durável do transcript e a cauda live da rodada atual. O transcript vira a fonte de verdade do histórico; o AI SDK fica responsável só pelo fluxo live da rodada em andamento.
 - Remover o seletor de `skills`, adicionar feedback consistente de `thinking/loading`, corrigir a renderização live de tool calls, e introduzir um `Clear conversation` real que zera contexto no backend sem trocar o `session_id`.
 - Persistir as 6 análises paralelas coletadas em `~/.codex/analysis/session-chat-ux/analysis_<name>.md`.
 
 ## Implementation Changes
+
 - Frontend session state (`web/src/hooks/routes/use-session-page.ts`, `web/src/systems/session/hooks/use-session-chat.ts`, `web/src/systems/session/components/*`):
 - Parar de tratar `messages` como um snapshot único substituível.
 - Manter `transcriptMessages` como histórico durável e uma cauda `liveMessages` separada para a rodada atual; a UI renderiza `history + liveTail`.
@@ -27,12 +29,14 @@
 - Reinitializar o runtime da sessão após o clear para que ela volte imediatamente utilizável e `active`, evitando o caminho atual onde event store vazio quebra resume.
 
 ## Public APIs / Types
+
 - Adicionar `SessionManager.ClearConversation(ctx, id)` e handlers HTTP/UDS para `POST /api/sessions/{id}/clear`.
 - Adicionar adapter/mutation `clearSessionConversation(id)` no web, retornando o estado atualizado da sessão.
 - Remover `skillId` de `MessageComposerPayload`, `ComposerDraft` e dos chamadores do composer.
 - Introduzir um shape explícito de estado frontend para `historyMessages`, `liveMessages` e `pending controls`, no lugar do atual `messages` único substituído por `setState`.
 
 ## Test Plan
+
 - Frontend unit/integration:
 - Tool calls aparecem durante o stream sem F5 e continuam corretos depois que o transcript é promovido.
 - O histórico continua visível após `stop -> resume -> send new prompt`.
@@ -48,6 +52,7 @@
 - O SSE atual de prompt continua emitindo text/reasoning/tool lifecycle com a mesma semântica.
 
 ## Assumptions / Defaults
+
 - “Clear” significa reset real de histórico persistido e contexto do agent, não wipe só de UI e não criação de nova sessão.
 - Depois do clear, a sessão volta `active` e pronta para uso imediato, mesmo que antes estivesse `stopped`.
 - Streams resumíveis do AI SDK continuam desativados; AGH mantém cancelamento explícito.

@@ -90,81 +90,104 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 	}
 }
 
-func TestSweepRetentionUsesConfiguredCutoff(t *testing.T) {
+func TestSweepRetentionModes(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	h.observer.retention = RetentionConfig{
-		Enabled:       true,
-		RetentionDays: 7,
-		SweepInterval: time.Hour,
-	}
-	h.observer.setRetentionHealth(h.observer.initialRetentionHealth())
+	testCases := []struct {
+		name      string
+		retention RetentionConfig
+		sessionID string
+		record    func(t *testing.T, h *harness, sess *session.Session)
+		assert    func(t *testing.T, h *harness, sess *session.Session, health RetentionHealth)
+	}{
+		{
+			name: "Should use configured cutoff",
+			retention: RetentionConfig{
+				Enabled:       true,
+				RetentionDays: 7,
+				SweepInterval: time.Hour,
+			},
+			sessionID: "sess-retention",
+			record: func(t *testing.T, h *harness, sess *session.Session) {
+				t.Helper()
 
-	sess := newSession("sess-retention", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+				healthNow := h.now.Add(time.Hour)
+				cutoff := healthNow.AddDate(0, 0, -7)
+				h.recordEvent(t, sess.ID, "agent_message", cutoff.Add(-time.Nanosecond), "old event")
+				h.recordEvent(t, sess.ID, "agent_message", cutoff, "cutoff event")
+				h.recordEvent(t, sess.ID, "agent_message", cutoff.Add(time.Nanosecond), "fresh event")
+			},
+			assert: func(t *testing.T, h *harness, sess *session.Session, health RetentionHealth) {
+				t.Helper()
 
-	healthNow := h.now.Add(time.Hour)
-	cutoff := healthNow.AddDate(0, 0, -7)
-	h.recordEvent(t, sess.ID, "agent_message", cutoff.Add(-time.Nanosecond), "old event")
-	h.recordEvent(t, sess.ID, "agent_message", cutoff, "cutoff event")
-	h.recordEvent(t, sess.ID, "agent_message", cutoff.Add(time.Nanosecond), "fresh event")
+				cutoff := h.now.Add(time.Hour).AddDate(0, 0, -7)
+				if !health.Enabled || health.RetentionDays != 7 || health.LastSweepStatus != retentionSweepStatusOK {
+					t.Fatalf("SweepRetention() health = %#v, want enabled ok seven-day retention", health)
+				}
+				if health.LastCutoffAt == nil || !health.LastCutoffAt.Equal(cutoff) {
+					t.Fatalf("SweepRetention().LastCutoffAt = %#v, want %s", health.LastCutoffAt, cutoff)
+				}
+				if health.DeletedEventSummaries != 1 {
+					t.Fatalf("SweepRetention().DeletedEventSummaries = %d, want 1", health.DeletedEventSummaries)
+				}
+				events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+				if err != nil {
+					t.Fatalf("QueryEvents() error = %v", err)
+				}
+				if got, want := len(events), 2; got != want {
+					t.Fatalf("len(events) = %d, want %d: %#v", got, want, events)
+				}
+				if events[0].Summary != "cutoff event" || events[1].Summary != "fresh event" {
+					t.Fatalf("events after retention = %#v, want cutoff and fresh events", events)
+				}
+			},
+		},
+		{
+			name: "Should keep history when disabled",
+			retention: RetentionConfig{
+				Enabled:       false,
+				RetentionDays: 0,
+				SweepInterval: time.Hour,
+			},
+			sessionID: "sess-keep-history",
+			record: func(t *testing.T, h *harness, sess *session.Session) {
+				t.Helper()
+				h.recordEvent(t, sess.ID, "agent_message", h.now.AddDate(-1, 0, 0), "old retained event")
+			},
+			assert: func(t *testing.T, h *harness, sess *session.Session, health RetentionHealth) {
+				t.Helper()
 
-	health, err := h.observer.SweepRetention(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("SweepRetention() error = %v", err)
-	}
-	if !health.Enabled || health.RetentionDays != 7 || health.LastSweepStatus != retentionSweepStatusOK {
-		t.Fatalf("SweepRetention() health = %#v, want enabled ok seven-day retention", health)
-	}
-	if health.LastCutoffAt == nil || !health.LastCutoffAt.Equal(cutoff) {
-		t.Fatalf("SweepRetention().LastCutoffAt = %#v, want %s", health.LastCutoffAt, cutoff)
-	}
-	if health.DeletedEventSummaries != 1 {
-		t.Fatalf("SweepRetention().DeletedEventSummaries = %d, want 1", health.DeletedEventSummaries)
-	}
-
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
-	if err != nil {
-		t.Fatalf("QueryEvents() error = %v", err)
-	}
-	if got, want := len(events), 2; got != want {
-		t.Fatalf("len(events) = %d, want %d: %#v", got, want, events)
-	}
-	if events[0].Summary != "cutoff event" || events[1].Summary != "fresh event" {
-		t.Fatalf("events after retention = %#v, want cutoff and fresh events", events)
-	}
-}
-
-func TestSweepRetentionDisabledKeepsHistory(t *testing.T) {
-	t.Parallel()
-
-	h := newHarness(t)
-	h.observer.retention = RetentionConfig{
-		Enabled:       false,
-		RetentionDays: 0,
-		SweepInterval: time.Hour,
-	}
-	h.observer.setRetentionHealth(h.observer.initialRetentionHealth())
-
-	sess := newSession("sess-keep-history", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
-	h.recordEvent(t, sess.ID, "agent_message", h.now.AddDate(-1, 0, 0), "old retained event")
-
-	health, err := h.observer.SweepRetention(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("SweepRetention(disabled) error = %v", err)
-	}
-	if health.Enabled || health.LastSweepStatus != retentionSweepStatusDisabled {
-		t.Fatalf("SweepRetention(disabled) health = %#v, want disabled status", health)
+				if health.Enabled || health.LastSweepStatus != retentionSweepStatusDisabled {
+					t.Fatalf("SweepRetention(disabled) health = %#v, want disabled status", health)
+				}
+				events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+				if err != nil {
+					t.Fatalf("QueryEvents() error = %v", err)
+				}
+				if got, want := len(events), 1; got != want {
+					t.Fatalf("len(events) = %d, want %d: %#v", got, want, events)
+				}
+			},
+		},
 	}
 
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
-	if err != nil {
-		t.Fatalf("QueryEvents() error = %v", err)
-	}
-	if got, want := len(events), 1; got != want {
-		t.Fatalf("len(events) = %d, want %d: %#v", got, want, events)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			h.observer.retention = tc.retention
+			h.observer.setRetentionHealth(h.observer.initialRetentionHealth())
+			sess := newSession(tc.sessionID, session.StateActive, h.workspace, h.now)
+			h.observer.OnSessionCreated(testutil.Context(t), sess)
+			tc.record(t, h, sess)
+
+			health, err := h.observer.SweepRetention(testutil.Context(t))
+			if err != nil {
+				t.Fatalf("SweepRetention() error = %v", err)
+			}
+			tc.assert(t, h, sess, health)
+		})
 	}
 }
 
@@ -554,6 +577,23 @@ func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
 	h := newHarness(t)
 	ctx := testutil.Context(t)
 	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
+		ID:          "sess-protocol",
+		Name:        "Protocol",
+		AgentName:   "reviewer",
+		Provider:    "codex",
+		WorkspaceID: h.workspaceID,
+		State:       string(session.StateStopped),
+		StopReason:  store.StopError,
+		Failure: &store.SessionFailure{
+			Kind:    store.FailureProtocol,
+			Summary: "bad ACP frame",
+		},
+		CreatedAt: h.now,
+		UpdatedAt: h.now.Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("RegisterSession(protocol) error = %v", err)
+	}
+	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
 		ID:          "sess-crash",
 		Name:        "Crashed",
 		AgentName:   "coder",
@@ -570,23 +610,6 @@ func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
 		UpdatedAt: h.now.Add(2 * time.Minute),
 	}); err != nil {
 		t.Fatalf("RegisterSession(crash) error = %v", err)
-	}
-	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
-		ID:          "sess-protocol",
-		Name:        "Protocol",
-		AgentName:   "reviewer",
-		Provider:    "codex",
-		WorkspaceID: h.workspaceID,
-		State:       string(session.StateStopped),
-		StopReason:  store.StopError,
-		Failure: &store.SessionFailure{
-			Kind:    store.FailureProtocol,
-			Summary: "bad ACP frame",
-		},
-		CreatedAt: h.now,
-		UpdatedAt: h.now.Add(time.Minute),
-	}); err != nil {
-		t.Fatalf("RegisterSession(protocol) error = %v", err)
 	}
 	h.observer.agentProbeSource = func(context.Context) ([]acp.ProbeTarget, error) {
 		return []acp.ProbeTarget{{
@@ -615,6 +638,10 @@ func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
 	recent := health.Failures.Recent[0]
 	if recent.SessionID != "sess-crash" || recent.FailureKind != store.FailureProcess {
 		t.Fatalf("Health().Failures.Recent[0] = %#v, want most recent process failure", recent)
+	}
+	if older := health.Failures.Recent[1]; older.SessionID != "sess-protocol" ||
+		older.FailureKind != store.FailureProtocol {
+		t.Fatalf("Health().Failures.Recent[1] = %#v, want older protocol failure", older)
 	}
 	if strings.Contains(recent.Summary, "super-secret") ||
 		strings.Contains(recent.CrashBundlePath, "super-secret") {

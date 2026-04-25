@@ -1016,7 +1016,7 @@ func TestStopManagedProcessRespectsContext(t *testing.T) {
 			managed: managed,
 			done:    make(chan struct{}),
 		}
-		go proc.waitForExit(context.Background())
+		go proc.waitForExit(context.Background(), defaultProcessRecordTimeout)
 		t.Cleanup(func() {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -1060,6 +1060,28 @@ func TestRegisterAgentProcessRetainsRegistryForPIDLessEnvironmentAgents(t *testi
 		}
 		if process.processRecord != nil {
 			t.Fatalf("process.processRecord = %#v, want nil for PID-less agent", process.processRecord)
+		}
+	})
+}
+
+func TestProcessRecordContext(t *testing.T) {
+	t.Run("Should detach cancellation while preserving a bounded deadline", func(t *testing.T) {
+		t.Parallel()
+
+		parent, cancelParent := context.WithCancel(context.Background())
+		cancelParent()
+
+		ctx, cancel := processRecordContext(parent, 25*time.Millisecond)
+		defer cancel()
+		if err := ctx.Err(); err != nil {
+			t.Fatalf("processRecordContext() err = %v, want detached from parent cancellation", err)
+		}
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Fatal("processRecordContext() deadline missing")
+		}
+		if remaining := time.Until(deadline); remaining <= 0 || remaining > time.Second {
+			t.Fatalf("processRecordContext() remaining deadline = %s, want bounded positive deadline", remaining)
 		}
 	})
 }

@@ -113,6 +113,7 @@ func TestClassifyPreviousStop(t *testing.T) {
 func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
 	testCases := []struct {
 		name         string
 		state        State
@@ -134,7 +135,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 				},
 			}
 
-			repaired, changed := ClassifyInactiveMetaForRecovery(time.Now().UTC(), meta)
+			repaired, changed := ClassifyInactiveMetaForRecovery(now, meta)
 			if !changed {
 				t.Fatal("ClassifyInactiveMetaForRecovery() changed = false, want true")
 			}

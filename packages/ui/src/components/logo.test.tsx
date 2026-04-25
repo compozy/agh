@@ -21,7 +21,7 @@ describe("Logo", () => {
     const logo = screen.getByRole("img", { name: "AGH symbol" });
     expect(logo).toHaveAttribute("data-variant", "symbol");
     expect(logo).toHaveAttribute("viewBox", "0 0 355 355");
-    expect(container.querySelector('rect[fill="#E8572B"]')).not.toBeNull();
+    expect(container.querySelector('rect[fill="#E8572A"]')).not.toBeNull();
   });
 
   it("renders the lettering variant with the lettering viewBox", () => {

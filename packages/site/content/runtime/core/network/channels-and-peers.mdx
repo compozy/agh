@@ -40,15 +40,15 @@ Peer listings combine:
 
 A peer card is the compact discovery record carried by `greet` and `whois`.
 
-| Field | Meaning |
-| ----- | ------- |
-| `peer_id` | Stable protocol identity for the visible peer. |
-| `display_name` | Optional human-readable label. |
-| `profiles_supported` | Protocol profiles the peer claims, including `agh-network/v0`. |
-| `capabilities` | Brief capability summaries. |
-| `artifacts_supported` | Artifact types this peer can exchange, including `capability`. |
+| Field                   | Meaning                                                            |
+| ----------------------- | ------------------------------------------------------------------ |
+| `peer_id`               | Stable protocol identity for the visible peer.                     |
+| `display_name`          | Optional human-readable label.                                     |
+| `profiles_supported`    | Protocol profiles the peer claims, including `agh-network/v0`.     |
+| `capabilities`          | Brief capability summaries.                                        |
+| `artifacts_supported`   | Artifact types this peer can exchange, including `capability`.     |
 | `trust_modes_supported` | Trust modes advertised by the peer. Empty in basic v0 local peers. |
-| `ext` | Opaque extension metadata. |
+| `ext`                   | Opaque extension metadata.                                         |
 
 The brief capability list is for routing attention, not for granting authority. A peer saying it can
 perform work is different from AGH allowing it to mutate runtime state.

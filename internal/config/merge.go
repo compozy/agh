@@ -110,10 +110,11 @@ type daytonaProfileOverlay struct {
 }
 
 type observabilityOverlay struct {
-	Enabled        *bool                           `toml:"enabled"`
-	RetentionDays  *int                            `toml:"retention_days"`
-	MaxGlobalBytes *int64                          `toml:"max_global_bytes"`
-	Transcripts    observabilityTranscriptsOverlay `toml:"transcripts"`
+	Enabled           *bool                           `toml:"enabled"`
+	RetentionDays     *int                            `toml:"retention_days"`
+	MaxGlobalBytes    *int64                          `toml:"max_global_bytes"`
+	AgentProbeTimeout *time.Duration                  `toml:"agent_probe_timeout"`
+	Transcripts       observabilityTranscriptsOverlay `toml:"transcripts"`
 }
 
 type observabilityTranscriptsOverlay struct {
@@ -435,6 +436,9 @@ func (o observabilityOverlay) Apply(dst *ObservabilityConfig) {
 	}
 	if o.MaxGlobalBytes != nil {
 		dst.MaxGlobalBytes = *o.MaxGlobalBytes
+	}
+	if o.AgentProbeTimeout != nil {
+		dst.AgentProbeTimeout = *o.AgentProbeTimeout
 	}
 	o.Transcripts.Apply(&dst.Transcripts)
 }

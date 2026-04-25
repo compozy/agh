@@ -1,10 +1,11 @@
 "use client";
 
+import { GithubLogo } from "@/components/logos";
+import { baseOptions } from "@/lib/layout.shared";
 import { Logo, buttonVariants, cn } from "@agh/ui";
-import { usePathname } from "fumadocs-core/framework";
 import { useHomeLayout } from "fumadocs-ui/layouts/home";
 import Link from "next/link";
-import { baseOptions } from "@/lib/layout.shared";
+import { usePathname } from "next/navigation";
 import type { ComponentProps } from "react";
 
 const primaryLinks = [
@@ -94,9 +95,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
                 })
               )}
             >
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em]">
-                GH
-              </span>
+              <GithubLogo className="h-4 w-4" />
             </a>
           )}
         </div>

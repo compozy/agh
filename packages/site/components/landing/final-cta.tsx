@@ -33,7 +33,7 @@ export function FinalCta() {
           <a
             href={baseOptions.githubUrl}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="mt-1 inline-flex items-center gap-2 font-mono text-[12px] uppercase tracking-(--tracking-mono) text-(--color-text-secondary) transition-colors hover:text-(--color-accent)"
           >
             <Star className="h-3.5 w-3.5" />

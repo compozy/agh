@@ -1,5 +1,6 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { Logo } from "@agh/ui";
+import { siteConfig } from "./site-config";
 
 export const baseOptions: BaseLayoutProps = {
   nav: {
@@ -11,7 +12,7 @@ export const baseOptions: BaseLayoutProps = {
     ),
     url: "/",
   },
-  githubUrl: "https://github.com/compozy/agh",
+  githubUrl: siteConfig.githubUrl,
   themeSwitch: { enabled: false },
   links: [
     { text: "Home", url: "/", active: "url" },

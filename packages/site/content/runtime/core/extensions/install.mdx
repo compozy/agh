@@ -75,8 +75,8 @@ agh extension status prompt-enhancer
 | `state`                     | `disabled`, `enabled`, `registered`, `active`, or `error`.                                                               |
 | `health`                    | `unknown`, `healthy`, or `unhealthy`.                                                                                    |
 | `capabilities`, `actions`   | Manifest-declared provide surfaces and Host API methods.                                                                 |
-| `requires_env`              | Manifest-declared environment variable names required by the extension.                                                   |
-| `missing_env`               | Required environment variable names that are unset or empty in the current AGH process environment.                       |
+| `requires_env`              | Manifest-declared environment variable names required by the extension.                                                  |
+| `missing_env`               | Required environment variable names that are unset or empty in the current AGH process environment.                      |
 | `bundles`                   | Bundle summaries packaged by the extension.                                                                              |
 
 `list` and `status` use the daemon when it is running and fall back to the local registry when it is

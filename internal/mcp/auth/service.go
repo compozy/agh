@@ -30,7 +30,7 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 	}
 	service := &Service{
 		store:  store,
-		client: http.DefaultClient,
+		client: &http.Client{Timeout: defaultMetadataClientTimeout},
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -41,7 +41,7 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		}
 	}
 	if service.client == nil {
-		service.client = http.DefaultClient
+		service.client = &http.Client{Timeout: defaultMetadataClientTimeout}
 	}
 	if service.now == nil {
 		service.now = func() time.Time { return time.Now().UTC() }
@@ -216,19 +216,27 @@ func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) 
 	if err != nil && !errors.Is(err, ErrTokenNotFound) {
 		return Status{}, err
 	}
+	var remoteErr error
 	if err == nil {
 		metadata, metaErr := discoverMetadata(ctx, s.client, cfg)
 		if metaErr != nil {
-			return Status{}, metaErr
-		}
-		if strings.TrimSpace(metadata.RevocationEndpoint) != "" {
+			remoteErr = fmt.Errorf("mcp auth: discover revocation metadata: %w", metaErr)
+		} else if strings.TrimSpace(metadata.RevocationEndpoint) != "" {
 			if revokeErr := s.revoke(ctx, cfg, metadata, token); revokeErr != nil {
-				return Status{}, revokeErr
+				remoteErr = fmt.Errorf("mcp auth: revoke remote token: %w", revokeErr)
 			}
 		}
 	}
 	if err := s.store.DeleteMCPAuthToken(ctx, cfg.ServerName); err != nil {
 		return Status{}, err
+	}
+	if remoteErr != nil {
+		return statusFromTokenWithDiagnostic(
+			cfg,
+			nil,
+			s.now(),
+			"local logout completed; remote revocation failed: "+remoteErr.Error(),
+		), nil
 	}
 	return statusFromToken(cfg, nil, s.now()), nil
 }

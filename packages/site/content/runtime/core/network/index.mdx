@@ -13,8 +13,8 @@ bridges, and hooks make AGH a durable runtime. Network makes that runtime a coor
 for agents that need to find each other, delegate bounded work, and report what happened.
 
 <OperatorNote>
-  These pages describe the implemented `agh-network/v0` runtime behavior. The v1 trust profile is
-  an RFC direction for verified peer identity; it is not documented here as a current runtime
+  These pages describe the implemented `agh-network/v0` runtime behavior. The v1 trust profile is an
+  RFC direction for verified peer identity; it is not documented here as a current runtime
   guarantee.
 </OperatorNote>
 
@@ -65,12 +65,12 @@ for agents that need to find each other, delegate bounded work, and report what 
 
 AGH Network has four moving parts:
 
-| Part | Meaning | Operator value |
-| ---- | ------- | -------------- |
-| Channel | A protocol-visible room name such as `builders` or `release`. | Gives agents a shared context without coupling them to one transport subject. |
-| Peer | A local or remote participant visible in a channel. | Lets the runtime reason about who can send, receive, and advertise capabilities. |
-| Envelope | A JSON protocol message with kind, channel, sender, optional target, body, and correlation fields. | Keeps agent-to-agent communication structured and auditable. |
-| Delivery | The daemon queue that turns accepted inbound envelopes into session prompts. | Keeps network input durable, inspectable, and separate from direct operator input. |
+| Part     | Meaning                                                                                            | Operator value                                                                     |
+| -------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Channel  | A protocol-visible room name such as `builders` or `release`.                                      | Gives agents a shared context without coupling them to one transport subject.      |
+| Peer     | A local or remote participant visible in a channel.                                                | Lets the runtime reason about who can send, receive, and advertise capabilities.   |
+| Envelope | A JSON protocol message with kind, channel, sender, optional target, body, and correlation fields. | Keeps agent-to-agent communication structured and auditable.                       |
+| Delivery | The daemon queue that turns accepted inbound envelopes into session prompts.                       | Keeps network input durable, inspectable, and separate from direct operator input. |
 
 A local peer is usually a running AGH session. When the session has a network channel, the daemon
 registers it as a peer, publishes periodic `greet` messages, listens for channel broadcasts and

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -24,56 +25,80 @@ func TestOAuthPKCELifecycleWithRefreshAndLogout(t *testing.T) {
 		refreshCalled bool
 		revokedToken  string
 	)
+	handlerErrors := newHandlerErrorRecorder()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case metadataWellKnownPath:
-			writeJSON(t, w, Metadata{
+			if err := writeJSON(w, Metadata{
 				Issuer:                        "https://issuer.example",
 				AuthorizationEndpoint:         "http://" + r.Host + "/authorize",
 				TokenEndpoint:                 "http://" + r.Host + "/token",
 				RevocationEndpoint:            "http://" + r.Host + "/revoke",
 				CodeChallengeMethodsSupported: []string{"S256"},
-			})
+			}); err != nil {
+				handlerErrors.record(err)
+			}
 		case "/token":
 			if err := r.ParseForm(); err != nil {
-				t.Fatalf("ParseForm() error = %v", err)
+				handlerErrors.record(fmt.Errorf("ParseForm() error = %w", err))
+				http.Error(w, "parse form", http.StatusBadRequest)
+				return
 			}
 			if r.Form.Get("code_verifier") == "auth-code" || strings.Contains(r.Form.Encode(), "access-token") {
-				t.Fatalf("token request leaked sensitive values in unexpected field: %s", r.Form.Encode())
+				handlerErrors.record(
+					fmt.Errorf("token request leaked sensitive values in unexpected field: %s", r.Form.Encode()),
+				)
+				http.Error(w, "token leak", http.StatusBadRequest)
+				return
 			}
 			switch r.Form.Get("grant_type") {
 			case "authorization_code":
 				if r.Form.Get("code") != "auth-code" {
-					t.Fatalf("authorization code = %q, want auth-code", r.Form.Get("code"))
+					handlerErrors.record(fmt.Errorf("authorization code = %q, want auth-code", r.Form.Get("code")))
+					http.Error(w, "bad code", http.StatusBadRequest)
+					return
 				}
 				if r.Form.Get("code_verifier") == "" {
-					t.Fatal("code_verifier = empty")
+					handlerErrors.record(errors.New("code_verifier = empty"))
+					http.Error(w, "missing verifier", http.StatusBadRequest)
+					return
 				}
-				writeJSON(t, w, map[string]any{
+				if err := writeJSON(w, map[string]any{
 					"access_token":  "access-token-1",
 					"refresh_token": "refresh-token-1",
 					"token_type":    "Bearer",
 					"expires_in":    3600,
 					"scope":         "read write",
-				})
+				}); err != nil {
+					handlerErrors.record(err)
+				}
 			case "refresh_token":
 				if r.Form.Get("refresh_token") != "refresh-token-1" {
-					t.Fatalf("refresh_token = %q, want persisted token", r.Form.Get("refresh_token"))
+					handlerErrors.record(
+						fmt.Errorf("refresh_token = %q, want persisted token", r.Form.Get("refresh_token")),
+					)
+					http.Error(w, "bad refresh token", http.StatusBadRequest)
+					return
 				}
 				mu.Lock()
 				refreshCalled = true
 				mu.Unlock()
-				writeJSON(t, w, map[string]any{
+				if err := writeJSON(w, map[string]any{
 					"access_token": "access-token-2",
 					"token_type":   "Bearer",
 					"expires_in":   7200,
-				})
+				}); err != nil {
+					handlerErrors.record(err)
+				}
 			default:
-				t.Fatalf("grant_type = %q", r.Form.Get("grant_type"))
+				handlerErrors.record(fmt.Errorf("grant_type = %q", r.Form.Get("grant_type")))
+				http.Error(w, "bad grant type", http.StatusBadRequest)
 			}
 		case "/revoke":
 			if err := r.ParseForm(); err != nil {
-				t.Fatalf("ParseForm(revoke) error = %v", err)
+				handlerErrors.record(fmt.Errorf("ParseForm(revoke) error = %w", err))
+				http.Error(w, "parse revoke form", http.StatusBadRequest)
+				return
 			}
 			mu.Lock()
 			revokedToken = r.Form.Get("token")
@@ -164,6 +189,7 @@ func TestOAuthPKCELifecycleWithRefreshAndLogout(t *testing.T) {
 	if _, err := store.GetMCPAuthToken(ctx, "linear"); !errors.Is(err, ErrTokenNotFound) {
 		t.Fatalf("GetMCPAuthToken(after logout) error = %v, want ErrTokenNotFound", err)
 	}
+	handlerErrors.assertEmpty(t)
 }
 
 func TestTokenResponseRejectsMalformedPayload(t *testing.T) {
@@ -171,16 +197,21 @@ func TestTokenResponseRejectsMalformedPayload(t *testing.T) {
 
 	ctx := context.Background()
 	store := newMemoryTokenStore()
+	handlerErrors := newHandlerErrorRecorder()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/token":
-			writeJSON(t, w, map[string]any{"refresh_token": "refresh"})
+			if err := writeJSON(w, map[string]any{"refresh_token": "refresh"}); err != nil {
+				handlerErrors.record(err)
+			}
 		default:
-			writeJSON(t, w, Metadata{
+			if err := writeJSON(w, Metadata{
 				AuthorizationEndpoint:         "http://" + r.Host + "/authorize",
 				TokenEndpoint:                 "http://" + r.Host + "/token",
 				CodeChallengeMethodsSupported: []string{"S256"},
-			})
+			}); err != nil {
+				handlerErrors.record(err)
+			}
 		}
 	}))
 	defer server.Close()
@@ -203,6 +234,67 @@ func TestTokenResponseRejectsMalformedPayload(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "access_token is required") {
 		t.Fatalf("Exchange() error = %v, want malformed token response", err)
 	}
+	handlerErrors.assertEmpty(t)
+}
+
+func TestLogoutDeletesLocalTokenWhenRemoteRevocationFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := newMemoryTokenStore()
+	if err := store.SaveMCPAuthToken(ctx, TokenRecord{
+		ServerName:   "linear",
+		AccessToken:  "access-token",
+		RefreshToken: "refresh-token",
+		TokenType:    "Bearer",
+		ObtainedAt:   time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("SaveMCPAuthToken() error = %v", err)
+	}
+	handlerErrors := newHandlerErrorRecorder()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case metadataWellKnownPath:
+			if err := writeJSON(w, Metadata{
+				AuthorizationEndpoint:         "http://" + r.Host + "/authorize",
+				TokenEndpoint:                 "http://" + r.Host + "/token",
+				RevocationEndpoint:            "http://" + r.Host + "/revoke",
+				CodeChallengeMethodsSupported: []string{"S256"},
+			}); err != nil {
+				handlerErrors.record(err)
+			}
+		case "/revoke":
+			http.Error(w, "revocation unavailable", http.StatusBadGateway)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	service, err := NewService(store, WithHTTPClient(server.Client()))
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	cfg := ServerConfig{
+		ServerName: "linear",
+		RemoteURL:  "https://mcp.example/sse",
+		Type:       "oauth2_pkce",
+		IssuerURL:  server.URL,
+		ClientID:   "client-1",
+	}
+
+	status, err := service.Logout(ctx, cfg)
+	if err != nil {
+		t.Fatalf("Logout() error = %v", err)
+	}
+	if status.Status != StatusNeedsLogin || !strings.Contains(status.Diagnostic, "remote revocation failed") {
+		t.Fatalf("Logout() status = %#v, want local logout diagnostic", status)
+	}
+	if _, err := store.GetMCPAuthToken(ctx, "linear"); !errors.Is(err, ErrTokenNotFound) {
+		t.Fatalf("GetMCPAuthToken(after failed revocation logout) error = %v, want ErrTokenNotFound", err)
+	}
+	handlerErrors.assertEmpty(t)
 }
 
 func TestSupportsS256RequiresAdvertisedMethod(t *testing.T) {
@@ -225,6 +317,22 @@ func TestSupportsS256RequiresAdvertisedMethod(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewServiceDefaultsHTTPClientTimeout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should configure bounded HTTP client by default", func(t *testing.T) {
+		t.Parallel()
+
+		service, err := NewService(newMemoryTokenStore())
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		if service.client == nil || service.client.Timeout != defaultMetadataClientTimeout {
+			t.Fatalf("NewService().client = %#v, want timeout %s", service.client, defaultMetadataClientTimeout)
+		}
+	})
 }
 
 type memoryTokenStore struct {
@@ -270,10 +378,38 @@ func (s *memoryTokenStore) DeleteMCPAuthToken(_ context.Context, serverName stri
 	return nil
 }
 
-func writeJSON(t *testing.T, w http.ResponseWriter, value any) {
+type handlerErrorRecorder struct {
+	mu   sync.Mutex
+	errs []error
+}
+
+func newHandlerErrorRecorder() *handlerErrorRecorder {
+	return &handlerErrorRecorder{}
+}
+
+func (r *handlerErrorRecorder) record(err error) {
+	if err == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.errs = append(r.errs, err)
+}
+
+func (r *handlerErrorRecorder) assertEmpty(t *testing.T) {
 	t.Helper()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.errs) > 0 {
+		t.Fatalf("handler errors = %v", errors.Join(r.errs...))
+	}
+}
+
+func writeJSON(w http.ResponseWriter, value any) error {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(value); err != nil {
-		t.Fatalf("json.Encode() error = %v", err)
+		return fmt.Errorf("json.Encode() error = %w", err)
 	}
+	return nil
 }

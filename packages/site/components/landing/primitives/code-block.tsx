@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Check, Copy } from "lucide-react";
 import { Button } from "@agh/ui";
 import { cn } from "@agh/ui/utils";
 
@@ -23,15 +23,33 @@ export function CodeBlock({
   className,
   shell = false,
 }: CodeBlockProps) {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current);
+      }
+    };
+  }, []);
+
+  function scheduleReset() {
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+    }
+    resetTimerRef.current = setTimeout(() => setCopyState("idle"), 1500);
+  }
 
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // clipboard blocked — drop silently
+      setCopyState("copied");
+      scheduleReset();
+    } catch (error) {
+      void error;
+      setCopyState("failed");
+      scheduleReset();
     }
   }
 
@@ -54,10 +72,26 @@ export function CodeBlock({
               variant="ghost"
               size="icon-xs"
               onClick={handleCopy}
-              aria-label={copied ? "Copied" : "Copy to clipboard"}
-              className="text-(--color-text-tertiary) hover:text-(--color-accent)"
+              aria-label={
+                copyState === "copied"
+                  ? "Copied"
+                  : copyState === "failed"
+                    ? "Copy failed"
+                    : "Copy to clipboard"
+              }
+              aria-live="polite"
+              className={cn(
+                "text-(--color-text-tertiary) hover:text-(--color-accent)",
+                copyState === "failed" && "text-(--color-danger) hover:text-(--color-danger)"
+              )}
             >
-              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+              {copyState === "copied" ? (
+                <Check className="size-3" />
+              ) : copyState === "failed" ? (
+                <AlertTriangle className="size-3" />
+              ) : (
+                <Copy className="size-3" />
+              )}
             </Button>
           ) : null}
         </div>

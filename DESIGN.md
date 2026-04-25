@@ -30,103 +30,103 @@ All colors are hex. No OKLCH, no color-mix at the token level (only in component
 
 ### Backgrounds
 
-| Token                                    | Value     | Role                                                            |
-| ---------------------------------------- | --------- | --------------------------------------------------------------- |
-| **Canvas** `--color-canvas`              | `#141312` | Primary app + site background — warm near-black                 |
-| **Canvas Deep** `--color-canvas-deep`    | `#0E0E0F` | Code blocks, deep sections (marketing `background="deep"`)      |
-| **Surface** `--color-surface`            | `#1E1C1B` | Cards, sidebar, panels, modals                                  |
-| **Surface Panel** `--color-surface-panel`| `#181716` | Alternate panel fill (docs sidebar, subtle separators)          |
+| Token                                           | Value     | Role                                                            |
+| ----------------------------------------------- | --------- | --------------------------------------------------------------- |
+| **Canvas** `--color-canvas`                     | `#141312` | Primary app + site background — warm near-black                 |
+| **Canvas Deep** `--color-canvas-deep`           | `#0E0E0F` | Code blocks, deep sections (marketing `background="deep"`)      |
+| **Surface** `--color-surface`                   | `#1E1C1B` | Cards, sidebar, panels, modals                                  |
+| **Surface Panel** `--color-surface-panel`       | `#181716` | Alternate panel fill (docs sidebar, subtle separators)          |
 | **Surface Elevated** `--color-surface-elevated` | `#2E2C2B` | Popovers, icon wells inside cards, search inputs, hover targets |
-| **Divider** `--color-divider` / `--color-line` | `#3C3A39` | 1px borders, separators, input outlines — the universal line    |
-| **Hover** `--color-hover`                | `#353332` | Hover state for neutral interactive surfaces                    |
-| **Disabled** `--color-disabled`          | `#4A4847` | Disabled backgrounds and elements                               |
+| **Divider** `--color-divider` / `--color-line`  | `#3C3A39` | 1px borders, separators, input outlines — the universal line    |
+| **Hover** `--color-hover`                       | `#353332` | Hover state for neutral interactive surfaces                    |
+| **Disabled** `--color-disabled`                 | `#4A4847` | Disabled backgrounds and elements                               |
 
 ### Text
 
-| Token                                  | Value     | Role                                       |
-| -------------------------------------- | --------- | ------------------------------------------ |
-| **Primary** `--color-text-primary`     | `#E5E5E7` | Headings, titles, high-emphasis content    |
-| **Secondary** `--color-text-secondary` | `#8E8E93` | Body copy, descriptions, helper text       |
-| **Tertiary** `--color-text-tertiary`   | `#636366` | Placeholders, disabled text, low-emphasis  |
-| **Label** `--color-text-label`         | `#98989D` | Meta labels, mono eyebrows on dark fills   |
+| Token                                  | Value     | Role                                      |
+| -------------------------------------- | --------- | ----------------------------------------- |
+| **Primary** `--color-text-primary`     | `#E5E5E7` | Headings, titles, high-emphasis content   |
+| **Secondary** `--color-text-secondary` | `#8E8E93` | Body copy, descriptions, helper text      |
+| **Tertiary** `--color-text-tertiary`   | `#636366` | Placeholders, disabled text, low-emphasis |
+| **Label** `--color-text-label`         | `#98989D` | Meta labels, mono eyebrows on dark fills  |
 
 ### Accent & Semantic
 
 Color is signal. Each accent has exactly one meaning.
 
-| Token                                   | Value       | Signal                  | Usage                                                           |
-| --------------------------------------- | ----------- | ----------------------- | --------------------------------------------------------------- |
-| **Accent** `--color-accent`             | `#E8572A`   | **Action / Primary**    | CTAs, primary buttons, active pills, focus rings, links, `$ ` prompts |
-| **Accent Ink** `--color-accent-ink`     | `#17110F`   | Text on accent fill     | Used when text sits on a solid accent background                |
-| **Accent Hover** `--color-accent-hover` | `#D14E25`   | Action pressed          | Hover / pressed state for accent fills                          |
-| **Accent Strong** `--color-accent-strong` | `#F6874F` | Highlight accent        | Rare high-emphasis accent, e.g. inline code on dark panels      |
-| **Accent Dim** `--color-accent-dim`     | `#E8572A59` | Muted accent outline    | ~35% alpha — focus rings, subtle active borders                 |
-| **Success** `--color-success`           | `#30D158`   | Stable / Live           | Connected status, running agents, online indicator              |
-| **Danger** `--color-danger`             | `#FF453A`   | Error / Destructive     | Errors, disconnected, destructive buttons, kill switches        |
-| **Warning** `--color-warning`           | `#FFD60A`   | Caution / Pending       | Pending states, degraded status                                 |
-| **Info** `--color-info`                 | `#BF5AF2`   | Informational           | Info chips, secondary categorization                            |
+| Token                                     | Value       | Signal               | Usage                                                                 |
+| ----------------------------------------- | ----------- | -------------------- | --------------------------------------------------------------------- |
+| **Accent** `--color-accent`               | `#E8572A`   | **Action / Primary** | CTAs, primary buttons, active pills, focus rings, links, `$ ` prompts |
+| **Accent Ink** `--color-accent-ink`       | `#17110F`   | Text on accent fill  | Used when text sits on a solid accent background                      |
+| **Accent Hover** `--color-accent-hover`   | `#D14E25`   | Action pressed       | Hover / pressed state for accent fills                                |
+| **Accent Strong** `--color-accent-strong` | `#F6874F`   | Highlight accent     | Rare high-emphasis accent, e.g. inline code on dark panels            |
+| **Accent Dim** `--color-accent-dim`       | `#E8572A59` | Muted accent outline | ~35% alpha — focus rings, subtle active borders                       |
+| **Success** `--color-success`             | `#30D158`   | Stable / Live        | Connected status, running agents, online indicator                    |
+| **Danger** `--color-danger`               | `#FF453A`   | Error / Destructive  | Errors, disconnected, destructive buttons, kill switches              |
+| **Warning** `--color-warning`             | `#FFD60A`   | Caution / Pending    | Pending states, degraded status                                       |
+| **Info** `--color-info`                   | `#BF5AF2`   | Informational        | Info chips, secondary categorization                                  |
 
 ### Tint Formula
 
 Status badges and kind chips use 15% opacity of the semantic color as background with the full-color text.
 
-| Semantic Color  | Tint Token                | Value         | Text      |
-| --------------- | ------------------------- | ------------- | --------- |
-| Accent          | `--color-accent-tint`     | `#E8572A26`   | `#E8572A` |
-| Success         | `--color-success-tint`    | `#30D15826`   | `#30D158` |
-| Danger          | `--color-danger-tint`     | `#FF453A26`   | `#FF453A` |
-| Warning         | `--color-warning-tint`    | `#FFD60A26`   | `#FFD60A` |
-| Info            | `--color-info-tint`       | `#BF5AF226`   | `#BF5AF2` |
-| Neutral         | `--color-neutral-tint`    | `#63636626`   | `#636366` |
+| Semantic Color | Tint Token             | Value       | Text      |
+| -------------- | ---------------------- | ----------- | --------- |
+| Accent         | `--color-accent-tint`  | `#E8572A26` | `#E8572A` |
+| Success        | `--color-success-tint` | `#30D15826` | `#30D158` |
+| Danger         | `--color-danger-tint`  | `#FF453A26` | `#FF453A` |
+| Warning        | `--color-warning-tint` | `#FFD60A26` | `#FFD60A` |
+| Info           | `--color-info-tint`    | `#BF5AF226` | `#BF5AF2` |
+| Neutral        | `--color-neutral-tint` | `#63636626` | `#636366` |
 
 ### Overlays
 
-| Purpose              | Value                       | Notes                                           |
-| -------------------- | --------------------------- | ----------------------------------------------- |
-| **Modal scrim**      | `rgba(0, 0, 0, 0.5)`        | Dialog backdrop                                 |
-| **Ghost hover**      | `rgba(255, 255, 255, 0.06)` | Ghost button hover on dark surfaces             |
-| **Selection**        | `rgba(232, 87, 42, 0.28)`   | Text selection — warm accent tint               |
-| **Sticky header**    | `rgba(20, 19, 18, 0.92)` + `backdrop-blur-xl` | The only place blur is allowed |
-| **Hero mesh**        | `/hero-bg.png` @ 20% opacity + `mix-blend-screen` | Warm mesh, never a gradient       |
+| Purpose           | Value                                             | Notes                               |
+| ----------------- | ------------------------------------------------- | ----------------------------------- |
+| **Modal scrim**   | `rgba(0, 0, 0, 0.5)`                              | Dialog backdrop                     |
+| **Ghost hover**   | `rgba(255, 255, 255, 0.06)`                       | Ghost button hover on dark surfaces |
+| **Selection**     | `rgba(232, 87, 42, 0.28)`                         | Text selection — warm accent tint   |
+| **Sticky header** | `rgba(20, 19, 18, 0.92)` + `backdrop-blur-xl`     | The only place blur is allowed      |
+| **Hero mesh**     | `/hero-bg.png` @ 20% opacity + `mix-blend-screen` | Warm mesh, never a gradient         |
 
 ## 3. Typography Rules
 
 ### Font Families
 
-| Role                   | Typeface              | Fallback                                           | Usage                                                            |
-| ---------------------- | --------------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| **Primary (Sans)**     | **Inter Variable**    | Inter, -apple-system, BlinkMacSystemFont, sans-serif | Body, UI, docs headings, buttons, everything readable             |
-| **Display (Serif)**    | **Playfair Display**  | Inter Variable, serif                              | **Marketing only** — home `h1`/`h2` (`.site-home` scope)          |
-| **Mono**               | **JetBrains Mono**    | 'Courier New', monospace                           | Labels, badges, eyebrows, code, counters, protocol strings — always uppercase when non-code |
-| **Wordmark**           | **NuixyberNext**      | var(--font-sans)                                   | The literal string `agh` in the header Logo — nothing else       |
+| Role                | Typeface             | Fallback                                             | Usage                                                                                       |
+| ------------------- | -------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Primary (Sans)**  | **Inter Variable**   | Inter, -apple-system, BlinkMacSystemFont, sans-serif | Body, UI, docs headings, buttons, everything readable                                       |
+| **Display (Serif)** | **Playfair Display** | Inter Variable, serif                                | **Marketing only** — home `h1`/`h2` (`.site-home` scope)                                    |
+| **Mono**            | **JetBrains Mono**   | 'Courier New', monospace                             | Labels, badges, eyebrows, code, counters, protocol strings — always uppercase when non-code |
+| **Wordmark**        | **NuixyberNext**     | var(--font-sans)                                     | The literal string `agh` in the header Logo — nothing else                                  |
 
 ### Type Scale
 
 Marketing uses a fluid `clamp()` ramp; docs and UI use fixed sizes.
 
-| Role                    | Font             | Size                              | Weight      | Line Height | Letter Spacing | Notes                                                  |
-| ----------------------- | ---------------- | --------------------------------- | ----------- | ----------- | -------------- | ------------------------------------------------------ |
-| **Hero H1 (site-home)** | Playfair Display | `clamp(2.8rem, 6.5vw, 5.4rem)`    | 400         | 0.96        | -0.035em       | Editorial display — marketing only                     |
-| **Marketing H2**        | Playfair Display | `clamp(2.2rem, 4.6vw, 3.6rem)`    | 400         | 1.02        | -0.03em        | Section headers on landing                             |
-| **Docs H1**             | Inter            | `clamp(2.55rem, 4.7vw, 4rem)`     | 600         | 0.94        | -0.05em        | Doc masthead — distinct from marketing hero            |
-| **Docs H2**             | Inter            | `clamp(1.7rem, 3vw, 2.45rem)`     | 600         | 1.05        | -0.035em       | Has `border-top 1px divider` + `padding-top 1rem`      |
-| **H3**                  | Inter            | 20px (`1.25rem`)                  | 500         | 1.2         | -0.02em        | Card titles, subsection headers                        |
-| **Page Title (UI)**     | Inter            | 20px                              | 700         | 28px        | -0.01em        | Operator UI top-level page titles                      |
-| **Card Title**          | Inter            | 16px                              | 600         | 24px        | -0.01em        | Panel and card headings in UI                          |
-| **Item Title**          | Inter            | 15px                              | 500         | 22px        | —              | List item titles, session names                        |
-| **Lead**                | Inter            | 18px (`1.125rem`)                 | 400         | 1.6         | —              | Hero sub-lead, section leads — max-width 58ch          |
-| **Body**                | Inter            | 16px (`1rem`)                     | 400         | 1.5–1.7     | —              | Default reading text                                   |
-| **Body (Docs)**         | Inter            | 16px                              | 400         | 1.8         | —              | Long-form docs — max-width 72ch                        |
-| **Small Body**          | Inter            | 13px (`0.8125rem`)                | 400         | 18px        | —              | Helper text, captions, meta                            |
-| **Metric Value**        | Inter            | 24px                              | 700         | 30px        | -0.02em        | Large dashboard numbers                                |
-| **Button Text**         | Inter            | 14px                              | 500         | 18px        | —              | Primary/secondary button labels                        |
-| **Ghost Button**        | Inter            | 13px                              | 500         | 16px        | —              | Ghost/compact button labels                            |
-| **Eyebrow**             | JetBrains Mono   | 11px                              | 600         | 16px        | 0.06em         | Uppercase — section headers, meta labels               |
-| **Doc Masthead Eyebrow**| JetBrains Mono   | 12px                              | 600         | 16px        | 0.16em         | Wider tracking for the `/runtime/*` doc masthead       |
-| **Badge Text**          | JetBrains Mono   | 10px                              | 600         | 12px        | 0.08em         | Status badges, kind chips — uppercase                  |
-| **Mono Badge**          | JetBrains Mono   | 11px                              | 500         | 14px        | 0.06em         | Inline mono pills (agent IDs, protocol names)          |
-| **Inline Code**         | JetBrains Mono   | 0.9em                             | 400         | inherit     | —              | In-flow code tokens                                    |
-| **Brand Wordmark**      | NuixyberNext     | ~24px @ header                    | 400         | 1           | —              | Lowercase `agh` + neighboring `ALPHA` chip (mono)      |
+| Role                     | Font             | Size                           | Weight | Line Height | Letter Spacing | Notes                                             |
+| ------------------------ | ---------------- | ------------------------------ | ------ | ----------- | -------------- | ------------------------------------------------- |
+| **Hero H1 (site-home)**  | Playfair Display | `clamp(2.8rem, 6.5vw, 5.4rem)` | 400    | 0.96        | -0.035em       | Editorial display — marketing only                |
+| **Marketing H2**         | Playfair Display | `clamp(2.2rem, 4.6vw, 3.6rem)` | 400    | 1.02        | -0.03em        | Section headers on landing                        |
+| **Docs H1**              | Inter            | `clamp(2.55rem, 4.7vw, 4rem)`  | 600    | 0.94        | -0.05em        | Doc masthead — distinct from marketing hero       |
+| **Docs H2**              | Inter            | `clamp(1.7rem, 3vw, 2.45rem)`  | 600    | 1.05        | -0.035em       | Has `border-top 1px divider` + `padding-top 1rem` |
+| **H3**                   | Inter            | 20px (`1.25rem`)               | 500    | 1.2         | -0.02em        | Card titles, subsection headers                   |
+| **Page Title (UI)**      | Inter            | 20px                           | 700    | 28px        | -0.01em        | Operator UI top-level page titles                 |
+| **Card Title**           | Inter            | 16px                           | 600    | 24px        | -0.01em        | Panel and card headings in UI                     |
+| **Item Title**           | Inter            | 15px                           | 500    | 22px        | —              | List item titles, session names                   |
+| **Lead**                 | Inter            | 18px (`1.125rem`)              | 400    | 1.6         | —              | Hero sub-lead, section leads — max-width 58ch     |
+| **Body**                 | Inter            | 16px (`1rem`)                  | 400    | 1.5–1.7     | —              | Default reading text                              |
+| **Body (Docs)**          | Inter            | 16px                           | 400    | 1.8         | —              | Long-form docs — max-width 72ch                   |
+| **Small Body**           | Inter            | 13px (`0.8125rem`)             | 400    | 18px        | —              | Helper text, captions, meta                       |
+| **Metric Value**         | Inter            | 24px                           | 700    | 30px        | -0.02em        | Large dashboard numbers                           |
+| **Button Text**          | Inter            | 14px                           | 500    | 18px        | —              | Primary/secondary button labels                   |
+| **Ghost Button**         | Inter            | 13px                           | 500    | 16px        | —              | Ghost/compact button labels                       |
+| **Eyebrow**              | JetBrains Mono   | 11px                           | 600    | 16px        | 0.06em         | Uppercase — section headers, meta labels          |
+| **Doc Masthead Eyebrow** | JetBrains Mono   | 12px                           | 600    | 16px        | 0.16em         | Wider tracking for the `/runtime/*` doc masthead  |
+| **Badge Text**           | JetBrains Mono   | 10px                           | 600    | 12px        | 0.08em         | Status badges, kind chips — uppercase             |
+| **Mono Badge**           | JetBrains Mono   | 11px                           | 500    | 14px        | 0.06em         | Inline mono pills (agent IDs, protocol names)     |
+| **Inline Code**          | JetBrains Mono   | 0.9em                          | 400    | inherit     | —              | In-flow code tokens                               |
+| **Brand Wordmark**       | NuixyberNext     | ~24px @ header                 | 400    | 1           | —              | Lowercase `agh` + neighboring `ALPHA` chip (mono) |
 
 ### Typography Principles
 
@@ -146,12 +146,12 @@ Marketing uses a fluid `clamp()` ramp; docs and UI use fixed sizes.
 
 Solid accent fill. The main call-to-action on marketing, primary button in UI.
 
-| State    | Background | Text               | Border Radius | Height (default / lg) | Padding           |
-| -------- | ---------- | ------------------ | ------------- | --------------------- | ----------------- |
-| Default  | `#E8572A`  | `#FFFFFF`          | 8px           | 36px / 44px           | 8px 20px          |
-| Hover    | `#D14E25`  | `#FFFFFF`          | 8px           | same                  | same              |
-| Active   | `#D14E25`  | `#FFFFFF`          | 8px           | same + `translate-y-px` | same            |
-| Disabled | `#4A4847`  | `#636366`          | 8px           | same                  | same              |
+| State    | Background | Text      | Border Radius | Height (default / lg)   | Padding  |
+| -------- | ---------- | --------- | ------------- | ----------------------- | -------- |
+| Default  | `#E8572A`  | `#FFFFFF` | 8px           | 36px / 44px             | 8px 20px |
+| Hover    | `#D14E25`  | `#FFFFFF` | 8px           | same                    | same     |
+| Active   | `#D14E25`  | `#FFFFFF` | 8px           | same + `translate-y-px` | same     |
+| Disabled | `#4A4847`  | `#636366` | 8px           | same                    | same     |
 
 Marketing CTAs use `lg` (44px, `rounded-lg`). **Never pill-shaped.**
 
@@ -159,21 +159,21 @@ Marketing CTAs use `lg` (44px, `rounded-lg`). **Never pill-shaped.**
 
 Border-only. Hover warms the border toward accent.
 
-| State    | Background  | Border                                                       | Text                  |
-| -------- | ----------- | ------------------------------------------------------------ | --------------------- |
-| Default  | transparent | 1px solid `#3C3A39`                                          | `#E5E5E7`             |
-| Hover    | transparent | 1px solid `color-mix(in srgb, #E8572A 40%, #3C3A39)`         | `#E8572A`             |
-| Disabled | transparent | 1px solid `#3C3A39`                                          | `#636366`             |
+| State    | Background  | Border                                               | Text      |
+| -------- | ----------- | ---------------------------------------------------- | --------- |
+| Default  | transparent | 1px solid `#3C3A39`                                  | `#E5E5E7` |
+| Hover    | transparent | 1px solid `color-mix(in srgb, #E8572A 40%, #3C3A39)` | `#E8572A` |
+| Disabled | transparent | 1px solid `#3C3A39`                                  | `#636366` |
 
 #### Ghost
 
 Text-only. Hover reveals subtle background (`rgba(255,255,255,0.06)`).
 
-| State     | Background                  | Text      | Height | Padding      |
-| --------- | --------------------------- | --------- | ------ | ------------ |
-| Default   | transparent                 | `#8E8E93` | 28px   | 6px 12px     |
-| Hover     | `rgba(255,255,255,0.06)`    | `#E5E5E7` | 28px   | 6px 12px     |
-| Icon Only | transparent                 | `#8E8E93` | 28px   | 6px (square) |
+| State     | Background               | Text      | Height | Padding      |
+| --------- | ------------------------ | --------- | ------ | ------------ |
+| Default   | transparent              | `#8E8E93` | 28px   | 6px 12px     |
+| Hover     | `rgba(255,255,255,0.06)` | `#E5E5E7` | 28px   | 6px 12px     |
+| Icon Only | transparent              | `#8E8E93` | 28px   | 6px (square) |
 
 Marketing ghost CTA override: `hover:border-accent hover:text-accent hover:bg-transparent`.
 
@@ -189,10 +189,10 @@ Same shape as primary. Red fill for destructive actions.
 
 #### Pill Toggle / Filter Tabs (Operator UI)
 
-| State     | Background  | Border              | Text      | Radius |
-| --------- | ----------- | ------------------- | --------- | ------ |
-| Active    | `#E8572A`   | none                | `#FFFFFF` | 20px   |
-| Inactive  | transparent | 1px solid `#3C3A39` | `#8E8E93` | 20px   |
+| State    | Background  | Border              | Text      | Radius |
+| -------- | ----------- | ------------------- | --------- | ------ |
+| Active   | `#E8572A`   | none                | `#FFFFFF` | 20px   |
+| Inactive | transparent | 1px solid `#3C3A39` | `#8E8E93` | 20px   |
 
 Filter pill dimensions: height 32px, padding 6px 14px, gap 6px.
 
@@ -200,11 +200,11 @@ Filter pill dimensions: height 32px, padding 6px 14px, gap 6px.
 
 Round-full pills used only in the marketing + docs site header.
 
-| State   | Background                      | Text      | Radius |
-| ------- | ------------------------------- | --------- | ------ |
-| Default | transparent                     | `#8E8E93` | 9999px |
-| Hover   | `rgba(232, 87, 42, 0.12)`       | `#E5E5E7` | 9999px |
-| Active  | `rgba(232, 87, 42, 0.12)`       | `#E8572A` | 9999px |
+| State   | Background                | Text      | Radius |
+| ------- | ------------------------- | --------- | ------ |
+| Default | transparent               | `#8E8E93` | 9999px |
+| Hover   | `rgba(232, 87, 42, 0.12)` | `#E5E5E7` | 9999px |
+| Active  | `rgba(232, 87, 42, 0.12)` | `#E8572A` | 9999px |
 
 ### Badges, Chips & Mono Labels
 
@@ -380,13 +380,13 @@ Inline card showing tool execution.
 
 Inline dot + label patterns.
 
-| Status               | Dot Color | Label           | Usage                       |
-| -------------------- | --------- | --------------- | --------------------------- |
-| Connected / Online   | `#30D158` | "Connected"     | System footer, hero signal  |
-| Disconnected / Error | `#FF453A` | "Disconnected"  | System footer               |
-| Degraded             | `#FFD60A` | "Degraded"      | Agent status                |
-| Dream Status         | `#30D158` | "Dream: 3h ago" | Knowledge page header       |
-| Running              | `#E8572A` | "RUNNING"       | Tool call, active session   |
+| Status               | Dot Color | Label           | Usage                                          |
+| -------------------- | --------- | --------------- | ---------------------------------------------- |
+| Connected / Online   | `#30D158` | "Connected"     | System footer, hero signal                     |
+| Disconnected / Error | `#FF453A` | "Disconnected"  | System footer                                  |
+| Degraded             | `#FFD60A` | "Degraded"      | Agent status                                   |
+| Dream Status         | `#30D158` | "Dream: 3h ago" | Knowledge page header                          |
+| Running              | `#E8572A` | "RUNNING"       | Tool call, active session                      |
 | Pulse (live)         | `#30D158` | "Shipped today" | InstallSection — `animate-ping` on a 1.5px dot |
 
 **Dot size:** 8px circle (6px for site pulse). Wrap in a larger clickable area when interactive.
@@ -444,31 +444,31 @@ Dot + label + version (`#636366`, right-aligned) + settings gear icon.
 
 No formal token scale — use Tailwind defaults. The working grid is `4 / 8 / 12 / 16 / 24 / 32 / 48 / 64`.
 
-| Token       | Value | Usage                                           |
-| ----------- | ----- | ----------------------------------------------- |
-| **space-1** | 4px   | Icon-label gap, tight inner padding             |
-| **space-2** | 8px   | Tag padding, inline element gap, badge internal|
-| **space-3** | 12px  | List row padding, stacked element gap           |
-| **space-4** | 16px  | Standard card padding, section gap              |
-| **space-5** | 20px  | List item gap, card inline padding              |
-| **space-6** | 24px  | Card outer padding, feature card padding        |
-| **space-8** | 32px  | Section-level spacing                           |
-| **space-12**| 48px  | Major section separation                        |
-| **space-16**| 64px  | Hero / landing section breathing room           |
+| Token        | Value | Usage                                           |
+| ------------ | ----- | ----------------------------------------------- |
+| **space-1**  | 4px   | Icon-label gap, tight inner padding             |
+| **space-2**  | 8px   | Tag padding, inline element gap, badge internal |
+| **space-3**  | 12px  | List row padding, stacked element gap           |
+| **space-4**  | 16px  | Standard card padding, section gap              |
+| **space-5**  | 20px  | List item gap, card inline padding              |
+| **space-6**  | 24px  | Card outer padding, feature card padding        |
+| **space-8**  | 32px  | Section-level spacing                           |
+| **space-12** | 48px  | Major section separation                        |
+| **space-16** | 64px  | Hero / landing section breathing room           |
 
 Section vertical padding on marketing is set by a `SectionFrame` `padY` prop (`md` / `lg` / `xl`).
 
 ### Border Radius Scale
 
-| Token                    | Value  | Usage                                                           |
-| ------------------------ | ------ | --------------------------------------------------------------- |
-| `--radius-chip`          | 5px    | Kind chips (protocol kinds)                                     |
-| `--radius-mono-badge` / `--radius-sm` | 6px | Mono badges, status badges, tags, counts           |
-| `--radius-md` / `--radius` | 8px  | Buttons, inputs, avatars, tool call cards, small UI             |
-| `--radius-lg`            | 12px   | Cards, modals, containers (alias: `--radius-diagram`)           |
-| `--radius-diagram`       | 12px   | Cards, code blocks, diagrams — marketing feature card canonical |
-| `--radius-xl`            | 20px   | Filter pills, large capsule filters                             |
-| `rounded-full` (9999px)  | 9999px | Header nav pills, search trigger, GH button, status dots        |
+| Token                                 | Value  | Usage                                                           |
+| ------------------------------------- | ------ | --------------------------------------------------------------- |
+| `--radius-chip`                       | 5px    | Kind chips (protocol kinds)                                     |
+| `--radius-mono-badge` / `--radius-sm` | 6px    | Mono badges, status badges, tags, counts                        |
+| `--radius-md` / `--radius`            | 8px    | Buttons, inputs, avatars, tool call cards, small UI             |
+| `--radius-lg`                         | 12px   | Cards, modals, containers (alias: `--radius-diagram`)           |
+| `--radius-diagram`                    | 12px   | Cards, code blocks, diagrams — marketing feature card canonical |
+| `--radius-xl`                         | 20px   | Filter pills, large capsule filters                             |
+| `rounded-full` (9999px)               | 9999px | Header nav pills, search trigger, GH button, status dots        |
 
 No extreme rounding. CTAs are 8px (`rounded-lg`), **never pill**.
 
@@ -476,14 +476,14 @@ No extreme rounding. CTAs are 8px (`rounded-lg`), **never pill**.
 
 No box-shadows. Depth is communicated purely through background lightness + 1px dividers.
 
-| Level | Name            | Background                  | Shadow                | Usage                                    |
-| ----- | --------------- | --------------------------- | --------------------- | ---------------------------------------- |
-| -1    | **Canvas Deep** | `#0E0E0F`                   | none                  | Code blocks, deep landing sections       |
-| 0     | **Canvas**      | `#141312`                   | none                  | Page background                          |
-| 1     | **Surface**     | `#1E1C1B`                   | optional `ring-1/10`  | Cards, sidebar, panels, modals           |
-| 2     | **Elevated**    | `#2E2C2B`                   | `shadow-xs` (subtle)  | Popovers, search inputs, icon wells      |
-| —     | **Scrim**       | `rgba(0,0,0,0.5)`           | —                     | Modal/dialog backdrop                    |
-| —     | **Sticky Blur** | `rgba(20,19,18,0.92)` + blur | —                    | Header only                              |
+| Level | Name            | Background                   | Shadow               | Usage                               |
+| ----- | --------------- | ---------------------------- | -------------------- | ----------------------------------- |
+| -1    | **Canvas Deep** | `#0E0E0F`                    | none                 | Code blocks, deep landing sections  |
+| 0     | **Canvas**      | `#141312`                    | none                 | Page background                     |
+| 1     | **Surface**     | `#1E1C1B`                    | optional `ring-1/10` | Cards, sidebar, panels, modals      |
+| 2     | **Elevated**    | `#2E2C2B`                    | `shadow-xs` (subtle) | Popovers, search inputs, icon wells |
+| —     | **Scrim**       | `rgba(0,0,0,0.5)`            | —                    | Modal/dialog backdrop               |
+| —     | **Sticky Blur** | `rgba(20,19,18,0.92)` + blur | —                    | Header only                         |
 
 ### Grid & Layout
 
@@ -516,17 +516,17 @@ Each step is a clear lightness increase in the warm gray scale. Borders (`#3C3A3
 
 ### Depth Patterns
 
-| Pattern                      | How it works                                                                        |
-| ---------------------------- | ----------------------------------------------------------------------------------- |
-| **Card on canvas**           | Surface (#1E1C1B) on canvas (#141312) — needs 1px divider border for clear edge     |
-| **Nested card / icon well**  | Elevated (#2E2C2B) inside surface (#1E1C1B) — e.g. search input, icon well          |
-| **Deep panel on landing**    | Canvas Deep (#0E0E0F) on canvas — used for code blocks and `SectionFrame background="deep"` |
-| **Selected list item**       | Elevated (#2E2C2B) + left accent bar (#E8572A)                                      |
-| **Hover state**              | Hover (#353332) replaces the current surface                                         |
-| **Divider**                  | 1px solid #3C3A39 — between list items, sections, sidebar regions                    |
-| **Border emphasis**          | 1px solid #E8572A — focused inputs, active dropdown filters                          |
-| **Warm hover on card**       | Border → `color-mix(in srgb, #E8572A 40%, #3C3A39)` — the only card hover           |
-| **Comparison highlight**     | `border-l-4 #E8572A` + `#E8572A26` bg — ONLY on the comparison table                |
+| Pattern                     | How it works                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------- |
+| **Card on canvas**          | Surface (#1E1C1B) on canvas (#141312) — needs 1px divider border for clear edge             |
+| **Nested card / icon well** | Elevated (#2E2C2B) inside surface (#1E1C1B) — e.g. search input, icon well                  |
+| **Deep panel on landing**   | Canvas Deep (#0E0E0F) on canvas — used for code blocks and `SectionFrame background="deep"` |
+| **Selected list item**      | Elevated (#2E2C2B) + left accent bar (#E8572A)                                              |
+| **Hover state**             | Hover (#353332) replaces the current surface                                                |
+| **Divider**                 | 1px solid #3C3A39 — between list items, sections, sidebar regions                           |
+| **Border emphasis**         | 1px solid #E8572A — focused inputs, active dropdown filters                                 |
+| **Warm hover on card**      | Border → `color-mix(in srgb, #E8572A 40%, #3C3A39)` — the only card hover                   |
+| **Comparison highlight**    | `border-l-4 #E8572A` + `#E8572A26` bg — ONLY on the comparison table                        |
 
 Ring outlines (`ring-1 ring-foreground/10`) and `shadow-xs` on shadcn inputs are the only places shadows appear. No drop shadows, no layered shadows, no glows.
 
@@ -613,16 +613,16 @@ Every icon comes from `lucide-react`. Standard set used: `Check`, `Minus`, `Arro
 
 ### Transitions
 
-| Element           | Property         | Duration | Easing      |
-| ----------------- | ---------------- | -------- | ----------- |
-| Button hover      | background-color | 150ms    | ease-out    |
-| Link hover        | color            | 150ms    | ease        |
-| Border focus      | border-color     | 150ms    | ease-out    |
-| List item hover   | background-color | 150ms    | ease-out    |
-| Card hover border | border-color     | 150ms    | ease-out    |
-| Sidebar collapse  | width            | 200ms    | ease-in-out |
-| Modal enter       | opacity          | 200ms    | ease-out    |
-| Tooltip           | opacity          | 100ms    | ease-out    |
+| Element           | Property         | Duration | Easing                                    |
+| ----------------- | ---------------- | -------- | ----------------------------------------- |
+| Button hover      | background-color | 150ms    | ease-out                                  |
+| Link hover        | color            | 150ms    | ease                                      |
+| Border focus      | border-color     | 150ms    | ease-out                                  |
+| List item hover   | background-color | 150ms    | ease-out                                  |
+| Card hover border | border-color     | 150ms    | ease-out                                  |
+| Sidebar collapse  | width            | 200ms    | ease-in-out                               |
+| Modal enter       | opacity          | 200ms    | ease-out                                  |
+| Tooltip           | opacity          | 100ms    | ease-out                                  |
 | Button active     | transform        | —        | `translate-y-px` (1px nudge, no duration) |
 
 No `transform` transitions on hover. No scale, no lift, no translate on card/button hover.

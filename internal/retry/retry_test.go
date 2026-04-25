@@ -3,6 +3,7 @@ package retry
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -23,7 +24,7 @@ func TestDoValue(t *testing.T) {
 				BaseDelay:   10 * time.Millisecond,
 				MaxDelay:    50 * time.Millisecond,
 				JitterRatio: 0.5,
-				RandFloat64: sequenceRand(1, 0),
+				RandFloat64: sequenceRand(t, 1, 0),
 				Sleep: func(_ context.Context, delay time.Duration) error {
 					delays = append(delays, delay)
 					return nil
@@ -53,6 +54,7 @@ func TestDoValue(t *testing.T) {
 			15 * time.Millisecond,
 			10 * time.Millisecond,
 		}; !equalDurations(
+			t,
 			got,
 			want,
 		) {
@@ -156,11 +158,13 @@ func TestDo(t *testing.T) {
 	t.Run("ShouldRejectNilInputs", func(t *testing.T) {
 		t.Parallel()
 
-		if err := Do(nilRetryContext(), Policy{}, nil, func(context.Context) error { return nil }); err == nil {
-			t.Fatal("Do(nil context) error = nil, want non-nil")
+		err := Do(nilRetryContext(t), Policy{}, nil, func(context.Context) error { return nil })
+		if err == nil || !strings.Contains(err.Error(), "context is required") {
+			t.Fatalf("Do(nil context) error = %v, want context required", err)
 		}
-		if err := Do(context.Background(), Policy{}, nil, nil); err == nil {
-			t.Fatal("Do(nil operation) error = nil, want non-nil")
+		err = Do(context.Background(), Policy{}, nil, nil)
+		if err == nil || !strings.Contains(err.Error(), "operation is required") {
+			t.Fatalf("Do(nil operation) error = %v, want operation required", err)
 		}
 	})
 }
@@ -181,8 +185,8 @@ func TestWait(t *testing.T) {
 	t.Run("ShouldHandleNilContextAndNonPositiveDelay", func(t *testing.T) {
 		t.Parallel()
 
-		if err := Wait(nilRetryContext(), 0); err == nil {
-			t.Fatal("Wait(nil context) error = nil, want non-nil")
+		if err := Wait(nilRetryContext(t), 0); err == nil || !strings.Contains(err.Error(), "context is required") {
+			t.Fatalf("Wait(nil context) error = %v, want context required", err)
 		}
 		if err := Wait(context.Background(), 0); err != nil {
 			t.Fatalf("Wait(zero delay) error = %v", err)
@@ -245,7 +249,9 @@ func TestDelay(t *testing.T) {
 	}
 }
 
-func sequenceRand(values ...float64) func() float64 {
+func sequenceRand(t *testing.T, values ...float64) func() float64 {
+	t.Helper()
+
 	index := 0
 	return func() float64 {
 		if index >= len(values) {
@@ -257,7 +263,9 @@ func sequenceRand(values ...float64) func() float64 {
 	}
 }
 
-func equalDurations(left, right []time.Duration) bool {
+func equalDurations(t *testing.T, left, right []time.Duration) bool {
+	t.Helper()
+
 	if len(left) != len(right) {
 		return false
 	}
@@ -269,6 +277,8 @@ func equalDurations(left, right []time.Duration) bool {
 	return true
 }
 
-func nilRetryContext() context.Context {
+func nilRetryContext(t *testing.T) context.Context {
+	t.Helper()
+
 	return nil
 }

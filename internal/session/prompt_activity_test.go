@@ -185,7 +185,7 @@ func TestPromptActivitySupervisorTimeoutCancelsThenStopsSession(t *testing.T) {
 
 	config := testSupervisionConfig()
 	config.InactivityTimeout = time.Second
-	config.TimeoutCancelGrace = 20 * time.Millisecond
+	config.TimeoutCancelGrace = 200 * time.Millisecond
 	supervisor := newPromptActivitySupervisor(
 		testutil.Context(t),
 		h.manager,
@@ -214,18 +214,53 @@ func TestPromptActivitySupervisorTimeoutCancelsThenStopsSession(t *testing.T) {
 func TestPromptActivitySupervisorTimeoutStopDeadline(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldUseConfiguredTimeoutCancelGraceForForcedStopDeadline", func(t *testing.T) {
-		t.Parallel()
-
-		supervisor := &promptActivitySupervisor{
-			config: aghconfig.SessionSupervisionConfig{
-				TimeoutCancelGrace: 42 * time.Millisecond,
+	defaultGrace := aghconfig.DefaultSessionSupervisionConfig().TimeoutCancelGrace
+	testCases := []struct {
+		name       string
+		supervisor *promptActivitySupervisor
+		want       time.Duration
+	}{
+		{
+			name:       "Should use default timeout cancel grace for nil supervisor",
+			supervisor: nil,
+			want:       defaultGrace,
+		},
+		{
+			name: "Should use default timeout cancel grace for zero configured grace",
+			supervisor: &promptActivitySupervisor{
+				config: aghconfig.SessionSupervisionConfig{},
 			},
-		}
-		if got, want := supervisor.timeoutStopDeadline(), 42*time.Millisecond; got != want {
-			t.Fatalf("timeoutStopDeadline() = %s, want %s", got, want)
-		}
-	})
+			want: defaultGrace,
+		},
+		{
+			name: "Should use default timeout cancel grace for negative configured grace",
+			supervisor: &promptActivitySupervisor{
+				config: aghconfig.SessionSupervisionConfig{
+					TimeoutCancelGrace: -time.Millisecond,
+				},
+			},
+			want: defaultGrace,
+		},
+		{
+			name: "Should use configured timeout cancel grace for forced stop deadline",
+			supervisor: &promptActivitySupervisor{
+				config: aghconfig.SessionSupervisionConfig{
+					TimeoutCancelGrace: 42 * time.Millisecond,
+				},
+			},
+			want: 42 * time.Millisecond,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.supervisor.timeoutStopDeadline(); got != tc.want {
+				t.Fatalf("timeoutStopDeadline() = %s, want %s", got, tc.want)
+			}
+		})
+	}
 }
 
 func testSupervisionConfig() aghconfig.SessionSupervisionConfig {

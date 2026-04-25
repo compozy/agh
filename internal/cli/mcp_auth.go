@@ -50,8 +50,15 @@ func defaultMCPAuthClient(
 	}
 	service, err := mcpauth.NewService(db)
 	if err != nil {
-		_ = db.Close(ctx)
-		return nil, nil, err
+		if closeErr := db.Close(ctx); closeErr != nil {
+			return nil, nil, fmt.Errorf(
+				"cli: initialize MCP auth service for %q: %w; close global DB: %v",
+				homePaths.DatabaseFile,
+				err,
+				closeErr,
+			)
+		}
+		return nil, nil, fmt.Errorf("cli: initialize MCP auth service for %q: %w", homePaths.DatabaseFile, err)
 	}
 	return service, db.Close, nil
 }

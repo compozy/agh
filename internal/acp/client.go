@@ -21,12 +21,13 @@ import (
 )
 
 const (
-	defaultStopTimeout    = 5 * time.Second
-	defaultPromptBufSize  = 128
-	defaultPromptDrain    = 50 * time.Millisecond
-	defaultPermissionWait = 5 * time.Minute
-	defaultClientName     = "agh"
-	defaultClientVersion  = "dev"
+	defaultStopTimeout          = 5 * time.Second
+	defaultPromptBufSize        = 128
+	defaultPromptDrain          = 50 * time.Millisecond
+	defaultPermissionWait       = 5 * time.Minute
+	defaultProcessRecordTimeout = time.Second
+	defaultClientName           = "agh"
+	defaultClientVersion        = "dev"
 )
 
 var (
@@ -47,14 +48,15 @@ type Option func(*Driver)
 
 // Driver launches ACP agent subprocesses and brokers JSON-RPC traffic.
 type Driver struct {
-	logger          *slog.Logger
-	stopTimeout     time.Duration
-	promptBufferCap int
-	promptDrainWait time.Duration
-	permissionWait  time.Duration
-	launcher        environment.Launcher
-	toolHost        environment.ToolHost
-	processRegistry *toolruntime.Registry
+	logger               *slog.Logger
+	stopTimeout          time.Duration
+	promptBufferCap      int
+	promptDrainWait      time.Duration
+	permissionWait       time.Duration
+	processRecordTimeout time.Duration
+	launcher             environment.Launcher
+	toolHost             environment.ToolHost
+	processRegistry      *toolruntime.Registry
 }
 
 // WithLogger directs driver diagnostics to the provided logger.
@@ -113,14 +115,22 @@ func WithProcessRegistry(registry *toolruntime.Registry) Option {
 	}
 }
 
+// WithProcessRecordTimeout bounds process registry writes for ACP subprocesses.
+func WithProcessRecordTimeout(timeout time.Duration) Option {
+	return func(driver *Driver) {
+		driver.processRecordTimeout = timeout
+	}
+}
+
 // New constructs an ACP driver with sensible defaults.
 func New(opts ...Option) *Driver {
 	driver := &Driver{
-		logger:          slog.Default(),
-		stopTimeout:     defaultStopTimeout,
-		promptBufferCap: defaultPromptBufSize,
-		promptDrainWait: defaultPromptDrain,
-		permissionWait:  defaultPermissionWait,
+		logger:               slog.Default(),
+		stopTimeout:          defaultStopTimeout,
+		promptBufferCap:      defaultPromptBufSize,
+		promptDrainWait:      defaultPromptDrain,
+		permissionWait:       defaultPermissionWait,
+		processRecordTimeout: defaultProcessRecordTimeout,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -141,6 +151,9 @@ func New(opts ...Option) *Driver {
 	}
 	if driver.permissionWait <= 0 {
 		driver.permissionWait = defaultPermissionWait
+	}
+	if driver.processRecordTimeout <= 0 {
+		driver.processRecordTimeout = defaultProcessRecordTimeout
 	}
 	if driver.launcher == nil {
 		driver.launcher = newLocalLauncher(driver.logger, driver.stopTimeout)
@@ -246,8 +259,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		return nil, err
 	}
 
-	waitCtx := context.WithoutCancel(ctx)
-	go process.waitForExit(waitCtx)
+	go process.waitForExit(ctx, d.processRecordTimeout)
 
 	return process, nil
 }
@@ -295,7 +307,9 @@ func (d *Driver) registerAgentProcess(ctx context.Context, process *AgentProcess
 	if registry == nil || process.PID <= 0 {
 		return nil
 	}
-	handle, err := registry.Register(ctx, toolruntime.RegisterConfig{
+	recordCtx, cancelRecord := processRecordContext(ctx, d.processRecordTimeout)
+	defer cancelRecord()
+	handle, err := registry.Register(recordCtx, toolruntime.RegisterConfig{
 		Source: toolruntime.ProcessSourceACPAgent,
 		Owner: toolruntime.ProcessOwner{
 			SessionID: process.SessionID,
@@ -646,10 +660,13 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 
 	proc.markStopRequested()
 	if proc.processRecord != nil {
-		if err := proc.processRecord.Checkpoint(context.WithoutCancel(ctx), toolruntime.ProcessCheckpoint{
+		recordCtx, cancelRecord := processRecordContext(ctx, d.processRecordTimeout)
+		err := proc.processRecord.Checkpoint(recordCtx, toolruntime.ProcessCheckpoint{
 			State: toolruntime.ProcessStateInterrupting,
 			Error: "ACP stop requested",
-		}); err != nil && d.logger != nil {
+		})
+		cancelRecord()
+		if err != nil && d.logger != nil {
 			d.logger.Warn("acp: checkpoint process interrupt", "pid", proc.PID, "error", err)
 		}
 	}
@@ -842,7 +859,7 @@ func startPromptActivityReporter(ctx context.Context, req PromptRequest) func() 
 	}
 }
 
-func (p *AgentProcess) waitForExit(ctx context.Context) {
+func (p *AgentProcess) waitForExit(ctx context.Context, processRecordTimeout time.Duration) {
 	var waitErr error
 	var groupWaitErr error
 	switch {
@@ -872,7 +889,10 @@ func (p *AgentProcess) waitForExit(ctx context.Context) {
 	}
 	p.setWaitError(waitErr)
 	if p.processRecord != nil {
-		if err := p.processRecord.Complete(ctx, toolruntime.ProcessCompletion{Err: waitErr}); err != nil {
+		recordCtx, cancelRecord := processRecordContext(ctx, processRecordTimeout)
+		err := p.processRecord.Complete(recordCtx, toolruntime.ProcessCompletion{Err: waitErr})
+		cancelRecord()
+		if err != nil {
 			slog.Default().Warn("acp: complete process record", "pid", p.PID, "error", err)
 		}
 	}
@@ -883,6 +903,16 @@ func (p *AgentProcess) waitForExit(ctx context.Context) {
 		p.terminals.closeAll()
 	}
 	close(p.done)
+}
+
+func processRecordContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		timeout = defaultProcessRecordTimeout
+	}
+	if parent == nil {
+		parent = context.Background()
+	}
+	return context.WithTimeout(context.WithoutCancel(parent), timeout)
 }
 
 func normalizeStartOpts(opts StartOpts) (StartOpts, error) {

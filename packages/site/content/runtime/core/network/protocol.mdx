@@ -15,38 +15,38 @@ validate, route, queue, and audit each message.
 
 Every network message is one UTF-8 JSON envelope. The canonical fields are:
 
-| Field | Required | Meaning |
-| ----- | -------- | ------- |
-| `protocol` | yes | Must be `agh-network/v0`. |
-| `id` | yes | Collision-resistant message identifier. |
-| `kind` | yes | One of the seven protocol kinds. |
-| `channel` | yes | Logical namechannel. Must match AGH channel grammar. |
-| `from` | yes | Claimed sender peer ID. |
-| `to` | directed messages | Target peer ID for directed work. |
-| `interaction_id` | lifecycle messages | Logical interaction container for directed work. |
-| `reply_to` | optional | Message ID being answered. |
-| `trace_id` | optional | Correlation ID for a larger flow. |
-| `causation_id` | optional | Immediate causal parent message. |
-| `ts` | yes | Unix epoch seconds. |
-| `expires_at` | optional | Sender-declared TTL boundary. |
-| `body` | yes | Kind-specific JSON object. |
-| `proof` | optional | Reserved for forward-compatible trust profiles. |
-| `ext` | optional | Opaque extension map. Unknown keys are ignored. |
+| Field            | Required           | Meaning                                              |
+| ---------------- | ------------------ | ---------------------------------------------------- |
+| `protocol`       | yes                | Must be `agh-network/v0`.                            |
+| `id`             | yes                | Collision-resistant message identifier.              |
+| `kind`           | yes                | One of the seven protocol kinds.                     |
+| `channel`        | yes                | Logical namechannel. Must match AGH channel grammar. |
+| `from`           | yes                | Claimed sender peer ID.                              |
+| `to`             | directed messages  | Target peer ID for directed work.                    |
+| `interaction_id` | lifecycle messages | Logical interaction container for directed work.     |
+| `reply_to`       | optional           | Message ID being answered.                           |
+| `trace_id`       | optional           | Correlation ID for a larger flow.                    |
+| `causation_id`   | optional           | Immediate causal parent message.                     |
+| `ts`             | yes                | Unix epoch seconds.                                  |
+| `expires_at`     | optional           | Sender-declared TTL boundary.                        |
+| `body`           | yes                | Kind-specific JSON object.                           |
+| `proof`          | optional           | Reserved for forward-compatible trust profiles.      |
+| `ext`            | optional           | Opaque extension map. Unknown keys are ignored.      |
 
 AGH validates the header, participants, references, body shape, kind-specific requirements, and
 freshness window before routing an envelope.
 
 ## Message kinds
 
-| Kind | Purpose | Targeting |
-| ---- | ------- | --------- |
-| `greet` | Advertise peer presence and a peer card. | Broadcast. |
-| `whois` | Request or return peer card information. | Broadcast or directed. |
-| `say` | Broadcast chat-style channel communication. | Broadcast. |
-| `direct` | Send targeted work or a targeted reply. | Directed; requires `to` and `interaction_id`. |
-| `capability` | Transfer a structured AGH capability document. | Broadcast or directed. |
-| `receipt` | Acknowledge admission, rejection, duplicate, expiration, unsupported work, or cancellation. | Usually directed; requires `interaction_id`. |
-| `trace` | Report progress or a terminal interaction state. | Usually directed; requires `interaction_id`. |
+| Kind         | Purpose                                                                                     | Targeting                                     |
+| ------------ | ------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `greet`      | Advertise peer presence and a peer card.                                                    | Broadcast.                                    |
+| `whois`      | Request or return peer card information.                                                    | Broadcast or directed.                        |
+| `say`        | Broadcast chat-style channel communication.                                                 | Broadcast.                                    |
+| `direct`     | Send targeted work or a targeted reply.                                                     | Directed; requires `to` and `interaction_id`. |
+| `capability` | Transfer a structured AGH capability document.                                              | Broadcast or directed.                        |
+| `receipt`    | Acknowledge admission, rejection, duplicate, expiration, unsupported work, or cancellation. | Usually directed; requires `interaction_id`.  |
+| `trace`      | Report progress or a terminal interaction state.                                            | Usually directed; requires `interaction_id`.  |
 
 `say` is for channel-wide communication. Use `direct` to open or continue targeted work. Use
 `receipt` and `trace` for protocol-level lifecycle signals rather than encoding those states as

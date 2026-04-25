@@ -103,14 +103,9 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 		Short: "Report how to update the AGH binary",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			homePaths, err := deps.resolveHome()
-			if err != nil {
-				return err
-			}
 			state := detectManagedState(deps)
 			record := lifecycleRecord{
 				Command: "update",
-				HomeDir: homePaths.HomeDir,
 				Managed: state.Managed,
 				Manager: state.Manager,
 			}
@@ -121,6 +116,11 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 				return writeCommandOutput(cmd, lifecycleBundle("Update", record))
 			}
 
+			homePaths, err := deps.resolveHome()
+			if err != nil {
+				return err
+			}
+			record.HomeDir = homePaths.HomeDir
 			record.Status = lifecycleStatusManual
 			record.Message = "No in-place updater is configured for this unmanaged AGH binary; no files were changed."
 			record.Recommendation = "Install a newer release archive, rerun `go install`, or rebuild from source."
@@ -140,6 +140,19 @@ func newUninstallCommand(deps commandDeps) *cobra.Command {
 		Short: "Stop AGH and remove runtime launch artifacts",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			state := detectManagedState(deps)
+			if state.Managed {
+				record := lifecycleRecord{
+					Command:        "uninstall",
+					Managed:        state.Managed,
+					Manager:        state.Manager,
+					Status:         lifecycleStatusDeferred,
+					Message:        "AGH is managed by an external package manager; no local uninstall changes were made.",
+					Recommendation: managedRecommendation(state.Manager, "uninstall AGH"),
+				}
+				return writeCommandOutput(cmd, lifecycleBundle("Uninstall", record))
+			}
+
 			if purge && !force {
 				return errors.New("cli: --purge requires --force to remove AGH home data")
 			}
@@ -149,18 +162,11 @@ func newUninstallCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			state := detectManagedState(deps)
 			record := lifecycleRecord{
 				Command: "uninstall",
 				HomeDir: runtime.HomePaths.HomeDir,
 				Managed: state.Managed,
 				Manager: state.Manager,
-			}
-			if state.Managed {
-				record.Status = lifecycleStatusDeferred
-				record.Message = "AGH is managed by an external package manager; no local uninstall changes were made."
-				record.Recommendation = managedRecommendation(state.Manager, "uninstall AGH")
-				return writeCommandOutput(cmd, lifecycleBundle("Uninstall", record))
 			}
 
 			stopped, err := stopDaemonForUninstall(cmd.Context(), deps, runtime)
@@ -277,7 +283,18 @@ func lifecycleBundle(title string, record lifecycleRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				strings.ToLower(title),
-				[]string{"command", "status", "managed", "manager", "home_dir", "message", "recommendation", "purged"},
+				[]string{
+					"command",
+					"status",
+					"managed",
+					"manager",
+					"home_dir",
+					"message",
+					"recommendation",
+					"daemon_stopped",
+					"removed",
+					"purged",
+				},
 				[]string{
 					record.Command,
 					record.Status,
@@ -286,6 +303,8 @@ func lifecycleBundle(title string, record lifecycleRecord) outputBundle {
 					record.HomeDir,
 					record.Message,
 					record.Recommendation,
+					fmt.Sprintf("%t", record.DaemonStopped),
+					strings.Join(record.Removed, ", "),
 					fmt.Sprintf("%t", record.Purged),
 				},
 			), nil

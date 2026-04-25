@@ -28,7 +28,7 @@ Router->>Queue: enqueue accepted delivery
 Queue->>Session: prompt with network wrapper
 Session-->>Queue: turn completes
 Queue->>Audit: record delivered`}
-  caption="Accepted network messages are queued before they become session prompts. Rejections and deliveries are both recorded."
+caption="Accepted network messages are queued before they become session prompts. Rejections and deliveries are both recorded."
 />
 
 The router validates protocol fields, checks freshness, detects replay-window duplicates, resolves
@@ -81,12 +81,12 @@ The runtime can deliver a message. It does not make the sender trustworthy.
 
 AGH records network activity through the audit writer. Audit directions include:
 
-| Direction | Meaning |
-| --------- | ------- |
-| `sent` | The daemon successfully published an outbound envelope. |
-| `received` | The daemon accepted an inbound envelope for local delivery or task ingress. |
-| `rejected` | The daemon rejected an envelope or ingress request. |
-| `delivered` | The delivery coordinator completed local session delivery. |
+| Direction   | Meaning                                                                     |
+| ----------- | --------------------------------------------------------------------------- |
+| `sent`      | The daemon successfully published an outbound envelope.                     |
+| `received`  | The daemon accepted an inbound envelope for local delivery or task ingress. |
+| `rejected`  | The daemon rejected an envelope or ingress request.                         |
+| `delivered` | The delivery coordinator completed local session delivery.                  |
 
 The persistent store also keeps channel timeline entries for accepted user-visible messages. The UI
 uses those entries to show channel and peer timelines without asking the browser to reconstruct

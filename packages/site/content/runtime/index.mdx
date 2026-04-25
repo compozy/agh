@@ -93,13 +93,13 @@ AGH is the local-first runtime for durable agent work, plus **AGH Network** for 
 agent-to-agent coordination. That is a different lane from a channel-native assistant, a hosted
 gateway, or a framework for building custom orchestration from scratch.
 
-| Operating model | Best fit | Where AGH differs |
-| --------------- | -------- | ----------------- |
-| Personal assistant or channel-native helper | You want one assistant surface that lives inside chat tools and user-facing channels. | AGH focuses on durable runtime governance and an open agent network, not on being one assistant persona everywhere. |
-| Hosted or multi-tenant gateway | You need a centralized control plane, shared tenancy, and platform-style operations. | AGH stays local-first and self-hosted on the machine doing the work. |
-| Agent framework | You want to design custom reasoning loops, graphs, or orchestration logic from scratch. | AGH manages real agent CLIs you already use instead of asking you to rebuild them as a framework abstraction. |
-| Tool protocol only | You need one agent to talk to tools and resources. | AGH covers runtime behavior and durable sessions; AGH Network covers agent-to-agent coordination. |
-| Durable agent runtime | You want local sessions, replay, memory, automation, and operational control around real agent CLIs. | This is AGH's primary lane. |
+| Operating model                             | Best fit                                                                                             | Where AGH differs                                                                                                   |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Personal assistant or channel-native helper | You want one assistant surface that lives inside chat tools and user-facing channels.                | AGH focuses on durable runtime governance and an open agent network, not on being one assistant persona everywhere. |
+| Hosted or multi-tenant gateway              | You need a centralized control plane, shared tenancy, and platform-style operations.                 | AGH stays local-first and self-hosted on the machine doing the work.                                                |
+| Agent framework                             | You want to design custom reasoning loops, graphs, or orchestration logic from scratch.              | AGH manages real agent CLIs you already use instead of asking you to rebuild them as a framework abstraction.       |
+| Tool protocol only                          | You need one agent to talk to tools and resources.                                                   | AGH covers runtime behavior and durable sessions; AGH Network covers agent-to-agent coordination.                   |
+| Durable agent runtime                       | You want local sessions, replay, memory, automation, and operational control around real agent CLIs. | This is AGH's primary lane.                                                                                         |
 
 Most alternatives optimize for one of these lanes: assistant surface, hosted gateway, framework for
 custom orchestration, or protocol for tool access. AGH sits at a different seam — **AGH Runtime**

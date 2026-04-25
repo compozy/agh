@@ -1265,6 +1265,64 @@ func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
 	}
 }
 
+func TestStoreOperationHistoryIsolatesWorkspaceDefaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should isolate history by workspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		globalDir := filepath.Join(baseDir, "global")
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		workspaceA := filepath.Join(baseDir, "workspace-a")
+		workspaceB := filepath.Join(baseDir, "workspace-b")
+		storeA := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceA)
+		storeB := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceB)
+		for _, store := range []*Store{storeA, storeB} {
+			if err := store.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+		}
+
+		if err := storeA.Write(ScopeWorkspace, "project-a.md", mustMemoryContent(t, testMemoryMeta{
+			Name: "Workspace A",
+			Type: MemoryTypeProject,
+		}, "Alpha workspace signal.\n")); err != nil {
+			t.Fatalf("storeA.Write(workspace) error = %v", err)
+		}
+		if err := storeB.Write(ScopeWorkspace, "project-b.md", mustMemoryContent(t, testMemoryMeta{
+			Name: "Workspace B",
+			Type: MemoryTypeProject,
+		}, "Beta workspace signal.\n")); err != nil {
+			t.Fatalf("storeB.Write(workspace) error = %v", err)
+		}
+
+		if _, err := storeA.Search(ctx, "alpha signal", SearchOptions{Limit: 5}); err != nil {
+			t.Fatalf("storeA.Search() error = %v", err)
+		}
+		if _, err := storeB.Search(ctx, "beta signal", SearchOptions{Limit: 5}); err != nil {
+			t.Fatalf("storeB.Search() error = %v", err)
+		}
+
+		historyA, err := storeA.History(ctx, OperationHistoryQuery{Operation: OperationSearch, Limit: 10})
+		if err != nil {
+			t.Fatalf("storeA.History(searches) error = %v", err)
+		}
+		if len(historyA) != 1 || historyA[0].Workspace != workspaceA || historyA[0].Scope != ScopeWorkspace {
+			t.Fatalf("storeA history = %#v, want only workspace A search", historyA)
+		}
+
+		historyB, err := storeB.History(ctx, OperationHistoryQuery{Operation: OperationSearch, Limit: 10})
+		if err != nil {
+			t.Fatalf("storeB.History(searches) error = %v", err)
+		}
+		if len(historyB) != 1 || historyB[0].Workspace != workspaceB || historyB[0].Scope != ScopeWorkspace {
+			t.Fatalf("storeB history = %#v, want only workspace B search", historyB)
+		}
+	})
+}
+
 func TestStoreOperationHistoryMigratesLegacyCatalogSchema(t *testing.T) {
 	t.Run("Should migrate legacy operation log columns before history queries", func(t *testing.T) {
 		t.Parallel()

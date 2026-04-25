@@ -32,11 +32,11 @@ The sender does not get to choose its actor identity from the payload.
 
 ## Supported actions
 
-| Action | Runtime method | Channel rule |
-| ------ | -------------- | ------------ |
-| Create task | `CreateTaskFromPeer` | `network_channel`, when present, must match the ingress channel. |
-| Update task | `UpdateTaskFromPeer` | A channel-bound task can only be updated from the same channel. |
-| Cancel task | `CancelTaskFromPeer` | A channel-bound task can only be canceled from the same channel. |
+| Action      | Runtime method       | Channel rule                                                               |
+| ----------- | -------------------- | -------------------------------------------------------------------------- |
+| Create task | `CreateTaskFromPeer` | `network_channel`, when present, must match the ingress channel.           |
+| Update task | `UpdateTaskFromPeer` | A channel-bound task can only be updated from the same channel.            |
+| Cancel task | `CancelTaskFromPeer` | A channel-bound task can only be canceled from the same channel.           |
 | Enqueue run | `EnqueueRunFromPeer` | The task binding and requested run channel must match the ingress channel. |
 
 If a stored task has a stale channel value that no longer validates, update is only allowed to clear
@@ -55,17 +55,17 @@ operators a durable audit trail for accepted and rejected ingress attempts.
 
 Rejected task ingress records a normalized reason. Common reasons include:
 
-| Reason | Meaning |
-| ------ | ------- |
-| `channel_mismatch` | Requested or stored task channel does not match the ingress channel. |
-| `stale_channel` | Existing task channel no longer validates under the current grammar. |
-| `capability_denied` | Peer did not advertise `task.write`. |
-| `peer_not_found` | Peer is not currently visible in the channel. |
-| `task_ingress_unavailable` | Network was not wired to the task service. |
-| `task_not_found` | Referenced task does not exist. |
-| `validation_failed` | Task payload failed task-domain validation. |
-| `permission_denied` | Task manager denied the derived actor. |
-| `invalid_request` | Ingress metadata or channel fields were malformed. |
+| Reason                     | Meaning                                                              |
+| -------------------------- | -------------------------------------------------------------------- |
+| `channel_mismatch`         | Requested or stored task channel does not match the ingress channel. |
+| `stale_channel`            | Existing task channel no longer validates under the current grammar. |
+| `capability_denied`        | Peer did not advertise `task.write`.                                 |
+| `peer_not_found`           | Peer is not currently visible in the channel.                        |
+| `task_ingress_unavailable` | Network was not wired to the task service.                           |
+| `task_not_found`           | Referenced task does not exist.                                      |
+| `validation_failed`        | Task payload failed task-domain validation.                          |
+| `permission_denied`        | Task manager denied the derived actor.                               |
+| `invalid_request`          | Ingress metadata or channel fields were malformed.                   |
 
 Accepted task ingress records the action, peer ID, channel, request ID, and the resulting task or
 run identifiers. This makes network-originated task writes inspectable without reading session

@@ -82,6 +82,8 @@ const (
 	PermissionModeDenyAll      PermissionMode = "deny-all"
 	PermissionModeApproveReads PermissionMode = "approve-reads"
 	PermissionModeApproveAll   PermissionMode = "approve-all"
+	// DefaultObservabilityAgentProbeTimeout bounds daemon health probes for configured agents.
+	DefaultObservabilityAgentProbeTimeout = 2 * time.Second
 )
 
 // PermissionsConfig defines the global default permission policy.
@@ -91,10 +93,11 @@ type PermissionsConfig struct {
 
 // ObservabilityConfig controls global event retention settings.
 type ObservabilityConfig struct {
-	Enabled        bool                          `toml:"enabled"`
-	RetentionDays  int                           `toml:"retention_days"`
-	MaxGlobalBytes int64                         `toml:"max_global_bytes"`
-	Transcripts    ObservabilityTranscriptConfig `toml:"transcripts"`
+	Enabled           bool                          `toml:"enabled"`
+	RetentionDays     int                           `toml:"retention_days"`
+	MaxGlobalBytes    int64                         `toml:"max_global_bytes"`
+	AgentProbeTimeout time.Duration                 `toml:"agent_probe_timeout"`
+	Transcripts       ObservabilityTranscriptConfig `toml:"transcripts"`
 }
 
 // ObservabilityTranscriptConfig configures transcript capture and retention.
@@ -404,9 +407,10 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Providers:    map[string]ProviderConfig{},
 		Environments: map[string]EnvironmentProfile{},
 		Observability: ObservabilityConfig{
-			Enabled:        true,
-			RetentionDays:  7,
-			MaxGlobalBytes: 1 << 30,
+			Enabled:           true,
+			RetentionDays:     7,
+			MaxGlobalBytes:    1 << 30,
+			AgentProbeTimeout: DefaultObservabilityAgentProbeTimeout,
 			Transcripts: ObservabilityTranscriptConfig{
 				Enabled:            true,
 				SegmentBytes:       1 << 20,
@@ -845,8 +849,19 @@ func (c ObservabilityConfig) Validate() error {
 	if c.MaxGlobalBytes <= 0 {
 		return fmt.Errorf("observability.max_global_bytes must be positive: %d", c.MaxGlobalBytes)
 	}
+	if c.AgentProbeTimeout < 0 {
+		return fmt.Errorf("observability.agent_probe_timeout must be zero or positive: %s", c.AgentProbeTimeout)
+	}
 
 	return c.Transcripts.Validate()
+}
+
+// AgentProbeTimeoutOrDefault returns the configured agent probe timeout or the default.
+func (c ObservabilityConfig) AgentProbeTimeoutOrDefault() time.Duration {
+	if c.AgentProbeTimeout <= 0 {
+		return DefaultObservabilityAgentProbeTimeout
+	}
+	return c.AgentProbeTimeout
 }
 
 // Validate ensures transcript retention settings are sensible.
