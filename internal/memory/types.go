@@ -32,6 +32,20 @@ const (
 	ScopeWorkspace Scope = "workspace"
 )
 
+// Operation identifies a durable memory operation surfaced in operator history.
+type Operation string
+
+const (
+	// OperationWrite records a memory document write.
+	OperationWrite Operation = "memory.write"
+	// OperationDelete records a memory document delete.
+	OperationDelete Operation = "memory.delete"
+	// OperationSearch records a memory search query.
+	OperationSearch Operation = "memory.search"
+	// OperationReindex records a derived catalog reindex.
+	OperationReindex Operation = "memory.reindex"
+)
+
 // Header contains validated metadata parsed from a memory file frontmatter.
 type Header struct {
 	Filename    string    `json:"filename"              yaml:"-"`
@@ -77,11 +91,34 @@ type ReindexResult struct {
 	CompletedAt  time.Time `json:"completed_at"`
 }
 
+// OperationHistoryQuery filters durable memory operation history.
+type OperationHistoryQuery struct {
+	Scope     Scope
+	Workspace string
+	Operation Operation
+	Since     time.Time
+	Limit     int
+}
+
+// OperationRecord is one redacted durable memory operation history row.
+type OperationRecord struct {
+	ID        string    `json:"id"`
+	Operation Operation `json:"operation"`
+	Scope     Scope     `json:"scope,omitempty"`
+	Workspace string    `json:"workspace,omitempty"`
+	Filename  string    `json:"filename,omitempty"`
+	AgentName string    `json:"agent_name,omitempty"`
+	Summary   string    `json:"summary,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 // HealthStats summarizes derived-catalog state for operator surfaces.
 type HealthStats struct {
-	IndexedFiles  int        `json:"indexed_files"`
-	OrphanedFiles int        `json:"orphaned_files"`
-	LastReindex   *time.Time `json:"last_reindex"`
+	IndexedFiles    int        `json:"indexed_files"`
+	OrphanedFiles   int        `json:"orphaned_files"`
+	LastReindex     *time.Time `json:"last_reindex"`
+	OperationCount  int        `json:"operation_count"`
+	LastOperationAt *time.Time `json:"last_operation_at"`
 }
 
 // Backend captures the memory backend surface used by daemon, API, and CLI layers.
@@ -92,7 +129,91 @@ type Backend interface {
 	Delete(scope Scope, filename string) error
 	Search(ctx context.Context, query string, opts SearchOptions) ([]SearchResult, error)
 	Reindex(ctx context.Context, opts ReindexOptions) (ReindexResult, error)
+	History(ctx context.Context, query OperationHistoryQuery) ([]OperationRecord, error)
 	LoadPromptIndex(scope Scope) (content string, truncated bool, err error)
+}
+
+// ContextRefKind identifies a future runtime context reference family.
+type ContextRefKind string
+
+const (
+	// ContextRefFile is reserved for future @file references.
+	ContextRefFile ContextRefKind = "file"
+	// ContextRefFolder is reserved for future @folder references.
+	ContextRefFolder ContextRefKind = "folder"
+	// ContextRefGit is reserved for future @git references.
+	ContextRefGit ContextRefKind = "git"
+	// ContextRefURL is reserved for future @url references.
+	ContextRefURL ContextRefKind = "url"
+)
+
+// ContextRef describes a future memory context reference. Task 07 only defines
+// this contract; prompt assembly must not call a resolver yet.
+type ContextRef struct {
+	Kind ContextRefKind `json:"kind"`
+	URI  string         `json:"uri"`
+}
+
+// TokenBudget is the future bounded context budget passed to context resolvers.
+type TokenBudget struct {
+	MaxTokens int `json:"max_tokens"`
+}
+
+// ResolvedContext is the future prompt-safe context result produced by a resolver.
+type ResolvedContext struct {
+	Items       []ResolvedContextItem `json:"items"`
+	UsedTokens  int                   `json:"used_tokens"`
+	Truncated   bool                  `json:"truncated"`
+	Redactions  []string              `json:"redactions,omitempty"`
+	GeneratedAt time.Time             `json:"generated_at"`
+}
+
+// ResolvedContextItem is one future prompt-safe context item.
+type ResolvedContextItem struct {
+	Ref       ContextRef `json:"ref"`
+	Title     string     `json:"title,omitempty"`
+	Content   string     `json:"content"`
+	Tokens    int        `json:"tokens"`
+	Truncated bool       `json:"truncated"`
+}
+
+// ContextRefResolver is the future narrow seam for @file/@folder/@git/@url
+// resolution. It is intentionally not wired into runtime prompt assembly yet.
+type ContextRefResolver interface {
+	Resolve(ctx context.Context, refs []ContextRef, budget TokenBudget) (ResolvedContext, error)
+}
+
+// ProviderHookEvent identifies a future memory provider lifecycle hook point.
+type ProviderHookEvent string
+
+const (
+	// ProviderHookOnTurnStart is reserved for future pre-turn provider hooks.
+	ProviderHookOnTurnStart ProviderHookEvent = "on_turn_start"
+	// ProviderHookOnSessionEnd is reserved for future session-end provider hooks.
+	ProviderHookOnSessionEnd ProviderHookEvent = "on_session_end"
+	// ProviderHookOnPreCompress is reserved for future pre-compression provider hooks.
+	ProviderHookOnPreCompress ProviderHookEvent = "on_pre_compress"
+)
+
+// ProviderHookRequest is the future provider-hook input envelope.
+type ProviderHookRequest struct {
+	Event       ProviderHookEvent `json:"event"`
+	SessionID   string            `json:"session_id,omitempty"`
+	TurnID      string            `json:"turn_id,omitempty"`
+	Workspace   string            `json:"workspace,omitempty"`
+	TokenBudget TokenBudget       `json:"token_budget"`
+}
+
+// ProviderHookResult is the future provider-hook result envelope.
+type ProviderHookResult struct {
+	Context ResolvedContext `json:"context"`
+	Notes   []string        `json:"notes,omitempty"`
+}
+
+// ProviderHookRunner is the future narrow seam for memory provider lifecycle
+// hooks. Task 07 only defines it; no provider hook is executed by runtime prompts.
+type ProviderHookRunner interface {
+	RunMemoryHook(ctx context.Context, req ProviderHookRequest) (ProviderHookResult, error)
 }
 
 // Normalize returns the normalized representation of the memory type.
@@ -141,6 +262,11 @@ func (s Scope) Validate() error {
 	default:
 		return fmt.Errorf("unsupported scope %q", s)
 	}
+}
+
+// Normalize returns the normalized operation string.
+func (o Operation) Normalize() Operation {
+	return Operation(strings.ToLower(strings.TrimSpace(string(o))))
 }
 
 // Normalize trims and normalizes the parsed memory header metadata in place.

@@ -8956,6 +8956,289 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
+        "/api/memory/health": {
+            "get": {
+                "operationId": "getMemoryHealth",
+                "parameters": [
+                    {
+                        "description": "Workspace id or path",
+                        "in": "query",
+                        "name": "workspace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "configured": {
+                                            "type": "boolean"
+                                        },
+                                        "dream_agent": {
+                                            "type": "string"
+                                        },
+                                        "dream_check_interval": {
+                                            "type": "string"
+                                        },
+                                        "dream_enabled": {
+                                            "type": "boolean"
+                                        },
+                                        "dream_min_hours": {
+                                            "format": "double",
+                                            "type": "number"
+                                        },
+                                        "dream_min_sessions": {
+                                            "type": "integer"
+                                        },
+                                        "enabled": {
+                                            "type": "boolean"
+                                        },
+                                        "global_dir": {
+                                            "type": "string"
+                                        },
+                                        "global_files": {
+                                            "type": "integer"
+                                        },
+                                        "indexed_files": {
+                                            "type": "integer"
+                                        },
+                                        "last_consolidation": {
+                                            "format": "date-time",
+                                            "nullable": true,
+                                            "type": "string"
+                                        },
+                                        "last_operation_at": {
+                                            "format": "date-time",
+                                            "nullable": true,
+                                            "type": "string"
+                                        },
+                                        "last_reindex": {
+                                            "format": "date-time",
+                                            "nullable": true,
+                                            "type": "string"
+                                        },
+                                        "operation_count": {
+                                            "type": "integer"
+                                        },
+                                        "orphaned_files": {
+                                            "type": "integer"
+                                        },
+                                        "reason": {
+                                            "type": "string"
+                                        },
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "workspace_count": {
+                                            "type": "integer"
+                                        },
+                                        "workspace_files": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "configured",
+                                        "dream_enabled",
+                                        "enabled",
+                                        "global_files",
+                                        "indexed_files",
+                                        "last_consolidation",
+                                        "last_operation_at",
+                                        "last_reindex",
+                                        "operation_count",
+                                        "orphaned_files",
+                                        "status",
+                                        "workspace_count",
+                                        "workspace_files"
+                                    ],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid memory health filter"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get memory health",
+                "tags": ["memory"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/memory/history": {
+            "get": {
+                "operationId": "listMemoryHistory",
+                "parameters": [
+                    {
+                        "description": "Memory scope",
+                        "in": "query",
+                        "name": "scope",
+                        "schema": {
+                            "enum": ["global", "workspace"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Workspace id or path",
+                        "in": "query",
+                        "name": "workspace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Memory operation type",
+                        "in": "query",
+                        "name": "operation",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Only operations since this timestamp",
+                        "in": "query",
+                        "name": "since",
+                        "schema": {
+                            "format": "date-time",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of operations to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "operations": {
+                                            "items": {
+                                                "properties": {
+                                                    "agent_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "filename": {
+                                                        "type": "string"
+                                                    },
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "operation": {
+                                                        "type": "string"
+                                                    },
+                                                    "scope": {
+                                                        "type": "string"
+                                                    },
+                                                    "summary": {
+                                                        "type": "string"
+                                                    },
+                                                    "timestamp": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "workspace": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["id", "operation", "timestamp"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["operations"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid memory history filter"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List redacted memory operation history",
+                "tags": ["memory"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
         "/api/memory/{filename}": {
             "delete": {
                 "operationId": "deleteMemory",
@@ -12301,6 +12584,9 @@
                                         },
                                         "memory": {
                                             "properties": {
+                                                "configured": {
+                                                    "type": "boolean"
+                                                },
                                                 "dream_agent": {
                                                     "type": "string"
                                                 },
@@ -12334,12 +12620,29 @@
                                                     "nullable": true,
                                                     "type": "string"
                                                 },
+                                                "last_operation_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
                                                 "last_reindex": {
                                                     "format": "date-time",
                                                     "nullable": true,
                                                     "type": "string"
                                                 },
+                                                "operation_count": {
+                                                    "type": "integer"
+                                                },
                                                 "orphaned_files": {
+                                                    "type": "integer"
+                                                },
+                                                "reason": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "workspace_count": {
                                                     "type": "integer"
                                                 },
                                                 "workspace_files": {
@@ -12347,13 +12650,18 @@
                                                 }
                                             },
                                             "required": [
+                                                "configured",
                                                 "dream_enabled",
                                                 "enabled",
                                                 "global_files",
                                                 "indexed_files",
                                                 "last_consolidation",
+                                                "last_operation_at",
                                                 "last_reindex",
+                                                "operation_count",
                                                 "orphaned_files",
+                                                "status",
+                                                "workspace_count",
                                                 "workspace_files"
                                             ],
                                             "type": "object"

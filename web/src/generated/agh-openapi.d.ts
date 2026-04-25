@@ -541,6 +541,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/memory/health": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get memory health */
+    get: operations["getMemoryHealth"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List redacted memory operation history */
+    get: operations["listMemoryHistory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/memory/{filename}": {
     parameters: {
       query?: never;
@@ -6385,6 +6419,152 @@ export interface operations {
       };
     };
   };
+  getMemoryHealth: {
+    parameters: {
+      query?: {
+        /** @description Workspace id or path */
+        workspace?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            configured: boolean;
+            dream_agent?: string;
+            dream_check_interval?: string;
+            dream_enabled: boolean;
+            /** Format: double */
+            dream_min_hours?: number;
+            dream_min_sessions?: number;
+            enabled: boolean;
+            global_dir?: string;
+            global_files: number;
+            indexed_files: number;
+            /** Format: date-time */
+            last_consolidation: string | null;
+            /** Format: date-time */
+            last_operation_at: string | null;
+            /** Format: date-time */
+            last_reindex: string | null;
+            operation_count: number;
+            orphaned_files: number;
+            reason?: string;
+            status: string;
+            workspace_count: number;
+            workspace_files: number;
+          };
+        };
+      };
+      /** @description Invalid memory health filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listMemoryHistory: {
+    parameters: {
+      query?: {
+        /** @description Memory scope */
+        scope?: "global" | "workspace";
+        /** @description Workspace id or path */
+        workspace?: string;
+        /** @description Memory operation type */
+        operation?: string;
+        /** @description Only operations since this timestamp */
+        since?: string;
+        /** @description Maximum number of operations to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            operations: {
+              agent_name?: string;
+              filename?: string;
+              id: string;
+              operation: string;
+              scope?: string;
+              summary?: string;
+              /** Format: date-time */
+              timestamp: string;
+              workspace?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid memory history filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   readMemory: {
     parameters: {
       query?: {
@@ -7974,6 +8154,7 @@ export interface operations {
               version: string;
             };
             memory: {
+              configured: boolean;
               dream_agent?: string;
               dream_check_interval?: string;
               dream_enabled: boolean;
@@ -7987,8 +8168,14 @@ export interface operations {
               /** Format: date-time */
               last_consolidation: string | null;
               /** Format: date-time */
+              last_operation_at: string | null;
+              /** Format: date-time */
               last_reindex: string | null;
+              operation_count: number;
               orphaned_files: number;
+              reason?: string;
+              status: string;
+              workspace_count: number;
               workspace_files: number;
             };
           };

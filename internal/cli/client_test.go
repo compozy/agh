@@ -215,6 +215,31 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`,
 					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/health":
+					if got := req.URL.Query().Get("workspace"); got != "/workspace/project" {
+						t.Fatalf("memory health workspace = %q, want /workspace/project", got)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"status":"ok","enabled":true,"configured":true,"global_files":1,"workspace_files":1,"workspace_count":1,"indexed_files":2,"operation_count":3,"last_operation_at":"2026-04-03T12:00:00Z"}`,
+					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/history":
+					if got := req.URL.Query().Get("scope"); got != "workspace" {
+						t.Fatalf("memory history scope = %q, want workspace", got)
+					}
+					if got := req.URL.Query().Get("operation"); got != "memory.write" {
+						t.Fatalf("memory history operation = %q, want memory.write", got)
+					}
+					if got := req.URL.Query().Get("since"); got != "2026-04-03T11:00:00Z" {
+						t.Fatalf("memory history since = %q, want 2026-04-03T11:00:00Z", got)
+					}
+					if got := req.URL.Query().Get("limit"); got != "4" {
+						t.Fatalf("memory history limit = %q, want 4", got)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"operations":[{"id":"memevt_1","operation":"memory.write","scope":"workspace","workspace":"/workspace/project","filename":"memory.md","agent_name":"daemon","summary":"scope=workspace filename=memory.md","timestamp":"2026-04-03T12:00:00Z"}]}`,
+					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/memory":
 					if got := req.URL.Query().Get("scope"); got != "global" {
 						t.Fatalf("memory scope query = %q, want %q", got, "global")
@@ -408,6 +433,22 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	health, err := client.ObserveHealth(ctx)
 	if err != nil || health.Status != "ok" {
 		t.Fatalf("ObserveHealth() = %#v, %v", health, err)
+	}
+
+	memoryHealth, err := client.MemoryHealth(ctx, "/workspace/project")
+	if err != nil || memoryHealth.Status != "ok" || memoryHealth.OperationCount != 3 {
+		t.Fatalf("MemoryHealth() = %#v, %v", memoryHealth, err)
+	}
+
+	memoryHistoryRecords, err := client.MemoryHistory(ctx, MemoryHistoryQuery{
+		Scope:     memory.ScopeWorkspace,
+		Workspace: "/workspace/project",
+		Operation: "memory.write",
+		Since:     time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
+		Limit:     4,
+	})
+	if err != nil || len(memoryHistoryRecords) != 1 || memoryHistoryRecords[0].Operation != "memory.write" {
+		t.Fatalf("MemoryHistory() = %#v, %v", memoryHistoryRecords, err)
 	}
 
 	memories, err := client.ListMemory(ctx, memory.ScopeGlobal, "")
@@ -1480,6 +1521,20 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		t.Fatalf("memorySearchValues() = %v, want q/scope/workspace/limit", got)
 	}
 
+	if got := memoryHistoryValues(MemoryHistoryQuery{
+		Scope:     memory.ScopeWorkspace,
+		Workspace: "/workspace/project",
+		Operation: "memory.delete",
+		Since:     time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
+		Limit:     6,
+	}); got.Get("scope") != "workspace" ||
+		got.Get("workspace") != "/workspace/project" ||
+		got.Get("operation") != "memory.delete" ||
+		got.Get("since") != "2026-04-03T11:00:00Z" ||
+		got.Get("limit") != "6" {
+		t.Fatalf("memoryHistoryValues() = %v, want all history filters", got)
+	}
+
 	if got := automationJobValues(AutomationJobQuery{
 		Scope:       automationpkg.AutomationScopeWorkspace,
 		WorkspaceID: "ws-alpha",
@@ -1852,6 +1907,16 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 			name:    "Should alias MemoryWriteRequest to the shared contract",
 			cliType: MemoryWriteRequest{},
 			want:    contract.MemoryWriteRequest{},
+		},
+		{
+			name:    "Should alias MemoryHealthRecord to the shared contract",
+			cliType: MemoryHealthRecord{},
+			want:    contract.MemoryHealthPayload{},
+		},
+		{
+			name:    "Should alias MemoryHistoryRecord to the shared contract",
+			cliType: MemoryHistoryRecord{},
+			want:    contract.MemoryOperationPayload{},
 		},
 		{
 			name:    "Should alias MemoryMutationRecord to the shared contract",

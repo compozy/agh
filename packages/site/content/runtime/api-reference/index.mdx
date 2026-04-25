@@ -25,7 +25,7 @@ Use the API when you are:
 | Sessions | `/api/sessions` | Create, inspect, stop, resume, prompt, stream, and replay sessions. |
 | Workspaces | `/api/workspaces` | Register, resolve, inspect, update, and remove workspace definitions. |
 | Agents | `/api/agents` | List resolved agent definitions and inspect one agent by name. |
-| Memory | `/api/memory` | Read, write, delete, search, reindex, and consolidate memory files. |
+| Memory | `/api/memory` | Read, write, delete, search, reindex, consolidate, inspect health, and list redacted operation history. |
 | Skills | `/api/skills` | List skills, inspect one skill, fetch body content, and toggle runtime state. |
 | Automation | `/api/automation` | Manage jobs, triggers, and run history. |
 | Tasks | `/api/tasks`, `/api/task-runs` | Create tasks, manage task runs, inspect task trees, and triage work. |
@@ -66,7 +66,9 @@ These routes are especially important when you are building live operator toolin
 1. `GET /api/observe/health`
 2. `GET /api/observe/events`
 3. `GET /api/observe/tasks/dashboard`
-4. `GET /api/bridges/health/stream`
+4. `GET /api/memory/health`
+5. `GET /api/memory/history`
+6. `GET /api/bridges/health/stream`
 
 ### If you are integrating runtime configuration
 

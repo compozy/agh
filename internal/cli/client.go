@@ -82,6 +82,8 @@ type DaemonClient interface {
 	ObserveEvents(ctx context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error)
 	StreamObserveEvents(ctx context.Context, query ObserveEventQuery, lastEventID string, handler SSEHandler) error
 	ObserveHealth(ctx context.Context) (HealthStatus, error)
+	MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error)
+	MemoryHistory(ctx context.Context, query MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
 	ListMemory(ctx context.Context, scope memory.Scope, workspace string) ([]MemoryHeaderRecord, error)
 	SearchMemory(ctx context.Context, query string, opts MemorySearchQuery) ([]MemorySearchRecord, error)
 	ReadMemory(ctx context.Context, filename string, scope memory.Scope, workspace string) (MemoryReadRecord, error)
@@ -220,6 +222,21 @@ type ObserveEventQuery struct {
 
 // MemoryHeaderRecord is one memory header returned by the daemon API.
 type MemoryHeaderRecord = memory.Header
+
+// MemoryHealthRecord is the shared daemon memory health payload.
+type MemoryHealthRecord = contract.MemoryHealthPayload
+
+// MemoryHistoryQuery captures filters for memory operation history.
+type MemoryHistoryQuery struct {
+	Scope     memory.Scope
+	Workspace string
+	Operation string
+	Since     time.Time
+	Limit     int
+}
+
+// MemoryHistoryRecord is one redacted memory operation history row.
+type MemoryHistoryRecord = contract.MemoryOperationPayload
 
 // MemoryReadRecord is the shared daemon memory document payload.
 type MemoryReadRecord = contract.MemoryReadResponse
@@ -959,6 +976,36 @@ func (c *unixSocketClient) ObserveHealth(ctx context.Context) (HealthStatus, err
 		return HealthStatus{}, err
 	}
 	return response.Health, nil
+}
+
+func (c *unixSocketClient) MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error) {
+	var response MemoryHealthRecord
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(workspace); trimmed != "" {
+		values.Set("workspace", trimmed)
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/health", values, nil, &response); err != nil {
+		return MemoryHealthRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) MemoryHistory(
+	ctx context.Context,
+	query MemoryHistoryQuery,
+) ([]MemoryHistoryRecord, error) {
+	var response contract.MemoryHistoryResponse
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/memory/history",
+		memoryHistoryValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response.Operations, nil
 }
 
 func (c *unixSocketClient) ListMemory(
@@ -1779,6 +1826,20 @@ func memorySearchValues(query string, opts MemorySearchQuery) url.Values {
 	}
 	if opts.Limit > 0 {
 		values.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	return values
+}
+
+func memoryHistoryValues(query MemoryHistoryQuery) url.Values {
+	values := memoryValues(query.Scope, query.Workspace)
+	if trimmed := strings.TrimSpace(query.Operation); trimmed != "" {
+		values.Set("operation", trimmed)
+	}
+	if !query.Since.IsZero() {
+		values.Set("since", query.Since.UTC().Format(time.RFC3339Nano))
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
 	}
 	return values
 }
