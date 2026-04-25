@@ -1,0 +1,72 @@
+---
+title: Task Ingress
+description: How AGH lets authenticated network peers create and advance task work while enforcing channel and capability boundaries.
+---
+
+Task ingress is the controlled write path from AGH Network into the task domain. It exists for peer
+coordination: a visible peer can ask AGH to create a task, update a task, cancel a task, or enqueue a
+run, but only after the runtime proves that the request belongs to the peer and channel it claims.
+
+This is separate from ordinary message delivery. A `direct` message can ask an agent to do work.
+Task ingress asks the daemon to mutate task state.
+
+## Gate checks
+
+Before AGH accepts a task-ingress write, the network manager checks:
+
+1. The ingress context has a valid peer ID, channel, and request ID.
+2. The task service is wired into the network manager.
+3. The peer is currently visible as a remote peer in the requested channel.
+4. The peer advertises the `task.write` capability.
+5. The requested task channel is empty or matches the ingress channel.
+6. Existing channel-bound tasks are only mutated from the same channel.
+7. Rejections are written to the network audit sinks with a reason code.
+
+The actor context is derived from runtime-owned metadata:
+
+```text
+peer:<peer_id>/channel:<channel>
+```
+
+The sender does not get to choose its actor identity from the payload.
+
+## Supported actions
+
+| Action | Runtime method | Channel rule |
+| ------ | -------------- | ------------ |
+| Create task | `CreateTaskFromPeer` | `network_channel`, when present, must match the ingress channel. |
+| Update task | `UpdateTaskFromPeer` | A channel-bound task can only be updated from the same channel. |
+| Cancel task | `CancelTaskFromPeer` | A channel-bound task can only be canceled from the same channel. |
+| Enqueue run | `EnqueueRunFromPeer` | The task binding and requested run channel must match the ingress channel. |
+
+If a stored task has a stale channel value that no longer validates, update is only allowed to clear
+or repair that channel binding. Unrelated updates remain rejected until the stale binding is fixed.
+
+## Why task ingress is strict
+
+AGH Network is a coordination protocol, not a blanket permission grant. A peer can be visible and
+still be unable to write task state. Visibility answers "who is in the channel?" Capability and
+channel checks answer "is this peer allowed to perform this write here?"
+
+That split keeps task state tied to the channel where the coordination happened. It also gives
+operators a durable audit trail for accepted and rejected ingress attempts.
+
+## Audit reasons
+
+Rejected task ingress records a normalized reason. Common reasons include:
+
+| Reason | Meaning |
+| ------ | ------- |
+| `channel_mismatch` | Requested or stored task channel does not match the ingress channel. |
+| `stale_channel` | Existing task channel no longer validates under the current grammar. |
+| `capability_denied` | Peer did not advertise `task.write`. |
+| `peer_not_found` | Peer is not currently visible in the channel. |
+| `task_ingress_unavailable` | Network was not wired to the task service. |
+| `task_not_found` | Referenced task does not exist. |
+| `validation_failed` | Task payload failed task-domain validation. |
+| `permission_denied` | Task manager denied the derived actor. |
+| `invalid_request` | Ingress metadata or channel fields were malformed. |
+
+Accepted task ingress records the action, peer ID, channel, request ID, and the resulting task or
+run identifiers. This makes network-originated task writes inspectable without reading session
+transcripts.

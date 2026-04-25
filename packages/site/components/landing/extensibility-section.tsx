@@ -10,7 +10,7 @@ const FEATURES = [
     title: "Observe and mutate lifecycle events",
     description:
       "Run shell, builtin, or sub-agent actions on ~40 lifecycle events — session start, tool call, permission request, network receipt.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "hooks catalog" },
+    cite: { href: "/runtime", label: "hooks catalog" },
   },
   {
     icon: <Sparkles className="h-4 w-4" />,
@@ -18,7 +18,7 @@ const FEATURES = [
     title: "Drop-in SKILL.md bundles",
     description:
       "Share reusable instruction sets with YAML frontmatter and Markdown body. Bundled defaults + global + workspace scopes.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "skills guide" },
+    cite: { href: "/runtime", label: "skills guide" },
   },
   {
     icon: <Timer className="h-4 w-4" />,
@@ -26,7 +26,7 @@ const FEATURES = [
     title: "Cron + webhook + event triggers",
     description:
       "Durable jobs and triggers stored in SQLite. Schedule work. Delegate to peers. Track runs.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "automation" },
+    cite: { href: "/runtime", label: "automation" },
   },
   {
     icon: <Plug className="h-4 w-4" />,
@@ -34,7 +34,7 @@ const FEATURES = [
     title: "Install from local or marketplace",
     description:
       "Extensions bundle skills, hooks, bridge adapters, and MCP servers. Ship them as zip files or via a GitHub registry.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "extensions" },
+    cite: { href: "/runtime", label: "extensions" },
   },
 ];
 

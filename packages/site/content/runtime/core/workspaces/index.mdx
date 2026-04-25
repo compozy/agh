@@ -1,0 +1,44 @@
+---
+title: Workspaces
+description: How AGH resolves workspace roots, layers config overlays, and attaches additional roots for monorepos and cross-project agent sharing.
+---
+
+A workspace is a registered project root. AGH uses it as the source of truth for workspace-scoped
+agents, skills, memory, and config overlays. Sessions inherit the workspace context, and resolution
+is deterministic — the registered root wins over global defaults.
+
+<figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
+  <img
+    src="/images/runtime/workspaces-overview-storyboard-v1.png"
+    alt="Hand-drawn Workspaces poster showing registered roots, overlays, multi-root directories, and workspace session context with the octopus mascot."
+    loading="eager"
+    decoding="async"
+    className="h-auto w-full rounded-md"
+  />
+</figure>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/workspaces/resolver"
+    label="Resolver"
+    title="Workspace resolver"
+    description="Use this page for how AGH registers workspace roots and resolves an active workspace at session start."
+    meta="Resolution"
+  />
+  <RouteRow
+    href="/runtime/core/workspaces/config-overlays"
+    label="Overlays"
+    title="Workspace config overlays"
+    description="Use this page for how `<workspace>/.agh/config.toml` and `mcp.json` layer over global config."
+    meta="Layering"
+  />
+  <RouteRow
+    href="/runtime/core/workspaces/multi-root"
+    label="Multi-root"
+    title="Multi-root workspaces"
+    description="Use this page when one session must see additional directories for monorepos or shared agent libraries."
+    meta="Topology"
+  />
+</RouteList>

@@ -59,7 +59,7 @@ export function SupportedAgents() {
             Bring the CLI you already use. AGH spawns it, manages it, and persists every event.
           </p>
           <Link
-            href="/runtime/core/overview/what-is-agh"
+            href="/runtime"
             className="mt-3 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-(--tracking-mono) text-(--color-text-secondary) transition-colors hover:text-(--color-accent)"
           >
             Configure providers

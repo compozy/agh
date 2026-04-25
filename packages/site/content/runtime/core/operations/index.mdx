@@ -1,0 +1,57 @@
+---
+title: Operations
+description: Day-two operation of the AGH daemon — process supervision, SQLite backup and inspection, troubleshooting, and production readiness.
+---
+
+This section is for keeping AGH running. It covers daemon supervision, database state, the
+diagnostic flow when something misbehaves, and the production readiness checklist before AGH runs
+unattended in a real environment.
+
+<OperatorNote>
+  Start with `agh daemon status`, `agh observe health`, and the `$AGH_HOME/logs/agh.log` file for
+  any operational issue. Most failures resolve from those three signals before anything deeper is
+  needed.
+</OperatorNote>
+
+<figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
+  <img
+    src="/images/runtime/operations-overview-storyboard-v1.png"
+    alt="Hand-drawn Operations poster showing daemon health, logs, SQLite backups, troubleshooting, and readiness checks with the octopus mascot."
+    loading="eager"
+    decoding="async"
+    className="h-auto w-full rounded-md"
+  />
+</figure>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/operations/daemon"
+    label="Daemon"
+    title="Daemon operations"
+    description="Use this page when starting, stopping, restarting, or supervising AGH as a long-lived process."
+    meta="Process"
+  />
+  <RouteRow
+    href="/runtime/core/operations/database"
+    label="Database"
+    title="Database operations"
+    description="Use this page when backing up SQLite, inspecting stored sessions, or retiring session directories."
+    meta="State"
+  />
+  <RouteRow
+    href="/runtime/core/operations/troubleshooting"
+    label="Diagnose"
+    title="Troubleshooting"
+    description="Use this page when an operational command fails or the daemon misbehaves."
+    meta="Recovery"
+  />
+  <RouteRow
+    href="/runtime/core/operations/production"
+    label="Checklist"
+    title="Production checklist"
+    description="Use this page before running AGH unattended in a real environment."
+    meta="Readiness"
+  />
+</RouteList>

@@ -24,8 +24,8 @@ const runtimePageTree: Root = {
         },
         {
           type: "folder",
-          $id: "core/overview",
-          name: "Overview",
+          $id: "core/sessions",
+          name: "Sessions",
           children: [],
         },
       ],
@@ -79,11 +79,21 @@ describe("runtime navigation tree", () => {
 
     expect(getNodeName(root)).toBe("Core Concepts");
     expect(
-      root.children.some(node => node.type === "folder" && getNodeName(node) === "Overview")
+      root.children.some(
+        node => node.type === "page" && node.url === "/runtime" && getNodeName(node) === "Overview"
+      )
     ).toBe(true);
-    expect(root.children.some(node => node.type === "page" && getNodeName(node) === "Index")).toBe(
-      false
-    );
+    expect(
+      root.children.some(
+        node =>
+          node.type === "page" &&
+          node.url === "/runtime/core" &&
+          getNodeName(node) === "Core Concepts"
+      )
+    ).toBe(true);
+    expect(
+      root.children.some(node => node.type === "folder" && getNodeName(node) === "Sessions")
+    ).toBe(true);
     expect(
       root.children.some(node => getNodeName(node as { name: unknown }) === "CLI Reference")
     ).toBe(false);

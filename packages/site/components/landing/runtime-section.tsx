@@ -11,7 +11,7 @@ const FEATURES = [
     description:
       "Every session gets a per-session event DB plus an entry in the global catalog. Resume after a restart, re-read the full history, or fork a new session from any point.",
     cite: {
-      href: "/runtime/core/overview/what-is-agh",
+      href: "/runtime",
       label: "sessions lifecycle",
     },
   },
@@ -21,7 +21,7 @@ const FEATURES = [
     title: "Replayable event stream",
     description:
       "Every prompt, tool call, permission decision, and agent message is persisted with a monotonic sequence. SSE replay at /api/sessions/:id/stream.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "event catalog" },
+    cite: { href: "/runtime", label: "event catalog" },
   },
   {
     icon: <Terminal className="h-4 w-4" />,
@@ -29,7 +29,7 @@ const FEATURES = [
     title: "Three operator surfaces, one daemon",
     description:
       "CLI over a Unix socket. HTTP + SSE API on :2123. A React 19 web UI with ten feature modules. All read from the same state.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "daemon surfaces" },
+    cite: { href: "/runtime", label: "daemon surfaces" },
   },
   {
     icon: <ShieldCheck className="h-4 w-4" />,
@@ -37,7 +37,7 @@ const FEATURES = [
     title: "Permission modes with an audit trail",
     description:
       "AGH enforces session permission modes, keeps workspace boundaries intact, and records every approval decision.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "permissions" },
+    cite: { href: "/runtime", label: "permissions" },
   },
 ];
 
