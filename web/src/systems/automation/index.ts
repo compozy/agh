@@ -11,6 +11,7 @@ export type {
   AutomationRunStatus,
   AutomationSchedule,
   AutomationScheduleMode,
+  AutomationSchedulerState,
   AutomationScope,
   AutomationScopeFilter,
   AutomationSource,

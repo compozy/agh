@@ -2048,6 +2048,25 @@ export interface operations {
                 mode: "cron" | "every" | "at";
                 time?: string;
               } | null;
+              scheduler?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -2205,6 +2224,25 @@ export interface operations {
                 mode: "cron" | "every" | "at";
                 time?: string;
               } | null;
+              scheduler?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -2329,6 +2367,25 @@ export interface operations {
                 /** @enum {string} */
                 mode: "cron" | "every" | "at";
                 time?: string;
+              } | null;
+              scheduler?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
               } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
@@ -2559,6 +2616,25 @@ export interface operations {
                 mode: "cron" | "every" | "at";
                 time?: string;
               } | null;
+              scheduler?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -2679,11 +2755,17 @@ export interface operations {
           "application/json": {
             runs: {
               attempt: number;
+              delivery_error?: string;
+              /** Format: date-time */
+              delivery_error_at?: string | null;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              fire_id?: string;
               id: string;
               job_id?: string;
+              /** Format: date-time */
+              scheduled_at?: string | null;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -2769,11 +2851,17 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              delivery_error?: string;
+              /** Format: date-time */
+              delivery_error_at?: string | null;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              fire_id?: string;
               id: string;
               job_id?: string;
+              /** Format: date-time */
+              scheduled_at?: string | null;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -2869,11 +2957,17 @@ export interface operations {
           "application/json": {
             runs: {
               attempt: number;
+              delivery_error?: string;
+              /** Format: date-time */
+              delivery_error_at?: string | null;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              fire_id?: string;
               id: string;
               job_id?: string;
+              /** Format: date-time */
+              scheduled_at?: string | null;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -2948,11 +3042,17 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              delivery_error?: string;
+              /** Format: date-time */
+              delivery_error_at?: string | null;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              fire_id?: string;
               id: string;
               job_id?: string;
+              /** Format: date-time */
+              scheduled_at?: string | null;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -3583,11 +3683,17 @@ export interface operations {
           "application/json": {
             runs: {
               attempt: number;
+              delivery_error?: string;
+              /** Format: date-time */
+              delivery_error_at?: string | null;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              fire_id?: string;
               id: string;
               job_id?: string;
+              /** Format: date-time */
+              scheduled_at?: string | null;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -7708,6 +7814,25 @@ export interface operations {
               };
               /** Format: date-time */
               next_fire?: string | null;
+              scheduled_jobs?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              }[];
               scheduler_running: boolean;
               triggers: {
                 enabled: number;
@@ -19146,11 +19271,17 @@ export interface operations {
               matched: number;
               runs?: {
                 attempt: number;
+                delivery_error?: string;
+                /** Format: date-time */
+                delivery_error_at?: string | null;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                fire_id?: string;
                 id: string;
                 job_id?: string;
+                /** Format: date-time */
+                scheduled_at?: string | null;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -19264,11 +19395,17 @@ export interface operations {
               matched: number;
               runs?: {
                 attempt: number;
+                delivery_error?: string;
+                /** Format: date-time */
+                delivery_error_at?: string | null;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                fire_id?: string;
                 id: string;
                 job_id?: string;
+                /** Format: date-time */
+                scheduled_at?: string | null;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;

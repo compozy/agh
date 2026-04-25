@@ -1755,11 +1755,15 @@ export interface Run {
   session_id?: string;
   task_id?: string;
   task_run_id?: string;
+  fire_id?: string;
   status: RunStatus;
   attempt: number;
+  scheduled_at?: ISODateTime;
   started_at?: ISODateTime;
   ended_at?: ISODateTime;
   error?: string;
+  delivery_error?: string;
+  delivery_error_at?: ISODateTime;
 }
 
 export interface SessionContext {

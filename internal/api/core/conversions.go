@@ -452,12 +452,55 @@ func AutomationHealthPayloadFromStatus(
 		},
 		SchedulerRunning: status.SchedulerRunning,
 		NextFire:         status.NextFire,
+		ScheduledJobs:    AutomationSchedulerStatePayloadsFromStates(status.ScheduledJobs),
 	}
+}
+
+// AutomationSchedulerStatePayloadFromState converts durable scheduler metadata
+// into the shared response payload.
+func AutomationSchedulerStatePayloadFromState(
+	state automationpkg.ScheduledJobState,
+) contract.AutomationSchedulerStatePayload {
+	payload := contract.AutomationSchedulerStatePayload{
+		JobID:               state.JobID,
+		Registered:          state.Registered,
+		NextRunAt:           state.NextRun,
+		LastRunAt:           state.LastRun,
+		LastScheduledAt:     state.LastScheduledAt,
+		LastFireID:          state.LastFireID,
+		CatchUpPolicy:       state.CatchUpPolicy,
+		MisfireGraceSeconds: state.MisfireGraceSeconds,
+		LastMisfireAt:       state.LastMisfireAt,
+		MisfireCount:        state.MisfireCount,
+	}
+	if state.Durable != nil {
+		payload.ConsecutiveResumeFailures = state.Durable.ConsecutiveResumeFailures
+		updatedAt := state.Durable.UpdatedAt
+		if !updatedAt.IsZero() {
+			payload.UpdatedAt = &updatedAt
+		}
+	}
+	return payload
+}
+
+// AutomationSchedulerStatePayloadsFromStates converts scheduler states into response payloads.
+func AutomationSchedulerStatePayloadsFromStates(
+	states []automationpkg.ScheduledJobState,
+) []contract.AutomationSchedulerStatePayload {
+	payloads := make([]contract.AutomationSchedulerStatePayload, 0, len(states))
+	for _, state := range states {
+		payloads = append(payloads, AutomationSchedulerStatePayloadFromState(state))
+	}
+	return payloads
 }
 
 // JobPayloadFromJob converts an automation job into the shared response
 // payload, optionally enriching it with scheduler next-run metadata.
-func JobPayloadFromJob(job automationpkg.Job, nextRun *time.Time) contract.JobPayload {
+func JobPayloadFromJob(
+	job automationpkg.Job,
+	nextRun *time.Time,
+	schedulerState *contract.AutomationSchedulerStatePayload,
+) contract.JobPayload {
 	payload := contract.JobPayload{
 		ID:          job.ID,
 		Scope:       job.Scope,
@@ -472,6 +515,7 @@ func JobPayloadFromJob(job automationpkg.Job, nextRun *time.Time) contract.JobPa
 		CreatedAt:   job.CreatedAt,
 		UpdatedAt:   job.UpdatedAt,
 		NextRun:     nextRun,
+		Scheduler:   schedulerState,
 	}
 	if job.Schedule != nil {
 		schedule := *job.Schedule
@@ -490,12 +534,28 @@ func JobPayloadFromJob(job automationpkg.Job, nextRun *time.Time) contract.JobPa
 
 // JobPayloadsFromJobs converts a slice of jobs into response payloads using
 // the supplied next-run map.
-func JobPayloadsFromJobs(jobs []automationpkg.Job, nextRunByID map[string]*time.Time) []contract.JobPayload {
+func JobPayloadsFromJobs(
+	jobs []automationpkg.Job,
+	schedulerStateByID map[string]contract.AutomationSchedulerStatePayload,
+) []contract.JobPayload {
 	payloads := make([]contract.JobPayload, 0, len(jobs))
 	for _, job := range jobs {
-		payloads = append(payloads, JobPayloadFromJob(job, timePointerFromMap(nextRunByID, job.ID)))
+		var schedulerState *contract.AutomationSchedulerStatePayload
+		if state, ok := schedulerStateByID[job.ID]; ok {
+			stateCopy := state
+			schedulerState = &stateCopy
+		}
+		payloads = append(payloads, JobPayloadFromJob(job, schedulerNextRun(schedulerState), schedulerState))
 	}
 	return payloads
+}
+
+func schedulerNextRun(state *contract.AutomationSchedulerStatePayload) *time.Time {
+	if state == nil || state.NextRunAt == nil {
+		return nil
+	}
+	nextRun := state.NextRunAt.UTC()
+	return &nextRun
 }
 
 // TriggerPayloadFromTrigger converts an automation trigger into the shared
@@ -533,17 +593,21 @@ func TriggerPayloadsFromTriggers(triggers []automationpkg.Trigger) []contract.Tr
 // RunPayloadFromRun converts an automation run into the shared response payload.
 func RunPayloadFromRun(run automationpkg.Run) contract.RunPayload {
 	return contract.RunPayload{
-		ID:        run.ID,
-		JobID:     run.JobID,
-		TriggerID: run.TriggerID,
-		SessionID: run.SessionID,
-		TaskID:    run.TaskID,
-		TaskRunID: run.TaskRunID,
-		Status:    run.Status,
-		Attempt:   run.Attempt,
-		StartedAt: run.StartedAt,
-		EndedAt:   run.EndedAt,
-		Error:     run.Error,
+		ID:              run.ID,
+		JobID:           run.JobID,
+		TriggerID:       run.TriggerID,
+		SessionID:       run.SessionID,
+		TaskID:          run.TaskID,
+		TaskRunID:       run.TaskRunID,
+		FireID:          run.FireID,
+		Status:          run.Status,
+		Attempt:         run.Attempt,
+		ScheduledAt:     run.ScheduledAt,
+		StartedAt:       run.StartedAt,
+		EndedAt:         run.EndedAt,
+		Error:           run.Error,
+		DeliveryError:   run.DeliveryError,
+		DeliveryErrorAt: run.DeliveryErrorAt,
 	}
 }
 

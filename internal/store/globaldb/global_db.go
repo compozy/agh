@@ -506,6 +506,70 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateSessionFailureColumns,
 		Checksum: "2026-04-24-add-session-failure-diagnostics",
 	},
+	{
+		Version:  3,
+		Name:     "add_automation_scheduler_state",
+		Up:       migrateAutomationSchedulerState,
+		Checksum: "2026-04-24-add-automation-scheduler-state",
+	},
+}
+
+func migrateAutomationSchedulerState(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS automation_scheduler_state (
+			job_id                       TEXT PRIMARY KEY,
+			next_run_at                  TEXT,
+			last_run_at                  TEXT,
+			last_scheduled_at            TEXT,
+			last_fire_id                 TEXT NOT NULL DEFAULT '',
+			schedule_hash                TEXT NOT NULL DEFAULT '',
+			catch_up_policy              TEXT NOT NULL DEFAULT 'skip_missed'
+				CHECK (catch_up_policy IN ('skip_missed')),
+			misfire_grace_seconds        INTEGER NOT NULL DEFAULT 0
+				CHECK (misfire_grace_seconds >= 0),
+			consecutive_resume_failures  INTEGER NOT NULL DEFAULT 0
+				CHECK (consecutive_resume_failures >= 0),
+			last_misfire_at              TEXT,
+			misfire_count                INTEGER NOT NULL DEFAULT 0
+				CHECK (misfire_count >= 0),
+			updated_at                   TEXT NOT NULL
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_scheduler_next_run
+			ON automation_scheduler_state(next_run_at);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_scheduler_misfire
+			ON automation_scheduler_state(last_misfire_at);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_runs_fire_id
+			ON automation_runs(fire_id) WHERE fire_id IS NOT NULL;`,
+	}
+
+	runColumns, err := tableColumns(ctx, tx, "automation_runs")
+	if err != nil {
+		return err
+	}
+	runColumnStatements := make([]string, 0, 4)
+	if _, ok := runColumns["fire_id"]; !ok {
+		runColumnStatements = append(runColumnStatements, `ALTER TABLE automation_runs ADD COLUMN fire_id TEXT;`)
+	}
+	if _, ok := runColumns["scheduled_at"]; !ok {
+		runColumnStatements = append(runColumnStatements, `ALTER TABLE automation_runs ADD COLUMN scheduled_at TEXT;`)
+	}
+	if _, ok := runColumns["delivery_error"]; !ok {
+		runColumnStatements = append(runColumnStatements, `ALTER TABLE automation_runs ADD COLUMN delivery_error TEXT;`)
+	}
+	if _, ok := runColumns["delivery_error_at"]; !ok {
+		runColumnStatements = append(
+			runColumnStatements,
+			`ALTER TABLE automation_runs ADD COLUMN delivery_error_at TEXT;`,
+		)
+	}
+	statements = append(runColumnStatements, statements...)
+
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: migrate automation scheduler state: %w", err)
+		}
+	}
+	return nil
 }
 
 // GlobalDB owns the global session index and observability database.

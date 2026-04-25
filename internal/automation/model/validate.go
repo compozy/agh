@@ -89,6 +89,16 @@ func (s RunStatus) Validate(path string) error {
 	}
 }
 
+// Validate ensures the scheduler catch-up policy is supported.
+func (p SchedulerCatchUpPolicy) Validate(path string) error {
+	switch p {
+	case SchedulerCatchUpPolicySkipMissed:
+		return nil
+	default:
+		return fmt.Errorf("%s must be %q: %q", path, SchedulerCatchUpPolicySkipMissed, p)
+	}
+}
+
 // Validate ensures the activation source is one of the supported ingress values.
 func (s ActivationSource) Validate(path string) error {
 	switch s {
@@ -403,8 +413,18 @@ func (r Run) Validate(path string) error {
 	if r.Attempt < 0 {
 		return fmt.Errorf("%s must be zero or positive: %d", nestedPath(path, "attempt"), r.Attempt)
 	}
+	if r.ScheduledAt != nil && r.ScheduledAt.IsZero() {
+		return errors.New(nestedPath(path, "scheduled_at") + " must not be zero")
+	}
 	if r.StartedAt != nil && r.EndedAt != nil && r.EndedAt.Before(*r.StartedAt) {
 		return fmt.Errorf("%s must not be before %s", nestedPath(path, "ended_at"), nestedPath(path, "started_at"))
+	}
+	if r.DeliveryErrorAt != nil && strings.TrimSpace(r.DeliveryError) == "" {
+		return fmt.Errorf(
+			"%s is required when %s is set",
+			nestedPath(path, "delivery_error"),
+			nestedPath(path, "delivery_error_at"),
+		)
 	}
 	if r.Status == RunDelegated {
 		if strings.TrimSpace(r.TaskID) == "" {
@@ -423,6 +443,57 @@ func (r Run) Validate(path string) error {
 				RunDelegated,
 			)
 		}
+	}
+	return nil
+}
+
+// Validate ensures the durable scheduler cursor is internally consistent.
+func (s SchedulerState) Validate(path string) error {
+	if strings.TrimSpace(s.JobID) == "" {
+		return errors.New(nestedPath(path, "job_id") + " is required")
+	}
+	if err := s.CatchUpPolicy.Validate(nestedPath(path, "catch_up_policy")); err != nil {
+		return err
+	}
+	if s.MisfireGraceSeconds < 0 {
+		return fmt.Errorf(
+			"%s must be zero or positive: %d",
+			nestedPath(path, "misfire_grace_seconds"),
+			s.MisfireGraceSeconds,
+		)
+	}
+	if s.ConsecutiveResumeFailures < 0 {
+		return fmt.Errorf(
+			"%s must be zero or positive: %d",
+			nestedPath(path, "consecutive_resume_failures"),
+			s.ConsecutiveResumeFailures,
+		)
+	}
+	if s.MisfireCount < 0 {
+		return fmt.Errorf("%s must be zero or positive: %d", nestedPath(path, "misfire_count"), s.MisfireCount)
+	}
+	if s.UpdatedAt.IsZero() {
+		return errors.New(nestedPath(path, "updated_at") + " is required")
+	}
+	return nil
+}
+
+// Validate ensures a scheduled fire claim can be persisted atomically.
+func (c SchedulerClaim) Validate(path string) error {
+	if strings.TrimSpace(c.JobID) == "" {
+		return errors.New(nestedPath(path, "job_id") + " is required")
+	}
+	if strings.TrimSpace(c.RunID) == "" {
+		return errors.New(nestedPath(path, "run_id") + " is required")
+	}
+	if strings.TrimSpace(c.FireID) == "" {
+		return errors.New(nestedPath(path, "fire_id") + " is required")
+	}
+	if c.ScheduledAt.IsZero() {
+		return errors.New(nestedPath(path, "scheduled_at") + " is required")
+	}
+	if c.ClaimedAt.IsZero() {
+		return errors.New(nestedPath(path, "claimed_at") + " is required")
 	}
 	return nil
 }

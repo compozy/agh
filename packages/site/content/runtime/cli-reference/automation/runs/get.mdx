@@ -36,3 +36,8 @@ Example:
 ```bash
 agh automation runs get <id> -o json
 ```
+
+For scheduler-created runs, inspect `fire_id` and `scheduled_at` to identify the claimed scheduled
+fire. If the scheduler advanced the cursor but delivery failed, `delivery_error` and
+`delivery_error_at` contain the delivery diagnostic while the normal run `error` field remains
+reserved for execution lifecycle failures.

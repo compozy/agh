@@ -13,33 +13,52 @@ type AutomationResourceStatusPayload struct {
 	Enabled int `json:"enabled"`
 }
 
+// AutomationSchedulerStatePayload exposes durable scheduler cursor diagnostics
+// for one scheduled automation job.
+type AutomationSchedulerStatePayload struct {
+	JobID                     string                               `json:"job_id"`
+	Registered                bool                                 `json:"registered"`
+	NextRunAt                 *time.Time                           `json:"next_run_at,omitempty"`
+	LastRunAt                 *time.Time                           `json:"last_run_at,omitempty"`
+	LastScheduledAt           *time.Time                           `json:"last_scheduled_at,omitempty"`
+	LastFireID                string                               `json:"last_fire_id,omitempty"`
+	CatchUpPolicy             automationpkg.SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
+	MisfireGraceSeconds       int                                  `json:"misfire_grace_seconds,omitempty"`
+	ConsecutiveResumeFailures int                                  `json:"consecutive_resume_failures,omitempty"`
+	LastMisfireAt             *time.Time                           `json:"last_misfire_at,omitempty"`
+	MisfireCount              int                                  `json:"misfire_count,omitempty"`
+	UpdatedAt                 *time.Time                           `json:"updated_at,omitempty"`
+}
+
 // AutomationHealthPayload describes additive automation health state inside
 // the observe health response.
 type AutomationHealthPayload struct {
-	Enabled          bool                            `json:"enabled"`
-	Jobs             AutomationResourceStatusPayload `json:"jobs"`
-	Triggers         AutomationResourceStatusPayload `json:"triggers"`
-	SchedulerRunning bool                            `json:"scheduler_running"`
-	NextFire         *time.Time                      `json:"next_fire,omitempty"`
+	Enabled          bool                              `json:"enabled"`
+	Jobs             AutomationResourceStatusPayload   `json:"jobs"`
+	Triggers         AutomationResourceStatusPayload   `json:"triggers"`
+	SchedulerRunning bool                              `json:"scheduler_running"`
+	NextFire         *time.Time                        `json:"next_fire,omitempty"`
+	ScheduledJobs    []AutomationSchedulerStatePayload `json:"scheduled_jobs,omitempty"`
 }
 
 // JobPayload is the shared automation job response payload.
 type JobPayload struct {
-	ID          string                        `json:"id"`
-	Scope       automationpkg.Scope           `json:"scope"`
-	Name        string                        `json:"name"`
-	AgentName   string                        `json:"agent_name"`
-	WorkspaceID string                        `json:"workspace_id,omitempty"`
-	Prompt      string                        `json:"prompt"`
-	Schedule    *automationpkg.ScheduleSpec   `json:"schedule,omitempty"`
-	Task        *automationpkg.JobTaskConfig  `json:"task,omitempty"`
-	Enabled     bool                          `json:"enabled"`
-	Retry       automationpkg.RetryConfig     `json:"retry"`
-	FireLimit   automationpkg.FireLimitConfig `json:"fire_limit"`
-	Source      automationpkg.JobSource       `json:"source"`
-	CreatedAt   time.Time                     `json:"created_at"`
-	UpdatedAt   time.Time                     `json:"updated_at"`
-	NextRun     *time.Time                    `json:"next_run,omitempty"`
+	ID          string                           `json:"id"`
+	Scope       automationpkg.Scope              `json:"scope"`
+	Name        string                           `json:"name"`
+	AgentName   string                           `json:"agent_name"`
+	WorkspaceID string                           `json:"workspace_id,omitempty"`
+	Prompt      string                           `json:"prompt"`
+	Schedule    *automationpkg.ScheduleSpec      `json:"schedule,omitempty"`
+	Task        *automationpkg.JobTaskConfig     `json:"task,omitempty"`
+	Enabled     bool                             `json:"enabled"`
+	Retry       automationpkg.RetryConfig        `json:"retry"`
+	FireLimit   automationpkg.FireLimitConfig    `json:"fire_limit"`
+	Source      automationpkg.JobSource          `json:"source"`
+	CreatedAt   time.Time                        `json:"created_at"`
+	UpdatedAt   time.Time                        `json:"updated_at"`
+	NextRun     *time.Time                       `json:"next_run,omitempty"`
+	Scheduler   *AutomationSchedulerStatePayload `json:"scheduler,omitempty"`
 }
 
 // TriggerPayload is the shared automation trigger response payload.
@@ -64,17 +83,21 @@ type TriggerPayload struct {
 
 // RunPayload is the shared automation run response payload.
 type RunPayload struct {
-	ID        string                  `json:"id"`
-	JobID     string                  `json:"job_id,omitempty"`
-	TriggerID string                  `json:"trigger_id,omitempty"`
-	SessionID string                  `json:"session_id,omitempty"`
-	TaskID    string                  `json:"task_id,omitempty"`
-	TaskRunID string                  `json:"task_run_id,omitempty"`
-	Status    automationpkg.RunStatus `json:"status"`
-	Attempt   int                     `json:"attempt"`
-	StartedAt *time.Time              `json:"started_at,omitempty"`
-	EndedAt   *time.Time              `json:"ended_at,omitempty"`
-	Error     string                  `json:"error,omitempty"`
+	ID              string                  `json:"id"`
+	JobID           string                  `json:"job_id,omitempty"`
+	TriggerID       string                  `json:"trigger_id,omitempty"`
+	SessionID       string                  `json:"session_id,omitempty"`
+	TaskID          string                  `json:"task_id,omitempty"`
+	TaskRunID       string                  `json:"task_run_id,omitempty"`
+	FireID          string                  `json:"fire_id,omitempty"`
+	Status          automationpkg.RunStatus `json:"status"`
+	Attempt         int                     `json:"attempt"`
+	ScheduledAt     *time.Time              `json:"scheduled_at,omitempty"`
+	StartedAt       *time.Time              `json:"started_at,omitempty"`
+	EndedAt         *time.Time              `json:"ended_at,omitempty"`
+	Error           string                  `json:"error,omitempty"`
+	DeliveryError   string                  `json:"delivery_error,omitempty"`
+	DeliveryErrorAt *time.Time              `json:"delivery_error_at,omitempty"`
 }
 
 // WebhookDeliveryPayload is the shared webhook dispatch response payload.

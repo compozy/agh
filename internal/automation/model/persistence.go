@@ -12,6 +12,10 @@ var (
 	ErrTriggerNotFound = errors.New("automation: trigger not found")
 	// ErrRunNotFound reports that the requested automation run does not exist.
 	ErrRunNotFound = errors.New("automation: run not found")
+	// ErrSchedulerStateNotFound reports that no durable scheduler cursor exists for a job.
+	ErrSchedulerStateNotFound = errors.New("automation: scheduler state not found")
+	// ErrScheduledFireAlreadyClaimed reports that a scheduled fire identity was already claimed.
+	ErrScheduledFireAlreadyClaimed = errors.New("automation: scheduled fire already claimed")
 	// ErrJobNameTaken reports a duplicate job name within the same automation scope.
 	ErrJobNameTaken = errors.New("automation: job name already exists in scope")
 	// ErrTriggerNameTaken reports a duplicate trigger name within the same automation scope.
@@ -50,6 +54,7 @@ type RunQuery struct {
 	JobID     string    `json:"job_id,omitempty"`
 	TriggerID string    `json:"trigger_id,omitempty"`
 	Status    RunStatus `json:"status,omitempty"`
+	ExcludeID string    `json:"exclude_id,omitempty"`
 	Since     time.Time `json:"since"`
 	Until     time.Time `json:"until"`
 	Limit     int       `json:"limit,omitempty"`

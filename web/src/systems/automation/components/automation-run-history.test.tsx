@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 interface MockLinkParams {
   id?: string;
@@ -18,8 +18,6 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-import { vi } from "vitest";
-
 import { AutomationRunHistory } from "./automation-run-history";
 import type { AutomationRun } from "../types";
 
@@ -28,7 +26,9 @@ const completedRun: AutomationRun = {
   status: "completed",
   attempt: 1,
   job_id: "job_daily_review",
+  fire_id: "fire_daily_review_001",
   session_id: "sess_001",
+  scheduled_at: "2026-04-11T09:00:00Z",
   started_at: "2026-04-11T10:00:00Z",
   ended_at: "2026-04-11T10:05:00Z",
 };
@@ -41,6 +41,7 @@ const failedRun: AutomationRun = {
   started_at: "2026-04-11T11:00:00Z",
   ended_at: "2026-04-11T11:02:00Z",
   error: "timeout",
+  delivery_error: "dispatcher unavailable",
 };
 
 describe("AutomationRunHistory", () => {
@@ -80,5 +81,8 @@ describe("AutomationRunHistory", () => {
       "/session/sess_001"
     );
     expect(screen.getByText("timeout")).toBeInTheDocument();
+    expect(screen.getByText("Delivery: dispatcher unavailable")).toBeInTheDocument();
+    expect(screen.getByText("fire_daily_review_001")).toBeInTheDocument();
+    expect(screen.getByText(/scheduled Apr 11, 2026/)).toBeInTheDocument();
   });
 });

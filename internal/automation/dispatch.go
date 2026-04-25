@@ -65,11 +65,12 @@ func (k DispatchKind) Validate(path string) error {
 // trigger payload. Prompt allows later callers to inject a pre-render override
 // after pre-fire hooks patch the outbound prompt.
 type DispatchRequest struct {
-	Kind     DispatchKind        `json:"kind"`
-	Job      *Job                `json:"job,omitempty"`
-	Trigger  *Trigger            `json:"trigger,omitempty"`
-	Envelope *ActivationEnvelope `json:"envelope,omitempty"`
-	Prompt   string              `json:"prompt,omitempty"`
+	Kind        DispatchKind        `json:"kind"`
+	Job         *Job                `json:"job,omitempty"`
+	Trigger     *Trigger            `json:"trigger,omitempty"`
+	Envelope    *ActivationEnvelope `json:"envelope,omitempty"`
+	Prompt      string              `json:"prompt,omitempty"`
+	ReservedRun *Run                `json:"-"`
 }
 
 // Validate ensures the request can be executed by the shared dispatcher.
@@ -376,7 +377,7 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 
 	scheduledRun, err := d.reserveRun(ctx, req, attempt)
 	if err != nil {
-		return nil, err
+		return scheduledRun, err
 	}
 	if req.Job != nil && req.Job.Task != nil {
 		return d.dispatchTaskBackedAttempt(ctx, req, scheduledRun, attempt)
@@ -440,6 +441,10 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 }
 
 func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attempt int) (*Run, error) {
+	if req.ReservedRun != nil {
+		return d.reserveExistingRun(ctx, req, attempt)
+	}
+
 	fireLimit := req.fireLimitConfig()
 	window, err := time.ParseDuration(fireLimit.Window)
 	if err != nil {
@@ -490,6 +495,62 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 		return nil, fmt.Errorf("automation: create scheduled run: %w", err)
 	}
 	return &created, nil
+}
+
+func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest, attempt int) (*Run, error) {
+	reserved := cloneRun(req.ReservedRun)
+	if reserved == nil {
+		return nil, errors.New("automation: reserved run is required")
+	}
+	if strings.TrimSpace(reserved.ID) == "" {
+		return nil, errors.New("automation: reserved run id is required")
+	}
+	if reserved.Attempt == 0 {
+		reserved.Attempt = attempt
+	}
+	if req.Job != nil && strings.TrimSpace(reserved.JobID) != strings.TrimSpace(req.Job.ID) {
+		return nil, errors.New("automation: reserved run job_id does not match dispatch job")
+	}
+	if req.Trigger != nil && strings.TrimSpace(reserved.TriggerID) != strings.TrimSpace(req.Trigger.ID) {
+		return nil, errors.New("automation: reserved run trigger_id does not match dispatch trigger")
+	}
+
+	fireLimit := req.fireLimitConfig()
+	window, err := time.ParseDuration(fireLimit.Window)
+	if err != nil {
+		return reserved, fmt.Errorf("automation: parse fire-limit window: %w", err)
+	}
+
+	now := d.now()
+	query := RunQuery{
+		Since:     now.Add(-window),
+		Until:     now,
+		ExcludeID: reserved.ID,
+	}
+	if req.Job != nil {
+		query.JobID = req.Job.ID
+	} else {
+		query.TriggerID = req.Trigger.ID
+	}
+
+	d.fireLimitMu.Lock()
+	defer d.fireLimitMu.Unlock()
+
+	count, err := d.runs.CountRuns(ctx, query)
+	if err != nil {
+		return reserved, fmt.Errorf("automation: evaluate fire limit: %w", err)
+	}
+	if count >= int64(fireLimit.Max) {
+		fireLimitErr := fmt.Errorf(
+			"%w: fires=%d limit=%d window=%s",
+			ErrFireLimitReached,
+			count,
+			fireLimit.Max,
+			window.String(),
+		)
+		return d.finishRun(ctx, reserved, RunFailed, fireLimitErr)
+	}
+	return reserved, nil
 }
 
 func (d *Dispatcher) dispatchTaskBackedAttempt(
@@ -1204,6 +1265,10 @@ func cloneRun(run *Run) *Run {
 	}
 
 	cloned := *run
+	if run.ScheduledAt != nil {
+		scheduledAt := *run.ScheduledAt
+		cloned.ScheduledAt = &scheduledAt
+	}
 	if run.StartedAt != nil {
 		startedAt := *run.StartedAt
 		cloned.StartedAt = &startedAt
@@ -1211,6 +1276,10 @@ func cloneRun(run *Run) *Run {
 	if run.EndedAt != nil {
 		endedAt := *run.EndedAt
 		cloned.EndedAt = &endedAt
+	}
+	if run.DeliveryErrorAt != nil {
+		deliveryErrorAt := *run.DeliveryErrorAt
+		cloned.DeliveryErrorAt = &deliveryErrorAt
 	}
 	return &cloned
 }

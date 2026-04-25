@@ -24,7 +24,8 @@ created, updated, and deleted through the automation API.
 <Mermaid
   chart={`flowchart TD
   Config["Config, package, or dynamic job"] --> Scheduler["Scheduler"]
-  Scheduler --> Dispatch["Automation dispatcher"]
+  Scheduler --> Cursor["Durable scheduler state"]
+  Cursor --> Dispatch["Automation dispatcher"]
   Manual["Manual trigger command"] --> Dispatch
   Dispatch --> FireLimit["Fire-limit and concurrency checks"]
   FireLimit --> Run["automation_runs row"]
@@ -70,6 +71,26 @@ Cron expressions use five fields. AGH does not accept a seconds field.
 
 The scheduler skips a one-time `at` job if its timestamp is already in the past when the job is
 registered. After an `at` job fires, AGH unregisters it from the scheduler.
+
+## Durable scheduler state
+
+AGH stores one durable scheduler cursor per scheduled job. The cursor records the next scheduled
+fire time, the last scheduled fire time, the last fire ID, the catch-up policy, and misfire
+counters. When a scheduled fire is due, AGH advances this cursor and creates the run reservation
+before dispatching work to the agent. If the daemon stops after the cursor advances, restart resumes
+from the next cursor and does not dispatch the already claimed fire again.
+
+The current catch-up policy is `skip_missed`. On boot, if the durable cursor points to a fire time
+that passed while the daemon was down, AGH records the missed fire as a misfire and advances the
+cursor to the next future fire. It does not dispatch stale scheduled work during boot
+reconciliation.
+
+Inspect scheduler state through:
+
+- `agh automation jobs get <job-id>` for the job-local `next_run`, `last_scheduled_at`,
+  `last_fire_id`, `catch_up_policy`, and `misfire_count`
+- `agh observe health -o json` at `health.automation.scheduled_jobs`
+- the HTTP job payload, where `job.scheduler` mirrors the durable scheduler cursor
 
 ### Cron
 
@@ -234,6 +255,9 @@ agh automation jobs trigger <job-id>
 ## Monitoring runs
 
 Every accepted dispatch writes an `automation_runs` row. Runs are listed newest first.
+Scheduled runs include a stable `fire_id` and `scheduled_at` timestamp so operators can connect run
+history back to the scheduler cursor. Delivery failures are recorded as `delivery_error` and
+`delivery_error_at`; they do not roll back or rewrite scheduler cursor state.
 
 | Status      | Meaning                                                            |
 | ----------- | ------------------------------------------------------------------ |

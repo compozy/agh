@@ -74,6 +74,16 @@ const (
 	RunCancelled RunStatus = "canceled"
 )
 
+// SchedulerCatchUpPolicy identifies how missed scheduled fires are reconciled
+// after daemon downtime.
+type SchedulerCatchUpPolicy string
+
+const (
+	// SchedulerCatchUpPolicySkipMissed records missed fires as misfires and
+	// advances to the next future cursor without dispatching stale work.
+	SchedulerCatchUpPolicySkipMissed SchedulerCatchUpPolicy = "skip_missed"
+)
+
 // ActivationSource identifies which ingress path produced an activation envelope.
 type ActivationSource string
 
@@ -157,17 +167,21 @@ type FireLimitConfig struct {
 
 // Run records the execution state of a single automation fire.
 type Run struct {
-	ID        string     `json:"id"`
-	JobID     string     `json:"job_id,omitempty"`
-	TriggerID string     `json:"trigger_id,omitempty"`
-	SessionID string     `json:"session_id,omitempty"`
-	TaskID    string     `json:"task_id,omitempty"`
-	TaskRunID string     `json:"task_run_id,omitempty"`
-	Status    RunStatus  `json:"status"`
-	Attempt   int        `json:"attempt"`
-	StartedAt *time.Time `json:"started_at,omitempty"`
-	EndedAt   *time.Time `json:"ended_at,omitempty"`
-	Error     string     `json:"error,omitempty"`
+	ID              string     `json:"id"`
+	JobID           string     `json:"job_id,omitempty"`
+	TriggerID       string     `json:"trigger_id,omitempty"`
+	SessionID       string     `json:"session_id,omitempty"`
+	TaskID          string     `json:"task_id,omitempty"`
+	TaskRunID       string     `json:"task_run_id,omitempty"`
+	FireID          string     `json:"fire_id,omitempty"`
+	Status          RunStatus  `json:"status"`
+	Attempt         int        `json:"attempt"`
+	ScheduledAt     *time.Time `json:"scheduled_at,omitempty"`
+	StartedAt       *time.Time `json:"started_at,omitempty"`
+	EndedAt         *time.Time `json:"ended_at,omitempty"`
+	Error           string     `json:"error,omitempty"`
+	DeliveryError   string     `json:"delivery_error,omitempty"`
+	DeliveryErrorAt *time.Time `json:"delivery_error_at,omitempty"`
 }
 
 // ActivationEnvelope is the normalized trigger input regardless of source.
@@ -177,4 +191,39 @@ type ActivationEnvelope struct {
 	WorkspaceID string           `json:"workspace_id,omitempty"`
 	Source      ActivationSource `json:"source"`
 	Data        map[string]any   `json:"data"`
+}
+
+// SchedulerState stores the durable scheduling cursor for one automation job.
+type SchedulerState struct {
+	JobID                     string                 `json:"job_id"`
+	NextRunAt                 *time.Time             `json:"next_run_at,omitempty"`
+	LastRunAt                 *time.Time             `json:"last_run_at,omitempty"`
+	LastScheduledAt           *time.Time             `json:"last_scheduled_at,omitempty"`
+	LastFireID                string                 `json:"last_fire_id,omitempty"`
+	ScheduleHash              string                 `json:"schedule_hash,omitempty"`
+	CatchUpPolicy             SchedulerCatchUpPolicy `json:"catch_up_policy"`
+	MisfireGraceSeconds       int                    `json:"misfire_grace_seconds"`
+	ConsecutiveResumeFailures int                    `json:"consecutive_resume_failures"`
+	LastMisfireAt             *time.Time             `json:"last_misfire_at,omitempty"`
+	MisfireCount              int                    `json:"misfire_count"`
+	UpdatedAt                 time.Time              `json:"updated_at"`
+}
+
+// SchedulerClaim reserves one scheduled fire after the durable cursor has
+// been advanced.
+type SchedulerClaim struct {
+	JobID        string
+	RunID        string
+	FireID       string
+	ScheduledAt  time.Time
+	NextRunAt    *time.Time
+	ClaimedAt    time.Time
+	ScheduleHash string
+}
+
+// SchedulerClaimResult reports the state and pre-created run for one claimed
+// scheduled fire.
+type SchedulerClaimResult struct {
+	State SchedulerState
+	Run   Run
 }

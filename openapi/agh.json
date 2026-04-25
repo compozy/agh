@@ -359,6 +359,59 @@
                                                         "required": ["mode"],
                                                         "type": "object"
                                                     },
+                                                    "scheduler": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "catch_up_policy": {
+                                                                "type": "string"
+                                                            },
+                                                            "consecutive_resume_failures": {
+                                                                "type": "integer"
+                                                            },
+                                                            "job_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_fire_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_misfire_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "last_run_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "last_scheduled_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "misfire_count": {
+                                                                "type": "integer"
+                                                            },
+                                                            "misfire_grace_seconds": {
+                                                                "type": "integer"
+                                                            },
+                                                            "next_run_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "registered": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "updated_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["job_id", "registered"],
+                                                        "type": "object"
+                                                    },
                                                     "scope": {
                                                         "enum": ["global", "workspace"],
                                                         "type": "string"
@@ -697,6 +750,59 @@
                                                     "required": ["mode"],
                                                     "type": "object"
                                                 },
+                                                "scheduler": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "catch_up_policy": {
+                                                            "type": "string"
+                                                        },
+                                                        "consecutive_resume_failures": {
+                                                            "type": "integer"
+                                                        },
+                                                        "job_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_fire_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_misfire_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_run_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_scheduled_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "misfire_count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "misfire_grace_seconds": {
+                                                            "type": "integer"
+                                                        },
+                                                        "next_run_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "registered": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "updated_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["job_id", "registered"],
+                                                    "type": "object"
+                                                },
                                                 "scope": {
                                                     "enum": ["global", "workspace"],
                                                     "type": "string"
@@ -1030,6 +1136,59 @@
                                                         }
                                                     },
                                                     "required": ["mode"],
+                                                    "type": "object"
+                                                },
+                                                "scheduler": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "catch_up_policy": {
+                                                            "type": "string"
+                                                        },
+                                                        "consecutive_resume_failures": {
+                                                            "type": "integer"
+                                                        },
+                                                        "job_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_fire_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_misfire_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_run_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_scheduled_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "misfire_count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "misfire_grace_seconds": {
+                                                            "type": "integer"
+                                                        },
+                                                        "next_run_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "registered": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "updated_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["job_id", "registered"],
                                                     "type": "object"
                                                 },
                                                 "scope": {
@@ -1379,6 +1538,59 @@
                                                     "required": ["mode"],
                                                     "type": "object"
                                                 },
+                                                "scheduler": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "catch_up_policy": {
+                                                            "type": "string"
+                                                        },
+                                                        "consecutive_resume_failures": {
+                                                            "type": "integer"
+                                                        },
+                                                        "job_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_fire_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_misfire_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_run_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "last_scheduled_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "misfire_count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "misfire_grace_seconds": {
+                                                            "type": "integer"
+                                                        },
+                                                        "next_run_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "registered": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "updated_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["job_id", "registered"],
+                                                    "type": "object"
+                                                },
                                                 "scope": {
                                                     "enum": ["global", "workspace"],
                                                     "type": "string"
@@ -1612,6 +1824,14 @@
                                                     "attempt": {
                                                         "type": "integer"
                                                     },
+                                                    "delivery_error": {
+                                                        "type": "string"
+                                                    },
+                                                    "delivery_error_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
                                                     "ended_at": {
                                                         "format": "date-time",
                                                         "nullable": true,
@@ -1620,10 +1840,18 @@
                                                     "error": {
                                                         "type": "string"
                                                     },
+                                                    "fire_id": {
+                                                        "type": "string"
+                                                    },
                                                     "id": {
                                                         "type": "string"
                                                     },
                                                     "job_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "scheduled_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
                                                         "type": "string"
                                                     },
                                                     "session_id": {
@@ -1766,6 +1994,14 @@
                                                 "attempt": {
                                                     "type": "integer"
                                                 },
+                                                "delivery_error": {
+                                                    "type": "string"
+                                                },
+                                                "delivery_error_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
                                                 "ended_at": {
                                                     "format": "date-time",
                                                     "nullable": true,
@@ -1774,10 +2010,18 @@
                                                 "error": {
                                                     "type": "string"
                                                 },
+                                                "fire_id": {
+                                                    "type": "string"
+                                                },
                                                 "id": {
                                                     "type": "string"
                                                 },
                                                 "job_id": {
+                                                    "type": "string"
+                                                },
+                                                "scheduled_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
                                                     "type": "string"
                                                 },
                                                 "session_id": {
@@ -1969,6 +2213,14 @@
                                                     "attempt": {
                                                         "type": "integer"
                                                     },
+                                                    "delivery_error": {
+                                                        "type": "string"
+                                                    },
+                                                    "delivery_error_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
                                                     "ended_at": {
                                                         "format": "date-time",
                                                         "nullable": true,
@@ -1977,10 +2229,18 @@
                                                     "error": {
                                                         "type": "string"
                                                     },
+                                                    "fire_id": {
+                                                        "type": "string"
+                                                    },
                                                     "id": {
                                                         "type": "string"
                                                     },
                                                     "job_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "scheduled_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
                                                         "type": "string"
                                                     },
                                                     "session_id": {
@@ -2107,6 +2367,14 @@
                                                 "attempt": {
                                                     "type": "integer"
                                                 },
+                                                "delivery_error": {
+                                                    "type": "string"
+                                                },
+                                                "delivery_error_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
                                                 "ended_at": {
                                                     "format": "date-time",
                                                     "nullable": true,
@@ -2115,10 +2383,18 @@
                                                 "error": {
                                                     "type": "string"
                                                 },
+                                                "fire_id": {
+                                                    "type": "string"
+                                                },
                                                 "id": {
                                                     "type": "string"
                                                 },
                                                 "job_id": {
+                                                    "type": "string"
+                                                },
+                                                "scheduled_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
                                                     "type": "string"
                                                 },
                                                 "session_id": {
@@ -3353,6 +3629,14 @@
                                                     "attempt": {
                                                         "type": "integer"
                                                     },
+                                                    "delivery_error": {
+                                                        "type": "string"
+                                                    },
+                                                    "delivery_error_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
                                                     "ended_at": {
                                                         "format": "date-time",
                                                         "nullable": true,
@@ -3361,10 +3645,18 @@
                                                     "error": {
                                                         "type": "string"
                                                     },
+                                                    "fire_id": {
+                                                        "type": "string"
+                                                    },
                                                     "id": {
                                                         "type": "string"
                                                     },
                                                     "job_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "scheduled_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
                                                         "type": "string"
                                                     },
                                                     "session_id": {
@@ -11492,6 +11784,61 @@
                                                     "format": "date-time",
                                                     "nullable": true,
                                                     "type": "string"
+                                                },
+                                                "scheduled_jobs": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "catch_up_policy": {
+                                                                "type": "string"
+                                                            },
+                                                            "consecutive_resume_failures": {
+                                                                "type": "integer"
+                                                            },
+                                                            "job_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_fire_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "last_misfire_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "last_run_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "last_scheduled_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "misfire_count": {
+                                                                "type": "integer"
+                                                            },
+                                                            "misfire_grace_seconds": {
+                                                                "type": "integer"
+                                                            },
+                                                            "next_run_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "registered": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "updated_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["job_id", "registered"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
                                                 },
                                                 "scheduler_running": {
                                                     "type": "boolean"
@@ -33895,6 +34242,14 @@
                                                             "attempt": {
                                                                 "type": "integer"
                                                             },
+                                                            "delivery_error": {
+                                                                "type": "string"
+                                                            },
+                                                            "delivery_error_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
                                                             "ended_at": {
                                                                 "format": "date-time",
                                                                 "nullable": true,
@@ -33903,10 +34258,18 @@
                                                             "error": {
                                                                 "type": "string"
                                                             },
+                                                            "fire_id": {
+                                                                "type": "string"
+                                                            },
                                                             "id": {
                                                                 "type": "string"
                                                             },
                                                             "job_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "scheduled_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
                                                                 "type": "string"
                                                             },
                                                             "session_id": {
@@ -34114,6 +34477,14 @@
                                                             "attempt": {
                                                                 "type": "integer"
                                                             },
+                                                            "delivery_error": {
+                                                                "type": "string"
+                                                            },
+                                                            "delivery_error_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
                                                             "ended_at": {
                                                                 "format": "date-time",
                                                                 "nullable": true,
@@ -34122,10 +34493,18 @@
                                                             "error": {
                                                                 "type": "string"
                                                             },
+                                                            "fire_id": {
+                                                                "type": "string"
+                                                            },
                                                             "id": {
                                                                 "type": "string"
                                                             },
                                                             "job_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "scheduled_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
                                                                 "type": "string"
                                                             },
                                                             "session_id": {
