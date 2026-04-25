@@ -56,6 +56,7 @@ type Info struct {
 	State        State
 	StopReason   store.StopReason
 	StopDetail   string
+	Failure      *store.SessionFailure
 	ACPSessionID string
 	ACPCaps      acp.Caps
 	Liveness     *store.SessionLivenessMeta
@@ -80,6 +81,7 @@ type Session struct {
 	stopCause    StopCause
 	stopReason   store.StopReason
 	stopDetail   string
+	failure      *store.SessionFailure
 	ACPSessionID string
 	ACPCaps      acp.Caps
 	Liveness     *store.SessionLivenessMeta
@@ -121,6 +123,7 @@ func (s *Session) Info() *Info {
 		State:        s.State,
 		StopReason:   s.stopReason,
 		StopDetail:   s.stopDetail,
+		Failure:      store.CloneSessionFailure(s.failure),
 		ACPSessionID: s.ACPSessionID,
 		ACPCaps:      cloneCaps(s.ACPCaps),
 		Liveness:     store.CloneSessionLivenessMeta(s.Liveness),
@@ -597,6 +600,16 @@ func (s *Session) setStopClassification(reason store.StopReason, detail string) 
 	s.stopDetail = strings.TrimSpace(detail)
 }
 
+func (s *Session) setFailure(failure *store.SessionFailure) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failure = store.CloneSessionFailure(failure)
+}
+
 func (s *Session) setEnvironment(environment *store.SessionEnvironmentMeta, now time.Time) {
 	if s == nil {
 		return
@@ -638,6 +651,19 @@ func (s *Session) markStopped(now time.Time) error {
 	return s.transition(StateStopped, now)
 }
 
+func (s *Session) markStartFailed(now time.Time) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.State = StateStopped
+	if !now.IsZero() {
+		s.UpdatedAt = now
+	}
+}
+
 func (s *Session) clearStopClassification() {
 	if s == nil {
 		return
@@ -651,6 +677,7 @@ func (s *Session) clearStopClassification() {
 	}
 	s.stopReason = ""
 	s.stopDetail = ""
+	s.failure = nil
 }
 
 func (s *Session) transition(next State, now time.Time) error {
@@ -715,6 +742,7 @@ func (s *Session) Meta() store.SessionMeta {
 		State:        string(s.State),
 		StopReason:   stopReasonPointer(s.stopReason),
 		StopDetail:   s.stopDetail,
+		Failure:      store.CloneSessionFailure(s.failure),
 		ACPSessionID: stringPointer(s.ACPSessionID),
 		Liveness:     store.CloneSessionLivenessMeta(s.Liveness),
 		Environment:  cloneSessionEnvironmentMeta(s.Environment),

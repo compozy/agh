@@ -16,6 +16,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/store"
 )
 
 const (
@@ -146,12 +147,12 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 
 	normalized, err := normalizeStartOpts(opts)
 	if err != nil {
-		return nil, err
+		return nil, WrapFailure(store.FailureStartup, "invalid ACP start options", err)
 	}
 
 	process, err := d.launchAgentProcess(ctx, normalized)
 	if err != nil {
-		return nil, err
+		return nil, WrapFailure(store.FailureStartup, "agent subprocess startup failed", err)
 	}
 
 	if err := d.initializeConnection(ctx, process, normalized.AgentName); err != nil {
@@ -260,7 +261,11 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 		initRequest,
 	)
 	if err != nil {
-		return fmt.Errorf("acp: initialize session for %q: %w", agentName, err)
+		return WrapFailure(
+			store.FailureHandshake,
+			"ACP initialize handshake failed",
+			fmt.Errorf("acp: initialize session for %q: %w", agentName, err),
+		)
 	}
 
 	process.Caps = Caps{
@@ -278,12 +283,12 @@ func (d *Driver) negotiateSession(ctx context.Context, process *AgentProcess, no
 
 func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normalized StartOpts) error {
 	if !process.Caps.SupportsLoadSession {
-		return fmt.Errorf(
+		return WrapFailure(store.FailureLoad, "ACP session/load is not supported", fmt.Errorf(
 			"%w: agent %q does not support session/load for resume %q",
 			ErrAgentDoesNotSupportSession,
 			normalized.AgentName,
 			normalized.ResumeSessionID,
-		)
+		))
 	}
 
 	loadRequest := acpsdk.LoadSessionRequest{
@@ -304,19 +309,23 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 		loadWireRequest,
 	)
 	if err != nil {
-		return fmt.Errorf(
+		return WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
 			"%w: load session %q for %q: %w",
 			ErrLoadSessionFailed,
 			normalized.ResumeSessionID,
 			normalized.AgentName,
 			err,
-		)
+		))
 	}
 
 	process.SessionID = normalized.ResumeSessionID
 	process.Caps = captureCaps(process.Caps.SupportsLoadSession, loadResponse.Modes, loadResponse.Models)
 	if err := d.applySessionMode(ctx, process, normalized.Permissions); err != nil {
-		return fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err)
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session mode negotiation failed",
+			fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err),
+		)
 	}
 	return nil
 }
@@ -338,13 +347,21 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 		newWireRequest,
 	)
 	if err != nil {
-		return fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err)
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session/new failed",
+			fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err),
+		)
 	}
 
 	process.SessionID = string(newResponse.SessionId)
 	process.Caps = captureCaps(process.Caps.SupportsLoadSession, newResponse.Modes, newResponse.Models)
 	if err := d.applySessionMode(ctx, process, normalized.Permissions); err != nil {
-		return fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err)
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session mode negotiation failed",
+			fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err),
+		)
 	}
 	return nil
 }
@@ -649,12 +666,14 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	close(cancellationDone)
 
 	if err != nil {
+		failure, _ := FailureFromError(err, store.FailurePrompt)
 		event := AgentEvent{
 			Type:      EventTypeError,
 			SessionID: proc.SessionID,
 			TurnID:    req.TurnID,
 			Timestamp: timeNowUTC(),
-			Error:     err.Error(),
+			Error:     firstNonEmptyFailureText(failureSummary(failure), err.Error()),
+			Failure:   failure,
 		}
 		proc.emitPromptEvent(event)
 		return
@@ -736,7 +755,11 @@ func (p *AgentProcess) waitForExit() {
 			waitErr = fmt.Errorf("acp: wait for subprocess tree exit: %w", groupWaitErr)
 		}
 	} else if waitErr != nil {
-		waitErr = fmt.Errorf("acp: subprocess exited: %w", attachStderr(waitErr, p.Stderr()))
+		waitErr = WrapFailure(
+			store.FailureProcess,
+			"ACP subprocess exited unexpectedly",
+			fmt.Errorf("acp: subprocess exited: %w", attachStderr(waitErr, p.Stderr())),
+		)
 	}
 	p.setWaitError(waitErr)
 	if p.cancelProcess != nil {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -495,6 +496,32 @@ func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
 				DeletedTokenStats:        2,
 				DeletedPermissionLogRows: 1,
 			},
+			Failures: observepkg.FailureHealth{
+				Status: " degraded ",
+				Total:  1,
+				ByKind: map[store.FailureKind]int{store.FailureProtocol: 1},
+				Recent: []observepkg.SessionFailureHealth{{
+					SessionID:       " sess-protocol ",
+					AgentName:       " coder ",
+					Provider:        " claude ",
+					WorkspaceID:     " ws-1 ",
+					State:           " stopped ",
+					FailureKind:     store.FailureProtocol,
+					Summary:         "bad frame token=super-secret",
+					CrashBundlePath: "/tmp/crash-token=super-secret.json",
+					UpdatedAt:       lastActivityAt,
+				}},
+			},
+			AgentProbes: []acp.ProbeResult{{
+				AgentName:  " coder ",
+				Provider:   " claude ",
+				Command:    "agent --api-key=super-secret",
+				Executable: " /usr/bin/agent ",
+				Status:     " missing ",
+				Error:      "resolve failed token=super-secret",
+				CheckedAt:  lastActivityAt,
+				DurationMS: 12,
+			}},
 			Activities: []observepkg.SessionActivityHealth{{
 				SessionID:        " sess-activity ",
 				TurnID:           " turn-activity ",
@@ -542,6 +569,32 @@ func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
 			health.Retention.LastCutoffAt == &lastCutoffAt ||
 			!health.Retention.LastCutoffAt.Equal(lastCutoffAt) {
 			t.Fatalf("Retention.LastCutoffAt = %#v, want cloned %s", health.Retention.LastCutoffAt, lastCutoffAt)
+		}
+		if health.Failures.Status != "degraded" ||
+			health.Failures.Total != 1 ||
+			health.Failures.ByKind[store.FailureProtocol] != 1 ||
+			len(health.Failures.Recent) != 1 {
+			t.Fatalf("Failures = %#v, want classified lifecycle failure payload", health.Failures)
+		}
+		failure := health.Failures.Recent[0]
+		if failure.SessionID != "sess-protocol" ||
+			failure.FailureKind != store.FailureProtocol ||
+			strings.Contains(failure.Summary, "super-secret") ||
+			strings.Contains(failure.CrashBundlePath, "super-secret") {
+			t.Fatalf("Failures.Recent[0] = %#v, want trimmed and redacted payload", failure)
+		}
+		if got, want := len(health.AgentProbes), 1; got != want {
+			t.Fatalf("len(AgentProbes) = %d, want %d", got, want)
+		}
+		probe := health.AgentProbes[0]
+		if probe.AgentName != "coder" ||
+			probe.Provider != "claude" ||
+			probe.Executable != "/usr/bin/agent" ||
+			probe.Status != "missing" ||
+			probe.DurationMS != 12 ||
+			strings.Contains(probe.Command, "super-secret") ||
+			strings.Contains(probe.Error, "super-secret") {
+			t.Fatalf("AgentProbes[0] = %#v, want trimmed and redacted probe payload", probe)
 		}
 	})
 }

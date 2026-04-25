@@ -415,6 +415,11 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				{Label: "Workspace", Value: stringOrDash(displaySessionWorkspace(info))},
 				{Label: "Channel", Value: stringOrDash(info.Channel)},
 				{Label: "State", Value: stringOrDash(string(info.State))},
+				{Label: "Stop Reason", Value: stringOrDash(string(info.StopReason))},
+				{Label: "Stop Detail", Value: stringOrDash(info.StopDetail)},
+				{Label: "Failure Kind", Value: stringOrDash(sessionFailureKind(info))},
+				{Label: "Failure Summary", Value: stringOrDash(sessionFailureSummary(info))},
+				{Label: "Crash Bundle", Value: stringOrDash(sessionCrashBundlePath(info))},
 				{Label: "ACP Session", Value: stringOrDash(info.ACPSessionID)},
 				{Label: "Created", Value: stringOrDash(formatTime(info.CreatedAt))},
 				{Label: "Updated", Value: stringOrDash(formatTime(info.UpdatedAt))},
@@ -453,6 +458,10 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				"workspace",
 				"channel",
 				"state",
+				"stop_reason",
+				"failure_kind",
+				"failure_summary",
+				"crash_bundle_path",
 				"acp_session_id",
 				"created_at",
 				"updated_at",
@@ -465,6 +474,10 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				displaySessionWorkspace(info),
 				info.Channel,
 				string(info.State),
+				string(info.StopReason),
+				sessionFailureKind(info),
+				sessionFailureSummary(info),
+				sessionCrashBundlePath(info),
 				info.ACPSessionID,
 				formatTime(info.CreatedAt),
 				formatTime(info.UpdatedAt),
@@ -485,6 +498,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 			"Provider",
 			"Backend",
 			"State",
+			"Failure",
 			"Workspace",
 			"Channel",
 			"Updated",
@@ -497,6 +511,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 			"provider",
 			"environment_backend",
 			"state",
+			"failure_kind",
 			"workspace",
 			"channel",
 			"updated_at",
@@ -509,6 +524,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 				stringOrDash(item.Provider),
 				stringOrDash(sessionEnvironmentBackend(item)),
 				stringOrDash(string(item.State)),
+				stringOrDash(sessionFailureKind(item)),
 				stringOrDash(displaySessionWorkspace(item)),
 				stringOrDash(item.Channel),
 				stringOrDash(formatAge(now, item.UpdatedAt)),
@@ -522,6 +538,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 				item.Provider,
 				sessionEnvironmentBackend(item),
 				string(item.State),
+				sessionFailureKind(item),
 				displaySessionWorkspace(item),
 				item.Channel,
 				formatTime(item.UpdatedAt),
@@ -535,6 +552,27 @@ func sessionEnvironmentBackend(info SessionRecord) string {
 		return ""
 	}
 	return strings.TrimSpace(info.Environment.Backend)
+}
+
+func sessionFailureKind(info SessionRecord) string {
+	if info.Failure == nil {
+		return ""
+	}
+	return strings.TrimSpace(string(info.Failure.Kind))
+}
+
+func sessionFailureSummary(info SessionRecord) string {
+	if info.Failure == nil {
+		return ""
+	}
+	return strings.TrimSpace(info.Failure.Summary)
+}
+
+func sessionCrashBundlePath(info SessionRecord) string {
+	if info.Failure == nil {
+		return ""
+	}
+	return strings.TrimSpace(info.Failure.CrashBundlePath)
 }
 
 func sessionEventsBundle(events []SessionEventRecord) outputBundle {

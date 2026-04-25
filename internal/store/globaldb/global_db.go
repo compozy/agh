@@ -500,6 +500,12 @@ var globalSchemaMigrations = []store.Migration{
 		Name:       "create_global_schema",
 		Statements: globalSchemaStatements,
 	},
+	{
+		Version:  2,
+		Name:     "add_session_failure_diagnostics",
+		Up:       migrateSessionFailureColumns,
+		Checksum: "2026-04-24-add-session-failure-diagnostics",
+	},
 }
 
 // GlobalDB owns the global session index and observability database.

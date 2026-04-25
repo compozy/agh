@@ -548,6 +548,94 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 	}
 }
 
+func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	ctx := testutil.Context(t)
+	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
+		ID:          "sess-crash",
+		Name:        "Crashed",
+		AgentName:   "coder",
+		Provider:    "claude",
+		WorkspaceID: h.workspaceID,
+		State:       string(session.StateStopped),
+		StopReason:  store.StopAgentCrashed,
+		Failure: &store.SessionFailure{
+			Kind:            store.FailureProcess,
+			Summary:         "provider crashed token=super-secret",
+			CrashBundlePath: "/tmp/crash-token=super-secret.json",
+		},
+		CreatedAt: h.now,
+		UpdatedAt: h.now.Add(2 * time.Minute),
+	}); err != nil {
+		t.Fatalf("RegisterSession(crash) error = %v", err)
+	}
+	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
+		ID:          "sess-protocol",
+		Name:        "Protocol",
+		AgentName:   "reviewer",
+		Provider:    "codex",
+		WorkspaceID: h.workspaceID,
+		State:       string(session.StateStopped),
+		StopReason:  store.StopError,
+		Failure: &store.SessionFailure{
+			Kind:    store.FailureProtocol,
+			Summary: "bad ACP frame",
+		},
+		CreatedAt: h.now,
+		UpdatedAt: h.now.Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("RegisterSession(protocol) error = %v", err)
+	}
+	h.observer.agentProbeSource = func(context.Context) ([]acp.ProbeTarget, error) {
+		return []acp.ProbeTarget{{
+			AgentName: "coder",
+			Provider:  "claude",
+			Command:   `missing-agent --api-key=super-secret "unterminated`,
+		}}, nil
+	}
+
+	health, err := h.observer.Health(ctx)
+	if err != nil {
+		t.Fatalf("Health() error = %v", err)
+	}
+	if got, want := health.Status, "degraded"; got != want {
+		t.Fatalf("Health().Status = %q, want %q", got, want)
+	}
+	if health.Failures.Status != "degraded" ||
+		health.Failures.Total != 2 ||
+		health.Failures.ByKind[store.FailureProcess] != 1 ||
+		health.Failures.ByKind[store.FailureProtocol] != 1 {
+		t.Fatalf("Health().Failures = %#v, want classified lifecycle failures", health.Failures)
+	}
+	if got, want := len(health.Failures.Recent), 2; got != want {
+		t.Fatalf("len(Health().Failures.Recent) = %d, want %d", got, want)
+	}
+	recent := health.Failures.Recent[0]
+	if recent.SessionID != "sess-crash" || recent.FailureKind != store.FailureProcess {
+		t.Fatalf("Health().Failures.Recent[0] = %#v, want most recent process failure", recent)
+	}
+	if strings.Contains(recent.Summary, "super-secret") ||
+		strings.Contains(recent.CrashBundlePath, "super-secret") {
+		t.Fatalf("Health().Failures.Recent[0] = %#v, want redacted diagnostics", recent)
+	}
+	if !strings.Contains(recent.Summary, "[REDACTED]") ||
+		!strings.Contains(recent.CrashBundlePath, "[REDACTED]") {
+		t.Fatalf("Health().Failures.Recent[0] = %#v, want redacted markers", recent)
+	}
+	if got, want := len(health.AgentProbes), 1; got != want {
+		t.Fatalf("len(Health().AgentProbes) = %d, want %d", got, want)
+	}
+	probe := health.AgentProbes[0]
+	if probe.Status != acp.ProbeStatusInvalid {
+		t.Fatalf("Health().AgentProbes[0] = %#v, want invalid probe", probe)
+	}
+	if strings.Contains(probe.Command, "super-secret") || strings.Contains(probe.Error, "super-secret") {
+		t.Fatalf("Health().AgentProbes[0] = %#v, want redacted probe command and error", probe)
+	}
+}
+
 type harness struct {
 	observer    *Observer
 	registry    *globaldb.GlobalDB

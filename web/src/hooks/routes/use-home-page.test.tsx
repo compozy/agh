@@ -93,6 +93,10 @@ const HEALTH_FIXTURE: HealthPayload = {
     deleted_token_stats: 0,
     deleted_permission_log_rows: 0,
   },
+  failures: {
+    status: "ok",
+    total: 0,
+  },
   version: "0.1.0-test",
 };
 

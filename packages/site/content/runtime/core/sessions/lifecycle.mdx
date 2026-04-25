@@ -184,14 +184,52 @@ Inspect the current session state and stop classification at any time:
 agh session status sess-1234
 ```
 
+## Failure diagnostics
+
+Stop reasons answer "why did the AGH session stop?" Failure diagnostics answer "what kind of
+lifecycle failure did AGH classify, and what evidence is available?" When a lifecycle failure occurs,
+AGH persists a `failure` object with:
+
+- `kind`: stable machine-readable failure kind
+- `summary`: bounded redacted diagnostic text
+- `crash_bundle_path`: path to a redacted crash bundle when AGH captured one
+
+The same failure object is exposed through session status, session list JSON, session SSE terminal
+events, and observe health.
+
+```bash
+agh session status sess-1234 -o json | jq '.session.failure'
+```
+
+Current failure kinds are:
+
+| Failure kind           | Meaning                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `startup_failure`      | AGH could not finish preparing, launching, initializing, or resuming the provider.       |
+| `handshake_failure`    | The subprocess launched but ACP initialization did not complete.                         |
+| `load_session_failure` | ACP `session/load` failed while resuming an existing provider session.                   |
+| `protocol_failure`     | ACP returned a structured protocol/request error outside a prompt-specific path.         |
+| `prompt_failure`       | ACP prompt submission or prompt streaming failed.                                        |
+| `cancellation`         | The operation was canceled by user action or context cancellation.                       |
+| `permission_failure`   | A lifecycle hook or permission boundary denied continuation.                             |
+| `process_exit`         | The provider subprocess exited unexpectedly or returned a wait error.                    |
+| `transport_failure`    | The ACP stdio transport closed or failed while AGH expected protocol traffic.            |
+| `timeout`              | Runtime supervision or lifecycle timeout expired.                                        |
+| `unknown_failure`      | AGH had an error but no more specific kind was available.                                |
+
+Crash bundles are written under `~/.agh/logs/crash-bundles/` by default. They are JSON documents
+with schema `agh.session_crash_bundle.v1`, session identity, provider identity, failure kind,
+process metadata, error text, and captured stderr when available. Bundle contents are bounded and
+redacted before they are written, and files are created with owner-only permissions.
+
 ## Crash repair and restart behavior
 
 AGH repairs stale metadata the next time it reads a stopped session after an unclean daemon exit.
 That repair is what makes status, list, and resume safe after a crash:
 
-- stale `active` becomes `stopped` with `agent_crashed` and detail `daemon crashed while session active`
-- stale `stopping` becomes `stopped` with `agent_crashed` and detail `stop did not complete`
-- stale `starting` becomes `stopped` with `error` and detail `start did not complete`
+- stale `active` becomes `stopped` with `agent_crashed`, `process_exit`, and detail `daemon crashed while session active`
+- stale `stopping` becomes `stopped` with `agent_crashed`, `process_exit`, and detail `stop did not complete`
+- stale `starting` becomes `stopped` with `error`, `startup_failure`, and detail `start did not complete`
 
 This repair happens before resume validation. The repaired session keeps the same AGH session ID.
 
@@ -199,7 +237,7 @@ This repair happens before resume validation. The repaired session keeps the sam
 
 Every session owns a directory under `~/.agh/sessions/<session-id>/`:
 
-- `meta.json`: durable session metadata such as state, workspace, stop reason, and ACP session ID
+- `meta.json`: durable session metadata such as state, workspace, stop reason, failure diagnostics, and ACP session ID
 - `events.db`: persisted event, token usage, and hook-run history
 
 That durable store is what makes [resume](/runtime/core/sessions/resume), [event replay](/runtime/core/sessions/events), and [approval audit](/runtime/core/sessions/permissions) possible.

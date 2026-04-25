@@ -44,6 +44,32 @@ describe("daemon contract types", () => {
         deleted_token_stats: number;
         deleted_permission_log_rows: number;
       };
+      failures: {
+        status: string;
+        total: number;
+        by_kind?: Record<string, number>;
+        recent?: Array<{
+          session_id: string;
+          agent_name?: string;
+          provider?: string;
+          workspace_id?: string;
+          state?: string;
+          failure_kind: string;
+          summary?: string;
+          crash_bundle_path?: string;
+          updated_at: string;
+        }>;
+      };
+      agent_probes?: Array<{
+        agent_name?: string;
+        provider?: string;
+        command?: string;
+        executable?: string;
+        status: string;
+        error?: string;
+        checked_at: string;
+        duration_ms: number;
+      }>;
       version: string;
     }>();
 

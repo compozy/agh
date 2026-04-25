@@ -56,22 +56,23 @@ type UIMessagePart struct {
 
 // UIAgentEventPayload mirrors the prompt-stream data payload shape.
 type UIAgentEventPayload struct {
-	Type       string               `json:"type"`
-	SessionID  string               `json:"session_id,omitempty"`
-	TurnID     string               `json:"turn_id,omitempty"`
-	RequestID  string               `json:"request_id,omitempty"`
-	Timestamp  string               `json:"timestamp,omitempty"`
-	Text       string               `json:"text,omitempty"`
-	Title      string               `json:"title,omitempty"`
-	ToolCallID string               `json:"tool_call_id,omitempty"`
-	StopReason string               `json:"stop_reason,omitempty"`
-	Action     string               `json:"action,omitempty"`
-	Resource   string               `json:"resource,omitempty"`
-	Decision   string               `json:"decision,omitempty"`
-	Error      string               `json:"error,omitempty"`
-	Usage      *UITokenUsagePayload `json:"usage,omitempty"`
-	Runtime    *acp.RuntimeActivity `json:"runtime,omitempty"`
-	Raw        json.RawMessage      `json:"raw,omitempty"`
+	Type       string                `json:"type"`
+	SessionID  string                `json:"session_id,omitempty"`
+	TurnID     string                `json:"turn_id,omitempty"`
+	RequestID  string                `json:"request_id,omitempty"`
+	Timestamp  string                `json:"timestamp,omitempty"`
+	Text       string                `json:"text,omitempty"`
+	Title      string                `json:"title,omitempty"`
+	ToolCallID string                `json:"tool_call_id,omitempty"`
+	StopReason string                `json:"stop_reason,omitempty"`
+	Action     string                `json:"action,omitempty"`
+	Resource   string                `json:"resource,omitempty"`
+	Decision   string                `json:"decision,omitempty"`
+	Error      string                `json:"error,omitempty"`
+	Failure    *store.SessionFailure `json:"failure,omitempty"`
+	Usage      *UITokenUsagePayload  `json:"usage,omitempty"`
+	Runtime    *acp.RuntimeActivity  `json:"runtime,omitempty"`
+	Raw        json.RawMessage       `json:"raw,omitempty"`
 }
 
 // UITokenUsagePayload mirrors the prompt-stream token usage payload.
@@ -121,6 +122,7 @@ func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
 		Resource:   event.Resource,
 		Decision:   event.Decision,
 		Error:      event.Error,
+		Failure:    store.CloneSessionFailure(event.Failure),
 		Usage:      uiTokenUsagePayloadFromUsage(event.Usage),
 		Runtime:    cloneRuntimeActivity(event.Runtime),
 		Raw:        payloadJSONBytes(event.Raw),

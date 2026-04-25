@@ -9322,6 +9322,22 @@
                                                                 },
                                                                 "type": "object"
                                                             },
+                                                            "failure": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "crash_bundle_path": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "kind": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "summary": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["kind"],
+                                                                "type": "object"
+                                                            },
                                                             "id": {
                                                                 "type": "string"
                                                             },
@@ -9769,6 +9785,22 @@
                                                                         "type": "string"
                                                                     }
                                                                 },
+                                                                "type": "object"
+                                                            },
+                                                            "failure": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "crash_bundle_path": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "kind": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "summary": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["kind"],
                                                                 "type": "object"
                                                             },
                                                             "id": {
@@ -11568,6 +11600,45 @@
                                                     },
                                                     "type": "array"
                                                 },
+                                                "agent_probes": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "checked_at": {
+                                                                "format": "date-time",
+                                                                "type": "string"
+                                                            },
+                                                            "command": {
+                                                                "type": "string"
+                                                            },
+                                                            "duration_ms": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "error": {
+                                                                "type": "string"
+                                                            },
+                                                            "executable": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            },
+                                                            "status": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "checked_at",
+                                                            "duration_ms",
+                                                            "status"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
                                                 "bridges": {
                                                     "properties": {
                                                         "auth_failures_total": {
@@ -11629,6 +11700,65 @@
                                                         "status_counts",
                                                         "total_instances"
                                                     ],
+                                                    "type": "object"
+                                                },
+                                                "failures": {
+                                                    "properties": {
+                                                        "by_kind": {
+                                                            "additionalProperties": {
+                                                                "type": "integer"
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "recent": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "agent_name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "crash_bundle_path": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "failure_kind": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "session_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "state": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "summary": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "updated_at": {
+                                                                        "format": "date-time",
+                                                                        "type": "string"
+                                                                    },
+                                                                    "workspace_id": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "failure_kind",
+                                                                    "session_id",
+                                                                    "updated_at"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "total": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": ["status", "total"],
                                                     "type": "object"
                                                 },
                                                 "global_db_size_bytes": {
@@ -11727,6 +11857,7 @@
                                                 "active_agents",
                                                 "active_sessions",
                                                 "bridges",
+                                                "failures",
                                                 "global_db_size_bytes",
                                                 "persistence",
                                                 "retention",
@@ -14255,6 +14386,22 @@
                                                         },
                                                         "type": "object"
                                                     },
+                                                    "failure": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "crash_bundle_path": {
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "summary": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["kind"],
+                                                        "type": "object"
+                                                    },
                                                     "id": {
                                                         "type": "string"
                                                     },
@@ -14520,6 +14667,22 @@
                                                             "type": "string"
                                                         }
                                                     },
+                                                    "type": "object"
+                                                },
+                                                "failure": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "crash_bundle_path": {
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "type": "string"
+                                                        },
+                                                        "summary": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind"],
                                                     "type": "object"
                                                 },
                                                 "id": {
@@ -14858,6 +15021,22 @@
                                                     },
                                                     "type": "object"
                                                 },
+                                                "failure": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "crash_bundle_path": {
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "type": "string"
+                                                        },
+                                                        "summary": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind"],
+                                                    "type": "object"
+                                                },
                                                 "id": {
                                                     "type": "string"
                                                 },
@@ -15153,6 +15332,22 @@
                                                         "type": "string"
                                                     },
                                                     "content": {},
+                                                    "failure": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "crash_bundle_path": {
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "summary": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["kind"],
+                                                        "type": "object"
+                                                    },
                                                     "id": {
                                                         "type": "string"
                                                     },
@@ -15161,6 +15356,24 @@
                                                         "type": "integer"
                                                     },
                                                     "session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "stop_detail": {
+                                                        "type": "string"
+                                                    },
+                                                    "stop_reason": {
+                                                        "enum": [
+                                                            "completed",
+                                                            "user_canceled",
+                                                            "max_iterations",
+                                                            "loop_detected",
+                                                            "timeout",
+                                                            "budget_exceeded",
+                                                            "error",
+                                                            "agent_crashed",
+                                                            "hook_stopped",
+                                                            "shutdown"
+                                                        ],
                                                         "type": "string"
                                                     },
                                                     "timestamp": {
@@ -15340,6 +15553,22 @@
                                                                     "type": "string"
                                                                 },
                                                                 "content": {},
+                                                                "failure": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "crash_bundle_path": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "kind": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "summary": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": ["kind"],
+                                                                    "type": "object"
+                                                                },
                                                                 "id": {
                                                                     "type": "string"
                                                                 },
@@ -15348,6 +15577,24 @@
                                                                     "type": "integer"
                                                                 },
                                                                 "session_id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "stop_detail": {
+                                                                    "type": "string"
+                                                                },
+                                                                "stop_reason": {
+                                                                    "enum": [
+                                                                        "completed",
+                                                                        "user_canceled",
+                                                                        "max_iterations",
+                                                                        "loop_detected",
+                                                                        "timeout",
+                                                                        "budget_exceeded",
+                                                                        "error",
+                                                                        "agent_crashed",
+                                                                        "hook_stopped",
+                                                                        "shutdown"
+                                                                    ],
                                                                     "type": "string"
                                                                 },
                                                                 "timestamp": {
@@ -15594,6 +15841,22 @@
                                                             "type": "string"
                                                         }
                                                     },
+                                                    "type": "object"
+                                                },
+                                                "failure": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "crash_bundle_path": {
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "type": "string"
+                                                        },
+                                                        "summary": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind"],
                                                     "type": "object"
                                                 },
                                                 "id": {
@@ -34635,6 +34898,22 @@
                                                                 "type": "string"
                                                             }
                                                         },
+                                                        "type": "object"
+                                                    },
+                                                    "failure": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "crash_bundle_path": {
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "summary": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["kind"],
                                                         "type": "object"
                                                     },
                                                     "id": {

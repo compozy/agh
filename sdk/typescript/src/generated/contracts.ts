@@ -1385,6 +1385,38 @@ export interface RetentionHealth {
   deleted_permission_log_rows: number;
 }
 
+export type FailureKind = string;
+
+export interface SessionFailureHealth {
+  session_id: string;
+  agent_name?: string;
+  provider?: string;
+  workspace_id?: string;
+  state?: string;
+  failure_kind: FailureKind;
+  summary?: string;
+  crash_bundle_path?: string;
+  updated_at: ISODateTime;
+}
+
+export interface FailureHealth {
+  status: string;
+  total: number;
+  by_kind?: Record<string, number>;
+  recent?: SessionFailureHealth[];
+}
+
+export interface ProbeResult {
+  agent_name?: string;
+  provider?: string;
+  command?: string;
+  executable?: string;
+  status: string;
+  error?: string;
+  checked_at: ISODateTime;
+  duration_ms: number;
+}
+
 export interface BridgeStatusCounts {
   disabled: number;
   starting: number;
@@ -1497,6 +1529,8 @@ export interface ObserveHealth {
   session_db_size_bytes: number;
   persistence: PersistenceHealth;
   retention: RetentionHealth;
+  failures: FailureHealth;
+  agent_probes?: ProbeResult[];
   bridges: BridgeAggregateHealth;
   tasks: TaskHealth;
   activities?: SessionActivityHealth[];

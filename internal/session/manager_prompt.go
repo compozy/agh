@@ -462,6 +462,7 @@ func (m *Manager) pumpPrompt(
 		}
 
 		normalized := m.normalizeEvent(session, turnState.turnID, event)
+		normalized = m.attachPromptFailureDiagnostics(ctx, session, normalized)
 		normalized = m.preparePromptEvent(ctx, turnState, normalized)
 		if activity != nil && !runtimeEvent {
 			activity.observeEvent(normalized)

@@ -1,0 +1,148 @@
+package acp
+
+import (
+	"context"
+	"errors"
+	"io"
+	"strings"
+
+	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/pedronauck/agh/internal/store"
+)
+
+const maxFailureSummaryBytes = 2048
+
+// FailureError carries a typed lifecycle classification beside the wrapped ACP
+// error so session orchestration can persist the failure without parsing text.
+type FailureError struct {
+	Kind    store.FailureKind
+	Summary string
+	Err     error
+}
+
+func (e *FailureError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return strings.TrimSpace(e.Summary)
+}
+
+func (e *FailureError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// WrapFailure annotates err with a typed ACP/session failure classification.
+func WrapFailure(kind store.FailureKind, summary string, err error) error {
+	if err == nil {
+		return nil
+	}
+	var existing *FailureError
+	if errors.As(err, &existing) {
+		return err
+	}
+	if !store.ValidFailureKind(kind) {
+		kind = failureKindForError(err, store.FailureUnknown)
+	}
+	return &FailureError{
+		Kind:    kind,
+		Summary: diagnostics.RedactAndBound(failureDiagnosticSummary(summary, err.Error()), maxFailureSummaryBytes),
+		Err:     err,
+	}
+}
+
+// FailureFromError extracts a redacted session failure from a typed or
+// classifiable error.
+func FailureFromError(err error, fallback store.FailureKind) (*store.SessionFailure, bool) {
+	if err == nil {
+		return nil, false
+	}
+	var failureErr *FailureError
+	if errors.As(err, &failureErr) && failureErr != nil {
+		kind := failureErr.Kind
+		if !store.ValidFailureKind(kind) {
+			kind = store.FailureUnknown
+		}
+		failure := store.SessionFailure{
+			Kind: kind,
+			Summary: diagnostics.RedactAndBound(
+				firstNonEmptyFailureText(failureErr.Summary, err.Error()),
+				maxFailureSummaryBytes,
+			),
+		}
+		return &failure, true
+	}
+
+	kind := failureKindForError(err, fallback)
+	if !store.ValidFailureKind(kind) || kind == "" {
+		return nil, false
+	}
+	failure := store.SessionFailure{
+		Kind:    kind,
+		Summary: diagnostics.RedactAndBound(err.Error(), maxFailureSummaryBytes),
+	}
+	return &failure, true
+}
+
+func failureKindForError(err error, fallback store.FailureKind) store.FailureKind {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return store.FailureCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return store.FailureTimeout
+	case errors.Is(err, io.ErrClosedPipe), errors.Is(err, io.EOF):
+		return store.FailureTransport
+	}
+
+	var reqErr *acpsdk.RequestError
+	if errors.As(err, &reqErr) {
+		switch fallback {
+		case store.FailurePrompt, store.FailureLoad:
+			return fallback
+		default:
+			return store.FailureProtocol
+		}
+	}
+
+	if store.ValidFailureKind(fallback) {
+		return fallback
+	}
+	return store.FailureUnknown
+}
+
+func firstNonEmptyFailureText(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func failureDiagnosticSummary(summary string, detail string) string {
+	summary = strings.TrimSpace(summary)
+	detail = strings.TrimSpace(detail)
+	switch {
+	case summary == "":
+		return detail
+	case detail == "":
+		return summary
+	case strings.Contains(summary, detail):
+		return summary
+	default:
+		return summary + ": " + detail
+	}
+}
+
+func failureSummary(failure *store.SessionFailure) string {
+	if failure == nil {
+		return ""
+	}
+	return failure.Normalize().Summary
+}

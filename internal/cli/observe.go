@@ -188,6 +188,8 @@ func observeHealthBundle(health HealthStatus) outputBundle {
 				{Label: "Persistence", Value: stringOrDash(health.Persistence.Status)},
 				{Label: "Retention", Value: stringOrDash(observeRetentionSummary(health))},
 				{Label: "Retention Last Sweep", Value: stringOrDash(formatTimePtr(health.Retention.LastSweepAt))},
+				{Label: "Lifecycle Failures", Value: stringOrDash(observeFailureSummary(health))},
+				{Label: "Agent Probes", Value: stringOrDash(observeProbeSummary(health))},
 				{Label: "Version", Value: stringOrDash(health.Version)},
 			}), nil
 		},
@@ -201,6 +203,8 @@ func observeHealthBundle(health HealthStatus) outputBundle {
 				"session_db_size_bytes",
 				"persistence",
 				"retention",
+				"failures",
+				"agent_probes",
 				"version",
 			}, []string{
 				health.Status,
@@ -211,10 +215,36 @@ func observeHealthBundle(health HealthStatus) outputBundle {
 				strconv.FormatInt(health.SessionDBSizeBytes, 10),
 				health.Persistence.Status,
 				observeRetentionSummary(health),
+				observeFailureSummary(health),
+				observeProbeSummary(health),
 				health.Version,
 			}), nil
 		},
 	}
+}
+
+func observeFailureSummary(health HealthStatus) string {
+	failures := health.Failures
+	if failures.Total == 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%s (%d total)", stringOrDash(failures.Status), failures.Total)
+}
+
+func observeProbeSummary(health HealthStatus) string {
+	if len(health.AgentProbes) == 0 {
+		return "not configured"
+	}
+	failed := 0
+	for _, probe := range health.AgentProbes {
+		if strings.TrimSpace(probe.Status) != "ok" {
+			failed++
+		}
+	}
+	if failed == 0 {
+		return fmt.Sprintf("ok (%d checked)", len(health.AgentProbes))
+	}
+	return fmt.Sprintf("degraded (%d/%d failing)", failed, len(health.AgentProbes))
 }
 
 func observeRetentionSummary(health HealthStatus) string {

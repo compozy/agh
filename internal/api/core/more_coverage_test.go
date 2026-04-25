@@ -163,6 +163,10 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 		TurnID:    "turn-1",
 		Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		Action:    "fs/read_text_file",
+		Failure: &store.SessionFailure{
+			Kind:    store.FailurePermission,
+			Summary: "permission policy denied",
+		},
 		Usage: &acp.TokenUsage{
 			InputTokens: &usageValue,
 			Timestamp:   time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
@@ -171,6 +175,9 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	})
 	if agentEvent.Type != acp.EventTypePermission || agentEvent.Usage == nil || agentEvent.Usage.InputTokens == nil {
 		t.Fatalf("agent event payload = %#v", agentEvent)
+	}
+	if agentEvent.Failure == nil || agentEvent.Failure.Kind != store.FailurePermission {
+		t.Fatalf("agent event failure = %#v", agentEvent.Failure)
 	}
 	if got := string(agentEvent.Raw); got != `{"ok":true}` {
 		t.Fatalf("agent event raw payload = %s, want valid JSON passthrough", got)
@@ -341,6 +348,31 @@ func TestHealthHandlerReturnsRetentionAndPersistencePayload(t *testing.T) {
 						DeletedTokenStats:        2,
 						DeletedPermissionLogRows: 1,
 					},
+					Failures: observe.FailureHealth{
+						Status: "degraded",
+						Total:  1,
+						ByKind: map[store.FailureKind]int{store.FailureProcess: 1},
+						Recent: []observe.SessionFailureHealth{{
+							SessionID:       "sess-crash",
+							AgentName:       "coder",
+							Provider:        "claude",
+							WorkspaceID:     "ws-1",
+							State:           "stopped",
+							FailureKind:     store.FailureProcess,
+							Summary:         "provider crashed",
+							CrashBundlePath: "/tmp/crash.json",
+							UpdatedAt:       lastSweepAt,
+						}},
+					},
+					AgentProbes: []acp.ProbeResult{{
+						AgentName:  "coder",
+						Provider:   "claude",
+						Command:    "missing-agent",
+						Status:     acp.ProbeStatusMissing,
+						Error:      "not found",
+						CheckedAt:  lastSweepAt,
+						DurationMS: 7,
+					}},
 					Version: "dev",
 				}, nil
 			},
@@ -376,6 +408,17 @@ func TestHealthHandlerReturnsRetentionAndPersistencePayload(t *testing.T) {
 	}
 	if payload.Health.Retention.LastCutoffAt == nil || !payload.Health.Retention.LastCutoffAt.Equal(lastCutoffAt) {
 		t.Fatalf("health.retention.last_cutoff_at = %#v, want %s", payload.Health.Retention.LastCutoffAt, lastCutoffAt)
+	}
+	if payload.Health.Failures.Status != "degraded" ||
+		payload.Health.Failures.Total != 1 ||
+		payload.Health.Failures.ByKind[store.FailureProcess] != 1 ||
+		len(payload.Health.Failures.Recent) != 1 {
+		t.Fatalf("health.failures = %#v, want lifecycle failure payload", payload.Health.Failures)
+	}
+	if payload.Health.AgentProbes == nil ||
+		len(payload.Health.AgentProbes) != 1 ||
+		payload.Health.AgentProbes[0].Status != acp.ProbeStatusMissing {
+		t.Fatalf("health.agent_probes = %#v, want missing probe payload", payload.Health.AgentProbes)
 	}
 }
 

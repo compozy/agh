@@ -550,6 +550,10 @@ func (d *Daemon) applyObserverFactoryDefault() {
 			observe.WithStartTime(deps.StartedAt),
 			observe.WithBridgeSource(bridgeObserveSource(deps.Bridges)),
 			observe.WithObservabilityConfig(deps.Config.Observability),
+			observe.WithAgentProbeSource(
+				agentProbeTargetSource(&deps.Config, deps.AgentCatalog, deps.Logger),
+				2*time.Second,
+			),
 		)
 	}
 }

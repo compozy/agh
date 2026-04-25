@@ -45,6 +45,37 @@ describe("fetchHealth", () => {
         deleted_token_stats: 0,
         deleted_permission_log_rows: 0,
       },
+      failures: {
+        status: "degraded",
+        total: 1,
+        by_kind: {
+          process_exit: 1,
+        },
+        recent: [
+          {
+            session_id: "sess-crash",
+            agent_name: "coder",
+            provider: "claude",
+            workspace_id: "ws-main",
+            state: "stopped",
+            failure_kind: "process_exit",
+            summary: "provider exited with status 1",
+            crash_bundle_path: "/Users/pedro/.agh/logs/crash-bundles/sess-crash.json",
+            updated_at: "2026-04-17T18:00:00Z",
+          },
+        ],
+      },
+      agent_probes: [
+        {
+          agent_name: "coder",
+          provider: "claude",
+          command: "claude --acp",
+          executable: "/usr/local/bin/claude",
+          status: "ok",
+          checked_at: "2026-04-17T18:00:00Z",
+          duration_ms: 4,
+        },
+      ],
       version: "0.1.0",
     },
   };

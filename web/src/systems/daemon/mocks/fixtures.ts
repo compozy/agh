@@ -39,6 +39,21 @@ export const daemonHealthFixture: HealthPayload = {
     deleted_token_stats: 0,
     deleted_permission_log_rows: 0,
   },
+  failures: {
+    status: "ok",
+    total: 0,
+  },
+  agent_probes: [
+    {
+      agent_name: "coder",
+      provider: "claude",
+      command: "claude --acp",
+      executable: "/usr/local/bin/claude",
+      status: "ok",
+      checked_at: "2026-04-17T18:00:00Z",
+      duration_ms: 12,
+    },
+  ],
   version: "0.1.0-storybook",
 };
 

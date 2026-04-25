@@ -96,6 +96,10 @@ type TaskDashboardConfig struct {
 	StaleAfter       time.Duration
 }
 
+// AgentProbeTargetSource resolves the currently configured ACP-compatible
+// agent/provider commands that should be checked in observe health.
+type AgentProbeTargetSource func(ctx context.Context) ([]acp.ProbeTarget, error)
+
 type taskDashboardConfig struct {
 	activeRunLimit   int
 	backlogWarnAfter time.Duration
@@ -127,6 +131,8 @@ type Observer struct {
 	retentionCancel       context.CancelFunc
 	retentionWG           sync.WaitGroup
 	retentionMu           sync.RWMutex
+	agentProbeSource      AgentProbeTargetSource
+	agentProbeTimeout     time.Duration
 }
 
 var _ session.Notifier = (*Observer)(nil)
@@ -237,6 +243,14 @@ func WithObservabilityConfig(cfg aghconfig.ObservabilityConfig) Option {
 func WithRetentionConfig(cfg RetentionConfig) Option {
 	return func(observer *Observer) {
 		observer.retention = cfg
+	}
+}
+
+// WithAgentProbeSource injects the downstream ACP command source used by health.
+func WithAgentProbeSource(source AgentProbeTargetSource, timeout time.Duration) Option {
+	return func(observer *Observer) {
+		observer.agentProbeSource = source
+		observer.agentProbeTimeout = timeout
 	}
 }
 
@@ -457,6 +471,8 @@ func (o *Observer) OnSessionStopped(ctx context.Context, sess *session.Session) 
 		StopReasonSet: true,
 		StopReason:    stringPointer(string(info.StopReason)),
 		StopDetail:    info.StopDetail,
+		FailureSet:    true,
+		Failure:       store.CloneSessionFailure(info.Failure),
 		Liveness:      store.CloneSessionLivenessMeta(info.Liveness),
 		Environment:   cloneSessionEnvironmentMeta(info.Environment),
 		UpdatedAt:     info.UpdatedAt,
@@ -816,6 +832,7 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 		ACPSessionID: stringPointer(info.ACPSessionID),
 		StopReason:   info.StopReason,
 		StopDetail:   info.StopDetail,
+		Failure:      store.CloneSessionFailure(info.Failure),
 		Liveness:     store.CloneSessionLivenessMeta(info.Liveness),
 		Environment:  cloneSessionEnvironmentMeta(info.Environment),
 		CreatedAt:    info.CreatedAt,

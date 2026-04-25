@@ -29,6 +29,9 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'acp-123',
 			'timeout',
 			'deadline exceeded',
+			'process_exit',
+			'redacted summary',
+			'/tmp/crash.json',
 			42,
 			?,
 			?,
@@ -61,6 +64,15 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 	}
 	if got, want := info.StopDetail, "deadline exceeded"; got != want {
 		t.Fatalf("info.StopDetail = %q, want %q", got, want)
+	}
+	if info.Failure == nil {
+		t.Fatal("info.Failure = nil, want failure")
+	}
+	if got, want := info.Failure.Kind, store.FailureProcess; got != want {
+		t.Fatalf("info.Failure.Kind = %q, want %q", got, want)
+	}
+	if got, want := info.Failure.Summary, "redacted summary"; got != want {
+		t.Fatalf("info.Failure.Summary = %q, want %q", got, want)
 	}
 	if got, want := info.Provider, "claude"; got != want {
 		t.Fatalf("info.Provider = %q, want %q", got, want)
@@ -121,6 +133,9 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			NULL,
 			NULL,
 			NULL,
+			NULL,
+			'',
+			'',
 			0,
 			NULL,
 			NULL,
@@ -179,6 +194,9 @@ func TestScanSessionInfoRejectsInvalidEnvironmentLastSyncAt(t *testing.T) {
 			NULL,
 			NULL,
 			NULL,
+			NULL,
+			'',
+			'',
 			0,
 			NULL,
 			NULL,
@@ -225,6 +243,9 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			NULL,
 			NULL,
 			NULL,
+			NULL,
+			'',
+			'',
 			42,
 			?,
 			?,

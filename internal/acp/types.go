@@ -15,6 +15,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
@@ -368,6 +369,7 @@ type AgentEvent struct {
 	Resource   string
 	Decision   string
 	Error      string
+	Failure    *store.SessionFailure
 	Synthetic  *PromptSyntheticMeta
 	Usage      *TokenUsage
 	Runtime    *RuntimeActivity

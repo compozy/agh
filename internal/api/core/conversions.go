@@ -16,6 +16,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
@@ -27,6 +28,8 @@ import (
 	"github.com/pedronauck/agh/internal/workref"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
+
+const maxDiagnosticPayloadBytes = 2048
 
 // SessionPayloadFromInfo converts a session info snapshot into the shared session payload.
 func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
@@ -47,6 +50,7 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		State:         info.State,
 		StopReason:    info.StopReason,
 		StopDetail:    info.StopDetail,
+		Failure:       SessionFailurePayloadFromStore(info.Failure),
 		ACPSessionID:  info.ACPSessionID,
 		CreatedAt:     info.CreatedAt,
 		UpdatedAt:     info.UpdatedAt,
@@ -143,6 +147,23 @@ func SessionPayloadsFromInfos(infos []*session.Info) []contract.SessionPayload {
 	return payload
 }
 
+// SessionFailurePayloadFromStore converts a stored failure diagnostic into the
+// shared API payload.
+func SessionFailurePayloadFromStore(failure *store.SessionFailure) *contract.SessionFailurePayload {
+	if failure == nil {
+		return nil
+	}
+	normalized := failure.Normalize()
+	if normalized.IsZero() {
+		return nil
+	}
+	return &contract.SessionFailurePayload{
+		Kind:            normalized.Kind,
+		Summary:         diagnostics.RedactAndBound(normalized.Summary, maxDiagnosticPayloadBytes),
+		CrashBundlePath: diagnostics.RedactAndBound(normalized.CrashBundlePath, maxDiagnosticPayloadBytes),
+	}
+}
+
 // ACPCapsPayloadFromInfo converts ACP capability info into the shared payload.
 func ACPCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
 	if !caps.SupportsLoadSession && len(caps.SupportedModes) == 0 && len(caps.SupportedModels) == 0 {
@@ -159,7 +180,7 @@ func ACPCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
 // SessionEventPayloadFromEvent converts a session event into the shared payload.
 func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) contract.SessionEventPayload {
 	ref := workref.NewPath(sessionWorkspaceFromInfo(info))
-	return contract.SessionEventPayload{
+	payload := contract.SessionEventPayload{
 		ID:            event.ID,
 		SessionID:     event.SessionID,
 		Sequence:      event.Sequence,
@@ -171,6 +192,12 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) 
 		Content:       PayloadJSON(event.Content),
 		Timestamp:     event.Timestamp,
 	}
+	if info != nil && event.Type == session.EventTypeSessionStopped {
+		payload.StopReason = info.StopReason
+		payload.StopDetail = info.StopDetail
+		payload.Failure = SessionFailurePayloadFromStore(info.Failure)
+	}
+	return payload
 }
 
 // AgentPayloadFromDef converts an agent definition into the shared payload.
@@ -228,6 +255,7 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		Resource:   event.Resource,
 		Decision:   event.Decision,
 		Error:      event.Error,
+		Failure:    SessionFailurePayloadFromStore(event.Failure),
 		Usage:      TokenUsagePayloadFromUsage(event.Usage),
 		Runtime:    runtimeActivityPayloadFromEvent(event.Runtime),
 		Raw:        payloadJSONBytes(event.Raw),
@@ -282,6 +310,8 @@ func ObserveHealthPayloadFromHealth(health *observepkg.Health) contract.ObserveH
 		SessionDBSizeBytes: health.SessionDBSizeBytes,
 		Persistence:        ObservePersistenceHealthPayloadFromHealth(health.Persistence),
 		Retention:          ObserveRetentionHealthPayloadFromHealth(health.Retention),
+		Failures:           ObserveFailureHealthPayloadFromHealth(health.Failures),
+		AgentProbes:        AgentProbeHealthPayloadsFromACP(health.AgentProbes),
 		Bridges:            BridgeAggregateHealthPayloadFromObserve(health.Bridges),
 		Activities:         SessionActivityHealthPayloadsFromObserve(health.Activities),
 		Version:            health.Version,
@@ -315,6 +345,60 @@ func ObserveRetentionHealthPayloadFromHealth(
 		DeletedTokenStats:        health.DeletedTokenStats,
 		DeletedPermissionLogRows: health.DeletedPermissionLogRows,
 	}
+}
+
+// ObserveFailureHealthPayloadFromHealth converts lifecycle failure health into
+// the shared payload.
+func ObserveFailureHealthPayloadFromHealth(
+	health observepkg.FailureHealth,
+) contract.ObserveFailureHealthPayload {
+	payload := contract.ObserveFailureHealthPayload{
+		Status: strings.TrimSpace(health.Status),
+		Total:  health.Total,
+	}
+	if len(health.ByKind) > 0 {
+		payload.ByKind = make(map[store.FailureKind]int, len(health.ByKind))
+		maps.Copy(payload.ByKind, health.ByKind)
+	}
+	if len(health.Recent) > 0 {
+		payload.Recent = make([]contract.SessionFailureHealthPayload, 0, len(health.Recent))
+		for _, failure := range health.Recent {
+			payload.Recent = append(payload.Recent, contract.SessionFailureHealthPayload{
+				SessionID:       strings.TrimSpace(failure.SessionID),
+				AgentName:       strings.TrimSpace(failure.AgentName),
+				Provider:        strings.TrimSpace(failure.Provider),
+				WorkspaceID:     strings.TrimSpace(failure.WorkspaceID),
+				State:           strings.TrimSpace(failure.State),
+				FailureKind:     failure.FailureKind,
+				Summary:         diagnostics.RedactAndBound(failure.Summary, maxDiagnosticPayloadBytes),
+				CrashBundlePath: diagnostics.RedactAndBound(failure.CrashBundlePath, maxDiagnosticPayloadBytes),
+				UpdatedAt:       failure.UpdatedAt,
+			})
+		}
+	}
+	return payload
+}
+
+// AgentProbeHealthPayloadsFromACP converts downstream ACP probe results into
+// the shared health payload.
+func AgentProbeHealthPayloadsFromACP(probes []acp.ProbeResult) []contract.AgentProbeHealthPayload {
+	if len(probes) == 0 {
+		return nil
+	}
+	payloads := make([]contract.AgentProbeHealthPayload, 0, len(probes))
+	for _, probe := range probes {
+		payloads = append(payloads, contract.AgentProbeHealthPayload{
+			AgentName:  strings.TrimSpace(probe.AgentName),
+			Provider:   strings.TrimSpace(probe.Provider),
+			Command:    diagnostics.RedactAndBound(probe.Command, maxDiagnosticPayloadBytes),
+			Executable: strings.TrimSpace(probe.Executable),
+			Status:     strings.TrimSpace(probe.Status),
+			Error:      diagnostics.RedactAndBound(probe.Error, maxDiagnosticPayloadBytes),
+			CheckedAt:  probe.CheckedAt,
+			DurationMS: probe.DurationMS,
+		})
+	}
+	return payloads
 }
 
 // SessionActivityHealthPayloadsFromObserve converts observer activity health

@@ -6640,6 +6640,11 @@ export interface operations {
                   provider_state_json?: unknown;
                   state?: string;
                 } | null;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
+                } | null;
                 id: string;
                 name?: string;
                 provider: string;
@@ -6823,6 +6828,11 @@ export interface operations {
                   profile?: string;
                   provider_state_json?: unknown;
                   state?: string;
+                } | null;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
                 } | null;
                 id: string;
                 name?: string;
@@ -7731,6 +7741,18 @@ export interface operations {
                 /** Format: date-time */
                 turn_started_at?: string | null;
               }[];
+              agent_probes?: {
+                agent_name?: string;
+                /** Format: date-time */
+                checked_at: string;
+                command?: string;
+                /** Format: int64 */
+                duration_ms: number;
+                error?: string;
+                executable?: string;
+                provider?: string;
+                status: string;
+              }[];
               bridges: {
                 auth_failures_total: number;
                 delivery_backlog: number;
@@ -7746,6 +7768,25 @@ export interface operations {
                   starting: number;
                 };
                 total_instances: number;
+              };
+              failures: {
+                by_kind?: {
+                  [key: string]: number;
+                };
+                recent?: {
+                  agent_name?: string;
+                  crash_bundle_path?: string;
+                  failure_kind: string;
+                  provider?: string;
+                  session_id: string;
+                  state?: string;
+                  summary?: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id?: string;
+                }[];
+                status: string;
+                total: number;
               };
               /** Format: int64 */
               global_db_size_bytes: number;
@@ -8933,6 +8974,11 @@ export interface operations {
                 provider_state_json?: unknown;
                 state?: string;
               } | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
               id: string;
               name?: string;
               provider: string;
@@ -9056,6 +9102,11 @@ export interface operations {
                 profile?: string;
                 provider_state_json?: unknown;
                 state?: string;
+              } | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
               } | null;
               id: string;
               name?: string;
@@ -9193,6 +9244,11 @@ export interface operations {
                 profile?: string;
                 provider_state_json?: unknown;
                 state?: string;
+              } | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
               } | null;
               id: string;
               name?: string;
@@ -9407,10 +9463,28 @@ export interface operations {
             events: {
               agent_name: string;
               content: unknown;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
               id: string;
               /** Format: int64 */
               sequence: number;
               session_id: string;
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
               /** Format: date-time */
               timestamp: string;
               turn_id: string;
@@ -9498,10 +9572,28 @@ export interface operations {
               events: {
                 agent_name: string;
                 content: unknown;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
+                } | null;
                 id: string;
                 /** Format: int64 */
                 sequence: number;
                 session_id: string;
+                stop_detail?: string;
+                /** @enum {string} */
+                stop_reason?:
+                  | "completed"
+                  | "user_canceled"
+                  | "max_iterations"
+                  | "loop_detected"
+                  | "timeout"
+                  | "budget_exceeded"
+                  | "error"
+                  | "agent_crashed"
+                  | "hook_stopped"
+                  | "shutdown";
                 /** Format: date-time */
                 timestamp: string;
                 turn_id: string;
@@ -9613,6 +9705,11 @@ export interface operations {
                 profile?: string;
                 provider_state_json?: unknown;
                 state?: string;
+              } | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
               } | null;
               id: string;
               name?: string;
@@ -19538,6 +19635,11 @@ export interface operations {
                 profile?: string;
                 provider_state_json?: unknown;
                 state?: string;
+              } | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
               } | null;
               id: string;
               name?: string;

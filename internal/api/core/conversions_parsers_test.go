@@ -23,16 +23,21 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	payload := core.SessionPayloadFromInfo(&session.Info{
-		ID:           "sess-1",
-		Name:         "demo",
-		AgentName:    "coder",
-		Provider:     "fake",
-		WorkspaceID:  "ws_alpha",
-		Workspace:    "/workspace",
-		Channel:      "builders",
-		State:        session.StateActive,
-		StopReason:   store.StopTimeout,
-		StopDetail:   "deadline exceeded",
+		ID:          "sess-1",
+		Name:        "demo",
+		AgentName:   "coder",
+		Provider:    "fake",
+		WorkspaceID: "ws_alpha",
+		Workspace:   "/workspace",
+		Channel:     "builders",
+		State:       session.StateActive,
+		StopReason:  store.StopTimeout,
+		StopDetail:  "deadline exceeded",
+		Failure: &store.SessionFailure{
+			Kind:            store.FailureTimeout,
+			Summary:         "deadline exceeded",
+			CrashBundlePath: "/tmp/agh-crash.json",
+		},
 		ACPSessionID: "acp-123",
 		Environment: &store.SessionEnvironmentMeta{
 			EnvironmentID: "env-1",
@@ -64,6 +69,12 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	}
 	if payload.StopReason != store.StopTimeout || payload.StopDetail != "deadline exceeded" {
 		t.Fatalf("payload stop fields = %#v", payload)
+	}
+	if payload.Failure == nil ||
+		payload.Failure.Kind != store.FailureTimeout ||
+		payload.Failure.Summary != "deadline exceeded" ||
+		payload.Failure.CrashBundlePath != "/tmp/agh-crash.json" {
+		t.Fatalf("payload failure = %#v", payload.Failure)
 	}
 	if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {
 		t.Fatalf("caps = %#v", payload.ACPCaps)

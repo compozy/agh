@@ -159,11 +159,14 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(first) error = %v", err)
 	}
-	if got, want := len(firstRecords), 1; got != want {
+	if got, want := len(firstRecords), 2; got != want {
 		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
 	}
 	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
 		t.Fatalf("firstRecords[0] = %#v, want create_global_schema v1", firstRecords[0])
+	}
+	if firstRecords[1].Version != 2 || firstRecords[1].Name != "add_session_failure_diagnostics" {
+		t.Fatalf("firstRecords[1] = %#v, want add_session_failure_diagnostics v2", firstRecords[1])
 	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
@@ -182,15 +185,18 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(second) error = %v", err)
 	}
-	if got, want := len(secondRecords), 1; got != want {
+	if got, want := len(secondRecords), 2; got != want {
 		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
 	}
-	if !secondRecords[0].AppliedAt.Equal(firstRecords[0].AppliedAt) {
-		t.Fatalf(
-			"second applied_at = %s, want unchanged %s",
-			secondRecords[0].AppliedAt,
-			firstRecords[0].AppliedAt,
-		)
+	for i := range firstRecords {
+		if !secondRecords[i].AppliedAt.Equal(firstRecords[i].AppliedAt) {
+			t.Fatalf(
+				"second record %d applied_at = %s, want unchanged %s",
+				i,
+				secondRecords[i].AppliedAt,
+				firstRecords[i].AppliedAt,
+			)
+		}
 	}
 }
 
@@ -1297,6 +1303,9 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"environment_last_sync_error",
 			"created_at",
 			"updated_at",
+			"failure_kind",
+			"failure_summary",
+			"crash_bundle_path",
 		},
 	)
 }
@@ -1513,6 +1522,9 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"acp_session_id",
 			"stop_reason",
 			"stop_detail",
+			"failure_kind",
+			"failure_summary",
+			"crash_bundle_path",
 			"environment_id",
 			"environment_backend",
 			"environment_profile",
@@ -2363,6 +2375,9 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"provider",
 			"stop_reason",
 			"stop_detail",
+			"failure_kind",
+			"failure_summary",
+			"crash_bundle_path",
 			"channel",
 			"subprocess_pid",
 			"subprocess_started_at",

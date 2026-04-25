@@ -41,12 +41,21 @@ type SessionPayload struct {
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
 	StopDetail   string                     `json:"stop_detail,omitempty"`
+	Failure      *SessionFailurePayload     `json:"failure,omitempty"`
 	ACPSessionID string                     `json:"acp_session_id,omitempty"`
 	ACPCaps      *ACPCapsPayload            `json:"acp_caps,omitempty"`
 	Activity     *RuntimeActivityPayload    `json:"activity,omitempty"`
 	Environment  *SessionEnvironmentPayload `json:"environment,omitempty"`
 	CreatedAt    time.Time                  `json:"created_at"`
 	UpdatedAt    time.Time                  `json:"updated_at"`
+}
+
+// SessionFailurePayload is the redacted lifecycle failure diagnostic shared by
+// session read paths, event streams, and health summaries.
+type SessionFailurePayload struct {
+	Kind            store.FailureKind `json:"kind"`
+	Summary         string            `json:"summary,omitempty"`
+	CrashBundlePath string            `json:"crash_bundle_path,omitempty"`
 }
 
 // RuntimeActivityPayload is the shared JSON representation of active prompt supervision state.
@@ -86,16 +95,19 @@ type ACPCapsPayload struct {
 
 // SessionEventPayload is the shared session event response payload.
 type SessionEventPayload struct {
-	ID            string          `json:"id"`
-	SessionID     string          `json:"session_id"`
-	Sequence      int64           `json:"sequence"`
-	TurnID        string          `json:"turn_id"`
-	Type          string          `json:"type"`
-	AgentName     string          `json:"agent_name"`
-	WorkspaceID   string          `json:"workspace_id,omitempty"`
-	WorkspacePath string          `json:"workspace_path,omitempty"`
-	Content       json.RawMessage `json:"content"`
-	Timestamp     time.Time       `json:"timestamp"`
+	ID            string                 `json:"id"`
+	SessionID     string                 `json:"session_id"`
+	Sequence      int64                  `json:"sequence"`
+	TurnID        string                 `json:"turn_id"`
+	Type          string                 `json:"type"`
+	AgentName     string                 `json:"agent_name"`
+	WorkspaceID   string                 `json:"workspace_id,omitempty"`
+	WorkspacePath string                 `json:"workspace_path,omitempty"`
+	Content       json.RawMessage        `json:"content"`
+	StopReason    store.StopReason       `json:"stop_reason,omitempty"`
+	StopDetail    string                 `json:"stop_detail,omitempty"`
+	Failure       *SessionFailurePayload `json:"failure,omitempty"`
+	Timestamp     time.Time              `json:"timestamp"`
 }
 
 // TurnHistoryPayload is the shared turn history response payload.
@@ -139,6 +151,7 @@ type AgentEventPayload struct {
 	Resource   string                  `json:"resource,omitempty"`
 	Decision   string                  `json:"decision,omitempty"`
 	Error      string                  `json:"error,omitempty"`
+	Failure    *SessionFailurePayload  `json:"failure,omitempty"`
 	Usage      *TokenUsagePayload      `json:"usage,omitempty"`
 	Runtime    *RuntimeActivityPayload `json:"runtime,omitempty"`
 	Raw        json.RawMessage         `json:"raw,omitempty"`
@@ -180,9 +193,44 @@ type ObserveHealthPayload struct {
 	SessionDBSizeBytes int64                           `json:"session_db_size_bytes"`
 	Persistence        ObservePersistenceHealthPayload `json:"persistence"`
 	Retention          ObserveRetentionHealthPayload   `json:"retention"`
+	Failures           ObserveFailureHealthPayload     `json:"failures"`
+	AgentProbes        []AgentProbeHealthPayload       `json:"agent_probes,omitempty"`
 	Bridges            BridgeAggregateHealthPayload    `json:"bridges"`
 	Activities         []SessionActivityHealthPayload  `json:"activities,omitempty"`
 	Version            string                          `json:"version"`
+}
+
+// ObserveFailureHealthPayload summarizes persisted lifecycle failures.
+type ObserveFailureHealthPayload struct {
+	Status string                        `json:"status"`
+	Total  int                           `json:"total"`
+	ByKind map[store.FailureKind]int     `json:"by_kind,omitempty"`
+	Recent []SessionFailureHealthPayload `json:"recent,omitempty"`
+}
+
+// SessionFailureHealthPayload exposes one compact lifecycle failure health row.
+type SessionFailureHealthPayload struct {
+	SessionID       string            `json:"session_id"`
+	AgentName       string            `json:"agent_name,omitempty"`
+	Provider        string            `json:"provider,omitempty"`
+	WorkspaceID     string            `json:"workspace_id,omitempty"`
+	State           string            `json:"state,omitempty"`
+	FailureKind     store.FailureKind `json:"failure_kind"`
+	Summary         string            `json:"summary,omitempty"`
+	CrashBundlePath string            `json:"crash_bundle_path,omitempty"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+}
+
+// AgentProbeHealthPayload exposes one downstream ACP command probe result.
+type AgentProbeHealthPayload struct {
+	AgentName  string    `json:"agent_name,omitempty"`
+	Provider   string    `json:"provider,omitempty"`
+	Command    string    `json:"command,omitempty"`
+	Executable string    `json:"executable,omitempty"`
+	Status     string    `json:"status"`
+	Error      string    `json:"error,omitempty"`
+	CheckedAt  time.Time `json:"checked_at"`
+	DurationMS int64     `json:"duration_ms"`
 }
 
 // ObservePersistenceHealthPayload captures store health fields shared by
