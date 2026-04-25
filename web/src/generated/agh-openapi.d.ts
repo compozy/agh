@@ -5515,8 +5515,10 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
               pid?: number;
+              requires_env?: string[];
               source: string;
               state: string;
               type: string;
@@ -5594,8 +5596,10 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
               pid?: number;
+              requires_env?: string[];
               source: string;
               state: string;
               type: string;
@@ -5690,8 +5694,10 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
               pid?: number;
+              requires_env?: string[];
               source: string;
               state: string;
               type: string;
@@ -5775,8 +5781,10 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
               pid?: number;
+              requires_env?: string[];
               source: string;
               state: string;
               type: string;
@@ -5871,8 +5879,10 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
               pid?: number;
+              requires_env?: string[];
               source: string;
               state: string;
               type: string;
@@ -11515,7 +11525,9 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
+              requires_env?: string[];
               state?: string;
               version?: string;
             }[];

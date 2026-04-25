@@ -252,7 +252,7 @@ func loadExtensionRecords(ctx context.Context, deps commandDeps) ([]ExtensionRec
 
 			items := make([]ExtensionRecord, 0, len(infos))
 			for _, info := range infos {
-				items = append(items, localExtensionRecord(info, deps.now))
+				items = append(items, localExtensionRecord(info, deps.now, deps.getenv))
 			}
 			return items, nil
 		},
@@ -286,7 +286,7 @@ func installExtension(
 			if err != nil {
 				return ExtensionRecord{}, err
 			}
-			return localExtensionRecord(*info, deps.now), nil
+			return localExtensionRecord(*info, deps.now, deps.getenv), nil
 		},
 	)
 }
@@ -321,7 +321,7 @@ func mutateExtensionEnabled(ctx context.Context, deps commandDeps, name string, 
 			if err != nil {
 				return ExtensionRecord{}, err
 			}
-			return localExtensionRecord(*info, deps.now), nil
+			return localExtensionRecord(*info, deps.now, deps.getenv), nil
 		},
 	)
 }
@@ -343,7 +343,7 @@ func extensionStatus(ctx context.Context, deps commandDeps, name string) (Extens
 			if err != nil {
 				return ExtensionRecord{}, err
 			}
-			return localExtensionRecord(*info, deps.now), nil
+			return localExtensionRecord(*info, deps.now, deps.getenv), nil
 		},
 	)
 }
@@ -492,7 +492,11 @@ func extensionUpdatesRequireRestart(items []extensionUpdateItem) bool {
 	return false
 }
 
-func localExtensionRecord(info extensionpkg.ExtensionInfo, now func() time.Time) ExtensionRecord {
+func localExtensionRecord(
+	info extensionpkg.ExtensionInfo,
+	now func() time.Time,
+	getenv func(string) string,
+) ExtensionRecord {
 	ext := &extensionpkg.Extension{
 		Info: info,
 		Status: extensionpkg.ExtensionStatus{
@@ -504,6 +508,8 @@ func localExtensionRecord(info extensionpkg.ExtensionInfo, now func() time.Time)
 	}
 	if manifest, err := extensionpkg.LoadManifest(filepath.Dir(info.ManifestPath)); err == nil {
 		ext.Manifest = manifest
+		ext.Status.MissingEnv = manifest.MissingEnv(getenv)
+		ext.Status.MissingEnvChecked = len(manifest.RequiresEnv) > 0
 	}
 	return extensionpkg.DescribeExtension(ext, false, now())
 }
@@ -513,9 +519,9 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 		items,
 		items,
 		"Extensions",
-		[]string{"Name", "Version", "Type", "State", "Source", "Capabilities"},
+		[]string{"Name", "Version", "Type", "State", "Source", "Missing Env", "Capabilities"},
 		"extensions",
-		[]string{"name", "version", "type", "state", "source", "capabilities"},
+		[]string{"name", "version", "type", "state", "source", "missing_env", "capabilities"},
 		func(item ExtensionRecord) []string {
 			return []string{
 				stringOrDash(item.Name),
@@ -523,6 +529,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 				stringOrDash(item.Type),
 				stringOrDash(item.State),
 				stringOrDash(item.Source),
+				stringOrDash(strings.Join(item.MissingEnv, ", ")),
 				stringOrDash(strings.Join(item.Capabilities, ", ")),
 			}
 		},
@@ -533,6 +540,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 				item.Type,
 				item.State,
 				item.Source,
+				strings.Join(item.MissingEnv, "|"),
 				strings.Join(item.Capabilities, "|"),
 			}
 		},
@@ -556,6 +564,8 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				{Label: "Health", Value: stringOrDash(joinExtensionHealth(item.Health, item.HealthMessage))},
 				{Label: "Capabilities", Value: stringOrDash(strings.Join(item.Capabilities, ", "))},
 				{Label: "Actions", Value: stringOrDash(strings.Join(item.Actions, ", "))},
+				{Label: "Requires Env", Value: stringOrDash(strings.Join(item.RequiresEnv, ", "))},
+				{Label: "Missing Env", Value: stringOrDash(strings.Join(item.MissingEnv, ", "))},
 				{Label: "Last Error", Value: stringOrDash(item.LastError)},
 			}), nil
 		},
@@ -574,6 +584,8 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				"last_error",
 				"capabilities",
 				"actions",
+				"requires_env",
+				"missing_env",
 			}, []string{
 				item.Name,
 				item.Version,
@@ -588,6 +600,8 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				item.LastError,
 				strings.Join(item.Capabilities, "|"),
 				strings.Join(item.Actions, "|"),
+				strings.Join(item.RequiresEnv, "|"),
+				strings.Join(item.MissingEnv, "|"),
 			}), nil
 		},
 	}

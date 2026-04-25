@@ -65,7 +65,16 @@ const envelope: SettingsHooksExtensionsSection = {
       },
     },
   ],
-  installed: [{ name: "daytona", enabled: true, version: "1.2.3", state: "running" }],
+  installed: [
+    {
+      name: "daytona",
+      enabled: true,
+      version: "1.2.3",
+      state: "running",
+      requires_env: ["DAYTONA_TOKEN"],
+      missing_env: ["DAYTONA_TOKEN"],
+    },
+  ],
   transport_parity: {
     known: true,
     settings_http: true,
@@ -84,6 +93,8 @@ const extensionEntry: SettingsExtensionEntry = {
   type: "backend",
   daemon_running: true,
   health: "healthy",
+  requires_env: ["DAYTONA_TOKEN"],
+  missing_env: ["DAYTONA_TOKEN"],
 };
 
 function createWrapper() {
@@ -137,6 +148,7 @@ describe("useSettingsHooksExtensionsPage", () => {
 
     expect(result.current.extensions).toHaveLength(1);
     expect(result.current.extensions[0]?.name).toBe("daytona");
+    expect(result.current.extensions[0]?.missing_env).toEqual(["DAYTONA_TOKEN"]);
   });
 
   it("records a restart-required last action after the policy save mutation succeeds", async () => {

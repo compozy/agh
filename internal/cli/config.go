@@ -64,11 +64,12 @@ type configPathRecord struct {
 }
 
 type configValidateRecord struct {
-	Status        string `json:"status"`
-	Scope         string `json:"scope"`
-	WorkspaceRoot string `json:"workspace_root,omitempty"`
-	ConfigFile    string `json:"config_file"`
-	Redacted      bool   `json:"redacted"`
+	Status        string                        `json:"status"`
+	Scope         string                        `json:"scope"`
+	WorkspaceRoot string                        `json:"workspace_root,omitempty"`
+	ConfigFile    string                        `json:"config_file"`
+	Redacted      bool                          `json:"redacted"`
+	DotEnv        *aghconfig.DotEnvRepairReport `json:"dot_env,omitempty"`
 }
 
 type configSetValueKind int
@@ -377,6 +378,7 @@ func newConfigCheckCommand(deps commandDeps) *cobra.Command {
 
 func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command {
 	var workspaceRoot string
+	var repairEnv bool
 	cmd := &cobra.Command{
 		Use:   name,
 		Short: "Validate AGH configuration",
@@ -389,6 +391,20 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 			workspace, err := resolveOptionalConfigWorkspaceRoot(workspaceRoot)
 			if err != nil {
 				return err
+			}
+			var dotenvReport *aghconfig.DotEnvRepairReport
+			if repairEnv {
+				if workspace == "" {
+					workspace, err = currentWorkingDirectory(deps)
+					if err != nil {
+						return err
+					}
+				}
+				report, err := aghconfig.RepairDotEnvFile(aghconfig.WorkspaceDotEnvFile(workspace))
+				dotenvReport = &report
+				if err != nil {
+					return err
+				}
 			}
 			loadOptions := []aghconfig.LoadOption{}
 			if workspace != "" {
@@ -403,10 +419,12 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 				WorkspaceRoot: workspace,
 				ConfigFile:    homePaths.ConfigFile,
 				Redacted:      true,
+				DotEnv:        dotenvReport,
 			}))
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root whose overlay should be validated")
+	cmd.Flags().BoolVar(&repairEnv, "repair-env", false, "Repair a structured workspace .env before validating")
 	return cmd
 }
 
@@ -855,6 +873,19 @@ func configValidateBundle(record configValidateRecord) outputBundle {
 		{Label: "Config File", Value: stringOrDash(record.ConfigFile)},
 		{Label: "Redacted", Value: strconv.FormatBool(record.Redacted)},
 	}
+	if record.DotEnv != nil {
+		rows = append(rows,
+			keyValue{Label: ".env Path", Value: stringOrDash(record.DotEnv.Path)},
+			keyValue{Label: ".env Status", Value: stringOrDash(record.DotEnv.Status)},
+			keyValue{Label: ".env Repaired", Value: strconv.FormatBool(record.DotEnv.Repaired)},
+		)
+		if len(record.DotEnv.Diagnostics) > 0 {
+			rows = append(rows, keyValue{
+				Label: ".env Diagnostics",
+				Value: strings.Join(dotEnvDiagnosticSummaries(record.DotEnv.Diagnostics), "; "),
+			})
+		}
+	}
 	return outputBundle{
 		jsonValue: record,
 		human: func() (string, error) {
@@ -869,9 +900,34 @@ func configValidateBundle(record configValidateRecord) outputBundle {
 				record.ConfigFile,
 				strconv.FormatBool(record.Redacted),
 			}
+			if record.DotEnv != nil {
+				fields = append(fields, "dot_env_status", "dot_env_repaired")
+				values = append(values, record.DotEnv.Status, strconv.FormatBool(record.DotEnv.Repaired))
+			}
 			return renderToonObject("config_validation", fields, values), nil
 		},
 	}
+}
+
+func dotEnvDiagnosticSummaries(diagnostics []aghconfig.DotEnvDiagnostic) []string {
+	summaries := make([]string, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		location := ""
+		if diagnostic.Line > 0 {
+			location = fmt.Sprintf("line %d", diagnostic.Line)
+		}
+		if diagnostic.Key != "" {
+			if location != "" {
+				location += " "
+			}
+			location += diagnostic.Key
+		}
+		if location == "" {
+			location = "file"
+		}
+		summaries = append(summaries, location+": "+diagnostic.Message)
+	}
+	return summaries
 }
 
 func renderConfigEntries(title string, entries []configEntry) string {

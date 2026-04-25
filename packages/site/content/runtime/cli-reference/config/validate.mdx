@@ -15,6 +15,7 @@ agh config validate [flags]
 
 ```
   -h, --help               help for validate
+      --repair-env         Repair a structured workspace .env before validating
       --workspace string   Workspace root whose overlay should be validated
 ```
 
@@ -37,3 +38,7 @@ Example:
 ```bash
 agh config validate -o json
 ```
+
+Use `--repair-env` to explicitly rewrite a structured workspace `.env` when AGH detects bounded
+repairs such as safe multi-assignment splitting or non-ASCII cleanup for secret-like values. Unsupported
+content is reported without rewriting the file.

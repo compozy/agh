@@ -609,6 +609,8 @@ type ExtensionPayload struct {
 	State         string                          `json:"state"`
 	Capabilities  []string                        `json:"capabilities,omitempty"`
 	Actions       []string                        `json:"actions,omitempty"`
+	RequiresEnv   []string                        `json:"requires_env,omitempty"`
+	MissingEnv    []string                        `json:"missing_env,omitempty"`
 	PID           int                             `json:"pid,omitempty"`
 	UptimeSeconds int64                           `json:"uptime_seconds,omitempty"`
 	Health        string                          `json:"health,omitempty"`

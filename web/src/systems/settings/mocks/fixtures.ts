@@ -240,6 +240,8 @@ export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSecti
       version: "1.2.3",
       state: "running",
       health: "healthy",
+      requires_env: ["DAYTONA_TOKEN"],
+      missing_env: ["DAYTONA_TOKEN"],
     },
   ],
   transport_parity: {
@@ -358,6 +360,8 @@ export const settingsExtensionFixtures: SettingsExtensionEntry[] = [
     type: "backend",
     daemon_running: true,
     health: "healthy",
+    requires_env: ["DAYTONA_TOKEN"],
+    missing_env: ["DAYTONA_TOKEN"],
   },
 ];
 

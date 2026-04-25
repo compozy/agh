@@ -279,6 +279,8 @@ func (s *settingsRuntimeSurface) InstalledExtensions(
 			Health:        strings.TrimSpace(item.Health),
 			HealthMessage: strings.TrimSpace(item.HealthMessage),
 			LastError:     strings.TrimSpace(item.LastError),
+			RequiresEnv:   append([]string(nil), item.RequiresEnv...),
+			MissingEnv:    append([]string(nil), item.MissingEnv...),
 		})
 	}
 	return installed, nil

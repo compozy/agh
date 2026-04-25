@@ -23,6 +23,12 @@ agh extension status <name> [flags]
   -o, --output string   Output format: human, json, or toon (default "human")
 ```
 
+## Environment Diagnostics
+
+Extension manifests may declare `requires_env`. Status output reports those names and the
+`missing_env` subset that is unset or empty for the current AGH process environment. AGH never prints
+the environment values.
+
 ## Output Formats
 
 Every AGH command supports `-o, --output`:

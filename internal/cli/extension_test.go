@@ -21,6 +21,7 @@ import (
 type extensionFixtureOptions struct {
 	capabilities []string
 	actions      []string
+	requiresEnv  []string
 }
 
 func TestExtensionInstallOfflinePersistsExtension(t *testing.T) {
@@ -179,7 +180,7 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 		if err != nil {
 			t.Fatalf("extension list toon error = %v", err)
 		}
-		if !strings.Contains(stdout, "extensions[1]{name,version,type,state,source,capabilities}:") {
+		if !strings.Contains(stdout, "extensions[1]{name,version,type,state,source,missing_env,capabilities}:") {
 			t.Fatalf("toon output = %q, want extensions TOON table", stdout)
 		}
 	})
@@ -291,6 +292,52 @@ func TestExtensionStatusOfflineUsesRegistryState(t *testing.T) {
 	}
 }
 
+func TestExtensionStatusOfflineReportsMissingEnvWithoutLeakingValues(t *testing.T) {
+	t.Parallel()
+
+	deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
+	deps.getenv = func(key string) string {
+		if key == "PRESENT_TOKEN" {
+			return "super-secret-present-value"
+		}
+		return ""
+	}
+	dir := writeExtensionFixture(t, "env-ext", extensionFixtureOptions{
+		requiresEnv: []string{"PRESENT_TOKEN", "MISSING_TOKEN"},
+	})
+	installExtensionFixture(t, homePaths, dir)
+
+	stdout, _, err := executeRootCommand(t, deps, "extension", "status", "env-ext", "-o", "json")
+	if err != nil {
+		t.Fatalf("extension status env-ext error = %v", err)
+	}
+	if strings.Contains(stdout, "super-secret-present-value") {
+		t.Fatalf("extension status leaked env value:\n%s", stdout)
+	}
+
+	var item ExtensionRecord
+	if err := json.Unmarshal([]byte(stdout), &item); err != nil {
+		t.Fatalf("json.Unmarshal(status env-ext) error = %v", err)
+	}
+	if !reflect.DeepEqual(item.RequiresEnv, []string{"PRESENT_TOKEN", "MISSING_TOKEN"}) {
+		t.Fatalf("RequiresEnv = %#v, want present+missing", item.RequiresEnv)
+	}
+	if !reflect.DeepEqual(item.MissingEnv, []string{"MISSING_TOKEN"}) {
+		t.Fatalf("MissingEnv = %#v, want MISSING_TOKEN", item.MissingEnv)
+	}
+
+	human, _, err := executeRootCommand(t, deps, "extension", "status", "env-ext")
+	if err != nil {
+		t.Fatalf("extension status human env-ext error = %v", err)
+	}
+	if !strings.Contains(human, "Missing Env") || !strings.Contains(human, "MISSING_TOKEN") {
+		t.Fatalf("extension status human = %q, want missing env diagnostic", human)
+	}
+	if strings.Contains(human, "super-secret-present-value") {
+		t.Fatalf("extension status human leaked env value:\n%s", human)
+	}
+}
+
 func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 	t.Parallel()
 
@@ -358,7 +405,7 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 	}
 	if !strings.Contains(
 		toon,
-		"extension{name,version,type,source,enabled,state,daemon_running,pid,uptime_seconds,health,last_error,capabilities,actions}:",
+		"extension{name,version,type,source,enabled,state,daemon_running,pid,uptime_seconds,health,last_error,capabilities,actions,requires_env,missing_env}:",
 	) {
 		t.Fatalf("toon output = %q, want extension TOON object", toon)
 	}
@@ -419,9 +466,14 @@ name = %q
 version = "0.1.0"
 description = "CLI extension test fixture"
 min_agh_version = "0.5.0"
-
-[resources]
 `, name)
+	if len(opts.requiresEnv) > 0 {
+		fmt.Fprintf(&builder, `requires_env = [%s]
+`, quotedTOMLValues(opts.requiresEnv))
+	}
+	builder.WriteString(`
+[resources]
+`)
 
 	if len(opts.capabilities) > 0 {
 		fmt.Fprintf(&builder, `

@@ -53,6 +53,18 @@ go build -o ./bin/agh ./cmd/agh
 export PATH="$PWD/bin:$PATH"
 ```
 
+### Option 3: package manager releases
+
+Tagged releases publish archive checksums, cosign checksum signatures, SBOMs, a Homebrew cask, and
+Linux `.deb` and `.rpm` packages.
+
+```bash
+brew install --cask pedronauck/agh/agh
+```
+
+For Linux package installs, download the `.deb` or `.rpm` for your architecture from the GitHub
+release, verify it against `checksums.txt`, then install it with your distribution package manager.
+
 ## Verify the Install
 
 Confirm that the binary is available:
@@ -83,6 +95,8 @@ The bootstrap flow lets you pick a default provider and model for the built-in `
 Use `agh config path` to inspect the exact global and workspace config files AGH will read, and use
 `agh config validate` after manual edits. `agh config show`, `agh config list`, and
 `agh config get <path>` always redact environment-backed MCP and config values before printing.
+Use `agh config validate --repair-env --workspace <path>` when a workspace `.env` needs an explicit,
+bounded repair.
 
 `agh update` reports whether the binary is managed by a package manager through `AGH_MANAGED`. When
 managed, it defers to that package manager; otherwise it points you at the manual release or

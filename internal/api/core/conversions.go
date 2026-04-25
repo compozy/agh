@@ -1387,6 +1387,8 @@ func settingsInstalledExtensionPayloads(
 			Health:        strings.TrimSpace(value.Health),
 			HealthMessage: strings.TrimSpace(value.HealthMessage),
 			LastError:     strings.TrimSpace(value.LastError),
+			RequiresEnv:   append([]string(nil), value.RequiresEnv...),
+			MissingEnv:    append([]string(nil), value.MissingEnv...),
 		})
 	}
 	return payloads

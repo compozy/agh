@@ -77,6 +77,63 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	}
 }
 
+func TestConfigValidateRepairEnvRepairsWorkspaceDotEnvWithoutLeakingValues(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, &stubClient{})
+	workspaceRoot := t.TempDir()
+	dotenvPath := filepath.Join(workspaceRoot, ".env")
+	before := "AGH_TASK09_API_KEY=very-secret\u200b-token OTHER=value\n"
+	if err := os.WriteFile(dotenvPath, []byte(before), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(.env) error = %v", err)
+	}
+
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"validate",
+		"--workspace",
+		workspaceRoot,
+		"--repair-env",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config validate --repair-env error = %v", err)
+	}
+	if strings.Contains(stdout, "very-secret") {
+		t.Fatalf("config validate --repair-env leaked .env value:\n%s", stdout)
+	}
+
+	var record configValidateRecord
+	if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+		t.Fatalf("json.Unmarshal(config validate --repair-env) error = %v", err)
+	}
+	if record.DotEnv == nil {
+		t.Fatal("config validate --repair-env DotEnv = nil, want repair report")
+	}
+	if record.DotEnv.Status != aghconfig.DotEnvStatusRepaired || !record.DotEnv.Repaired {
+		t.Fatalf("DotEnv report = %#v, want repaired", record.DotEnv)
+	}
+	if len(record.DotEnv.Diagnostics) != 2 {
+		t.Fatalf("DotEnv diagnostics = %#v, want multi-key and sanitizer diagnostics", record.DotEnv.Diagnostics)
+	}
+
+	after, readErr := os.ReadFile(dotenvPath)
+	if readErr != nil {
+		t.Fatalf("os.ReadFile(.env after repair) error = %v", readErr)
+	}
+	for _, want := range []string{
+		"AGH_TASK09_API_KEY=very-secret-token",
+		"OTHER=value",
+	} {
+		if !strings.Contains(string(after), want) {
+			t.Fatalf("repaired .env missing %q:\n%s", want, string(after))
+		}
+	}
+}
+
 func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	t.Parallel()
 

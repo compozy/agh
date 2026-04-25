@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -101,6 +102,73 @@ capabilities = ["memory.read", "   "]
 	}
 	if !reflect.DeepEqual(manifest.Security.Capabilities, []string{"memory.read"}) {
 		t.Fatalf("Security.Capabilities = %#v, want %#v", manifest.Security.Capabilities, []string{"memory.read"})
+	}
+}
+
+func TestLoadManifestRequiresEnvValidationAndMissingDetection(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "env-ext"
+version = "0.2.1"
+description = "Environment requirement coverage"
+min_agh_version = "0.5.0"
+requires_env = ["PRESENT_TOKEN", "MISSING_TOKEN"]
+`)
+	t.Setenv("PRESENT_TOKEN", "configured")
+	t.Setenv("MISSING_TOKEN", "")
+
+	manifest, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v", err)
+	}
+	if !reflect.DeepEqual(manifest.RequiresEnv, []string{"PRESENT_TOKEN", "MISSING_TOKEN"}) {
+		t.Fatalf("RequiresEnv = %#v, want present+missing", manifest.RequiresEnv)
+	}
+	if got, want := manifest.MissingEnv(os.Getenv), []string{"MISSING_TOKEN"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("MissingEnv() = %#v, want %#v", got, want)
+	}
+}
+
+func TestLoadManifestRejectsInvalidRequiresEnv(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	tests := []struct {
+		name    string
+		values  string
+		wantErr string
+	}{
+		{
+			name:    "invalid env name",
+			values:  `["TOKEN", "BAD-NAME"]`,
+			wantErr: "requires_env[1]",
+		},
+		{
+			name:    "duplicate env name",
+			values:  `["TOKEN", "TOKEN"]`,
+			wantErr: "duplicate",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "invalid-env-ext"
+version = "0.2.1"
+min_agh_version = "0.5.0"
+requires_env = `+tt.values+`
+`)
+
+			_, err := LoadManifest(dir)
+			if err == nil {
+				t.Fatal("LoadManifest() error = nil, want invalid requires_env")
+			}
+			if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("LoadManifest() error = %v, want ErrManifestInvalid with %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 

@@ -130,6 +130,8 @@ type ExtensionStatus struct {
 	Version             string
 	Source              ExtensionSource
 	Enabled             bool
+	MissingEnv          []string
+	MissingEnvChecked   bool
 	Registered          bool
 	Active              bool
 	Phase               ExtensionPhase
@@ -1778,6 +1780,8 @@ func (m *Manager) statusLocked(ext *managedExtension) ExtensionStatus {
 		Version:             ext.info.Version,
 		Source:              ext.info.Source,
 		Enabled:             ext.info.Enabled,
+		MissingEnv:          ext.manifest.MissingEnv(m.getenv),
+		MissingEnvChecked:   ext.manifest != nil && len(ext.manifest.RequiresEnv) > 0,
 		Registered:          ext.registered,
 		Active:              ext.active,
 		Phase:               ext.phase,

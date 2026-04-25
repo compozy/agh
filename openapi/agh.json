@@ -7309,11 +7309,23 @@
                                                     "last_error": {
                                                         "type": "string"
                                                     },
+                                                    "missing_env": {
+                                                        "items": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "array"
+                                                    },
                                                     "name": {
                                                         "type": "string"
                                                     },
                                                     "pid": {
                                                         "type": "integer"
+                                                    },
+                                                    "requires_env": {
+                                                        "items": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "array"
                                                     },
                                                     "source": {
                                                         "type": "string"
@@ -7471,11 +7483,23 @@
                                                 "last_error": {
                                                     "type": "string"
                                                 },
+                                                "missing_env": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
                                                 "name": {
                                                     "type": "string"
                                                 },
                                                 "pid": {
                                                     "type": "integer"
+                                                },
+                                                "requires_env": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
                                                 },
                                                 "source": {
                                                     "type": "string"
@@ -7656,11 +7680,23 @@
                                                 "last_error": {
                                                     "type": "string"
                                                 },
+                                                "missing_env": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
                                                 "name": {
                                                     "type": "string"
                                                 },
                                                 "pid": {
                                                     "type": "integer"
+                                                },
+                                                "requires_env": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
                                                 },
                                                 "source": {
                                                     "type": "string"
@@ -7825,11 +7861,23 @@
                                                 "last_error": {
                                                     "type": "string"
                                                 },
+                                                "missing_env": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
                                                 "name": {
                                                     "type": "string"
                                                 },
                                                 "pid": {
                                                     "type": "integer"
+                                                },
+                                                "requires_env": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
                                                 },
                                                 "source": {
                                                     "type": "string"
@@ -8010,11 +8058,23 @@
                                                 "last_error": {
                                                     "type": "string"
                                                 },
+                                                "missing_env": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
                                                 "name": {
                                                     "type": "string"
                                                 },
                                                 "pid": {
                                                     "type": "integer"
+                                                },
+                                                "requires_env": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
                                                 },
                                                 "source": {
                                                     "type": "string"
@@ -19502,8 +19562,20 @@
                                                     "last_error": {
                                                         "type": "string"
                                                     },
+                                                    "missing_env": {
+                                                        "items": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "array"
+                                                    },
                                                     "name": {
                                                         "type": "string"
+                                                    },
+                                                    "requires_env": {
+                                                        "items": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "array"
                                                     },
                                                     "state": {
                                                         "type": "string"

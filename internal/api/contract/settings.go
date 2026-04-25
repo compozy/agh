@@ -319,13 +319,15 @@ type SettingsTransportParityPayload struct {
 }
 
 type SettingsInstalledExtensionPayload struct {
-	Name          string `json:"name"`
-	Version       string `json:"version,omitempty"`
-	Enabled       bool   `json:"enabled"`
-	State         string `json:"state,omitempty"`
-	Health        string `json:"health,omitempty"`
-	HealthMessage string `json:"health_message,omitempty"`
-	LastError     string `json:"last_error,omitempty"`
+	Name          string   `json:"name"`
+	Version       string   `json:"version,omitempty"`
+	Enabled       bool     `json:"enabled"`
+	State         string   `json:"state,omitempty"`
+	Health        string   `json:"health,omitempty"`
+	HealthMessage string   `json:"health_message,omitempty"`
+	LastError     string   `json:"last_error,omitempty"`
+	RequiresEnv   []string `json:"requires_env,omitempty"`
+	MissingEnv    []string `json:"missing_env,omitempty"`
 }
 
 type SettingsSourceRefPayload struct {

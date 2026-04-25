@@ -408,6 +408,8 @@ type InstalledExtension struct {
 	Health        string
 	HealthMessage string
 	LastError     string
+	RequiresEnv   []string
+	MissingEnv    []string
 }
 
 // SourceRef identifies one semantic source for a resolved resource.
