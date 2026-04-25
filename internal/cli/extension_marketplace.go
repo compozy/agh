@@ -208,7 +208,7 @@ func installMarketplaceExtensionWithRegistry(
 	if err != nil {
 		return ExtensionRecord{}, err
 	}
-	return localExtensionRecord(*info, deps.now), nil
+	return localExtensionRecord(*info, deps.now, deps.getenv), nil
 }
 
 func installMarketplaceExtensionToDir(

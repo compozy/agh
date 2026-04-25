@@ -11,6 +11,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 const (
@@ -34,6 +35,7 @@ type daytonaProvider struct {
 	sdkTimeout        time.Duration
 	createTimeout     time.Duration
 	sshHost           string
+	processRegistry   *toolruntime.Registry
 }
 
 // NewProvider returns the Daytona execution environment provider.
@@ -92,6 +94,13 @@ func NewProvider(opts ...Option) environment.Provider {
 func WithLogger(logger *slog.Logger) Option {
 	return func(provider *daytonaProvider) {
 		provider.logger = logger
+	}
+}
+
+// WithProcessRegistry injects the shared process registry for environment-owned tool processes.
+func WithProcessRegistry(registry *toolruntime.Registry) Option {
+	return func(provider *daytonaProvider) {
+		provider.processRegistry = registry
 	}
 }
 

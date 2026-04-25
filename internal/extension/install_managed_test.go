@@ -178,7 +178,7 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 		t.Fatalf("os.WriteFile(source package.json) error = %v", err)
 	}
 
-	runtimePackageDir := filepath.Join(t.TempDir(), "extension-sdk")
+	runtimePackageDir := filepath.Join(sourceDir, "vendor", "extension-sdk")
 	if err := os.MkdirAll(filepath.Join(runtimePackageDir, "dist"), 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(runtime package) error = %v", err)
 	}
@@ -264,6 +264,41 @@ func TestCopyInstallTreeCopiesDeclaredRuntimeNodeModulesOnly(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(targetDir, "node_modules", ".bin")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("os.Stat(copied dev bin) error = %v, want not exists", err)
+	}
+}
+
+func TestCopyInstallTreeRejectsRuntimeDependencySymlinkOutsideSourceRoot(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := filepath.Join(t.TempDir(), "source")
+	if err := os.MkdirAll(filepath.Join(sourceDir, "node_modules"), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(source node_modules) error = %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(sourceDir, "package.json"),
+		[]byte("{\"dependencies\":{\"escape\":\"1.0.0\"}}\n"),
+		0o644,
+	); err != nil {
+		t.Fatalf("os.WriteFile(source package.json) error = %v", err)
+	}
+
+	outsideDir := filepath.Join(t.TempDir(), "escape")
+	if err := os.MkdirAll(outsideDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(outside) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(outsideDir, "package.json"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(outside package.json) error = %v", err)
+	}
+	if err := os.Symlink(outsideDir, filepath.Join(sourceDir, "node_modules", "escape")); err != nil {
+		t.Skipf("os.Symlink(runtime dependency) unavailable: %v", err)
+	}
+
+	err := copyInstallTree(sourceDir, filepath.Join(t.TempDir(), "target"))
+	if err == nil {
+		t.Fatal("copyInstallTree() error = nil, want symlink escape rejection")
+	}
+	if !strings.Contains(err.Error(), "reject runtime dependency symlink") {
+		t.Fatalf("copyInstallTree() error = %v, want runtime dependency symlink rejection", err)
 	}
 }
 

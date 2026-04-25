@@ -1138,6 +1138,13 @@ func automationJobBundle(item JobRecord) outputBundle {
 						Value: stringOrDash(formatAutomationFireLimit(item.FireLimit)),
 					},
 					{Label: "Next Run", Value: stringOrDash(formatOptionalTime(item.NextRun))},
+					{
+						Label: "Last Scheduled",
+						Value: stringOrDash(formatOptionalTime(automationJobLastScheduledAt(item))),
+					},
+					{Label: "Last Fire ID", Value: stringOrDash(automationJobLastFireID(item))},
+					{Label: "Catch-up Policy", Value: stringOrDash(automationJobCatchUpPolicy(item))},
+					{Label: "Misfires", Value: strconv.Itoa(automationJobMisfireCount(item))},
 					{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
 					{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
 				}),
@@ -1160,6 +1167,10 @@ func automationJobBundle(item JobRecord) outputBundle {
 				"retry",
 				"fire_limit",
 				"next_run",
+				"last_scheduled_at",
+				"last_fire_id",
+				"catch_up_policy",
+				"misfire_count",
 				"created_at",
 				"updated_at",
 				"prompt",
@@ -1175,6 +1186,10 @@ func automationJobBundle(item JobRecord) outputBundle {
 				formatAutomationRetry(item.Retry),
 				formatAutomationFireLimit(item.FireLimit),
 				formatOptionalTime(item.NextRun),
+				formatOptionalTime(automationJobLastScheduledAt(item)),
+				automationJobLastFireID(item),
+				automationJobCatchUpPolicy(item),
+				strconv.Itoa(automationJobMisfireCount(item)),
 				formatTime(item.CreatedAt),
 				formatTime(item.UpdatedAt),
 				item.Prompt,
@@ -1368,11 +1383,14 @@ func automationRunBundle(item RunRecord) outputBundle {
 				{Label: "Job ID", Value: stringOrDash(item.JobID)},
 				{Label: "Trigger ID", Value: stringOrDash(item.TriggerID)},
 				{Label: "Session ID", Value: stringOrDash(item.SessionID)},
+				{Label: "Fire ID", Value: stringOrDash(item.FireID)},
 				{Label: "Status", Value: stringOrDash(string(item.Status))},
 				{Label: "Attempt", Value: strconv.Itoa(item.Attempt)},
+				{Label: "Scheduled", Value: stringOrDash(formatOptionalTime(item.ScheduledAt))},
 				{Label: "Started", Value: stringOrDash(formatOptionalTime(item.StartedAt))},
 				{Label: "Ended", Value: stringOrDash(formatOptionalTime(item.EndedAt))},
 				{Label: "Error", Value: stringOrDash(item.Error)},
+				{Label: "Delivery Error", Value: stringOrDash(item.DeliveryError)},
 			}), nil
 		},
 		toon: func() (string, error) {
@@ -1382,22 +1400,28 @@ func automationRunBundle(item RunRecord) outputBundle {
 				"job_id",
 				"trigger_id",
 				"session_id",
+				"fire_id",
 				"status",
 				"attempt",
+				"scheduled_at",
 				"started_at",
 				"ended_at",
 				"error",
+				"delivery_error",
 			}, []string{
 				item.ID,
 				displayRunTarget(item),
 				item.JobID,
 				item.TriggerID,
 				item.SessionID,
+				item.FireID,
 				string(item.Status),
 				strconv.Itoa(item.Attempt),
+				formatOptionalTime(item.ScheduledAt),
 				formatOptionalTime(item.StartedAt),
 				formatOptionalTime(item.EndedAt),
 				item.Error,
+				item.DeliveryError,
 			}), nil
 		},
 	}
@@ -1408,7 +1432,18 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 		items,
 		items,
 		"Automation Runs",
-		[]string{"ID", "Target", "Status", "Attempt", "Session", "Started", "Ended", "Error"},
+		[]string{
+			"ID",
+			"Target",
+			"Status",
+			"Attempt",
+			"Session",
+			"Scheduled",
+			"Started",
+			"Ended",
+			"Error",
+			"Delivery Error",
+		},
 		"automation_runs",
 		[]string{
 			"id",
@@ -1416,9 +1451,11 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 			"status",
 			"attempt",
 			"session_id",
+			"scheduled_at",
 			"started_at",
 			"ended_at",
 			"error",
+			"delivery_error",
 		},
 		func(item RunRecord) []string {
 			return []string{
@@ -1427,9 +1464,11 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 				stringOrDash(string(item.Status)),
 				strconv.Itoa(item.Attempt),
 				stringOrDash(item.SessionID),
+				stringOrDash(formatOptionalTime(item.ScheduledAt)),
 				stringOrDash(formatOptionalTime(item.StartedAt)),
 				stringOrDash(formatOptionalTime(item.EndedAt)),
 				stringOrDash(item.Error),
+				stringOrDash(item.DeliveryError),
 			}
 		},
 		func(item RunRecord) []string {
@@ -1439,12 +1478,42 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 				string(item.Status),
 				strconv.Itoa(item.Attempt),
 				item.SessionID,
+				formatOptionalTime(item.ScheduledAt),
 				formatOptionalTime(item.StartedAt),
 				formatOptionalTime(item.EndedAt),
 				item.Error,
+				item.DeliveryError,
 			}
 		},
 	)
+}
+
+func automationJobLastScheduledAt(item JobRecord) *time.Time {
+	if item.Scheduler == nil {
+		return nil
+	}
+	return item.Scheduler.LastScheduledAt
+}
+
+func automationJobLastFireID(item JobRecord) string {
+	if item.Scheduler == nil {
+		return ""
+	}
+	return item.Scheduler.LastFireID
+}
+
+func automationJobCatchUpPolicy(item JobRecord) string {
+	if item.Scheduler == nil {
+		return ""
+	}
+	return string(item.Scheduler.CatchUpPolicy)
+}
+
+func automationJobMisfireCount(item JobRecord) int {
+	if item.Scheduler == nil {
+		return 0
+	}
+	return item.Scheduler.MisfireCount
 }
 
 func automationFilterRows(filter map[string]string) [][]string {

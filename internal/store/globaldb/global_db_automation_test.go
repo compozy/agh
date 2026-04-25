@@ -3,6 +3,7 @@ package globaldb
 import (
 	"database/sql"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,6 +19,8 @@ type Trigger = automation.Trigger
 type TriggerListQuery = automation.TriggerListQuery
 type Run = automation.Run
 type RunQuery = automation.RunQuery
+type SchedulerState = automation.SchedulerState
+type SchedulerClaim = automation.SchedulerClaim
 type JobEnabledOverlay = automation.JobEnabledOverlay
 type TriggerEnabledOverlay = automation.TriggerEnabledOverlay
 
@@ -32,6 +35,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"automation_jobs",
 		"automation_triggers",
 		"automation_runs",
+		"automation_scheduler_state",
 		"automation_job_overlays",
 		"automation_trigger_overlays",
 		"automation_trigger_webhook_secrets",
@@ -82,6 +86,24 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"started_at",
 		"ended_at",
 		"error",
+		"fire_id",
+		"scheduled_at",
+		"delivery_error",
+		"delivery_error_at",
+	})
+	assertTableColumns(t, globalDB.db, "automation_scheduler_state", []string{
+		"job_id",
+		"next_run_at",
+		"last_run_at",
+		"last_scheduled_at",
+		"last_fire_id",
+		"schedule_hash",
+		"catch_up_policy",
+		"misfire_grace_seconds",
+		"consecutive_resume_failures",
+		"last_misfire_at",
+		"misfire_count",
+		"updated_at",
 	})
 	assertTableColumns(t, globalDB.db, "automation_trigger_webhook_secrets", []string{
 		"trigger_id",
@@ -105,6 +127,11 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"idx_automation_runs_trigger",
 		"idx_automation_runs_status",
 		"idx_automation_runs_started",
+		"uq_automation_runs_fire_id",
+	)
+	assertIndexesPresent(t, globalDB.db, "automation_scheduler_state",
+		"idx_automation_scheduler_next_run",
+		"idx_automation_scheduler_misfire",
 	)
 }
 
@@ -1035,6 +1062,192 @@ func TestGlobalDBListRunsFiltersByJobTriggerStatusAndTimeWindow(t *testing.T) {
 	}
 	if got, want := count, int64(2); got != want {
 		t.Fatalf("CountRuns() = %d, want %d", got, want)
+	}
+}
+
+func TestGlobalDBSchedulerStateSaveClaimAndDeliveryError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	job, err := globalDB.CreateJob(
+		ctx,
+		automationJobForTest(automation.AutomationScopeGlobal, "durable-scheduler", "", automation.JobSourceDynamic),
+	)
+	if err != nil {
+		t.Fatalf("CreateJob() error = %v", err)
+	}
+
+	nextRun := time.Date(2026, 4, 11, 9, 0, 0, 0, time.UTC)
+	updatedAt := time.Date(2026, 4, 10, 9, 0, 0, 0, time.UTC)
+	saved, err := globalDB.SaveSchedulerState(ctx, SchedulerState{
+		JobID:               job.ID,
+		NextRunAt:           &nextRun,
+		ScheduleHash:        "hash-v1",
+		CatchUpPolicy:       automation.SchedulerCatchUpPolicySkipMissed,
+		MisfireGraceSeconds: 30,
+		UpdatedAt:           updatedAt,
+	})
+	if err != nil {
+		t.Fatalf("SaveSchedulerState() error = %v", err)
+	}
+	if got, want := saved.NextRunAt, &nextRun; got == nil || !got.Equal(*want) {
+		t.Fatalf("SaveSchedulerState().NextRunAt = %v, want %v", got, want)
+	}
+
+	claimedAt := time.Date(2026, 4, 11, 9, 0, 1, 0, time.UTC)
+	nextAfterClaim := time.Date(2026, 4, 12, 9, 0, 0, 0, time.UTC)
+	claim, err := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
+		JobID:        job.ID,
+		RunID:        "run-scheduler-claim",
+		FireID:       "fire-scheduler-claim",
+		ScheduledAt:  nextRun,
+		NextRunAt:    &nextAfterClaim,
+		ClaimedAt:    claimedAt,
+		ScheduleHash: "hash-v1",
+	})
+	if err != nil {
+		t.Fatalf("ClaimScheduledRun() error = %v", err)
+	}
+	if got, want := claim.State.NextRunAt, &nextAfterClaim; got == nil || !got.Equal(*want) {
+		t.Fatalf("ClaimScheduledRun().State.NextRunAt = %v, want %v", got, want)
+	}
+	if got, want := claim.State.LastScheduledAt, &nextRun; got == nil || !got.Equal(*want) {
+		t.Fatalf("ClaimScheduledRun().State.LastScheduledAt = %v, want %v", got, want)
+	}
+	if got, want := claim.Run.FireID, "fire-scheduler-claim"; got != want {
+		t.Fatalf("ClaimScheduledRun().Run.FireID = %q, want %q", got, want)
+	}
+	if got, want := claim.Run.ScheduledAt, &nextRun; got == nil || !got.Equal(*want) {
+		t.Fatalf("ClaimScheduledRun().Run.ScheduledAt = %v, want %v", got, want)
+	}
+
+	_, duplicateErr := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
+		JobID:        job.ID,
+		RunID:        "run-scheduler-duplicate",
+		FireID:       "fire-scheduler-claim",
+		ScheduledAt:  nextRun,
+		NextRunAt:    &nextAfterClaim,
+		ClaimedAt:    claimedAt,
+		ScheduleHash: "hash-v1",
+	})
+	if !errors.Is(duplicateErr, automation.ErrScheduledFireAlreadyClaimed) {
+		t.Fatalf("ClaimScheduledRun(duplicate) error = %v, want ErrScheduledFireAlreadyClaimed", duplicateErr)
+	}
+
+	recordedRun, err := globalDB.RecordRunDeliveryError(ctx, claim.Run.ID, errors.New("dispatch transport unavailable"))
+	if err != nil {
+		t.Fatalf("RecordRunDeliveryError() error = %v", err)
+	}
+	if got, want := recordedRun.DeliveryError, "dispatch transport unavailable"; got != want {
+		t.Fatalf("RecordRunDeliveryError().DeliveryError = %q, want %q", got, want)
+	}
+	if recordedRun.Error != "" {
+		t.Fatalf("RecordRunDeliveryError().Error = %q, want empty normal execution error", recordedRun.Error)
+	}
+
+	count, err := globalDB.CountRuns(ctx, RunQuery{JobID: job.ID, ExcludeID: claim.Run.ID})
+	if err != nil {
+		t.Fatalf("CountRuns(exclude claimed run) error = %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("CountRuns(exclude claimed run) = %d, want 0", count)
+	}
+}
+
+func TestGlobalDBSchedulerClaimPreventsDuplicateAfterReopen(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	dbPath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+	first, err := OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(first) error = %v", err)
+	}
+
+	job, err := first.CreateJob(
+		ctx,
+		automationJobForTest(automation.AutomationScopeGlobal, "durable-reopen", "", automation.JobSourceDynamic),
+	)
+	if err != nil {
+		t.Fatalf("CreateJob() error = %v", err)
+	}
+
+	scheduledAt := time.Date(2026, 4, 12, 9, 0, 0, 0, time.UTC)
+	nextRunAt := scheduledAt.Add(24 * time.Hour)
+	_, err = first.SaveSchedulerState(ctx, SchedulerState{
+		JobID:         job.ID,
+		NextRunAt:     &scheduledAt,
+		ScheduleHash:  "hash-reopen",
+		CatchUpPolicy: automation.SchedulerCatchUpPolicySkipMissed,
+		UpdatedAt:     scheduledAt.Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("SaveSchedulerState() error = %v", err)
+	}
+
+	claim, err := first.ClaimScheduledRun(ctx, SchedulerClaim{
+		JobID:        job.ID,
+		RunID:        "run-durable-reopen",
+		FireID:       "fire-durable-reopen",
+		ScheduledAt:  scheduledAt,
+		NextRunAt:    &nextRunAt,
+		ClaimedAt:    scheduledAt.Add(time.Second),
+		ScheduleHash: "hash-reopen",
+	})
+	if err != nil {
+		t.Fatalf("ClaimScheduledRun() error = %v", err)
+	}
+	if err := first.Close(ctx); err != nil {
+		t.Fatalf("Close(first) error = %v", err)
+	}
+
+	second, err := OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(second) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := second.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(second) error = %v", err)
+		}
+	})
+
+	state, err := second.GetSchedulerState(ctx, job.ID)
+	if err != nil {
+		t.Fatalf("GetSchedulerState() after reopen error = %v", err)
+	}
+	if got, want := state.LastFireID, claim.Run.FireID; got != want {
+		t.Fatalf("GetSchedulerState().LastFireID = %q, want %q", got, want)
+	}
+	if got, want := state.NextRunAt, &nextRunAt; got == nil || !got.Equal(*want) {
+		t.Fatalf("GetSchedulerState().NextRunAt = %v, want %v", got, want)
+	}
+
+	_, duplicateErr := second.ClaimScheduledRun(ctx, SchedulerClaim{
+		JobID:        job.ID,
+		RunID:        "run-durable-reopen-duplicate",
+		FireID:       claim.Run.FireID,
+		ScheduledAt:  scheduledAt,
+		NextRunAt:    &nextRunAt,
+		ClaimedAt:    scheduledAt.Add(2 * time.Second),
+		ScheduleHash: "hash-reopen",
+	})
+	if !errors.Is(duplicateErr, automation.ErrScheduledFireAlreadyClaimed) {
+		t.Fatalf(
+			"ClaimScheduledRun(duplicate after reopen) error = %v, want ErrScheduledFireAlreadyClaimed",
+			duplicateErr,
+		)
+	}
+
+	runs, err := second.ListRuns(ctx, RunQuery{JobID: job.ID})
+	if err != nil {
+		t.Fatalf("ListRuns() after duplicate claim error = %v", err)
+	}
+	if got, want := len(runs), 1; got != want {
+		t.Fatalf("len(ListRuns()) = %d, want %d", got, want)
+	}
+	if got, want := runs[0].FireID, claim.Run.FireID; got != want {
+		t.Fatalf("runs[0].FireID = %q, want %q", got, want)
 	}
 }
 

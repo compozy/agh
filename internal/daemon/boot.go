@@ -31,6 +31,7 @@ import (
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/pedronauck/agh/internal/toolruntime"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -53,6 +54,7 @@ type bootState struct {
 	promptAugmenter     session.PromptInputAugmenter
 	notifier            *hooksNotifier
 	registry            Registry
+	processRegistry     *toolruntime.Registry
 	environmentRegistry *environment.Registry
 	workspaceResolver   *workspacepkg.Resolver
 	sessions            SessionManager
@@ -421,6 +423,9 @@ func (d *Daemon) bootRuntimeServices(
 
 	state.startedAt = d.now().UTC()
 	state.notifier = newHooksNotifier(state.logger, d.now)
+	if err := d.bootProcessRegistry(ctx, state); err != nil {
+		return err
+	}
 	environmentRegistry, err := d.buildEnvironmentRegistry(state)
 	if err != nil {
 		return err
@@ -493,18 +498,54 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		WorkspaceResolver:    state.workspaceResolver,
 		EnvironmentRegistry:  state.environmentRegistry,
 		SessionSupervision:   state.cfg.Session.Supervision,
+		ProcessRegistry:      state.processRegistry,
 	}
+}
+
+func (d *Daemon) bootProcessRegistry(ctx context.Context, state *bootState) error {
+	if state == nil {
+		return errors.New("daemon: process registry state is required")
+	}
+	var store toolruntime.Store
+	if processStore, ok := state.registry.(toolruntime.Store); ok {
+		store = processStore
+	}
+	state.processRegistry = toolruntime.NewRegistry(
+		store,
+		toolruntime.WithLogger(state.logger),
+		toolruntime.WithDaemonPID(d.pid()),
+		toolruntime.WithNow(d.now),
+	)
+	report, err := state.processRegistry.ReconcileBoot(ctx)
+	if err != nil {
+		return fmt.Errorf("daemon: reconcile tool process registry: %w", err)
+	}
+	if report.Checked > 0 && state.logger != nil {
+		state.logger.Info(
+			"daemon: reconciled tool process registry",
+			"checked", report.Checked,
+			"recovered", report.Recovered,
+			"stale", report.Stale,
+		)
+	}
+	return nil
 }
 
 func (d *Daemon) buildEnvironmentRegistry(state *bootState) (*environment.Registry, error) {
 	if state == nil {
 		return nil, errors.New("daemon: environment registry state is required")
 	}
-	registry, err := local.NewRegistry(local.WithLogger(state.logger))
+	registry, err := local.NewRegistry(
+		local.WithLogger(state.logger),
+		local.WithProcessRegistry(state.processRegistry),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create environment registry: %w", err)
 	}
-	if err := registry.Register(daytona.NewProvider(daytona.WithLogger(state.logger))); err != nil {
+	if err := registry.Register(daytona.NewProvider(
+		daytona.WithLogger(state.logger),
+		daytona.WithProcessRegistry(state.processRegistry),
+	)); err != nil {
 		return nil, fmt.Errorf("daemon: register daytona environment provider: %w", err)
 	}
 	return registry, nil
@@ -890,7 +931,7 @@ func (d *Daemon) hookRuntimeOptions(
 		hookspkg.WithLogger(state.logger),
 		hookspkg.WithNow(d.now),
 		hookspkg.WithDebugPatchAudit(strings.EqualFold(state.cfg.Log.Level, "debug")),
-		hookspkg.WithExecutorResolver(daemonExecutorResolver(nativeExecutors)),
+		hookspkg.WithExecutorResolver(daemonExecutorResolver(nativeExecutors, state.processRegistry)),
 		hookspkg.WithTelemetrySink(state.hookTelemetrySinks),
 	}
 }
@@ -1167,6 +1208,7 @@ func (d *Daemon) extensionManagerDeps(
 			}
 			return state.resourceReconcile.Trigger(ctx, kind, reason)
 		},
+		ProcessRegistry: state.processRegistry,
 	}
 }
 
@@ -1329,6 +1371,7 @@ func (d *Daemon) bootSettings(_ context.Context, state *bootState) error {
 		ObservabilityRuntime:       surface,
 		Extensions:                 surface,
 		TransportParity:            surface,
+		MCPAuth:                    surface,
 		RestartActionAvailable:     true,
 		ConsolidateActionAvailable: state.dreamRuntime != nil && state.dreamRuntime.Enabled(),
 		LogTailAvailable:           strings.TrimSpace(d.homePaths.LogFile) != "",

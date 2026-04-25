@@ -26,6 +26,7 @@ agh --> runtime
 runtime --> daemon[daemon]
 runtime --> network[network]
 runtime --> bridge[bridge]
+runtime --> mcp[mcp]
 
 agh --> work
 work --> session[session]
@@ -90,6 +91,13 @@ caption="The CLI groups commands by the runtime surface they operate: daemon pro
     title="Start, stop, and inspect the background runtime"
     description="Use this group for daemon lifecycle and socket-level health checks."
     meta="Runtime process"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/mcp"
+    label="MCP"
+    title="Authenticate and inspect MCP integrations"
+    description="Use this group for remote MCP OAuth login, token status, refresh diagnostics, and logout."
+    meta="Runtime integrations"
   />
   <RouteRow
     href="/runtime/cli-reference/automation"

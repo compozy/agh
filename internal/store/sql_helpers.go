@@ -38,6 +38,24 @@ func StringClause(column string, value string) Clause {
 	}
 }
 
+// NotStringClause builds an inequality clause when the value is non-empty.
+func NotStringClause(column string, value string) Clause {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return Clause{}
+	}
+	if _, err := NormalizeSQLiteIdentifier(column); err != nil {
+		return alwaysFalseClause()
+	}
+
+	return Clause{
+		sql:    fmt.Sprintf("%s <> ?", column),
+		arg:    value,
+		ok:     true,
+		hasArg: true,
+	}
+}
+
 // TimeClause builds a timestamp comparison clause when the value is non-zero.
 func TimeClause(column string, op string, value time.Time) Clause {
 	if value.IsZero() {

@@ -45,7 +45,7 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 		envelope.Providers = items
 	case CollectionMCPServers:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
-		items, buildErr := s.buildMCPServerItems(scope, workspaceID, resolved)
+		items, buildErr := s.buildMCPServerItems(ctx, scope, workspaceID, resolved)
 		if buildErr != nil {
 			return CollectionEnvelope{}, buildErr
 		}
@@ -271,6 +271,7 @@ func buildHookItems(declarations []hookspkg.HookDecl) []HookItem {
 }
 
 func (s *service) buildMCPServerItems(
+	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
 	resolved *workspacepkg.ResolvedWorkspace,
@@ -304,9 +305,12 @@ func (s *service) buildMCPServerItems(
 		}
 		item := MCPServerItem{
 			Name:        effective.Server.Name,
+			Transport:   effective.Server.EffectiveTransport(),
 			Command:     effective.Server.Command,
 			Args:        append([]string(nil), effective.Server.Args...),
-			Env:         cloneStringMap(effective.Server.Env),
+			Env:         aghconfig.RedactStringMap(effective.Server.Env),
+			URL:         strings.TrimSpace(effective.Server.URL),
+			Auth:        effective.Server.Auth,
 			Scope:       scope,
 			WorkspaceID: workspaceID,
 			SourceMetadata: SourceMetadata{
@@ -314,6 +318,13 @@ func (s *service) buildMCPServerItems(
 				ShadowedSources:  shadowed,
 				AvailableTargets: availableTargetsForScope(scope),
 			},
+		}
+		if s.mcpAuth != nil && !effective.Server.Auth.IsZero() {
+			status, statusErr := s.mcpAuth.MCPAuthStatus(ctx, effective.Server)
+			if statusErr != nil {
+				return nil, fmt.Errorf("settings: load MCP auth status for %q: %w", name, statusErr)
+			}
+			item.AuthStatus = &status
 		}
 		items = append(items, cloneMCPServerItem(item))
 	}
@@ -968,14 +979,56 @@ func hookExecutorMap(declaration hookspkg.HookDecl) map[string]any {
 }
 
 func mcpServerMap(server aghconfig.MCPServer) map[string]any {
-	values := map[string]any{
-		"command": strings.TrimSpace(server.Command),
+	values := map[string]any{}
+	if server.Transport != "" {
+		values["transport"] = string(server.Transport)
+	}
+	if strings.TrimSpace(server.Command) != "" {
+		values["command"] = strings.TrimSpace(server.Command)
 	}
 	if len(server.Args) > 0 {
 		values["args"] = append([]string(nil), server.Args...)
 	}
 	if len(server.Env) > 0 {
 		values["env"] = cloneStringMap(server.Env)
+	}
+	if strings.TrimSpace(server.URL) != "" {
+		values["url"] = strings.TrimSpace(server.URL)
+	}
+	if !server.Auth.IsZero() {
+		values["auth"] = mcpAuthMap(server.Auth)
+	}
+	return values
+}
+
+func mcpAuthMap(auth aghconfig.MCPAuthConfig) map[string]any {
+	values := map[string]any{}
+	if auth.Type != "" {
+		values["type"] = string(auth.Type)
+	}
+	if strings.TrimSpace(auth.IssuerURL) != "" {
+		values["issuer_url"] = strings.TrimSpace(auth.IssuerURL)
+	}
+	if strings.TrimSpace(auth.MetadataURL) != "" {
+		values["metadata_url"] = strings.TrimSpace(auth.MetadataURL)
+	}
+	if strings.TrimSpace(auth.AuthorizationURL) != "" {
+		values["authorization_url"] = strings.TrimSpace(auth.AuthorizationURL)
+	}
+	if strings.TrimSpace(auth.TokenURL) != "" {
+		values["token_url"] = strings.TrimSpace(auth.TokenURL)
+	}
+	if strings.TrimSpace(auth.RevocationURL) != "" {
+		values["revocation_url"] = strings.TrimSpace(auth.RevocationURL)
+	}
+	if strings.TrimSpace(auth.ClientID) != "" {
+		values["client_id"] = strings.TrimSpace(auth.ClientID)
+	}
+	if strings.TrimSpace(auth.ClientSecretEnv) != "" {
+		values["client_secret_env"] = strings.TrimSpace(auth.ClientSecretEnv)
+	}
+	if len(auth.Scopes) > 0 {
+		values["scopes"] = append([]string(nil), auth.Scopes...)
 	}
 	return values
 }

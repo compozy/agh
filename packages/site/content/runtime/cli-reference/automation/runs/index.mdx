@@ -43,8 +43,12 @@ Example:
 agh automation runs -o json
 ```
 
+Scheduled runs include `fire_id` and `scheduled_at` for correlation with durable scheduler state.
+Dispatch or transport failures are reported separately as `delivery_error` and `delivery_error_at`
+so scheduler cursor state can still be inspected independently.
+
 ## Subcommands
 
-| Command | Description |
-| ------- | ----------- |
+| Command                                                               | Description             |
+| --------------------------------------------------------------------- | ----------------------- |
 | [agh automation runs get](/runtime/cli-reference/automation/runs/get) | Show one automation run |

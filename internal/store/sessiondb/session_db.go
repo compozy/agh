@@ -67,6 +67,14 @@ var sessionSchemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_hook_runs_recorded_at ON hook_runs(recorded_at);`,
 }
 
+var sessionSchemaMigrations = []store.Migration{
+	{
+		Version:    1,
+		Name:       "create_session_schema",
+		Statements: sessionSchemaStatements,
+	},
+}
+
 const (
 	sessionStateOpen int32 = iota
 	sessionStateClosing
@@ -737,7 +745,7 @@ type rowScanner interface {
 
 func openSessionSQLite(ctx context.Context, path string) (*sql.DB, error) {
 	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		return store.EnsureSchema(ctx, db, sessionSchemaStatements)
+		return store.RunMigrations(ctx, db, sessionSchemaMigrations)
 	})
 }
 

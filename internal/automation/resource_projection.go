@@ -95,7 +95,7 @@ func (m *Manager) BuildJobResourceState(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.loadSchedulerRegistrations(effectiveJobs, scheduler); err != nil {
+	if err := m.loadSchedulerRegistrations(ctx, effectiveJobs, scheduler); err != nil {
 		return nil, errors.Join(err, m.shutdownRuntimeComponent(ctx, "scheduler", scheduler))
 	}
 
@@ -498,7 +498,7 @@ func (m *Manager) setJobResourceEnabled(ctx context.Context, id string, enabled 
 		if err != nil {
 			return Job{}, err
 		}
-		if err := m.applyJobToRuntime(currentEffective); err != nil {
+		if err := m.applyJobToRuntime(ctx, currentEffective); err != nil {
 			return Job{}, err
 		}
 		return currentEffective, nil

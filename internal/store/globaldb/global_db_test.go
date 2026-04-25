@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -65,6 +66,7 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	assertTablesPresent(
 		t,
 		globalDB.db,
+		"schema_migrations",
 		"workspaces",
 		"sessions",
 		"event_summaries",
@@ -73,8 +75,184 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		"permission_log",
 		"extensions",
 	)
+	assertTableColumns(t, globalDB.db, "memory_operation_log", []string{
+		"id",
+		"type",
+		"agent_name",
+		"summary",
+		"timestamp",
+		"scope",
+		"workspace_root",
+		"filename",
+	})
 	assertJournalModeWAL(t, globalDB.db)
 	assertSynchronousNormal(t, globalDB.db)
+}
+
+func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	registerSessionForGlobalTests(t, globalDB, "sess-retention")
+
+	cutoff := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+	old := cutoff.Add(-time.Nanosecond)
+	boundary := cutoff
+	fresh := cutoff.Add(time.Nanosecond)
+
+	for _, event := range []EventSummary{
+		{ID: "sum-old", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: old},
+		{ID: "sum-boundary", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: boundary},
+		{ID: "sum-fresh", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: fresh},
+	} {
+		if err := globalDB.WriteEventSummary(ctx, event); err != nil {
+			t.Fatalf("WriteEventSummary(%q) error = %v", event.ID, err)
+		}
+	}
+
+	for _, update := range []TokenStatsUpdate{
+		{SessionID: "sess-retention", AgentName: "coder-old", Turns: 1, UpdatedAt: old},
+		{SessionID: "sess-retention", AgentName: "coder-boundary", Turns: 1, UpdatedAt: boundary},
+		{SessionID: "sess-retention", AgentName: "coder-fresh", Turns: 1, UpdatedAt: fresh},
+	} {
+		if err := globalDB.UpdateTokenStats(ctx, update); err != nil {
+			t.Fatalf("UpdateTokenStats(%q) error = %v", update.AgentName, err)
+		}
+	}
+
+	for _, entry := range []PermissionLogEntry{
+		{
+			ID: "perm-old", SessionID: "sess-retention", AgentName: "coder", Action: "fs/read",
+			Resource: "old.md", Decision: "allow", PolicyUsed: "approve-all", Timestamp: old,
+		},
+		{
+			ID: "perm-boundary", SessionID: "sess-retention", AgentName: "coder", Action: "fs/read",
+			Resource: "boundary.md", Decision: "allow", PolicyUsed: "approve-all", Timestamp: boundary,
+		},
+		{
+			ID: "perm-fresh", SessionID: "sess-retention", AgentName: "coder", Action: "fs/read",
+			Resource: "fresh.md", Decision: "allow", PolicyUsed: "approve-all", Timestamp: fresh,
+		},
+	} {
+		if err := globalDB.WritePermissionLog(ctx, entry); err != nil {
+			t.Fatalf("WritePermissionLog(%q) error = %v", entry.ID, err)
+		}
+	}
+
+	result, err := globalDB.SweepObservability(ctx, cutoff)
+	if err != nil {
+		t.Fatalf("SweepObservability() error = %v", err)
+	}
+	if result.DeletedEventSummaries != 1 || result.DeletedTokenStats != 1 || result.DeletedPermissionLogs != 1 {
+		t.Fatalf("SweepObservability() = %#v, want one deleted row per observe table", result)
+	}
+	if !result.CutoffAt.Equal(cutoff) {
+		t.Fatalf("SweepObservability().CutoffAt = %s, want %s", result.CutoffAt, cutoff)
+	}
+
+	assertEventSummaryIDs(t, globalDB, []string{"sum-boundary", "sum-fresh"})
+	assertTokenStatAgents(t, globalDB, []string{"coder-boundary", "coder-fresh"})
+	assertPermissionLogIDs(t, globalDB, []string{"perm-boundary", "perm-fresh"})
+}
+
+func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	first, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(first) error = %v", err)
+	}
+	firstRecords, err := store.AppliedMigrations(ctx, first.db)
+	if err != nil {
+		t.Fatalf("AppliedMigrations(first) error = %v", err)
+	}
+	if got, want := len(firstRecords), 6; got != want {
+		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
+	}
+	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
+		t.Fatalf("firstRecords[0] = %#v, want create_global_schema v1", firstRecords[0])
+	}
+	if firstRecords[1].Version != 2 || firstRecords[1].Name != "add_session_failure_diagnostics" {
+		t.Fatalf("firstRecords[1] = %#v, want add_session_failure_diagnostics v2", firstRecords[1])
+	}
+	if firstRecords[2].Version != 3 || firstRecords[2].Name != "add_automation_scheduler_state" {
+		t.Fatalf("firstRecords[2] = %#v, want add_automation_scheduler_state v3", firstRecords[2])
+	}
+	if firstRecords[3].Version != 4 || firstRecords[3].Name != "add_mcp_auth_tokens" {
+		t.Fatalf("firstRecords[3] = %#v, want add_mcp_auth_tokens v4", firstRecords[3])
+	}
+	if firstRecords[4].Version != 5 || firstRecords[4].Name != "add_tool_process_records" {
+		t.Fatalf("firstRecords[4] = %#v, want add_tool_process_records v5", firstRecords[4])
+	}
+	if firstRecords[5].Version != 6 || firstRecords[5].Name != "add_memory_operation_scope" {
+		t.Fatalf("firstRecords[5] = %#v, want add_memory_operation_scope v6", firstRecords[5])
+	}
+	if err := first.Close(ctx); err != nil {
+		t.Fatalf("Close(first) error = %v", err)
+	}
+
+	second, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(second) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := second.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(second) error = %v", err)
+		}
+	})
+	secondRecords, err := store.AppliedMigrations(ctx, second.db)
+	if err != nil {
+		t.Fatalf("AppliedMigrations(second) error = %v", err)
+	}
+	if got, want := len(secondRecords), 6; got != want {
+		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
+	}
+	for i := range firstRecords {
+		if !secondRecords[i].AppliedAt.Equal(firstRecords[i].AppliedAt) {
+			t.Fatalf(
+				"second record %d applied_at = %s, want unchanged %s",
+				i,
+				secondRecords[i].AppliedAt,
+				firstRecords[i].AppliedAt,
+			)
+		}
+	}
+}
+
+func TestOpenGlobalDBFailsOnSchemaMigrationIntegrityMismatch(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	globalDB, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(initial) error = %v", err)
+	}
+	if err := globalDB.Close(ctx); err != nil {
+		t.Fatalf("Close(initial) error = %v", err)
+	}
+
+	db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`UPDATE schema_migrations SET checksum = 'tampered' WHERE version = 1`,
+	); err != nil {
+		t.Fatalf("tamper schema_migrations error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("db.Close() error = %v", err)
+	}
+
+	_, err = OpenGlobalDB(ctx, path)
+	if err == nil || !strings.Contains(err.Error(), "migration 1 integrity mismatch") {
+		t.Fatalf("OpenGlobalDB(tampered) error = %v, want integrity mismatch", err)
+	}
 }
 
 func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
@@ -1147,6 +1325,9 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"environment_last_sync_error",
 			"created_at",
 			"updated_at",
+			"failure_kind",
+			"failure_summary",
+			"crash_bundle_path",
 		},
 	)
 }
@@ -1363,6 +1544,9 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"acp_session_id",
 			"stop_reason",
 			"stop_detail",
+			"failure_kind",
+			"failure_summary",
+			"crash_bundle_path",
 			"environment_id",
 			"environment_backend",
 			"environment_profile",
@@ -2213,6 +2397,9 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"provider",
 			"stop_reason",
 			"stop_detail",
+			"failure_kind",
+			"failure_summary",
+			"crash_bundle_path",
 			"channel",
 			"subprocess_pid",
 			"subprocess_started_at",
@@ -2274,6 +2461,7 @@ func TestGlobalDBRecoversFromCorruption(t *testing.T) {
 	assertTablesPresent(
 		t,
 		globalDB.db,
+		"schema_migrations",
 		"workspaces",
 		"sessions",
 		"event_summaries",
@@ -2360,6 +2548,60 @@ func registerWorkspaceForGlobalTests(t *testing.T, globalDB *GlobalDB, name stri
 		UpdatedAt: time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC),
 	})
 	return workspace.ID
+}
+
+func assertEventSummaryIDs(t *testing.T, globalDB *GlobalDB, want []string) {
+	t.Helper()
+
+	events, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+	if err != nil {
+		t.Fatalf("ListEventSummaries() error = %v", err)
+	}
+	got := make([]string, 0, len(events))
+	for _, event := range events {
+		got = append(got, event.ID)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("event summary ids = %#v, want %#v", got, want)
+	}
+}
+
+func assertTokenStatAgents(t *testing.T, globalDB *GlobalDB, want []string) {
+	t.Helper()
+
+	stats, err := globalDB.ListTokenStats(testutil.Context(t), TokenStatsQuery{})
+	if err != nil {
+		t.Fatalf("ListTokenStats() error = %v", err)
+	}
+	got := make([]string, 0, len(stats))
+	for _, stat := range stats {
+		got = append(got, stat.AgentName)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("token stat agents = %#v, want %#v", got, want)
+	}
+}
+
+func assertPermissionLogIDs(t *testing.T, globalDB *GlobalDB, want []string) {
+	t.Helper()
+
+	entries, err := globalDB.ListPermissionLog(testutil.Context(t), PermissionLogQuery{})
+	if err != nil {
+		t.Fatalf("ListPermissionLog() error = %v", err)
+	}
+	got := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		got = append(got, entry.ID)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("permission log ids = %#v, want %#v", got, want)
+	}
 }
 
 func assertWorkspaceEqual(t *testing.T, got aghworkspace.Workspace, want aghworkspace.Workspace) {

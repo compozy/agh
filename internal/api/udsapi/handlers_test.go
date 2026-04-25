@@ -127,6 +127,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/hooks/runs",
 		"GET /api/memory",
 		"GET /api/memory/:filename",
+		"GET /api/memory/health",
+		"GET /api/memory/history",
 		"GET /api/memory/search",
 		"GET /api/network/inbox",
 		"GET /api/network/peers",

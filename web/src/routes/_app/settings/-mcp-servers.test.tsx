@@ -23,6 +23,7 @@ type RestartBanner = {
 
 const filesystemEntry: SettingsMCPServerEntry = {
   name: "filesystem",
+  transport: "stdio",
   command: "npx -y @modelcontextprotocol/server-filesystem",
   args: ["~/Dev"],
   scope: "global",
@@ -35,6 +36,7 @@ const filesystemEntry: SettingsMCPServerEntry = {
 
 const githubEntry: SettingsMCPServerEntry = {
   name: "github",
+  transport: "stdio",
   command: "npx -y @modelcontextprotocol/server-github",
   env: { GITHUB_TOKEN: "env:GITHUB_TOKEN" },
   scope: "global",

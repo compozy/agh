@@ -51,13 +51,13 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 		return
 	}
 
-	nextRunByID, err := h.automationNextRunByJobID(c.Request.Context(), manager)
+	schedulerStateByID, err := h.automationSchedulerStateByJobID(c.Request.Context(), manager)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.JobsResponse{Jobs: JobPayloadsFromJobs(jobs, nextRunByID)})
+	c.JSON(http.StatusOK, contract.JobsResponse{Jobs: JobPayloadsFromJobs(jobs, schedulerStateByID)})
 }
 
 // CreateAutomationJob stores a new dynamic automation job.
@@ -91,11 +91,15 @@ func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 		return
 	}
 
-	nextRunByID := h.automationNextRunByJobIDBestEffort(c.Request.Context(), manager, "create_job")
+	schedulerStateByID := h.automationSchedulerStateByJobIDBestEffort(c.Request.Context(), manager, "create_job")
 
 	c.JSON(
 		http.StatusCreated,
-		contract.JobResponse{Job: JobPayloadFromJob(created, timePointerFromMap(nextRunByID, created.ID))},
+		contract.JobResponse{Job: JobPayloadFromJob(
+			created,
+			schedulerNextRunFromMap(schedulerStateByID, created.ID),
+			schedulerStatePointerFromMap(schedulerStateByID, created.ID),
+		)},
 	)
 }
 
@@ -112,13 +116,17 @@ func (h *BaseHandlers) GetAutomationJob(c *gin.Context) {
 		return
 	}
 
-	nextRunByID, err := h.automationNextRunByJobID(c.Request.Context(), manager)
+	schedulerStateByID, err := h.automationSchedulerStateByJobID(c.Request.Context(), manager)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.JobResponse{Job: JobPayloadFromJob(job, timePointerFromMap(nextRunByID, job.ID))})
+	c.JSON(http.StatusOK, contract.JobResponse{Job: JobPayloadFromJob(
+		job,
+		schedulerNextRunFromMap(schedulerStateByID, job.ID),
+		schedulerStatePointerFromMap(schedulerStateByID, job.ID),
+	)})
 }
 
 // UpdateAutomationJob patches one automation job definition.
@@ -175,11 +183,15 @@ func (h *BaseHandlers) UpdateAutomationJob(c *gin.Context) {
 		return
 	}
 
-	nextRunByID := h.automationNextRunByJobIDBestEffort(c.Request.Context(), manager, "update_job")
+	schedulerStateByID := h.automationSchedulerStateByJobIDBestEffort(c.Request.Context(), manager, "update_job")
 
 	c.JSON(
 		http.StatusOK,
-		contract.JobResponse{Job: JobPayloadFromJob(updated, timePointerFromMap(nextRunByID, updated.ID))},
+		contract.JobResponse{Job: JobPayloadFromJob(
+			updated,
+			schedulerNextRunFromMap(schedulerStateByID, updated.ID),
+			schedulerStatePointerFromMap(schedulerStateByID, updated.ID),
+		)},
 	)
 }
 
@@ -518,10 +530,10 @@ func (h *BaseHandlers) requireAutomationManager(c *gin.Context) (AutomationManag
 	return h.Automation, true
 }
 
-func (h *BaseHandlers) automationNextRunByJobID(
+func (h *BaseHandlers) automationSchedulerStateByJobID(
 	ctx context.Context,
 	manager AutomationManager,
-) (map[string]*time.Time, error) {
+) (map[string]contract.AutomationSchedulerStatePayload, error) {
 	if manager == nil {
 		return nil, nil
 	}
@@ -531,34 +543,51 @@ func (h *BaseHandlers) automationNextRunByJobID(
 		return nil, err
 	}
 
-	nextRunByID := make(map[string]*time.Time, len(status.ScheduledJobs))
+	stateByID := make(map[string]contract.AutomationSchedulerStatePayload, len(status.ScheduledJobs))
 	for _, scheduled := range status.ScheduledJobs {
-		if scheduled.NextRun == nil {
-			continue
-		}
-		next := scheduled.NextRun.UTC()
-		nextRunByID[scheduled.JobID] = &next
+		stateByID[scheduled.JobID] = AutomationSchedulerStatePayloadFromState(scheduled)
 	}
-	return nextRunByID, nil
+	return stateByID, nil
 }
 
-func (h *BaseHandlers) automationNextRunByJobIDBestEffort(
+func (h *BaseHandlers) automationSchedulerStateByJobIDBestEffort(
 	ctx context.Context,
 	manager AutomationManager,
 	operation string,
-) map[string]*time.Time {
-	nextRunByID, err := h.automationNextRunByJobID(ctx, manager)
+) map[string]contract.AutomationSchedulerStatePayload {
+	stateByID, err := h.automationSchedulerStateByJobID(ctx, manager)
 	if err == nil {
-		return nextRunByID
+		return stateByID
 	}
 
 	h.Logger.Warn(
-		"api: automation next_run enrichment failed",
+		"api: automation scheduler state enrichment failed",
 		"transport", h.transportName(),
 		"operation", strings.TrimSpace(operation),
 		"error", err,
 	)
 	return nil
+}
+
+func schedulerStatePointerFromMap(
+	states map[string]contract.AutomationSchedulerStatePayload,
+	jobID string,
+) *contract.AutomationSchedulerStatePayload {
+	if states == nil {
+		return nil
+	}
+	state, ok := states[jobID]
+	if !ok {
+		return nil
+	}
+	return &state
+}
+
+func schedulerNextRunFromMap(
+	states map[string]contract.AutomationSchedulerStatePayload,
+	jobID string,
+) *time.Time {
+	return schedulerNextRun(schedulerStatePointerFromMap(states, jobID))
 }
 
 func (h *BaseHandlers) automationHealth(ctx context.Context) (contract.AutomationHealthPayload, error) {

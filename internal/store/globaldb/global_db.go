@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -494,6 +495,163 @@ var globalSchemaStatements = append([]string{
 	`CREATE INDEX IF NOT EXISTS idx_bridge_ingest_dedup_expires ON bridge_ingest_dedup(expires_at);`,
 }, resources.SchemaStatements()...)
 
+var globalSchemaMigrations = []store.Migration{
+	{
+		Version:    1,
+		Name:       "create_global_schema",
+		Statements: globalSchemaStatements,
+	},
+	{
+		Version:  2,
+		Name:     "add_session_failure_diagnostics",
+		Up:       migrateSessionFailureColumns,
+		Checksum: "2026-04-24-add-session-failure-diagnostics",
+	},
+	{
+		Version:  3,
+		Name:     "add_automation_scheduler_state",
+		Up:       migrateAutomationSchedulerState,
+		Checksum: "2026-04-24-add-automation-scheduler-state",
+	},
+	{
+		Version:  4,
+		Name:     "add_mcp_auth_tokens",
+		Up:       migrateMCPAuthTokens,
+		Checksum: "2026-04-25-add-mcp-auth-tokens",
+	},
+	{
+		Version:  5,
+		Name:     "add_tool_process_records",
+		Up:       migrateToolProcessRecords,
+		Checksum: "2026-04-24-add-tool-process-records",
+	},
+	{
+		Version:  6,
+		Name:     "add_memory_operation_scope",
+		Up:       migrateMemoryOperationScopeColumns,
+		Checksum: "2026-04-25-add-memory-operation-scope",
+	},
+}
+
+func migrateMemoryOperationScopeColumns(ctx context.Context, tx *sql.Tx) error {
+	columns, err := tableColumns(ctx, tx, "memory_operation_log")
+	if err != nil {
+		return err
+	}
+	specs := []struct {
+		name string
+		sql  string
+	}{
+		{name: "scope", sql: `ALTER TABLE memory_operation_log ADD COLUMN scope TEXT NOT NULL DEFAULT ''`},
+		{
+			name: "workspace_root",
+			sql:  `ALTER TABLE memory_operation_log ADD COLUMN workspace_root TEXT NOT NULL DEFAULT ''`,
+		},
+		{name: "filename", sql: `ALTER TABLE memory_operation_log ADD COLUMN filename TEXT NOT NULL DEFAULT ''`},
+	}
+	for _, spec := range specs {
+		if _, ok := columns[spec.name]; ok {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, spec.sql); err != nil {
+			return fmt.Errorf("store: add memory_operation_log.%s column: %w", spec.name, err)
+		}
+	}
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_scope ON memory_operation_log(scope);`,
+		`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_workspace_root ON memory_operation_log(workspace_root);`,
+	}
+	for _, stmt := range indexes {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: migrate memory operation scope indexes: %w", err)
+		}
+	}
+	return nil
+}
+
+func migrateMCPAuthTokens(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS mcp_auth_tokens (
+			server_name    TEXT PRIMARY KEY,
+			issuer         TEXT NOT NULL DEFAULT '',
+			client_id      TEXT NOT NULL,
+			scopes_json    TEXT NOT NULL DEFAULT '[]',
+			access_token   TEXT NOT NULL,
+			refresh_token  TEXT NOT NULL DEFAULT '',
+			token_type     TEXT NOT NULL DEFAULT 'Bearer',
+			expires_at     TEXT,
+			obtained_at    TEXT NOT NULL,
+			updated_at     TEXT NOT NULL
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_mcp_auth_tokens_updated_at
+			ON mcp_auth_tokens(updated_at);`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: migrate MCP auth tokens: %w", err)
+		}
+	}
+	return nil
+}
+
+func migrateAutomationSchedulerState(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS automation_scheduler_state (
+			job_id                       TEXT PRIMARY KEY,
+			next_run_at                  TEXT,
+			last_run_at                  TEXT,
+			last_scheduled_at            TEXT,
+			last_fire_id                 TEXT NOT NULL DEFAULT '',
+			schedule_hash                TEXT NOT NULL DEFAULT '',
+			catch_up_policy              TEXT NOT NULL DEFAULT 'skip_missed'
+				CHECK (catch_up_policy IN ('skip_missed')),
+			misfire_grace_seconds        INTEGER NOT NULL DEFAULT 0
+				CHECK (misfire_grace_seconds >= 0),
+			consecutive_resume_failures  INTEGER NOT NULL DEFAULT 0
+				CHECK (consecutive_resume_failures >= 0),
+			last_misfire_at              TEXT,
+			misfire_count                INTEGER NOT NULL DEFAULT 0
+				CHECK (misfire_count >= 0),
+			updated_at                   TEXT NOT NULL
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_scheduler_next_run
+			ON automation_scheduler_state(next_run_at);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_scheduler_misfire
+			ON automation_scheduler_state(last_misfire_at);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_runs_fire_id
+			ON automation_runs(fire_id) WHERE fire_id IS NOT NULL;`,
+	}
+
+	runColumns, err := tableColumns(ctx, tx, "automation_runs")
+	if err != nil {
+		return err
+	}
+	runColumnStatements := make([]string, 0, 4)
+	if _, ok := runColumns["fire_id"]; !ok {
+		runColumnStatements = append(runColumnStatements, `ALTER TABLE automation_runs ADD COLUMN fire_id TEXT;`)
+	}
+	if _, ok := runColumns["scheduled_at"]; !ok {
+		runColumnStatements = append(runColumnStatements, `ALTER TABLE automation_runs ADD COLUMN scheduled_at TEXT;`)
+	}
+	if _, ok := runColumns["delivery_error"]; !ok {
+		runColumnStatements = append(runColumnStatements, `ALTER TABLE automation_runs ADD COLUMN delivery_error TEXT;`)
+	}
+	if _, ok := runColumns["delivery_error_at"]; !ok {
+		runColumnStatements = append(
+			runColumnStatements,
+			`ALTER TABLE automation_runs ADD COLUMN delivery_error_at TEXT;`,
+		)
+	}
+	statements = append(runColumnStatements, statements...)
+
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: migrate automation scheduler state: %w", err)
+		}
+	}
+	return nil
+}
+
 // GlobalDB owns the global session index and observability database.
 type GlobalDB struct {
 	db     *sql.DB
@@ -515,6 +673,10 @@ func OpenGlobalDB(ctx context.Context, path string) (*GlobalDB, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := enforcePrivateGlobalDBFiles(path); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 
 	return &GlobalDB{
 		db:   db,
@@ -523,6 +685,33 @@ func OpenGlobalDB(ctx context.Context, path string) (*GlobalDB, error) {
 			return time.Now().UTC()
 		},
 	}, nil
+}
+
+func enforcePrivateGlobalDBFiles(path string) error {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return nil
+	}
+	for _, candidate := range []string{trimmed, trimmed + "-wal", trimmed + "-shm"} {
+		info, err := os.Stat(candidate)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("store: stat global database file %q: %w", candidate, err)
+		}
+		if info.IsDir() {
+			continue
+		}
+		mode := info.Mode().Perm()
+		if mode&0o077 == 0 {
+			continue
+		}
+		if err := os.Chmod(candidate, mode&0o700); err != nil {
+			return fmt.Errorf("store: restrict global database file permissions %q: %w", candidate, err)
+		}
+	}
+	return nil
 }
 
 func (g *GlobalDB) checkReady(ctx context.Context, action string) error {
@@ -575,9 +764,6 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 func openGlobalSQLite(ctx context.Context, path string) (*sql.DB, error) {
 	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
 		if err := migrateGlobalSchema(ctx, db); err != nil {
-			return err
-		}
-		if err := store.EnsureSchema(ctx, db, globalSchemaStatements); err != nil {
 			return err
 		}
 		return reconcileLegacySessionMetaWorkspaceIDs(ctx, db, sessionsDirForDatabasePath(path))

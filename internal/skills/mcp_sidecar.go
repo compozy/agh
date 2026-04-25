@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,13 @@ func mergeSkillMCPSidecarFile(dir string, skill *Skill) error {
 	}
 
 	sidecarPath := filepath.Join(strings.TrimSpace(dir), aghconfig.MCPJSONName)
+	if _, err := os.Lstat(sidecarPath); err == nil {
+		if err := ensurePathWithinRoot(dir, sidecarPath); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("skills: stat MCP sidecar %q: %w", sidecarPath, err)
+	}
 	servers, err := aghconfig.LoadMCPServersJSONFile(sidecarPath)
 	if err != nil {
 		return err

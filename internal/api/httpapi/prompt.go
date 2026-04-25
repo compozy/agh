@@ -134,9 +134,8 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	for {
 		select {
 		case <-c.Request.Context().Done():
-			cancelOnReturn()
+			h.drainPromptEventsAsync(context.WithoutCancel(c.Request.Context()), events, cancelOnReturn)
 			cancelOnReturn = nil
-			h.drainPromptEventsAsync(context.WithoutCancel(c.Request.Context()), events)
 			return
 		case <-h.StreamDoneChannel():
 			return
@@ -148,22 +147,30 @@ func (h *Handlers) promptSession(c *gin.Context) {
 				return
 			}
 			if err := state.emit(writer, event); err != nil {
-				cancelOnReturn()
+				h.drainPromptEventsAsync(context.WithoutCancel(c.Request.Context()), events, cancelOnReturn)
 				cancelOnReturn = nil
-				h.drainPromptEventsAsync(context.WithoutCancel(c.Request.Context()), events)
 				return
 			}
 		}
 	}
 }
 
-func (h *Handlers) drainPromptEventsAsync(ctx context.Context, events <-chan acp.AgentEvent) {
-	if h == nil || ctx == nil {
+func (h *Handlers) drainPromptEventsAsync(
+	ctx context.Context,
+	events <-chan acp.AgentEvent,
+	cancelPrompt context.CancelFunc,
+) {
+	if h == nil || cancelPrompt == nil {
+		return
+	}
+	if ctx == nil {
+		cancelPrompt()
 		return
 	}
 	drainCtx, cancelDrain := context.WithTimeout(ctx, detachedPromptDrainTimeout)
 	h.promptDrainWG.Go(func() {
 		defer cancelDrain()
+		defer cancelPrompt()
 		h.drainPromptEvents(drainCtx, events)
 	})
 }

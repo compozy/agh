@@ -75,6 +75,11 @@ func (t WriteTarget) Scope() WriteScope {
 	return t.scope
 }
 
+// Path returns the resolved filesystem path for operator-facing diagnostics and tools.
+func (t WriteTarget) Path() string {
+	return t.path
+}
+
 func (t WriteTarget) isConfigTarget() bool {
 	return t.kind == WriteTargetGlobalConfig || t.kind == WriteTargetWorkspaceConfig
 }

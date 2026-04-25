@@ -7,6 +7,7 @@ export type SessionPayload = SessionsResponse["sessions"][number];
 export type SessionResponse = OperationResponse<"getSession", 200>;
 export type ACPCaps = NonNullable<SessionPayload["acp_caps"]>;
 export type SessionState = SessionPayload["state"];
+export type SessionFailurePayload = NonNullable<SessionPayload["failure"]>;
 
 export type SessionEventsResponse = OperationResponse<"listSessionEvents", 200>;
 export type SessionEventPayload = SessionEventsResponse["events"][number];
@@ -77,6 +78,7 @@ export interface AgentEventPayload {
   resource?: string;
   decision?: string;
   error?: string;
+  failure?: SessionFailurePayload;
   usage?: TokenUsagePayload;
   runtime?: RuntimeActivityPayload;
   raw?: unknown;

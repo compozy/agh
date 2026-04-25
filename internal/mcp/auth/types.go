@@ -1,0 +1,187 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
+)
+
+// ErrTokenNotFound reports missing persisted MCP auth state for one server.
+var ErrTokenNotFound = errors.New("mcp auth: token not found")
+
+// StatusValue is the redacted operator-facing authentication state.
+type StatusValue string
+
+const (
+	StatusUnconfigured  StatusValue = "unconfigured"
+	StatusNeedsLogin    StatusValue = "needs_login"
+	StatusAuthenticated StatusValue = "authenticated"
+	StatusExpired       StatusValue = "expired"
+	StatusInvalid       StatusValue = "invalid"
+)
+
+// ServerConfig is the token-free auth configuration used by the OAuth service.
+type ServerConfig struct {
+	ServerName       string
+	Transport        string
+	RemoteURL        string
+	Type             string
+	IssuerURL        string
+	MetadataURL      string
+	AuthorizationURL string
+	TokenURL         string
+	RevocationURL    string
+	ClientID         string
+	ClientSecret     string
+	ClientSecretEnv  string
+	Scopes           []string
+}
+
+// Metadata is the OAuth authorization server metadata needed for PKCE flows.
+type Metadata struct {
+	Issuer                        string   `json:"issuer,omitempty"`
+	AuthorizationEndpoint         string   `json:"authorization_endpoint"`
+	TokenEndpoint                 string   `json:"token_endpoint"`
+	RevocationEndpoint            string   `json:"revocation_endpoint,omitempty"`
+	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported,omitempty"`
+	ScopesSupported               []string `json:"scopes_supported,omitempty"`
+}
+
+// TokenRecord is the durable token-store row. It must never be rendered
+// directly in public API or CLI output.
+type TokenRecord struct {
+	ServerName   string
+	Issuer       string
+	ClientID     string
+	Scopes       []string
+	AccessToken  string
+	RefreshToken string
+	TokenType    string
+	ExpiresAt    time.Time
+	ObtainedAt   time.Time
+	UpdatedAt    time.Time
+}
+
+// Status is the token-redacted state used by CLI and settings APIs.
+type Status struct {
+	ServerName       string      `json:"server_name"`
+	Status           StatusValue `json:"status"`
+	RemoteURL        string      `json:"remote_url,omitempty"`
+	AuthType         string      `json:"auth_type,omitempty"`
+	ClientID         string      `json:"client_id,omitempty"`
+	Issuer           string      `json:"issuer,omitempty"`
+	Scopes           []string    `json:"scopes,omitempty"`
+	ExpiresAt        *time.Time  `json:"expires_at,omitempty"`
+	UpdatedAt        *time.Time  `json:"updated_at,omitempty"`
+	Refreshable      bool        `json:"refreshable"`
+	TokenPresent     bool        `json:"token_present"`
+	RevocationURL    string      `json:"revocation_url,omitempty"`
+	Diagnostic       string      `json:"diagnostic,omitempty"`
+	AuthorizationURL string      `json:"authorization_url,omitempty"`
+}
+
+// TokenStore persists OAuth token material behind a narrow boundary.
+type TokenStore interface {
+	SaveMCPAuthToken(ctx context.Context, token TokenRecord) error
+	GetMCPAuthToken(ctx context.Context, serverName string) (TokenRecord, error)
+	ListMCPAuthTokens(ctx context.Context) ([]TokenRecord, error)
+	DeleteMCPAuthToken(ctx context.Context, serverName string) error
+}
+
+// ServerConfigFromMCP converts a config MCP server into token-free auth
+// service input. lookupSecret receives the configured client_secret_env and
+// returns the actual secret value when present.
+func ServerConfigFromMCP(
+	server aghconfig.MCPServer,
+	lookupSecret func(string) string,
+) (ServerConfig, error) {
+	if err := server.Validate("mcp_server"); err != nil {
+		return ServerConfig{}, err
+	}
+	if server.Auth.IsZero() {
+		return ServerConfig{
+			ServerName: strings.TrimSpace(server.Name),
+			Transport:  string(server.EffectiveTransport()),
+			RemoteURL:  strings.TrimSpace(server.URL),
+		}, nil
+	}
+
+	secretEnv := strings.TrimSpace(server.Auth.ClientSecretEnv)
+	secret := ""
+	if secretEnv != "" && lookupSecret != nil {
+		secret = lookupSecret(secretEnv)
+	}
+
+	return ServerConfig{
+		ServerName:       strings.TrimSpace(server.Name),
+		Transport:        string(server.EffectiveTransport()),
+		RemoteURL:        strings.TrimSpace(server.URL),
+		Type:             strings.TrimSpace(string(server.Auth.Type)),
+		IssuerURL:        strings.TrimSpace(server.Auth.IssuerURL),
+		MetadataURL:      strings.TrimSpace(server.Auth.MetadataURL),
+		AuthorizationURL: strings.TrimSpace(server.Auth.AuthorizationURL),
+		TokenURL:         strings.TrimSpace(server.Auth.TokenURL),
+		RevocationURL:    strings.TrimSpace(server.Auth.RevocationURL),
+		ClientID:         strings.TrimSpace(server.Auth.ClientID),
+		ClientSecret:     secret,
+		ClientSecretEnv:  secretEnv,
+		Scopes:           trimStrings(server.Auth.Scopes),
+	}, nil
+}
+
+// ServerConfigsFromMCP returns auth service configs for every auth-enabled MCP
+// server in the supplied list.
+func ServerConfigsFromMCP(
+	servers []aghconfig.MCPServer,
+	lookupSecret func(string) string,
+) ([]ServerConfig, error) {
+	configs := make([]ServerConfig, 0, len(servers))
+	for _, server := range servers {
+		if server.Auth.IsZero() {
+			continue
+		}
+		cfg, err := ServerConfigFromMCP(server, lookupSecret)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, cfg)
+	}
+	return configs, nil
+}
+
+// Validate checks whether a server config is sufficient for auth actions.
+func (c ServerConfig) Validate() error {
+	switch {
+	case strings.TrimSpace(c.ServerName) == "":
+		return errors.New("mcp auth: server name is required")
+	case strings.TrimSpace(c.Type) == "":
+		return errors.New("mcp auth: auth type is required")
+	case strings.TrimSpace(c.Type) != string(aghconfig.MCPAuthTypeOAuth2PKCE):
+		return errors.New("mcp auth: auth type must be oauth2_pkce")
+	case strings.TrimSpace(c.ClientID) == "":
+		return errors.New("mcp auth: client id is required")
+	case strings.TrimSpace(c.MetadataURL) == "" &&
+		strings.TrimSpace(c.IssuerURL) == "" &&
+		(strings.TrimSpace(c.AuthorizationURL) == "" || strings.TrimSpace(c.TokenURL) == ""):
+		return errors.New("mcp auth: OAuth metadata or authorization/token endpoints are required")
+	default:
+		return nil
+	}
+}
+
+func trimStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -18,6 +20,9 @@ const (
 	sessionActivityHealthStatusActive  = "active"
 	sessionActivityHealthStatusWarning = "warning"
 	sessionActivityHealthStatusStalled = "stalled"
+	maxFailureHealthBytes              = 2048
+	observeHealthStatusOK              = "ok"
+	observeHealthStatusDegraded        = "degraded"
 )
 
 // Health is the daemon-local observability health snapshot.
@@ -28,10 +33,43 @@ type Health struct {
 	ActiveAgents       int                     `json:"active_agents"`
 	GlobalDBSizeBytes  int64                   `json:"global_db_size_bytes"`
 	SessionDBSizeBytes int64                   `json:"session_db_size_bytes"`
+	Persistence        PersistenceHealth       `json:"persistence"`
+	Retention          RetentionHealth         `json:"retention"`
+	Failures           FailureHealth           `json:"failures"`
+	AgentProbes        []acp.ProbeResult       `json:"agent_probes,omitempty"`
 	Bridges            BridgeAggregateHealth   `json:"bridges"`
 	Tasks              TaskHealth              `json:"tasks"`
 	Activities         []SessionActivityHealth `json:"activities,omitempty"`
 	Version            string                  `json:"version"`
+}
+
+// FailureHealth summarizes persisted lifecycle failures across indexed sessions.
+type FailureHealth struct {
+	Status string                    `json:"status"`
+	Total  int                       `json:"total"`
+	ByKind map[store.FailureKind]int `json:"by_kind,omitempty"`
+	Recent []SessionFailureHealth    `json:"recent,omitempty"`
+}
+
+// SessionFailureHealth is a compact, redacted lifecycle failure row.
+type SessionFailureHealth struct {
+	SessionID       string            `json:"session_id"`
+	AgentName       string            `json:"agent_name,omitempty"`
+	Provider        string            `json:"provider,omitempty"`
+	WorkspaceID     string            `json:"workspace_id,omitempty"`
+	State           string            `json:"state,omitempty"`
+	FailureKind     store.FailureKind `json:"failure_kind"`
+	Summary         string            `json:"summary,omitempty"`
+	CrashBundlePath string            `json:"crash_bundle_path,omitempty"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+}
+
+// PersistenceHealth captures store health that later hardening tracks can extend
+// without overloading unrelated API payloads.
+type PersistenceHealth struct {
+	Status             string `json:"status"`
+	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
 }
 
 // SessionActivityHealth captures the active runtime supervision state exposed
@@ -81,21 +119,121 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 	if err != nil {
 		return Health{}, fmt.Errorf("observe: collect task health: %w", err)
 	}
+	failureHealth, err := o.collectFailureHealth(ctx)
+	if err != nil {
+		return Health{}, err
+	}
+	agentProbes, err := o.collectAgentProbeHealth(ctx)
+	if err != nil {
+		return Health{}, err
+	}
 
 	uptimeSeconds := max(int64(o.now().Sub(o.startedAt).Seconds()), 0)
+	retentionHealth := o.retentionHealthSnapshot()
+	persistenceHealth := PersistenceHealth{
+		Status:             persistenceStatus(retentionHealth),
+		GlobalDBSizeBytes:  globalDBSize,
+		SessionDBSizeBytes: sessionDBSize,
+	}
 
 	return Health{
-		Status:             "ok",
+		Status:             observeHealthStatus(persistenceHealth.Status, agentProbeStatus(agentProbes)),
 		UptimeSeconds:      uptimeSeconds,
 		ActiveSessions:     activeSessions,
 		ActiveAgents:       activeAgents,
 		GlobalDBSizeBytes:  globalDBSize,
 		SessionDBSizeBytes: sessionDBSize,
+		Persistence:        persistenceHealth,
+		Retention:          retentionHealth,
+		Failures:           failureHealth,
+		AgentProbes:        agentProbes,
 		Bridges:            bridgeHealth,
 		Tasks:              taskHealth,
 		Activities:         activities,
 		Version:            o.versionSource().Version,
 	}, nil
+}
+
+func persistenceStatus(retention RetentionHealth) string {
+	if retention.LastSweepStatus == retentionSweepStatusError {
+		return observeHealthStatusDegraded
+	}
+	return observeHealthStatusOK
+}
+
+func observeHealthStatus(statuses ...string) string {
+	for _, status := range statuses {
+		if strings.TrimSpace(status) == observeHealthStatusDegraded {
+			return observeHealthStatusDegraded
+		}
+	}
+	return observeHealthStatusOK
+}
+
+func agentProbeStatus(probes []acp.ProbeResult) string {
+	for _, probe := range probes {
+		if strings.TrimSpace(probe.Status) != "" && strings.TrimSpace(probe.Status) != acp.ProbeStatusOK {
+			return observeHealthStatusDegraded
+		}
+	}
+	return observeHealthStatusOK
+}
+
+func (o *Observer) collectAgentProbeHealth(ctx context.Context) ([]acp.ProbeResult, error) {
+	if o.agentProbeSource == nil {
+		return nil, nil
+	}
+	targets, err := o.agentProbeSource(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("observe: collect agent probe targets: %w", err)
+	}
+	return acp.ProbeTargets(ctx, targets, acp.ProbeOptions{
+		Timeout: o.agentProbeTimeout,
+		Now:     o.now,
+	}), nil
+}
+
+func (o *Observer) collectFailureHealth(ctx context.Context) (FailureHealth, error) {
+	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{})
+	if err != nil {
+		return FailureHealth{}, fmt.Errorf("observe: list sessions for failure health: %w", err)
+	}
+	health := FailureHealth{
+		Status: observeHealthStatusOK,
+		ByKind: make(map[store.FailureKind]int),
+		Recent: make([]SessionFailureHealth, 0),
+	}
+	for _, info := range sessions {
+		if info.Failure == nil {
+			continue
+		}
+		failure := info.Failure.Normalize()
+		if failure.IsZero() {
+			continue
+		}
+		health.Total++
+		health.ByKind[failure.Kind]++
+		if len(health.Recent) < 10 {
+			health.Recent = append(health.Recent, SessionFailureHealth{
+				SessionID:       strings.TrimSpace(info.ID),
+				AgentName:       strings.TrimSpace(info.AgentName),
+				Provider:        strings.TrimSpace(info.Provider),
+				WorkspaceID:     strings.TrimSpace(info.WorkspaceID),
+				State:           strings.TrimSpace(info.State),
+				FailureKind:     failure.Kind,
+				Summary:         diagnostics.RedactAndBound(failure.Summary, maxFailureHealthBytes),
+				CrashBundlePath: diagnostics.RedactAndBound(failure.CrashBundlePath, maxFailureHealthBytes),
+				UpdatedAt:       info.UpdatedAt,
+			})
+		}
+	}
+	if health.Total == 0 {
+		health.ByKind = nil
+		health.Recent = nil
+	} else {
+		health.Status = observeHealthStatusDegraded
+	}
+	return health, nil
 }
 
 func (o *Observer) activeSnapshot(ctx context.Context) (int, int, []SessionActivityHealth, error) {

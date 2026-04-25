@@ -212,7 +212,7 @@ func copyInstallDirectoryContents(
 		sourcePath := filepath.Join(sourceDir, entry.Name())
 		targetPath := filepath.Join(targetDir, entry.Name())
 		if hasPackageManifest && entry.Name() == "node_modules" {
-			if err := copyInstallNodeModules(sourcePath, targetPath, activeDirs, runtimeDeps); err != nil {
+			if err := copyInstallNodeModules(sourceRoot, sourcePath, targetPath, activeDirs, runtimeDeps); err != nil {
 				return err
 			}
 			continue
@@ -266,6 +266,7 @@ func loadInstallRuntimeDependencies(sourceDir string) (map[string]struct{}, bool
 }
 
 func copyInstallNodeModules(
+	sourceRoot string,
 	sourceDir string,
 	targetDir string,
 	activeDirs map[string]struct{},
@@ -293,7 +294,7 @@ func copyInstallNodeModules(
 			return fmt.Errorf("extension: stat runtime dependency %q in %q: %w", name, sourceDir, err)
 		}
 		targetPath := filepath.Join(targetDir, filepath.FromSlash(name))
-		if err := copyInstallRuntimeDependency(sourcePath, targetPath, activeDirs); err != nil {
+		if err := copyInstallRuntimeDependency(sourceRoot, sourcePath, targetPath, activeDirs); err != nil {
 			return err
 		}
 	}
@@ -336,7 +337,12 @@ func validInstallPackageSegment(segment string, scoped bool) bool {
 		!strings.Contains(segment, "\\")
 }
 
-func copyInstallRuntimeDependency(sourcePath string, targetPath string, activeDirs map[string]struct{}) error {
+func copyInstallRuntimeDependency(
+	sourceRoot string,
+	sourcePath string,
+	targetPath string,
+	activeDirs map[string]struct{},
+) error {
 	info, err := os.Lstat(sourcePath)
 	if err != nil {
 		return fmt.Errorf("extension: stat runtime dependency %q: %w", sourcePath, err)
@@ -349,6 +355,9 @@ func copyInstallRuntimeDependency(sourcePath string, targetPath string, activeDi
 		resolvedPath, err := filepath.EvalSymlinks(sourcePath)
 		if err != nil {
 			return fmt.Errorf("extension: resolve runtime dependency symlink %q: %w", sourcePath, err)
+		}
+		if err := ensureInstallPathWithinRoot(sourceRoot, resolvedPath); err != nil {
+			return fmt.Errorf("extension: reject runtime dependency symlink %q: %w", sourcePath, err)
 		}
 		resolvedInfo, err := os.Stat(resolvedPath)
 		if err != nil {

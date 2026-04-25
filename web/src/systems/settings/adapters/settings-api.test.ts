@@ -410,6 +410,8 @@ describe("extension operational actions", () => {
     type: "backend",
     daemon_running: true,
     health: "healthy",
+    requires_env: ["DAYTONA_TOKEN"],
+    missing_env: ["DAYTONA_TOKEN"],
   };
 
   it("lists installed extensions through the HTTP endpoint", async () => {
@@ -418,6 +420,7 @@ describe("extension operational actions", () => {
     const result = await listSettingsExtensions();
 
     expect(result).toEqual([extensionFixture]);
+    expect(result[0]?.missing_env).toEqual(["DAYTONA_TOKEN"]);
     await expectFetchRequest({ path: "/api/extensions" });
   });
 

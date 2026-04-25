@@ -1,0 +1,39 @@
+---
+title: "agh config show"
+description: "Show the redacted effective config"
+---
+
+## agh config show
+
+Show the redacted effective config
+
+```
+agh config show [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for show
+      --workspace string   Workspace root whose overlay should be included
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh config show -o json
+```

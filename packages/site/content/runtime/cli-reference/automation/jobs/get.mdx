@@ -36,3 +36,10 @@ Example:
 ```bash
 agh automation jobs get <id> -o json
 ```
+
+The job detail output includes durable scheduler metadata when available:
+
+- `next_run` / `scheduler.next_run_at` show the next cursor AGH will wait on
+- `scheduler.last_scheduled_at` and `scheduler.last_fire_id` identify the last claimed scheduled fire
+- `scheduler.catch_up_policy` is currently `skip_missed`
+- `scheduler.misfire_count` counts missed fires reconciled on boot

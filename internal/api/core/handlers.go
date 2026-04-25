@@ -695,7 +695,7 @@ func (h *BaseHandlers) Health(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.HealthResponse{
-		Health:     ObserveHealthPayloadFromHealth(health),
+		Health:     ObserveHealthPayloadFromHealth(&health),
 		Memory:     memoryHealth,
 		Automation: automationHealth,
 	})

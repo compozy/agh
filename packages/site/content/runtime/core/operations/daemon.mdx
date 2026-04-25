@@ -94,6 +94,32 @@ During daemon shutdown, AGH stops runtime workers, extensions, automation, activ
 UDS, bridges, network runtime, hooks, and then closes persistent resources. The default daemon
 shutdown context is 10 seconds.
 
+## Understand tool process recovery
+
+Long-running tool work can create subprocesses outside the main agent process. Examples include ACP
+terminals, environment-backed terminals, hook subprocesses, managed extension processes, and shared
+subprocess helpers.
+
+AGH records those processes in the global database when they start, updates the record when ownership
+or state changes, and completes the record when the process exits. Each record stores bounded command
+metadata, owner IDs such as session, turn, terminal, hook, or extension, the daemon PID that created
+it, and PID start-time evidence when the process is local.
+
+On daemon boot, AGH reconciles active process records before it starts accepting runtime work:
+
+- records with a PID and matching start-time evidence remain active for scoped interruption
+- records whose PID evidence no longer matches are marked `stale`
+- records without reusable local PID evidence, such as remote environment terminals, are retired as
+  stale after restart rather than signaled by PID
+
+This prevents AGH from killing an unrelated host process after PID reuse.
+
+Prompt cancellation is also scoped. AGH first sends the ACP cooperative cancel for the active prompt,
+then interrupts only registered tool processes owned by the same session turn. A terminal, hook, or
+extension process can also be interrupted by its recorded process scope. This is different from
+resetting the whole session: the registry targets the matching tool process and leaves unrelated
+session work alone.
+
 ## Know the runtime files
 
 | File                     | Purpose                                                                                                |

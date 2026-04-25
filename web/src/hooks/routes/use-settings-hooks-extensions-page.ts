@@ -117,6 +117,8 @@ export function useSettingsHooksExtensionsPage() {
       health: entry.health,
       health_message: entry.health_message,
       last_error: entry.last_error,
+      requires_env: entry.requires_env,
+      missing_env: entry.missing_env,
       source: "settings",
       type: "unknown",
       daemon_running: true,

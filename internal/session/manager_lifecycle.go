@@ -10,6 +10,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -238,9 +239,19 @@ func (m *Manager) beginStoppingSession(session *Session) error {
 func (m *Manager) persistStopClassification(session *Session, waitErr error) error {
 	stopCause, stopDetailHint := session.stopCauseDetail()
 	stopReason, stopDetail := classifyStopReason(stopCause, waitErr, stopDetailHint)
+	failure := sessionFailureForStop(stopCause, waitErr, stopDetail)
+	var bundleErr error
+	if failure != nil {
+		stderr := ""
+		if proc := session.processHandle(); proc != nil {
+			stderr = proc.Stderr()
+		}
+		failure, bundleErr = m.attachCrashBundleToFailure(context.Background(), session, failure, waitErr, stderr)
+	}
 	session.setStopClassification(stopReason, stopDetail)
+	session.setFailure(failure)
 	session.markExited(m.now())
-	return m.writeMeta(session)
+	return errors.Join(m.writeMeta(session), bundleErr)
 }
 
 func environmentSyncReasonForStop(session *Session) environment.SyncReason {
@@ -265,12 +276,19 @@ func (m *Manager) recordProcessExitEvent(ctx context.Context, session *Session, 
 	if proc := session.processHandle(); proc != nil {
 		stderr = proc.Stderr()
 	}
+	info := session.Info()
+	failure := store.CloneSessionFailure(info.Failure)
+	errorText := waitErr.Error()
+	if failure != nil {
+		errorText = failureSummary(failure, errorText)
+	}
 	event := acp.AgentEvent{
 		Type:      acp.EventTypeError,
 		TurnID:    newID("turn"),
 		Timestamp: m.now(),
-		Error:     waitErr.Error(),
-		Text:      stderr,
+		Error:     errorText,
+		Text:      diagnostics.RedactAndBound(stderr, maxCrashEvidenceBytes),
+		Failure:   failure,
 	}
 	normalized := m.normalizeEvent(session, event.TurnID, event)
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
@@ -292,9 +310,14 @@ func (m *Manager) recordSessionStoppedEvent(ctx context.Context, session *Sessio
 		StopReason: string(stopReason),
 	}
 	if waitErr != nil {
-		stopEvent.Error = waitErr.Error()
+		if failure := store.CloneSessionFailure(session.Info().Failure); failure != nil {
+			stopEvent.Failure = failure
+			stopEvent.Error = failureSummary(failure, waitErr.Error())
+		} else {
+			stopEvent.Error = diagnostics.RedactAndBound(waitErr.Error(), maxSessionFailureSummaryBytes)
+		}
 		if proc := session.processHandle(); proc != nil {
-			stopEvent.Text = proc.Stderr()
+			stopEvent.Text = diagnostics.RedactAndBound(proc.Stderr(), maxCrashEvidenceBytes)
 		}
 	}
 
@@ -304,6 +327,62 @@ func (m *Manager) recordSessionStoppedEvent(ctx context.Context, session *Sessio
 	}
 	m.notifyAgentEvent(ctx, session, normalizedStop)
 	return nil
+}
+
+func (m *Manager) persistFailedStart(ctx context.Context, session *Session, startErr error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if session == nil || startErr == nil {
+		return nil
+	}
+
+	failure := sessionFailureFromError(startErr, store.FailureStartup)
+	var bundleErr error
+	failure, bundleErr = m.attachCrashBundleToFailure(ctx, session, failure, startErr, "")
+	summary := failureSummary(failure, startErr.Error())
+	stopReason := failureStopReason(failure)
+	now := m.now()
+
+	session.setStopClassification(stopReason, summary)
+	session.setFailure(failure)
+	session.markExited(now)
+	session.markStartFailed(now)
+
+	var errs []error
+	errs = appendLifecycleErr(errs, bundleErr)
+	errs = appendLifecycleErr(errs, m.writeMeta(session))
+	errs = appendLifecycleErr(errs, m.recordFailedStartEvents(ctx, session, failure, summary, stopReason))
+	return errors.Join(errs...)
+}
+
+func (m *Manager) recordFailedStartEvents(
+	ctx context.Context,
+	session *Session,
+	failure *store.SessionFailure,
+	summary string,
+	stopReason store.StopReason,
+) error {
+	turnID := newID("turn")
+	now := m.now()
+	errorEvent := m.normalizeEvent(session, turnID, acp.AgentEvent{
+		Type:      acp.EventTypeError,
+		TurnID:    turnID,
+		Timestamp: now,
+		Error:     summary,
+		Failure:   store.CloneSessionFailure(failure),
+	})
+	stopEvent := m.normalizeEvent(session, newID("turn"), acp.AgentEvent{
+		Type:       EventTypeSessionStopped,
+		Timestamp:  now,
+		StopReason: string(stopReason),
+		Error:      summary,
+		Failure:    store.CloneSessionFailure(failure),
+	})
+	return errors.Join(
+		m.recordEvent(ctx, session, errorEvent),
+		m.recordEvent(ctx, session, stopEvent),
+	)
 }
 
 func (m *Manager) closeSessionRecorder(session *Session) error {

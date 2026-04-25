@@ -1,11 +1,21 @@
 ---
-title: Configuration
+title: Overview
 description: Decide which AGH file, overlay, or environment variable should change when you need to configure one machine, one workspace, one agent, or one skill.
 ---
 
 Configuration is where AGH stops being generic and starts matching one machine, one workspace, one
 team default, or one agent role. The key to using this section well is choosing the right surface
 for the change you actually want.
+
+<figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
+  <img
+    src="/images/runtime/configuration-overview-storyboard-v1.png"
+    alt="Hand-drawn Configuration poster showing AGH config surfaces including global and workspace config.toml, AGENT.md, SKILL.md, mcp.json, env vars, and precedence with the octopus mascot."
+    loading="eager"
+    decoding="async"
+    className="h-auto w-full rounded-md"
+  />
+</figure>
 
 ## Start with the decision table
 
@@ -22,13 +32,24 @@ for the change you actually want.
 
 ## Read in this order
 
-1. [config.toml Reference](/runtime/core/configuration/config-toml)
+1. [config.toml](/runtime/core/configuration/config-toml)
 2. [File Locations](/runtime/core/configuration/file-locations)
-3. [AGENT.md Reference](/runtime/core/configuration/agent-md)
+3. [AGENT.md](/runtime/core/configuration/agent-md)
 4. [Agent Capabilities](/runtime/core/agents/capabilities)
-5. [SKILL.md Reference](/runtime/core/configuration/skill-md)
-6. [mcp.json Reference](/runtime/core/configuration/mcp-json)
+5. [SKILL.md](/runtime/core/configuration/skill-md)
+6. [mcp.json](/runtime/core/configuration/mcp-json)
 7. [Environment Variables](/runtime/core/configuration/env-vars)
 
 That order mirrors how operators usually troubleshoot AGH: global defaults first, path resolution
 second, then file-format specifics and agent sidecars.
+
+## CLI Inspection and Mutation
+
+Use `agh config path` before editing to confirm the selected global or workspace overlay. Prefer
+`agh config set <path> <value>` for supported scalar and list settings because it writes through the
+same validated persistence path as the settings API. Use `agh config validate` or its
+`agh config check` alias after hand edits.
+
+Inspection commands are redacted by default. `agh config show`, `agh config list`, and
+`agh config get <path>` replace MCP and environment map values with `[redacted]` so copied
+diagnostics do not leak runtime credentials.

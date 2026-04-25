@@ -39,16 +39,17 @@ var (
 
 // Manifest describes one extension without executing any extension code.
 type Manifest struct {
-	Name          string             `toml:"name"                  json:"name"`
-	Version       string             `toml:"version"               json:"version"`
-	Description   string             `toml:"description,omitempty" json:"description,omitempty"`
-	MinAGHVersion string             `toml:"min_agh_version"       json:"min_agh_version"`
-	Resources     ResourcesConfig    `toml:"resources"             json:"resources"`
-	Capabilities  CapabilitiesConfig `toml:"capabilities"          json:"capabilities"`
-	Actions       ActionsConfig      `toml:"actions"               json:"actions"`
-	Subprocess    SubprocessConfig   `toml:"subprocess"            json:"subprocess"`
-	Security      SecurityConfig     `toml:"security"              json:"security"`
-	Bridge        BridgeConfig       `toml:"bridge"                json:"bridge"`
+	Name          string             `toml:"name"                   json:"name"`
+	Version       string             `toml:"version"                json:"version"`
+	Description   string             `toml:"description,omitempty"  json:"description,omitempty"`
+	MinAGHVersion string             `toml:"min_agh_version"        json:"min_agh_version"`
+	RequiresEnv   []string           `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
+	Resources     ResourcesConfig    `toml:"resources"              json:"resources"`
+	Capabilities  CapabilitiesConfig `toml:"capabilities"           json:"capabilities"`
+	Actions       ActionsConfig      `toml:"actions"                json:"actions"`
+	Subprocess    SubprocessConfig   `toml:"subprocess"             json:"subprocess"`
+	Security      SecurityConfig     `toml:"security"               json:"security"`
+	Bridge        BridgeConfig       `toml:"bridge"                 json:"bridge"`
 }
 
 // ResourcesConfig declares static assets bundled with an extension.
@@ -181,24 +182,26 @@ type ManifestCompatibilityError struct {
 }
 
 type manifestDocument struct {
-	Extension     manifestCore       `toml:"extension"             json:"extension"`
-	Name          string             `toml:"name"                  json:"name"`
-	Version       string             `toml:"version"               json:"version"`
-	Description   string             `toml:"description,omitempty" json:"description,omitempty"`
-	MinAGHVersion string             `toml:"min_agh_version"       json:"min_agh_version"`
-	Resources     ResourcesConfig    `toml:"resources"             json:"resources"`
-	Capabilities  CapabilitiesConfig `toml:"capabilities"          json:"capabilities"`
-	Actions       ActionsConfig      `toml:"actions"               json:"actions"`
-	Subprocess    SubprocessConfig   `toml:"subprocess"            json:"subprocess"`
-	Security      SecurityConfig     `toml:"security"              json:"security"`
-	Bridge        BridgeConfig       `toml:"bridge"                json:"bridge"`
+	Extension     manifestCore       `toml:"extension"              json:"extension"`
+	Name          string             `toml:"name"                   json:"name"`
+	Version       string             `toml:"version"                json:"version"`
+	Description   string             `toml:"description,omitempty"  json:"description,omitempty"`
+	MinAGHVersion string             `toml:"min_agh_version"        json:"min_agh_version"`
+	RequiresEnv   []string           `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
+	Resources     ResourcesConfig    `toml:"resources"              json:"resources"`
+	Capabilities  CapabilitiesConfig `toml:"capabilities"           json:"capabilities"`
+	Actions       ActionsConfig      `toml:"actions"                json:"actions"`
+	Subprocess    SubprocessConfig   `toml:"subprocess"             json:"subprocess"`
+	Security      SecurityConfig     `toml:"security"               json:"security"`
+	Bridge        BridgeConfig       `toml:"bridge"                 json:"bridge"`
 }
 
 type manifestCore struct {
-	Name          string `toml:"name"                  json:"name"`
-	Version       string `toml:"version"               json:"version"`
-	Description   string `toml:"description,omitempty" json:"description,omitempty"`
-	MinAGHVersion string `toml:"min_agh_version"       json:"min_agh_version"`
+	Name          string   `toml:"name"                   json:"name"`
+	Version       string   `toml:"version"                json:"version"`
+	Description   string   `toml:"description,omitempty"  json:"description,omitempty"`
+	MinAGHVersion string   `toml:"min_agh_version"        json:"min_agh_version"`
+	RequiresEnv   []string `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
 }
 
 // LoadManifest reads one extension manifest from dir, preferring TOML over JSON.
@@ -249,6 +252,9 @@ func (m *Manifest) Validate() error {
 		return err
 	}
 	if err := validateDaemonCompatibility(m.MinAGHVersion); err != nil {
+		return err
+	}
+	if err := validateEnvRequirements("requires_env", m.RequiresEnv); err != nil {
 		return err
 	}
 	if err := validateDottedIdentifiers("capabilities.provides", m.Capabilities.Provides, false); err != nil {
@@ -449,7 +455,7 @@ func loadManifestJSON(path string) (*Manifest, error) {
 	return &manifest, nil
 }
 
-func (d manifestDocument) toManifest() (Manifest, error) {
+func (d *manifestDocument) toManifest() (Manifest, error) {
 	name, err := mergeManifestValue("name", d.Name, d.Extension.Name)
 	if err != nil {
 		return Manifest{}, err
@@ -466,12 +472,17 @@ func (d manifestDocument) toManifest() (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
+	requiresEnv, err := mergeManifestStringSlice("requires_env", d.RequiresEnv, d.Extension.RequiresEnv)
+	if err != nil {
+		return Manifest{}, err
+	}
 
 	manifest := Manifest{
 		Name:          name,
 		Version:       versionValue,
 		Description:   description,
 		MinAGHVersion: minVersion,
+		RequiresEnv:   normalizeStrings(requiresEnv),
 		Resources:     normalizeResourcesConfig(d.Resources),
 		Capabilities:  normalizeCapabilitiesConfig(d.Capabilities),
 		Actions:       normalizeActionsConfig(d.Actions),
@@ -498,6 +509,53 @@ func mergeManifestValue(field, rootValue, wrappedValue string) (string, error) {
 			Message: "conflicting root and extension values",
 		}
 	}
+}
+
+func mergeManifestStringSlice(field string, rootValues []string, wrappedValues []string) ([]string, error) {
+	normalizedRoot := normalizeStrings(rootValues)
+	normalizedWrapped := normalizeStrings(wrappedValues)
+	switch {
+	case len(normalizedRoot) == 0:
+		return normalizedWrapped, nil
+	case len(normalizedWrapped) == 0:
+		return normalizedRoot, nil
+	case stringSlicesEqual(normalizedRoot, normalizedWrapped):
+		return normalizedRoot, nil
+	default:
+		return nil, &ManifestValidationError{
+			Field:   field,
+			Message: "conflicting root and extension values",
+		}
+	}
+}
+
+func stringSlicesEqual(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if left[idx] != right[idx] {
+			return false
+		}
+	}
+	return true
+}
+
+// MissingEnv returns manifest-required environment variable names that are unset or empty.
+func (m *Manifest) MissingEnv(getenv func(string) string) []string {
+	if m == nil || len(m.RequiresEnv) == 0 {
+		return nil
+	}
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	missing := make([]string, 0, len(m.RequiresEnv))
+	for _, name := range m.RequiresEnv {
+		if strings.TrimSpace(getenv(name)) == "" {
+			missing = append(missing, name)
+		}
+	}
+	return missing
 }
 
 func normalizeResourcesConfig(cfg ResourcesConfig) ResourcesConfig {
@@ -597,6 +655,47 @@ func validateBridgeSecretSlots(slots []bridgepkg.BridgeSecretSlot) error {
 		seen[key] = struct{}{}
 	}
 	return nil
+}
+
+func validateEnvRequirements(field string, values []string) error {
+	seen := make(map[string]struct{}, len(values))
+	for idx, value := range values {
+		name := strings.TrimSpace(value)
+		if !validEnvRequirementName(name) {
+			return &ManifestValidationError{
+				Field:   fmt.Sprintf("%s[%d]", field, idx),
+				Value:   value,
+				Message: "environment variable name must match [A-Za-z_][A-Za-z0-9_]*",
+			}
+		}
+		if _, ok := seen[name]; ok {
+			return &ManifestValidationError{
+				Field:   fmt.Sprintf("%s[%d]", field, idx),
+				Value:   name,
+				Message: "duplicate environment variable requirement",
+			}
+		}
+		seen[name] = struct{}{}
+	}
+	return nil
+}
+
+func validEnvRequirementName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for idx, r := range name {
+		if idx == 0 {
+			if r != '_' && (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') {
+				return false
+			}
+			continue
+		}
+		if r != '_' && (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizeHooks(src []HookConfig) []HookConfig {

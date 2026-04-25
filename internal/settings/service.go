@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -60,6 +61,11 @@ type TransportParityProvider interface {
 	TransportParityStatus(ctx context.Context) (TransportParityStatus, error)
 }
 
+// MCPAuthRuntimeProvider returns redacted MCP auth status for settings rows.
+type MCPAuthRuntimeProvider interface {
+	MCPAuthStatus(ctx context.Context, server aghconfig.MCPServer) (mcpauth.Status, error)
+}
+
 // Dependencies captures the runtime dependencies required by the settings service.
 type Dependencies struct {
 	WorkspaceResolver          WorkspaceResolver
@@ -71,6 +77,7 @@ type Dependencies struct {
 	ObservabilityRuntime       ObservabilityRuntimeProvider
 	Extensions                 ExtensionStatusProvider
 	TransportParity            TransportParityProvider
+	MCPAuth                    MCPAuthRuntimeProvider
 	RestartActionAvailable     bool
 	ConsolidateActionAvailable bool
 	LogTailAvailable           bool
@@ -89,6 +96,7 @@ type service struct {
 	observabilityRuntime       ObservabilityRuntimeProvider
 	extensions                 ExtensionStatusProvider
 	transportParity            TransportParityProvider
+	mcpAuth                    MCPAuthRuntimeProvider
 	restartActionAvailable     bool
 	consolidateActionAvailable bool
 	logTailAvailable           bool
@@ -124,6 +132,7 @@ func NewService(homePaths aghconfig.HomePaths, deps Dependencies) (Service, erro
 		observabilityRuntime:       deps.ObservabilityRuntime,
 		extensions:                 deps.Extensions,
 		transportParity:            deps.TransportParity,
+		mcpAuth:                    deps.MCPAuth,
 		restartActionAvailable:     deps.RestartActionAvailable,
 		consolidateActionAvailable: deps.ConsolidateActionAvailable,
 		logTailAvailable:           deps.LogTailAvailable,

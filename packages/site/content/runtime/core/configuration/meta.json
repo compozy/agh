@@ -1,13 +1,5 @@
 {
     "title": "Configuration",
     "icon": "Settings",
-    "pages": [
-        "index",
-        "config-toml",
-        "agent-md",
-        "skill-md",
-        "mcp-json",
-        "env-vars",
-        "file-locations"
-    ]
+    "pages": ["config-toml", "agent-md", "skill-md", "mcp-json", "env-vars", "file-locations"]
 }

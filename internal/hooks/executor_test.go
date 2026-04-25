@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 func TestNativeExecutorExecuteCallsCallback(t *testing.T) {
@@ -93,6 +95,51 @@ func TestSubprocessExecutorExecutePassesPayloadViaStdin(t *testing.T) {
 	}
 	if !bytes.Equal(output, payload) {
 		t.Fatalf("output = %q, want %q", string(output), string(payload))
+	}
+}
+
+func TestSubprocessExecutorExecuteRegistersProcess(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("subprocess shell test requires POSIX shell")
+	}
+
+	ctx := t.Context()
+	store := toolruntime.NewMemoryStore()
+	registry := toolruntime.NewRegistry(store)
+	executor := NewSubprocessExecutor(
+		"/bin/sh",
+		[]string{"-c", "printf tracked-hook"},
+		WithSubprocessProcessRegistry(registry),
+	)
+	payload := []byte(`{"session_id":"sess-hook","turn_id":"turn-hook","tool_call_id":"tool-hook"}`)
+
+	output, err := executor.Execute(ctx, RegisteredHook{Name: "tracked-hook"}, payload)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got, want := string(output), "tracked-hook"; got != want {
+		t.Fatalf("output = %q, want %q", got, want)
+	}
+
+	records, err := store.ListProcessRecords(ctx, toolruntime.ProcessQuery{
+		Scope: toolruntime.InterruptScope{HookName: "tracked-hook"},
+	})
+	if err != nil {
+		t.Fatalf("ListProcessRecords() error = %v", err)
+	}
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("records = %d, want %d", got, want)
+	}
+	record := records[0]
+	if record.State != toolruntime.ProcessStateCompleted {
+		t.Fatalf("record.State = %q, want completed", record.State)
+	}
+	if record.Owner.SessionID != "sess-hook" ||
+		record.Owner.TurnID != "turn-hook" ||
+		record.Owner.ToolCallID != "tool-hook" {
+		t.Fatalf("record.Owner = %#v, want payload ownership", record.Owner)
 	}
 }
 

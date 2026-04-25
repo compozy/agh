@@ -12,6 +12,7 @@ import (
 	"github.com/pedronauck/agh/internal/environment"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/toolruntime"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -247,6 +248,14 @@ type AgentDriver interface {
 	Stop(ctx context.Context, proc *AgentProcess) error
 }
 
+// ErrScopedInterruptNotFound reports that no registered tool process matched a scoped interrupt.
+var ErrScopedInterruptNotFound = toolruntime.ErrProcessNotFound
+
+// ScopedInterrupter is the optional process-scoped interrupt surface for drivers.
+type ScopedInterrupter interface {
+	Interrupt(ctx context.Context, sessionID string, turnID string) (toolruntime.InterruptReport, error)
+}
+
 // EventRecorder is the per-session storage surface consumed by session/.
 type EventRecorder = store.EventRecorder
 
@@ -289,6 +298,7 @@ type ACPDriverAdapter struct {
 }
 
 var _ AgentDriver = (*ACPDriverAdapter)(nil)
+var _ ScopedInterrupter = (*ACPDriverAdapter)(nil)
 
 // NewACPDriverAdapter wraps the provided ACP driver for use by the session manager.
 func NewACPDriverAdapter(driver *acp.Driver) *ACPDriverAdapter {
@@ -324,6 +334,19 @@ func (a *ACPDriverAdapter) Cancel(ctx context.Context, proc *AgentProcess) error
 		return err
 	}
 	return a.driver.Cancel(ctx, native)
+}
+
+// Interrupt signals only registered tool processes scoped to the session turn.
+func (a *ACPDriverAdapter) Interrupt(
+	ctx context.Context,
+	sessionID string,
+	turnID string,
+) (toolruntime.InterruptReport, error) {
+	return a.driver.Interrupt(ctx, toolruntime.InterruptScope{
+		SessionID: sessionID,
+		TurnID:    turnID,
+		Reason:    "prompt canceled",
+	})
 }
 
 // Stop stops the wrapped ACP runtime process.

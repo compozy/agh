@@ -58,6 +58,9 @@ func (h *BaseHandlers) writeSessionStoppedEvent(writer FlushWriter, latest *sess
 			Type:          session.EventTypeSessionStopped,
 			WorkspaceID:   ref.WorkspaceID,
 			WorkspacePath: ref.WorkspacePath,
+			StopReason:    latest.StopReason,
+			StopDetail:    latest.StopDetail,
+			Failure:       SessionFailurePayloadFromStore(latest.Failure),
 			Timestamp:     latest.UpdatedAt,
 		},
 	})

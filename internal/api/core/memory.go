@@ -17,6 +17,13 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 )
 
+const (
+	memoryHealthStatusOK          = "ok"
+	memoryHealthStatusDisabled    = "disabled"
+	memoryHealthStatusDegraded    = "degraded"
+	memoryHealthStatusUnavailable = "unavailable"
+)
+
 // MemoryLocation identifies the storage location for a memory document.
 type MemoryLocation struct {
 	Scope     memory.Scope
@@ -32,6 +39,37 @@ func (h *BaseHandlers) ListMemory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, headers)
+}
+
+// MemoryHealth returns the memory-specific health snapshot.
+func (h *BaseHandlers) MemoryHealth(c *gin.Context) {
+	payload, err := h.memoryHealth(c)
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, payload)
+}
+
+// MemoryHistory returns bounded, redacted memory operation history.
+func (h *BaseHandlers) MemoryHistory(c *gin.Context) {
+	if h.MemoryStore == nil {
+		h.respondError(c, http.StatusInternalServerError, errors.New("memory store is not configured"))
+		return
+	}
+
+	query, err := parseMemoryHistoryQuery(c)
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+	records, err := h.MemoryStore.History(c.Request.Context(), query)
+	if err != nil {
+		h.respondError(c, StatusForMemoryError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.MemoryHistoryResponse{Operations: MemoryOperationPayloads(records)})
 }
 
 // SearchMemory returns ranked durable memory matches.
@@ -220,12 +258,19 @@ func (h *BaseHandlers) ConsolidateMemory(c *gin.Context) {
 
 func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayload, error) {
 	payload := contract.MemoryHealthPayload{
+		Status:             memoryHealthStatusOK,
 		Enabled:            h.Config.Memory.Enabled,
+		Configured:         strings.TrimSpace(h.Config.Memory.GlobalDir) != "",
 		GlobalDir:          strings.TrimSpace(h.Config.Memory.GlobalDir),
 		DreamAgent:         strings.TrimSpace(h.Config.Memory.Dream.Agent),
 		DreamMinHours:      h.Config.Memory.Dream.MinHours,
 		DreamMinSessions:   h.Config.Memory.Dream.MinSessions,
 		DreamCheckInterval: h.Config.Memory.Dream.CheckInterval.String(),
+	}
+	if !payload.Enabled {
+		payload.Status = memoryHealthStatusDisabled
+		payload.Reason = "memory is disabled"
+		return payload, nil
 	}
 	if h.DreamTrigger != nil {
 		payload.DreamEnabled = h.DreamTrigger.Enabled()
@@ -239,12 +284,17 @@ func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayloa
 		}
 	}
 	if h.MemoryStore == nil {
+		payload.Status = memoryHealthStatusUnavailable
+		payload.Configured = false
+		payload.Reason = "memory store is not configured"
 		return payload, nil
 	}
 
 	globalHeaders, err := h.MemoryStore.Scan(memory.ScopeGlobal)
 	if err != nil {
-		return contract.MemoryHealthPayload{}, err
+		payload.Status = memoryHealthStatusUnavailable
+		payload.Reason = err.Error()
+		return payload, nil
 	}
 	payload.GlobalFiles = len(globalHeaders)
 
@@ -252,24 +302,53 @@ func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayloa
 	if err != nil {
 		return contract.MemoryHealthPayload{}, err
 	}
+	payload.WorkspaceCount = len(workspaces)
 	for _, workspace := range workspaces {
 		store := h.MemoryStore.ForWorkspace(workspace)
 		headers, err := store.Scan(memory.ScopeWorkspace)
 		if err != nil {
-			return contract.MemoryHealthPayload{}, err
+			payload.Status = memoryHealthStatusDegraded
+			payload.Reason = err.Error()
+			return payload, nil
 		}
 		payload.WorkspaceFiles += len(headers)
 	}
 
 	stats, err := h.MemoryStore.HealthStats(c.Request.Context(), workspaces)
 	if err != nil {
-		return contract.MemoryHealthPayload{}, err
+		payload.Status = memoryHealthStatusDegraded
+		payload.Reason = err.Error()
+		return payload, nil
 	}
 	payload.IndexedFiles = stats.IndexedFiles
 	payload.OrphanedFiles = stats.OrphanedFiles
 	payload.LastReindex = stats.LastReindex
+	payload.OperationCount = stats.OperationCount
+	payload.LastOperationAt = stats.LastOperationAt
+	if payload.Status == memoryHealthStatusOK && payload.OrphanedFiles > 0 {
+		payload.Status = memoryHealthStatusDegraded
+		payload.Reason = "memory catalog has orphaned files"
+	}
 
 	return payload, nil
+}
+
+// MemoryOperationPayloads converts domain operation records into API DTOs.
+func MemoryOperationPayloads(records []memory.OperationRecord) []contract.MemoryOperationPayload {
+	payloads := make([]contract.MemoryOperationPayload, 0, len(records))
+	for _, record := range records {
+		payloads = append(payloads, contract.MemoryOperationPayload{
+			ID:        strings.TrimSpace(record.ID),
+			Operation: string(record.Operation.Normalize()),
+			Scope:     string(record.Scope.Normalize()),
+			Workspace: strings.TrimSpace(record.Workspace),
+			Filename:  strings.TrimSpace(record.Filename),
+			AgentName: strings.TrimSpace(record.AgentName),
+			Summary:   strings.TrimSpace(record.Summary),
+			Timestamp: record.Timestamp.UTC(),
+		})
+	}
+	return payloads
 }
 
 func (h *BaseHandlers) listMemoryHeaders(rawScope string, rawWorkspace string) ([]memory.Header, error) {
@@ -547,4 +626,26 @@ func parseMemoryLimit(raw string) (int, error) {
 		return 0, NewMemoryValidationError(errors.New("limit must be a positive integer"))
 	}
 	return limit, nil
+}
+
+func parseMemoryHistoryQuery(c *gin.Context) (memory.OperationHistoryQuery, error) {
+	scope, workspace, err := resolveMemoryScopeAndWorkspace(c.Query("scope"), c.Query("workspace"))
+	if err != nil {
+		return memory.OperationHistoryQuery{}, err
+	}
+	since, err := ParseOptionalTime(c.Query("since"))
+	if err != nil {
+		return memory.OperationHistoryQuery{}, NewMemoryValidationError(err)
+	}
+	limit, err := parseMemoryLimit(c.Query("limit"))
+	if err != nil {
+		return memory.OperationHistoryQuery{}, err
+	}
+	return memory.OperationHistoryQuery{
+		Scope:     scope,
+		Workspace: workspace,
+		Operation: memory.Operation(strings.TrimSpace(c.Query("operation"))),
+		Since:     since,
+		Limit:     limit,
+	}, nil
 }

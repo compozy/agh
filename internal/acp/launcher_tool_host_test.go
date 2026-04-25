@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 func TestLocalLauncherLaunchProvidesWorkingPipes(t *testing.T) {
@@ -263,6 +265,124 @@ func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {
 	}
 	if got, want := strings.TrimSpace(output), mustCanonicalDir(t, cwd); got != want {
 		t.Fatalf("terminal cwd output = %q, want %q", got, want)
+	}
+}
+
+func TestLocalToolHostCreateTerminalRegistersProcess(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	root := t.TempDir()
+	store := toolruntime.NewMemoryStore()
+	registry := toolruntime.NewRegistry(store)
+	host, err := newLocalToolHost(
+		ctx,
+		root,
+		aghconfig.PermissionModeApproveAll,
+		testDiscardLogger(),
+		WithLocalProcessRegistry(registry),
+	)
+	if err != nil {
+		t.Fatalf("newLocalToolHost() error = %v", err)
+	}
+	t.Cleanup(host.Close)
+
+	response, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+		SessionId: "sess-terminal",
+		Command:   "pwd",
+	})
+	if err != nil {
+		t.Fatalf("CreateTerminal() error = %v", err)
+	}
+	if _, err := host.WaitForTerminalExit(ctx, response.TerminalId); err != nil {
+		t.Fatalf("WaitForTerminalExit() error = %v", err)
+	}
+
+	records, err := store.ListProcessRecords(ctx, toolruntime.ProcessQuery{
+		Scope: toolruntime.InterruptScope{TerminalID: response.TerminalId},
+	})
+	if err != nil {
+		t.Fatalf("ListProcessRecords() error = %v", err)
+	}
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("records = %d, want %d", got, want)
+	}
+	record := records[0]
+	if record.Source != toolruntime.ProcessSourceACPTerminal {
+		t.Fatalf("record.Source = %q, want acp_terminal", record.Source)
+	}
+	if record.Owner.TerminalID != response.TerminalId {
+		t.Fatalf("record.Owner.TerminalID = %q, want %q", record.Owner.TerminalID, response.TerminalId)
+	}
+	if record.State != toolruntime.ProcessStateCompleted {
+		t.Fatalf("record.State = %q, want completed", record.State)
+	}
+}
+
+func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell process-group interrupt test")
+	}
+
+	ctx := testutil.Context(t)
+	root := t.TempDir()
+	store := toolruntime.NewMemoryStore()
+	registry := toolruntime.NewRegistry(store)
+	host, err := newLocalToolHost(
+		ctx,
+		root,
+		aghconfig.PermissionModeApproveAll,
+		testDiscardLogger(),
+		WithLocalProcessRegistry(registry),
+	)
+	if err != nil {
+		t.Fatalf("newLocalToolHost() error = %v", err)
+	}
+	t.Cleanup(host.Close)
+
+	first, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+		SessionId: "sess-terminal",
+		Command:   "/bin/sh",
+		Args:      []string{"-c", "sleep 5"},
+	})
+	if err != nil {
+		t.Fatalf("CreateTerminal(first) error = %v", err)
+	}
+	second, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+		SessionId: "sess-terminal",
+		Command:   "/bin/sh",
+		Args:      []string{"-c", "sleep 5"},
+	})
+	if err != nil {
+		t.Fatalf("CreateTerminal(second) error = %v", err)
+	}
+	t.Cleanup(func() { _ = host.ReleaseTerminal(first.TerminalId) })
+
+	report, err := registry.Interrupt(ctx, toolruntime.InterruptScope{TerminalID: second.TerminalId})
+	if err != nil {
+		t.Fatalf("Interrupt(second) error = %v", err)
+	}
+	if report.Matched != 1 || report.Signaled != 1 {
+		t.Fatalf("Interrupt(second) = %#v, want one signaled terminal", report)
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if _, err := host.WaitForTerminalExit(waitCtx, second.TerminalId); err != nil {
+		t.Fatalf("WaitForTerminalExit(second) error = %v", err)
+	}
+
+	stillRunningCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	if _, err := host.WaitForTerminalExit(
+		stillRunningCtx,
+		first.TerminalId,
+	); !errors.Is(
+		err,
+		context.DeadlineExceeded,
+	) {
+		t.Fatalf("WaitForTerminalExit(first) error = %v, want context deadline", err)
 	}
 }
 

@@ -607,6 +607,95 @@ command = "workspace-inline"
 	}
 }
 
+func TestLoadSupportsRemoteMCPAuthFieldsInTOML(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[[mcp_servers]]
+name = "linear"
+transport = "sse"
+url = "https://mcp.example/sse"
+
+[mcp_servers.auth]
+type = "oauth2_pkce"
+authorization_url = "https://auth.example/authorize"
+token_url = "https://auth.example/token"
+client_id = "client-id"
+client_secret_env = "LINEAR_CLIENT_SECRET"
+scopes = ["read"]
+
+[[providers.codex.mcp_servers]]
+name = "remote-provider"
+transport = "http"
+url = "https://provider.example/mcp"
+
+[providers.codex.mcp_servers.auth]
+type = "oauth2_pkce"
+issuer_url = "https://issuer.example"
+client_id = "provider-client"
+scopes = ["tools"]
+`)
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load(remote MCP TOML) error = %v", err)
+	}
+
+	if got, want := len(cfg.MCPServers), 1; got != want {
+		t.Fatalf("Load() MCPServers len = %d, want %d (%#v)", got, want, cfg.MCPServers)
+	}
+	linear := cfg.MCPServers[0]
+	if got, want := linear.Transport, MCPServerTransportSSE; got != want {
+		t.Fatalf("Load() linear.Transport = %q, want %q", got, want)
+	}
+	if got, want := linear.URL, "https://mcp.example/sse"; got != want {
+		t.Fatalf("Load() linear.URL = %q, want %q", got, want)
+	}
+	if got, want := linear.Auth.Type, MCPAuthTypeOAuth2PKCE; got != want {
+		t.Fatalf("Load() linear.Auth.Type = %q, want %q", got, want)
+	}
+	if got, want := linear.Auth.AuthorizationURL, "https://auth.example/authorize"; got != want {
+		t.Fatalf("Load() linear.Auth.AuthorizationURL = %q, want %q", got, want)
+	}
+	if got, want := linear.Auth.TokenURL, "https://auth.example/token"; got != want {
+		t.Fatalf("Load() linear.Auth.TokenURL = %q, want %q", got, want)
+	}
+	if got, want := linear.Auth.ClientSecretEnv, "LINEAR_CLIENT_SECRET"; got != want {
+		t.Fatalf("Load() linear.Auth.ClientSecretEnv = %q, want %q", got, want)
+	}
+	if got, want := linear.Auth.Scopes, []string{"read"}; !slices.Equal(got, want) {
+		t.Fatalf("Load() linear.Auth.Scopes = %#v, want %#v", got, want)
+	}
+
+	codex, err := cfg.ResolveProvider("codex")
+	if err != nil {
+		t.Fatalf("ResolveProvider(codex) error = %v", err)
+	}
+	if got, want := len(codex.MCPServers), 1; got != want {
+		t.Fatalf("ResolveProvider(codex) MCPServers len = %d, want %d (%#v)", got, want, codex.MCPServers)
+	}
+	providerRemote := codex.MCPServers[0]
+	if got, want := providerRemote.Transport, MCPServerTransportHTTP; got != want {
+		t.Fatalf("provider remote Transport = %q, want %q", got, want)
+	}
+	if got, want := providerRemote.Auth.IssuerURL, "https://issuer.example"; got != want {
+		t.Fatalf("provider remote IssuerURL = %q, want %q", got, want)
+	}
+	if got, want := providerRemote.Auth.ClientID, "provider-client"; got != want {
+		t.Fatalf("provider remote ClientID = %q, want %q", got, want)
+	}
+}
+
 func TestSessionLimitsConfigValidateRejectsNegativeTimeout(t *testing.T) {
 	t.Run("Should reject negative timeout", func(t *testing.T) {
 		t.Parallel()
@@ -639,6 +728,46 @@ func TestSessionSupervisionConfigValidateRejectsWarningAfterTimeout(t *testing.T
 			t.Fatalf("SessionSupervisionConfig.Validate() error = %v, want threshold context", err)
 		}
 	})
+}
+
+func TestObservabilityConfigValidateRetentionDays(t *testing.T) {
+	t.Run("Should allow zero as keep history", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := validObservabilityConfigForTest()
+		cfg.RetentionDays = 0
+
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("ObservabilityConfig.Validate() error = %v, want nil for keep-history retention", err)
+		}
+	})
+
+	t.Run("Should reject negative retention days", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := validObservabilityConfigForTest()
+		cfg.RetentionDays = -1
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("ObservabilityConfig.Validate() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "observability.retention_days must be zero or positive") {
+			t.Fatalf("ObservabilityConfig.Validate() error = %v, want retention_days context", err)
+		}
+	})
+}
+
+func validObservabilityConfigForTest() ObservabilityConfig {
+	return ObservabilityConfig{
+		Enabled:        true,
+		MaxGlobalBytes: 1,
+		Transcripts: ObservabilityTranscriptConfig{
+			Enabled:            true,
+			SegmentBytes:       1,
+			MaxBytesPerSession: 1,
+		},
+	}
 }
 
 func TestLoadWorkspaceAddsValuesWithoutClobberingGlobal(t *testing.T) {

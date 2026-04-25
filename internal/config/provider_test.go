@@ -143,6 +143,50 @@ func TestMergeMCPServersSameNameOverlaysFields(t *testing.T) {
 	}
 }
 
+func TestMCPServerValidateSupportsRemoteOAuthPKCE(t *testing.T) {
+	t.Parallel()
+
+	server := MCPServer{
+		Name:      "linear",
+		Transport: MCPServerTransportSSE,
+		URL:       "https://mcp.example/sse",
+		Auth: MCPAuthConfig{
+			Type:             MCPAuthTypeOAuth2PKCE,
+			AuthorizationURL: "https://auth.example/authorize",
+			TokenURL:         "https://auth.example/token",
+			ClientID:         "client-1",
+			Scopes:           []string{"read", "write"},
+		},
+	}
+	if err := server.Validate("mcp_servers[0]"); err != nil {
+		t.Fatalf("Validate(remote OAuth) error = %v", err)
+	}
+
+	server.Auth.TokenURL = ""
+	if err := server.Validate("mcp_servers[0]"); err == nil {
+		t.Fatal("Validate(missing token metadata) error = nil, want validation failure")
+	}
+}
+
+func TestRedactedMCPServerDoesNotExposeEnvSecretValues(t *testing.T) {
+	t.Parallel()
+
+	server := MCPServer{
+		Name:    "github",
+		Command: "npx",
+		Env: map[string]string{
+			"GITHUB_TOKEN": "secret-token",
+		},
+	}
+	redacted := RedactedMCPServer(server)
+	if got := redacted.Env["GITHUB_TOKEN"]; got != RedactedValue() {
+		t.Fatalf("redacted env = %q, want placeholder", got)
+	}
+	if server.Env["GITHUB_TOKEN"] != "secret-token" {
+		t.Fatalf("source env mutated = %#v", server.Env)
+	}
+}
+
 func TestMergeMCPServersTrimmedNamesCollide(t *testing.T) {
 	t.Parallel()
 

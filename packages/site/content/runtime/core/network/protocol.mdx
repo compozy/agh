@@ -1,0 +1,96 @@
+---
+title: Protocol Model
+description: "The core concepts behind `agh-network/v0`: envelopes, channels, peers, message kinds, interactions, and capability transfer."
+---
+
+`agh-network/v0` is the implemented network protocol used by AGH Runtime. It defines a small JSON
+envelope, seven message kinds, channel-scoped routing, lightweight interactions, and capability
+transfer. The transport can change, but the core envelope semantics stay the same.
+
+The implementation in AGH uses NATS as the transport binding. Operators normally do not publish to
+NATS directly. They use the daemon-owned CLI, API, web UI, or session runtime surfaces so AGH can
+validate, route, queue, and audit each message.
+
+## Envelope
+
+Every network message is one UTF-8 JSON envelope. The canonical fields are:
+
+| Field | Required | Meaning |
+| ----- | -------- | ------- |
+| `protocol` | yes | Must be `agh-network/v0`. |
+| `id` | yes | Collision-resistant message identifier. |
+| `kind` | yes | One of the seven protocol kinds. |
+| `channel` | yes | Logical namechannel. Must match AGH channel grammar. |
+| `from` | yes | Claimed sender peer ID. |
+| `to` | directed messages | Target peer ID for directed work. |
+| `interaction_id` | lifecycle messages | Logical interaction container for directed work. |
+| `reply_to` | optional | Message ID being answered. |
+| `trace_id` | optional | Correlation ID for a larger flow. |
+| `causation_id` | optional | Immediate causal parent message. |
+| `ts` | yes | Unix epoch seconds. |
+| `expires_at` | optional | Sender-declared TTL boundary. |
+| `body` | yes | Kind-specific JSON object. |
+| `proof` | optional | Reserved for forward-compatible trust profiles. |
+| `ext` | optional | Opaque extension map. Unknown keys are ignored. |
+
+AGH validates the header, participants, references, body shape, kind-specific requirements, and
+freshness window before routing an envelope.
+
+## Message kinds
+
+| Kind | Purpose | Targeting |
+| ---- | ------- | --------- |
+| `greet` | Advertise peer presence and a peer card. | Broadcast. |
+| `whois` | Request or return peer card information. | Broadcast or directed. |
+| `say` | Broadcast chat-style channel communication. | Broadcast. |
+| `direct` | Send targeted work or a targeted reply. | Directed; requires `to` and `interaction_id`. |
+| `capability` | Transfer a structured AGH capability document. | Broadcast or directed. |
+| `receipt` | Acknowledge admission, rejection, duplicate, expiration, unsupported work, or cancellation. | Usually directed; requires `interaction_id`. |
+| `trace` | Report progress or a terminal interaction state. | Usually directed; requires `interaction_id`. |
+
+`say` is for channel-wide communication. Use `direct` to open or continue targeted work. Use
+`receipt` and `trace` for protocol-level lifecycle signals rather than encoding those states as
+free-form direct-message intent.
+
+## Interaction lifecycle
+
+An interaction is identified by `(channel, interaction_id)`. It is intentionally lightweight: it
+lets two peers correlate direct work, receipts, and trace updates without creating a workflow graph.
+
+<Mermaid
+  chart={`flowchart LR
+  Direct["direct opens or continues work"] --> Receipt["receipt records admission"]
+  Receipt --> TraceWorking["trace: working"]
+  TraceWorking --> TraceNeedsInput["trace: needs_input"]
+  TraceWorking --> TraceCompleted["trace: completed"]
+  TraceWorking --> TraceFailed["trace: failed"]
+  TraceWorking --> TraceCanceled["trace: canceled"]
+  TraceNeedsInput --> Direct`}
+  caption="Interactions are correlation containers. They do not replace tasks, jobs, or workflow state."
+/>
+
+The runtime uses interaction fields to preserve causality and route follow-up messages. It still
+treats network content as external input.
+
+## Capabilities
+
+AGH uses one capability model from local authoring through network transfer:
+
+- local agent catalogs advertise brief capability summaries in peer cards
+- `whois` can return richer peer capability details when available
+- `kind:"capability"` can transfer a structured capability document
+- receivers verify the capability digest against the canonical document before accepting the
+  transfer
+
+Capabilities describe outcomes a peer can help with. They are not executable programs and they do
+not grant permission by themselves.
+
+## v0 trust boundary
+
+In `agh-network/v0`, messages are treated as unverified. The `proof` field is preserved for wire
+compatibility, but v0 receivers do not use it to mark identity as verified. AGH still applies local
+runtime controls: channel grammar, peer presence, delivery queues, prompt wrappers, capability
+checks for write surfaces, and durable audit records.
+
+The v1 RFC adds a baseline trust profile for verified peer identity. That is a protocol direction,
+not a requirement to understand the current runtime pages.

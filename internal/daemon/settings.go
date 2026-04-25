@@ -11,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
@@ -25,6 +26,7 @@ type settingsRuntimeSurface struct {
 	dreamTrigger DreamTrigger
 	automation   automationRuntime
 	network      networkRuntime
+	mcpAuthStore mcpauth.TokenStore
 	extensions   interface {
 		List(context.Context) ([]contract.ExtensionPayload, error)
 	}
@@ -40,6 +42,7 @@ var _ settingspkg.NetworkRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.ObservabilityRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.ExtensionStatusProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.TransportParityProvider = (*settingsRuntimeSurface)(nil)
+var _ settingspkg.MCPAuthRuntimeProvider = (*settingsRuntimeSurface)(nil)
 
 func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurface {
 	if state == nil {
@@ -59,6 +62,11 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurf
 		info = d.settingsInfoSnapshot
 	}
 
+	var mcpAuthStore mcpauth.TokenStore
+	if store, ok := state.registry.(mcpauth.TokenStore); ok {
+		mcpAuthStore = store
+	}
+
 	return &settingsRuntimeSurface{
 		config:       state.cfg,
 		startedAt:    state.startedAt,
@@ -68,6 +76,7 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurf
 		dreamTrigger: dreamTriggerFromRuntime(state.dreamRuntime),
 		automation:   state.automation,
 		network:      state.network,
+		mcpAuthStore: mcpAuthStore,
 		extensions:   state.deps.Extensions,
 		now:          now,
 		pid:          pid,
@@ -270,6 +279,8 @@ func (s *settingsRuntimeSurface) InstalledExtensions(
 			Health:        strings.TrimSpace(item.Health),
 			HealthMessage: strings.TrimSpace(item.HealthMessage),
 			LastError:     strings.TrimSpace(item.LastError),
+			RequiresEnv:   append([]string(nil), item.RequiresEnv...),
+			MissingEnv:    append([]string(nil), item.MissingEnv...),
 		})
 	}
 	return installed, nil
@@ -286,6 +297,36 @@ func (s *settingsRuntimeSurface) TransportParityStatus(
 		ExtensionsHTTP: httpMutationsAllowed,
 		ExtensionsUDS:  true,
 	}, nil
+}
+
+func (s *settingsRuntimeSurface) MCPAuthStatus(
+	ctx context.Context,
+	server aghconfig.MCPServer,
+) (mcpauth.Status, error) {
+	cfg, err := mcpauth.ServerConfigFromMCP(server, nil)
+	if err != nil {
+		return mcpauth.Status{}, fmt.Errorf("daemon: resolve MCP auth config: %w", err)
+	}
+	if s.mcpAuthStore == nil {
+		return mcpauth.Status{
+			ServerName: strings.TrimSpace(cfg.ServerName),
+			Status:     mcpauth.StatusNeedsLogin,
+			RemoteURL:  strings.TrimSpace(cfg.RemoteURL),
+			AuthType:   strings.TrimSpace(cfg.Type),
+			ClientID:   strings.TrimSpace(cfg.ClientID),
+			Scopes:     append([]string(nil), cfg.Scopes...),
+			Diagnostic: "token store unavailable",
+		}, nil
+	}
+	service, err := mcpauth.NewService(s.mcpAuthStore)
+	if err != nil {
+		return mcpauth.Status{}, err
+	}
+	status, err := service.Status(ctx, cfg)
+	if err != nil {
+		return mcpauth.Status{}, fmt.Errorf("daemon: load MCP auth status: %w", err)
+	}
+	return status, nil
 }
 
 func settingsHTTPMutationsAllowed(host string) bool {

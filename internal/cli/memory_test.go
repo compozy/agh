@@ -129,6 +129,87 @@ func TestMemorySearchAndReindexCommands(t *testing.T) {
 	}
 }
 
+func TestMemoryHealthAndHistoryCommands(t *testing.T) {
+	t.Parallel()
+
+	lastOperation := fixedTestNow.Add(-2 * time.Minute)
+	var seenHealthWorkspace string
+	var seenHistoryQuery MemoryHistoryQuery
+	deps := newTestDeps(t, &stubClient{
+		memoryHealthFn: func(_ context.Context, workspace string) (MemoryHealthRecord, error) {
+			seenHealthWorkspace = workspace
+			return MemoryHealthRecord{
+				Status:          "ok",
+				Enabled:         true,
+				Configured:      true,
+				GlobalDir:       "/tmp/agh/memory",
+				GlobalFiles:     1,
+				WorkspaceFiles:  2,
+				WorkspaceCount:  1,
+				IndexedFiles:    3,
+				OperationCount:  4,
+				LastOperationAt: &lastOperation,
+				DreamEnabled:    true,
+				DreamAgent:      "memory-agent",
+			}, nil
+		},
+		memoryHistoryFn: func(_ context.Context, query MemoryHistoryQuery) ([]MemoryHistoryRecord, error) {
+			seenHistoryQuery = query
+			return []MemoryHistoryRecord{{
+				ID:        "memevt_1",
+				Operation: "memory.write",
+				Scope:     string(memory.ScopeWorkspace),
+				Workspace: "/workspace/project",
+				Filename:  "project.md",
+				AgentName: "daemon",
+				Summary:   "scope=workspace filename=project.md token=[REDACTED]",
+				Timestamp: lastOperation,
+			}}, nil
+		},
+	})
+
+	healthOut, _, err := executeRootCommand(t, deps, "memory", "health")
+	if err != nil {
+		t.Fatalf("memory health error = %v", err)
+	}
+	if seenHealthWorkspace != "/workspace/project" {
+		t.Fatalf("health workspace = %q, want /workspace/project", seenHealthWorkspace)
+	}
+	if !strings.Contains(healthOut, "Memory Health") || !strings.Contains(healthOut, "Operation Count") {
+		t.Fatalf("health output = %q", healthOut)
+	}
+
+	historyOut, _, err := executeRootCommand(
+		t,
+		deps,
+		"memory",
+		"history",
+		"--scope",
+		"workspace",
+		"--operation",
+		"memory.write",
+		"--since",
+		"5m",
+		"--limit",
+		"7",
+	)
+	if err != nil {
+		t.Fatalf("memory history error = %v", err)
+	}
+	if seenHistoryQuery.Scope != memory.ScopeWorkspace ||
+		seenHistoryQuery.Workspace != "/workspace/project" ||
+		seenHistoryQuery.Operation != "memory.write" ||
+		seenHistoryQuery.Limit != 7 {
+		t.Fatalf("history query = %#v", seenHistoryQuery)
+	}
+	if want := fixedTestNow.Add(-5 * time.Minute); !seenHistoryQuery.Since.Equal(want) {
+		t.Fatalf("history since = %s, want %s", seenHistoryQuery.Since, want)
+	}
+	if !strings.Contains(historyOut, "memory.write") || strings.Contains(historyOut, "super-secret") {
+		t.Fatalf("history output = %q", historyOut)
+	}
+}
+
 func TestMemoryWriteCommandBuildsDocumentAndUsesContentFlag(t *testing.T) {
 	t.Parallel()
 

@@ -109,7 +109,10 @@ func TestBuildInstallWizardInputAndBundleFormats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("installBundle().toon() error = %v", err)
 	}
-	if !strings.Contains(toon, "install{agent_name,provider,model,permissions,config_file,agent_file,created_agent}:") {
+	if !strings.Contains(
+		toon,
+		"install{agent_name,provider,model,permissions,config_file,agent_file,created_agent,managed,manager}:",
+	) {
 		t.Fatalf("install toon output = %q, want TOON header", toon)
 	}
 }

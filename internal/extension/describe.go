@@ -25,6 +25,18 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		uptimeSeconds = max(int64(now.Sub(ext.Status.LastStartedAt).Seconds()), 0)
 	}
 
+	requiresEnv := []string(nil)
+	missingEnv := []string(nil)
+	if ext.Manifest != nil {
+		requiresEnv = append(requiresEnv, ext.Manifest.RequiresEnv...)
+		if !ext.Status.MissingEnvChecked {
+			missingEnv = ext.Manifest.MissingEnv(nil)
+		}
+	}
+	if len(ext.Status.MissingEnv) > 0 {
+		missingEnv = append([]string(nil), ext.Status.MissingEnv...)
+	}
+
 	return contract.ExtensionPayload{
 		Name:          ext.Info.Name,
 		Version:       ext.Info.Version,
@@ -34,6 +46,8 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		State:         extensionState(ext.Info, ext.Status, daemonRunning),
 		Capabilities:  append([]string(nil), ext.Info.Capabilities.Provides...),
 		Actions:       append([]string(nil), ext.Info.Actions.Requires...),
+		RequiresEnv:   requiresEnv,
+		MissingEnv:    missingEnv,
 		PID:           ext.Status.PID,
 		UptimeSeconds: uptimeSeconds,
 		Health:        extensionHealth(ext.Manifest, ext.Info, ext.Status, daemonRunning),

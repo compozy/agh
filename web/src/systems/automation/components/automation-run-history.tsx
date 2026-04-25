@@ -110,12 +110,27 @@ export function AutomationRunHistory({
                           {run.error}
                         </p>
                       ) : null}
+                      {run.delivery_error ? (
+                        <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--color-danger)]">
+                          {`Delivery: ${run.delivery_error}`}
+                        </p>
+                      ) : null}
+                      {run.fire_id ? (
+                        <p className="mt-1 break-all font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
+                          {run.fire_id}
+                        </p>
+                      ) : null}
                     </TableCell>
                     <TableCell className="font-mono text-[13px] text-[color:var(--color-text-secondary)]">
                       {run.attempt}
                     </TableCell>
                     <TableCell className="text-[13px] text-[color:var(--color-text-secondary)]">
-                      {formatDateTime(run.started_at)}
+                      <span>{formatDateTime(run.started_at)}</span>
+                      {run.scheduled_at ? (
+                        <span className="mt-1 block text-[11px] text-[color:var(--color-text-tertiary)]">
+                          {`scheduled ${formatDateTime(run.scheduled_at)}`}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell className="text-[13px] text-[color:var(--color-text-secondary)]">
                       {formatRunDuration(run)}

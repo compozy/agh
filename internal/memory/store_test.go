@@ -1049,6 +1049,144 @@ func TestStoreSearchAndReindex(t *testing.T) {
 	})
 }
 
+func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	baseDir := t.TempDir()
+	globalDir := filepath.Join(baseDir, "global")
+	workspaceRoot := filepath.Join(baseDir, "workspace")
+	catalogPath := filepath.Join(baseDir, "agh.db")
+	store := NewStore(globalDir, WithCatalogDatabasePath(catalogPath))
+	workspaceStore := store.ForWorkspace(workspaceRoot)
+	if err := workspaceStore.EnsureDirs(); err != nil {
+		t.Fatalf("Store.EnsureDirs() error = %v", err)
+	}
+
+	if err := workspaceStore.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+		Name:        "Global Preferences",
+		Description: "Common token lives globally",
+		Type:        MemoryTypeUser,
+	}, "Common token is global.\n")); err != nil {
+		t.Fatalf("Store.Write(global) error = %v", err)
+	}
+	if err := workspaceStore.Write(ScopeWorkspace, "project.md", mustMemoryContent(t, testMemoryMeta{
+		Name:        "Project Memory",
+		Description: "Common token lives in the workspace",
+		Type:        MemoryTypeProject,
+	}, "Common token is workspace-local.\n")); err != nil {
+		t.Fatalf("Store.Write(workspace) error = %v", err)
+	}
+
+	sinceBeforeSearch := time.Now().Add(-time.Second).UTC()
+	results, err := workspaceStore.Search(ctx, "common token=super-secret", SearchOptions{
+		Workspace: workspaceRoot,
+		Limit:     5,
+	})
+	if err != nil {
+		t.Fatalf("Store.Search() error = %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("len(results) = %d, want 2; results=%#v", len(results), results)
+	}
+
+	workspaceWrites, err := workspaceStore.History(ctx, OperationHistoryQuery{
+		Scope:     ScopeWorkspace,
+		Workspace: workspaceRoot,
+		Operation: OperationWrite,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("Store.History(workspace writes) error = %v", err)
+	}
+	if len(workspaceWrites) != 1 {
+		t.Fatalf("len(workspaceWrites) = %d, want 1; records=%#v", len(workspaceWrites), workspaceWrites)
+	}
+	if workspaceWrites[0].Filename != "project.md" || workspaceWrites[0].Workspace != workspaceRoot {
+		t.Fatalf("workspace write record = %#v, want workspace project.md", workspaceWrites[0])
+	}
+
+	globalWrites, err := workspaceStore.History(ctx, OperationHistoryQuery{
+		Scope:     ScopeGlobal,
+		Operation: OperationWrite,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("Store.History(global writes) error = %v", err)
+	}
+	if len(globalWrites) != 1 || globalWrites[0].Filename != "prefs.md" || globalWrites[0].Workspace != "" {
+		t.Fatalf("global write records = %#v, want one global prefs.md record", globalWrites)
+	}
+
+	searches, err := workspaceStore.History(ctx, OperationHistoryQuery{
+		Workspace: workspaceRoot,
+		Operation: OperationSearch,
+		Since:     sinceBeforeSearch,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("Store.History(searches) error = %v", err)
+	}
+	if len(searches) != 1 {
+		t.Fatalf("len(searches) = %d, want 1; records=%#v", len(searches), searches)
+	}
+	if strings.Contains(searches[0].Summary, "super-secret") ||
+		!strings.Contains(searches[0].Summary, "token=[REDACTED]") {
+		t.Fatalf("search summary = %q, want redacted secret token", searches[0].Summary)
+	}
+
+	futureHistory, err := workspaceStore.History(ctx, OperationHistoryQuery{
+		Operation: OperationSearch,
+		Since:     time.Now().Add(time.Hour).UTC(),
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("Store.History(future since) error = %v", err)
+	}
+	if len(futureHistory) != 0 {
+		t.Fatalf("len(futureHistory) = %d, want 0", len(futureHistory))
+	}
+
+	for idx := range maxHistoryLimit + 5 {
+		if err := workspaceStore.logCatalogEvent(ctx, OperationRecord{
+			Operation: OperationReindex,
+			Summary:   fmt.Sprintf("iteration=%d", idx),
+		}); err != nil {
+			t.Fatalf("logCatalogEvent(%d) error = %v", idx, err)
+		}
+	}
+	bounded, err := workspaceStore.History(ctx, OperationHistoryQuery{
+		Operation: OperationReindex,
+		Limit:     maxHistoryLimit + 10,
+	})
+	if err != nil {
+		t.Fatalf("Store.History(bounded) error = %v", err)
+	}
+	if len(bounded) != maxHistoryLimit {
+		t.Fatalf("len(bounded) = %d, want %d", len(bounded), maxHistoryLimit)
+	}
+
+	stats, err := workspaceStore.HealthStats(ctx, []string{workspaceRoot})
+	if err != nil {
+		t.Fatalf("Store.HealthStats() error = %v", err)
+	}
+	if stats.OperationCount < maxHistoryLimit+8 || stats.LastOperationAt == nil {
+		t.Fatalf("HealthStats() = %#v, want operation count and last operation", stats)
+	}
+
+	reopened := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceRoot)
+	reopenedWrites, err := reopened.History(ctx, OperationHistoryQuery{
+		Operation: OperationWrite,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("reopened.History(writes) error = %v", err)
+	}
+	if len(reopenedWrites) != 2 {
+		t.Fatalf("len(reopenedWrites) = %d, want 2; records=%#v", len(reopenedWrites), reopenedWrites)
+	}
+}
+
 func TestStoreSearchTreatsFTSReservedWordsAsLiteralTerms(t *testing.T) {
 	t.Run("Should treat FTS reserved words as literal search terms", func(t *testing.T) {
 		t.Parallel()

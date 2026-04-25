@@ -15,12 +15,50 @@ type ProviderConfig struct {
 	MCPServers   []MCPServer `toml:"mcp_servers,omitempty"`
 }
 
+// MCPServerTransport identifies how AGH reaches an MCP server.
+type MCPServerTransport string
+
+const (
+	// MCPServerTransportStdio launches a local subprocess and talks MCP over stdio.
+	MCPServerTransportStdio MCPServerTransport = "stdio"
+	// MCPServerTransportHTTP talks to a remote streamable HTTP MCP endpoint.
+	MCPServerTransportHTTP MCPServerTransport = "http"
+	// MCPServerTransportSSE talks to a remote SSE MCP endpoint.
+	MCPServerTransportSSE MCPServerTransport = "sse"
+)
+
+// MCPAuthType identifies the remote MCP authentication mechanism.
+type MCPAuthType string
+
+const (
+	// MCPAuthTypeOAuth2PKCE uses OAuth 2.1 authorization code with PKCE.
+	MCPAuthTypeOAuth2PKCE MCPAuthType = "oauth2_pkce"
+)
+
+// MCPAuthConfig describes remote MCP OAuth configuration. It stores endpoint
+// metadata and environment variable names only; token material is persisted in
+// the auth token store.
+type MCPAuthConfig struct {
+	Type             MCPAuthType `json:"type,omitempty"              yaml:"type,omitempty"              toml:"type,omitempty"`
+	IssuerURL        string      `json:"issuer_url,omitempty"        yaml:"issuer_url,omitempty"        toml:"issuer_url,omitempty"`
+	MetadataURL      string      `json:"metadata_url,omitempty"      yaml:"metadata_url,omitempty"      toml:"metadata_url,omitempty"`
+	AuthorizationURL string      `json:"authorization_url,omitempty" yaml:"authorization_url,omitempty" toml:"authorization_url,omitempty"`
+	TokenURL         string      `json:"token_url,omitempty"         yaml:"token_url,omitempty"         toml:"token_url,omitempty"`
+	RevocationURL    string      `json:"revocation_url,omitempty"    yaml:"revocation_url,omitempty"    toml:"revocation_url,omitempty"`
+	ClientID         string      `json:"client_id,omitempty"         yaml:"client_id,omitempty"         toml:"client_id,omitempty"`
+	ClientSecretEnv  string      `json:"client_secret_env,omitempty" yaml:"client_secret_env,omitempty" toml:"client_secret_env,omitempty"`
+	Scopes           []string    `json:"scopes,omitempty"            yaml:"scopes,omitempty"            toml:"scopes,omitempty"`
+}
+
 // MCPServer describes an MCP server passed through to the agent runtime.
 type MCPServer struct {
-	Name    string            `yaml:"name"           toml:"name"`
-	Command string            `yaml:"command"        toml:"command"`
-	Args    []string          `yaml:"args,omitempty" toml:"args,omitempty"`
-	Env     map[string]string `yaml:"env,omitempty"  toml:"env,omitempty"`
+	Name      string             `json:"name"                yaml:"name"                toml:"name"`
+	Transport MCPServerTransport `json:"transport,omitempty" yaml:"transport,omitempty" toml:"transport,omitempty"`
+	Command   string             `json:"command,omitempty"   yaml:"command,omitempty"   toml:"command,omitempty"`
+	Args      []string           `json:"args,omitempty"      yaml:"args,omitempty"      toml:"args,omitempty"`
+	Env       map[string]string  `json:"env,omitempty"       yaml:"env,omitempty"       toml:"env,omitempty"`
+	URL       string             `json:"url,omitempty"       yaml:"url,omitempty"       toml:"url,omitempty"`
+	Auth      MCPAuthConfig      `json:"auth"                yaml:"auth,omitempty"      toml:"auth,omitempty"`
 }
 
 // ResolvedAgent is the effective runtime configuration for a parsed agent definition.
@@ -309,14 +347,101 @@ func indexMCPServersByName(servers []MCPServer) map[string]int {
 
 // Validate ensures the MCP server entry is usable.
 func (s MCPServer) Validate(path string) error {
+	transport := s.EffectiveTransport()
+	if err := transport.Validate(path + ".transport"); err != nil {
+		return err
+	}
+	if err := s.Auth.Validate(path + ".auth"); err != nil {
+		return err
+	}
 	switch {
 	case strings.TrimSpace(s.Name) == "":
 		return fmt.Errorf("%s.name is required", path)
-	case strings.TrimSpace(s.Command) == "":
+	case transport == MCPServerTransportStdio && strings.TrimSpace(s.Command) == "":
 		return fmt.Errorf("%s.command is required", path)
+	case transport == MCPServerTransportStdio && strings.TrimSpace(s.URL) != "":
+		return fmt.Errorf("%s.url requires remote transport", path)
+	case transport != MCPServerTransportStdio && strings.TrimSpace(s.URL) == "":
+		return fmt.Errorf("%s.url is required for %s transport", path, transport)
+	case transport != MCPServerTransportStdio && strings.TrimSpace(s.Command) != "":
+		return fmt.Errorf("%s.command is only valid for stdio transport", path)
+	case transport == MCPServerTransportStdio && !s.Auth.IsZero():
+		return fmt.Errorf("%s.auth is only valid for remote MCP servers", path)
 	default:
 		return nil
 	}
+}
+
+// EffectiveTransport returns the explicit transport or the compatibility
+// default. Local command servers remain stdio; servers with a URL default to
+// streamable HTTP.
+func (s MCPServer) EffectiveTransport() MCPServerTransport {
+	if s.Transport != "" {
+		return s.Transport
+	}
+	if strings.TrimSpace(s.URL) != "" {
+		return MCPServerTransportHTTP
+	}
+	return MCPServerTransportStdio
+}
+
+// Validate reports whether the transport is supported.
+func (t MCPServerTransport) Validate(path string) error {
+	switch t {
+	case "", MCPServerTransportStdio, MCPServerTransportHTTP, MCPServerTransportSSE:
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of stdio, http, or sse", path)
+	}
+}
+
+// IsZero reports whether the auth config is empty.
+func (a MCPAuthConfig) IsZero() bool {
+	return strings.TrimSpace(string(a.Type)) == "" &&
+		strings.TrimSpace(a.IssuerURL) == "" &&
+		strings.TrimSpace(a.MetadataURL) == "" &&
+		strings.TrimSpace(a.AuthorizationURL) == "" &&
+		strings.TrimSpace(a.TokenURL) == "" &&
+		strings.TrimSpace(a.RevocationURL) == "" &&
+		strings.TrimSpace(a.ClientID) == "" &&
+		strings.TrimSpace(a.ClientSecretEnv) == "" &&
+		len(a.Scopes) == 0
+}
+
+// Enabled reports whether auth is configured.
+func (a MCPAuthConfig) Enabled() bool {
+	return !a.IsZero()
+}
+
+// Validate ensures remote MCP OAuth configuration has enough metadata to run
+// the authorization-code flow without placing token material in config files.
+func (a MCPAuthConfig) Validate(path string) error {
+	if a.IsZero() {
+		return nil
+	}
+	if a.Type != MCPAuthTypeOAuth2PKCE {
+		return fmt.Errorf("%s.type must be %q", path, MCPAuthTypeOAuth2PKCE)
+	}
+	if strings.TrimSpace(a.ClientID) == "" {
+		return fmt.Errorf("%s.client_id is required", path)
+	}
+	if strings.TrimSpace(a.MetadataURL) == "" &&
+		strings.TrimSpace(a.IssuerURL) == "" &&
+		(strings.TrimSpace(a.AuthorizationURL) == "" || strings.TrimSpace(a.TokenURL) == "") {
+		return fmt.Errorf(
+			"%s requires metadata_url, issuer_url, or both authorization_url and token_url",
+			path,
+		)
+	}
+	if strings.ContainsAny(strings.TrimSpace(a.ClientSecretEnv), " =\t\r\n") {
+		return fmt.Errorf("%s.client_secret_env must be an environment variable name", path)
+	}
+	for idx, scope := range a.Scopes {
+		if strings.TrimSpace(scope) == "" {
+			return fmt.Errorf("%s.scopes[%d] is required", path, idx)
+		}
+	}
+	return nil
 }
 
 func validateResolvedProvider(name string, provider ProviderConfig) error {
@@ -338,6 +463,9 @@ func mergeMCPServer(base MCPServer, override MCPServer) MCPServer {
 	if strings.TrimSpace(override.Name) != "" {
 		merged.Name = override.Name
 	}
+	if override.Transport != "" {
+		merged.Transport = override.Transport
+	}
 	if strings.TrimSpace(override.Command) != "" {
 		merged.Command = override.Command
 	}
@@ -347,7 +475,45 @@ func mergeMCPServer(base MCPServer, override MCPServer) MCPServer {
 	if len(override.Env) > 0 {
 		merged.Env = mergeStringMaps(merged.Env, override.Env)
 	}
+	if strings.TrimSpace(override.URL) != "" {
+		merged.URL = override.URL
+	}
+	if !override.Auth.IsZero() {
+		merged.Auth = mergeMCPAuthConfig(merged.Auth, override.Auth)
+	}
 
+	return merged
+}
+
+func mergeMCPAuthConfig(base MCPAuthConfig, override MCPAuthConfig) MCPAuthConfig {
+	merged := cloneMCPAuthConfig(base)
+	if override.Type != "" {
+		merged.Type = override.Type
+	}
+	if strings.TrimSpace(override.IssuerURL) != "" {
+		merged.IssuerURL = override.IssuerURL
+	}
+	if strings.TrimSpace(override.MetadataURL) != "" {
+		merged.MetadataURL = override.MetadataURL
+	}
+	if strings.TrimSpace(override.AuthorizationURL) != "" {
+		merged.AuthorizationURL = override.AuthorizationURL
+	}
+	if strings.TrimSpace(override.TokenURL) != "" {
+		merged.TokenURL = override.TokenURL
+	}
+	if strings.TrimSpace(override.RevocationURL) != "" {
+		merged.RevocationURL = override.RevocationURL
+	}
+	if strings.TrimSpace(override.ClientID) != "" {
+		merged.ClientID = override.ClientID
+	}
+	if strings.TrimSpace(override.ClientSecretEnv) != "" {
+		merged.ClientSecretEnv = override.ClientSecretEnv
+	}
+	if len(override.Scopes) > 0 {
+		merged.Scopes = append([]string(nil), override.Scopes...)
+	}
 	return merged
 }
 
@@ -396,11 +562,19 @@ func cloneMCPServersWithCapacity(src []MCPServer, capacity int) []MCPServer {
 
 func cloneMCPServer(src MCPServer) MCPServer {
 	return MCPServer{
-		Name:    src.Name,
-		Command: src.Command,
-		Args:    append([]string(nil), src.Args...),
-		Env:     mergeStringMaps(nil, src.Env),
+		Name:      src.Name,
+		Transport: src.Transport,
+		Command:   src.Command,
+		Args:      append([]string(nil), src.Args...),
+		Env:       mergeStringMaps(nil, src.Env),
+		URL:       src.URL,
+		Auth:      cloneMCPAuthConfig(src.Auth),
 	}
+}
+
+func cloneMCPAuthConfig(src MCPAuthConfig) MCPAuthConfig {
+	src.Scopes = append([]string(nil), src.Scopes...)
+	return src
 }
 
 func mergeStringMaps(base map[string]string, overlay map[string]string) map[string]string {

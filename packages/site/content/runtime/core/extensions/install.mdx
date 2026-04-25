@@ -41,6 +41,23 @@ rebuilds hooks, reconciles bundles, and returns the current status.
 If the daemon is not running, the CLI writes the local registry directly. The extension is discovered
 on the next daemon start.
 
+## Declare Required Environment
+
+Extensions that need process environment variables declare the variable names in their manifest:
+
+```toml
+[extension]
+name = "daytona"
+version = "1.2.3"
+min_agh_version = "0.5.0"
+requires_env = ["DAYTONA_API_KEY", "DAYTONA_ORGANIZATION_ID"]
+```
+
+AGH validates `requires_env` as environment variable names during install and status loading.
+Diagnostics report only names, never values. If a required variable is unset or empty,
+`agh extension list`, `agh extension status`, the API, and the settings page surface it through
+`missing_env`.
+
 ## List And Inspect Installed Extensions
 
 ```bash
@@ -58,6 +75,8 @@ agh extension status prompt-enhancer
 | `state`                     | `disabled`, `enabled`, `registered`, `active`, or `error`.                                                               |
 | `health`                    | `unknown`, `healthy`, or `unhealthy`.                                                                                    |
 | `capabilities`, `actions`   | Manifest-declared provide surfaces and Host API methods.                                                                 |
+| `requires_env`              | Manifest-declared environment variable names required by the extension.                                                   |
+| `missing_env`               | Required environment variable names that are unset or empty in the current AGH process environment.                       |
 | `bundles`                   | Bundle summaries packaged by the extension.                                                                              |
 
 `list` and `status` use the daemon when it is running and fall back to the local registry when it is
@@ -146,6 +165,10 @@ Marketplace install flow:
 5. AGH moves the package to `<AGH_HOME>/extensions/<name>`.
 6. AGH persists registry metadata: source tier `marketplace`, slug, registry name, and remote
    version.
+
+Managed installs do not allow runtime dependency symlinks to escape the extracted extension root.
+If a packaged `node_modules` or runtime dependency symlink resolves outside that root, installation
+fails instead of copying content from the host filesystem.
 
 After install, restart the daemon to activate the new extension if it is already running.
 

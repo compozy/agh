@@ -15,12 +15,16 @@ import (
 	"unicode"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	storepkg "github.com/pedronauck/agh/internal/store"
 )
 
 const (
 	defaultSearchLimit         = 10
 	maxSearchLimit             = 50
+	defaultHistoryLimit        = 25
+	maxHistoryLimit            = 100
+	maxOperationSummaryBytes   = 2048
 	catalogStateKeyLastReindex = "last_reindex_at"
 	catalogStateKeyScopePrefix = "scope_synced::"
 	catalogEventAgentName      = "daemon"
@@ -73,11 +77,16 @@ var catalogSchemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS memory_operation_log (
 		id         TEXT PRIMARY KEY,
 		type       TEXT NOT NULL,
+		scope      TEXT NOT NULL DEFAULT '',
+		workspace_root TEXT NOT NULL DEFAULT '',
+		filename   TEXT NOT NULL DEFAULT '',
 		agent_name TEXT NOT NULL DEFAULT 'daemon',
 		summary    TEXT NOT NULL DEFAULT '',
 		timestamp  TEXT NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_type ON memory_operation_log(type);`,
+	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_scope ON memory_operation_log(scope);`,
+	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_workspace_root ON memory_operation_log(workspace_root);`,
 	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_timestamp ON memory_operation_log(timestamp);`,
 }
 
@@ -453,7 +462,7 @@ func (c *catalog) search(
 	return results, nil
 }
 
-func (c *catalog) logEvent(ctx context.Context, eventType string, summary string) error {
+func (c *catalog) logEvent(ctx context.Context, record OperationRecord) error {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return err
@@ -461,21 +470,143 @@ func (c *catalog) logEvent(ctx context.Context, eventType string, summary string
 	if db == nil {
 		return nil
 	}
-	if strings.TrimSpace(eventType) == "" {
-		return errors.New("memory: event type is required")
+	operation := record.Operation.Normalize()
+	if strings.TrimSpace(string(operation)) == "" {
+		return errors.New("memory: operation type is required")
+	}
+	scope := record.Scope.Normalize()
+	switch scope {
+	case "", ScopeGlobal, ScopeWorkspace:
+	default:
+		return fmt.Errorf("memory: unsupported operation scope %q", record.Scope)
+	}
+	timestamp := record.Timestamp
+	if timestamp.IsZero() {
+		timestamp = c.now().UTC()
+	}
+	agentName := strings.TrimSpace(record.AgentName)
+	if agentName == "" {
+		agentName = catalogEventAgentName
 	}
 	if _, err := db.ExecContext(
 		ctx,
-		`INSERT INTO memory_operation_log (id, type, agent_name, summary, timestamp) VALUES (?, ?, ?, ?, ?)`,
+		`INSERT INTO memory_operation_log (
+			id, type, scope, workspace_root, filename, agent_name, summary, timestamp
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		storepkg.NewID("memevt"),
-		strings.TrimSpace(eventType),
-		catalogEventAgentName,
-		strings.TrimSpace(summary),
-		storepkg.FormatTimestamp(c.now().UTC()),
+		string(operation),
+		string(scope),
+		strings.TrimSpace(record.Workspace),
+		strings.TrimSpace(record.Filename),
+		agentName,
+		diagnostics.RedactAndBound(record.Summary, maxOperationSummaryBytes),
+		storepkg.FormatTimestamp(timestamp.UTC()),
 	); err != nil {
 		return fmt.Errorf("memory: write memory operation log: %w", err)
 	}
 	return nil
+}
+
+func (c *catalog) listOperations(ctx context.Context, query OperationHistoryQuery) ([]OperationRecord, error) {
+	db, err := c.ensureDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if db == nil {
+		return nil, nil
+	}
+
+	operation := string(query.Operation.Normalize())
+	workspace := strings.TrimSpace(query.Workspace)
+	switch scope := query.Scope.Normalize(); scope {
+	case "", ScopeGlobal, ScopeWorkspace:
+	default:
+		return nil, fmt.Errorf("memory: unsupported history scope %q", query.Scope)
+	}
+	scope := string(query.Scope.Normalize())
+	since := ""
+	if !query.Since.IsZero() {
+		since = storepkg.FormatTimestamp(query.Since.UTC())
+	}
+	limit := clampHistoryLimit(query.Limit)
+
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT id, type, scope, workspace_root, filename, agent_name, summary, timestamp
+		 FROM memory_operation_log
+		 WHERE (? = '' OR type = ?)
+		 AND (
+			(? = '' AND (? = '' OR scope = '' OR scope = 'global' OR (scope = 'workspace' AND workspace_root = ?)))
+			OR (? = 'global' AND scope = 'global')
+			OR (? = 'workspace' AND scope = 'workspace' AND (? = '' OR workspace_root = ?))
+		 )
+		 AND (? = '' OR timestamp >= ?)
+		 ORDER BY timestamp DESC, id DESC
+		 LIMIT ?`,
+		operation,
+		operation,
+		scope,
+		workspace,
+		workspace,
+		scope,
+		scope,
+		workspace,
+		workspace,
+		since,
+		since,
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("memory: list operation history: %w", err)
+	}
+	defer func() {
+		// rows.Err() reports actionable read failures after iteration.
+		_ = rows.Close()
+	}()
+
+	records := make([]OperationRecord, 0, limit)
+	for rows.Next() {
+		record, scanErr := scanOperationRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("memory: iterate operation history: %w", err)
+	}
+	return records, nil
+}
+
+func (c *catalog) operationStats(ctx context.Context) (int, *time.Time, error) {
+	db, err := c.ensureDB(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	if db == nil {
+		return 0, nil, nil
+	}
+
+	var (
+		count    int
+		lastRaw  sql.NullString
+		lastTime *time.Time
+	)
+	if err := db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*), MAX(timestamp) FROM memory_operation_log`,
+	).Scan(&count, &lastRaw); err != nil {
+		return 0, nil, fmt.Errorf("memory: read operation stats: %w", err)
+	}
+	if lastRaw.Valid {
+		parsed, err := storepkg.ParseTimestamp(lastRaw.String)
+		if err != nil {
+			return 0, nil, fmt.Errorf("memory: parse operation stats timestamp %q: %w", lastRaw.String, err)
+		}
+		parsed = parsed.UTC()
+		lastTime = &parsed
+	}
+	return count, lastTime, nil
 }
 
 type catalogFilter struct {
@@ -571,6 +702,36 @@ func scanSearchResult(scanner interface{ Scan(dest ...any) error }) (SearchResul
 		result.Snippet = result.Description
 	}
 	return result, nil
+}
+
+func scanOperationRecord(scanner interface{ Scan(dest ...any) error }) (OperationRecord, error) {
+	var (
+		record       OperationRecord
+		operationRaw string
+		scopeRaw     string
+		timestampRaw string
+	)
+	if err := scanner.Scan(
+		&record.ID,
+		&operationRaw,
+		&scopeRaw,
+		&record.Workspace,
+		&record.Filename,
+		&record.AgentName,
+		&record.Summary,
+		&timestampRaw,
+	); err != nil {
+		return OperationRecord{}, fmt.Errorf("memory: scan operation history row: %w", err)
+	}
+	timestamp, err := storepkg.ParseTimestamp(timestampRaw)
+	if err != nil {
+		return OperationRecord{}, fmt.Errorf("memory: parse operation timestamp %q: %w", timestampRaw, err)
+	}
+	record.Operation = Operation(operationRaw).Normalize()
+	record.Scope = Scope(scopeRaw).Normalize()
+	record.Summary = diagnostics.RedactAndBound(record.Summary, maxOperationSummaryBytes)
+	record.Timestamp = timestamp.UTC()
+	return record, nil
 }
 
 func buildCatalogMatchQuery(query string) (string, error) {
@@ -709,6 +870,13 @@ func clampSearchLimit(limit int) int {
 		return defaultSearchLimit
 	}
 	return min(limit, maxSearchLimit)
+}
+
+func clampHistoryLimit(limit int) int {
+	if limit <= 0 {
+		return defaultHistoryLimit
+	}
+	return min(limit, maxHistoryLimit)
 }
 
 func (c *catalog) upsertState(ctx context.Context, key string, value string) error {

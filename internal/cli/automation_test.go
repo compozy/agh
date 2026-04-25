@@ -364,7 +364,7 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	}
 	if !strings.Contains(
 		runsToon,
-		"automation_runs[1]{id,target,status,attempt,session_id,started_at,ended_at,error}:",
+		"automation_runs[1]{id,target,status,attempt,session_id,scheduled_at,started_at,ended_at,error,delivery_error}:",
 	) {
 		t.Fatalf("runs toon output = %q, want automation_runs TOON array", runsToon)
 	}

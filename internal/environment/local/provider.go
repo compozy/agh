@@ -13,6 +13,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 var _ environment.Provider = (*localProvider)(nil)
@@ -21,9 +22,10 @@ var _ environment.Provider = (*localProvider)(nil)
 type Option func(*localProvider)
 
 type localProvider struct {
-	logger         *slog.Logger
-	stopTimeout    time.Duration
-	permissionMode aghconfig.PermissionMode
+	logger          *slog.Logger
+	stopTimeout     time.Duration
+	permissionMode  aghconfig.PermissionMode
+	processRegistry *toolruntime.Registry
 }
 
 // WithLogger directs provider-created launcher and tool-host diagnostics to logger.
@@ -44,6 +46,13 @@ func WithStopTimeout(timeout time.Duration) Option {
 func WithPermissionMode(mode aghconfig.PermissionMode) Option {
 	return func(provider *localProvider) {
 		provider.permissionMode = mode
+	}
+}
+
+// WithProcessRegistry injects the shared process registry used for tool-host terminals.
+func WithProcessRegistry(registry *toolruntime.Registry) Option {
+	return func(provider *localProvider) {
+		provider.processRegistry = registry
 	}
 }
 
@@ -82,7 +91,13 @@ func (p *localProvider) Prepare(
 	}
 
 	launcher := acp.NewLocalLauncher(p.logger, p.stopTimeout)
-	toolHost, err := acp.NewLocalToolHost(ctx, req.LocalRootDir, p.permissionModeFor(req), p.logger)
+	toolHost, err := acp.NewLocalToolHost(
+		ctx,
+		req.LocalRootDir,
+		p.permissionModeFor(req),
+		p.logger,
+		acp.WithLocalProcessRegistry(p.processRegistry),
+	)
 	if err != nil {
 		return environment.Prepared{}, fmt.Errorf("environment/local: create tool host: %w", err)
 	}

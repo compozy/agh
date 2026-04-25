@@ -1,0 +1,43 @@
+---
+title: Extensions
+description: Install or build packaged AGH capabilities that bundle skills, agents, hooks, bridge providers, MCP servers, and subprocess services.
+---
+
+An extension is one installable unit that ships runtime capabilities behind a single manifest. The
+operator installs, enables, and removes the bundle as a whole; AGH wires the contained resources
+into the runtime registry only while the extension is enabled.
+
+<OperatorNote>
+  Resource-only extensions ship files AGH already loads (skills, agents, hooks, MCP servers).
+  Subprocess extensions also run code over JSON-RPC and call the daemon through the Host API after
+  capability checks. The trust tier of the source determines which extensions are even eligible.
+</OperatorNote>
+
+<figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
+  <img
+    src="/images/runtime/extensions-overview-storyboard-v1.png"
+    alt="Hand-drawn Extensions poster showing installable AGH bundles expanding into skills, hooks, bridges, MCP, and services with the octopus mascot."
+    loading="eager"
+    decoding="async"
+    className="h-auto w-full rounded-md"
+  />
+</figure>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/extensions/install"
+    label="Install"
+    title="Install and operate extensions"
+    description="Use this page for `agh extension` install, enable, disable, update, and inspect flows, plus marketplace trust tiers."
+    meta="Operate"
+  />
+  <RouteRow
+    href="/runtime/core/extensions/develop"
+    label="Develop"
+    title="Build extensions"
+    description="Use this page for `extension.toml` manifests, bundled resources, subprocess lifecycle, and Host API permissions."
+    meta="Build"
+  />
+</RouteList>

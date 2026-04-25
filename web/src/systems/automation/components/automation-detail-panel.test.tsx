@@ -33,6 +33,19 @@ const jobFixture = {
   retry: { strategy: "none" as const, max_retries: 3, base_delay: "2s" },
   fire_limit: { max: 12, window: "1h" },
   next_run: "2026-04-12T09:00:00Z",
+  scheduler: {
+    job_id: "job_daily_review",
+    registered: true,
+    next_run_at: "2026-04-12T09:00:00Z",
+    last_run_at: "2026-04-11T09:00:01Z",
+    last_scheduled_at: "2026-04-11T09:00:00Z",
+    last_fire_id: "fire_daily_review_001",
+    catch_up_policy: "skip_missed" as const,
+    misfire_grace_seconds: 0,
+    misfire_count: 1,
+    last_misfire_at: "2026-04-10T09:00:00Z",
+    updated_at: "2026-04-11T09:00:01Z",
+  },
   created_at: "2026-04-11T09:00:00Z",
   updated_at: "2026-04-11T09:05:00Z",
 };
@@ -61,7 +74,9 @@ const runFixture = {
   status: "completed" as const,
   attempt: 1,
   job_id: "job_daily_review",
+  fire_id: "fire_daily_review_001",
   session_id: "sess_001",
+  scheduled_at: "2026-04-11T09:00:00Z",
   started_at: "2026-04-11T10:00:00Z",
   ended_at: "2026-04-11T10:05:00Z",
 };
@@ -128,6 +143,10 @@ describe("AutomationDetailPanel", () => {
     expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
     expect(screen.getByText("daily-review")).toBeInTheDocument();
     expect(screen.getByText("Review recent changes.")).toBeInTheDocument();
+    expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent("skip_missed");
+    expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent(
+      "fire_daily_review_001"
+    );
     expect(screen.getByTestId("automation-run-run_001")).toBeInTheDocument();
     expect(screen.getByText("View Session")).toHaveAttribute("href", "/session/sess_001");
 

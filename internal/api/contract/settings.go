@@ -319,13 +319,15 @@ type SettingsTransportParityPayload struct {
 }
 
 type SettingsInstalledExtensionPayload struct {
-	Name          string `json:"name"`
-	Version       string `json:"version,omitempty"`
-	Enabled       bool   `json:"enabled"`
-	State         string `json:"state,omitempty"`
-	Health        string `json:"health,omitempty"`
-	HealthMessage string `json:"health_message,omitempty"`
-	LastError     string `json:"last_error,omitempty"`
+	Name          string   `json:"name"`
+	Version       string   `json:"version,omitempty"`
+	Enabled       bool     `json:"enabled"`
+	State         string   `json:"state,omitempty"`
+	Health        string   `json:"health,omitempty"`
+	HealthMessage string   `json:"health_message,omitempty"`
+	LastError     string   `json:"last_error,omitempty"`
+	RequiresEnv   []string `json:"requires_env,omitempty"`
+	MissingEnv    []string `json:"missing_env,omitempty"`
 }
 
 type SettingsSourceRefPayload struct {
@@ -362,17 +364,53 @@ type SettingsProviderItemPayload struct {
 }
 
 type SettingsMCPServerPayload struct {
-	Name    string            `json:"name"`
-	Command string            `json:"command"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
+	Name      string                        `json:"name"`
+	Transport string                        `json:"transport,omitempty"`
+	Command   string                        `json:"command,omitempty"`
+	Args      []string                      `json:"args,omitempty"`
+	Env       map[string]string             `json:"env,omitempty"`
+	URL       string                        `json:"url,omitempty"`
+	Auth      *SettingsMCPAuthConfigPayload `json:"auth,omitempty"`
+}
+
+type SettingsMCPAuthConfigPayload struct {
+	Type             string   `json:"type,omitempty"`
+	IssuerURL        string   `json:"issuer_url,omitempty"`
+	MetadataURL      string   `json:"metadata_url,omitempty"`
+	AuthorizationURL string   `json:"authorization_url,omitempty"`
+	TokenURL         string   `json:"token_url,omitempty"`
+	RevocationURL    string   `json:"revocation_url,omitempty"`
+	ClientID         string   `json:"client_id,omitempty"`
+	ClientSecretEnv  string   `json:"client_secret_env,omitempty"`
+	Scopes           []string `json:"scopes,omitempty"`
+}
+
+type SettingsMCPAuthStatusPayload struct {
+	ServerName       string     `json:"server_name"`
+	Status           string     `json:"status"`
+	RemoteURL        string     `json:"remote_url,omitempty"`
+	AuthType         string     `json:"auth_type,omitempty"`
+	ClientID         string     `json:"client_id,omitempty"`
+	Issuer           string     `json:"issuer,omitempty"`
+	Scopes           []string   `json:"scopes,omitempty"`
+	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
+	UpdatedAt        *time.Time `json:"updated_at,omitempty"`
+	Refreshable      bool       `json:"refreshable"`
+	TokenPresent     bool       `json:"token_present"`
+	RevocationURL    string     `json:"revocation_url,omitempty"`
+	Diagnostic       string     `json:"diagnostic,omitempty"`
+	AuthorizationURL string     `json:"authorization_url,omitempty"`
 }
 
 type SettingsMCPServerItemPayload struct {
 	Name           string                        `json:"name"`
-	Command        string                        `json:"command"`
+	Transport      string                        `json:"transport"`
+	Command        string                        `json:"command,omitempty"`
 	Args           []string                      `json:"args,omitempty"`
 	Env            map[string]string             `json:"env,omitempty"`
+	URL            string                        `json:"url,omitempty"`
+	Auth           *SettingsMCPAuthConfigPayload `json:"auth,omitempty"`
+	AuthStatus     *SettingsMCPAuthStatusPayload `json:"auth_status,omitempty"`
 	Scope          SettingsScopeKind             `json:"scope"`
 	WorkspaceID    string                        `json:"workspace_id,omitempty"`
 	SourceMetadata SettingsSourceMetadataPayload `json:"source_metadata"`

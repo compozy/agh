@@ -1,4 +1,5 @@
 import {
+  BentoSection,
   BridgesSection,
   Comparison,
   ExtensibilitySection,
@@ -15,6 +16,7 @@ export default function HomePage() {
   return (
     <main className="site-home">
       <Hero />
+      <BentoSection />
       <FeaturesSection />
       <SupportedAgents />
       <NetworkSection />

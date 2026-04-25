@@ -70,6 +70,14 @@ const (
 	RunCancelled = modelpkg.RunCancelled
 )
 
+// SchedulerCatchUpPolicy identifies how missed scheduled fires are reconciled.
+type SchedulerCatchUpPolicy = modelpkg.SchedulerCatchUpPolicy
+
+const (
+	// SchedulerCatchUpPolicySkipMissed advances missed cursors without dispatching stale fires.
+	SchedulerCatchUpPolicySkipMissed = modelpkg.SchedulerCatchUpPolicySkipMissed
+)
+
 // ActivationSource identifies which ingress path produced an activation envelope.
 type ActivationSource = modelpkg.ActivationSource
 
@@ -104,6 +112,15 @@ type FireLimitConfig = modelpkg.FireLimitConfig
 
 // Run records the execution state of a single automation fire.
 type Run = modelpkg.Run
+
+// SchedulerState stores the durable scheduling cursor for one automation job.
+type SchedulerState = modelpkg.SchedulerState
+
+// SchedulerClaim reserves one scheduled fire after cursor advancement.
+type SchedulerClaim = modelpkg.SchedulerClaim
+
+// SchedulerClaimResult reports the durable state and run reservation for one scheduled fire.
+type SchedulerClaimResult = modelpkg.SchedulerClaimResult
 
 // ActivationEnvelope is the normalized trigger input regardless of source.
 type ActivationEnvelope = modelpkg.ActivationEnvelope

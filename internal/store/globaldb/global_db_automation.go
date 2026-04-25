@@ -372,21 +372,26 @@ func (g *GlobalDB) CreateRun(ctx context.Context, run automation.Run) (automatio
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO automation_runs (
-			id, job_id, trigger_id, session_id, task_id, task_run_id, status,
-			attempt, started_at, ended_at, error
+			id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
+			status, attempt, scheduled_at, started_at, ended_at, error,
+			delivery_error, delivery_error_at
 		)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		store.NullableString(normalized.JobID),
 		store.NullableString(normalized.TriggerID),
 		store.NullableString(normalized.SessionID),
 		store.NullableString(normalized.TaskID),
 		store.NullableString(normalized.TaskRunID),
+		store.NullableString(normalized.FireID),
 		normalized.Status,
 		normalized.Attempt,
+		nullableAutomationTimestamp(normalized.ScheduledAt),
 		nullableAutomationTimestamp(normalized.StartedAt),
 		nullableAutomationTimestamp(normalized.EndedAt),
 		store.NullableString(normalized.Error),
+		store.NullableString(normalized.DeliveryError),
+		nullableAutomationTimestamp(normalized.DeliveryErrorAt),
 	); err != nil {
 		return automation.Run{}, fmt.Errorf("store: create automation run %q: %w", normalized.ID, err)
 	}
@@ -409,19 +414,24 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run automation.Run) (automatio
 		ctx,
 		`UPDATE automation_runs
 		 SET job_id = ?, trigger_id = ?, session_id = ?, task_id = ?,
-		     task_run_id = ?, status = ?, attempt = ?, started_at = ?,
-		     ended_at = ?, error = ?
+		     task_run_id = ?, fire_id = ?, status = ?, attempt = ?,
+		     scheduled_at = ?, started_at = ?, ended_at = ?, error = ?,
+		     delivery_error = ?, delivery_error_at = ?
 		 WHERE id = ?`,
 		store.NullableString(normalized.JobID),
 		store.NullableString(normalized.TriggerID),
 		store.NullableString(normalized.SessionID),
 		store.NullableString(normalized.TaskID),
 		store.NullableString(normalized.TaskRunID),
+		store.NullableString(normalized.FireID),
 		normalized.Status,
 		normalized.Attempt,
+		nullableAutomationTimestamp(normalized.ScheduledAt),
 		nullableAutomationTimestamp(normalized.StartedAt),
 		nullableAutomationTimestamp(normalized.EndedAt),
 		store.NullableString(normalized.Error),
+		store.NullableString(normalized.DeliveryError),
+		nullableAutomationTimestamp(normalized.DeliveryErrorAt),
 		normalized.ID,
 	)
 	if err != nil {
@@ -467,7 +477,10 @@ func (g *GlobalDB) GetRun(ctx context.Context, id string) (automation.Run, error
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT id, job_id, trigger_id, session_id, task_id, task_run_id, status, attempt, started_at, ended_at, error
+		`SELECT
+			id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
+			status, attempt, scheduled_at, started_at, ended_at, error,
+			delivery_error, delivery_error_at
 		 FROM automation_runs
 		 WHERE id = ?`,
 		trimmedID,
@@ -492,7 +505,11 @@ func (g *GlobalDB) ListRuns(ctx context.Context, query automation.RunQuery) ([]a
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, job_id, trigger_id, session_id, task_id, task_run_id, status, attempt, started_at, ended_at, error FROM automation_runs`
+	sqlQuery := `SELECT
+		id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
+		status, attempt, scheduled_at, started_at, ended_at, error,
+		delivery_error, delivery_error_at
+		FROM automation_runs`
 	where, args := buildAutomationRunClauses(query)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY started_at DESC, id DESC"
@@ -1180,16 +1197,20 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 
 func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 	var (
-		run       automation.Run
-		jobID     sql.NullString
-		triggerID sql.NullString
-		sessionID sql.NullString
-		taskID    sql.NullString
-		taskRunID sql.NullString
-		status    string
-		startedAt sql.NullString
-		endedAt   sql.NullString
-		runErr    sql.NullString
+		run           automation.Run
+		jobID         sql.NullString
+		triggerID     sql.NullString
+		sessionID     sql.NullString
+		taskID        sql.NullString
+		taskRunID     sql.NullString
+		fireID        sql.NullString
+		status        string
+		scheduledAt   sql.NullString
+		startedAt     sql.NullString
+		endedAt       sql.NullString
+		runErr        sql.NullString
+		deliveryErr   sql.NullString
+		deliveryErrAt sql.NullString
 	)
 	if err := scanner.Scan(
 		&run.ID,
@@ -1198,11 +1219,15 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		&sessionID,
 		&taskID,
 		&taskRunID,
+		&fireID,
 		&status,
 		&run.Attempt,
+		&scheduledAt,
 		&startedAt,
 		&endedAt,
 		&runErr,
+		&deliveryErr,
+		&deliveryErrAt,
 	); err != nil {
 		return automation.Run{}, fmt.Errorf("store: scan automation run: %w", err)
 	}
@@ -1212,7 +1237,15 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 	run.SessionID = automationNullStringValue(sessionID)
 	run.TaskID = automationNullStringValue(taskID)
 	run.TaskRunID = automationNullStringValue(taskRunID)
+	run.FireID = automationNullStringValue(fireID)
 	run.Status = automation.RunStatus(strings.TrimSpace(status))
+	if scheduledAt.Valid {
+		value, err := store.ParseTimestamp(scheduledAt.String)
+		if err != nil {
+			return automation.Run{}, err
+		}
+		run.ScheduledAt = &value
+	}
 	if startedAt.Valid {
 		value, err := store.ParseTimestamp(startedAt.String)
 		if err != nil {
@@ -1229,6 +1262,16 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 	}
 	if runErr.Valid {
 		run.Error = runErr.String
+	}
+	if deliveryErr.Valid {
+		run.DeliveryError = deliveryErr.String
+	}
+	if deliveryErrAt.Valid {
+		value, err := store.ParseTimestamp(deliveryErrAt.String)
+		if err != nil {
+			return automation.Run{}, err
+		}
+		run.DeliveryErrorAt = &value
 	}
 
 	return run, nil
@@ -1388,6 +1431,7 @@ func buildAutomationRunClauses(query automation.RunQuery) ([]string, []any) {
 		store.StringClause("job_id", query.JobID),
 		store.StringClause("trigger_id", query.TriggerID),
 		store.StringClause("status", string(query.Status)),
+		store.NotStringClause("id", query.ExcludeID),
 		store.TimeClause("started_at", ">=", query.Since),
 		store.TimeClause("started_at", "<=", query.Until),
 	)
@@ -1513,7 +1557,10 @@ func normalizeAutomationRun(run automation.Run) automation.Run {
 	run.SessionID = strings.TrimSpace(run.SessionID)
 	run.TaskID = strings.TrimSpace(run.TaskID)
 	run.TaskRunID = strings.TrimSpace(run.TaskRunID)
+	run.FireID = strings.TrimSpace(run.FireID)
 	run.Status = automation.RunStatus(strings.TrimSpace(string(run.Status)))
+	run.Error = strings.TrimSpace(run.Error)
+	run.DeliveryError = strings.TrimSpace(run.DeliveryError)
 	return run
 }
 

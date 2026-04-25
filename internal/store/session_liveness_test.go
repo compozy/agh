@@ -119,6 +119,93 @@ func TestCloneSessionLivenessMeta(t *testing.T) {
 	})
 }
 
+func TestSessionActivityMetaValidateCloneAndIdleSeconds(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should validate activity counters", func(t *testing.T) {
+		t.Parallel()
+
+		var nilActivity *SessionActivityMeta
+		if err := nilActivity.Validate(); err != nil {
+			t.Fatalf("Validate(nil activity) error = %v", err)
+		}
+		for _, invalid := range []*SessionActivityMeta{
+			{IterationCurrent: -1},
+			{IterationMax: -1},
+			{IdleSeconds: -1},
+		} {
+			if err := invalid.Validate(); err == nil {
+				t.Fatalf("Validate(%#v) error = nil, want non-nil", invalid)
+			}
+		}
+	})
+
+	t.Run("Should deep-copy and normalize activity metadata", func(t *testing.T) {
+		t.Parallel()
+
+		turnStartedAt := time.Date(2026, 4, 21, 13, 0, 0, 0, time.FixedZone("BRT", -3*60*60))
+		lastActivityAt := turnStartedAt.Add(2 * time.Minute)
+		lastProgressAt := turnStartedAt.Add(3 * time.Minute)
+		meta := &SessionActivityMeta{
+			TurnID:             "  turn-1  ",
+			TurnSource:         "  user  ",
+			TurnStartedAt:      &turnStartedAt,
+			LastActivityAt:     &lastActivityAt,
+			LastActivityKind:   "  tool_call  ",
+			LastActivityDetail: "  running  ",
+			CurrentTool:        "  shell  ",
+			ToolCallID:         "  call-1  ",
+			LastProgressAt:     &lastProgressAt,
+			IterationCurrent:   2,
+			IterationMax:       4,
+			IdleSeconds:        5,
+		}
+
+		cloned := CloneSessionActivityMeta(meta)
+		if cloned == nil {
+			t.Fatal("CloneSessionActivityMeta() = nil, want metadata")
+		}
+		if cloned.TurnStartedAt == meta.TurnStartedAt {
+			t.Fatal("TurnStartedAt pointer reused, want deep copy")
+		}
+		if cloned.LastActivityAt == meta.LastActivityAt {
+			t.Fatal("LastActivityAt pointer reused, want deep copy")
+		}
+		if cloned.LastProgressAt == meta.LastProgressAt {
+			t.Fatal("LastProgressAt pointer reused, want deep copy")
+		}
+		if got := cloned.TurnID; got != "turn-1" {
+			t.Fatalf("cloned.TurnID = %q, want trimmed turn id", got)
+		}
+		if got := cloned.CurrentTool; got != "shell" {
+			t.Fatalf("cloned.CurrentTool = %q, want trimmed tool", got)
+		}
+		if got := cloned.LastActivityAt.Location(); got != time.UTC {
+			t.Fatalf("cloned.LastActivityAt location = %v, want UTC", got)
+		}
+		if CloneSessionActivityMeta(nil) != nil {
+			t.Fatal("CloneSessionActivityMeta(nil) != nil, want nil")
+		}
+	})
+
+	t.Run("Should report idle seconds defensively", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 21, 14, 0, 0, 0, time.UTC)
+		lastActivityAt := now.Add(-45 * time.Second)
+		if got := SessionActivityIdleSeconds(&SessionActivityMeta{LastActivityAt: &lastActivityAt}, now); got != 45 {
+			t.Fatalf("SessionActivityIdleSeconds() = %d, want 45", got)
+		}
+		futureActivityAt := now.Add(time.Second)
+		if got := SessionActivityIdleSeconds(&SessionActivityMeta{LastActivityAt: &futureActivityAt}, now); got != 0 {
+			t.Fatalf("SessionActivityIdleSeconds(future) = %d, want 0", got)
+		}
+		if got := SessionActivityIdleSeconds(nil, now); got != 0 {
+			t.Fatalf("SessionActivityIdleSeconds(nil) = %d, want 0", got)
+		}
+	})
+}
+
 func TestHookRunQueryValidate(t *testing.T) {
 	t.Parallel()
 

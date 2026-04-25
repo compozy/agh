@@ -15,7 +15,9 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/subprocess"
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 const (
@@ -368,6 +370,7 @@ type AgentEvent struct {
 	Resource   string
 	Decision   string
 	Error      string
+	Failure    *store.SessionFailure
 	Synthetic  *PromptSyntheticMeta
 	Usage      *TokenUsage
 	Runtime    *RuntimeActivity
@@ -385,20 +388,24 @@ type AgentProcess struct {
 	Caps      Caps
 	StartedAt time.Time
 
-	managed       *subprocess.Process
-	handle        environment.Handle
-	toolHostMu    sync.Mutex
-	toolHost      environment.ToolHost
-	cmd           *exec.Cmd
-	conn          *acpsdk.Connection
-	stderr        *lockedBuffer
-	processCtx    context.Context
-	cancelProcess context.CancelFunc
-	permissions   permissionPolicy
-	terminals     *terminalManager
+	managed         *subprocess.Process
+	handle          environment.Handle
+	toolHostMu      sync.Mutex
+	toolHost        environment.ToolHost
+	cmd             *exec.Cmd
+	conn            *acpsdk.Connection
+	stderr          *lockedBuffer
+	processCtx      context.Context
+	cancelProcess   context.CancelFunc
+	permissions     permissionPolicy
+	terminals       *terminalManager
+	processRegistry *toolruntime.Registry
+	processRecord   *toolruntime.Handle
 
 	terminalOwnershipMu sync.RWMutex
 	terminalOwnership   map[string]terminalOwnership
+	terminalProcessMu   sync.Mutex
+	terminalProcesses   map[string]*toolruntime.Handle
 
 	waitMu        sync.RWMutex
 	waitErr       error
@@ -504,6 +511,17 @@ func (p *AgentProcess) markStopRequested() {
 	p.stopMu.Lock()
 	defer p.stopMu.Unlock()
 	p.stopRequested = true
+}
+
+func (p *AgentProcess) checkpointProcessOwner(ctx context.Context) error {
+	if p == nil || p.processRecord == nil {
+		return nil
+	}
+	return p.processRecord.Checkpoint(ctx, toolruntime.ProcessCheckpoint{
+		Owner: &toolruntime.ProcessOwner{
+			SessionID: p.SessionID,
+		},
+	})
 }
 
 func (p *AgentProcess) beginPrompt(turnID string, bufferSize int) (*activePromptState, error) {

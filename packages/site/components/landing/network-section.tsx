@@ -62,7 +62,7 @@ export function NetworkSection() {
               work in <code className="font-mono text-(--color-text-primary)">main</code> today.
             </>
           }
-          cite={{ href: "/runtime/core/overview/what-is-agh", label: "internal/cli/network.go" }}
+          cite={{ href: "/runtime", label: "internal/cli/network.go" }}
         />
         <FeatureCard
           eyebrow="Transport"

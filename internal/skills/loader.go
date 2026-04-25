@@ -96,6 +96,9 @@ func readSkillFile(path string) (string, []byte, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("skills: resolve path %q: %w", path, err)
 	}
+	if err := ensurePathWithinRoot(filepath.Dir(absPath), absPath); err != nil {
+		return "", nil, err
+	}
 
 	content, err := os.ReadFile(absPath)
 	if err != nil {
@@ -186,24 +189,7 @@ func scanDirectoryWithSnapshots(dir string) ([]string, map[string]filesnap.Snaps
 			return nil
 		}
 
-		if depth > maxScanDepth || entry.Name() != skillFileName {
-			return nil
-		}
-
-		snapshot, err := filesnap.FromPath(path)
-		if err != nil {
-			slog.Warn("skills: skipping unreadable skill file during scan", "path", path, "error", err)
-			return nil
-		}
-
-		paths = append(paths, path)
-		snapshots[path] = snapshot
-		if len(paths) >= maxScanCandidates {
-			slog.Warn("skills: scan candidate limit reached", "root", absRoot, "limit", maxScanCandidates)
-			return errScanLimitReached
-		}
-
-		return nil
+		return appendSkillScanCandidate(absRoot, path, entry, depth, &paths, snapshots)
 	})
 	if walkErr != nil && !errors.Is(walkErr, errScanLimitReached) {
 		return nil, nil, walkErr
@@ -211,6 +197,38 @@ func scanDirectoryWithSnapshots(dir string) ([]string, map[string]filesnap.Snaps
 
 	slices.Sort(paths)
 	return paths, snapshots, nil
+}
+
+func appendSkillScanCandidate(
+	absRoot string,
+	path string,
+	entry fs.DirEntry,
+	depth int,
+	paths *[]string,
+	snapshots map[string]filesnap.Snapshot,
+) error {
+	if depth > maxScanDepth || entry.Name() != skillFileName {
+		return nil
+	}
+	if err := ensurePathWithinRoot(absRoot, path); err != nil {
+		slog.Warn("skills: skipping skill file that escapes scan root", "path", path, "error", err)
+		return nil
+	}
+
+	snapshot, err := filesnap.FromPath(path)
+	if err != nil {
+		slog.Warn("skills: skipping unreadable skill file during scan", "path", path, "error", err)
+		return nil
+	}
+
+	*paths = append(*paths, path)
+	snapshots[path] = snapshot
+	if len(*paths) >= maxScanCandidates {
+		slog.Warn("skills: scan candidate limit reached", "root", absRoot, "limit", maxScanCandidates)
+		return errScanLimitReached
+	}
+
+	return nil
 }
 
 func decodeSkillMeta(frontmatter string) (SkillMeta, error) {

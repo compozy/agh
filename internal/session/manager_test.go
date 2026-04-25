@@ -27,6 +27,7 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/toolruntime"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -1096,6 +1097,12 @@ func TestCancelPrompt(t *testing.T) {
 		}
 		if got := h.driver.cancelCalls; got != 1 {
 			t.Fatalf("driver cancel calls = %d, want 1", got)
+		}
+		if got := len(h.driver.interruptScopes); got != 1 {
+			t.Fatalf("driver interrupt calls = %d, want 1", got)
+		}
+		if got := h.driver.interruptScopes[0]; got.SessionID != session.ID || got.TurnID == "" {
+			t.Fatalf("driver interrupt scope = %#v, want session and turn", got)
 		}
 
 		close(promptEvents)
@@ -3130,6 +3137,8 @@ type fakeDriver struct {
 	approveHook      func(proc *fakeProcess, req acp.ApproveRequest) error
 	stopHook         func(proc *fakeProcess) error
 	startHook        func(opts acp.StartOpts, sequence int) (*fakeProcess, error)
+	interruptScopes  []toolruntime.InterruptScope
+	interruptErr     error
 	fallbackOnResume bool
 }
 
@@ -3482,6 +3491,23 @@ func (d *fakeDriver) Cancel(_ context.Context, proc *AgentProcess) error {
 		return hook(fakeProc)
 	}
 	return nil
+}
+
+func (d *fakeDriver) Interrupt(
+	_ context.Context,
+	sessionID string,
+	turnID string,
+) (toolruntime.InterruptReport, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.interruptScopes = append(d.interruptScopes, toolruntime.InterruptScope{
+		SessionID: sessionID,
+		TurnID:    turnID,
+	})
+	if d.interruptErr != nil {
+		return toolruntime.InterruptReport{}, d.interruptErr
+	}
+	return toolruntime.InterruptReport{Matched: 1, Signaled: 1}, nil
 }
 
 func (d *fakeDriver) Stop(_ context.Context, proc *AgentProcess) error {

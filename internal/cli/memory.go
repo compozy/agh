@@ -53,6 +53,18 @@ type memorySearchItem struct {
 	ModTime     time.Time    `json:"mod_time"`
 }
 
+type memoryHistoryItem struct {
+	ID        string       `json:"id"`
+	Operation string       `json:"operation"`
+	Scope     memory.Scope `json:"scope,omitempty"`
+	Workspace string       `json:"workspace,omitempty"`
+	Filename  string       `json:"filename,omitempty"`
+	AgentName string       `json:"agent_name,omitempty"`
+	Summary   string       `json:"summary,omitempty"`
+	Age       string       `json:"age"`
+	Timestamp time.Time    `json:"timestamp"`
+}
+
 type memoryReindexView struct {
 	IndexedFiles int          `json:"indexed_files"`
 	Scope        memory.Scope `json:"scope,omitempty"`
@@ -83,12 +95,101 @@ func newMemoryCommand(deps commandDeps) *cobra.Command {
 	}
 
 	cmd.AddCommand(newMemoryListCommand(deps))
+	cmd.AddCommand(newMemoryHealthCommand(deps))
+	cmd.AddCommand(newMemoryHistoryCommand(deps))
 	cmd.AddCommand(newMemorySearchCommand(deps))
 	cmd.AddCommand(newMemoryReadCommand(deps))
 	cmd.AddCommand(newMemoryWriteCommand(deps))
 	cmd.AddCommand(newMemoryDeleteCommand(deps))
 	cmd.AddCommand(newMemoryReindexCommand(deps))
 	cmd.AddCommand(newMemoryConsolidateCommand(deps))
+	return cmd
+}
+
+func newMemoryHealthCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "health",
+		Short: "Show memory health",
+		Example: `  # Show global and current-workspace memory health
+  agh memory health
+
+  # Show memory health as JSON
+  agh memory health -o json`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+
+			workspace, err := currentWorkingDirectory(deps)
+			if err != nil {
+				return err
+			}
+			health, err := client.MemoryHealth(cmd.Context(), workspace)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryHealthBundle(health))
+		},
+	}
+}
+
+func newMemoryHistoryCommand(deps commandDeps) *cobra.Command {
+	var (
+		scope     string
+		operation string
+		sinceRaw  string
+		limit     int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "history",
+		Short: "Show memory operation history",
+		Example: `  # Show recent global and current-workspace memory operations
+  agh memory history
+
+  # Filter memory writes in the current workspace
+  agh memory history --scope workspace --operation memory.write --since 24h`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			parsedScope, err := parseOptionalCLIMemoryScope(scope)
+			if err != nil {
+				return err
+			}
+			since, err := parseSinceFlag(sinceRaw, deps.now)
+			if err != nil {
+				return err
+			}
+
+			workspace := ""
+			if parsedScope != memory.ScopeGlobal {
+				workspace, err = currentWorkingDirectory(deps)
+				if err != nil {
+					return err
+				}
+			}
+			operations, err := client.MemoryHistory(cmd.Context(), MemoryHistoryQuery{
+				Scope:     parsedScope,
+				Workspace: workspace,
+				Operation: operation,
+				Since:     since,
+				Limit:     limit,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, memoryHistoryBundle(operations, deps.now))
+		},
+	}
+	cmd.Flags().StringVar(&scope, "scope", "", "Memory scope: global or workspace")
+	cmd.Flags().StringVar(&operation, "operation", "", "Operation type, for example memory.write")
+	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show operations since an RFC3339 timestamp or relative duration")
+	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum number of operations to return")
 	return cmd
 }
 
@@ -757,6 +858,106 @@ func memorySearchBundle(results []MemorySearchRecord) outputBundle {
 	)
 }
 
+func memoryHealthBundle(view MemoryHealthRecord) outputBundle {
+	return outputBundle{
+		jsonValue: view,
+		human: func() (string, error) {
+			rows := []keyValue{
+				{Label: "Status", Value: stringOrDash(view.Status)},
+				{Label: "Reason", Value: stringOrDash(view.Reason)},
+				{Label: "Enabled", Value: fmt.Sprintf("%t", view.Enabled)},
+				{Label: "Configured", Value: fmt.Sprintf("%t", view.Configured)},
+				{Label: "Global Dir", Value: stringOrDash(view.GlobalDir)},
+				{Label: "Global Files", Value: fmt.Sprintf("%d", view.GlobalFiles)},
+				{Label: "Workspace Files", Value: fmt.Sprintf("%d", view.WorkspaceFiles)},
+				{Label: "Workspace Count", Value: fmt.Sprintf("%d", view.WorkspaceCount)},
+				{Label: "Indexed Files", Value: fmt.Sprintf("%d", view.IndexedFiles)},
+				{Label: "Orphaned Files", Value: fmt.Sprintf("%d", view.OrphanedFiles)},
+				{Label: "Last Reindex", Value: stringOrDash(formatMemoryOptionalTime(view.LastReindex))},
+				{Label: "Operation Count", Value: fmt.Sprintf("%d", view.OperationCount)},
+				{Label: "Last Operation", Value: stringOrDash(formatMemoryOptionalTime(view.LastOperationAt))},
+				{Label: "Dream Enabled", Value: fmt.Sprintf("%t", view.DreamEnabled)},
+				{Label: "Dream Agent", Value: stringOrDash(view.DreamAgent)},
+				{Label: "Last Consolidation", Value: stringOrDash(formatMemoryOptionalTime(view.LastConsolidation))},
+			}
+			return renderHumanSection("Memory Health", rows), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"memory_health",
+				[]string{
+					"status",
+					"reason",
+					"enabled",
+					"configured",
+					"global_files",
+					"workspace_files",
+					"indexed_files",
+					"orphaned_files",
+					"operation_count",
+					"last_operation_at",
+				},
+				[]string{
+					view.Status,
+					view.Reason,
+					fmt.Sprintf("%t", view.Enabled),
+					fmt.Sprintf("%t", view.Configured),
+					fmt.Sprintf("%d", view.GlobalFiles),
+					fmt.Sprintf("%d", view.WorkspaceFiles),
+					fmt.Sprintf("%d", view.IndexedFiles),
+					fmt.Sprintf("%d", view.OrphanedFiles),
+					fmt.Sprintf("%d", view.OperationCount),
+					formatMemoryOptionalTime(view.LastOperationAt),
+				},
+			), nil
+		},
+	}
+}
+
+func memoryHistoryBundle(records []MemoryHistoryRecord, now func() time.Time) outputBundle {
+	items := make([]memoryHistoryItem, 0, len(records))
+	for _, record := range records {
+		items = append(items, memoryHistoryItem{
+			ID:        record.ID,
+			Operation: record.Operation,
+			Scope:     memory.Scope(record.Scope),
+			Workspace: record.Workspace,
+			Filename:  record.Filename,
+			AgentName: record.AgentName,
+			Summary:   record.Summary,
+			Age:       formatAge(now, record.Timestamp),
+			Timestamp: record.Timestamp,
+		})
+	}
+
+	return listBundle(
+		items,
+		items,
+		"Memory History",
+		[]string{"Time", "Operation", "Scope", "Filename", "Summary"},
+		"operations",
+		[]string{"timestamp", "operation", "scope", "filename", "summary"},
+		func(item memoryHistoryItem) []string {
+			return []string{
+				stringOrDash(formatTime(item.Timestamp)),
+				stringOrDash(item.Operation),
+				stringOrDash(string(item.Scope)),
+				stringOrDash(item.Filename),
+				stringOrDash(item.Summary),
+			}
+		},
+		func(item memoryHistoryItem) []string {
+			return []string{
+				formatTime(item.Timestamp),
+				item.Operation,
+				string(item.Scope),
+				item.Filename,
+				item.Summary,
+			}
+		},
+	)
+}
+
 func memoryMutationBundle(view memoryMutationView) outputBundle {
 	return outputBundle{
 		jsonValue: view,
@@ -782,6 +983,13 @@ func memoryMutationBundle(view memoryMutationView) outputBundle {
 			}), nil
 		},
 	}
+}
+
+func formatMemoryOptionalTime(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return formatTime(*value)
 }
 
 func memoryReindexBundle(view memoryReindexView) outputBundle {

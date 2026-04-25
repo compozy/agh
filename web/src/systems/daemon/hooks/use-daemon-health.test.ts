@@ -10,8 +10,9 @@ vi.mock("../adapters/daemon-api", () => ({
 }));
 
 import { fetchHealth } from "../adapters/daemon-api";
+import type { HealthPayload } from "../types";
 
-const healthFixture = {
+const healthFixture: HealthPayload = {
   status: "ok",
   uptime_seconds: 100,
   active_sessions: 1,
@@ -34,8 +35,27 @@ const healthFixture = {
   },
   global_db_size_bytes: 0,
   session_db_size_bytes: 0,
+  persistence: {
+    status: "ok",
+    global_db_size_bytes: 0,
+    session_db_size_bytes: 0,
+  },
+  retention: {
+    enabled: false,
+    retention_days: 0,
+    sweep_interval_seconds: 86_400,
+    last_sweep_status: "disabled",
+    deleted_event_summaries: 0,
+    deleted_token_stats: 0,
+    deleted_permission_log_rows: 0,
+  },
+  failures: {
+    status: "ok",
+    total: 0,
+  },
+  agent_probes: [],
   version: "0.1.0",
-} as const;
+};
 
 function createWrapper() {
   const queryClient = new QueryClient({

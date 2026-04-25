@@ -486,7 +486,10 @@ func TestDrainPromptEventsAsyncIsTracked(t *testing.T) {
 		BaseHandlers: core.NewBaseHandlers(&core.BaseHandlerConfig{}),
 	}
 
-	handlers.drainPromptEventsAsync(context.Background(), events)
+	canceled := make(chan struct{})
+	handlers.drainPromptEventsAsync(context.Background(), events, func() {
+		close(canceled)
+	})
 	events <- acp.AgentEvent{Type: acp.EventTypeRuntimeProgress}
 	close(events)
 
@@ -494,5 +497,10 @@ func TestDrainPromptEventsAsyncIsTracked(t *testing.T) {
 	defer cancel()
 	if err := handlers.waitForPromptDrains(ctx); err != nil {
 		t.Fatalf("waitForPromptDrains() error = %v", err)
+	}
+	select {
+	case <-canceled:
+	default:
+		t.Fatal("detached prompt cancel was not called after drain")
 	}
 }

@@ -541,6 +541,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/memory/health": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get memory health */
+    get: operations["getMemoryHealth"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/memory/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List redacted memory operation history */
+    get: operations["listMemoryHistory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/memory/{filename}": {
     parameters: {
       query?: never;
@@ -1892,11 +1926,24 @@ export interface operations {
               command?: string;
               mcp_servers?: {
                 args?: string[];
-                command: string;
+                auth?: {
+                  authorization_url?: string;
+                  client_id?: string;
+                  client_secret_env?: string;
+                  issuer_url?: string;
+                  metadata_url?: string;
+                  revocation_url?: string;
+                  scopes?: string[];
+                  token_url?: string;
+                  type?: string;
+                } | null;
+                command?: string;
                 env?: {
                   [key: string]: string;
                 };
                 name: string;
+                transport?: string;
+                url?: string;
               }[];
               model?: string;
               name: string;
@@ -1950,11 +1997,24 @@ export interface operations {
               command?: string;
               mcp_servers?: {
                 args?: string[];
-                command: string;
+                auth?: {
+                  authorization_url?: string;
+                  client_id?: string;
+                  client_secret_env?: string;
+                  issuer_url?: string;
+                  metadata_url?: string;
+                  revocation_url?: string;
+                  scopes?: string[];
+                  token_url?: string;
+                  type?: string;
+                } | null;
+                command?: string;
                 env?: {
                   [key: string]: string;
                 };
                 name: string;
+                transport?: string;
+                url?: string;
               }[];
               model?: string;
               name: string;
@@ -2047,6 +2107,25 @@ export interface operations {
                 /** @enum {string} */
                 mode: "cron" | "every" | "at";
                 time?: string;
+              } | null;
+              scheduler?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
               } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
@@ -2205,6 +2284,25 @@ export interface operations {
                 mode: "cron" | "every" | "at";
                 time?: string;
               } | null;
+              scheduler?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -2329,6 +2427,25 @@ export interface operations {
                 /** @enum {string} */
                 mode: "cron" | "every" | "at";
                 time?: string;
+              } | null;
+              scheduler?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
               } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
@@ -2559,6 +2676,25 @@ export interface operations {
                 mode: "cron" | "every" | "at";
                 time?: string;
               } | null;
+              scheduler?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -2679,11 +2815,17 @@ export interface operations {
           "application/json": {
             runs: {
               attempt: number;
+              delivery_error?: string;
+              /** Format: date-time */
+              delivery_error_at?: string | null;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              fire_id?: string;
               id: string;
               job_id?: string;
+              /** Format: date-time */
+              scheduled_at?: string | null;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -2769,11 +2911,17 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              delivery_error?: string;
+              /** Format: date-time */
+              delivery_error_at?: string | null;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              fire_id?: string;
               id: string;
               job_id?: string;
+              /** Format: date-time */
+              scheduled_at?: string | null;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -2869,11 +3017,17 @@ export interface operations {
           "application/json": {
             runs: {
               attempt: number;
+              delivery_error?: string;
+              /** Format: date-time */
+              delivery_error_at?: string | null;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              fire_id?: string;
               id: string;
               job_id?: string;
+              /** Format: date-time */
+              scheduled_at?: string | null;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -2948,11 +3102,17 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              delivery_error?: string;
+              /** Format: date-time */
+              delivery_error_at?: string | null;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              fire_id?: string;
               id: string;
               job_id?: string;
+              /** Format: date-time */
+              scheduled_at?: string | null;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -3583,11 +3743,17 @@ export interface operations {
           "application/json": {
             runs: {
               attempt: number;
+              delivery_error?: string;
+              /** Format: date-time */
+              delivery_error_at?: string | null;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              fire_id?: string;
               id: string;
               job_id?: string;
+              /** Format: date-time */
+              scheduled_at?: string | null;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -5349,8 +5515,10 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
               pid?: number;
+              requires_env?: string[];
               source: string;
               state: string;
               type: string;
@@ -5428,8 +5596,10 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
               pid?: number;
+              requires_env?: string[];
               source: string;
               state: string;
               type: string;
@@ -5524,8 +5694,10 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
               pid?: number;
+              requires_env?: string[];
               source: string;
               state: string;
               type: string;
@@ -5609,8 +5781,10 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
               pid?: number;
+              requires_env?: string[];
               source: string;
               state: string;
               type: string;
@@ -5705,8 +5879,10 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
               pid?: number;
+              requires_env?: string[];
               source: string;
               state: string;
               type: string;
@@ -6253,6 +6429,152 @@ export interface operations {
       };
     };
   };
+  getMemoryHealth: {
+    parameters: {
+      query?: {
+        /** @description Workspace id or path */
+        workspace?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            configured: boolean;
+            dream_agent?: string;
+            dream_check_interval?: string;
+            dream_enabled: boolean;
+            /** Format: double */
+            dream_min_hours?: number;
+            dream_min_sessions?: number;
+            enabled: boolean;
+            global_dir?: string;
+            global_files: number;
+            indexed_files: number;
+            /** Format: date-time */
+            last_consolidation: string | null;
+            /** Format: date-time */
+            last_operation_at: string | null;
+            /** Format: date-time */
+            last_reindex: string | null;
+            operation_count: number;
+            orphaned_files: number;
+            reason?: string;
+            status: string;
+            workspace_count: number;
+            workspace_files: number;
+          };
+        };
+      };
+      /** @description Invalid memory health filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listMemoryHistory: {
+    parameters: {
+      query?: {
+        /** @description Memory scope */
+        scope?: "global" | "workspace";
+        /** @description Workspace id or path */
+        workspace?: string;
+        /** @description Memory operation type */
+        operation?: string;
+        /** @description Only operations since this timestamp */
+        since?: string;
+        /** @description Maximum number of operations to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            operations: {
+              agent_name?: string;
+              filename?: string;
+              id: string;
+              operation: string;
+              scope?: string;
+              summary?: string;
+              /** Format: date-time */
+              timestamp: string;
+              workspace?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid memory history filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   readMemory: {
     parameters: {
       query?: {
@@ -6640,6 +6962,11 @@ export interface operations {
                   provider_state_json?: unknown;
                   state?: string;
                 } | null;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
+                } | null;
                 id: string;
                 name?: string;
                 provider: string;
@@ -6823,6 +7150,11 @@ export interface operations {
                   profile?: string;
                   provider_state_json?: unknown;
                   state?: string;
+                } | null;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
                 } | null;
                 id: string;
                 name?: string;
@@ -7698,6 +8030,25 @@ export interface operations {
               };
               /** Format: date-time */
               next_fire?: string | null;
+              scheduled_jobs?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              }[];
               scheduler_running: boolean;
               triggers: {
                 enabled: number;
@@ -7731,6 +8082,18 @@ export interface operations {
                 /** Format: date-time */
                 turn_started_at?: string | null;
               }[];
+              agent_probes?: {
+                agent_name?: string;
+                /** Format: date-time */
+                checked_at: string;
+                command?: string;
+                /** Format: int64 */
+                duration_ms: number;
+                error?: string;
+                executable?: string;
+                provider?: string;
+                status: string;
+              }[];
               bridges: {
                 auth_failures_total: number;
                 delivery_backlog: number;
@@ -7747,8 +8110,52 @@ export interface operations {
                 };
                 total_instances: number;
               };
+              failures: {
+                by_kind?: {
+                  [key: string]: number;
+                };
+                recent?: {
+                  agent_name?: string;
+                  crash_bundle_path?: string;
+                  failure_kind: string;
+                  provider?: string;
+                  session_id: string;
+                  state?: string;
+                  summary?: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id?: string;
+                }[];
+                status: string;
+                total: number;
+              };
               /** Format: int64 */
               global_db_size_bytes: number;
+              persistence: {
+                /** Format: int64 */
+                global_db_size_bytes: number;
+                /** Format: int64 */
+                session_db_size_bytes: number;
+                status: string;
+              };
+              retention: {
+                /** Format: int64 */
+                deleted_event_summaries: number;
+                /** Format: int64 */
+                deleted_permission_log_rows: number;
+                /** Format: int64 */
+                deleted_token_stats: number;
+                enabled: boolean;
+                /** Format: date-time */
+                last_cutoff_at?: string | null;
+                /** Format: date-time */
+                last_sweep_at?: string | null;
+                last_sweep_error?: string;
+                last_sweep_status: string;
+                retention_days: number;
+                /** Format: int64 */
+                sweep_interval_seconds: number;
+              };
               /** Format: int64 */
               session_db_size_bytes: number;
               status: string;
@@ -7757,6 +8164,7 @@ export interface operations {
               version: string;
             };
             memory: {
+              configured: boolean;
               dream_agent?: string;
               dream_check_interval?: string;
               dream_enabled: boolean;
@@ -7770,8 +8178,14 @@ export interface operations {
               /** Format: date-time */
               last_consolidation: string | null;
               /** Format: date-time */
+              last_operation_at: string | null;
+              /** Format: date-time */
               last_reindex: string | null;
+              operation_count: number;
               orphaned_files: number;
+              reason?: string;
+              status: string;
+              workspace_count: number;
               workspace_files: number;
             };
           };
@@ -8908,6 +9322,11 @@ export interface operations {
                 provider_state_json?: unknown;
                 state?: string;
               } | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
               id: string;
               name?: string;
               provider: string;
@@ -9031,6 +9450,11 @@ export interface operations {
                 profile?: string;
                 provider_state_json?: unknown;
                 state?: string;
+              } | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
               } | null;
               id: string;
               name?: string;
@@ -9168,6 +9592,11 @@ export interface operations {
                 profile?: string;
                 provider_state_json?: unknown;
                 state?: string;
+              } | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
               } | null;
               id: string;
               name?: string;
@@ -9382,10 +9811,28 @@ export interface operations {
             events: {
               agent_name: string;
               content: unknown;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
               id: string;
               /** Format: int64 */
               sequence: number;
               session_id: string;
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
               /** Format: date-time */
               timestamp: string;
               turn_id: string;
@@ -9473,10 +9920,28 @@ export interface operations {
               events: {
                 agent_name: string;
                 content: unknown;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
+                } | null;
                 id: string;
                 /** Format: int64 */
                 sequence: number;
                 session_id: string;
+                stop_detail?: string;
+                /** @enum {string} */
+                stop_reason?:
+                  | "completed"
+                  | "user_canceled"
+                  | "max_iterations"
+                  | "loop_detected"
+                  | "timeout"
+                  | "budget_exceeded"
+                  | "error"
+                  | "agent_crashed"
+                  | "hook_stopped"
+                  | "shutdown";
                 /** Format: date-time */
                 timestamp: string;
                 turn_id: string;
@@ -9588,6 +10053,11 @@ export interface operations {
                 profile?: string;
                 provider_state_json?: unknown;
                 state?: string;
+              } | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
               } | null;
               id: string;
               name?: string;
@@ -11055,7 +11525,9 @@ export interface operations {
               health?: string;
               health_message?: string;
               last_error?: string;
+              missing_env?: string[];
               name: string;
+              requires_env?: string[];
               state?: string;
               version?: string;
             }[];
@@ -11519,7 +11991,36 @@ export interface operations {
             collection: "providers" | "mcp-servers" | "environments" | "hooks";
             mcp_servers: {
               args?: string[];
-              command: string;
+              auth?: {
+                authorization_url?: string;
+                client_id?: string;
+                client_secret_env?: string;
+                issuer_url?: string;
+                metadata_url?: string;
+                revocation_url?: string;
+                scopes?: string[];
+                token_url?: string;
+                type?: string;
+              } | null;
+              auth_status?: {
+                auth_type?: string;
+                authorization_url?: string;
+                client_id?: string;
+                diagnostic?: string;
+                /** Format: date-time */
+                expires_at?: string | null;
+                issuer?: string;
+                refreshable: boolean;
+                remote_url?: string;
+                revocation_url?: string;
+                scopes?: string[];
+                server_name: string;
+                status: string;
+                token_present: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              } | null;
+              command?: string;
               env?: {
                 [key: string]: string;
               };
@@ -11558,6 +12059,8 @@ export interface operations {
                   workspace_id?: string;
                 }[];
               };
+              transport: string;
+              url?: string;
               workspace_id?: string;
             }[];
             /** @enum {string} */
@@ -11630,11 +12133,24 @@ export interface operations {
         "application/json": {
           server: {
             args?: string[];
-            command: string;
+            auth?: {
+              authorization_url?: string;
+              client_id?: string;
+              client_secret_env?: string;
+              issuer_url?: string;
+              metadata_url?: string;
+              revocation_url?: string;
+              scopes?: string[];
+              token_url?: string;
+              type?: string;
+            } | null;
+            command?: string;
             env?: {
               [key: string]: string;
             };
             name: string;
+            transport?: string;
+            url?: string;
           };
         };
       };
@@ -19024,11 +19540,17 @@ export interface operations {
               matched: number;
               runs?: {
                 attempt: number;
+                delivery_error?: string;
+                /** Format: date-time */
+                delivery_error_at?: string | null;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                fire_id?: string;
                 id: string;
                 job_id?: string;
+                /** Format: date-time */
+                scheduled_at?: string | null;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -19142,11 +19664,17 @@ export interface operations {
               matched: number;
               runs?: {
                 attempt: number;
+                delivery_error?: string;
+                /** Format: date-time */
+                delivery_error_at?: string | null;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                fire_id?: string;
                 id: string;
                 job_id?: string;
+                /** Format: date-time */
+                scheduled_at?: string | null;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -19458,11 +19986,24 @@ export interface operations {
               command?: string;
               mcp_servers?: {
                 args?: string[];
-                command: string;
+                auth?: {
+                  authorization_url?: string;
+                  client_id?: string;
+                  client_secret_env?: string;
+                  issuer_url?: string;
+                  metadata_url?: string;
+                  revocation_url?: string;
+                  scopes?: string[];
+                  token_url?: string;
+                  type?: string;
+                } | null;
+                command?: string;
                 env?: {
                   [key: string]: string;
                 };
                 name: string;
+                transport?: string;
+                url?: string;
               }[];
               model?: string;
               name: string;
@@ -19513,6 +20054,11 @@ export interface operations {
                 profile?: string;
                 provider_state_json?: unknown;
                 state?: string;
+              } | null;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
               } | null;
               id: string;
               name?: string;

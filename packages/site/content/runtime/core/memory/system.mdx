@@ -157,6 +157,23 @@ Index behavior:
 
 Dream consolidation is the normal way to tighten memory files and rebuild indexes over time.
 
+## Operator Visibility
+
+Memory has two operator-facing visibility surfaces:
+
+| Surface              | Use it for                                                                 |
+| -------------------- | -------------------------------------------------------------------------- |
+| `agh memory health`  | Inspect enabled/configured state, global and workspace file counts, catalog health, recent operation counts, and dream consolidation state. |
+| `agh memory history` | Inspect recent memory writes, deletes, searches, and reindex operations with scope, workspace, filename, and redacted summaries.             |
+
+The same typed data is available through `GET /api/memory/health` and
+`GET /api/memory/history`. History output is intentionally bounded and redacted before it is
+returned to CLI or API clients.
+
+These visibility surfaces do not change prompt assembly. Runtime prompts still receive only the
+startup memory index snapshot described above; future context-reference and provider-hook support
+will be integrated by a separate runtime task.
+
 ## Prompt Injection
 
 When memory is enabled, AGH prepends a `# Persistent Memory` section to the startup prompt. That

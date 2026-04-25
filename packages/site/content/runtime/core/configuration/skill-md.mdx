@@ -1,7 +1,6 @@
 ---
-title: SKILL.md Reference
+title: SKILL.md
 description: Complete implemented SKILL.md schema, AGH metadata, sidecar files, hook declarations, and body conventions.
-icon: Book
 ---
 
 `SKILL.md` is the portable skill file AGH loads into the skill catalog. A skill directory contains
@@ -236,8 +235,12 @@ JSON:
 ```
 
 If frontmatter and sidecar JSON declare the same server name, the sidecar replaces the whole
-frontmatter server object. See [mcp.json Reference](/runtime/core/configuration/mcp-json) for the shared
+frontmatter server object. See [mcp.json](/runtime/core/configuration/mcp-json) for the shared
 JSON schema.
+
+Skill-local sidecars are loaded only when they resolve inside the skill directory. AGH rejects
+`SKILL.md`, `mcp.json`, and hashed resource paths that escape the approved skill root through
+symlinks.
 
 ## Marketplace Provenance Sidecar
 
@@ -270,7 +273,7 @@ and blocks marketplace skills whose stored hash does not match.
 Higher-precedence skills with the same `name` override lower-precedence skills.
 
 Live runtime-registered skills from enabled extensions are an additional overlay layer, but they are
-not discovered from scan roots. Use [Skills Overview](/runtime/core/skills/overview) for the full
+not discovered from scan roots. Use [Skills Overview](/runtime/core/skills) for the full
 active-registry precedence model.
 
 ## RFC 002 Drift
@@ -287,6 +290,6 @@ active-registry precedence model.
 
 ## Related Pages
 
-- [config.toml Reference](/runtime/core/configuration/config-toml) documents skill marketplace trust gates.
-- [mcp.json Reference](/runtime/core/configuration/mcp-json) documents sidecar validation and replacement.
-- [Skills Overview](/runtime/core/skills/overview) explains catalog source precedence.
+- [config.toml](/runtime/core/configuration/config-toml) documents skill marketplace trust gates.
+- [mcp.json](/runtime/core/configuration/mcp-json) documents sidecar validation and replacement.
+- [Skills Overview](/runtime/core/skills) explains catalog source precedence.

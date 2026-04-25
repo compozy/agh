@@ -22,6 +22,7 @@ import (
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 const (
@@ -93,6 +94,7 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 
 	fakeProc := newFakeProcess(101)
 	launcher := &fakeLauncher{queue: []*fakeProcess{fakeProc}}
+	processRegistry := toolruntime.NewRegistry(toolruntime.NewMemoryStore())
 
 	manager := NewManager(
 		env.registry,
@@ -103,6 +105,7 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 		WithDefaultHookTimeout(25*time.Millisecond),
 		withProcessLauncher(launcher.launch),
 		withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
+		WithProcessRegistry(processRegistry),
 	)
 
 	if err := manager.Start(testutil.Context(t)); err != nil {
@@ -116,6 +119,16 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 
 	if got := launcher.launchCount(); got != 1 {
 		t.Fatalf("launch count = %d, want 1", got)
+	}
+	launcher.mu.Lock()
+	launchConfig := launcher.config[0]
+	launcher.mu.Unlock()
+	if launchConfig.ProcessRegistry != processRegistry {
+		t.Fatalf("LaunchConfig.ProcessRegistry = %p, want %p", launchConfig.ProcessRegistry, processRegistry)
+	}
+	if launchConfig.ProcessRecord.Source != toolruntime.ProcessSourceExtension ||
+		launchConfig.ProcessRecord.Owner.ExtensionName != "ext-runtime" {
+		t.Fatalf("LaunchConfig.ProcessRecord = %#v, want extension ownership", launchConfig.ProcessRecord)
 	}
 	if len(fakeProc.initRequests()) != 1 {
 		t.Fatalf("len(initialize requests) = %d, want 1", len(fakeProc.initRequests()))

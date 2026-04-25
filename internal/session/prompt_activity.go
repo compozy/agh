@@ -17,6 +17,8 @@ const (
 	runtimeActivityKindAgentWaiting  = "agent_waiting"
 	runtimeActivityKindWarning       = "warning"
 	runtimeActivityKindTimeout       = "timeout"
+
+	runtimeTimeoutStopDeadline = 5 * time.Second
 )
 
 type promptActivitySupervisor struct {
@@ -263,7 +265,7 @@ func (s *promptActivitySupervisor) handleTimeout(now time.Time) {
 	case <-timer.C:
 	}
 
-	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.config.TimeoutCancelGrace)
+	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(s.ctx), runtimeTimeoutStopDeadline)
 	defer stopCancel()
 	if err := s.manager.StopWithCause(
 		stopCtx,

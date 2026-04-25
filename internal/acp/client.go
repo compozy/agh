@@ -16,6 +16,8 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 const (
@@ -52,6 +54,7 @@ type Driver struct {
 	permissionWait  time.Duration
 	launcher        environment.Launcher
 	toolHost        environment.ToolHost
+	processRegistry *toolruntime.Registry
 }
 
 // WithLogger directs driver diagnostics to the provided logger.
@@ -103,6 +106,13 @@ func WithToolHost(toolHost environment.ToolHost) Option {
 	}
 }
 
+// WithProcessRegistry injects shared tool process tracking and scoped interrupts.
+func WithProcessRegistry(registry *toolruntime.Registry) Option {
+	return func(driver *Driver) {
+		driver.processRegistry = registry
+	}
+}
+
 // New constructs an ACP driver with sensible defaults.
 func New(opts ...Option) *Driver {
 	driver := &Driver{
@@ -146,12 +156,12 @@ func (d *Driver) Start(ctx context.Context, opts StartOpts) (*AgentProcess, erro
 
 	normalized, err := normalizeStartOpts(opts)
 	if err != nil {
-		return nil, err
+		return nil, WrapFailure(store.FailureStartup, "invalid ACP start options", err)
 	}
 
 	process, err := d.launchAgentProcess(ctx, normalized)
 	if err != nil {
-		return nil, err
+		return nil, WrapFailure(store.FailureStartup, "agent subprocess startup failed", err)
 	}
 
 	if err := d.initializeConnection(ctx, process, normalized.AgentName); err != nil {
@@ -204,10 +214,54 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		toolHost = d.toolHost
 	}
 	if toolHost == nil {
-		toolHost = newLocalToolHostFromPolicy(procCtx, normalized.Cwd, policy, d.logger)
+		toolHost = newLocalToolHostFromPolicy(
+			procCtx,
+			normalized.Cwd,
+			policy,
+			d.logger,
+			WithLocalProcessRegistry(d.processRegistry),
+		)
 	}
 
-	process := &AgentProcess{
+	process := d.newAgentProcess(procCtx, cancelProcess, normalized, command, args, handle, toolHost, policy)
+	if localHost, ok := toolHost.(*localToolHost); ok {
+		if localHost.terminals != nil && localHost.terminals.registry == nil {
+			localHost.terminals.registry = d.processRegistry
+		}
+		process.terminals = localHost.terminals
+	}
+	if localHandle, ok := handle.(*localProcessHandle); ok {
+		process.managed = localHandle.process
+	}
+	process.conn = acpsdk.NewConnection(process.handleInbound, handle.Stdin(), handle.Stdout())
+	process.conn.SetLogger(d.logger)
+
+	if err := d.registerAgentProcess(ctx, process); err != nil {
+		stopCtx, cancelStop := context.WithTimeout(context.Background(), d.stopTimeout)
+		defer cancelStop()
+		if stopErr := handle.Stop(stopCtx); stopErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("acp: cleanup unregistered agent process: %w", stopErr))
+		}
+		return nil, err
+	}
+
+	waitCtx := context.WithoutCancel(ctx)
+	go process.waitForExit(waitCtx)
+
+	return process, nil
+}
+
+func (d *Driver) newAgentProcess(
+	procCtx context.Context,
+	cancelProcess context.CancelFunc,
+	normalized StartOpts,
+	command string,
+	args []string,
+	handle environment.Handle,
+	toolHost ToolHost,
+	policy permissionPolicy,
+) *AgentProcess {
+	return &AgentProcess{
 		PID:                handle.PID(),
 		AgentName:          normalized.AgentName,
 		Command:            command,
@@ -224,18 +278,32 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		permissionTimeout:  d.permissionWait,
 		systemPrompt:       normalized.SystemPrompt,
 	}
-	if localHost, ok := toolHost.(*localToolHost); ok {
-		process.terminals = localHost.terminals
-	}
-	if localHandle, ok := handle.(*localProcessHandle); ok {
-		process.managed = localHandle.process
-	}
-	process.conn = acpsdk.NewConnection(process.handleInbound, handle.Stdin(), handle.Stdout())
-	process.conn.SetLogger(d.logger)
+}
 
-	go process.waitForExit()
-
-	return process, nil
+func (d *Driver) registerAgentProcess(ctx context.Context, process *AgentProcess) error {
+	if d == nil || d.processRegistry == nil || process == nil || process.PID <= 0 {
+		return nil
+	}
+	handle, err := d.processRegistry.Register(ctx, toolruntime.RegisterConfig{
+		Source: toolruntime.ProcessSourceACPAgent,
+		Owner: toolruntime.ProcessOwner{
+			SessionID: process.SessionID,
+		},
+		PID:            process.PID,
+		ProcessGroupID: process.PID,
+		Command:        process.Command,
+		Args:           process.Args,
+		Cwd:            process.Cwd,
+		Interrupt: func(interruptCtx context.Context, _ toolruntime.ProcessRecord) error {
+			return d.Stop(interruptCtx, process)
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("acp: register agent process: %w", err)
+	}
+	process.processRegistry = d.processRegistry
+	process.processRecord = handle
+	return nil
 }
 
 func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess, agentName string) error {
@@ -260,7 +328,11 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 		initRequest,
 	)
 	if err != nil {
-		return fmt.Errorf("acp: initialize session for %q: %w", agentName, err)
+		return WrapFailure(
+			store.FailureHandshake,
+			"ACP initialize handshake failed",
+			fmt.Errorf("acp: initialize session for %q: %w", agentName, err),
+		)
 	}
 
 	process.Caps = Caps{
@@ -278,12 +350,12 @@ func (d *Driver) negotiateSession(ctx context.Context, process *AgentProcess, no
 
 func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normalized StartOpts) error {
 	if !process.Caps.SupportsLoadSession {
-		return fmt.Errorf(
+		return WrapFailure(store.FailureLoad, "ACP session/load is not supported", fmt.Errorf(
 			"%w: agent %q does not support session/load for resume %q",
 			ErrAgentDoesNotSupportSession,
 			normalized.AgentName,
 			normalized.ResumeSessionID,
-		)
+		))
 	}
 
 	loadRequest := acpsdk.LoadSessionRequest{
@@ -304,19 +376,26 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 		loadWireRequest,
 	)
 	if err != nil {
-		return fmt.Errorf(
+		return WrapFailure(store.FailureLoad, "ACP session/load failed", fmt.Errorf(
 			"%w: load session %q for %q: %w",
 			ErrLoadSessionFailed,
 			normalized.ResumeSessionID,
 			normalized.AgentName,
 			err,
-		)
+		))
 	}
 
 	process.SessionID = normalized.ResumeSessionID
+	if err := process.checkpointProcessOwner(ctx); err != nil {
+		return err
+	}
 	process.Caps = captureCaps(process.Caps.SupportsLoadSession, loadResponse.Modes, loadResponse.Models)
 	if err := d.applySessionMode(ctx, process, normalized.Permissions); err != nil {
-		return fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err)
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session mode negotiation failed",
+			fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err),
+		)
 	}
 	return nil
 }
@@ -338,13 +417,24 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 		newWireRequest,
 	)
 	if err != nil {
-		return fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err)
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session/new failed",
+			fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err),
+		)
 	}
 
 	process.SessionID = string(newResponse.SessionId)
+	if err := process.checkpointProcessOwner(ctx); err != nil {
+		return err
+	}
 	process.Caps = captureCaps(process.Caps.SupportsLoadSession, newResponse.Modes, newResponse.Models)
 	if err := d.applySessionMode(ctx, process, normalized.Permissions); err != nil {
-		return fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err)
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session mode negotiation failed",
+			fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err),
+		)
 	}
 	return nil
 }
@@ -491,6 +581,20 @@ func (d *Driver) Cancel(ctx context.Context, proc *AgentProcess) error {
 	})
 }
 
+// Interrupt signals processes matching a scoped toolruntime selector.
+func (d *Driver) Interrupt(
+	ctx context.Context,
+	scope toolruntime.InterruptScope,
+) (toolruntime.InterruptReport, error) {
+	if ctx == nil {
+		return toolruntime.InterruptReport{}, errors.New("acp: interrupt context is required")
+	}
+	if d == nil || d.processRegistry == nil {
+		return toolruntime.InterruptReport{}, toolruntime.ErrProcessNotFound
+	}
+	return d.processRegistry.Interrupt(ctx, scope)
+}
+
 // ApprovePermission resolves a pending interactive permission request for the process.
 func (d *Driver) ApprovePermission(ctx context.Context, proc *AgentProcess, req ApproveRequest) error {
 	if ctx == nil {
@@ -527,6 +631,14 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 	}
 
 	proc.markStopRequested()
+	if proc.processRecord != nil {
+		if err := proc.processRecord.Checkpoint(context.WithoutCancel(ctx), toolruntime.ProcessCheckpoint{
+			State: toolruntime.ProcessStateInterrupting,
+			Error: "ACP stop requested",
+		}); err != nil && d.logger != nil {
+			d.logger.Warn("acp: checkpoint process interrupt", "pid", proc.PID, "error", err)
+		}
+	}
 	errs := d.cancelSessionForStop(ctx, proc)
 	if proc.handle != nil {
 		return stopAgentProcessAndWait(ctx, proc, errs, proc.handle.Stop)
@@ -649,12 +761,14 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	close(cancellationDone)
 
 	if err != nil {
+		failure, _ := FailureFromError(err, store.FailurePrompt)
 		event := AgentEvent{
 			Type:      EventTypeError,
 			SessionID: proc.SessionID,
 			TurnID:    req.TurnID,
 			Timestamp: timeNowUTC(),
-			Error:     err.Error(),
+			Error:     firstNonEmptyFailureText(failureSummary(failure), err.Error()),
+			Failure:   failure,
 		}
 		proc.emitPromptEvent(event)
 		return
@@ -714,7 +828,7 @@ func startPromptActivityReporter(ctx context.Context, req PromptRequest) func() 
 	}
 }
 
-func (p *AgentProcess) waitForExit() {
+func (p *AgentProcess) waitForExit(ctx context.Context) {
 	var waitErr error
 	var groupWaitErr error
 	switch {
@@ -736,9 +850,18 @@ func (p *AgentProcess) waitForExit() {
 			waitErr = fmt.Errorf("acp: wait for subprocess tree exit: %w", groupWaitErr)
 		}
 	} else if waitErr != nil {
-		waitErr = fmt.Errorf("acp: subprocess exited: %w", attachStderr(waitErr, p.Stderr()))
+		waitErr = WrapFailure(
+			store.FailureProcess,
+			"ACP subprocess exited unexpectedly",
+			fmt.Errorf("acp: subprocess exited: %w", attachStderr(waitErr, p.Stderr())),
+		)
 	}
 	p.setWaitError(waitErr)
+	if p.processRecord != nil {
+		if err := p.processRecord.Complete(ctx, toolruntime.ProcessCompletion{Err: waitErr}); err != nil {
+			slog.Default().Warn("acp: complete process record", "pid", p.PID, "error", err)
+		}
+	}
 	if p.cancelProcess != nil {
 		p.cancelProcess()
 	}

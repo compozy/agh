@@ -81,6 +81,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/hooks/runs",
 		"GET /api/memory",
 		"GET /api/memory/:filename",
+		"GET /api/memory/health",
+		"GET /api/memory/history",
 		"GET /api/memory/search",
 		"GET /api/network/inbox",
 		"GET /api/network/peers",
@@ -1337,7 +1339,7 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 }
 
 func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) {
-	t.Run("ShouldCancelPromptBeforeDrainingEventsAfterRequestEnds", func(t *testing.T) {
+	t.Run("ShouldKeepPromptAliveUntilDetachedDrainFinishes", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		promptCtxCh := make(chan context.Context, 1)
 		events := make(chan acp.AgentEvent)
@@ -1383,12 +1385,8 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 
 		select {
 		case <-promptCtx.Done():
-		case <-time.After(time.Second):
-			t.Fatal("prompt context was not canceled when request ended")
-		}
-
-		if !errors.Is(promptCtx.Err(), context.Canceled) {
-			t.Fatalf("prompt context err = %v, want context.Canceled when request ended", promptCtx.Err())
+			t.Fatal("prompt context was canceled before detached drain completed")
+		default:
 		}
 
 		close(events)
@@ -1396,6 +1394,14 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 		defer waitCancel()
 		if err := handlers.waitForPromptDrains(waitCtx); err != nil {
 			t.Fatalf("waitForPromptDrains() error = %v", err)
+		}
+		select {
+		case <-promptCtx.Done():
+		default:
+			t.Fatal("prompt context was not canceled after detached drain completed")
+		}
+		if !errors.Is(promptCtx.Err(), context.Canceled) {
+			t.Fatalf("prompt context err = %v, want context.Canceled after drain", promptCtx.Err())
 		}
 	})
 }

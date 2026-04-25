@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"golang.org/x/sys/execabs"
+
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 const (
@@ -69,6 +71,10 @@ type LaunchConfig struct {
 
 	// HealthFailureThreshold overrides the consecutive probe failures needed to mark the process unhealthy.
 	HealthFailureThreshold int
+
+	// ProcessRegistry checkpoints ownership for long-running subprocesses.
+	ProcessRegistry *toolruntime.Registry
+	ProcessRecord   toolruntime.RegisterConfig
 }
 
 // Process manages one subprocess and its optional JSON-RPC transport.
@@ -104,6 +110,7 @@ type Process struct {
 
 	healthThreshold int
 	health          healthMonitor
+	processRecord   *toolruntime.Handle
 }
 
 type launchRuntimeConfig struct {
@@ -147,13 +154,48 @@ func Launch(ctx context.Context, cfg LaunchConfig) (*Process, error) {
 		shutdownReason:  cfg.defaultShutdownReason(),
 		healthThreshold: runtime.healthThreshold,
 	}
+	if cfg.ProcessRegistry != nil {
+		recordCfg := cfg.ProcessRecord
+		if recordCfg.Source == "" {
+			recordCfg.Source = toolruntime.ProcessSourceSubprocess
+		}
+		recordCfg.PID = process.PID()
+		if recordCfg.ProcessGroupID <= 0 {
+			recordCfg.ProcessGroupID = process.PID()
+		}
+		if recordCfg.Command == "" {
+			recordCfg.Command = cfg.Command
+		}
+		if recordCfg.Args == nil {
+			recordCfg.Args = append([]string(nil), cfg.Args...)
+		}
+		if recordCfg.Cwd == "" {
+			recordCfg.Cwd = cfg.Dir
+		}
+		recordCfg.Interrupt = func(ctx context.Context, _ toolruntime.ProcessRecord) error {
+			return process.Shutdown(ctx)
+		}
+		handle, err := cfg.ProcessRegistry.Register(ctx, recordCfg)
+		if err != nil {
+			cancelLifecycle()
+			if killErr := killManagedProcess(cmd); killErr != nil && runtime.logger != nil {
+				runtime.logger.Warn("subprocess: cleanup after process registry failure", "error", killErr)
+			}
+			if waitErr := cmd.Wait(); waitErr != nil && runtime.logger != nil {
+				runtime.logger.Warn("subprocess: wait after process registry failure", "error", waitErr)
+			}
+			return nil, err
+		}
+		process.processRecord = handle
+	}
 
 	if !cfg.DisableTransport {
 		process.transport = newTransport(process, runtime.maxMessageBytes)
 		process.transport.start()
 	}
 
-	go process.waitForExit()
+	waitCtx := context.WithoutCancel(ctx)
+	go process.waitForExit(waitCtx)
 
 	return process, nil
 }
@@ -355,6 +397,7 @@ func (p *Process) Shutdown(ctx context.Context) error {
 	}
 
 	p.markStopRequested()
+	p.checkpointShutdownRequested(ctx)
 	p.setState(processStateDraining)
 
 	var errs []error
@@ -417,7 +460,22 @@ func joinShutdownResult(errs []error, waitErr error, stopCtxErr error) error {
 	return errors.Join(joined, stopCtxErr)
 }
 
-func (p *Process) waitForExit() {
+func (p *Process) checkpointShutdownRequested(ctx context.Context) {
+	if p == nil || p.processRecord == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := p.processRecord.Checkpoint(context.WithoutCancel(ctx), toolruntime.ProcessCheckpoint{
+		State: toolruntime.ProcessStateInterrupting,
+		Error: "subprocess shutdown requested",
+	}); err != nil && p.logger != nil {
+		p.logger.Warn("subprocess: checkpoint process interrupt", "pid", p.PID(), "error", err)
+	}
+}
+
+func (p *Process) waitForExit(ctx context.Context) {
 	waitErr := p.cmd.Wait()
 	p.cancelLifecycle()
 
@@ -454,6 +512,12 @@ func (p *Process) waitForExit() {
 	p.waitMu.Lock()
 	p.waitErr = waitErr
 	p.waitMu.Unlock()
+	if p.processRecord != nil {
+		if err := p.processRecord.Complete(ctx, toolruntime.ProcessCompletion{Err: waitErr}); err != nil &&
+			p.logger != nil {
+			p.logger.Warn("subprocess: complete process record", "pid", p.PID(), "error", err)
+		}
+	}
 
 	close(p.done)
 }

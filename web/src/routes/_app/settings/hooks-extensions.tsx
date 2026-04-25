@@ -428,6 +428,7 @@ function ExtensionRow({
         : entry.health === "unhealthy"
           ? "danger"
           : "neutral";
+  const missingEnv = entry.missing_env ?? [];
 
   return (
     <li
@@ -444,6 +445,7 @@ function ExtensionRow({
             <span>{entry.state || (entry.enabled ? "running" : "stopped")}</span>
             {entry.version ? <MonoBadge tone="neutral">v{entry.version}</MonoBadge> : null}
             {entry.health ? <MonoBadge tone={healthTone}>{entry.health}</MonoBadge> : null}
+            {missingEnv.length > 0 ? <MonoBadge tone="warning">env missing</MonoBadge> : null}
           </span>
           {entry.last_error ? (
             <span
@@ -451,6 +453,14 @@ function ExtensionRow({
               data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-error`}
             >
               {entry.last_error}
+            </span>
+          ) : null}
+          {missingEnv.length > 0 ? (
+            <span
+              className="max-w-full break-all font-mono text-[0.62rem] text-[color:var(--color-warning)]"
+              data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-missing-env`}
+            >
+              Missing env: {missingEnv.join(", ")}
             </span>
           ) : null}
         </div>

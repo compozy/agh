@@ -1015,7 +1015,7 @@ func TestStopManagedProcessRespectsContext(t *testing.T) {
 			managed: managed,
 			done:    make(chan struct{}),
 		}
-		go proc.waitForExit()
+		go proc.waitForExit(context.Background())
 		t.Cleanup(func() {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
