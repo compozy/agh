@@ -22,6 +22,7 @@ const (
 	crashBundleFileMode     = 0o600
 	crashBundleDirMode      = 0o700
 	crashBundleNameMaxBytes = 160
+	crashBundleUnknownName  = "unknown"
 )
 
 type crashBundleDocument struct {
@@ -171,13 +172,20 @@ func failureShouldHaveCrashBundle(kind store.FailureKind) bool {
 }
 
 func crashBundleFileName(sessionID string, kind store.FailureKind, ts time.Time) string {
-	base := strings.Join([]string{
-		sanitizeCrashBundleName(sessionID),
-		sanitizeCrashBundleName(string(kind)),
-		fmt.Sprintf("%d", ts.UnixNano()),
-	}, "-")
+	sessionName := sanitizeCrashBundleName(sessionID)
+	kindName := sanitizeCrashBundleName(string(kind))
+	suffix := kindName + "-" + fmt.Sprintf("%d", ts.UnixNano())
+	maxSessionNameBytes := crashBundleNameMaxBytes - len(suffix) - 1
+	if maxSessionNameBytes > 0 && len(sessionName) > maxSessionNameBytes {
+		sessionName = strings.Trim(sessionName[:maxSessionNameBytes], "-_")
+		if sessionName == "" {
+			sessionName = crashBundleUnknownName
+		}
+	}
+
+	base := sessionName + "-" + suffix
 	if len(base) > crashBundleNameMaxBytes {
-		base = base[:crashBundleNameMaxBytes]
+		base = base[len(base)-crashBundleNameMaxBytes:]
 	}
 	return base + ".json"
 }
@@ -185,7 +193,7 @@ func crashBundleFileName(sessionID string, kind store.FailureKind, ts time.Time)
 func sanitizeCrashBundleName(value string) string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return "unknown"
+		return crashBundleUnknownName
 	}
 	var builder strings.Builder
 	for _, r := range trimmed {
@@ -202,7 +210,11 @@ func sanitizeCrashBundleName(value string) string {
 			builder.WriteByte('-')
 		}
 	}
-	return strings.Trim(builder.String(), "-")
+	sanitized := strings.Trim(builder.String(), "-")
+	if sanitized == "" {
+		return crashBundleUnknownName
+	}
+	return sanitized
 }
 
 func redactStringSlice(values []string) []string {

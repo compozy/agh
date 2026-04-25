@@ -4,6 +4,7 @@ package retry
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -67,7 +68,7 @@ func DoValue[T any](
 	policy = normalizePolicy(policy)
 	for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
-			return zero, err
+			return zero, fmt.Errorf("retry: context done before attempt %d: %w", attempt, err)
 		}
 
 		result, err := fn(ctx)
@@ -75,10 +76,10 @@ func DoValue[T any](
 			return result, nil
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return zero, ctxErr
+			return zero, fmt.Errorf("retry: context done after attempt %d: %w", attempt, ctxErr)
 		}
 		if isContextError(err) || attempt == policy.MaxAttempts || !retryable(shouldRetry, err) {
-			return zero, err
+			return zero, fmt.Errorf("retry: attempt %d failed: %w", attempt, err)
 		}
 
 		delay := Delay(policy, attempt)
@@ -91,7 +92,7 @@ func DoValue[T any](
 			})
 		}
 		if err := policy.Sleep(ctx, delay); err != nil {
-			return zero, err
+			return zero, fmt.Errorf("retry: wait before attempt %d: %w", attempt+1, err)
 		}
 	}
 

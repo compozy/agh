@@ -878,6 +878,82 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		}
 	})
 
+	t.Run("Should scope health operation stats to visible workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		globalDir := filepath.Join(baseDir, "global")
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		workspaceA := filepath.Join(baseDir, "workspace-a")
+		workspaceB := filepath.Join(baseDir, "workspace-b")
+		storeA := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceA)
+		storeB := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceB)
+		for _, store := range []*Store{storeA, storeB} {
+			if err := store.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+		}
+
+		if err := storeA.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+			Name: "Shared Preferences",
+			Type: MemoryTypeUser,
+		}, "Global signal.\n")); err != nil {
+			t.Fatalf("storeA.Write(global) error = %v", err)
+		}
+		if err := storeA.Write(ScopeWorkspace, "project-a.md", mustMemoryContent(t, testMemoryMeta{
+			Name: "Workspace A",
+			Type: MemoryTypeProject,
+		}, "Workspace A signal.\n")); err != nil {
+			t.Fatalf("storeA.Write(workspace) error = %v", err)
+		}
+		if err := storeB.Write(ScopeWorkspace, "project-b.md", mustMemoryContent(t, testMemoryMeta{
+			Name: "Workspace B",
+			Type: MemoryTypeProject,
+		}, "Workspace B signal.\n")); err != nil {
+			t.Fatalf("storeB.Write(workspace) error = %v", err)
+		}
+
+		db, err := storeA.catalog.ensureDB(ctx)
+		if err != nil {
+			t.Fatalf("catalog.ensureDB() error = %v", err)
+		}
+		globalAt := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
+		workspaceAAt := globalAt.Add(time.Minute)
+		workspaceBAt := globalAt.Add(2 * time.Minute)
+		updates := []struct {
+			scope         Scope
+			workspaceRoot string
+			timestamp     time.Time
+		}{
+			{scope: ScopeGlobal, timestamp: globalAt},
+			{scope: ScopeWorkspace, workspaceRoot: workspaceA, timestamp: workspaceAAt},
+			{scope: ScopeWorkspace, workspaceRoot: workspaceB, timestamp: workspaceBAt},
+		}
+		for _, update := range updates {
+			if _, err := db.ExecContext(
+				ctx,
+				`UPDATE memory_operation_log SET timestamp = ? WHERE scope = ? AND workspace_root = ?`,
+				storepkg.FormatTimestamp(update.timestamp),
+				string(update.scope),
+				update.workspaceRoot,
+			); err != nil {
+				t.Fatalf("update operation timestamp for %q/%q error = %v", update.scope, update.workspaceRoot, err)
+			}
+		}
+
+		stats, err := storeA.HealthStats(ctx, []string{workspaceA})
+		if err != nil {
+			t.Fatalf("storeA.HealthStats() error = %v", err)
+		}
+		if got, want := stats.OperationCount, 2; got != want {
+			t.Fatalf("HealthStats().OperationCount = %d, want %d", got, want)
+		}
+		if stats.LastOperationAt == nil || !stats.LastOperationAt.Equal(workspaceAAt) {
+			t.Fatalf("HealthStats().LastOperationAt = %v, want %s", stats.LastOperationAt, workspaceAAt)
+		}
+	})
+
 	t.Run("Should clamp oversized search limits server-side", func(t *testing.T) {
 		t.Parallel()
 

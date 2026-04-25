@@ -3,22 +3,35 @@
 package procutil
 
 import (
+	"errors"
+	"fmt"
 	"syscall"
 	"time"
 )
 
-// SignalProcessGroupID falls back to signaling the process on Windows until
+var errWindowsProcessGroupUnsupported = errors.New("procutil: windows process groups are unsupported")
+
+// SignalProcessGroupID returns an explicit unsupported error on Windows until
 // process-group parity is implemented for Windows runtimes.
 func SignalProcessGroupID(pgid int, sig syscall.Signal) error {
-	return Signal(pgid, sig)
+	if pgid <= 0 {
+		return fmt.Errorf("procutil: invalid process group id %d", pgid)
+	}
+	return fmt.Errorf("signal process group (pid %d, sig %v): %w", pgid, sig, errWindowsProcessGroupUnsupported)
 }
 
-// WaitForProcessGroupIDExit is a compile-safe no-op on Windows.
-func WaitForProcessGroupIDExit(_ int, _ time.Duration) error {
-	return nil
+// WaitForProcessGroupIDExit returns an explicit unsupported error on Windows.
+func WaitForProcessGroupIDExit(pgid int, _ time.Duration) error {
+	if pgid <= 0 {
+		return fmt.Errorf("procutil: invalid process group id %d", pgid)
+	}
+	return fmt.Errorf("wait for process group exit (pid %d): %w", pgid, errWindowsProcessGroupUnsupported)
 }
 
-// KillProcessGroupIDAndWait falls back to process termination on Windows.
+// KillProcessGroupIDAndWait returns an explicit unsupported error on Windows.
 func KillProcessGroupIDAndWait(pgid int, _ time.Duration) error {
-	return Signal(pgid, syscall.SIGKILL)
+	if pgid <= 0 {
+		return fmt.Errorf("procutil: invalid process group id %d", pgid)
+	}
+	return fmt.Errorf("kill process group and wait (pid %d): %w", pgid, errWindowsProcessGroupUnsupported)
 }

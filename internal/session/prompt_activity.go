@@ -17,8 +17,6 @@ const (
 	runtimeActivityKindAgentWaiting  = "agent_waiting"
 	runtimeActivityKindWarning       = "warning"
 	runtimeActivityKindTimeout       = "timeout"
-
-	runtimeTimeoutStopDeadline = 5 * time.Second
 )
 
 type promptActivitySupervisor struct {
@@ -265,7 +263,7 @@ func (s *promptActivitySupervisor) handleTimeout(now time.Time) {
 	case <-timer.C:
 	}
 
-	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(s.ctx), runtimeTimeoutStopDeadline)
+	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.timeoutStopDeadline())
 	defer stopCancel()
 	if err := s.manager.StopWithCause(
 		stopCtx,
@@ -276,6 +274,13 @@ func (s *promptActivitySupervisor) handleTimeout(now time.Time) {
 		s.manager.sessionLogger(s.session).
 			Warn("session: stop session after runtime timeout failed", "turn_id", s.turnID, "error", err)
 	}
+}
+
+func (s *promptActivitySupervisor) timeoutStopDeadline() time.Duration {
+	if s == nil || s.config.TimeoutCancelGrace <= 0 {
+		return aghconfig.DefaultSessionSupervisionConfig().TimeoutCancelGrace
+	}
+	return s.config.TimeoutCancelGrace
 }
 
 func (s *promptActivitySupervisor) touch(now time.Time, kind string, detail string) {

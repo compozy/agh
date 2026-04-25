@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,6 +45,29 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 		UpdatedAt:    expiresAt.Add(-time.Minute),
 	}); err != nil {
 		t.Fatalf("SaveMCPAuthToken() error = %v", err)
+	}
+	var rawAccessToken, rawRefreshToken string
+	if err := db.db.QueryRowContext(
+		ctx,
+		`SELECT access_token, refresh_token FROM mcp_auth_tokens WHERE server_name = ?`,
+		"linear",
+	).Scan(&rawAccessToken, &rawRefreshToken); err != nil {
+		t.Fatalf("query raw token row error = %v", err)
+	}
+	for label, raw := range map[string]string{"access": rawAccessToken, "refresh": rawRefreshToken} {
+		if strings.Contains(raw, label+"-token") {
+			t.Fatalf("raw %s token = %q, want encrypted storage without plaintext token material", label, raw)
+		}
+		if !strings.HasPrefix(raw, mcpAuthSecretEncodingV1) {
+			t.Fatalf("raw %s token = %q, want %s envelope", label, raw, mcpAuthSecretEncodingV1)
+		}
+	}
+	keyInfo, err := os.Stat(path + mcpAuthSecretKeyFileSuffix)
+	if err != nil {
+		t.Fatalf("os.Stat(MCP auth key) error = %v", err)
+	}
+	if got := keyInfo.Mode().Perm() & 0o077; got != 0 {
+		t.Fatalf("MCP auth key permissions = %#o, want no group/other bits", keyInfo.Mode().Perm())
 	}
 	if err := db.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)

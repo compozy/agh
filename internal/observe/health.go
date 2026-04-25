@@ -137,7 +137,11 @@ func (o *Observer) Health(ctx context.Context) (Health, error) {
 	}
 
 	return Health{
-		Status:             observeHealthStatus(persistenceHealth.Status, agentProbeStatus(agentProbes)),
+		Status: observeHealthStatus(
+			persistenceHealth.Status,
+			failureHealth.Status,
+			agentProbeStatus(agentProbes),
+		),
 		UptimeSeconds:      uptimeSeconds,
 		ActiveSessions:     activeSessions,
 		ActiveAgents:       activeAgents,

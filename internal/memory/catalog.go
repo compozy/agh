@@ -432,36 +432,14 @@ func (c *catalog) listEntries(ctx context.Context, filters []catalogFilter) ([]c
 		_ = rows.Close()
 	}()
 
-	allowedGlobal := false
-	allowedWorkspaces := make(map[string]struct{})
-	for _, filter := range filters {
-		switch filter.scope.Normalize() {
-		case ScopeGlobal:
-			allowedGlobal = true
-		case ScopeWorkspace:
-			allowedWorkspaces[strings.TrimSpace(filter.workspaceRoot)] = struct{}{}
-		}
-	}
-
 	entries := make([]catalogDocument, 0)
 	for rows.Next() {
 		entry, scanErr := scanCatalogEntry(rows)
 		if scanErr != nil {
 			return nil, scanErr
 		}
-		if len(filters) > 0 {
-			switch entry.Scope.Normalize() {
-			case ScopeGlobal:
-				if !allowedGlobal {
-					continue
-				}
-			case ScopeWorkspace:
-				if _, ok := allowedWorkspaces[strings.TrimSpace(entry.WorkspaceRoot)]; !ok {
-					continue
-				}
-			default:
-				continue
-			}
+		if !catalogFiltersAllow(filters, entry.Scope, entry.WorkspaceRoot) {
+			continue
 		}
 		entries = append(entries, entry)
 	}
@@ -652,7 +630,7 @@ func (c *catalog) listOperations(ctx context.Context, query OperationHistoryQuer
 	return records, nil
 }
 
-func (c *catalog) operationStats(ctx context.Context) (int, *time.Time, error) {
+func (c *catalog) operationStats(ctx context.Context, filters []catalogFilter) (int, *time.Time, error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return 0, nil, err
@@ -661,24 +639,46 @@ func (c *catalog) operationStats(ctx context.Context) (int, *time.Time, error) {
 		return 0, nil, nil
 	}
 
-	var (
-		count    int
-		lastRaw  sql.NullString
-		lastTime *time.Time
-	)
-	if err := db.QueryRowContext(
+	rows, err := db.QueryContext(
 		ctx,
-		`SELECT COUNT(*), MAX(timestamp) FROM memory_operation_log`,
-	).Scan(&count, &lastRaw); err != nil {
+		`SELECT scope, workspace_root, timestamp FROM memory_operation_log`,
+	)
+	if err != nil {
 		return 0, nil, fmt.Errorf("memory: read operation stats: %w", err)
 	}
-	if lastRaw.Valid {
-		parsed, err := storepkg.ParseTimestamp(lastRaw.String)
+	defer func() {
+		// rows.Err() reports actionable read failures after iteration.
+		_ = rows.Close()
+	}()
+
+	var (
+		count    int
+		lastTime *time.Time
+	)
+	for rows.Next() {
+		var (
+			scope         string
+			workspaceRoot string
+			timestampRaw  string
+		)
+		if err := rows.Scan(&scope, &workspaceRoot, &timestampRaw); err != nil {
+			return 0, nil, fmt.Errorf("memory: scan operation stats: %w", err)
+		}
+		if !catalogFiltersAllow(filters, Scope(scope), workspaceRoot) {
+			continue
+		}
+		count++
+		parsed, err := storepkg.ParseTimestamp(timestampRaw)
 		if err != nil {
-			return 0, nil, fmt.Errorf("memory: parse operation stats timestamp %q: %w", lastRaw.String, err)
+			return 0, nil, fmt.Errorf("memory: parse operation stats timestamp %q: %w", timestampRaw, err)
 		}
 		parsed = parsed.UTC()
-		lastTime = &parsed
+		if lastTime == nil || parsed.After(*lastTime) {
+			lastTime = &parsed
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, nil, fmt.Errorf("memory: iterate operation stats: %w", err)
 	}
 	return count, lastTime, nil
 }
@@ -686,6 +686,28 @@ func (c *catalog) operationStats(ctx context.Context) (int, *time.Time, error) {
 type catalogFilter struct {
 	scope         Scope
 	workspaceRoot string
+}
+
+func catalogFiltersAllow(filters []catalogFilter, scope Scope, workspaceRoot string) bool {
+	if len(filters) == 0 {
+		return true
+	}
+	normalizedScope := scope.Normalize()
+	normalizedWorkspaceRoot := strings.TrimSpace(workspaceRoot)
+	for _, filter := range filters {
+		switch filter.scope.Normalize() {
+		case ScopeGlobal:
+			if normalizedScope == "" || normalizedScope == ScopeGlobal {
+				return true
+			}
+		case ScopeWorkspace:
+			if normalizedScope == ScopeWorkspace &&
+				normalizedWorkspaceRoot == strings.TrimSpace(filter.workspaceRoot) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func appendCatalogScopeFilter(base string, args []any, scope Scope, workspaceRoot string) (string, []any) {

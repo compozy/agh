@@ -10,6 +10,8 @@ import (
 
 	automation "github.com/pedronauck/agh/internal/automation/model"
 	"github.com/pedronauck/agh/internal/store"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // GetSchedulerState loads one durable automation scheduler cursor by job id.
@@ -439,7 +441,7 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 		store.NullableString(run.DeliveryError),
 		nullableAutomationTimestamp(run.DeliveryErrorAt),
 	); err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "unique constraint failed: automation_runs.fire_id") {
+		if isSQLiteUniqueConstraint(err) {
 			return fmt.Errorf(
 				"store: automation scheduled fire %q: %w",
 				run.FireID,
@@ -449,6 +451,11 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 		return fmt.Errorf("store: create automation run %q: %w", run.ID, err)
 	}
 	return nil
+}
+
+func isSQLiteUniqueConstraint(err error) bool {
+	var sqliteErr *sqlite.Error
+	return errors.As(err, &sqliteErr) && sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
 }
 
 func schedulerCatchUpPolicyOrDefault(policy automation.SchedulerCatchUpPolicy) automation.SchedulerCatchUpPolicy {

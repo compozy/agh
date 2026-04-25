@@ -17,6 +17,9 @@ import (
 
 const sidecarFileName = ".agh-meta.json"
 
+// ErrSymlinkEscape reports a skill payload symlink that resolves outside the skill directory.
+var ErrSymlinkEscape = errors.New("skills: symlink escapes skill directory")
+
 // HashMismatchError reports a provenance hash mismatch for a marketplace skill.
 type HashMismatchError struct {
 	ExpectedHash string
@@ -202,7 +205,7 @@ func writeHashEntry(hasher hash.Hash, root string, relPath string, buffer []byte
 
 	if info.Mode()&os.ModeSymlink != 0 {
 		if err := ensurePathWithinRoot(root, absPath); err != nil {
-			return fmt.Errorf("skills: reject hashed symlink %q: %w", absPath, err)
+			return fmt.Errorf("skills: reject hashed symlink %q: %w", absPath, errors.Join(ErrSymlinkEscape, err))
 		}
 		target, err := os.Readlink(absPath)
 		if err != nil {

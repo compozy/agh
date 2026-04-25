@@ -211,6 +211,23 @@ func TestPromptActivitySupervisorTimeoutCancelsThenStopsSession(t *testing.T) {
 	}
 }
 
+func TestPromptActivitySupervisorTimeoutStopDeadline(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldUseConfiguredTimeoutCancelGraceForForcedStopDeadline", func(t *testing.T) {
+		t.Parallel()
+
+		supervisor := &promptActivitySupervisor{
+			config: aghconfig.SessionSupervisionConfig{
+				TimeoutCancelGrace: 42 * time.Millisecond,
+			},
+		}
+		if got, want := supervisor.timeoutStopDeadline(), 42*time.Millisecond; got != want {
+			t.Fatalf("timeoutStopDeadline() = %s, want %s", got, want)
+		}
+	})
+}
+
 func testSupervisionConfig() aghconfig.SessionSupervisionConfig {
 	return aghconfig.SessionSupervisionConfig{
 		ActivityHeartbeatInterval: time.Hour,

@@ -463,7 +463,7 @@ func (s *Store) HealthStats(ctx context.Context, workspaces []string) (HealthSta
 	if err != nil {
 		return HealthStats{}, err
 	}
-	operationCount, lastOperationAt, err := s.catalog.operationStats(ctx)
+	operationCount, lastOperationAt, err := s.catalog.operationStats(ctx, filters)
 	if err != nil {
 		return HealthStats{}, err
 	}
