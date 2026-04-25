@@ -77,17 +77,26 @@ var catalogSchemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS memory_operation_log (
 		id         TEXT PRIMARY KEY,
 		type       TEXT NOT NULL,
-		scope      TEXT NOT NULL DEFAULT '',
-		workspace_root TEXT NOT NULL DEFAULT '',
-		filename   TEXT NOT NULL DEFAULT '',
 		agent_name TEXT NOT NULL DEFAULT 'daemon',
 		summary    TEXT NOT NULL DEFAULT '',
 		timestamp  TEXT NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_type ON memory_operation_log(type);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_scope ON memory_operation_log(scope);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_workspace_root ON memory_operation_log(workspace_root);`,
 	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_timestamp ON memory_operation_log(timestamp);`,
+}
+
+var catalogSchemaMigrations = []storepkg.Migration{
+	{
+		Version:    1,
+		Name:       "initial_memory_catalog_schema",
+		Statements: catalogSchemaStatements,
+	},
+	{
+		Version:  2,
+		Name:     "add_memory_operation_scope",
+		Checksum: "catalog-add-memory-operation-scope-v1",
+		Up:       migrateCatalogOperationScope,
+	},
 }
 
 type catalog struct {
@@ -145,13 +154,78 @@ func (c *catalog) ensureDB(ctx context.Context) (*sql.DB, error) {
 	}
 
 	db, err := storepkg.OpenSQLiteDatabase(ctx, c.path, func(ctx context.Context, db *sql.DB) error {
-		return storepkg.EnsureSchema(ctx, db, catalogSchemaStatements)
+		return storepkg.RunMigrations(ctx, db, catalogSchemaMigrations)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("memory: open catalog database %q: %w", c.path, err)
 	}
 	c.db = db
 	return c.db, nil
+}
+
+func migrateCatalogOperationScope(ctx context.Context, tx *sql.Tx) error {
+	columns, err := catalogOperationLogColumns(ctx, tx)
+	if err != nil {
+		return err
+	}
+	specs := []struct {
+		name string
+		sql  string
+	}{
+		{name: "scope", sql: `ALTER TABLE memory_operation_log ADD COLUMN scope TEXT NOT NULL DEFAULT ''`},
+		{
+			name: "workspace_root",
+			sql:  `ALTER TABLE memory_operation_log ADD COLUMN workspace_root TEXT NOT NULL DEFAULT ''`,
+		},
+		{name: "filename", sql: `ALTER TABLE memory_operation_log ADD COLUMN filename TEXT NOT NULL DEFAULT ''`},
+	}
+	for _, spec := range specs {
+		if _, ok := columns[spec.name]; ok {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, spec.sql); err != nil {
+			return fmt.Errorf("memory: add memory_operation_log.%s column: %w", spec.name, err)
+		}
+	}
+	for _, stmt := range []string{
+		`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_scope ON memory_operation_log(scope);`,
+		`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_workspace_root ON memory_operation_log(workspace_root);`,
+	} {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("memory: create memory operation scope index: %w", err)
+		}
+	}
+	return nil
+}
+
+func catalogOperationLogColumns(ctx context.Context, tx *sql.Tx) (map[string]struct{}, error) {
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(memory_operation_log)`)
+	if err != nil {
+		return nil, fmt.Errorf("memory: inspect memory_operation_log schema: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	columns := make(map[string]struct{})
+	for rows.Next() {
+		var (
+			cid          int
+			name         string
+			dataType     string
+			notNull      int
+			defaultValue sql.NullString
+			primaryKey   int
+		)
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return nil, fmt.Errorf("memory: scan memory_operation_log column: %w", err)
+		}
+		columns[name] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("memory: iterate memory_operation_log columns: %w", err)
+	}
+	return columns, nil
 }
 
 func (c *catalog) replaceScope(

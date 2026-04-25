@@ -13,7 +13,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const managedEnvName = "AGH_MANAGED"
+const (
+	managedEnvName             = "AGH_MANAGED"
+	lifecycleStatusDeferred    = "deferred"
+	lifecycleStatusManual      = "manual"
+	lifecycleStatusUninstalled = "uninstalled"
+)
 
 type managedState struct {
 	Managed bool   `json:"managed"`
@@ -110,13 +115,13 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 				Manager: state.Manager,
 			}
 			if state.Managed {
-				record.Status = "deferred"
+				record.Status = lifecycleStatusDeferred
 				record.Message = "AGH is managed by an external package manager; no local update was performed."
 				record.Recommendation = managedRecommendation(state.Manager, "update AGH")
 				return writeCommandOutput(cmd, lifecycleBundle("Update", record))
 			}
 
-			record.Status = "manual"
+			record.Status = lifecycleStatusManual
 			record.Message = "No in-place updater is configured for this unmanaged AGH binary; no files were changed."
 			record.Recommendation = "Install a newer release archive, rerun `go install`, or rebuild from source."
 			return writeCommandOutput(cmd, lifecycleBundle("Update", record))
@@ -152,7 +157,7 @@ func newUninstallCommand(deps commandDeps) *cobra.Command {
 				Manager: state.Manager,
 			}
 			if state.Managed {
-				record.Status = "deferred"
+				record.Status = lifecycleStatusDeferred
 				record.Message = "AGH is managed by an external package manager; no local uninstall changes were made."
 				record.Recommendation = managedRecommendation(state.Manager, "uninstall AGH")
 				return writeCommandOutput(cmd, lifecycleBundle("Uninstall", record))
@@ -177,7 +182,7 @@ func newUninstallCommand(deps commandDeps) *cobra.Command {
 				record.Purged = true
 			}
 
-			record.Status = "uninstalled"
+			record.Status = lifecycleStatusUninstalled
 			record.Message = "AGH runtime launch artifacts were removed; persistent data was preserved."
 			if record.Purged {
 				record.Message = "AGH runtime launch artifacts and AGH home data were removed."
@@ -199,6 +204,9 @@ func stopDaemonForUninstall(ctx context.Context, deps commandDeps, runtime *runt
 		return false, nil
 	}
 	if err := deps.signalProcess(info.PID, syscall.SIGTERM); err != nil {
+		if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
+			return true, nil
+		}
 		return false, fmt.Errorf("cli: stop daemon for uninstall: %w", err)
 	}
 	if _, err := waitForDaemonStop(ctx, deps, runtime, info); err != nil {

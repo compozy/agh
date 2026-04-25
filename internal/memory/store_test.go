@@ -3,6 +3,7 @@ package memory
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
+	storepkg "github.com/pedronauck/agh/internal/store"
 )
 
 type testMemoryMeta struct {
@@ -1185,6 +1187,81 @@ func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
 	if len(reopenedWrites) != 2 {
 		t.Fatalf("len(reopenedWrites) = %d, want 2; records=%#v", len(reopenedWrites), reopenedWrites)
 	}
+}
+
+func TestStoreOperationHistoryMigratesLegacyCatalogSchema(t *testing.T) {
+	t.Run("Should migrate legacy operation log columns before history queries", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		legacyDB, err := storepkg.OpenSQLiteDatabase(ctx, catalogPath, func(ctx context.Context, db *sql.DB) error {
+			if err := storepkg.EnsureSchema(ctx, db, []string{
+				`CREATE TABLE IF NOT EXISTS memory_operation_log (
+					id         TEXT PRIMARY KEY,
+					type       TEXT NOT NULL,
+					agent_name TEXT NOT NULL DEFAULT 'daemon',
+					summary    TEXT NOT NULL DEFAULT '',
+					timestamp  TEXT NOT NULL
+				);`,
+				`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_type ON memory_operation_log(type);`,
+				`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_timestamp ON memory_operation_log(timestamp);`,
+			}); err != nil {
+				return err
+			}
+			_, err := db.ExecContext(
+				ctx,
+				`INSERT INTO memory_operation_log (id, type, agent_name, summary, timestamp)
+				 VALUES (?, ?, ?, ?, ?)`,
+				"memevt_legacy",
+				string(OperationWrite),
+				"daemon",
+				"legacy write",
+				storepkg.FormatTimestamp(time.Now().UTC()),
+			)
+			return err
+		})
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(legacy catalog) error = %v", err)
+		}
+		if err := legacyDB.Close(); err != nil {
+			t.Fatalf("legacyDB.Close() error = %v", err)
+		}
+
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(catalogPath),
+		).ForWorkspace(workspaceRoot)
+		history, err := store.History(ctx, OperationHistoryQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("Store.History(legacy catalog) error = %v", err)
+		}
+		if len(history) != 1 || history[0].Summary != "legacy write" {
+			t.Fatalf("legacy history = %#v, want migrated legacy record", history)
+		}
+		if err := store.logCatalogEvent(ctx, OperationRecord{
+			Operation: OperationSearch,
+			Scope:     ScopeWorkspace,
+			Workspace: workspaceRoot,
+			Filename:  "project.md",
+			Summary:   "workspace search",
+		}); err != nil {
+			t.Fatalf("logCatalogEvent(after migration) error = %v", err)
+		}
+		workspaceHistory, err := store.History(ctx, OperationHistoryQuery{
+			Scope:     ScopeWorkspace,
+			Workspace: workspaceRoot,
+			Limit:     10,
+		})
+		if err != nil {
+			t.Fatalf("Store.History(workspace after migration) error = %v", err)
+		}
+		if len(workspaceHistory) != 1 || workspaceHistory[0].Filename != "project.md" {
+			t.Fatalf("workspace history = %#v, want post-migration scoped record", workspaceHistory)
+		}
+	})
 }
 
 func TestStoreSearchTreatsFTSReservedWordsAsLiteralTerms(t *testing.T) {

@@ -144,6 +144,26 @@ func TestListenForMCPAuthCallbackRequiresLoopbackRedirect(t *testing.T) {
 	}
 }
 
+func TestListenForMCPAuthCallbackNormalizesEmptyPath(t *testing.T) {
+	t.Parallel()
+
+	listener, actualRedirectURL, err := listenForMCPAuthCallback(
+		context.Background(),
+		"http://127.0.0.1:0",
+	)
+	if err != nil {
+		t.Fatalf("listenForMCPAuthCallback(empty path) error = %v", err)
+	}
+	defer func() {
+		if err := listener.Close(); err != nil {
+			t.Fatalf("listener.Close() error = %v", err)
+		}
+	}()
+	if !strings.HasSuffix(actualRedirectURL, "/callback") {
+		t.Fatalf("actualRedirectURL = %q, want /callback path", actualRedirectURL)
+	}
+}
+
 func newMCPAuthTestDeps(t *testing.T, client *stubMCPAuthClient) commandDeps {
 	t.Helper()
 

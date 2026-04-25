@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kballard/go-shellquote"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -1151,7 +1152,10 @@ func runConfigEditor(cmd *cobra.Command, deps commandDeps, path string) error {
 	if editor == "" {
 		return errors.New("cli: config edit requires VISUAL or EDITOR")
 	}
-	parts := strings.Fields(editor)
+	parts, err := shellquote.Split(editor)
+	if err != nil {
+		return fmt.Errorf("cli: parse config editor command: %w", err)
+	}
 	if len(parts) == 0 {
 		return errors.New("cli: config editor command is empty")
 	}

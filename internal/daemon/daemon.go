@@ -975,7 +975,13 @@ func (d *Daemon) Run(ctx context.Context) error {
 		d.dreamRuntime.Start(ctx)
 	}
 	if err := d.startObserverRetention(ctx); err != nil {
-		return err
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+		defer cancel()
+		shutdownErr := d.Shutdown(shutdownCtx)
+		return errors.Join(
+			fmt.Errorf("daemon: start observability retention: %w", err),
+			shutdownErr,
+		)
 	}
 
 	sigCh, stopSignals := d.signalSource()

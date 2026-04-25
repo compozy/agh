@@ -5,19 +5,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 const metadataWellKnownPath = "/.well-known/oauth-authorization-server"
+const defaultMetadataClientTimeout = 10 * time.Second
 
 func discoverMetadata(ctx context.Context, client *http.Client, cfg ServerConfig) (Metadata, error) {
 	if ctx == nil {
 		return Metadata{}, errors.New("mcp auth: metadata context is required")
 	}
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{Timeout: defaultMetadataClientTimeout}
 	}
 
 	if strings.TrimSpace(cfg.AuthorizationURL) != "" && strings.TrimSpace(cfg.TokenURL) != "" {
@@ -71,6 +74,9 @@ func resolveMetadataURL(cfg ServerConfig) (string, error) {
 		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 			return "", fmt.Errorf("mcp auth: invalid metadata_url %q", raw)
 		}
+		if err := validateAbsoluteHTTPURL("metadata URL", parsed.String()); err != nil {
+			return "", err
+		}
 		return parsed.String(), nil
 	}
 
@@ -82,7 +88,15 @@ func resolveMetadataURL(cfg ServerConfig) (string, error) {
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return "", fmt.Errorf("mcp auth: invalid issuer_url %q", issuer)
 	}
-	parsed.Path = strings.TrimRight(parsed.Path, "/") + metadataWellKnownPath
+	if err := validateAbsoluteHTTPURL("issuer URL", parsed.String()); err != nil {
+		return "", err
+	}
+	issuerPath := strings.Trim(parsed.Path, "/")
+	parsed.Path = metadataWellKnownPath
+	if issuerPath != "" {
+		parsed.Path += "/" + issuerPath
+	}
+	parsed.RawPath = ""
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 	return parsed.String(), nil
@@ -115,8 +129,24 @@ func validateAbsoluteHTTPURL(label string, raw string) error {
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return fmt.Errorf("mcp auth: %s must be an absolute URL", label)
 	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return fmt.Errorf("mcp auth: %s must use http or https", label)
+	switch parsed.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if mcpAuthLoopbackHost(parsed.Hostname()) {
+			return nil
+		}
+		return fmt.Errorf("mcp auth: %s must use https unless host is loopback", label)
+	default:
+		return fmt.Errorf("mcp auth: %s must use https", label)
 	}
-	return nil
+}
+
+func mcpAuthLoopbackHost(host string) bool {
+	normalized := strings.Trim(strings.TrimSpace(host), "[]")
+	if strings.EqualFold(normalized, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(normalized)
+	return ip != nil && ip.IsLoopback()
 }

@@ -13,20 +13,30 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 var _ environment.ToolHost = (*daytonaToolHost)(nil)
 
 type daytonaToolHost struct {
-	sandbox        sandbox
-	transport      transport
-	sandboxInfo    sandboxInfo
-	root           string
-	permission     config.PermissionMode
-	terminalsMu    sync.Mutex
-	nextTerminal   int
-	terminals      map[string]*remoteTerminal
-	outputMaxBytes int
+	sandbox         sandbox
+	transport       transport
+	sandboxInfo     sandboxInfo
+	root            string
+	permission      config.PermissionMode
+	terminalsMu     sync.Mutex
+	nextTerminal    int
+	terminals       map[string]*remoteTerminal
+	outputMaxBytes  int
+	processRegistry *toolruntime.Registry
+}
+
+type daytonaToolHostOption func(*daytonaToolHost)
+
+func withDaytonaToolHostProcessRegistry(registry *toolruntime.Registry) daytonaToolHostOption {
+	return func(host *daytonaToolHost) {
+		host.processRegistry = registry
+	}
 }
 
 func newDaytonaToolHost(
@@ -35,6 +45,7 @@ func newDaytonaToolHost(
 	info sandboxInfo,
 	root string,
 	permission config.PermissionMode,
+	opts ...daytonaToolHostOption,
 ) (*daytonaToolHost, error) {
 	if sandbox == nil {
 		return nil, errors.New("environment/daytona: tool host sandbox is required")
@@ -48,7 +59,7 @@ func newDaytonaToolHost(
 	if err := permission.Validate("permissions.mode"); err != nil {
 		return nil, err
 	}
-	return &daytonaToolHost{
+	host := &daytonaToolHost{
 		sandbox:        sandbox,
 		transport:      transport,
 		sandboxInfo:    info,
@@ -56,7 +67,20 @@ func newDaytonaToolHost(
 		permission:     permission,
 		terminals:      make(map[string]*remoteTerminal),
 		outputMaxBytes: 1 << 20,
-	}, nil
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(host)
+		}
+	}
+	return host, nil
+}
+
+func (h *daytonaToolHost) ProcessRegistry() *toolruntime.Registry {
+	if h == nil {
+		return nil
+	}
+	return h.processRegistry
 }
 
 func (h *daytonaToolHost) ReadTextFile(ctx context.Context, requestPath string) (string, error) {

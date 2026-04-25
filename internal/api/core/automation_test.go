@@ -818,20 +818,23 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 		NextFire:         &nextRun,
 		ScheduledJobs:    []automationpkg.ScheduledJobState{schedulerState},
 	})
-	if got, want := len(health.ScheduledJobs), 1; got != want {
-		t.Fatalf("len(health.ScheduledJobs) = %d, want %d", got, want)
-	}
-	exposedScheduler := health.ScheduledJobs[0]
-	if exposedScheduler.JobID != schedulerState.JobID ||
-		!exposedScheduler.Registered ||
-		exposedScheduler.LastFireID != schedulerState.LastFireID ||
-		exposedScheduler.CatchUpPolicy != automationpkg.SchedulerCatchUpPolicySkipMissed ||
-		exposedScheduler.MisfireCount != 2 ||
-		exposedScheduler.ConsecutiveResumeFailures != 1 ||
-		exposedScheduler.UpdatedAt == nil ||
-		!exposedScheduler.UpdatedAt.Equal(updatedAt) {
-		t.Fatalf("AutomationHealthPayloadFromStatus().ScheduledJobs[0] = %#v", exposedScheduler)
-	}
+	var exposedScheduler contract.AutomationSchedulerStatePayload
+	t.Run("Should expose scheduler state in health payload", func(t *testing.T) {
+		if got, want := len(health.ScheduledJobs), 1; got != want {
+			t.Fatalf("len(health.ScheduledJobs) = %d, want %d", got, want)
+		}
+		exposedScheduler = health.ScheduledJobs[0]
+		if exposedScheduler.JobID != schedulerState.JobID ||
+			!exposedScheduler.Registered ||
+			exposedScheduler.LastFireID != schedulerState.LastFireID ||
+			exposedScheduler.CatchUpPolicy != automationpkg.SchedulerCatchUpPolicySkipMissed ||
+			exposedScheduler.MisfireCount != 2 ||
+			exposedScheduler.ConsecutiveResumeFailures != 1 ||
+			exposedScheduler.UpdatedAt == nil ||
+			!exposedScheduler.UpdatedAt.Equal(updatedAt) {
+			t.Fatalf("AutomationHealthPayloadFromStatus().ScheduledJobs[0] = %#v", exposedScheduler)
+		}
+	})
 
 	job := automationpkg.Job{
 		ID:        schedulerState.JobID,
@@ -850,40 +853,44 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 		CreatedAt: updatedAt,
 		UpdatedAt: updatedAt,
 	}
-	jobs := JobPayloadsFromJobs(
-		[]automationpkg.Job{job},
-		map[string]contract.AutomationSchedulerStatePayload{job.ID: exposedScheduler},
-	)
-	if got, want := len(jobs), 1; got != want {
-		t.Fatalf("len(JobPayloadsFromJobs()) = %d, want %d", got, want)
-	}
-	if jobs[0].Scheduler == nil ||
-		jobs[0].NextRun == nil ||
-		!jobs[0].NextRun.Equal(nextRun) ||
-		jobs[0].Scheduler.LastScheduledAt == nil ||
-		!jobs[0].Scheduler.LastScheduledAt.Equal(lastScheduled) {
-		t.Fatalf("JobPayloadsFromJobs()[0] scheduler fields = %#v", jobs[0])
-	}
-
-	run := RunPayloadFromRun(automationpkg.Run{
-		ID:              "run-scheduler",
-		JobID:           job.ID,
-		FireID:          "fire-scheduler",
-		Status:          automationpkg.RunFailed,
-		Attempt:         1,
-		ScheduledAt:     &lastScheduled,
-		StartedAt:       &lastRun,
-		DeliveryError:   "dispatcher unavailable",
-		DeliveryErrorAt: &deliveryErrorAt,
+	t.Run("Should include scheduler state in job payload", func(t *testing.T) {
+		jobs := JobPayloadsFromJobs(
+			[]automationpkg.Job{job},
+			map[string]contract.AutomationSchedulerStatePayload{job.ID: health.ScheduledJobs[0]},
+		)
+		if got, want := len(jobs), 1; got != want {
+			t.Fatalf("len(JobPayloadsFromJobs()) = %d, want %d", got, want)
+		}
+		if jobs[0].Scheduler == nil ||
+			jobs[0].NextRun == nil ||
+			!jobs[0].NextRun.Equal(nextRun) ||
+			jobs[0].Scheduler.LastScheduledAt == nil ||
+			!jobs[0].Scheduler.LastScheduledAt.Equal(lastScheduled) {
+			t.Fatalf("JobPayloadsFromJobs()[0] scheduler fields = %#v", jobs[0])
+		}
 	})
-	if run.FireID != "fire-scheduler" ||
-		run.ScheduledAt == nil ||
-		!run.ScheduledAt.Equal(lastScheduled) ||
-		run.DeliveryError != "dispatcher unavailable" ||
-		run.DeliveryErrorAt == nil ||
-		!run.DeliveryErrorAt.Equal(deliveryErrorAt) {
-		t.Fatalf("RunPayloadFromRun() scheduler diagnostics = %#v", run)
-	}
+
+	t.Run("Should expose delivery error in run payload", func(t *testing.T) {
+		run := RunPayloadFromRun(automationpkg.Run{
+			ID:              "run-scheduler",
+			JobID:           job.ID,
+			FireID:          "fire-scheduler",
+			Status:          automationpkg.RunFailed,
+			Attempt:         1,
+			ScheduledAt:     &lastScheduled,
+			StartedAt:       &lastRun,
+			DeliveryError:   "dispatcher unavailable",
+			DeliveryErrorAt: &deliveryErrorAt,
+		})
+		if run.FireID != "fire-scheduler" ||
+			run.ScheduledAt == nil ||
+			!run.ScheduledAt.Equal(lastScheduled) ||
+			run.DeliveryError != "dispatcher unavailable" ||
+			run.DeliveryErrorAt == nil ||
+			!run.DeliveryErrorAt.Equal(deliveryErrorAt) {
+			t.Fatalf("RunPayloadFromRun() scheduler diagnostics = %#v", run)
+		}
+	})
 }
 
 func TestAutomationHelperFunctionsAndErrors(t *testing.T) {

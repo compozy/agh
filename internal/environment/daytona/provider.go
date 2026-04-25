@@ -364,7 +364,14 @@ func (p *daytonaProvider) buildPrepared(
 	}
 
 	permission := config.PermissionMode(strings.TrimSpace(req.Permissions))
-	toolHost, err := newDaytonaToolHost(sandbox, p.shellTransport, info, runtimeRoot, permission)
+	toolHost, err := newDaytonaToolHost(
+		sandbox,
+		p.shellTransport,
+		info,
+		runtimeRoot,
+		permission,
+		withDaytonaToolHostProcessRegistry(p.processRegistry),
+	)
 	if err != nil {
 		return environment.Prepared{}, err
 	}

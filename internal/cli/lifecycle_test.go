@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -45,7 +46,7 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 	if err := json.Unmarshal([]byte(updateOut), &update); err != nil {
 		t.Fatalf("json.Unmarshal(update) error = %v", err)
 	}
-	if update.Status != "deferred" || !update.Managed || !strings.Contains(update.Recommendation, "brew") {
+	if update.Status != lifecycleStatusDeferred || !update.Managed || !strings.Contains(update.Recommendation, "brew") {
 		t.Fatalf("managed update record = %#v, want deferred brew recommendation", update)
 	}
 
@@ -57,7 +58,8 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 	if err := json.Unmarshal([]byte(uninstallOut), &uninstall); err != nil {
 		t.Fatalf("json.Unmarshal(uninstall) error = %v", err)
 	}
-	if uninstall.Status != "deferred" || !uninstall.Managed || !strings.Contains(uninstall.Recommendation, "brew") {
+	if uninstall.Status != lifecycleStatusDeferred || !uninstall.Managed ||
+		!strings.Contains(uninstall.Recommendation, "brew") {
 		t.Fatalf("managed uninstall record = %#v, want deferred brew recommendation", uninstall)
 	}
 }
@@ -87,7 +89,7 @@ func TestUninstallRemovesRuntimeArtifactsIdempotentlyAndRequiresForceForPurge(t 
 	if err := json.Unmarshal([]byte(out), &record); err != nil {
 		t.Fatalf("json.Unmarshal(uninstall) error = %v", err)
 	}
-	if record.Status != "uninstalled" || record.Purged {
+	if record.Status != lifecycleStatusUninstalled || record.Purged {
 		t.Fatalf("uninstall record = %#v, want uninstalled without purge", record)
 	}
 	if len(record.Removed) != 3 {
@@ -110,7 +112,7 @@ func TestUninstallRemovesRuntimeArtifactsIdempotentlyAndRequiresForceForPurge(t 
 	if err := json.Unmarshal([]byte(secondOut), &second); err != nil {
 		t.Fatalf("json.Unmarshal(second uninstall) error = %v", err)
 	}
-	if second.Status != "uninstalled" || len(second.Removed) != 0 {
+	if second.Status != lifecycleStatusUninstalled || len(second.Removed) != 0 {
 		t.Fatalf("second uninstall record = %#v, want idempotent no-op removal", second)
 	}
 
@@ -145,7 +147,8 @@ func TestUpdateReportsManualPathForUnmanagedBinary(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &record); err != nil {
 		t.Fatalf("json.Unmarshal(update) error = %v", err)
 	}
-	if record.Status != "manual" || record.Managed || !strings.Contains(record.Recommendation, "go install") {
+	if record.Status != lifecycleStatusManual || record.Managed ||
+		!strings.Contains(record.Recommendation, "go install") {
 		t.Fatalf("unmanaged update record = %#v, want manual go install recommendation", record)
 	}
 }
@@ -158,14 +161,18 @@ func TestConfigEditUsesEditorAndValidatesResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
 	}
-	editorPath := filepath.Join(t.TempDir(), "editor.sh")
-	writeFile(t, editorPath, "#!/bin/sh\nprintf '\\n[defaults]\\nprovider = \"claude\"\\n' >> \"$1\"\n")
+	editorPath := filepath.Join(t.TempDir(), "editor with spaces.sh")
+	writeFile(
+		t,
+		editorPath,
+		"#!/bin/sh\nfor target do :; done\nprintf '\\n[defaults]\\nprovider = \"claude\"\\n' >> \"$target\"\n",
+	)
 	if err := os.Chmod(editorPath, 0o700); err != nil {
 		t.Fatalf("chmod editor error = %v", err)
 	}
 	deps.getenv = func(key string) string {
 		if key == "EDITOR" {
-			return editorPath
+			return "'" + editorPath + "' --append"
 		}
 		return ""
 	}
@@ -179,5 +186,36 @@ func TestConfigEditUsesEditorAndValidatesResult(t *testing.T) {
 	}
 	if cfg.Defaults.Provider != "claude" {
 		t.Fatalf("Defaults.Provider after edit = %q, want claude", cfg.Defaults.Provider)
+	}
+}
+
+func TestUninstallContinuesWhenRunningDaemonAlreadyExited(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, &stubClient{})
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
+	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	for _, path := range []string{homePaths.DaemonSocket, homePaths.DaemonLock} {
+		writeFile(t, path, "runtime artifact")
+	}
+	writeFile(t, homePaths.DaemonInfo, `{"pid":999999,"port":0,"started_at":"2026-04-03T12:00:00Z"}`)
+	deps.processAlive = func(int) bool { return true }
+	deps.signalProcess = func(int, syscall.Signal) error { return os.ErrProcessDone }
+
+	out, _, err := executeRootCommand(t, deps, "uninstall", "-o", "json")
+	if err != nil {
+		t.Fatalf("uninstall after already-exited daemon error = %v", err)
+	}
+	var record lifecycleRecord
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatalf("json.Unmarshal(uninstall) error = %v", err)
+	}
+	if record.Status != lifecycleStatusUninstalled || !record.DaemonStopped || len(record.Removed) != 3 {
+		t.Fatalf("uninstall record = %#v, want stopped uninstall with artifacts removed", record)
 	}
 }

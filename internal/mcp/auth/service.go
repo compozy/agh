@@ -518,7 +518,7 @@ func statusFromTokenWithDiagnostic(
 
 func supportsS256(methods []string) bool {
 	if len(methods) == 0 {
-		return true
+		return false
 	}
 	for _, method := range methods {
 		if strings.EqualFold(strings.TrimSpace(method), "S256") {

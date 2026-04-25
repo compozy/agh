@@ -368,6 +368,9 @@ func listenForMCPAuthCallback(ctx context.Context, redirectURL string) (net.List
 	if !mcpAuthLoopbackHost(parsed.Hostname()) {
 		return nil, "", errors.New("cli: redirect-url loopback listener requires localhost or loopback IP")
 	}
+	if parsed.Path == "" {
+		parsed.Path = "/callback"
+	}
 	listener, err := listenConfig.Listen(ctx, "tcp", parsed.Host)
 	if err != nil {
 		return nil, "", fmt.Errorf("cli: listen for MCP auth callback: %w", err)

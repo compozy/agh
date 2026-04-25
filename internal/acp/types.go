@@ -517,11 +517,14 @@ func (p *AgentProcess) checkpointProcessOwner(ctx context.Context) error {
 	if p == nil || p.processRecord == nil {
 		return nil
 	}
-	return p.processRecord.Checkpoint(ctx, toolruntime.ProcessCheckpoint{
+	if err := p.processRecord.Checkpoint(ctx, toolruntime.ProcessCheckpoint{
 		Owner: &toolruntime.ProcessOwner{
 			SessionID: p.SessionID,
 		},
-	})
+	}); err != nil {
+		return fmt.Errorf("acp: checkpoint process owner: %w", err)
+	}
+	return nil
 }
 
 func (p *AgentProcess) beginPrompt(turnID string, bufferSize int) (*activePromptState, error) {

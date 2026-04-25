@@ -29,7 +29,7 @@ func newPKCEPair(random io.Reader) (PKCEPair, error) {
 	}
 	verifier, err := randomURLToken(random, pkceVerifierBytes)
 	if err != nil {
-		return PKCEPair{}, err
+		return PKCEPair{}, fmt.Errorf("mcp auth: generate PKCE verifier: %w", err)
 	}
 	sum := sha256.Sum256([]byte(verifier))
 	return PKCEPair{
@@ -43,7 +43,11 @@ func newState(random io.Reader) (string, error) {
 	if random == nil {
 		random = rand.Reader
 	}
-	return randomURLToken(random, stateBytes)
+	state, err := randomURLToken(random, stateBytes)
+	if err != nil {
+		return "", fmt.Errorf("mcp auth: generate oauth state: %w", err)
+	}
+	return state, nil
 }
 
 func randomURLToken(random io.Reader, bytesLen int) (string, error) {

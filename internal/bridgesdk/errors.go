@@ -342,7 +342,7 @@ func RetryDo[T any](ctx context.Context, config RetryConfig, fn func(context.Con
 		}
 
 		if err := retrypkg.Wait(ctx, delay); err != nil {
-			return zero, err
+			return zero, fmt.Errorf("bridgesdk: wait before retry: %w", err)
 		}
 	}
 

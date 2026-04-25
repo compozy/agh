@@ -237,6 +237,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	process.conn.SetLogger(d.logger)
 
 	if err := d.registerAgentProcess(ctx, process); err != nil {
+		cancelProcess()
 		stopCtx, cancelStop := context.WithTimeout(context.Background(), d.stopTimeout)
 		defer cancelStop()
 		if stopErr := handle.Stop(stopCtx); stopErr != nil {
@@ -281,10 +282,20 @@ func (d *Driver) newAgentProcess(
 }
 
 func (d *Driver) registerAgentProcess(ctx context.Context, process *AgentProcess) error {
-	if d == nil || d.processRegistry == nil || process == nil || process.PID <= 0 {
+	if d == nil || process == nil {
 		return nil
 	}
-	handle, err := d.processRegistry.Register(ctx, toolruntime.RegisterConfig{
+	registry := d.processRegistry
+	if registry == nil {
+		if provider, ok := process.toolHost.(processRegistryProvider); ok {
+			registry = provider.ProcessRegistry()
+		}
+	}
+	process.processRegistry = registry
+	if registry == nil || process.PID <= 0 {
+		return nil
+	}
+	handle, err := registry.Register(ctx, toolruntime.RegisterConfig{
 		Source: toolruntime.ProcessSourceACPAgent,
 		Owner: toolruntime.ProcessOwner{
 			SessionID: process.SessionID,
@@ -301,9 +312,12 @@ func (d *Driver) registerAgentProcess(ctx context.Context, process *AgentProcess
 	if err != nil {
 		return fmt.Errorf("acp: register agent process: %w", err)
 	}
-	process.processRegistry = d.processRegistry
 	process.processRecord = handle
 	return nil
+}
+
+type processRegistryProvider interface {
+	ProcessRegistry() *toolruntime.Registry
 }
 
 func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess, agentName string) error {

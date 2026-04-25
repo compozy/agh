@@ -22,65 +22,72 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		t.Fatalf("yaml.Unmarshal(.goreleaser.yml) error = %v", err)
 	}
 
-	checksum := mapAt(t, cfg, "checksum")
-	if got, want := stringAt(t, checksum, "name_template"), "checksums.txt"; got != want {
-		t.Fatalf("checksum.name_template = %q, want %q", got, want)
-	}
-	if got, want := stringAt(t, checksum, "algorithm"), "sha256"; got != want {
-		t.Fatalf("checksum.algorithm = %q, want %q", got, want)
-	}
-
-	signs := sliceAt(t, cfg, "signs")
-	if len(signs) == 0 {
-		t.Fatal("signs is empty, want checksum signing preserved")
-	}
-	firstSign := asMap(t, signs[0], "signs[0]")
-	if got, want := stringAt(t, firstSign, "cmd"), "cosign"; got != want {
-		t.Fatalf("signs[0].cmd = %q, want %q", got, want)
-	}
-	if got, want := stringAt(t, firstSign, "artifacts"), "checksum"; got != want {
-		t.Fatalf("signs[0].artifacts = %q, want %q", got, want)
-	}
-	if !stringSliceContains(sliceAt(t, firstSign, "args"), "sign-blob") {
-		t.Fatalf("signs[0].args = %#v, want sign-blob", firstSign["args"])
-	}
-
-	assertSBOMArtifact(t, sliceAt(t, cfg, "sboms"), "archive")
-	assertSBOMArtifact(t, sliceAt(t, cfg, "sboms"), "package")
-	assertSBOMArtifact(t, sliceAt(t, cfg, "sboms"), "source")
-
-	casks := sliceAt(t, cfg, "homebrew_casks")
-	if len(casks) != 1 {
-		t.Fatalf("homebrew_casks len = %d, want 1", len(casks))
-	}
-	cask := asMap(t, casks[0], "homebrew_casks[0]")
-	if got, want := stringAt(t, cask, "name"), "agh"; got != want {
-		t.Fatalf("homebrew_casks[0].name = %q, want %q", got, want)
-	}
-	if !stringSliceContains(sliceAt(t, cask, "ids"), "agh-archive") {
-		t.Fatalf("homebrew_casks[0].ids = %#v, want agh-archive", cask["ids"])
-	}
-	if !stringSliceContains(sliceAt(t, cask, "binaries"), "agh") {
-		t.Fatalf("homebrew_casks[0].binaries = %#v, want agh", cask["binaries"])
-	}
-
-	nfpms := sliceAt(t, cfg, "nfpms")
-	if len(nfpms) != 1 {
-		t.Fatalf("nfpms len = %d, want 1", len(nfpms))
-	}
-	nfpm := asMap(t, nfpms[0], "nfpms[0]")
-	if got, want := stringAt(t, nfpm, "id"), "agh-linux-packages"; got != want {
-		t.Fatalf("nfpms[0].id = %q, want %q", got, want)
-	}
-	if !stringSliceContains(sliceAt(t, nfpm, "ids"), "agh") {
-		t.Fatalf("nfpms[0].ids = %#v, want agh build id", nfpm["ids"])
-	}
-	formats := sliceAt(t, nfpm, "formats")
-	for _, want := range []string{"deb", "rpm"} {
-		if !stringSliceContains(formats, want) {
-			t.Fatalf("nfpms[0].formats = %#v, want %s", formats, want)
+	t.Run("Should preserve checksum signing configuration", func(t *testing.T) {
+		checksum := mapAt(t, cfg, "checksum")
+		if got, want := stringAt(t, checksum, "name_template"), "checksums.txt"; got != want {
+			t.Fatalf("checksum.name_template = %q, want %q", got, want)
 		}
-	}
+		if got, want := stringAt(t, checksum, "algorithm"), "sha256"; got != want {
+			t.Fatalf("checksum.algorithm = %q, want %q", got, want)
+		}
+
+		signs := sliceAt(t, cfg, "signs")
+		if len(signs) == 0 {
+			t.Fatal("signs is empty, want checksum signing preserved")
+		}
+		firstSign := asMap(t, signs[0], "signs[0]")
+		if got, want := stringAt(t, firstSign, "cmd"), "cosign"; got != want {
+			t.Fatalf("signs[0].cmd = %q, want %q", got, want)
+		}
+		if got, want := stringAt(t, firstSign, "artifacts"), "checksum"; got != want {
+			t.Fatalf("signs[0].artifacts = %q, want %q", got, want)
+		}
+		if !stringSliceContains(sliceAt(t, firstSign, "args"), "sign-blob") {
+			t.Fatalf("signs[0].args = %#v, want sign-blob", firstSign["args"])
+		}
+	})
+
+	t.Run("Should preserve SBOM artifact coverage", func(t *testing.T) {
+		sboms := sliceAt(t, cfg, "sboms")
+		assertSBOMArtifact(t, sboms, "archive")
+		assertSBOMArtifact(t, sboms, "package")
+		assertSBOMArtifact(t, sboms, "source")
+	})
+
+	t.Run("Should configure Homebrew and Linux package targets", func(t *testing.T) {
+		casks := sliceAt(t, cfg, "homebrew_casks")
+		if len(casks) != 1 {
+			t.Fatalf("homebrew_casks len = %d, want 1", len(casks))
+		}
+		cask := asMap(t, casks[0], "homebrew_casks[0]")
+		if got, want := stringAt(t, cask, "name"), "agh"; got != want {
+			t.Fatalf("homebrew_casks[0].name = %q, want %q", got, want)
+		}
+		if !stringSliceContains(sliceAt(t, cask, "ids"), "agh-archive") {
+			t.Fatalf("homebrew_casks[0].ids = %#v, want agh-archive", cask["ids"])
+		}
+		if !stringSliceContains(sliceAt(t, cask, "binaries"), "agh") {
+			t.Fatalf("homebrew_casks[0].binaries = %#v, want agh", cask["binaries"])
+		}
+
+		nfpms := sliceAt(t, cfg, "nfpms")
+		if len(nfpms) != 1 {
+			t.Fatalf("nfpms len = %d, want 1", len(nfpms))
+		}
+		nfpm := asMap(t, nfpms[0], "nfpms[0]")
+		if got, want := stringAt(t, nfpm, "id"), "agh-linux-packages"; got != want {
+			t.Fatalf("nfpms[0].id = %q, want %q", got, want)
+		}
+		if !stringSliceContains(sliceAt(t, nfpm, "ids"), "agh") {
+			t.Fatalf("nfpms[0].ids = %#v, want agh build id", nfpm["ids"])
+		}
+		formats := sliceAt(t, nfpm, "formats")
+		for _, want := range []string{"deb", "rpm"} {
+			if !stringSliceContains(formats, want) {
+				t.Fatalf("nfpms[0].formats = %#v, want %s", formats, want)
+			}
+		}
+	})
 }
 
 func findRepoRootForReleaseConfigTest(t *testing.T) string {

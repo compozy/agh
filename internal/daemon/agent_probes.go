@@ -76,8 +76,11 @@ func collectAgentProbeTargets(
 			continue
 		}
 		provider, err := cfg.ResolveProvider(name)
-		if err != nil && logger != nil {
-			logger.Warn("daemon: resolve provider for probe health failed", "provider", name, "error", err)
+		if err != nil {
+			if logger != nil {
+				logger.Warn("daemon: resolve provider for probe health failed", "provider", name, "error", err)
+			}
+			continue
 		}
 		targets = append(targets, acp.ProbeTarget{
 			Provider: name,

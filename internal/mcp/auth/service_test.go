@@ -177,8 +177,9 @@ func TestTokenResponseRejectsMalformedPayload(t *testing.T) {
 			writeJSON(t, w, map[string]any{"refresh_token": "refresh"})
 		default:
 			writeJSON(t, w, Metadata{
-				AuthorizationEndpoint: "http://" + r.Host + "/authorize",
-				TokenEndpoint:         "http://" + r.Host + "/token",
+				AuthorizationEndpoint:         "http://" + r.Host + "/authorize",
+				TokenEndpoint:                 "http://" + r.Host + "/token",
+				CodeChallengeMethodsSupported: []string{"S256"},
 			})
 		}
 	}))
@@ -201,6 +202,28 @@ func TestTokenResponseRejectsMalformedPayload(t *testing.T) {
 	_, err = service.Exchange(ctx, login, "http://127.0.0.1/callback?code=ok&state="+login.State)
 	if err == nil || !strings.Contains(err.Error(), "access_token is required") {
 		t.Fatalf("Exchange() error = %v, want malformed token response", err)
+	}
+}
+
+func TestSupportsS256RequiresAdvertisedMethod(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		methods []string
+		want    bool
+	}{
+		{name: "Should reject missing metadata methods", methods: nil, want: false},
+		{name: "Should reject non S256 methods", methods: []string{"plain"}, want: false},
+		{name: "Should accept advertised S256 method", methods: []string{" plain ", " s256 "}, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := supportsS256(tc.methods); got != tc.want {
+				t.Fatalf("supportsS256(%#v) = %v, want %v", tc.methods, got, tc.want)
+			}
+		})
 	}
 }
 
