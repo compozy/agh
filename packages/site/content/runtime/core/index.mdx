@@ -11,6 +11,16 @@ by the stage of adoption you are in, not by internal package layout.
   other lanes as your work becomes more operational or more advanced.
 </OperatorNote>
 
+<figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
+  <img
+    src="/images/runtime/core-concepts-storyboard-v3.png"
+    alt="Hand-drawn Core Concepts poster showing the AGH Runtime journey across three lanes: start running AGH, understand the runtime model, and operate and extend the platform."
+    loading="eager"
+    decoding="async"
+    className="h-auto w-full rounded-md"
+  />
+</figure>
+
 ## Start Running AGH
 
 <RouteList>
@@ -48,13 +58,6 @@ by the stage of adoption you are in, not by internal package layout.
 
 <RouteList>
   <RouteRow
-    href="/runtime/core/overview/what-is-agh"
-    label="Overview"
-    title="What AGH is and why the runtime exists"
-    description="Use the overview pages when you need the product model, architecture summary, and adoption framing."
-    meta="Orientation"
-  />
-  <RouteRow
     href="/runtime/core/sessions/lifecycle"
     label="Sessions"
     title="Lifecycle, replay, events, and approvals"
@@ -67,6 +70,13 @@ by the stage of adoption you are in, not by internal package layout.
     title="Definitions, providers, and spawning behavior"
     description="Read this when you need to understand how AGH resolves agent configuration and turns it into running ACP sessions."
     meta="Execution model"
+  />
+  <RouteRow
+    href="/runtime/core/network"
+    label="Network"
+    title="Agent-to-agent coordination through channels and peers"
+    description="Understand the internal protocol that lets sessions discover peers, delegate work, deliver messages, and leave an audit trail."
+    meta="Coordination layer"
   />
   <RouteRow
     href="/runtime/core/memory/system"
@@ -95,7 +105,7 @@ by the stage of adoption you are in, not by internal package layout.
     meta="Operations"
   />
   <RouteRow
-    href="/runtime/core/bridges/overview"
+    href="/runtime/core/bridges"
     label="Bridges"
     title="Inbound and outbound platform integrations"
     description="Use the bridges section for routing, provider setup, and delivery behavior across external systems."
@@ -109,7 +119,7 @@ by the stage of adoption you are in, not by internal package layout.
     meta="Lifecycle controls"
   />
   <RouteRow
-    href="/runtime/core/skills/overview"
+    href="/runtime/core/skills"
     label="Skills"
     title="Catalog behavior, SKILL.md, bundled skills, and marketplace flow"
     description="Reach for this when you need the runtime rules for skill discovery, registration, precedence, and packaging."

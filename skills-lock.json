@@ -1,930 +1,935 @@
 {
-  "version": 1,
-  "skills": {
-    "a11y-testing": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "8d6c3ad414c99f8356b200dfe08bdf4b3e36f085879d47546b5975d0b98ae66c"
-    },
-    "adapt": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "65085998d643c3b64ff323ca74d76496b47484046b030730c00c03a0208bf410"
-    },
-    "adversarial-review": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "8561ed5f1968002ff27f918cf6991bb0ee6f7713783a0ab4015b4ea2d20f117f"
-    },
-    "agent-browser": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "9f085be33df8039cc24b0fdf9758e47d1b241f473610101a869e221dc2879f0a"
-    },
-    "agent-md-refactor": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "51c53259bba830ebad6741b2ab69d213d5a4d02835f7f27925a0e4e93515fc22"
-    },
-    "ai-pdf-builder": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "4c3f0972b90599b0f0440b494fe3366b94618952d3ef55d5c48e0090038f0b82"
-    },
-    "ai-sdk": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "a4f58aca6e6d163f72242d8b92fba51d6522105094c8f37656feec1eeb45f6ff"
-    },
-    "alex-hormozi-pitch": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "8987034d93b2b929abcf45d4b6e1dd66e361e510b17aa6c212c52e2839465460"
-    },
-    "animate": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "354414a934957f9d54a71468abe81888304d35b47a4fe8e27fff08f60b457d53"
-    },
-    "app-renderer-systems": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "7fb07dd6f2ceaf62487e5dc62214c95cbd973386bf59db91829617fe0c3a6841"
-    },
-    "architectural-analysis": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "d9599934bcf249166bdc5d28a06042380cfb03d1850c2fc00a66e9741b665a1f"
-    },
-    "architecture-diagram": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "39886b0992c1b94b6500f6c998bd35ed9286b16fd3cb8317ca63996f580ed90f"
-    },
-    "argocd-expert": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "026a6cf94b7fb91109d9229736b46eb6f6700db6038962543c557d68d9850a1f"
-    },
-    "arrange": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "698fb952e9ef0d2551a5c3421ef61e084934420e0d8371a02efb4f76f21049e8"
-    },
-    "assistant-ui": {
-      "source": "assistant-ui/skills",
-      "sourceType": "github",
-      "computedHash": "cfce3ce8c4c2da38f0fc8e881af677efa8166d379862541f79c54e66f1a599d5"
-    },
-    "audit": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "115a00d21d91d52123115af789948cb22bd604de0084837b5533f5e4af3c4055"
-    },
-    "autoresearch": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "a7d41f6766192891ba7f0f4cd395df2ad576cf1af9a5ce718d1b5789305f2e90"
-    },
-    "better-auth-best-practices": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "cfc3c0f23acd1f2c99dce046ddb018a1d4bb94a23924f07a2090d4391c4416dd"
-    },
-    "better-auth-organization-best-practices": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "2744b3d7f123b8cd7449dff839a268247b9b67b46c475eb430e219e8b200028a"
-    },
-    "bolder": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "1787478962577c9d5bde26e89e47c1654aa9c8f3c47c316a026731db0000a92e"
-    },
-    "brainstorming": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "3d898aa741852ad3f01954ba69c3b5b5e132931a570ca6319138bb610747f9c4"
-    },
-    "brand-storytelling": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "9603a428066d7842afdda78037c4ea8b0b45b50bab20fb7452db9f4a08b42d85"
-    },
-    "bubbletea": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "4cf3387527d25a0ef4d07d0a6b01d041f18b91151f0528c5859040dbdb1f1a55"
-    },
-    "building-components": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "f9b73b82c0c8ea576140290173f0f78ff314dc9497eb15f77a07541c6ef6eff4"
-    },
-    "centrifugo": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "b7ef537294f3b4cd3653dbb12d113c5afbc932b360a8102f0100d549e709d76b"
-    },
-    "clarify": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "42877142fcc51dcc6be696349aa7df8887eb29510e2a5868beac913f5f84de31"
-    },
-    "cloudflare": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "49104982a9de3b6a7718f1c34866ca2a435ec826a523f0e8e0ee97b64409de2d"
-    },
-    "colorize": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "4793ac377b2bc1a5831d9634ce882373350cc5d097fd631d192155266204ceb8"
-    },
-    "content-research-writer": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "920a2106cbcb0ef3bd7463d66987e6a0be02412f681fec40404ee47d656e1d51"
-    },
-    "context7": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "23f0178420043f01cd0f00745eb06eaac6f3eee4ef58f87f1ae353c2a408f79c"
-    },
-    "copywriting": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "a4d6bf88420121e1a566be53f88380a3a8fd9eaafc48d6d268d9992838663b28"
-    },
-    "council": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "d4f069a475431390f46fb826fdfc1dd1e68183136f8fe58ebe252f2b90e0a8c4"
-    },
-    "crafting-effective-readmes": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "c931a8c22160e8925400778fcb2266b5d1df762f3052edba65f72479f79f2d6c"
-    },
-    "creating-spec": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "a49c7f3e8803f4247a331ee759dcacad32ad4ee6af919a1019775c905c72fd7a"
-    },
-    "critique": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "977f6fc3aa1002ec095f649e1b7c4fa52ee08a447f19229062810a9323c5c342"
-    },
-    "cy-create-prd": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "6247230c3d8bc895dbe716a31fe6fd37c6b463cb11a2b0873de8b2e8c30b66f4"
-    },
-    "cy-create-tasks": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "2f7ecd483cb19879c1177b87f7046d1b2859526fa03a499ae820cc9c3f9820ac"
-    },
-    "cy-create-techspec": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "a8461c61c8f404ecbc483bcb12bb1e9b59a886f3c59728dde360353f63f6c909"
-    },
-    "cy-execute-task": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "3d7bf7167fc68f55fe27e4082cbdf65d4d7c06c538e521a9dd3d581b2e59fab5"
-    },
-    "cy-final-verify": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "e71442fd7d82f0f3129e93591cf359c59956f4c48ab127ed29bca4807f71cfd1"
-    },
-    "cy-fix-reviews": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "52f80e5b3e873d1fdd7bcb2f75593b9f6a3b88a8909a8e387f11e33edb2ff8c9"
-    },
-    "cy-idea-factory": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "ef6da628f744a664eafe4ea56cc5348bb7a772a88a4b21e275aeb78b8e65f8fe"
-    },
-    "cy-review-round": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "b6d3599b12f8508508e90e746532d9908ee23f2d3c63d9d5849a8413cea3d32b"
-    },
-    "cy-workflow-memory": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "f7564ab9f0fa0dc667f1fde56890a232a47d1cd34fcc5c37b58f0e92032f677b"
-    },
-    "delight": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "1f6f4adee0b964e8344c0baef46b4e303ab3ba20932907bcbb1444ba7b3273b2"
-    },
-    "design-spec-extraction": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "c8e869ce32b4839169e11f581035fc351a1e6a80f53471f2c08db4eb6a4d02cc"
-    },
-    "design-taste-frontend": {
-      "source": "Leonxlnx/taste-skill",
-      "sourceType": "github",
-      "computedHash": "9d1e82c5c409d2b0247245a005bc0f7e4447c0999b78dcea60f568c1ba4a6694"
-    },
-    "devops-engineer": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "44c55ecd9f8d09b49fd74b82a62edf12125e49c59713324a0a3de6e393444390"
-    },
-    "distill": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "669a671f855be8773e4c2936e54d4243fbd1d273f87633158544efe3dbc4d825"
-    },
-    "documentation-writer": {
-      "source": "github/awesome-copilot",
-      "sourceType": "github",
-      "computedHash": "ee53d65b163cd7eb953a930c95841cfe398cc2c0bd24c06508bbaa07c432be35"
-    },
-    "drizzle-orm": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "490d7f1fe2960165c3fb63a5322c766e4ea27ffe170dbaca3666bbf4c66cd58e"
-    },
-    "drizzle-postgres": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "7fe88f283275ac4846dd264493a88f78f7886014ae6e51c2dc351ec121b480bf"
-    },
-    "drizzle-safe-migrations": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "5f32994472dadf53ff74fde49a2aaee425dbad366fbbfceefb3cab6ce28a86eb"
-    },
-    "effect-ts": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "4f6d7b384ecc18060ed40f78d4be1fcb2c4fc559beb0f8986a7d0706fecd6415"
-    },
-    "electron-builder": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "f7ea4f7ebd53a5e05a9ba96f55333e3882a2455724837c7985cf2309fa919225"
-    },
-    "electron-dev": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "2ce4fc32d7e92378b22d87e3982f2dea43a2804dc1874879d4fd67d699ba6289"
-    },
-    "electron-release": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "3722893bf0359ce20b0514ca1f59f80eafd3096af956eaac0ae5f5499e1f12de"
-    },
-    "elysia": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "2e620ef3ac1ac809297af1832032408419409b2f60eb77d42b7b82c7e98a6faa"
-    },
-    "es-toolkit": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "464daf169e8c86de0379330c968039be891dbc4715f156da1f9aabdea822c5db"
-    },
-    "evolution-api": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "36903c9a911d5f0b183ea666f6e6a485e786125b54656839b447cc1fa55b2112"
-    },
-    "exa-web-search-free": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "4456756ff2cf096cc7c6d2fc9d6771e2a1ea0084868f28b69f68157757ee50c8"
-    },
-    "executing-plans": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "09d910542b633bc9f526cbf911f745ebec50ab7e54ed24e1725e9054c19cb939"
-    },
-    "extract": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "1bbe30b5be73a86971f6bccb37daae84aaafceaa6d23429d6a3a0442378ac4ec"
-    },
-    "extreme-software-optimization": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "9e187c25458869ff448ae40ce3a78155838d663ad66762b41ea90692985b3e3c"
-    },
-    "find-rules": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "83c250b0fd70e94eb9b28390275677d3fe48c91b8e9e1a34f97ef071e35cf3de"
-    },
-    "find-skills": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "6412eb4eb3b91595ebab937f0c69501240e7ba761b3d82510b5cf506ec5c7adc"
-    },
-    "firecrawl": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "f79f957689cc705613a2731f2f35360192fc9a6a28bc3de73484c973621df5ed"
-    },
-    "fix-coderabbit-review": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "9272c514c90f40059ceb9f3b504ea9f5a91fde83a6ae8471f00c8d36a95a086d"
-    },
-    "fixing-motion-performance": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "f97398e895a19f06c40c8326e163ab714a6f174d8d3ac9662ee8be1c2972212a"
-    },
-    "frontend-design": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "63b5b9b6ca2c4654d927d240cf8637360b347461189433e78102ba22a90684ff"
-    },
-    "fundraising": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "070a995064077c6795c8dd3b2ce6a244337225501a30b7066076c7423d9245f8"
-    },
-    "game-changing-features": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "aa6f4b25f60cbad65bd0826f09e0eded14e588da06172995277511e9a86ee2d7"
-    },
-    "git-rebase": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "9533aaf0356fdfebe23a5f3d962383b06e25b11973c08b3e4f873c0ea5fb8953"
-    },
-    "golang-pro": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "c90a0798a12ea2d9191508439ec3191dd96713310615260ebe82ec5a09a4a434"
-    },
-    "google-ads": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "abb230e7fb8d08c5ac92536de44fda3cf2b328e5e465e823db8a1a933cf2aa42"
-    },
-    "helm-chart-scaffolding": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "244e0c7c25ddf1554c08abb6a22b0fb30048fe4daaebc1d3c399633ad8c331b7"
-    },
-    "hetzner-server": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "9906029b67df21162e7837610be9f6271b5c4edf748ba0adff7e2c569cf35439"
-    },
-    "hono": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "c7a4ae9efeb7ef47c6473ee4d636fced825a0c26b25372a49417075f6d566af6"
-    },
-    "hormozi-ad-factory": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "09154b6e0bc0cb91c1c84d2e34fe7b9ba7e24a3eea52bc9f937c85d8b1b2fd87"
-    },
-    "humanizer": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "34a38e6acc60d4529612d41ffe740bca0060d3c5e89e2a0d24ae795f67157fbb"
-    },
-    "impeccable": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "a26b3dd377c4572b1c34c68f82ab9a1cb806f21c7157060327fe60e9b6d2e277"
-    },
-    "inngest": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "221292219e12f8143d758accdecdbdf27e7b9afee3af8f32cd2ed777d4f978b1"
-    },
-    "interface-design": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "d004c5e5e2e7132e1d64e9c2a339db7f7aaa69053a5c19cddc210dd35dd6fff5"
-    },
-    "k8s-security-policies": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "f107cdcbde1dc49c8800fc9b49f0e8ac56b9f8ddd6106386283be72a50e701bf"
-    },
-    "karpathy-kb": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "8bc7a75020275e4ad1813cb4b616dc9e0c7624a6e71178f98341e69c39bd65f4"
-    },
-    "kb": {
-      "source": "compozy/kb",
-      "sourceType": "github",
-      "computedHash": "1950daed243399488ea990aa67b636ccb307997ebe071f484496869539594dcd"
-    },
-    "kodebase": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "66fe9703df1731b1db4b32093be7dcd67b925ee264e781f462c4ea25e77a30d0"
-    },
-    "kubernetes-specialist": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "1b185fb0ed08c8eb530adda538be3d4fc74a3f2ab19f8160192b8c5cef138012"
-    },
-    "landing-page-design": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "c489ece3f049aa26c78154d1f67aa5e2b8342216e5f6acf07455cba56e10c19f"
-    },
-    "layout": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "6b5fd49587616ca1e594e9c6b11bc1cef5eb0b2d137c307de54a8a650770f4ce"
-    },
-    "lesson-learned": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "2bdf72af18ccc97c8c5580f252769610d2c0d814c36433ea7dd3f25c822ff6b7"
-    },
-    "mastra": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "e007a255b36b3b62c0780b7d742f0df6b21f1f20e135e92f4c580243ea9494c5"
-    },
-    "mermaid-diagrams": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "6d36e69adad781f106a2fb4b19ebc22bf0c211babdc0d1ae5822fa65abb48bd8"
-    },
-    "minimalist-ui": {
-      "source": "Leonxlnx/taste-skill",
-      "sourceType": "github",
-      "computedHash": "08873a3131d3be27bef9bf3304b310b16b44ca6e3561aebe532797be3443f6bd"
-    },
-    "motion": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "770b1e98eb5e82487fe500a28e77c74aa6d9dc32937298d85538a150ddc2c9ec"
-    },
-    "motion-react": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "746e49d0f010a977f9216f9e14d94eb77b82c412a544c70096f13688ee7351f0"
-    },
-    "nano-banana-pro": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "165246e9b08f1fee54994d2daa15a5aa690b6745bcd26fab2811cd3db6544c17"
-    },
-    "nano-banana-prompting": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "3eb3260b0147aa0b9dc58f88039aa1df25ceb99d25e9efb45b4297d40cf7a6ac"
-    },
-    "next-best-practices": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "515ba75178bd44875812d9a560bdf14651f86709f89cf1d4f209638e879807f3"
-    },
-    "no-workarounds": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "dd6f77b4698f1e67afc6e81aef8515e29f98f0b3d5487bb4940211a38140ce3b"
-    },
-    "normalize": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "281b7f9e590e252a6aec3f5f83c5ca548c91e8bccb3fd6eee4cc7d5be0becb4d"
-    },
-    "obsidian-bases": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "ed0a53502693e56c67575a9958daca9a3a1ac7ba483367f400b4cad9488bfb3c"
-    },
-    "obsidian-cli": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "f46ae626875f7e47c410c2ee93896c4526024ebe127719e8fb430261b5677edc"
-    },
-    "obsidian-markdown": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "cacc9058a35ad3fd4985b4c31121bff8202f1337c39808c1326ded6a19a7915f"
-    },
-    "opentui": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "2915038bb3297e759f740f9e6bfa885ed80a4a7fe945825f5874b48db9ce0fd2"
-    },
-    "optimize": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "979ffc76a4345c081fdf89078b7107c216d70696e027b23e8e24972dd4e457b2"
-    },
-    "outside-to-issue": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "fb2faa737c10d475a1fdbcc92c053a6889c8afcf1fe8088dc7a3ae067608caca"
-    },
-    "overdrive": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "30e2909c14b9e860b580e63f9bbe10cc1dee8de0be9b03013218c3ef8d9ede78"
-    },
-    "pal": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "7d87302256ba07f9dc131758bc12411d4716c152631ac6d2265378d17a318986"
-    },
-    "perplexity": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "a8c31732045ef978362c29b27c13ba6ee11b93d522a0019f08dd8568a08d7de6"
-    },
-    "pitch-deck": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "b23b5c7542d53e3cada85052bd4165210a95447215afa4456256dc43a864eee4"
-    },
-    "pitch-deck-visuals": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "97bf2a2f68b2bd090dc137c22c6a5068410ad0c3f72c19d7dbada4ebf69f026b"
-    },
-    "pitch-gen": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "d2f9aff4c2ee7e7621f211d3f99ed5d5f5d00e77394965c8b9f8259f41065ea3"
-    },
-    "polish": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "c294f2570dcc5b8865d17f0dc5ef339a700c868f1b20fa9994297f64ace2d4de"
-    },
-    "pptx-creator": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "cb1e8c9035167c7e04e3dcca1345ace0fdf51b526bdbf51eaea300f104abc87b"
-    },
-    "primitives": {
-      "source": "assistant-ui/skills",
-      "sourceType": "github",
-      "computedHash": "acdb5ddbdd066abf513a3f729198cee8ad79d03b18ba3329e609658d88bc09ee"
-    },
-    "professional-communication": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "4ecfeba923ab6dea1ac6e4a3d05a1a7f23b2af3dce690f4aad8167ae92b14397"
-    },
-    "promo-video": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "efe35b7ab8955d0ceb7fbd11510af86390f246a9da44ae213d16cd252c21683c"
-    },
-    "qa-execution": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "5ded52204a4522be65bfabab86c4bd71e159a3e53f959bbed4bee9485952d606"
-    },
-    "qa-report": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "943b9666377faf02f8f8eb228158c1076f268e5b80f41d5ab2fd37e52abe70e5"
-    },
-    "qmd": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "d7109d58f721a0bf59620c69b6ae073c60dde85e971012d95a5e410002f28c64"
-    },
-    "quieter": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "2c20b12bb4ece445d45fc63bda020aecf78b3cdf6d593beb59c273f658293130"
-    },
-    "ratatui-tui": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "a0421e936f1e79aac2dfbc26a1b78af1d1577ca090f1f43c2d3a49761db896b6"
-    },
-    "react": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "cc809ab22b2fee72903f73d450b11c7d500e6a61641e7bcd427f3034a9c8832f"
-    },
-    "receiving-code-review": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "1577f124b82bc9e30f9e4afe6a142956eaff7142e9ef82f6d0403133aba86d6a"
-    },
-    "redesign-existing-projects": {
-      "source": "Leonxlnx/taste-skill",
-      "sourceType": "github",
-      "computedHash": "b405eee0e0e80fc243f731d9aa368bca307e356db7e6157d27101d369dac6726"
-    },
-    "refactoring-analysis": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "7554393d8a4e3e103f13f244fd754b503b305afea1957ca84edf2e9ed846ea37"
-    },
-    "remotion-best-practices": {
-      "source": "remotion-dev/skills",
-      "sourceType": "github",
-      "computedHash": "df654933e451556147e384078c3fbdbac997cb0fe4d2f2db7642000c239304c5"
-    },
-    "requirements-clarity": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "27ab2b19ebb31ff719c2e19d1ae3c4122f37d964a447b180bfb838d7b2198a02"
-    },
-    "rivetkit": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "fc6d82a274597a239a7d9dbb6743609d793aa464da5ff8d06a17d8847c474e97"
-    },
-    "rivetkit-client-javascript": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "2c9e7e45785db6fc056b8db3972e2f9f6268e813964f668659c8a31642722d02"
-    },
-    "rivetkit-client-react": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "dce16379d0e84cd5f21b4fb8f82badd6ad554effcdf255b361f116d3abea9e9c"
-    },
-    "runtime": {
-      "source": "assistant-ui/skills",
-      "sourceType": "github",
-      "computedHash": "7aac755d83b8396ef149320fb5a8ad4073a828fafbbc6a759de0da4b78bb99c2"
-    },
-    "rust-best-practices": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "a3d6b39803d7e85bb788985c3289645bdbf2fe0e94e53bb1cc43c0ebb3c1dac6"
-    },
-    "sales-methodology-implementer": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "d5b85c8a332919e5d0e810fd4abd08d3661e9ac206f967915586ba103c796130"
-    },
-    "security-review": {
-      "source": "getsentry/skills",
-      "sourceType": "github",
-      "computedHash": "ec9792f5fd065e020c48ab5a57707c83435c286c449ba98dfa726d7b1842c868"
-    },
-    "sentry-cli": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "1289de337c5499e511e64809519ec84b8e49a0adc205ad836a327e8cc8436e74"
-    },
-    "shadcn": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "1f9dd6946d6bb66bd76c5d49d607e5becf7c93ad643070fc4e352d17e426b69d"
-    },
-    "shadcn-ui": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "4c3e54ac47ddcc2c948995c85f6740b78f2f556c769d800e92ddff035d5c7e59"
-    },
-    "shape": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "8edad33758f2461f51afdb51741bfcc4cc57d84ea42e2751a84be2c6a2d48f69"
-    },
-    "ship-learn-next": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "f3c467866ff7db31add63d1cc90b8b86cea8aa64f22a2afbc0fdc1f72e777874"
-    },
-    "skill-best-practices": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "b39b873b9becf59f9a515809efd08c0547cd94c0296873032d3206705189b2ab"
-    },
-    "skill-writer": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "1c379c5949311949c4c1deb601cc4451bbcb90c87a0a3a48047a28ff992bc37c"
-    },
-    "sourcebot": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "f28cf96cf5a480dd97f22576645e2c86367bac40495027b2b4e06b0e2c7816ec"
-    },
-    "startup-validator": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "d5a6b39c886911c3d0e0cb3da6bed2a5af992cd01437a42f507d740cd7d92702"
-    },
-    "storybook": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "f72b186eb2e60aad3f7438baba34b25cba134c6dcba6d31fa72a736233956655"
-    },
-    "storybook-stories": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "8aa98ed5bea287bf04295aec57b4fca25cf724069aaf58c8a66ac68bf791360d"
-    },
-    "streaming": {
-      "source": "assistant-ui/skills",
-      "sourceType": "github",
-      "computedHash": "31a090f9360343967f1189559c2b24da7eeacbf5b1b1c503c57c98c71106e326"
-    },
-    "stripe-best-practices": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "4b3e66fe21b41d61903031bee94649c8fde4af57bb6bed6e9f14a6b361f3f82e"
-    },
-    "stripe-integration": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "212e9514b6d78c4785dec07bd8fc9641cd995c7c011c9a442b8d9955eccca5da"
-    },
-    "stripe-subscriptions": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "ddd1564590525a24abe030b7a55dd4081a07a99cadaea3b10b913b45bfa0ab74"
-    },
-    "stripe-webhooks": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "7d2fd6be68881d161f430112f7c03cc8fb1092bf925b3ceb32e6108b09ff5da5"
-    },
-    "sync-provider": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "028062ff1b423a527e297a305d7e72e76996e9f0a7ed86e6ad469d317c164861"
-    },
-    "systematic-debugging": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "6785f4c4549a7024c7d84fe06f06781284808875f050974422b330e9524c070a"
-    },
-    "systematic-qa": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "cbc36a65128986475cb78c7a025b57abcde1383653af2616a40f59d546435295"
-    },
-    "tailwindcss": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "d7b9e3e49ffd0f4d2185d894568035633d31a0b7cb09494c6c0df4799a0a3ff3"
-    },
-    "tanstack": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "073b9d0fb1c92fcbf99eb77c54e1a3265c4f6b2786568e8d9fe162661a10812e"
-    },
-    "tanstack-query-best-practices": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "21d2e8b7468a81d772b6527ad8ca178cc2f3f08af777bb9061333013ee88a0c9"
-    },
-    "tanstack-router-best-practices": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "5f01567a457b2a992c8ae7d615689c2b1c248fe27a690b58bf9af7d09f4d2f3f"
-    },
-    "tanstack-start-best-practices": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "c0ac310303f766a20017decf2cbe3ab8b80f1210943d5ec1c6cfe11c0d4d5a5b"
-    },
-    "tauri-v2": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "72248dbe36769a12c38c07437063cc5a1ad2d182fee87fb72d92a8fa37ce4a0f"
-    },
-    "tech-logos": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "2bcc47a63ae452ef98e3514d6ce8563d9ff66c53c250a9ea5c2f1cce9d2ddeac"
-    },
-    "terraform-style-guide": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "07aca9223b3850c5d4f5bae992bd1ee05b292750db28c60fc28d4e5d308f177f"
-    },
-    "test-antipatterns": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "6ed54ac26a2a69e5c8338b010d2bac03f5427daa4453bf7f5e66e061356ce603"
-    },
-    "testing-anti-patterns": {
-      "source": "pedronauck/kodebase-go",
-      "sourceType": "github",
-      "computedHash": "860d67709789aae9b98c6a58a97ff4e3ab7f280e4663e7ee656d8c6370a29ea5"
-    },
-    "tmux": {
-      "source": "steipete/clawdis",
-      "sourceType": "github",
-      "computedHash": "d9c56ff5d25a0a8217eaedfb64b46c05dd20a2c0e0edae75f059ecb1d8833c08"
-    },
-    "to-prompt": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "8b211cbc89c668e081db0a499d70098ac702e723cc879a6cc69a47327e01c2b1"
-    },
-    "tools": {
-      "source": "assistant-ui/skills",
-      "sourceType": "github",
-      "computedHash": "55a64b569cf4eac3bc8877e216e401af6b40d296e5180eb71174ac80b68d670d"
-    },
-    "tui-design": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "848e926c0bb1e9c6b24e8a913baec8377478b82880603c305432a9ce5cf1395a"
-    },
-    "tweetsmash-api": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "ba450150b0007566122c67270832d1d530c75c116488641e994b1cc5294c25e1"
-    },
-    "typescript-advanced": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "5e39d1321dd676555c39ddf873ffa2ac605a6de7841f8093f86d53314d36ef3e"
-    },
-    "typeset": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "computedHash": "1cd76e560d1ba25b0bd5f7adfa2957a9f653a3ad0b031d467221154fcd1e0423"
-    },
-    "ui-ux-pro-max": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "ec90b96361a8c1c59ee642cde483398d07c1a884fcaa5850945181f8a08f9a26"
-    },
-    "vercel-composition-patterns": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "1aa8cc5a812ffcb991f8d9528d2aefc85158cddfdf3c4a810c597f0c9c7bfc89"
-    },
-    "vercel-react-best-practices": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "0c40488a357b638d7eb188086f93d166128b8c5ca54d6e0d04ac1bca4062e5c1"
-    },
-    "verification-before-completion": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "545a9eb4701e91ff8357e12a1b4731deb7442fce01a42f7eb22e5deb8cb53bd3"
-    },
-    "vitest": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "669c7275f7e1379b06b2bcfa593603aead4c983b951c7e8edbc09640aa38d0a1"
-    },
-    "viz": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "01b63eb482c4a788375596ac3a6544cf069997918670d513c3137324160190e5"
-    },
-    "web-design-guidelines": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "2b4252a346243aa696da2d021a7a2f747259567cd3ca51308ee86ca24ab60d86"
-    },
-    "workflow": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "171011432d4feddc96ef904ae221f227074a110c510c8493993464387b6a63d5"
-    },
-    "wrangler": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "c1d5c6ac38aa0f71662c5550fe02c3db8b313affd31345d95a9eba56c5b06f49"
-    },
-    "writing-clearly-and-concisely": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "136a0413255aa82d800459c775eabf041620b2e9cbf2d713b739bf1b87a3db3a"
-    },
-    "xstate": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "c4f8f138b52427d22fa9db83663f629aca8813eabcc6714025d9fba39407de57"
-    },
-    "zod": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "44f1ae5e377022f537cbad603de0e3329de7afea8567e0e11eb8593e09769441"
-    },
-    "zustand": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "5602a430065cace096abfee888b3e58f096ac01eff541dce7ee59bd18342ca10"
+    "version": 1,
+    "skills": {
+        "a11y-testing": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "8d6c3ad414c99f8356b200dfe08bdf4b3e36f085879d47546b5975d0b98ae66c"
+        },
+        "adapt": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "65085998d643c3b64ff323ca74d76496b47484046b030730c00c03a0208bf410"
+        },
+        "adversarial-review": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "8561ed5f1968002ff27f918cf6991bb0ee6f7713783a0ab4015b4ea2d20f117f"
+        },
+        "agent-browser": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "9f085be33df8039cc24b0fdf9758e47d1b241f473610101a869e221dc2879f0a"
+        },
+        "agent-md-refactor": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "51c53259bba830ebad6741b2ab69d213d5a4d02835f7f27925a0e4e93515fc22"
+        },
+        "ai-pdf-builder": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "4c3f0972b90599b0f0440b494fe3366b94618952d3ef55d5c48e0090038f0b82"
+        },
+        "ai-sdk": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "a4f58aca6e6d163f72242d8b92fba51d6522105094c8f37656feec1eeb45f6ff"
+        },
+        "alex-hormozi-pitch": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "8987034d93b2b929abcf45d4b6e1dd66e361e510b17aa6c212c52e2839465460"
+        },
+        "animate": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "354414a934957f9d54a71468abe81888304d35b47a4fe8e27fff08f60b457d53"
+        },
+        "app-renderer-systems": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "7fb07dd6f2ceaf62487e5dc62214c95cbd973386bf59db91829617fe0c3a6841"
+        },
+        "architectural-analysis": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d9599934bcf249166bdc5d28a06042380cfb03d1850c2fc00a66e9741b665a1f"
+        },
+        "architecture-diagram": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "39886b0992c1b94b6500f6c998bd35ed9286b16fd3cb8317ca63996f580ed90f"
+        },
+        "argocd-expert": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "026a6cf94b7fb91109d9229736b46eb6f6700db6038962543c557d68d9850a1f"
+        },
+        "arrange": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "698fb952e9ef0d2551a5c3421ef61e084934420e0d8371a02efb4f76f21049e8"
+        },
+        "assistant-ui": {
+            "source": "assistant-ui/skills",
+            "sourceType": "github",
+            "computedHash": "cfce3ce8c4c2da38f0fc8e881af677efa8166d379862541f79c54e66f1a599d5"
+        },
+        "audit": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "115a00d21d91d52123115af789948cb22bd604de0084837b5533f5e4af3c4055"
+        },
+        "autoresearch": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "a7d41f6766192891ba7f0f4cd395df2ad576cf1af9a5ce718d1b5789305f2e90"
+        },
+        "better-auth-best-practices": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "cfc3c0f23acd1f2c99dce046ddb018a1d4bb94a23924f07a2090d4391c4416dd"
+        },
+        "better-auth-organization-best-practices": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "2744b3d7f123b8cd7449dff839a268247b9b67b46c475eb430e219e8b200028a"
+        },
+        "bolder": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "1787478962577c9d5bde26e89e47c1654aa9c8f3c47c316a026731db0000a92e"
+        },
+        "brainstorming": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "3d898aa741852ad3f01954ba69c3b5b5e132931a570ca6319138bb610747f9c4"
+        },
+        "brand-storytelling": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "9603a428066d7842afdda78037c4ea8b0b45b50bab20fb7452db9f4a08b42d85"
+        },
+        "bubbletea": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "4cf3387527d25a0ef4d07d0a6b01d041f18b91151f0528c5859040dbdb1f1a55"
+        },
+        "building-components": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "f9b73b82c0c8ea576140290173f0f78ff314dc9497eb15f77a07541c6ef6eff4"
+        },
+        "centrifugo": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "b7ef537294f3b4cd3653dbb12d113c5afbc932b360a8102f0100d549e709d76b"
+        },
+        "clarify": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "42877142fcc51dcc6be696349aa7df8887eb29510e2a5868beac913f5f84de31"
+        },
+        "cloudflare": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "49104982a9de3b6a7718f1c34866ca2a435ec826a523f0e8e0ee97b64409de2d"
+        },
+        "colorize": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "4793ac377b2bc1a5831d9634ce882373350cc5d097fd631d192155266204ceb8"
+        },
+        "content-research-writer": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "920a2106cbcb0ef3bd7463d66987e6a0be02412f681fec40404ee47d656e1d51"
+        },
+        "context7": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "23f0178420043f01cd0f00745eb06eaac6f3eee4ef58f87f1ae353c2a408f79c"
+        },
+        "copywriting": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "a4d6bf88420121e1a566be53f88380a3a8fd9eaafc48d6d268d9992838663b28"
+        },
+        "council": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d4f069a475431390f46fb826fdfc1dd1e68183136f8fe58ebe252f2b90e0a8c4"
+        },
+        "crafting-effective-readmes": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "c931a8c22160e8925400778fcb2266b5d1df762f3052edba65f72479f79f2d6c"
+        },
+        "creating-spec": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "a49c7f3e8803f4247a331ee759dcacad32ad4ee6af919a1019775c905c72fd7a"
+        },
+        "critique": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "977f6fc3aa1002ec095f649e1b7c4fa52ee08a447f19229062810a9323c5c342"
+        },
+        "cy-create-prd": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "6247230c3d8bc895dbe716a31fe6fd37c6b463cb11a2b0873de8b2e8c30b66f4"
+        },
+        "cy-create-tasks": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "2f7ecd483cb19879c1177b87f7046d1b2859526fa03a499ae820cc9c3f9820ac"
+        },
+        "cy-create-techspec": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "a8461c61c8f404ecbc483bcb12bb1e9b59a886f3c59728dde360353f63f6c909"
+        },
+        "cy-execute-task": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "3d7bf7167fc68f55fe27e4082cbdf65d4d7c06c538e521a9dd3d581b2e59fab5"
+        },
+        "cy-final-verify": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "e71442fd7d82f0f3129e93591cf359c59956f4c48ab127ed29bca4807f71cfd1"
+        },
+        "cy-fix-reviews": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "52f80e5b3e873d1fdd7bcb2f75593b9f6a3b88a8909a8e387f11e33edb2ff8c9"
+        },
+        "cy-idea-factory": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "ef6da628f744a664eafe4ea56cc5348bb7a772a88a4b21e275aeb78b8e65f8fe"
+        },
+        "cy-review-round": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "b6d3599b12f8508508e90e746532d9908ee23f2d3c63d9d5849a8413cea3d32b"
+        },
+        "cy-workflow-memory": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "f7564ab9f0fa0dc667f1fde56890a232a47d1cd34fcc5c37b58f0e92032f677b"
+        },
+        "delight": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "1f6f4adee0b964e8344c0baef46b4e303ab3ba20932907bcbb1444ba7b3273b2"
+        },
+        "design-spec-extraction": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "c8e869ce32b4839169e11f581035fc351a1e6a80f53471f2c08db4eb6a4d02cc"
+        },
+        "design-taste-frontend": {
+            "source": "Leonxlnx/taste-skill",
+            "sourceType": "github",
+            "computedHash": "9d1e82c5c409d2b0247245a005bc0f7e4447c0999b78dcea60f568c1ba4a6694"
+        },
+        "devops-engineer": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "44c55ecd9f8d09b49fd74b82a62edf12125e49c59713324a0a3de6e393444390"
+        },
+        "distill": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "669a671f855be8773e4c2936e54d4243fbd1d273f87633158544efe3dbc4d825"
+        },
+        "documentation-writer": {
+            "source": "github/awesome-copilot",
+            "sourceType": "github",
+            "computedHash": "ee53d65b163cd7eb953a930c95841cfe398cc2c0bd24c06508bbaa07c432be35"
+        },
+        "drizzle-orm": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "490d7f1fe2960165c3fb63a5322c766e4ea27ffe170dbaca3666bbf4c66cd58e"
+        },
+        "drizzle-postgres": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "7fe88f283275ac4846dd264493a88f78f7886014ae6e51c2dc351ec121b480bf"
+        },
+        "drizzle-safe-migrations": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "5f32994472dadf53ff74fde49a2aaee425dbad366fbbfceefb3cab6ce28a86eb"
+        },
+        "effect-ts": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "4f6d7b384ecc18060ed40f78d4be1fcb2c4fc559beb0f8986a7d0706fecd6415"
+        },
+        "electron-builder": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "f7ea4f7ebd53a5e05a9ba96f55333e3882a2455724837c7985cf2309fa919225"
+        },
+        "electron-dev": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "2ce4fc32d7e92378b22d87e3982f2dea43a2804dc1874879d4fd67d699ba6289"
+        },
+        "electron-release": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "3722893bf0359ce20b0514ca1f59f80eafd3096af956eaac0ae5f5499e1f12de"
+        },
+        "elysia": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "2e620ef3ac1ac809297af1832032408419409b2f60eb77d42b7b82c7e98a6faa"
+        },
+        "es-toolkit": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "464daf169e8c86de0379330c968039be891dbc4715f156da1f9aabdea822c5db"
+        },
+        "evolution-api": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "36903c9a911d5f0b183ea666f6e6a485e786125b54656839b447cc1fa55b2112"
+        },
+        "exa-web-search-free": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "4456756ff2cf096cc7c6d2fc9d6771e2a1ea0084868f28b69f68157757ee50c8"
+        },
+        "executing-plans": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "09d910542b633bc9f526cbf911f745ebec50ab7e54ed24e1725e9054c19cb939"
+        },
+        "extract": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "1bbe30b5be73a86971f6bccb37daae84aaafceaa6d23429d6a3a0442378ac4ec"
+        },
+        "extreme-software-optimization": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "9e187c25458869ff448ae40ce3a78155838d663ad66762b41ea90692985b3e3c"
+        },
+        "find-rules": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "83c250b0fd70e94eb9b28390275677d3fe48c91b8e9e1a34f97ef071e35cf3de"
+        },
+        "find-skills": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "6412eb4eb3b91595ebab937f0c69501240e7ba761b3d82510b5cf506ec5c7adc"
+        },
+        "firecrawl": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "f79f957689cc705613a2731f2f35360192fc9a6a28bc3de73484c973621df5ed"
+        },
+        "fix-coderabbit-review": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "9272c514c90f40059ceb9f3b504ea9f5a91fde83a6ae8471f00c8d36a95a086d"
+        },
+        "fixing-motion-performance": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "f97398e895a19f06c40c8326e163ab714a6f174d8d3ac9662ee8be1c2972212a"
+        },
+        "frontend-design": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "63b5b9b6ca2c4654d927d240cf8637360b347461189433e78102ba22a90684ff"
+        },
+        "fundraising": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "070a995064077c6795c8dd3b2ce6a244337225501a30b7066076c7423d9245f8"
+        },
+        "game-changing-features": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "aa6f4b25f60cbad65bd0826f09e0eded14e588da06172995277511e9a86ee2d7"
+        },
+        "git-rebase": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "9533aaf0356fdfebe23a5f3d962383b06e25b11973c08b3e4f873c0ea5fb8953"
+        },
+        "golang-pro": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "c90a0798a12ea2d9191508439ec3191dd96713310615260ebe82ec5a09a4a434"
+        },
+        "google-ads": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "abb230e7fb8d08c5ac92536de44fda3cf2b328e5e465e823db8a1a933cf2aa42"
+        },
+        "helm-chart-scaffolding": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "244e0c7c25ddf1554c08abb6a22b0fb30048fe4daaebc1d3c399633ad8c331b7"
+        },
+        "hetzner-server": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "9906029b67df21162e7837610be9f6271b5c4edf748ba0adff7e2c569cf35439"
+        },
+        "hono": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "c7a4ae9efeb7ef47c6473ee4d636fced825a0c26b25372a49417075f6d566af6"
+        },
+        "hormozi-ad-factory": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "09154b6e0bc0cb91c1c84d2e34fe7b9ba7e24a3eea52bc9f937c85d8b1b2fd87"
+        },
+        "humanizer": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "34a38e6acc60d4529612d41ffe740bca0060d3c5e89e2a0d24ae795f67157fbb"
+        },
+        "impeccable": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "a26b3dd377c4572b1c34c68f82ab9a1cb806f21c7157060327fe60e9b6d2e277"
+        },
+        "inngest": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "221292219e12f8143d758accdecdbdf27e7b9afee3af8f32cd2ed777d4f978b1"
+        },
+        "interface-design": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d004c5e5e2e7132e1d64e9c2a339db7f7aaa69053a5c19cddc210dd35dd6fff5"
+        },
+        "k8s-security-policies": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "f107cdcbde1dc49c8800fc9b49f0e8ac56b9f8ddd6106386283be72a50e701bf"
+        },
+        "karpathy-kb": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "8bc7a75020275e4ad1813cb4b616dc9e0c7624a6e71178f98341e69c39bd65f4"
+        },
+        "kb": {
+            "source": "compozy/kb",
+            "sourceType": "github",
+            "computedHash": "1950daed243399488ea990aa67b636ccb307997ebe071f484496869539594dcd"
+        },
+        "kodebase": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "66fe9703df1731b1db4b32093be7dcd67b925ee264e781f462c4ea25e77a30d0"
+        },
+        "kubernetes-specialist": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "1b185fb0ed08c8eb530adda538be3d4fc74a3f2ab19f8160192b8c5cef138012"
+        },
+        "landing-page-design": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "c489ece3f049aa26c78154d1f67aa5e2b8342216e5f6acf07455cba56e10c19f"
+        },
+        "layout": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "6b5fd49587616ca1e594e9c6b11bc1cef5eb0b2d137c307de54a8a650770f4ce"
+        },
+        "lesson-learned": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "2bdf72af18ccc97c8c5580f252769610d2c0d814c36433ea7dd3f25c822ff6b7"
+        },
+        "mastra": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "e007a255b36b3b62c0780b7d742f0df6b21f1f20e135e92f4c580243ea9494c5"
+        },
+        "mermaid-diagrams": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "6d36e69adad781f106a2fb4b19ebc22bf0c211babdc0d1ae5822fa65abb48bd8"
+        },
+        "minimalist-ui": {
+            "source": "Leonxlnx/taste-skill",
+            "sourceType": "github",
+            "computedHash": "08873a3131d3be27bef9bf3304b310b16b44ca6e3561aebe532797be3443f6bd"
+        },
+        "motion": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "770b1e98eb5e82487fe500a28e77c74aa6d9dc32937298d85538a150ddc2c9ec"
+        },
+        "motion-react": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "746e49d0f010a977f9216f9e14d94eb77b82c412a544c70096f13688ee7351f0"
+        },
+        "nano-banana-pro": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "165246e9b08f1fee54994d2daa15a5aa690b6745bcd26fab2811cd3db6544c17"
+        },
+        "nano-banana-prompting": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "3eb3260b0147aa0b9dc58f88039aa1df25ceb99d25e9efb45b4297d40cf7a6ac"
+        },
+        "next-best-practices": {
+            "source": "vercel-labs/next-skills",
+            "sourceType": "github",
+            "computedHash": "db85045827ebeb83ac8dbc992b69188755eeb74dcf01cbf5e694d58aa494a106"
+        },
+        "no-workarounds": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "dd6f77b4698f1e67afc6e81aef8515e29f98f0b3d5487bb4940211a38140ce3b"
+        },
+        "normalize": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "281b7f9e590e252a6aec3f5f83c5ca548c91e8bccb3fd6eee4cc7d5be0becb4d"
+        },
+        "obsidian-bases": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "ed0a53502693e56c67575a9958daca9a3a1ac7ba483367f400b4cad9488bfb3c"
+        },
+        "obsidian-cli": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "f46ae626875f7e47c410c2ee93896c4526024ebe127719e8fb430261b5677edc"
+        },
+        "obsidian-markdown": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "cacc9058a35ad3fd4985b4c31121bff8202f1337c39808c1326ded6a19a7915f"
+        },
+        "opentui": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "2915038bb3297e759f740f9e6bfa885ed80a4a7fe945825f5874b48db9ce0fd2"
+        },
+        "optimize": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "979ffc76a4345c081fdf89078b7107c216d70696e027b23e8e24972dd4e457b2"
+        },
+        "outside-to-issue": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "fb2faa737c10d475a1fdbcc92c053a6889c8afcf1fe8088dc7a3ae067608caca"
+        },
+        "overdrive": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "30e2909c14b9e860b580e63f9bbe10cc1dee8de0be9b03013218c3ef8d9ede78"
+        },
+        "pal": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "7d87302256ba07f9dc131758bc12411d4716c152631ac6d2265378d17a318986"
+        },
+        "perplexity": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "a8c31732045ef978362c29b27c13ba6ee11b93d522a0019f08dd8568a08d7de6"
+        },
+        "pitch-deck": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "b23b5c7542d53e3cada85052bd4165210a95447215afa4456256dc43a864eee4"
+        },
+        "pitch-deck-visuals": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "97bf2a2f68b2bd090dc137c22c6a5068410ad0c3f72c19d7dbada4ebf69f026b"
+        },
+        "pitch-gen": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d2f9aff4c2ee7e7621f211d3f99ed5d5f5d00e77394965c8b9f8259f41065ea3"
+        },
+        "polish": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "c294f2570dcc5b8865d17f0dc5ef339a700c868f1b20fa9994297f64ace2d4de"
+        },
+        "pptx-creator": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "cb1e8c9035167c7e04e3dcca1345ace0fdf51b526bdbf51eaea300f104abc87b"
+        },
+        "primitives": {
+            "source": "assistant-ui/skills",
+            "sourceType": "github",
+            "computedHash": "acdb5ddbdd066abf513a3f729198cee8ad79d03b18ba3329e609658d88bc09ee"
+        },
+        "professional-communication": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "4ecfeba923ab6dea1ac6e4a3d05a1a7f23b2af3dce690f4aad8167ae92b14397"
+        },
+        "promo-video": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "efe35b7ab8955d0ceb7fbd11510af86390f246a9da44ae213d16cd252c21683c"
+        },
+        "qa-execution": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "5ded52204a4522be65bfabab86c4bd71e159a3e53f959bbed4bee9485952d606"
+        },
+        "qa-report": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "943b9666377faf02f8f8eb228158c1076f268e5b80f41d5ab2fd37e52abe70e5"
+        },
+        "qmd": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d7109d58f721a0bf59620c69b6ae073c60dde85e971012d95a5e410002f28c64"
+        },
+        "quieter": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "2c20b12bb4ece445d45fc63bda020aecf78b3cdf6d593beb59c273f658293130"
+        },
+        "ratatui-tui": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "a0421e936f1e79aac2dfbc26a1b78af1d1577ca090f1f43c2d3a49761db896b6"
+        },
+        "react": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "cc809ab22b2fee72903f73d450b11c7d500e6a61641e7bcd427f3034a9c8832f"
+        },
+        "receiving-code-review": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "1577f124b82bc9e30f9e4afe6a142956eaff7142e9ef82f6d0403133aba86d6a"
+        },
+        "redesign-existing-projects": {
+            "source": "Leonxlnx/taste-skill",
+            "sourceType": "github",
+            "computedHash": "b405eee0e0e80fc243f731d9aa368bca307e356db7e6157d27101d369dac6726"
+        },
+        "refactoring-analysis": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "7554393d8a4e3e103f13f244fd754b503b305afea1957ca84edf2e9ed846ea37"
+        },
+        "remotion-best-practices": {
+            "source": "remotion-dev/skills",
+            "sourceType": "github",
+            "computedHash": "df654933e451556147e384078c3fbdbac997cb0fe4d2f2db7642000c239304c5"
+        },
+        "requirements-clarity": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "27ab2b19ebb31ff719c2e19d1ae3c4122f37d964a447b180bfb838d7b2198a02"
+        },
+        "rivetkit": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "fc6d82a274597a239a7d9dbb6743609d793aa464da5ff8d06a17d8847c474e97"
+        },
+        "rivetkit-client-javascript": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "2c9e7e45785db6fc056b8db3972e2f9f6268e813964f668659c8a31642722d02"
+        },
+        "rivetkit-client-react": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "dce16379d0e84cd5f21b4fb8f82badd6ad554effcdf255b361f116d3abea9e9c"
+        },
+        "runtime": {
+            "source": "assistant-ui/skills",
+            "sourceType": "github",
+            "computedHash": "7aac755d83b8396ef149320fb5a8ad4073a828fafbbc6a759de0da4b78bb99c2"
+        },
+        "rust-best-practices": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "a3d6b39803d7e85bb788985c3289645bdbf2fe0e94e53bb1cc43c0ebb3c1dac6"
+        },
+        "sales-methodology-implementer": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d5b85c8a332919e5d0e810fd4abd08d3661e9ac206f967915586ba103c796130"
+        },
+        "security-review": {
+            "source": "getsentry/skills",
+            "sourceType": "github",
+            "computedHash": "ec9792f5fd065e020c48ab5a57707c83435c286c449ba98dfa726d7b1842c868"
+        },
+        "sentry-cli": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "1289de337c5499e511e64809519ec84b8e49a0adc205ad836a327e8cc8436e74"
+        },
+        "seo-audit": {
+            "source": "coreyhaines31/marketingskills",
+            "sourceType": "github",
+            "computedHash": "ddd028951738fcbcdebf0f9bd90b708c55d1b9370a31603e0c13e5b262d8b8bb"
+        },
+        "shadcn": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "1f9dd6946d6bb66bd76c5d49d607e5becf7c93ad643070fc4e352d17e426b69d"
+        },
+        "shadcn-ui": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "4c3e54ac47ddcc2c948995c85f6740b78f2f556c769d800e92ddff035d5c7e59"
+        },
+        "shape": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "8edad33758f2461f51afdb51741bfcc4cc57d84ea42e2751a84be2c6a2d48f69"
+        },
+        "ship-learn-next": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "f3c467866ff7db31add63d1cc90b8b86cea8aa64f22a2afbc0fdc1f72e777874"
+        },
+        "skill-best-practices": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "b39b873b9becf59f9a515809efd08c0547cd94c0296873032d3206705189b2ab"
+        },
+        "skill-writer": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "1c379c5949311949c4c1deb601cc4451bbcb90c87a0a3a48047a28ff992bc37c"
+        },
+        "sourcebot": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "f28cf96cf5a480dd97f22576645e2c86367bac40495027b2b4e06b0e2c7816ec"
+        },
+        "startup-validator": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d5a6b39c886911c3d0e0cb3da6bed2a5af992cd01437a42f507d740cd7d92702"
+        },
+        "storybook": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "f72b186eb2e60aad3f7438baba34b25cba134c6dcba6d31fa72a736233956655"
+        },
+        "storybook-stories": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "8aa98ed5bea287bf04295aec57b4fca25cf724069aaf58c8a66ac68bf791360d"
+        },
+        "streaming": {
+            "source": "assistant-ui/skills",
+            "sourceType": "github",
+            "computedHash": "31a090f9360343967f1189559c2b24da7eeacbf5b1b1c503c57c98c71106e326"
+        },
+        "stripe-best-practices": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "4b3e66fe21b41d61903031bee94649c8fde4af57bb6bed6e9f14a6b361f3f82e"
+        },
+        "stripe-integration": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "212e9514b6d78c4785dec07bd8fc9641cd995c7c011c9a442b8d9955eccca5da"
+        },
+        "stripe-subscriptions": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "ddd1564590525a24abe030b7a55dd4081a07a99cadaea3b10b913b45bfa0ab74"
+        },
+        "stripe-webhooks": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "7d2fd6be68881d161f430112f7c03cc8fb1092bf925b3ceb32e6108b09ff5da5"
+        },
+        "sync-provider": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "028062ff1b423a527e297a305d7e72e76996e9f0a7ed86e6ad469d317c164861"
+        },
+        "systematic-debugging": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "6785f4c4549a7024c7d84fe06f06781284808875f050974422b330e9524c070a"
+        },
+        "systematic-qa": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "cbc36a65128986475cb78c7a025b57abcde1383653af2616a40f59d546435295"
+        },
+        "tailwindcss": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d7b9e3e49ffd0f4d2185d894568035633d31a0b7cb09494c6c0df4799a0a3ff3"
+        },
+        "tanstack": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "073b9d0fb1c92fcbf99eb77c54e1a3265c4f6b2786568e8d9fe162661a10812e"
+        },
+        "tanstack-query-best-practices": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "21d2e8b7468a81d772b6527ad8ca178cc2f3f08af777bb9061333013ee88a0c9"
+        },
+        "tanstack-router-best-practices": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "5f01567a457b2a992c8ae7d615689c2b1c248fe27a690b58bf9af7d09f4d2f3f"
+        },
+        "tanstack-start-best-practices": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "c0ac310303f766a20017decf2cbe3ab8b80f1210943d5ec1c6cfe11c0d4d5a5b"
+        },
+        "tauri-v2": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "72248dbe36769a12c38c07437063cc5a1ad2d182fee87fb72d92a8fa37ce4a0f"
+        },
+        "tech-logos": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "2bcc47a63ae452ef98e3514d6ce8563d9ff66c53c250a9ea5c2f1cce9d2ddeac"
+        },
+        "terraform-style-guide": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "07aca9223b3850c5d4f5bae992bd1ee05b292750db28c60fc28d4e5d308f177f"
+        },
+        "test-antipatterns": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "6ed54ac26a2a69e5c8338b010d2bac03f5427daa4453bf7f5e66e061356ce603"
+        },
+        "testing-anti-patterns": {
+            "source": "pedronauck/kodebase-go",
+            "sourceType": "github",
+            "computedHash": "860d67709789aae9b98c6a58a97ff4e3ab7f280e4663e7ee656d8c6370a29ea5"
+        },
+        "tmux": {
+            "source": "steipete/clawdis",
+            "sourceType": "github",
+            "computedHash": "d9c56ff5d25a0a8217eaedfb64b46c05dd20a2c0e0edae75f059ecb1d8833c08"
+        },
+        "to-prompt": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "8b211cbc89c668e081db0a499d70098ac702e723cc879a6cc69a47327e01c2b1"
+        },
+        "tools": {
+            "source": "assistant-ui/skills",
+            "sourceType": "github",
+            "computedHash": "55a64b569cf4eac3bc8877e216e401af6b40d296e5180eb71174ac80b68d670d"
+        },
+        "tui-design": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "848e926c0bb1e9c6b24e8a913baec8377478b82880603c305432a9ce5cf1395a"
+        },
+        "tweetsmash-api": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "ba450150b0007566122c67270832d1d530c75c116488641e994b1cc5294c25e1"
+        },
+        "typescript-advanced": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "5e39d1321dd676555c39ddf873ffa2ac605a6de7841f8093f86d53314d36ef3e"
+        },
+        "typeset": {
+            "source": "pbakaus/impeccable",
+            "sourceType": "github",
+            "computedHash": "1cd76e560d1ba25b0bd5f7adfa2957a9f653a3ad0b031d467221154fcd1e0423"
+        },
+        "ui-ux-pro-max": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "ec90b96361a8c1c59ee642cde483398d07c1a884fcaa5850945181f8a08f9a26"
+        },
+        "vercel-composition-patterns": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "1aa8cc5a812ffcb991f8d9528d2aefc85158cddfdf3c4a810c597f0c9c7bfc89"
+        },
+        "vercel-react-best-practices": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "0c40488a357b638d7eb188086f93d166128b8c5ca54d6e0d04ac1bca4062e5c1"
+        },
+        "verification-before-completion": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "545a9eb4701e91ff8357e12a1b4731deb7442fce01a42f7eb22e5deb8cb53bd3"
+        },
+        "vitest": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "669c7275f7e1379b06b2bcfa593603aead4c983b951c7e8edbc09640aa38d0a1"
+        },
+        "viz": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "01b63eb482c4a788375596ac3a6544cf069997918670d513c3137324160190e5"
+        },
+        "web-design-guidelines": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "2b4252a346243aa696da2d021a7a2f747259567cd3ca51308ee86ca24ab60d86"
+        },
+        "workflow": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "171011432d4feddc96ef904ae221f227074a110c510c8493993464387b6a63d5"
+        },
+        "wrangler": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "c1d5c6ac38aa0f71662c5550fe02c3db8b313affd31345d95a9eba56c5b06f49"
+        },
+        "writing-clearly-and-concisely": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "136a0413255aa82d800459c775eabf041620b2e9cbf2d713b739bf1b87a3db3a"
+        },
+        "xstate": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "c4f8f138b52427d22fa9db83663f629aca8813eabcc6714025d9fba39407de57"
+        },
+        "zod": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "44f1ae5e377022f537cbad603de0e3329de7afea8567e0e11eb8593e09769441"
+        },
+        "zustand": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "5602a430065cace096abfee888b3e58f096ac01eff541dce7ee59bd18342ca10"
+        }
     }
-  }
 }

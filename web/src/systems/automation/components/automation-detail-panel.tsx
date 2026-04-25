@@ -100,8 +100,9 @@ function computeJobMetrics(runs: AutomationRun[], job: AutomationJob): JobMetric
   const lastRunValue = lastCompleted ? formatRelativeTime(lastCompleted.started_at) : "—";
   const lastRunSubtext = lastCompleted ? formatDateTime(lastCompleted.started_at) : undefined;
 
-  const nextRunValue = formatRelativeTime(job.next_run);
-  const nextRunSubtext = job.next_run ? formatDateTime(job.next_run) : undefined;
+  const nextRun = job.scheduler?.next_run_at ?? job.next_run;
+  const nextRunValue = formatRelativeTime(nextRun);
+  const nextRunSubtext = nextRun ? formatDateTime(nextRun) : undefined;
 
   return {
     successRateValue,
@@ -205,6 +206,72 @@ function JobStatsSection({ job, runs }: { job: AutomationJob; runs: AutomationRu
           tone="accent"
           value={metrics.nextRunValue}
         />
+      </div>
+    </Section>
+  );
+}
+
+function JobSchedulerSection({ job }: { job: AutomationJob }) {
+  if (!job.scheduler) {
+    return null;
+  }
+
+  const scheduler = job.scheduler;
+  const registeredTone = scheduler.registered ? "success" : "neutral";
+
+  return (
+    <Section
+      label="Scheduler"
+      right={
+        <MonoBadge tone={registeredTone}>{scheduler.registered ? "REGISTERED" : "IDLE"}</MonoBadge>
+      }
+    >
+      <div
+        className="grid gap-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3 md:grid-cols-2"
+        data-testid="automation-job-scheduler"
+      >
+        <div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+            Next cursor
+          </span>
+          <p className="mt-1 text-[13px] text-[color:var(--color-text-secondary)]">
+            {formatDateTime(scheduler.next_run_at)}
+          </p>
+        </div>
+        <div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+            Last scheduled
+          </span>
+          <p className="mt-1 text-[13px] text-[color:var(--color-text-secondary)]">
+            {formatDateTime(scheduler.last_scheduled_at)}
+          </p>
+        </div>
+        <div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+            Fire ID
+          </span>
+          <p className="mt-1 break-all font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+            {scheduler.last_fire_id || "—"}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+              Catch-up
+            </span>
+            <p className="mt-1 font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+              {scheduler.catch_up_policy ?? "skip_missed"}
+            </p>
+          </div>
+          <div>
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
+              Misfires
+            </span>
+            <p className="mt-1 font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+              {scheduler.misfire_count ?? 0}
+            </p>
+          </div>
+        </div>
       </div>
     </Section>
   );
@@ -488,6 +555,7 @@ export function AutomationDetailPanel({
 
         {job ? <JobScheduleSection job={job} /> : null}
         {job ? <JobStatsSection job={job} runs={runs} /> : null}
+        {job ? <JobSchedulerSection job={job} /> : null}
         {trigger ? <TriggerHookSection trigger={trigger} /> : null}
 
         <PromptSection isTrigger={!isJob} prompt={item.prompt} />

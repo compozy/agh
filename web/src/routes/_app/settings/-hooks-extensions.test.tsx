@@ -86,6 +86,8 @@ const extensionEntry: SettingsExtensionEntry = {
   type: "backend",
   daemon_running: true,
   health: "healthy",
+  requires_env: ["DAYTONA_TOKEN"],
+  missing_env: ["DAYTONA_TOKEN"],
 };
 
 type RestartBanner = {
@@ -281,6 +283,15 @@ describe("HooksExtensionsSettingsPage", () => {
     expect(
       screen.getByTestId("settings-page-hooks-extensions-extensions-item-daytona")
     ).toHaveTextContent("running");
+  });
+
+  it("renders missing extension environment requirements by name only", () => {
+    render(<HooksExtensionsSettingsPage />);
+    const diagnostic = screen.getByTestId(
+      "settings-page-hooks-extensions-extensions-item-daytona-missing-env"
+    );
+    expect(diagnostic).toHaveTextContent("Missing env: DAYTONA_TOKEN");
+    expect(diagnostic).not.toHaveTextContent("secret");
   });
 
   it("disables the extension toggle when HTTP mutation parity is false", () => {

@@ -28,7 +28,6 @@ name: code-reviewer
 provider: claude
 permissions: approve-reads
 ---
-
 You are a focused code reviewer.
 
 - Read the relevant files before answering.
@@ -39,14 +38,14 @@ You are a focused code reviewer.
 
 This tutorial intentionally keeps the file small. The important pieces are:
 
-| Field | Why it matters in this tutorial |
-| ----- | ------------------------------- |
-| `name` | The identifier AGH uses for discovery and selection. |
-| `provider` | Tells AGH which provider configuration to resolve for this agent. |
+| Field         | Why it matters in this tutorial                                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `name`        | The identifier AGH uses for discovery and selection.                                                               |
+| `provider`    | Tells AGH which provider configuration to resolve for this agent.                                                  |
 | `permissions` | This is the enforced session boundary today. `approve-reads` auto-allows read operations and prompts for the rest. |
-| Markdown body | Becomes the agent's startup prompt. |
+| Markdown body | Becomes the agent's startup prompt.                                                                                |
 
-For the full implemented schema, use [AGENT.md Reference](/runtime/core/configuration/agent-md).
+For the full implemented schema, use [AGENT.md](/runtime/core/configuration/agent-md).
 
 ## 3. Verify that AGH can see the agent
 
@@ -94,8 +93,8 @@ When you are ready to go beyond the minimal example:
 
 - use [Agent Providers](/runtime/core/agents/providers) for provider resolution behavior
 - use [Agent Spawning](/runtime/core/agents/spawning) for the startup path
-- use [AGENT.md Reference](/runtime/core/configuration/agent-md) for the full field contract
-- use [mcp.json Reference](/runtime/core/configuration/mcp-json) when you want MCP sidecars
+- use [AGENT.md](/runtime/core/configuration/agent-md) for the full field contract
+- use [mcp.json](/runtime/core/configuration/mcp-json) when you want MCP sidecars
 
 ## Next Step
 

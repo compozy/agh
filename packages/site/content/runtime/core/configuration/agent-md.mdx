@@ -1,7 +1,6 @@
 ---
-title: AGENT.md Reference
+title: AGENT.md
 description: Complete implemented AGENT.md schema, parser rules, provider examples, MCP sidecars, and RFC drift.
-icon: FileText
 ---
 
 `AGENT.md` defines an AGH agent: structured frontmatter plus a required Markdown prompt body.
@@ -309,9 +308,9 @@ Provide concise assistance grounded in the active workspace.
 
 An agent directory accepts two kinds of sidecars next to `AGENT.md`:
 
-| Sidecar                                 | Purpose                                                   | Reference                                                       |
-| --------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------- |
-| `mcp.json`                              | Declare MCP servers in JSON form.                         | [MCP Sidecar](#mcp-sidecar) below.                              |
+| Sidecar                                                                                    | Purpose                                                                                                                  | Reference                                                |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| `mcp.json`                                                                                 | Declare MCP servers in JSON form.                                                                                        | [MCP Sidecar](#mcp-sidecar) below.                       |
 | `capabilities.toml` / `capabilities.json` or `capabilities/*.toml` / `capabilities/*.json` | Declare the unified capability catalog projected into brief discovery, rich discovery, and `kind:"capability"` transfer. | [Agent Capabilities](/runtime/core/agents/capabilities). |
 
 Sidecars are loaded independently. Exactly one capability layout (single-file or directory) is
@@ -394,6 +393,6 @@ Current AGH uses `deny-all`, `approve-reads`, `approve-all` and `.agh/agents/<na
 
 ## Related Pages
 
-- [config.toml Reference](/runtime/core/configuration/config-toml) documents provider and permission defaults.
-- [mcp.json Reference](/runtime/core/configuration/mcp-json) documents sidecar schema and replacement rules.
+- [config.toml](/runtime/core/configuration/config-toml) documents provider and permission defaults.
+- [mcp.json](/runtime/core/configuration/mcp-json) documents sidecar schema and replacement rules.
 - [Agent Providers](/runtime/core/agents/providers) explains built-in provider behavior.

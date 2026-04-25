@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { DocPageMasthead } from "@/components/docs/doc-page-masthead";
 import { getMDXComponents } from "@/mdx-components";
+import { createPageMetadata } from "@/lib/site-config";
 
 interface PageProps {
   params: Promise<{ slug?: string[] }>;
@@ -46,7 +47,10 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
   if (!page) notFound();
 
   return {
-    title: page.data.title,
-    description: page.data.description,
+    ...createPageMetadata({
+      title: page.data.title,
+      description: page.data.description,
+      path: page.url,
+    }),
   };
 }

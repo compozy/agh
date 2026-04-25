@@ -1,0 +1,38 @@
+---
+title: "agh update"
+description: "Report how to update the AGH binary"
+---
+
+## agh update
+
+Report how to update the AGH binary
+
+```
+agh update [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for update
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh update -o json
+```

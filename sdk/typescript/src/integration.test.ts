@@ -1,31 +1,31 @@
 import { execFileSync, spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import readline from "node:readline";
 
 import { afterAll, describe, expect, it } from "vitest";
 
 let tempDirs: string[] = [];
+const sourceDir = __dirname;
+const packageDir = resolve(sourceDir, "..");
+const workspaceRoot = resolve(packageDir, "../..");
+const tscBin = join(workspaceRoot, "node_modules/.bin/tsc");
 
 async function buildSDK(): Promise<void> {
-  const packageDir = process.cwd();
-  const workspaceRoot = path.resolve(packageDir, "../..");
-  const tscBin = path.join(workspaceRoot, "node_modules/.bin/tsc");
-
-  execFileSync(tscBin, ["-p", path.join(packageDir, "tsconfig.types.json")], {
+  execFileSync(tscBin, ["-p", join(packageDir, "tsconfig.types.json")], {
     cwd: packageDir,
     stdio: "pipe",
   });
-  execFileSync(tscBin, ["-p", path.join(packageDir, "tsconfig.esm.json")], {
+  execFileSync(tscBin, ["-p", join(packageDir, "tsconfig.esm.json")], {
     cwd: packageDir,
     stdio: "pipe",
   });
-  execFileSync(tscBin, ["-p", path.join(packageDir, "tsconfig.cjs.json")], {
+  execFileSync(tscBin, ["-p", join(packageDir, "tsconfig.cjs.json")], {
     cwd: packageDir,
     stdio: "pipe",
   });
-  execFileSync(process.execPath, [path.join(packageDir, "scripts/postbuild.mjs")], {
+  execFileSync(process.execPath, [join(packageDir, "scripts/postbuild.mjs")], {
     cwd: packageDir,
     stdio: "pipe",
   });
@@ -51,12 +51,11 @@ describe("SDK integration", () => {
   it("builds an SDK-based extension and serves real JSON-RPC over stdio", async () => {
     await buildSDK();
 
-    const packageDir = process.cwd();
-    const sdkEntry = path.resolve(packageDir, "dist/esm/index.js");
-    const tempDir = await mkdtemp(path.join(tmpdir(), "agh-sdk-integration-"));
+    const sdkEntry = resolve(packageDir, "dist/esm/index.js");
+    const tempDir = await mkdtemp(join(tmpdir(), "agh-sdk-integration-"));
     tempDirs.push(tempDir);
     await writeFile(
-      path.join(tempDir, "index.mjs"),
+      join(tempDir, "index.mjs"),
       `import { Extension } from ${JSON.stringify(sdkEntry)};
        const extension = new Extension(
          {
@@ -78,7 +77,7 @@ describe("SDK integration", () => {
        void extension.start();`
     );
 
-    const child = spawn(process.execPath, [path.join(tempDir, "index.mjs")], {
+    const child = spawn(process.execPath, [join(tempDir, "index.mjs")], {
       stdio: ["pipe", "pipe", "pipe"],
     });
     const stdout = readline.createInterface({ input: child.stdout });

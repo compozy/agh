@@ -15,6 +15,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/toolruntime"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -810,7 +811,14 @@ func daemonNativeHooks(
 	return decls, executors
 }
 
-func daemonExecutorResolver(nativeExecutors map[string]hookspkg.Executor) hookspkg.ExecutorResolver {
+func daemonExecutorResolver(
+	nativeExecutors map[string]hookspkg.Executor,
+	registries ...*toolruntime.Registry,
+) hookspkg.ExecutorResolver {
+	var registry *toolruntime.Registry
+	if len(registries) > 0 {
+		registry = registries[0]
+	}
 	return func(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
 		if decl.ExecutorKind == hookspkg.HookExecutorNative {
 			executor := nativeExecutors[strings.TrimSpace(decl.Name)]
@@ -819,15 +827,25 @@ func daemonExecutorResolver(nativeExecutors map[string]hookspkg.Executor) hooksp
 			}
 			return executor, nil
 		}
-		return defaultDaemonExecutorResolver(decl)
+		return defaultDaemonExecutorResolverWithRegistry(decl, registry)
 	}
 }
 
 func defaultDaemonExecutorResolver(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
+	return defaultDaemonExecutorResolverWithRegistry(decl, nil)
+}
+
+func defaultDaemonExecutorResolverWithRegistry(
+	decl hookspkg.HookDecl,
+	registry *toolruntime.Registry,
+) (hookspkg.Executor, error) {
 	switch decl.ExecutorKind {
 	case hookspkg.HookExecutorSubprocess:
 		opts := []hookspkg.SubprocessExecutorOption{
 			hookspkg.WithSubprocessEnv(decl.Env),
+		}
+		if registry != nil {
+			opts = append(opts, hookspkg.WithSubprocessProcessRegistry(registry))
 		}
 		if dir := strings.TrimSpace(decl.WorkingDir); dir != "" {
 			opts = append(opts, hookspkg.WithSubprocessDir(dir))

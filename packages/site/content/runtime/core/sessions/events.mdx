@@ -86,7 +86,7 @@ The persisted event `type` values currently emitted by AGH are:
 | `system`           | Available-command updates, mode updates, or other non-chat ACP system updates | `title`, optional `raw`                                                           |
 | `done`             | End of a prompt turn                                                          | `stop_reason`, optional `usage`, optional `raw`                                   |
 | `error`            | Prompt processing error                                                       | `error`, optional `raw`                                                           |
-| `session_stopped`  | Session finalization                                                          | `stop_reason`, optional `error`, optional `text`                                  |
+| `session_stopped`  | Session finalization                                                          | `stop_reason`, optional `failure`, optional `error`, optional `text`              |
 
 ### Runtime supervision events
 
@@ -145,6 +145,7 @@ The stored canonical envelope can include these fields when they apply:
 | `tool_result`  | Structured tool output (`stdout`, `stderr`, `file_path`, `content`, `structured_patch`, `error`, `raw_output`) |
 | `tool_error`   | Whether AGH classified the tool result as failed                                                               |
 | `stop_reason`  | Turn or session termination reason                                                                             |
+| `failure`      | Typed lifecycle failure object with `kind`, redacted `summary`, and optional `crash_bundle_path`               |
 | `action`       | Permission action name                                                                                         |
 | `resource`     | Permission resource target                                                                                     |
 | `decision`     | Permission decision                                                                                            |
@@ -227,7 +228,25 @@ curl -N \
 sequence and then continues polling for new rows.
 
 If the session is already stopped and no new stored rows arrive, AGH emits a terminal synthetic
-`session_stopped` SSE event and closes the stream.
+`session_stopped` SSE event and closes the stream. When the stopped session has failure
+diagnostics, that terminal payload includes the same `failure` object stored in session metadata.
+
+Example terminal failure payload:
+
+```json
+{
+  "id": "session-stopped-sess-1234",
+  "session_id": "sess-1234",
+  "type": "session_stopped",
+  "stop_reason": "agent_crashed",
+  "failure": {
+    "kind": "process_exit",
+    "summary": "provider exited with status 1",
+    "crash_bundle_path": "/Users/you/.agh/logs/crash-bundles/sess-1234-process_exit-1770000000000000000.json"
+  },
+  "timestamp": "2026-04-16T01:10:06Z"
+}
+```
 
 ## SQLite persistence
 

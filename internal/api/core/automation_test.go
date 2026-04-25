@@ -562,6 +562,11 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 	if len(jobsResponse.Jobs) != 1 || jobsResponse.Jobs[0].NextRun == nil {
 		t.Fatalf("jobs response = %#v", jobsResponse.Jobs)
 	}
+	if jobsResponse.Jobs[0].Scheduler == nil ||
+		jobsResponse.Jobs[0].Scheduler.JobID != job.ID ||
+		!jobsResponse.Jobs[0].Scheduler.Registered {
+		t.Fatalf("jobs response scheduler = %#v, want durable scheduler metadata", jobsResponse.Jobs[0].Scheduler)
+	}
 	if listJobsQuery.Scope != automationpkg.AutomationScopeGlobal ||
 		listJobsQuery.Source != automationpkg.JobSourceDynamic ||
 		listJobsQuery.Limit != 3 {
@@ -771,6 +776,121 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 	if payload := webhookRequest.Data["payload"]; payload != "deploy" {
 		t.Fatalf("webhook request data = %#v", webhookRequest.Data)
 	}
+}
+
+func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
+	t.Parallel()
+
+	nextRun := time.Date(2026, 4, 12, 9, 0, 0, 0, time.UTC)
+	lastRun := time.Date(2026, 4, 11, 9, 0, 1, 0, time.UTC)
+	lastScheduled := time.Date(2026, 4, 11, 9, 0, 0, 0, time.UTC)
+	lastMisfire := time.Date(2026, 4, 10, 9, 0, 0, 0, time.UTC)
+	updatedAt := time.Date(2026, 4, 11, 9, 0, 2, 0, time.UTC)
+	deliveryErrorAt := time.Date(2026, 4, 11, 9, 0, 3, 0, time.UTC)
+
+	schedulerState := automationpkg.ScheduledJobState{
+		JobID:               "job-scheduler",
+		Registered:          true,
+		NextRun:             &nextRun,
+		LastRun:             &lastRun,
+		LastScheduledAt:     &lastScheduled,
+		LastFireID:          "fire-previous",
+		CatchUpPolicy:       automationpkg.SchedulerCatchUpPolicySkipMissed,
+		MisfireGraceSeconds: 30,
+		LastMisfireAt:       &lastMisfire,
+		MisfireCount:        2,
+		Durable: &automationpkg.SchedulerState{
+			JobID:                     "job-scheduler",
+			NextRunAt:                 &nextRun,
+			LastRunAt:                 &lastRun,
+			LastScheduledAt:           &lastScheduled,
+			LastFireID:                "fire-previous",
+			CatchUpPolicy:             automationpkg.SchedulerCatchUpPolicySkipMissed,
+			MisfireGraceSeconds:       30,
+			ConsecutiveResumeFailures: 1,
+			LastMisfireAt:             &lastMisfire,
+			MisfireCount:              2,
+			UpdatedAt:                 updatedAt,
+		},
+	}
+	health := AutomationHealthPayloadFromStatus(true, automationpkg.ManagerStatus{
+		SchedulerRunning: true,
+		NextFire:         &nextRun,
+		ScheduledJobs:    []automationpkg.ScheduledJobState{schedulerState},
+	})
+	var exposedScheduler contract.AutomationSchedulerStatePayload
+	t.Run("Should expose scheduler state in health payload", func(t *testing.T) {
+		if got, want := len(health.ScheduledJobs), 1; got != want {
+			t.Fatalf("len(health.ScheduledJobs) = %d, want %d", got, want)
+		}
+		exposedScheduler = health.ScheduledJobs[0]
+		if exposedScheduler.JobID != schedulerState.JobID ||
+			!exposedScheduler.Registered ||
+			exposedScheduler.LastFireID != schedulerState.LastFireID ||
+			exposedScheduler.CatchUpPolicy != automationpkg.SchedulerCatchUpPolicySkipMissed ||
+			exposedScheduler.MisfireCount != 2 ||
+			exposedScheduler.ConsecutiveResumeFailures != 1 ||
+			exposedScheduler.UpdatedAt == nil ||
+			!exposedScheduler.UpdatedAt.Equal(updatedAt) {
+			t.Fatalf("AutomationHealthPayloadFromStatus().ScheduledJobs[0] = %#v", exposedScheduler)
+		}
+	})
+
+	job := automationpkg.Job{
+		ID:        schedulerState.JobID,
+		Scope:     automationpkg.AutomationScopeGlobal,
+		Name:      "nightly-review",
+		AgentName: "coder",
+		Prompt:    "review repo",
+		Schedule: &automationpkg.ScheduleSpec{
+			Mode:     automationpkg.ScheduleModeEvery,
+			Interval: "24h",
+		},
+		Enabled:   true,
+		Retry:     automationpkg.DefaultRetryConfig(),
+		FireLimit: automationpkg.DefaultFireLimitConfig(),
+		Source:    automationpkg.JobSourceDynamic,
+		CreatedAt: updatedAt,
+		UpdatedAt: updatedAt,
+	}
+	t.Run("Should include scheduler state in job payload", func(t *testing.T) {
+		jobs := JobPayloadsFromJobs(
+			[]automationpkg.Job{job},
+			map[string]contract.AutomationSchedulerStatePayload{job.ID: health.ScheduledJobs[0]},
+		)
+		if got, want := len(jobs), 1; got != want {
+			t.Fatalf("len(JobPayloadsFromJobs()) = %d, want %d", got, want)
+		}
+		if jobs[0].Scheduler == nil ||
+			jobs[0].NextRun == nil ||
+			!jobs[0].NextRun.Equal(nextRun) ||
+			jobs[0].Scheduler.LastScheduledAt == nil ||
+			!jobs[0].Scheduler.LastScheduledAt.Equal(lastScheduled) {
+			t.Fatalf("JobPayloadsFromJobs()[0] scheduler fields = %#v", jobs[0])
+		}
+	})
+
+	t.Run("Should expose delivery error in run payload", func(t *testing.T) {
+		run := RunPayloadFromRun(automationpkg.Run{
+			ID:              "run-scheduler",
+			JobID:           job.ID,
+			FireID:          "fire-scheduler",
+			Status:          automationpkg.RunFailed,
+			Attempt:         1,
+			ScheduledAt:     &lastScheduled,
+			StartedAt:       &lastRun,
+			DeliveryError:   "dispatcher unavailable",
+			DeliveryErrorAt: &deliveryErrorAt,
+		})
+		if run.FireID != "fire-scheduler" ||
+			run.ScheduledAt == nil ||
+			!run.ScheduledAt.Equal(lastScheduled) ||
+			run.DeliveryError != "dispatcher unavailable" ||
+			run.DeliveryErrorAt == nil ||
+			!run.DeliveryErrorAt.Equal(deliveryErrorAt) {
+			t.Fatalf("RunPayloadFromRun() scheduler diagnostics = %#v", run)
+		}
+	})
 }
 
 func TestAutomationHelperFunctionsAndErrors(t *testing.T) {

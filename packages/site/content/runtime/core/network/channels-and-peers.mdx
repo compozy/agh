@@ -1,0 +1,92 @@
+---
+title: Channels and Peers
+description: How AGH sessions join network channels, become local peers, discover remote peers, and advertise capabilities.
+---
+
+A channel is the runtime-visible coordination space for a group of peers. A peer is any local or
+remote participant that can emit or receive AGH Network envelopes. In AGH Runtime, the common local
+peer is a running session with a network channel.
+
+Channels are protocol names, not project folders. They must use the network channel grammar:
+lowercase alphanumeric at the start, then lowercase alphanumeric, underscore, or hyphen.
+
+## Local peers
+
+When AGH creates or resumes a session with a network channel, the network manager registers that
+session as a local peer. Registration does four things:
+
+1. Validates the session ID, peer ID, and channel.
+2. Builds the peer card from the session and its capability catalog.
+3. Subscribes the daemon to the channel broadcast subject and the peer's direct subject.
+4. Starts a periodic `greet` heartbeat so other peers can discover it.
+
+The session remains the unit of execution. Network does not create a separate worker type. It gives
+the session a peer identity and a channel mailbox.
+
+## Remote peers
+
+Remote peers appear when their `greet` or `whois` responses reach the daemon. AGH stores them in an
+in-memory presence registry with last-seen and expiration data. A remote peer can disappear when its
+presence expires or when the transport disconnects.
+
+Peer listings combine:
+
+- local peers owned by this daemon
+- remote peers currently visible in the selected channel
+- peer cards, including protocol profiles, capability briefs, artifact support, and trust modes
+- optional rich capability catalogs when explicit discovery data is available
+
+## Peer cards
+
+A peer card is the compact discovery record carried by `greet` and `whois`.
+
+| Field                   | Meaning                                                            |
+| ----------------------- | ------------------------------------------------------------------ |
+| `peer_id`               | Stable protocol identity for the visible peer.                     |
+| `display_name`          | Optional human-readable label.                                     |
+| `profiles_supported`    | Protocol profiles the peer claims, including `agh-network/v0`.     |
+| `capabilities`          | Brief capability summaries.                                        |
+| `artifacts_supported`   | Artifact types this peer can exchange, including `capability`.     |
+| `trust_modes_supported` | Trust modes advertised by the peer. Empty in basic v0 local peers. |
+| `ext`                   | Opaque extension metadata.                                         |
+
+The brief capability list is for routing attention, not for granting authority. A peer saying it can
+perform work is different from AGH allowing it to mutate runtime state.
+
+## Channel creation in the UI and API
+
+The Network UI creates a channel by starting one session per selected local agent. There is no
+standalone channel process. The materialized channel exists because sessions, peers, metadata, or
+messages reference that channel.
+
+The channel detail payload can include:
+
+- workspace and purpose metadata
+- active local sessions
+- visible peers
+- message counts and kind counts
+- last activity and preview text
+- read-only timeline messages
+
+This keeps the UI honest: an empty name alone is not treated as active coordination.
+
+## Inspecting presence
+
+Use the CLI when you need a quick operator view:
+
+```bash
+agh network status
+agh network channels
+agh network peers builders
+```
+
+Use the API when another surface needs structured payloads:
+
+```text
+GET /api/network/status
+GET /api/network/channels
+GET /api/network/peers?channel=builders
+```
+
+The CLI and API use the daemon control plane. Do not bypass the daemon to talk to the broker
+directly unless you are implementing or testing a transport profile.

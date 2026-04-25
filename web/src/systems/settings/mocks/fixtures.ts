@@ -240,6 +240,8 @@ export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSecti
       version: "1.2.3",
       state: "running",
       health: "healthy",
+      requires_env: ["DAYTONA_TOKEN"],
+      missing_env: ["DAYTONA_TOKEN"],
     },
   ],
   transport_parity: {
@@ -322,6 +324,7 @@ export const settingsEnvironmentFixtures: SettingsEnvironmentEntry[] = [
 export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
   {
     name: "filesystem",
+    transport: "stdio",
     command: "npx -y @modelcontextprotocol/server-filesystem",
     args: ["~/Dev"],
     scope: "global",
@@ -333,6 +336,7 @@ export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
   },
   {
     name: "github",
+    transport: "stdio",
     command: "npx -y @modelcontextprotocol/server-github",
     env: { GITHUB_TOKEN: "env:GITHUB_TOKEN" },
     scope: "global",
@@ -356,6 +360,8 @@ export const settingsExtensionFixtures: SettingsExtensionEntry[] = [
     type: "backend",
     daemon_running: true,
     health: "healthy",
+    requires_env: ["DAYTONA_TOKEN"],
+    missing_env: ["DAYTONA_TOKEN"],
   },
 ];
 

@@ -20,36 +20,36 @@ Use the API when you are:
 
 ## Core Route Families
 
-| Area | Base path | Use it for |
-| ---- | --------- | ---------- |
-| Sessions | `/api/sessions` | Create, inspect, stop, resume, prompt, stream, and replay sessions. |
-| Workspaces | `/api/workspaces` | Register, resolve, inspect, update, and remove workspace definitions. |
-| Agents | `/api/agents` | List resolved agent definitions and inspect one agent by name. |
-| Memory | `/api/memory` | Read, write, delete, search, reindex, and consolidate memory files. |
-| Skills | `/api/skills` | List skills, inspect one skill, fetch body content, and toggle runtime state. |
-| Automation | `/api/automation` | Manage jobs, triggers, and run history. |
-| Tasks | `/api/tasks`, `/api/task-runs` | Create tasks, manage task runs, inspect task trees, and triage work. |
-| Bridges | `/api/bridges` | Create bridge instances, inspect health, manage routes, and test delivery. |
-| Network | `/api/network` | Inspect network status, peers, channels, inboxes, and send envelopes. |
-| Observe | `/api/observe` | Query global event streams, health, and task dashboard views. |
-| Hooks | `/api/hooks` | Inspect the hook catalog, hook runs, and supported hook events. |
-| Extensions | `/api/extensions` | Install, list, enable, disable, and inspect extension state. |
-| Settings | `/api/settings` | Read and mutate daemon settings surfaces used by the web UI. |
-| Resources | `/api/resources` | Read and mutate desired-state resource objects on the local control plane. |
-| Bundles | `/api/bundles` | Preview and activate bundle-driven runtime behavior. |
-| Webhooks | `/api/webhooks` | Receive signed external events that can activate automation. |
+| Area       | Base path                      | Use it for                                                                                              |
+| ---------- | ------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Sessions   | `/api/sessions`                | Create, inspect, stop, resume, prompt, stream, and replay sessions.                                     |
+| Workspaces | `/api/workspaces`              | Register, resolve, inspect, update, and remove workspace definitions.                                   |
+| Agents     | `/api/agents`                  | List resolved agent definitions and inspect one agent by name.                                          |
+| Memory     | `/api/memory`                  | Read, write, delete, search, reindex, consolidate, inspect health, and list redacted operation history. |
+| Skills     | `/api/skills`                  | List skills, inspect one skill, fetch body content, and toggle runtime state.                           |
+| Automation | `/api/automation`              | Manage jobs, triggers, and run history.                                                                 |
+| Tasks      | `/api/tasks`, `/api/task-runs` | Create tasks, manage task runs, inspect task trees, and triage work.                                    |
+| Bridges    | `/api/bridges`                 | Create bridge instances, inspect health, manage routes, and test delivery.                              |
+| Network    | `/api/network`                 | Inspect network status, peers, channels, inboxes, and send envelopes.                                   |
+| Observe    | `/api/observe`                 | Query global event streams, health, and task dashboard views.                                           |
+| Hooks      | `/api/hooks`                   | Inspect the hook catalog, hook runs, and supported hook events.                                         |
+| Extensions | `/api/extensions`              | Install, list, enable, disable, and inspect extension state.                                            |
+| Settings   | `/api/settings`                | Read and mutate daemon settings surfaces used by the web UI.                                            |
+| Resources  | `/api/resources`               | Read and mutate desired-state resource objects on the local control plane.                              |
+| Bundles    | `/api/bundles`                 | Preview and activate bundle-driven runtime behavior.                                                    |
+| Webhooks   | `/api/webhooks`                | Receive signed external events that can activate automation.                                            |
 
 ## Streaming Endpoints
 
 These routes are especially important when you are building live operator tooling:
 
-| Endpoint | Stream type | What it emits |
-| -------- | ----------- | ------------- |
-| `GET /api/sessions/:id/stream` | SSE | Persisted session events with replay support. |
-| `POST /api/sessions/:id/prompt` | AI SDK stream | Live prompt-response stream for one interactive turn. |
-| `GET /api/observe/events/stream` | SSE | Global observability event stream. |
-| `GET /api/bridges/health/stream` | SSE | Bridge health snapshots and updates. |
-| `GET /api/settings/observability/log-tail` | SSE | Live daemon log tail for the settings surface. |
+| Endpoint                                   | Stream type   | What it emits                                         |
+| ------------------------------------------ | ------------- | ----------------------------------------------------- |
+| `GET /api/sessions/:id/stream`             | SSE           | Persisted session events with replay support.         |
+| `POST /api/sessions/:id/prompt`            | AI SDK stream | Live prompt-response stream for one interactive turn. |
+| `GET /api/observe/events/stream`           | SSE           | Global observability event stream.                    |
+| `GET /api/bridges/health/stream`           | SSE           | Bridge health snapshots and updates.                  |
+| `GET /api/settings/observability/log-tail` | SSE           | Live daemon log tail for the settings surface.        |
 
 ## Recommended API Entry Points
 
@@ -66,7 +66,9 @@ These routes are especially important when you are building live operator toolin
 1. `GET /api/observe/health`
 2. `GET /api/observe/events`
 3. `GET /api/observe/tasks/dashboard`
-4. `GET /api/bridges/health/stream`
+4. `GET /api/memory/health`
+5. `GET /api/memory/history`
+6. `GET /api/bridges/health/stream`
 
 ### If you are integrating runtime configuration
 
@@ -81,5 +83,5 @@ These routes are especially important when you are building live operator toolin
 - Use the [CLI Reference](/runtime/cli-reference) for the easiest end-to-end examples.
 - Use [Session Events](/runtime/core/sessions/events) for the most detailed explanation of the two
   session streaming models.
-- Use [Automation](/runtime/core/automation/jobs) and [Bridges](/runtime/core/bridges/overview) to
+- Use [Automation](/runtime/core/automation/jobs) and [Bridges](/runtime/core/bridges) to
   understand the runtime behavior behind the API families.

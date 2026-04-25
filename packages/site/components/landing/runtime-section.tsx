@@ -2,7 +2,6 @@ import { Activity, Database, ShieldCheck, Terminal } from "lucide-react";
 import { CodeBlock } from "./primitives/code-block";
 import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
-import { RuntimeMicroDiagram } from "./runtime-micro-diagram";
 
 const FEATURES = [
   {
@@ -12,7 +11,7 @@ const FEATURES = [
     description:
       "Every session gets a per-session event DB plus an entry in the global catalog. Resume after a restart, re-read the full history, or fork a new session from any point.",
     cite: {
-      href: "/runtime/core/overview/what-is-agh",
+      href: "/runtime",
       label: "sessions lifecycle",
     },
   },
@@ -22,7 +21,7 @@ const FEATURES = [
     title: "Replayable event stream",
     description:
       "Every prompt, tool call, permission decision, and agent message is persisted with a monotonic sequence. SSE replay at /api/sessions/:id/stream.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "event catalog" },
+    cite: { href: "/runtime", label: "event catalog" },
   },
   {
     icon: <Terminal className="h-4 w-4" />,
@@ -30,7 +29,7 @@ const FEATURES = [
     title: "Three operator surfaces, one daemon",
     description:
       "CLI over a Unix socket. HTTP + SSE API on :2123. A React 19 web UI with ten feature modules. All read from the same state.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "daemon surfaces" },
+    cite: { href: "/runtime", label: "daemon surfaces" },
   },
   {
     icon: <ShieldCheck className="h-4 w-4" />,
@@ -38,7 +37,7 @@ const FEATURES = [
     title: "Permission modes with an audit trail",
     description:
       "AGH enforces session permission modes, keeps workspace boundaries intact, and records every approval decision.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "permissions" },
+    cite: { href: "/runtime", label: "permissions" },
   },
 ];
 
@@ -49,8 +48,8 @@ agh session resume <session-id>`;
 
 export function RuntimeSection() {
   return (
-    <SectionFrame background="canvas" padY="lg">
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,260px)_1fr] lg:items-start lg:gap-16">
+    <SectionFrame className="relative" background="canvas" padY="lg">
+      <div className="grid gap-12 lg:grid-cols-[minmax(0,360px)_1fr] lg:items-start lg:gap-16">
         <div className="h-full flex flex-col justify-between lg:sticky lg:top-24">
           <div>
             <p className="font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
@@ -65,8 +64,14 @@ export function RuntimeSection() {
               state, and one operator surface shared by the CLI, API, and web UI.
             </p>
           </div>
-          <div className="hidden lg:block">
-            <RuntimeMicroDiagram />
+          <div className="absolute bottom-0 left-0 invisible lg:visible">
+            <img
+              src="/images/runtime/illustration_1.png"
+              alt="AGH daemon connecting CLI, API, and web UI surfaces to sessions, memory, skills, workspaces, and observability."
+              loading="lazy"
+              decoding="async"
+              className="max-w-[424px] select-none object-contain opacity-95"
+            />
           </div>
         </div>
 

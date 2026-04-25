@@ -33,6 +33,7 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/pedronauck/agh/internal/toolruntime"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -170,6 +171,14 @@ type finalizationWaiter interface {
 	WaitForFinalizations(ctx context.Context) error
 }
 
+type observerRetentionStarter interface {
+	StartRetention(context.Context) error
+}
+
+type observerRetentionStopper interface {
+	ShutdownRetention(context.Context) error
+}
+
 type extensionDBSource interface {
 	DB() *sql.DB
 }
@@ -228,6 +237,7 @@ type extensionManagerDeps struct {
 	SourceSessions    resources.SourceSessionManager
 	ResourceCodecs    *resources.CodecRegistry
 	ResourceTrigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	ProcessRegistry   *toolruntime.Registry
 }
 
 type automationRuntime interface {
@@ -270,6 +280,7 @@ type SessionManagerDeps struct {
 	WorkspaceResolver    workspacepkg.RuntimeResolver
 	EnvironmentRegistry  *environment.Registry
 	SessionSupervision   aghconfig.SessionSupervisionConfig
+	ProcessRegistry      *toolruntime.Registry
 }
 
 // Daemon is the sole AGH composition root.
@@ -354,6 +365,7 @@ type shutdownTargets struct {
 	dreamRuntime      *consolidation.Runtime
 	skillsCancel      context.CancelFunc
 	skillsDone        chan struct{}
+	retention         observerRetentionStopper
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -518,6 +530,10 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			session.WithEnvironmentRegistry(deps.EnvironmentRegistry),
 			session.WithSessionSupervision(deps.SessionSupervision),
+			session.WithDriver(session.NewACPDriverAdapter(acp.New(
+				acp.WithLogger(deps.Logger),
+				acp.WithProcessRegistry(deps.ProcessRegistry),
+			))),
 		)
 	}
 }
@@ -540,6 +556,11 @@ func (d *Daemon) applyObserverFactoryDefault() {
 			observe.WithLogger(deps.Logger),
 			observe.WithStartTime(deps.StartedAt),
 			observe.WithBridgeSource(bridgeObserveSource(deps.Bridges)),
+			observe.WithObservabilityConfig(deps.Config.Observability),
+			observe.WithAgentProbeSource(
+				agentProbeTargetSource(&deps.Config, deps.AgentCatalog, deps.Logger),
+				deps.Config.Observability.AgentProbeTimeoutOrDefault(),
+			),
 		)
 	}
 }
@@ -606,6 +627,7 @@ func buildExtensionManagerOptions(
 		extensionpkg.WithCapabilityChecker(capChecker),
 		extensionpkg.WithLogger(deps.Logger),
 		extensionpkg.WithSourceSessionManager(sourceSessions),
+		extensionpkg.WithProcessRegistry(deps.ProcessRegistry),
 	}
 	if sink, ok := deps.Observer.(extensionpkg.BridgeTelemetrySink); ok {
 		opts = append(opts, extensionpkg.WithBridgeTelemetrySink(sink))
@@ -929,6 +951,18 @@ func (d *Daemon) applyTimingDefaults() {
 	}
 }
 
+func (d *Daemon) startObserverRetention(ctx context.Context) error {
+	d.mu.Lock()
+	observer := d.observer
+	d.mu.Unlock()
+
+	starter, ok := observer.(observerRetentionStarter)
+	if !ok {
+		return nil
+	}
+	return starter.StartRetention(ctx)
+}
+
 // Run boots the daemon, blocks until signal or context cancellation, then performs graceful shutdown.
 func (d *Daemon) Run(ctx context.Context) error {
 	if ctx == nil {
@@ -939,6 +973,15 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	if d.dreamRuntime != nil {
 		d.dreamRuntime.Start(ctx)
+	}
+	if err := d.startObserverRetention(ctx); err != nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+		defer cancel()
+		shutdownErr := d.Shutdown(shutdownCtx)
+		return errors.Join(
+			fmt.Errorf("daemon: start observability retention: %w", err),
+			shutdownErr,
+		)
 	}
 
 	sigCh, stopSignals := d.signalSource()
@@ -988,6 +1031,9 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 		dreamRuntime:      d.dreamRuntime,
 		skillsCancel:      d.skillsCancel,
 		skillsDone:        d.skillsDone,
+	}
+	if stopper, ok := d.observer.(observerRetentionStopper); ok {
+		targets.retention = stopper
 	}
 
 	d.resetRuntimeStateLocked()
@@ -1043,6 +1089,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	}
 	if targets.automation != nil {
 		appendWrappedError(errs, "daemon: shutdown automation", targets.automation.Shutdown(ctx))
+	}
+	if targets.retention != nil {
+		appendWrappedError(errs, "daemon: shutdown observability retention", targets.retention.ShutdownRetention(ctx))
 	}
 	if err := d.stopSessions(ctx, targets.sessions); err != nil {
 		*errs = append(*errs, err)

@@ -102,6 +102,7 @@ type canonicalEventPayload struct {
 	Resource   string                   `json:"resource,omitempty"`
 	Decision   string                   `json:"decision,omitempty"`
 	Error      string                   `json:"error,omitempty"`
+	Failure    *store.SessionFailure    `json:"failure,omitempty"`
 	Synthetic  *acp.PromptSyntheticMeta `json:"synthetic,omitempty"`
 	Usage      *acp.TokenUsage          `json:"usage,omitempty"`
 	Runtime    *acp.RuntimeActivity     `json:"runtime,omitempty"`
@@ -750,6 +751,7 @@ func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 		Resource:   event.Resource,
 		Decision:   event.Decision,
 		Error:      event.Error,
+		Failure:    store.CloneSessionFailure(event.Failure),
 		Synthetic:  clonePromptSyntheticMeta(event.Synthetic),
 		Usage:      event.Usage,
 		Runtime:    cloneRuntimeActivity(event.Runtime),
@@ -816,6 +818,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Resource:   strings.TrimSpace(decoded.Resource),
 		Decision:   strings.TrimSpace(decoded.Decision),
 		Error:      strings.TrimSpace(decoded.Error),
+		Failure:    store.CloneSessionFailure(decoded.Failure),
 		Synthetic:  clonePromptSyntheticMeta(decoded.Synthetic),
 		Usage:      decoded.Usage,
 		Runtime:    cloneRuntimeActivity(decoded.Runtime),

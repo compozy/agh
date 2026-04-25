@@ -348,8 +348,12 @@ func (s *Store) Search(ctx context.Context, query string, opts SearchOptions) ([
 		}
 		if err := s.logCatalogEvent(
 			ctx,
-			"memory.search",
-			fmt.Sprintf("query=%q results=%d", strings.TrimSpace(query), len(results)),
+			OperationRecord{
+				Operation: OperationSearch,
+				Scope:     operationRecordScope(scope, workspaceRoot),
+				Workspace: workspaceRoot,
+				Summary:   fmt.Sprintf("query=%q results=%d", strings.TrimSpace(query), len(results)),
+			},
 		); err != nil {
 			s.warn("memory: record search event failed", "error", err)
 		}
@@ -387,8 +391,17 @@ func (s *Store) Reindex(ctx context.Context, opts ReindexOptions) (ReindexResult
 	completedAt := time.Now().UTC()
 	if err := s.logCatalogEvent(
 		ctx,
-		"memory.reindex",
-		fmt.Sprintf("scope=%s workspace=%s indexed=%d", string(scope.Normalize()), workspaceRoot, indexed),
+		OperationRecord{
+			Operation: OperationReindex,
+			Scope:     operationRecordScope(scope, workspaceRoot),
+			Workspace: workspaceRoot,
+			Summary: fmt.Sprintf(
+				"scope=%s workspace=%s indexed=%d",
+				string(scope.Normalize()),
+				workspaceRoot,
+				indexed,
+			),
+		},
 	); err != nil {
 		s.warn("memory: record reindex event failed", "error", err)
 	}
@@ -450,11 +463,44 @@ func (s *Store) HealthStats(ctx context.Context, workspaces []string) (HealthSta
 	if err != nil {
 		return HealthStats{}, err
 	}
+	operationCount, lastOperationAt, err := s.catalog.operationStats(ctx, filters)
+	if err != nil {
+		return HealthStats{}, err
+	}
 	return HealthStats{
-		IndexedFiles:  len(entries),
-		OrphanedFiles: orphaned,
-		LastReindex:   lastReindex,
+		IndexedFiles:    len(entries),
+		OrphanedFiles:   orphaned,
+		LastReindex:     lastReindex,
+		OperationCount:  operationCount,
+		LastOperationAt: lastOperationAt,
 	}, nil
+}
+
+// History returns durable memory operation history ordered newest-first.
+func (s *Store) History(ctx context.Context, query OperationHistoryQuery) ([]OperationRecord, error) {
+	if ctx == nil {
+		return nil, errors.New("memory: history context is required")
+	}
+	if s.catalog == nil {
+		return []OperationRecord{}, nil
+	}
+	normalized := query
+	scope, workspaceRoot, err := s.normalizeScopeAndWorkspace(query.Scope, query.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	normalized.Scope = scope
+	normalized.Workspace = workspaceRoot
+	normalized.Operation = query.Operation.Normalize()
+	return s.catalog.listOperations(ctx, normalized)
+}
+
+func operationRecordScope(scope Scope, workspaceRoot string) Scope {
+	normalized := scope.Normalize()
+	if normalized == "" && strings.TrimSpace(workspaceRoot) != "" {
+		return ScopeWorkspace
+	}
+	return normalized
 }
 
 func (s *Store) dirForScope(scope Scope) (string, error) {
@@ -765,14 +811,14 @@ func (s *Store) collectActualCatalogIDs(filters []catalogFilter) (map[string]str
 	return actual, nil
 }
 
-func (s *Store) logCatalogEvent(ctx context.Context, eventType string, summary string) error {
+func (s *Store) logCatalogEvent(ctx context.Context, record OperationRecord) error {
 	if s.catalog == nil {
 		return nil
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return s.catalog.logEvent(ctx, eventType, summary)
+	return s.catalog.logEvent(ctx, record)
 }
 
 func (s *Store) syncScopeAfterMutation(scope Scope, filename string, action string) {
@@ -788,10 +834,19 @@ func (s *Store) syncScopeAfterMutation(scope Scope, filename string, action stri
 }
 
 func (s *Store) logMutationEvent(action string, scope Scope, filename string) {
+	workspaceRoot := ""
+	if scope.Normalize() == ScopeWorkspace {
+		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+	}
 	if err := s.logCatalogEvent(
 		context.Background(),
-		"memory."+strings.TrimSpace(action),
-		fmt.Sprintf("scope=%s filename=%s", scope.Normalize(), strings.TrimSpace(filename)),
+		OperationRecord{
+			Operation: Operation("memory." + strings.TrimSpace(action)),
+			Scope:     scope.Normalize(),
+			Workspace: workspaceRoot,
+			Filename:  strings.TrimSpace(filename),
+			Summary:   fmt.Sprintf("scope=%s filename=%s", scope.Normalize(), strings.TrimSpace(filename)),
+		},
 	); err != nil {
 		s.warn(
 			"memory: record mutation event failed",

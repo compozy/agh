@@ -18,6 +18,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 func TestDaytonaProviderPrepareCreatesSandboxWithSnapshotLabelsAndRuntime(t *testing.T) {
@@ -32,6 +33,8 @@ func TestDaytonaProviderPrepareCreatesSandboxWithSnapshotLabelsAndRuntime(t *tes
 		ExpiresAt: now.Add(time.Hour),
 	}}}
 	provider := newTestProvider(t, client, &fakeTransport{}, tokenSource, now)
+	registry := toolruntime.NewRegistry(nil)
+	provider.processRegistry = registry
 	req := newDaytonaPrepareRequest(t)
 	req.AgentEnv = []string{
 		"AGH_SESSION_ID=sess-daytona",
@@ -88,6 +91,13 @@ func TestDaytonaProviderPrepareCreatesSandboxWithSnapshotLabelsAndRuntime(t *tes
 	}
 	if prepared.ToolHost == nil {
 		t.Fatal("Prepared.ToolHost = nil")
+	}
+	daytonaHost, ok := prepared.ToolHost.(*daytonaToolHost)
+	if !ok {
+		t.Fatalf("Prepared.ToolHost type = %T, want *daytonaToolHost", prepared.ToolHost)
+	}
+	if daytonaHost.ProcessRegistry() != registry {
+		t.Fatalf("Prepared.ToolHost.ProcessRegistry() = %p, want %p", daytonaHost.ProcessRegistry(), registry)
 	}
 	if got := prepared.Launch.Env; !containsString(got, "AGH_SESSION_ID=sess-daytona") ||
 		!containsString(got, "NODE_ENV=test") ||

@@ -1,5 +1,5 @@
 {
     "title": "Bridges",
     "icon": "Layers",
-    "pages": ["overview", "routing", "setup"]
+    "pages": ["routing", "setup"]
 }

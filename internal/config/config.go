@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
 	automationpkg "github.com/pedronauck/agh/internal/automation/model"
 	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/extension/surfaces"
@@ -83,6 +82,8 @@ const (
 	PermissionModeDenyAll      PermissionMode = "deny-all"
 	PermissionModeApproveReads PermissionMode = "approve-reads"
 	PermissionModeApproveAll   PermissionMode = "approve-all"
+	// DefaultObservabilityAgentProbeTimeout bounds daemon health probes for configured agents.
+	DefaultObservabilityAgentProbeTimeout = 2 * time.Second
 )
 
 // PermissionsConfig defines the global default permission policy.
@@ -92,10 +93,11 @@ type PermissionsConfig struct {
 
 // ObservabilityConfig controls global event retention settings.
 type ObservabilityConfig struct {
-	Enabled        bool                          `toml:"enabled"`
-	RetentionDays  int                           `toml:"retention_days"`
-	MaxGlobalBytes int64                         `toml:"max_global_bytes"`
-	Transcripts    ObservabilityTranscriptConfig `toml:"transcripts"`
+	Enabled           bool                          `toml:"enabled"`
+	RetentionDays     int                           `toml:"retention_days"`
+	MaxGlobalBytes    int64                         `toml:"max_global_bytes"`
+	AgentProbeTimeout time.Duration                 `toml:"agent_probe_timeout"`
+	Transcripts       ObservabilityTranscriptConfig `toml:"transcripts"`
 }
 
 // ObservabilityTranscriptConfig configures transcript capture and retention.
@@ -405,9 +407,10 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Providers:    map[string]ProviderConfig{},
 		Environments: map[string]EnvironmentProfile{},
 		Observability: ObservabilityConfig{
-			Enabled:        true,
-			RetentionDays:  7,
-			MaxGlobalBytes: 1 << 30,
+			Enabled:           true,
+			RetentionDays:     7,
+			MaxGlobalBytes:    1 << 30,
+			AgentProbeTimeout: DefaultObservabilityAgentProbeTimeout,
 			Transcripts: ObservabilityTranscriptConfig{
 				Enabled:            true,
 				SegmentBytes:       1 << 20,
@@ -840,14 +843,25 @@ func (m PermissionMode) Validate(path string) error {
 
 // Validate ensures observability settings are sensible.
 func (c ObservabilityConfig) Validate() error {
-	if c.RetentionDays <= 0 {
-		return fmt.Errorf("observability.retention_days must be positive: %d", c.RetentionDays)
+	if c.RetentionDays < 0 {
+		return fmt.Errorf("observability.retention_days must be zero or positive: %d", c.RetentionDays)
 	}
 	if c.MaxGlobalBytes <= 0 {
 		return fmt.Errorf("observability.max_global_bytes must be positive: %d", c.MaxGlobalBytes)
 	}
+	if c.AgentProbeTimeout < 0 {
+		return fmt.Errorf("observability.agent_probe_timeout must be zero or positive: %s", c.AgentProbeTimeout)
+	}
 
 	return c.Transcripts.Validate()
+}
+
+// AgentProbeTimeoutOrDefault returns the configured agent probe timeout or the default.
+func (c ObservabilityConfig) AgentProbeTimeoutOrDefault() time.Duration {
+	if c.AgentProbeTimeout <= 0 {
+		return DefaultObservabilityAgentProbeTimeout
+	}
+	return c.AgentProbeTimeout
 }
 
 // Validate ensures transcript retention settings are sensible.
@@ -1151,7 +1165,7 @@ func loadDotEnvLookup(workspaceRoot string) (envLookup, error) {
 		return nil, nil
 	}
 
-	path := filepath.Join(workspaceRoot, ".env")
+	path := WorkspaceDotEnvFile(workspaceRoot)
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -1159,17 +1173,24 @@ func loadDotEnvLookup(workspaceRoot string) (envLookup, error) {
 		return nil, fmt.Errorf("stat .env file %q: %w", path, err)
 	}
 
-	values, err := godotenv.Read(path)
+	_, data, exists, err := readDotEnvFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("load .env file %q: %w", path, err)
 	}
+	if !exists {
+		return nil, nil
+	}
 
-	if len(values) == 0 {
+	parsed := parseDotEnvDocument(string(data))
+	if parsed.unsupported {
+		return nil, fmt.Errorf("load .env file %q: %w", path, dotEnvUnsupportedError(path, parsed.diagnostics))
+	}
+	if len(parsed.values) == 0 {
 		return nil, nil
 	}
 
 	return func(key string) (string, bool) {
-		value, ok := values[key]
+		value, ok := parsed.values[key]
 		return value, ok
 	}, nil
 }

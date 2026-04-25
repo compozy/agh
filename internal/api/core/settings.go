@@ -785,10 +785,25 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
 	server := aghconfig.MCPServer{
-		Name:    name,
-		Command: strings.TrimSpace(body.Server.Command),
-		Args:    cloneStrings(body.Server.Args),
-		Env:     cloneStringMap(body.Server.Env),
+		Name:      name,
+		Transport: aghconfig.MCPServerTransport(strings.TrimSpace(body.Server.Transport)),
+		Command:   strings.TrimSpace(body.Server.Command),
+		Args:      cloneStrings(body.Server.Args),
+		Env:       cloneStringMap(body.Server.Env),
+		URL:       strings.TrimSpace(body.Server.URL),
+	}
+	if body.Server.Auth != nil {
+		server.Auth = aghconfig.MCPAuthConfig{
+			Type:             aghconfig.MCPAuthType(strings.TrimSpace(body.Server.Auth.Type)),
+			IssuerURL:        strings.TrimSpace(body.Server.Auth.IssuerURL),
+			MetadataURL:      strings.TrimSpace(body.Server.Auth.MetadataURL),
+			AuthorizationURL: strings.TrimSpace(body.Server.Auth.AuthorizationURL),
+			TokenURL:         strings.TrimSpace(body.Server.Auth.TokenURL),
+			RevocationURL:    strings.TrimSpace(body.Server.Auth.RevocationURL),
+			ClientID:         strings.TrimSpace(body.Server.Auth.ClientID),
+			ClientSecretEnv:  strings.TrimSpace(body.Server.Auth.ClientSecretEnv),
+			Scopes:           cloneStrings(body.Server.Auth.Scopes),
+		}
 	}
 	if err := server.Validate("server"); err != nil {
 		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(err)

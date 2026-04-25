@@ -10,8 +10,8 @@ document. There is no separate `recipe` concept: the same structured capability 
 artifact, the discovery artifact, and the transfer artifact.
 
 <OperatorNote>
-  Capability catalogs are optional. An agent without one still loads and still joins the network.
-  It advertises `peer_card.capabilities = []` and still claims `artifacts_supported = ["capability"]`
+  Capability catalogs are optional. An agent without one still loads and still joins the network. It
+  advertises `peer_card.capabilities = []` and still claims `artifacts_supported = ["capability"]`
   because transfer support is protocol-level, not tied to catalog size.
 </OperatorNote>
 
@@ -53,19 +53,19 @@ The loader rejects these combinations as hard errors:
 Each capability is a record with three required fields, seven optional lists or strings, and one
 runtime-derived field. Field names are identical in TOML and JSON.
 
-| Field                | Type         | Authored | Notes                                                                              |
-| -------------------- | ------------ | -------- | ---------------------------------------------------------------------------------- |
-| `id`                 | string       | required | Unique within the agent. Use a slug such as `build-site`. Whitespace is trimmed.   |
-| `summary`            | string       | required | One short sentence used in brief discovery. Target `<= 160` UTF-8 characters.      |
-| `outcome`            | string       | required | What a successful delegation looks like to the caller.                             |
-| `version`            | string       | optional | Free-form version tag, for example `1.2.0`. Must not normalize to blank when set.  |
-| `context_needed`     | string array | optional | Inputs the caller should provide.                                                  |
-| `artifacts_expected` | string array | optional | Artifacts the capability is likely to produce.                                     |
-| `execution_outline`  | string array | optional | Coarse steps or phases the caller can expect.                                      |
-| `constraints`        | string array | optional | Hard limits (for example, `"No mocks"` or `"Read-only workspace"`).                |
-| `examples`           | string array | optional | Concrete cases where this capability fits.                                         |
-| `requirements`       | string array | optional | Other `capability.id` values this capability depends on. Entries must be unique.   |
-| `digest`             | string       | derived  | Runtime-computed canonical digest. Must not appear in authored files.              |
+| Field                | Type         | Authored | Notes                                                                             |
+| -------------------- | ------------ | -------- | --------------------------------------------------------------------------------- |
+| `id`                 | string       | required | Unique within the agent. Use a slug such as `build-site`. Whitespace is trimmed.  |
+| `summary`            | string       | required | One short sentence used in brief discovery. Target `<= 160` UTF-8 characters.     |
+| `outcome`            | string       | required | What a successful delegation looks like to the caller.                            |
+| `version`            | string       | optional | Free-form version tag, for example `1.2.0`. Must not normalize to blank when set. |
+| `context_needed`     | string array | optional | Inputs the caller should provide.                                                 |
+| `artifacts_expected` | string array | optional | Artifacts the capability is likely to produce.                                    |
+| `execution_outline`  | string array | optional | Coarse steps or phases the caller can expect.                                     |
+| `constraints`        | string array | optional | Hard limits (for example, `"No mocks"` or `"Read-only workspace"`).               |
+| `examples`           | string array | optional | Concrete cases where this capability fits.                                        |
+| `requirements`       | string array | optional | Other `capability.id` values this capability depends on. Entries must be unique.  |
+| `digest`             | string       | derived  | Runtime-computed canonical digest. Must not appear in authored files.             |
 
 Authoring and normalization rules:
 
@@ -217,8 +217,8 @@ directory:
   support is protocol-level, not dependent on catalog size
 
 <OperatorNote>
-  "No catalog" and "empty catalog" look identical on the wire: receivers cannot distinguish an
-  agent that never declared capabilities from one whose catalog file exists but is empty after
+  "No catalog" and "empty catalog" look identical on the wire: receivers cannot distinguish an agent
+  that never declared capabilities from one whose catalog file exists but is empty after
   normalization. Treat both as "nothing offered".
 </OperatorNote>
 
@@ -227,11 +227,11 @@ directory:
 The local catalog is the runtime source of truth. AGH projects it into three distinct wire roles
 using the same structured capability document — detail levels differ, but the concept does not.
 
-| Role              | Where it appears                                                                        | What it carries                                      |
-| ----------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Brief discovery   | `peer_card.capabilities` and `peer_card.ext["agh.capabilities_brief"]`                  | IDs plus one-line summaries.                         |
-| Rich discovery    | `whois` response envelope `ext["agh.capability_catalog"]`                               | Full records with outcomes, optionals, and `digest`. |
-| Capability transfer | `kind:"capability"` envelope `body.capability`                                        | One full structured capability with required `digest`. |
+| Role                | Where it appears                                                       | What it carries                                        |
+| ------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
+| Brief discovery     | `peer_card.capabilities` and `peer_card.ext["agh.capabilities_brief"]` | IDs plus one-line summaries.                           |
+| Rich discovery      | `whois` response envelope `ext["agh.capability_catalog"]`              | Full records with outcomes, optionals, and `digest`.   |
+| Capability transfer | `kind:"capability"` envelope `body.capability`                         | One full structured capability with required `digest`. |
 
 Brief discovery is always on when a catalog exists. Rich discovery is returned only when the caller
 explicitly asks for it by including `capability_catalog` in the `whois` request's `agh.include`
@@ -363,7 +363,7 @@ the same interaction lifecycle as `direct`. See
 
 - [Agent Definitions](/runtime/core/agents/definitions) covers the `AGENT.md` sibling of a
   capability catalog.
-- [AGENT.md Reference](/runtime/core/configuration/agent-md) lists the sidecars AGH recognizes
+- [AGENT.md](/runtime/core/configuration/agent-md) lists the sidecars AGH recognizes
   alongside an agent directory.
 - [Peer Discovery](/protocol/peer-discovery) covers how `PeerCard` carries capability IDs and the
   brief projection on the wire.

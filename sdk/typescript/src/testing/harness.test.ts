@@ -1,4 +1,4 @@
-import path from "node:path";
+import { join, resolve } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { Extension } from "../extension.js";
 import { TestHarness } from "./harness.js";
+
+const sourceDir = __dirname;
+const packageDir = resolve(sourceDir, "../..");
 
 describe("TestHarness", () => {
   let harness: TestHarness;
@@ -67,12 +70,12 @@ describe("TestHarness", () => {
   });
 
   it("loads a module export by path", async () => {
-    const dir = path.join(tmpdir(), `agh-harness-${Date.now()}`);
-    const filePath = path.join(dir, "extension.ts");
+    const dir = join(tmpdir(), `agh-harness-${Date.now()}`);
+    const filePath = join(dir, "extension.ts");
     await mkdir(dir, { recursive: true });
     await writeFile(
       filePath,
-      `import { Extension } from ${JSON.stringify(path.resolve(process.cwd(), "src/index.ts"))};
+      `import { Extension } from ${JSON.stringify(resolve(packageDir, "src/index.ts"))};
        export function createExtension(options = {}) {
          const extension = new Extension({ name: "path-ext", version: "0.1.0" }, options);
          extension.handle("health_check", async () => ({ healthy: true }));

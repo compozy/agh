@@ -90,6 +90,107 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 	}
 }
 
+func TestSweepRetentionModes(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		retention RetentionConfig
+		sessionID string
+		record    func(t *testing.T, h *harness, sess *session.Session)
+		assert    func(t *testing.T, h *harness, sess *session.Session, health RetentionHealth)
+	}{
+		{
+			name: "Should use configured cutoff",
+			retention: RetentionConfig{
+				Enabled:       true,
+				RetentionDays: 7,
+				SweepInterval: time.Hour,
+			},
+			sessionID: "sess-retention",
+			record: func(t *testing.T, h *harness, sess *session.Session) {
+				t.Helper()
+
+				healthNow := h.now.Add(time.Hour)
+				cutoff := healthNow.AddDate(0, 0, -7)
+				h.recordEvent(t, sess.ID, "agent_message", cutoff.Add(-time.Nanosecond), "old event")
+				h.recordEvent(t, sess.ID, "agent_message", cutoff, "cutoff event")
+				h.recordEvent(t, sess.ID, "agent_message", cutoff.Add(time.Nanosecond), "fresh event")
+			},
+			assert: func(t *testing.T, h *harness, sess *session.Session, health RetentionHealth) {
+				t.Helper()
+
+				cutoff := h.now.Add(time.Hour).AddDate(0, 0, -7)
+				if !health.Enabled || health.RetentionDays != 7 || health.LastSweepStatus != retentionSweepStatusOK {
+					t.Fatalf("SweepRetention() health = %#v, want enabled ok seven-day retention", health)
+				}
+				if health.LastCutoffAt == nil || !health.LastCutoffAt.Equal(cutoff) {
+					t.Fatalf("SweepRetention().LastCutoffAt = %#v, want %s", health.LastCutoffAt, cutoff)
+				}
+				if health.DeletedEventSummaries != 1 {
+					t.Fatalf("SweepRetention().DeletedEventSummaries = %d, want 1", health.DeletedEventSummaries)
+				}
+				events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+				if err != nil {
+					t.Fatalf("QueryEvents() error = %v", err)
+				}
+				if got, want := len(events), 2; got != want {
+					t.Fatalf("len(events) = %d, want %d: %#v", got, want, events)
+				}
+				if events[0].Summary != "cutoff event" || events[1].Summary != "fresh event" {
+					t.Fatalf("events after retention = %#v, want cutoff and fresh events", events)
+				}
+			},
+		},
+		{
+			name: "Should keep history when disabled",
+			retention: RetentionConfig{
+				Enabled:       false,
+				RetentionDays: 0,
+				SweepInterval: time.Hour,
+			},
+			sessionID: "sess-keep-history",
+			record: func(t *testing.T, h *harness, sess *session.Session) {
+				t.Helper()
+				h.recordEvent(t, sess.ID, "agent_message", h.now.AddDate(-1, 0, 0), "old retained event")
+			},
+			assert: func(t *testing.T, h *harness, sess *session.Session, health RetentionHealth) {
+				t.Helper()
+
+				if health.Enabled || health.LastSweepStatus != retentionSweepStatusDisabled {
+					t.Fatalf("SweepRetention(disabled) health = %#v, want disabled status", health)
+				}
+				events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+				if err != nil {
+					t.Fatalf("QueryEvents() error = %v", err)
+				}
+				if got, want := len(events), 1; got != want {
+					t.Fatalf("len(events) = %d, want %d: %#v", got, want, events)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			h.observer.retention = tc.retention
+			h.observer.setRetentionHealth(h.observer.initialRetentionHealth())
+			sess := newSession(tc.sessionID, session.StateActive, h.workspace, h.now)
+			h.observer.OnSessionCreated(testutil.Context(t), sess)
+			tc.record(t, h, sess)
+
+			health, err := h.observer.SweepRetention(testutil.Context(t))
+			if err != nil {
+				t.Fatalf("SweepRetention() error = %v", err)
+			}
+			tc.assert(t, h, sess, health)
+		})
+	}
+}
+
 func TestOnAgentEventUpdatesTokenStatsWithNullableValues(t *testing.T) {
 	t.Parallel()
 
@@ -450,6 +551,14 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 	if health.Version != "1.2.3" {
 		t.Fatalf("Health().Version = %q, want 1.2.3", health.Version)
 	}
+	if health.Persistence.Status != "ok" ||
+		health.Persistence.GlobalDBSizeBytes != health.GlobalDBSizeBytes ||
+		health.Persistence.SessionDBSizeBytes != health.SessionDBSizeBytes {
+		t.Fatalf("Health().Persistence = %#v, want ok status with DB sizes", health.Persistence)
+	}
+	if health.Retention.LastSweepStatus != retentionSweepStatusDisabled {
+		t.Fatalf("Health().Retention = %#v, want disabled default retention state", health.Retention)
+	}
 	if got, want := len(health.Activities), 1; got != want {
 		t.Fatalf("len(Health().Activities) = %d, want %d: %#v", got, want, health.Activities)
 	}
@@ -460,6 +569,137 @@ func TestHealthReturnsCorrectActiveCounts(t *testing.T) {
 	if got, want := activity.IdleSeconds, int64(30*60); got != want {
 		t.Fatalf("Health().Activities[0].IdleSeconds = %d, want %d", got, want)
 	}
+}
+
+func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	ctx := testutil.Context(t)
+	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
+		ID:          "sess-protocol",
+		Name:        "Protocol",
+		AgentName:   "reviewer",
+		Provider:    "codex",
+		WorkspaceID: h.workspaceID,
+		State:       string(session.StateStopped),
+		StopReason:  store.StopError,
+		Failure: &store.SessionFailure{
+			Kind:    store.FailureProtocol,
+			Summary: "bad ACP frame",
+		},
+		CreatedAt: h.now,
+		UpdatedAt: h.now.Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("RegisterSession(protocol) error = %v", err)
+	}
+	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
+		ID:          "sess-crash",
+		Name:        "Crashed",
+		AgentName:   "coder",
+		Provider:    "claude",
+		WorkspaceID: h.workspaceID,
+		State:       string(session.StateStopped),
+		StopReason:  store.StopAgentCrashed,
+		Failure: &store.SessionFailure{
+			Kind:            store.FailureProcess,
+			Summary:         "provider crashed token=super-secret",
+			CrashBundlePath: "/tmp/crash-token=super-secret.json",
+		},
+		CreatedAt: h.now,
+		UpdatedAt: h.now.Add(2 * time.Minute),
+	}); err != nil {
+		t.Fatalf("RegisterSession(crash) error = %v", err)
+	}
+	h.observer.agentProbeSource = func(context.Context) ([]acp.ProbeTarget, error) {
+		return []acp.ProbeTarget{{
+			AgentName: "coder",
+			Provider:  "claude",
+			Command:   `missing-agent --api-key=super-secret "unterminated`,
+		}}, nil
+	}
+
+	health, err := h.observer.Health(ctx)
+	if err != nil {
+		t.Fatalf("Health() error = %v", err)
+	}
+	if got, want := health.Status, "degraded"; got != want {
+		t.Fatalf("Health().Status = %q, want %q", got, want)
+	}
+	if health.Failures.Status != "degraded" ||
+		health.Failures.Total != 2 ||
+		health.Failures.ByKind[store.FailureProcess] != 1 ||
+		health.Failures.ByKind[store.FailureProtocol] != 1 {
+		t.Fatalf("Health().Failures = %#v, want classified lifecycle failures", health.Failures)
+	}
+	if got, want := len(health.Failures.Recent), 2; got != want {
+		t.Fatalf("len(Health().Failures.Recent) = %d, want %d", got, want)
+	}
+	recent := health.Failures.Recent[0]
+	if recent.SessionID != "sess-crash" || recent.FailureKind != store.FailureProcess {
+		t.Fatalf("Health().Failures.Recent[0] = %#v, want most recent process failure", recent)
+	}
+	if older := health.Failures.Recent[1]; older.SessionID != "sess-protocol" ||
+		older.FailureKind != store.FailureProtocol {
+		t.Fatalf("Health().Failures.Recent[1] = %#v, want older protocol failure", older)
+	}
+	if strings.Contains(recent.Summary, "super-secret") ||
+		strings.Contains(recent.CrashBundlePath, "super-secret") {
+		t.Fatalf("Health().Failures.Recent[0] = %#v, want redacted diagnostics", recent)
+	}
+	if !strings.Contains(recent.Summary, "[REDACTED]") ||
+		!strings.Contains(recent.CrashBundlePath, "[REDACTED]") {
+		t.Fatalf("Health().Failures.Recent[0] = %#v, want redacted markers", recent)
+	}
+	if got, want := len(health.AgentProbes), 1; got != want {
+		t.Fatalf("len(Health().AgentProbes) = %d, want %d", got, want)
+	}
+	probe := health.AgentProbes[0]
+	if probe.Status != acp.ProbeStatusInvalid {
+		t.Fatalf("Health().AgentProbes[0] = %#v, want invalid probe", probe)
+	}
+	if strings.Contains(probe.Command, "super-secret") || strings.Contains(probe.Error, "super-secret") {
+		t.Fatalf("Health().AgentProbes[0] = %#v, want redacted probe command and error", probe)
+	}
+}
+
+func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldDegradeTopLevelStatusWhenOnlyFailureHealthIsDegraded", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		ctx := testutil.Context(t)
+		if err := h.registry.RegisterSession(ctx, store.SessionInfo{
+			ID:          "sess-failure-only",
+			Name:        "Failure Only",
+			AgentName:   "coder",
+			Provider:    "codex",
+			WorkspaceID: h.workspaceID,
+			State:       string(session.StateStopped),
+			StopReason:  store.StopError,
+			Failure: &store.SessionFailure{
+				Kind:    store.FailureProtocol,
+				Summary: "bad frame",
+			},
+			CreatedAt: h.now,
+			UpdatedAt: h.now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(failure) error = %v", err)
+		}
+
+		health, err := h.observer.Health(ctx)
+		if err != nil {
+			t.Fatalf("Health() error = %v", err)
+		}
+		if got, want := health.Failures.Status, observeHealthStatusDegraded; got != want {
+			t.Fatalf("Health().Failures.Status = %q, want %q", got, want)
+		}
+		if got, want := health.Status, observeHealthStatusDegraded; got != want {
+			t.Fatalf("Health().Status = %q, want %q", got, want)
+		}
+	})
 }
 
 type harness struct {

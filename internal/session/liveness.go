@@ -29,18 +29,21 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta store.SessionMeta) (sto
 		next.State = string(StateStopped)
 		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
 		next.StopDetail = classifyInterruptedStopDetail(meta, now, resumeStopDetailAgentCrashed)
+		next.Failure = interruptedSessionFailure(meta.Failure, store.FailureProcess, next.StopDetail)
 		markInterruptedStall(&next, now)
 		return next, sessionMetaChanged(meta, next)
 	case string(StateStopping):
 		next.State = string(StateStopped)
 		next.StopReason = resumeStopReasonPointer(store.StopAgentCrashed)
 		next.StopDetail = classifyInterruptedStopDetail(meta, now, "stop did not complete")
+		next.Failure = interruptedSessionFailure(meta.Failure, store.FailureProcess, next.StopDetail)
 		markInterruptedStall(&next, now)
 		return next, sessionMetaChanged(meta, next)
 	case string(StateStarting):
 		next.State = string(StateStopped)
 		next.StopReason = resumeStopReasonPointer(store.StopError)
 		next.StopDetail = classifyInterruptedStopDetail(meta, now, resumeStopDetailStartIncomplete)
+		next.Failure = interruptedSessionFailure(meta.Failure, store.FailureStartup, next.StopDetail)
 		next.ACPSessionID = nil
 		markInterruptedStall(&next, now)
 		return next, sessionMetaChanged(meta, next)
@@ -57,6 +60,24 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta store.SessionMeta) (sto
 
 func classifyPreviousStop(meta store.SessionMeta) (store.SessionMeta, bool) {
 	return ClassifyInactiveMetaForRecovery(time.Now().UTC(), meta)
+}
+
+func interruptedSessionFailure(
+	existing *store.SessionFailure,
+	fallbackKind store.FailureKind,
+	fallbackSummary string,
+) *store.SessionFailure {
+	next := store.CloneSessionFailure(existing)
+	if next == nil {
+		next = &store.SessionFailure{}
+	}
+	if next.Kind == "" {
+		next.Kind = fallbackKind
+	}
+	if strings.TrimSpace(next.Summary) == "" {
+		next.Summary = fallbackSummary
+	}
+	return normalizeSessionFailure(next, fallbackSummary)
 }
 
 func classifyInterruptedStopDetail(meta store.SessionMeta, now time.Time, fallback string) string {
@@ -119,7 +140,17 @@ func sessionMetaChanged(before store.SessionMeta, after store.SessionMeta) bool 
 		before.StopDetail != after.StopDetail ||
 		sessionMetaStopReason(before) != sessionMetaStopReason(after) ||
 		stringValue(before.ACPSessionID) != stringValue(after.ACPSessionID) ||
+		!sessionFailureEqual(before.Failure, after.Failure) ||
 		!sessionLivenessEqual(before.Liveness, after.Liveness)
+}
+
+func sessionFailureEqual(left *store.SessionFailure, right *store.SessionFailure) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	leftValue := left.Normalize()
+	rightValue := right.Normalize()
+	return leftValue == rightValue
 }
 
 func sessionLivenessEqual(left *store.SessionLivenessMeta, right *store.SessionLivenessMeta) bool {

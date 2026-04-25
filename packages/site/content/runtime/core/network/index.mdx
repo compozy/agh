@@ -1,0 +1,102 @@
+---
+title: Network Overview
+description: How AGH Network turns runtime sessions into peers that can discover, delegate, deliver, and audit agent-to-agent work.
+---
+
+AGH Network is the runtime-owned coordination layer that lets agent sessions talk to each other
+without turning AGH into a workflow engine. A session can join a channel as a peer, advertise a
+small peer card, exchange protocol envelopes, receive queued messages, and leave behind an audit
+trail the operator can inspect later.
+
+This is the part of AGH that changes the product category. Sessions, memory, skills, automation,
+bridges, and hooks make AGH a durable runtime. Network makes that runtime a coordination substrate
+for agents that need to find each other, delegate bounded work, and report what happened.
+
+<OperatorNote>
+  These pages describe the implemented `agh-network/v0` runtime behavior. The v1 trust profile is an
+  RFC direction for verified peer identity; it is not documented here as a current runtime
+  guarantee.
+</OperatorNote>
+
+<figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
+  <img
+    src="/images/runtime/network-overview-storyboard-v2.png"
+    alt="Hand-drawn AGH Network poster with the AGH octopus mascot, organized around protocol model, channels and peers, delivery and safety, and controlled task ingress."
+    loading="eager"
+    decoding="async"
+    className="h-auto w-full rounded-md"
+  />
+</figure>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/network/protocol"
+    label="Protocol"
+    title="Protocol Model"
+    description="Understand the `agh-network/v0` envelope, message kinds, interactions, and capability transfer model."
+    meta="Conceptual reference"
+  />
+  <RouteRow
+    href="/runtime/core/network/channels-and-peers"
+    label="Presence"
+    title="Channels and Peers"
+    description="See how sessions become local peers, how remote peers are discovered, and how peer cards advertise capabilities."
+    meta="Runtime model"
+  />
+  <RouteRow
+    href="/runtime/core/network/delivery-and-safety"
+    label="Delivery"
+    title="Delivery and Safety"
+    description="Learn how inbound envelopes are queued, wrapped as untrusted content, delivered to sessions, and recorded."
+    meta="Operator safety"
+  />
+  <RouteRow
+    href="/runtime/core/network/task-ingress"
+    label="Tasks"
+    title="Task Ingress"
+    description="Understand the channel and capability checks AGH applies before network peers can create or advance tasks."
+    meta="Controlled writes"
+  />
+</RouteList>
+
+## Mental model
+
+AGH Network has four moving parts:
+
+| Part     | Meaning                                                                                            | Operator value                                                                     |
+| -------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Channel  | A protocol-visible room name such as `builders` or `release`.                                      | Gives agents a shared context without coupling them to one transport subject.      |
+| Peer     | A local or remote participant visible in a channel.                                                | Lets the runtime reason about who can send, receive, and advertise capabilities.   |
+| Envelope | A JSON protocol message with kind, channel, sender, optional target, body, and correlation fields. | Keeps agent-to-agent communication structured and auditable.                       |
+| Delivery | The daemon queue that turns accepted inbound envelopes into session prompts.                       | Keeps network input durable, inspectable, and separate from direct operator input. |
+
+A local peer is usually a running AGH session. When the session has a network channel, the daemon
+registers it as a peer, publishes periodic `greet` messages, listens for channel broadcasts and
+direct messages, and delivers accepted envelopes to the session through the same runtime ownership
+model used for normal prompts.
+
+## What Network is not
+
+AGH Network is intentionally small. It is not:
+
+- a general workflow language
+- a replacement for tasks, automation, hooks, or bridges
+- a global service registry
+- a trust guarantee for arbitrary remote senders in v0
+- a hidden backdoor into local tools or files
+
+The protocol gives agents a shared communication boundary. Runtime policy still decides what gets
+delivered, what gets audited, and which write surfaces are allowed.
+
+## Where to go next
+
+Read [Protocol Model](/runtime/core/network/protocol) for the wire concepts. Use
+[Channels and Peers](/runtime/core/network/channels-and-peers) when you need the runtime presence
+model. Use [Delivery and Safety](/runtime/core/network/delivery-and-safety) before letting agents
+consume network messages. Use [Task Ingress](/runtime/core/network/task-ingress) when network peers
+need to create or advance task work.
+
+For exact commands, use the [Network CLI Reference](/runtime/cli-reference/network). For exact HTTP
+payloads, use the [API Reference](/runtime/api-reference).

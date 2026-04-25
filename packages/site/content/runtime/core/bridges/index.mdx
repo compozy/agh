@@ -1,0 +1,196 @@
+---
+title: Bridges Overview
+description: How AGH bridge instances connect workspace agents to external messaging platforms.
+---
+
+A bridge is a workspace-facing adapter between AGH sessions and a messaging platform. The platform
+can be Slack, Discord, Telegram, or any installed extension that advertises the `bridge.adapter`
+capability. The bridge instance stores the operator-owned configuration; the provider extension owns
+platform-specific webhook validation, message normalization, and outbound delivery.
+
+That split keeps AGH responsible for sessions, routing, persistence, and delivery bookkeeping while
+letting each platform adapter speak the platform API directly.
+
+<OperatorNote>
+  Create bridge instances as workspace-scoped records when they should start sessions from incoming
+  messages. The current runtime creates bridge-initiated sessions by resolving the instance
+  `workspace_id` and that workspace's default agent.
+</OperatorNote>
+
+<figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
+  <img
+    src="/images/runtime/bridges-overview-storyboard-v1.png"
+    alt="Hand-drawn Bridges poster showing generic messaging platforms, bridge adapters, routing, delivery, and workspace-scoped bridge config with the octopus mascot."
+    loading="eager"
+    decoding="async"
+    className="h-auto w-full rounded-md"
+  />
+</figure>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/bridges/routing"
+    label="Routing"
+    title="Message Routing"
+    description="How platform identities become stable route keys and durable AGH sessions."
+    meta="Policy and delivery"
+  />
+  <RouteRow
+    href="/runtime/core/bridges/setup"
+    label="Setup"
+    title="Platform Setup"
+    description="Configure Slack, Discord, and Telegram bridges with webhook paths, secrets, and routing."
+    meta="How-to"
+  />
+</RouteList>
+
+## Runtime model
+
+| Object             | Owned by            | What it does                                                                                                                       |
+| ------------------ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Provider extension | Extension catalog   | Declares `bridge.adapter`, platform name, display name, required secret slots, and provider config schema hints.                   |
+| Bridge instance    | AGH bridge registry | Stores scope, workspace, provider selection, routing policy, delivery defaults, provider config, status, and degradation metadata. |
+| Secret binding     | AGH daemon          | Maps a provider slot such as `bot_token` to a daemon-resolved secret reference. The stock resolver supports `env:NAME`.            |
+| Bridge route       | AGH routing layer   | Maps one canonical platform identity to one AGH session and agent name.                                                            |
+| Delivery target    | Delivery broker     | Identifies where a response should be posted, replied to, edited, or deleted on the platform.                                      |
+
+The provider catalog is dynamic. `GET /api/bridges/providers` returns every installed and enabled
+extension that provides `bridge.adapter`. In this repository, the catalog includes provider
+manifests for Slack, Discord, Telegram, WhatsApp, Microsoft Teams, Google Chat, GitHub, and Linear.
+This setup guide covers Slack, Discord, and Telegram because those are the supported walkthroughs for
+this section.
+
+## Message flow
+
+<Mermaid
+  chart={`sequenceDiagram
+participant User as Platform user
+participant Platform as Slack/Discord/Telegram
+participant Adapter as Bridge provider extension
+participant Host as AGH Host API
+participant Router as Bridge routing
+participant Session as AGH session
+participant Agent as ACP agent
+participant Broker as Delivery broker
+
+User->>Platform: send message or command
+Platform->>Adapter: webhook request
+Adapter->>Adapter: verify signature or token
+Adapter->>Host: bridges/messages/ingest
+Host->>Router: build routing key
+Router-->>Host: existing or new route
+Host->>Session: create or reuse workspace session
+Session->>Agent: submit prompt
+Agent-->>Session: stream events
+Session-->>Broker: project response events
+Broker->>Adapter: bridges/deliver
+Adapter->>Platform: post, edit, or delete response
+Platform-->>User: response appears in channel or chat`}
+caption="An inbound platform event is normalized by the adapter, routed to an AGH session, and streamed back through the delivery broker to the same platform."
+/>
+
+## Adapter architecture
+
+The bridge adapter runs as an extension subprocess. During initialization, AGH gives it the bridge
+instances assigned to that extension and a Host API surface. The adapter then:
+
+1. Resolves bridge secret bindings from the daemon-provided cache.
+2. Starts webhook listeners for configured bridge instances.
+3. Verifies incoming platform requests before ingestion.
+4. Converts platform payloads into normalized bridge envelopes.
+5. Reports bridge state back to AGH as `ready`, `degraded`, `auth_required`, or `error`.
+6. Delivers response events back to the platform API and acknowledges delivery to AGH.
+
+AGH does not parse Slack, Discord, or Telegram webhook payloads in the daemon. The daemon accepts the
+normalized envelope only after the provider extension authenticates itself and the bridge instance is
+enabled for that extension.
+
+## Bridge instance format
+
+Bridge instances are persisted runtime records. They are created through the bridge API or the
+`agh bridge create` command, not through `config.toml`.
+
+```json
+{
+  "scope": "workspace",
+  "workspace_id": "ws_8f33a913d23c4fd1",
+  "platform": "slack",
+  "extension_name": "slack",
+  "display_name": "Slack support",
+  "enabled": false,
+  "status": "disabled",
+  "dm_policy": "allowlist",
+  "routing_policy": {
+    "include_peer": false,
+    "include_thread": true,
+    "include_group": true
+  },
+  "provider_config": {
+    "webhook": {
+      "listen_addr": "127.0.0.1:18081",
+      "path": "/slack/support"
+    },
+    "dm": {
+      "allow_user_ids": ["U0123456789"]
+    }
+  },
+  "delivery_defaults": {
+    "group_id": "C0123456789",
+    "thread_id": "1713200000.000100",
+    "mode": "direct-send"
+  }
+}
+```
+
+| Field               | Required       | Notes                                                                                                                 |
+| ------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `scope`             | yes            | `workspace` or `global`. Use `workspace` for inbound sessions.                                                        |
+| `workspace_id`      | workspace only | Required when `scope` is `workspace`; forbidden for `global`.                                                         |
+| `platform`          | yes            | Platform identifier such as `slack`, `discord`, or `telegram`.                                                        |
+| `extension_name`    | yes            | Installed extension that owns the provider, usually the same as the platform.                                         |
+| `display_name`      | yes            | Operator-facing name shown by CLI/API output.                                                                         |
+| `enabled`           | yes            | Disabled instances do not accept routing work. Create disabled, bind secrets, then enable.                            |
+| `status`            | yes            | `disabled`, `starting`, `ready`, `degraded`, `auth_required`, or `error`.                                             |
+| `dm_policy`         | no             | `open`, `allowlist`, or `pairing`; empty normalizes to `open`. Providers enforce this against their `dm` config.      |
+| `routing_policy`    | yes            | Chooses which platform identity dimensions join the canonical route key.                                              |
+| `provider_config`   | no             | Provider-owned JSON object. The transport accepts any JSON object or `null`; each adapter validates the keys it uses. |
+| `delivery_defaults` | no             | JSON object with `peer_id`, `thread_id`, `group_id`, and `mode`. `thread_id` requires `peer_id` or `group_id`.        |
+
+Package-managed instances can be created by extension bundles. Those records report
+`source: "package"` and reject direct spec mutation through the generic update API.
+
+## Supported provider slots
+
+| Provider | Required secrets              | Optional secrets | Webhook auth                                                       |
+| -------- | ----------------------------- | ---------------- | ------------------------------------------------------------------ |
+| Slack    | `bot_token`, `signing_secret` | none             | Slack request signing secret.                                      |
+| Discord  | `bot_token`, `public_key`     | none             | Discord Ed25519 interaction signature headers.                     |
+| Telegram | `bot_token`                   | `webhook_secret` | Telegram `X-Telegram-Bot-Api-Secret-Token` header when configured. |
+
+Bind each slot to an environment-backed secret before enabling the bridge:
+
+```bash
+curl -X PUT http://localhost:2123/api/bridges/brg_123/secret-bindings/bot_token \
+  -H "Content-Type: application/json" \
+  -d '{"vault_ref":"env:SLACK_BOT_TOKEN","kind":"token"}'
+```
+
+The environment variable must exist and be non-empty in the daemon process. Other reference schemes
+such as `vault://...` are not supported by the stock resolver.
+
+## Operational states
+
+| Status          | Meaning                                                              | Ingest behavior                                           |
+| --------------- | -------------------------------------------------------------------- | --------------------------------------------------------- |
+| `disabled`      | Operator disabled the instance.                                      | Rejected as unavailable.                                  |
+| `starting`      | Extension is launching, restarting, or reconnecting.                 | Rejected until the provider reports readiness.            |
+| `ready`         | Provider is healthy and can ingest and deliver.                      | Accepted.                                                 |
+| `degraded`      | Provider can still work but reported a known issue.                  | Accepted; health payload includes the degradation reason. |
+| `auth_required` | Required credential or platform authorization is missing or invalid. | Rejected until fixed and restarted.                       |
+| `error`         | Provider reached a terminal or repeated fault.                       | Rejected until restarted or repaired.                     |
+
+Bridge health is exposed with each bridge payload and through the bridge health stream. It includes
+route count, delivery backlog, dropped delivery count, delivery failures, auth failures, last success,
+last error, and degradation metadata.

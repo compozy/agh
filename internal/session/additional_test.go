@@ -27,7 +27,7 @@ func TestCreateCleansUpOnStartFailure(t *testing.T) {
 	h := newHarness(t)
 	recorder := &stubRecorder{}
 	h.driver.startHook = func(_ acp.StartOpts, _ int) (*fakeProcess, error) {
-		return nil, errors.New("start failed")
+		return nil, errors.New("start failed token=super-secret")
 	}
 	h.manager = newManagerWithHarness(t, h,
 		WithStore(func(context.Context, string, string) (EventRecorder, error) {
@@ -48,11 +48,43 @@ func TestCreateCleansUpOnStartFailure(t *testing.T) {
 	if recorder.closeCalls != 1 {
 		t.Fatalf("recorder close calls = %d, want 1", recorder.closeCalls)
 	}
-	if _, statErr := os.Stat(filepath.Join(h.homePaths.SessionsDir, "sess-1")); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("session directory still exists after failed create: %v", statErr)
+	meta := readMeta(t, store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, "sess-1")))
+	if meta.State != string(StateStopped) {
+		t.Fatalf("failed start meta state = %q, want stopped", meta.State)
+	}
+	if meta.Failure == nil {
+		t.Fatal("failed start meta Failure = nil, want startup failure")
+	}
+	if got, want := meta.Failure.Kind, store.FailureStartup; got != want {
+		t.Fatalf("failed start failure kind = %q, want %q", got, want)
+	}
+	if !strings.Contains(meta.Failure.Summary, "start failed") ||
+		strings.Contains(meta.Failure.Summary, "super-secret") ||
+		!strings.Contains(meta.Failure.Summary, "[REDACTED]") {
+		t.Fatalf("failed start summary = %q, want redacted start failure", meta.Failure.Summary)
+	}
+	if meta.Failure.CrashBundlePath == "" {
+		t.Fatal("failed start crash bundle path = empty, want persisted bundle")
+	}
+	if _, statErr := os.Stat(meta.Failure.CrashBundlePath); statErr != nil {
+		t.Fatalf("stat crash bundle %q error = %v", meta.Failure.CrashBundlePath, statErr)
+	}
+	bundle, err := os.ReadFile(meta.Failure.CrashBundlePath)
+	if err != nil {
+		t.Fatalf("ReadFile(crash bundle) error = %v", err)
+	}
+	if strings.Contains(string(bundle), "super-secret") || !strings.Contains(string(bundle), "[REDACTED]") {
+		t.Fatalf("crash bundle = %q, want redacted secret", string(bundle))
 	}
 	if len(h.manager.List()) != 0 {
 		t.Fatalf("List() after failed create = %d sessions, want 0", len(h.manager.List()))
+	}
+	all, err := h.manager.ListAll(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ListAll() after failed create error = %v", err)
+	}
+	if len(all) != 1 || all[0].Failure == nil || all[0].Failure.Kind != store.FailureStartup {
+		t.Fatalf("ListAll() after failed create = %#v, want one startup failure", all)
 	}
 }
 

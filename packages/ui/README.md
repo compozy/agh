@@ -14,12 +14,13 @@ This README is the contributor guide. Read it before adding, editing, or moving 
 
 ## Architecture decisions
 
-Every rule below is derived from an accepted ADR. Open the ADR before challenging the rule.
+The original redesign ADR files are not checked into this repo. The active decisions for this
+package live in the maintained docs below.
 
-- [ADR-001: Consolidate UI primitives into @agh/ui](../../.compozy/tasks/redesign/adrs/adr-001.md) — single-package primitive policy and the import-direction rule (`web/src/** → @agh/ui`, never the reverse).
-- [ADR-002: Greenfield migration — delete without backwards-compat](../../.compozy/tasks/redesign/adrs/adr-002.md) — no compat shims, no feature flags. Old primitives leave with the PR that replaces them.
-- [ADR-003: Adopt `motion` for UI animations](../../.compozy/tasks/redesign/adrs/adr-003.md) — when to reach for `motion` vs when CSS suffices.
-- [ADR-004: Phased rollout](../../.compozy/tasks/redesign/adrs/adr-004.md) — why new primitives land with stories and tests from the start.
+- [DESIGN.md](../../DESIGN.md) — authoritative token, typography, spacing, and flat-depth rules.
+- [docs/design/design-system/README.md](../../docs/design/design-system/README.md) — prose rationale for the AGH design system and its structural rules.
+- [src/index.ts](./src/index.ts) — the package surface contract and primitive boundary.
+- [Motion vs. CSS decision rules](./README.md#motion-vs-css-decision-rules) — current animation guidance kept alongside the package docs.
 
 ## When to add a primitive here vs. in `web/`
 
@@ -27,7 +28,7 @@ Ask one question: **is this a domain-free shape that could serve a second surfac
 
 If yes — keep it here. Pull tokens from [`./src/tokens.css`](./src/tokens.css), wire the API in terms of slots (`rail`, `list`, `detail`, `leading`, `trailing`, …) and variants (`tone`, `size`, `density`), and hold no AGH-specific defaults in its props. Examples: `Sidebar`, `SplitPane`, `Metric`, `StatusDot`, `ConnectionIndicator`, `ChatMessageBubble` (the **shell**, not the session-aware message body).
 
-If it reads session events, hits a TanStack query, consumes the `agh-openapi` types, or only makes sense inside one domain — keep it in `web/src/systems/<domain>/components/`. The `@agh/ui` shell stays ignorant of that domain; the domain component composes the shell. This matches **ADR-001** — `@agh/ui` does not import from `web/src/**`.
+If it reads session events, hits a TanStack query, consumes the `agh-openapi` types, or only makes sense inside one domain — keep it in `web/src/systems/<domain>/components/`. The `@agh/ui` shell stays ignorant of that domain; the domain component composes the shell. This matches the package boundary documented above — `@agh/ui` does not import from `web/src/**`.
 
 ## Primitive inventory
 
@@ -151,7 +152,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
 ## Motion vs. CSS decision rules
 
-ADR-003 scopes motion tightly: CSS owns simple state, `motion` owns orchestration. Three concrete examples:
+The motion guidance for this package scopes animation tightly: CSS owns simple state, `motion` owns orchestration. Three concrete examples:
 
 1. **Hover color change** → **CSS**. `hover:bg-[color:var(--color-hover)]` transitions `background` in 150ms via `--duration-base`. No JS involved. Same for focus rings, `active:translate-y-px`, `dot-pulse`, and skeleton `shimmer`.
 2. **Unmount animation (Dialog/Popover/Sheet closing)** → **`motion`**. The element leaves the tree; CSS cannot animate an unmount. Use the sanctioned `AnimatePresence` + `actionsRef` pattern described in the workflow memory: `<AnimatePresence onExitComplete={() => actionsRef.current?.unmount()}>` around `{open && <Portal keepMounted>…</Portal>}`. Do **not** combine `data-open:animate-*` keyframes with `motion` — it double-animates.
@@ -174,9 +175,9 @@ Every primitive ships with a colocated `<name>.stories.tsx` under [`./src/compon
 
 These all fail review. They exist because they have all been tried.
 
-- **No domain imports inside `@agh/ui`.** A primitive that imports from `web/src/**`, `@/systems/**`, or any TanStack/openapi/zustand symbol breaks ADR-001. Primitives are domain-free.
+- **No domain imports inside `@agh/ui`.** A primitive that imports from `web/src/**`, `@/systems/**`, or any TanStack/openapi/zustand symbol breaks the package boundary documented above. Primitives are domain-free.
 - **No AGH-specific defaults in primitive props.** `Sidebar` does not default to "Workspaces"; `Metric` does not default a tone to match the Tasks dashboard; `ChatMessageBubble` does not assume an agent name. Defaults stay generic or are required props.
-- **No `data-open:animate-*` keyframes next to `motion` exit animations.** Pick one per primitive. The sanctioned motion template (see workflow memory + ADR-003) uses `AnimatePresence` + `actionsRef`; re-introducing CSS keyframes alongside it double-animates.
+- **No `data-open:animate-*` keyframes next to `motion` exit animations.** Pick one per primitive. The sanctioned motion template in the motion guidance above uses `AnimatePresence` + `actionsRef`; re-introducing CSS keyframes alongside it double-animates.
 - **No `any`, no `@ts-expect-error`.** The public type surface is part of the contract. Inferred generics and narrowed discriminated unions replace escape hatches.
 - **No hex / `rgb()` / `hsl()` literals in primitive code or stories.** Use tokens. Drift is caught in review and Storybook.
 - **No `useReducedMotion()` in a primitive that lives under `UIProvider`.** Use `useReducedMotionConfig()` so the provider is authoritative.
@@ -187,8 +188,8 @@ These all fail review. They exist because they have all been tried.
 
 | Want to do this…                | Read this                                                  |
 | ------------------------------- | ---------------------------------------------------------- |
-| Add a new primitive             | This README + `DESIGN.md` + ADR-001                        |
-| Animate something               | ADR-003 + "Motion vs. CSS" above                           |
+| Add a new primitive             | This README + `DESIGN.md` + "Architecture decisions" above |
+| Animate something               | "Motion vs. CSS" above                                     |
 | Add or revise stories           | "Story contribution rules" above + the relevant story file |
-| Rename an existing export       | ADR-002 (no compat shims)                                  |
+| Rename an existing export       | This README's package boundary rules (no compat shims)     |
 | Consume a primitive from `web/` | Import from `@agh/ui`; never from `packages/ui/src/**`     |

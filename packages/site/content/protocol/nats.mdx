@@ -89,8 +89,8 @@ token. The subject token is transport metadata; the envelope remains authoritati
 
 ## Subject mapping
 
-| Envelope condition | NATS subject                                  | Notes                                                                  |
-| ------------------ | --------------------------------------------- | ---------------------------------------------------------------------- |
+| Envelope condition | NATS subject                                  | Notes                                                                      |
+| ------------------ | --------------------------------------------- | -------------------------------------------------------------------------- |
 | `to = null`        | `agh.network.v1.<channel>.broadcast`          | Used for `greet`, broadcast `whois`, `say`, and broadcast `capability`.    |
 | `to != null`       | `agh.network.v1.<channel>.peer.<route_token>` | Used for targeted `whois`, `direct`, `capability`, `receipt`, and `trace`. |
 

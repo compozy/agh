@@ -28,7 +28,7 @@ func TestSchedulerIntegrationFastScheduleDispatchesThroughDispatcher(t *testing.
 		Interval: "1s",
 	}
 
-	if _, err := scheduler.Register(job); err != nil {
+	if _, err := scheduler.Register(ctx, job); err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
 	if err := scheduler.Start(ctx); err != nil {
@@ -82,7 +82,7 @@ func TestSchedulerIntegrationShutdownCancelsInflightDispatch(t *testing.T) {
 		Interval: "1s",
 	}
 
-	if _, err := scheduler.Register(job); err != nil {
+	if _, err := scheduler.Register(ctx, job); err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
 	if err := scheduler.Start(ctx); err != nil {
@@ -130,12 +130,18 @@ func TestSchedulerIntegrationShutdownCancelsInflightDispatch(t *testing.T) {
 func waitUntil(t *testing.T, timeout time.Duration, interval time.Duration, fn func() bool) {
 	t.Helper()
 
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
 		if fn() {
 			return
 		}
-		time.Sleep(interval)
+		select {
+		case <-deadline.C:
+			t.Fatalf("condition not met within %s", timeout)
+		case <-ticker.C:
+		}
 	}
-	t.Fatalf("condition not met within %s", timeout)
 }

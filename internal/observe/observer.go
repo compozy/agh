@@ -96,6 +96,10 @@ type TaskDashboardConfig struct {
 	StaleAfter       time.Duration
 }
 
+// AgentProbeTargetSource resolves the currently configured ACP-compatible
+// agent/provider commands that should be checked in observe health.
+type AgentProbeTargetSource func(ctx context.Context) ([]acp.ProbeTarget, error)
+
 type taskDashboardConfig struct {
 	activeRunLimit   int
 	backlogWarnAfter time.Duration
@@ -122,6 +126,13 @@ type Observer struct {
 	openHookStore         HookStoreOpener
 	taskHealthConfig      TaskHealthConfig
 	taskDashboardConfig   taskDashboardConfig
+	retention             RetentionConfig
+	retentionHealth       RetentionHealth
+	retentionCancel       context.CancelFunc
+	retentionWG           sync.WaitGroup
+	retentionMu           sync.RWMutex
+	agentProbeSource      AgentProbeTargetSource
+	agentProbeTimeout     time.Duration
 }
 
 var _ session.Notifier = (*Observer)(nil)
@@ -221,6 +232,28 @@ func WithTaskDashboardConfig(cfg TaskDashboardConfig) Option {
 	}
 }
 
+// WithObservabilityConfig applies observability settings that affect observer-owned background work.
+func WithObservabilityConfig(cfg aghconfig.ObservabilityConfig) Option {
+	return func(observer *Observer) {
+		observer.retention = RetentionConfigFromObservability(cfg)
+	}
+}
+
+// WithRetentionConfig overrides retention behavior, mainly for tests.
+func WithRetentionConfig(cfg RetentionConfig) Option {
+	return func(observer *Observer) {
+		observer.retention = cfg
+	}
+}
+
+// WithAgentProbeSource injects the downstream ACP command source used by health.
+func WithAgentProbeSource(source AgentProbeTargetSource, timeout time.Duration) Option {
+	return func(observer *Observer) {
+		observer.agentProbeSource = source
+		observer.agentProbeTimeout = timeout
+	}
+}
+
 func defaultTaskDashboardConfig() taskDashboardConfig {
 	return taskDashboardConfig{
 		activeRunLimit:   4,
@@ -308,6 +341,8 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		}
 	}
+	observer.retention = normalizeRetentionConfig(observer.retention)
+	observer.setRetentionHealth(observer.initialRetentionHealth())
 
 	if observer.registry == nil {
 		if err := aghconfig.EnsureHomeLayout(observer.homePaths); err != nil {
@@ -436,6 +471,8 @@ func (o *Observer) OnSessionStopped(ctx context.Context, sess *session.Session) 
 		StopReasonSet: true,
 		StopReason:    stringPointer(string(info.StopReason)),
 		StopDetail:    info.StopDetail,
+		FailureSet:    true,
+		Failure:       store.CloneSessionFailure(info.Failure),
 		Liveness:      store.CloneSessionLivenessMeta(info.Liveness),
 		Environment:   cloneSessionEnvironmentMeta(info.Environment),
 		UpdatedAt:     info.UpdatedAt,
@@ -795,6 +832,7 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 		ACPSessionID: stringPointer(info.ACPSessionID),
 		StopReason:   info.StopReason,
 		StopDetail:   info.StopDetail,
+		Failure:      store.CloneSessionFailure(info.Failure),
 		Liveness:     store.CloneSessionLivenessMeta(info.Liveness),
 		Environment:  cloneSessionEnvironmentMeta(info.Environment),
 		CreatedAt:    info.CreatedAt,

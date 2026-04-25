@@ -26,7 +26,7 @@ export function Hero() {
       {/* Background mesh — restored and faded so it textures the whole hero. */}
       <div
         className="pointer-events-none absolute inset-0 bg-size-[100%_auto] bg-position-[0%_0%] bg-no-repeat opacity-20 mix-blend-screen"
-        style={{ backgroundImage: "url('/hero-bg.png')" }}
+        style={{ backgroundImage: "url('/hero-bg.webp')" }}
         aria-hidden="true"
       />
 

@@ -10,6 +10,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 // ToolHost abstracts ACP file, permission, and terminal operations for a runtime.
@@ -42,14 +43,29 @@ type localToolHost struct {
 	terminals   *terminalManager
 }
 
+type localRuntimeConfig struct {
+	processRegistry *toolruntime.Registry
+}
+
+// LocalRuntimeOption customizes local ACP runtime helpers.
+type LocalRuntimeOption func(*localRuntimeConfig)
+
+// WithLocalProcessRegistry injects the shared tool process registry.
+func WithLocalProcessRegistry(registry *toolruntime.Registry) LocalRuntimeOption {
+	return func(cfg *localRuntimeConfig) {
+		cfg.processRegistry = registry
+	}
+}
+
 // NewLocalToolHost returns the local daemon-host file, permission, and terminal host.
 func NewLocalToolHost(
 	ctx context.Context,
 	root string,
 	mode aghconfig.PermissionMode,
 	logger *slog.Logger,
+	opts ...LocalRuntimeOption,
 ) (environment.ToolHost, error) {
-	return newLocalToolHost(ctx, root, mode, logger)
+	return newLocalToolHost(ctx, root, mode, logger, opts...)
 }
 
 func newLocalToolHost(
@@ -57,12 +73,13 @@ func newLocalToolHost(
 	root string,
 	mode aghconfig.PermissionMode,
 	logger *slog.Logger,
+	opts ...LocalRuntimeOption,
 ) (*localToolHost, error) {
 	policy, err := newPermissionPolicy(mode, root)
 	if err != nil {
 		return nil, err
 	}
-	return newLocalToolHostFromPolicy(ctx, root, policy, logger), nil
+	return newLocalToolHostFromPolicy(ctx, root, policy, logger, opts...), nil
 }
 
 func newLocalToolHostFromPolicy(
@@ -70,6 +87,7 @@ func newLocalToolHostFromPolicy(
 	root string,
 	policy permissionPolicy,
 	logger *slog.Logger,
+	opts ...LocalRuntimeOption,
 ) *localToolHost {
 	if ctx == nil {
 		ctx = context.Background()
@@ -77,10 +95,16 @@ func newLocalToolHostFromPolicy(
 	if logger == nil {
 		logger = slog.Default()
 	}
+	cfg := localRuntimeConfig{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
 	return &localToolHost{
 		cwd:         root,
 		permissions: policy,
-		terminals:   newTerminalManager(ctx, logger),
+		terminals:   newTerminalManager(ctx, logger, cfg.processRegistry),
 	}
 }
 
@@ -138,7 +162,7 @@ func (h *localToolHost) CreateTerminal(
 }
 
 func (h *localToolHost) createTerminal(
-	_ context.Context,
+	ctx context.Context,
 	req acpsdk.CreateTerminalRequest,
 	ownership terminalOwnership,
 ) (acpsdk.CreateTerminalResponse, error) {
@@ -153,7 +177,7 @@ func (h *localToolHost) createTerminal(
 	if err != nil {
 		return acpsdk.CreateTerminalResponse{}, err
 	}
-	return h.terminals.create(resolvedCwd, req, ownership)
+	return h.terminals.create(ctx, resolvedCwd, req, ownership)
 }
 
 func (h *localToolHost) KillTerminal(id string) error {
@@ -199,8 +223,9 @@ func (h *localToolHost) terminalOwnership(id string) (terminalOwnership, error) 
 		return terminalOwnership{}, err
 	}
 	return terminalOwnership{
-		networkOwned: term.networkOwned,
-		ownerTurnID:  term.ownerTurnID,
+		networkOwned:   term.networkOwned,
+		ownerSessionID: term.ownerSessionID,
+		ownerTurnID:    term.ownerTurnID,
 	}, nil
 }
 

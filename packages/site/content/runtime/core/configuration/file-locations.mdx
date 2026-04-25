@@ -1,7 +1,6 @@
 ---
-title: File Locations Reference
+title: File Locations
 description: All AGH global, workspace, agent, skill, database, log, socket, memory, and extension paths.
-icon: Layers
 ---
 
 AGH uses one global home directory plus optional workspace-local `.agh/` directories. The global
@@ -102,7 +101,7 @@ only in draft RFC material.
 
 Skill filesystem precedence is bundled, marketplace, user, additional root, then workspace.
 Enabled extensions can also register runtime-owned skills into the live registry. Those overlays do
-not come from a filesystem path, so they are documented in [Skills Overview](/runtime/core/skills/overview)
+not come from a filesystem path, so they are documented in [Skills Overview](/runtime/core/skills)
 rather than in this file-path table.
 
 ## Workspace Files
@@ -162,6 +161,6 @@ config file.
 
 ## Related Pages
 
-- [config.toml Reference](/runtime/core/configuration/config-toml) documents the schema for global and workspace config files.
-- [mcp.json Reference](/runtime/core/configuration/mcp-json) documents JSON sidecars.
+- [config.toml](/runtime/core/configuration/config-toml) documents the schema for global and workspace config files.
+- [mcp.json](/runtime/core/configuration/mcp-json) documents JSON sidecars.
 - [Workspace Resolver](/runtime/core/workspaces/resolver) explains how AGH finds the primary workspace root.

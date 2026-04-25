@@ -59,6 +59,8 @@ type stubClient struct {
 	observeEventsFn           func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
 	streamObserveEventsFn     func(context.Context, ObserveEventQuery, string, SSEHandler) error
 	observeHealthFn           func(context.Context) (HealthStatus, error)
+	memoryHealthFn            func(context.Context, string) (MemoryHealthRecord, error)
+	memoryHistoryFn           func(context.Context, MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
 	listMemoryFn              func(context.Context, memory.Scope, string) ([]MemoryHeaderRecord, error)
 	searchMemoryFn            func(context.Context, string, MemorySearchQuery) ([]MemorySearchRecord, error)
 	readMemoryFn              func(context.Context, string, memory.Scope, string) (MemoryReadRecord, error)
@@ -461,6 +463,23 @@ func (s *stubClient) ObserveHealth(ctx context.Context) (HealthStatus, error) {
 		return s.observeHealthFn(ctx)
 	}
 	return HealthStatus{}, errors.New("unexpected ObserveHealth call")
+}
+
+func (s *stubClient) MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error) {
+	if s.memoryHealthFn != nil {
+		return s.memoryHealthFn(ctx, workspace)
+	}
+	return MemoryHealthRecord{}, errors.New("unexpected MemoryHealth call")
+}
+
+func (s *stubClient) MemoryHistory(
+	ctx context.Context,
+	query MemoryHistoryQuery,
+) ([]MemoryHistoryRecord, error) {
+	if s.memoryHistoryFn != nil {
+		return s.memoryHistoryFn(ctx, query)
+	}
+	return nil, errors.New("unexpected MemoryHistory call")
 }
 
 func (s *stubClient) ListMemory(

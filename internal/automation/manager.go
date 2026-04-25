@@ -65,6 +65,12 @@ type Store interface {
 	GetTrigger(ctx context.Context, id string) (Trigger, error)
 	ListTriggers(ctx context.Context, query TriggerListQuery) ([]Trigger, error)
 	ListRuns(ctx context.Context, query RunQuery) ([]Run, error)
+	GetSchedulerState(ctx context.Context, jobID string) (SchedulerState, error)
+	ListSchedulerStates(ctx context.Context) ([]SchedulerState, error)
+	SaveSchedulerState(ctx context.Context, state SchedulerState) (SchedulerState, error)
+	DeleteSchedulerState(ctx context.Context, jobID string) error
+	ClaimScheduledRun(ctx context.Context, claim SchedulerClaim) (SchedulerClaimResult, error)
+	RecordRunDeliveryError(ctx context.Context, runID string, runErr error) (Run, error)
 	SetJobEnabledOverlay(ctx context.Context, overlay JobEnabledOverlay) (JobEnabledOverlay, error)
 	GetJobEnabledOverlay(ctx context.Context, jobID string) (JobEnabledOverlay, error)
 	ListJobEnabledOverlays(ctx context.Context) ([]JobEnabledOverlay, error)
@@ -458,7 +464,7 @@ func (m *Manager) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := m.loadSchedulerRegistrations(jobs, scheduler); err != nil {
+	if err := m.loadSchedulerRegistrations(ctx, jobs, scheduler); err != nil {
 		return errors.Join(
 			fmt.Errorf("automation: register scheduler jobs: %w", err),
 			m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine),
@@ -630,7 +636,7 @@ func (m *Manager) CreateJob(ctx context.Context, job Job) (Job, error) {
 	if err != nil {
 		return Job{}, errors.Join(err, m.cleanupCreatedJob(ctx, created.ID))
 	}
-	if err := m.applyJobToRuntime(current); err != nil {
+	if err := m.applyJobToRuntime(ctx, current); err != nil {
 		return Job{}, errors.Join(err, m.cleanupCreatedJob(ctx, created.ID))
 	}
 
@@ -679,11 +685,11 @@ func (m *Manager) UpdateJob(ctx context.Context, job Job) (Job, error) {
 		}
 		return Job{}, err
 	}
-	if err := m.applyJobToRuntime(currentEffective); err != nil {
+	if err := m.applyJobToRuntime(ctx, currentEffective); err != nil {
 		if _, rollbackErr := m.store.UpdateJob(ctx, currentStored); rollbackErr != nil {
 			return Job{}, errors.Join(err, rollbackErr)
 		}
-		if restoreErr := m.applyJobToRuntime(previousEffective); restoreErr != nil {
+		if restoreErr := m.applyJobToRuntime(ctx, previousEffective); restoreErr != nil {
 			return Job{}, errors.Join(err, restoreErr)
 		}
 		return Job{}, err
@@ -717,13 +723,13 @@ func (m *Manager) DeleteJob(ctx context.Context, id string) error {
 
 	scheduler := m.schedulerSnapshot()
 	if scheduler != nil {
-		if err := scheduler.Unregister(currentStored.ID); err != nil && !errors.Is(err, ErrScheduledJobNotFound) {
+		if err := scheduler.Unregister(ctx, currentStored.ID); err != nil && !errors.Is(err, ErrScheduledJobNotFound) {
 			return err
 		}
 	}
 
 	if err := m.store.DeleteJob(ctx, currentStored.ID); err != nil {
-		if restoreErr := m.applyJobToRuntime(previousEffective); restoreErr != nil {
+		if restoreErr := m.applyJobToRuntime(ctx, previousEffective); restoreErr != nil {
 			return errors.Join(err, restoreErr)
 		}
 		return err
@@ -1008,6 +1014,16 @@ func (m *Manager) Status(ctx context.Context) (ManagerStatus, error) {
 		if nextFire, ok := earliestNextFire(status.ScheduledJobs); ok {
 			status.NextFire = &nextFire
 		}
+		return status, nil
+	}
+
+	schedulerStates, err := m.store.ListSchedulerStates(ctx)
+	if err != nil {
+		return ManagerStatus{}, err
+	}
+	status.ScheduledJobs = scheduledJobStatesFromDurable(schedulerStates)
+	if nextFire, ok := earliestNextFire(status.ScheduledJobs); ok {
+		status.NextFire = &nextFire
 	}
 
 	return status, nil
@@ -1048,7 +1064,7 @@ func (m *Manager) SetJobEnabled(ctx context.Context, id string, enabled bool) (J
 	if err != nil {
 		return Job{}, err
 	}
-	if err := m.applyJobToRuntime(current); err != nil {
+	if err := m.applyJobToRuntime(ctx, current); err != nil {
 		if rollbackErr := m.rollbackJobEnabled(ctx, stored, previous.Enabled); rollbackErr != nil {
 			return Job{}, errors.Join(err, rollbackErr)
 		}
@@ -1377,6 +1393,7 @@ func (m *Manager) buildSchedulerRuntime(_ context.Context) (*Scheduler, error) {
 	schedulerOpts := []SchedulerOption{
 		WithSchedulerLogger(m.logger),
 		WithSchedulerLocation(location),
+		WithSchedulerStore(m.store),
 	}
 	schedulerOpts = append(schedulerOpts, m.schedulerOptions...)
 	scheduler, err := NewScheduler(m.dispatcher, schedulerOpts...)
@@ -1399,9 +1416,9 @@ func (m *Manager) buildTriggerRuntime(_ context.Context) (*TriggerEngine, error)
 	return triggerEngine, nil
 }
 
-func (m *Manager) loadSchedulerRegistrations(jobs []Job, scheduler *Scheduler) error {
+func (m *Manager) loadSchedulerRegistrations(ctx context.Context, jobs []Job, scheduler *Scheduler) error {
 	for _, job := range jobs {
-		if _, err := scheduler.Register(job); err != nil {
+		if _, err := scheduler.Register(ctx, job); err != nil {
 			return err
 		}
 	}
@@ -1951,7 +1968,7 @@ func (m *Manager) restoreWebhookSecret(ctx context.Context, trigger Trigger, sec
 	return m.store.SetTriggerWebhookSecret(ctx, trigger.ID, secret)
 }
 
-func (m *Manager) applyJobToRuntime(job Job) error {
+func (m *Manager) applyJobToRuntime(ctx context.Context, job Job) error {
 	scheduler := m.schedulerSnapshot()
 	if scheduler == nil {
 		return nil
@@ -1960,13 +1977,13 @@ func (m *Manager) applyJobToRuntime(job Job) error {
 	_, err := scheduler.State(job.ID)
 	switch {
 	case err == nil:
-		_, err = scheduler.Update(job)
+		_, err = scheduler.Update(ctx, job)
 		return err
 	case errors.Is(err, ErrScheduledJobNotFound):
 		if !job.Enabled {
 			return nil
 		}
-		_, err = scheduler.Register(job)
+		_, err = scheduler.Register(ctx, job)
 		return err
 	default:
 		return err
@@ -2108,7 +2125,7 @@ func (m *Manager) cleanupCreatedJob(ctx context.Context, jobID string) error {
 		errs = append(errs, fmt.Errorf("automation: delete created job %q: %w", jobID, err))
 	}
 	if scheduler := m.schedulerSnapshot(); scheduler != nil {
-		if err := scheduler.Unregister(jobID); err != nil && !errors.Is(err, ErrScheduledJobNotFound) {
+		if err := scheduler.Unregister(ctx, jobID); err != nil && !errors.Is(err, ErrScheduledJobNotFound) {
 			errs = append(errs, fmt.Errorf("automation: unregister created job %q: %w", jobID, err))
 		}
 	}
@@ -2335,6 +2352,17 @@ func sameFilter(left map[string]string, right map[string]string) bool {
 		}
 	}
 	return true
+}
+
+func scheduledJobStatesFromDurable(states []SchedulerState) []ScheduledJobState {
+	scheduled := make([]ScheduledJobState, 0, len(states))
+	for _, state := range states {
+		scheduled = append(scheduled, stateFromDurableState(state, false))
+	}
+	sort.Slice(scheduled, func(i, j int) bool {
+		return scheduled[i].JobID < scheduled[j].JobID
+	})
+	return scheduled
 }
 
 func sortJobs(jobs []Job) {

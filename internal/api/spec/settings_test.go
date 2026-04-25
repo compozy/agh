@@ -235,17 +235,16 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		putMCPSchema := jsonRequestSchema(t, putMCP)
 		assertRequired(t, putMCPSchema, "server")
 		serverSchema := propertySchema(t, putMCPSchema, "server")
-		assertRequired(t, serverSchema, "name", "command")
-		assertNotRequired(t, serverSchema, "args", "env")
+		assertRequired(t, serverSchema, "name")
+		assertNotRequired(t, serverSchema, "transport", "command", "args", "env", "url", "auth")
 
 		mcpListSchema := jsonResponseSchema(t, mcpList, 200)
 		assertRequired(t, mcpListSchema, "collection", "scope", "available_scopes", "mcp_servers")
 		assertNotRequired(t, mcpListSchema, "workspace_id")
-		mcpItemSchema := propertySchema(
-			t,
-			propertySchema(t, mcpListSchema, "mcp_servers").Items.Value,
-			"source_metadata",
-		)
+		mcpItemRootSchema := propertySchema(t, mcpListSchema, "mcp_servers").Items.Value
+		assertRequired(t, mcpItemRootSchema, "name", "transport", "scope", "source_metadata")
+		assertNotRequired(t, mcpItemRootSchema, "command", "args", "env", "url", "auth", "auth_status")
+		mcpItemSchema := propertySchema(t, mcpItemRootSchema, "source_metadata")
 		assertRequired(t, mcpItemSchema, "effective_source", "available_targets")
 		assertNotRequired(t, mcpItemSchema, "shadowed_sources")
 

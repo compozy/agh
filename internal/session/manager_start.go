@@ -37,6 +37,7 @@ type sessionStartSpec struct {
 	acpSessionID           string
 	stopReason             store.StopReason
 	stopDetail             string
+	failure                *store.SessionFailure
 }
 
 type sessionStartRuntime struct {
@@ -121,6 +122,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		acpSessionID:           derefString(meta.ACPSessionID),
 		stopReason:             sessionMetaStopReason(meta),
 		stopDetail:             strings.TrimSpace(meta.StopDetail),
+		failure:                store.CloneSessionFailure(meta.Failure),
 	}, nil
 }
 
@@ -165,11 +167,11 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	startOpts := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
 	startOpts, err = m.prepareEnvironmentForStart(ctx, spec, session, startOpts)
 	if err != nil {
-		return nil, err
+		return nil, m.failSessionStart(ctx, spec, session, "session environment startup failed", err)
 	}
 	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
-		return nil, err
+		return nil, m.failSessionStart(ctx, spec, session, "session pre-start hook failed", err)
 	}
 
 	if err := m.writeMeta(session); err != nil {
@@ -177,15 +179,10 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 		return nil, err
 	}
 
-	transportStarted := time.Now()
-	proc, err = m.driver.Start(ctx, startOpts)
+	proc, err = m.startAgentProcess(ctx, spec, session, startOpts)
 	if err != nil {
-		m.sessionLogger(session).Warn("session.start.driver_start_failed", "phase", spec.startAction, "error", err)
-		m.logEnvironmentTransport(session, environmentEventTransportError, err, time.Since(transportStarted))
-		return nil, fmt.Errorf("session: %s agent for %q: %w", spec.startAction, spec.sessionID, err)
+		return nil, err
 	}
-	m.logEnvironmentTransport(session, environmentEventTransportConnect, nil, time.Since(transportStarted))
-	proc.configureRuntime(session.CurrentTurnSource)
 
 	if err := m.activateAndWatch(
 		ctx,
@@ -200,6 +197,42 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	}
 
 	return session, nil
+}
+
+func (m *Manager) failSessionStart(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	session *Session,
+	summary string,
+	err error,
+) error {
+	startErr := acp.WrapFailure(store.FailureStartup, summary, err)
+	spec.cleanupSessionDir = false
+	return errors.Join(startErr, m.persistFailedStart(ctx, session, startErr))
+}
+
+func (m *Manager) startAgentProcess(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	session *Session,
+	startOpts acp.StartOpts,
+) (*AgentProcess, error) {
+	transportStarted := time.Now()
+	proc, err := m.driver.Start(ctx, startOpts)
+	if err != nil {
+		m.sessionLogger(session).Warn("session.start.driver_start_failed", "phase", spec.startAction, "error", err)
+		m.logEnvironmentTransport(session, environmentEventTransportError, err, time.Since(transportStarted))
+		return proc, m.failSessionStart(
+			ctx,
+			spec,
+			session,
+			"agent runtime startup failed",
+			fmt.Errorf("session: %s agent for %q: %w", spec.startAction, spec.sessionID, err),
+		)
+	}
+	m.logEnvironmentTransport(session, environmentEventTransportConnect, nil, time.Since(transportStarted))
+	proc.configureRuntime(session.CurrentTurnSource)
+	return proc, nil
 }
 
 func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.SessionContext {
@@ -327,6 +360,7 @@ func (s *sessionStartSpec) newStartingSession(
 		State:                    StateStarting,
 		stopReason:               s.stopReason,
 		stopDetail:               s.stopDetail,
+		failure:                  store.CloneSessionFailure(s.failure),
 		ACPSessionID:             s.acpSessionID,
 		Environment:              cloneSessionEnvironmentMeta(s.environment),
 		CreatedAt:                createdAt,

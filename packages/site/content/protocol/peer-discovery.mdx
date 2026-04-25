@@ -30,15 +30,15 @@ runtime's routing window.
 A Peer Card advertises a peer's claimed protocol profiles, capabilities, artifact support, trust
 modes, and optional display metadata.
 
-| Field                   | Type             | Required | Rule                                                                                   |
-| ----------------------- | ---------------- | -------- | -------------------------------------------------------------------------------------- |
-| `peer_id`               | string           | Yes      | MUST match the envelope `from` value in `greet` and `whois` responses.                 |
-| `display_name`          | string           | Optional | MAY provide a human-readable label.                                                    |
-| `profiles_supported`    | array of strings | Yes      | MUST be present. SHOULD include `agh-network/v0` for v0 peers.                         |
-| `capabilities`          | array of strings | Yes      | MUST be present. Values are opaque advisory claims.                                    |
+| Field                   | Type             | Required | Rule                                                                                                                                                                                           |
+| ----------------------- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `peer_id`               | string           | Yes      | MUST match the envelope `from` value in `greet` and `whois` responses.                                                                                                                         |
+| `display_name`          | string           | Optional | MAY provide a human-readable label.                                                                                                                                                            |
+| `profiles_supported`    | array of strings | Yes      | MUST be present. SHOULD include `agh-network/v0` for v0 peers.                                                                                                                                 |
+| `capabilities`          | array of strings | Yes      | MUST be present. Values are opaque advisory claims.                                                                                                                                            |
 | `artifacts_supported`   | array of strings | Yes      | MUST be present. Values SHOULD be profile-defined artifact identifiers. AGH v0 peers that support unified capability transfer SHOULD include `"capability"` even when `capabilities` is empty. |
-| `trust_modes_supported` | array of strings | Yes      | MUST be present. Values are advisory in v0.                                            |
-| `ext`                   | object           | Optional | MAY carry namespaced extension data.                                                   |
+| `trust_modes_supported` | array of strings | Yes      | MUST be present. Values are advisory in v0.                                                                                                                                                    |
+| `ext`                   | object           | Optional | MAY carry namespaced extension data.                                                                                                                                                           |
 
 The array fields MUST be present even when empty. A Peer Card does not prove identity or behavior.
 Receivers MUST NOT treat a capability claim as authorization or trust evidence.

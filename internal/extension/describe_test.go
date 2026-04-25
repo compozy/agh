@@ -68,6 +68,31 @@ func TestDescribeExtension(t *testing.T) {
 			wantHealth: "healthy",
 			wantUptime: 0,
 		},
+		{
+			name: "Should report missing environment requirements",
+			extension: &Extension{
+				Info: ExtensionInfo{
+					Name:    "env-ext",
+					Version: "0.1.0",
+					Source:  SourceUser,
+					Enabled: true,
+				},
+				Manifest: &Manifest{
+					RequiresEnv: []string{"PRESENT_TOKEN", "MISSING_TOKEN"},
+				},
+				Status: ExtensionStatus{
+					Registered:        true,
+					MissingEnv:        []string{"MISSING_TOKEN"},
+					MissingEnvChecked: true,
+				},
+			},
+			active:     true,
+			now:        now,
+			wantType:   "resource",
+			wantState:  "registered",
+			wantHealth: "healthy",
+			wantUptime: 0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -86,6 +111,17 @@ func TestDescribeExtension(t *testing.T) {
 			}
 			if payload.UptimeSeconds != tt.wantUptime {
 				t.Fatalf("DescribeExtension().UptimeSeconds = %d, want %d", payload.UptimeSeconds, tt.wantUptime)
+			}
+			if tt.name == "Should report missing environment requirements" {
+				if got, want := payload.RequiresEnv, []string{"PRESENT_TOKEN", "MISSING_TOKEN"}; len(got) != len(want) {
+					t.Fatalf("DescribeExtension().RequiresEnv = %#v, want %#v", got, want)
+				}
+				if got, want := payload.MissingEnv, []string{
+					"MISSING_TOKEN",
+				}; len(got) != len(want) ||
+					got[0] != want[0] {
+					t.Fatalf("DescribeExtension().MissingEnv = %#v, want %#v", got, want)
+				}
 			}
 		})
 	}

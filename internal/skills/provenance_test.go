@@ -77,6 +77,35 @@ func TestComputeDirectoryHashReturnsDifferentHashWhenAuxiliaryFileChanges(t *tes
 	}
 }
 
+func TestComputeDirectoryHashRejectsSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldRejectSymlinkEscape", func(t *testing.T) {
+		t.Parallel()
+
+		skillDir := t.TempDir()
+		writeSkillFile(t, skillDir, skillFileName, strings.Join([]string{
+			"---",
+			"name: directory-hash",
+			"description: Example skill",
+			"---",
+			"body",
+		}, "\n"))
+		outside := filepath.Join(t.TempDir(), "secret.txt")
+		if err := os.WriteFile(outside, []byte("secret\n"), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(outside) error = %v", err)
+		}
+		if err := os.Symlink(outside, filepath.Join(skillDir, "secret.txt")); err != nil {
+			t.Skipf("os.Symlink(secret) unavailable: %v", err)
+		}
+
+		_, err := ComputeDirectoryHash(skillDir)
+		if !errors.Is(err, ErrSymlinkEscape) {
+			t.Fatalf("ComputeDirectoryHash() error = %v, want ErrSymlinkEscape", err)
+		}
+	})
+}
+
 func TestWriteSidecarCreatesStableHumanReadableJSON(t *testing.T) {
 	t.Parallel()
 

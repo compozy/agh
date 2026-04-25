@@ -256,18 +256,18 @@ context, and optional execution hints without adopting a second artifact concept
 
 The body MUST contain a `capability` object.
 
-| Field                | Type             | Required | Rule                                                                                                   |
-| -------------------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------ |
-| `id`                 | string           | Yes      | MUST identify the capability within the sender.                                                        |
-| `summary`            | string           | Yes      | MUST be a short one-line description.                                                                  |
-| `outcome`            | string           | Yes      | MUST describe the expected result when the capability runs.                                            |
-| `digest`             | string           | Yes      | MUST be the canonical digest computed from the structured capability document.                         |
-| `version`            | string           | Optional | MAY identify the capability version. Semantic versions are RECOMMENDED.                                |
-| `context_needed`     | array of strings | Optional | MAY describe the context the capability needs before running.                                          |
-| `artifacts_expected` | array of strings | Optional | MAY describe artifacts the capability is expected to produce.                                          |
-| `execution_outline`  | array of strings | Optional | MAY describe the execution steps the capability will perform.                                          |
-| `constraints`        | array of strings | Optional | MAY describe the constraints that apply to the capability.                                             |
-| `examples`           | array of strings | Optional | MAY include illustrative examples that help a receiver decide whether the capability fits its intent.  |
+| Field                | Type             | Required | Rule                                                                                                                        |
+| -------------------- | ---------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `id`                 | string           | Yes      | MUST identify the capability within the sender.                                                                             |
+| `summary`            | string           | Yes      | MUST be a short one-line description.                                                                                       |
+| `outcome`            | string           | Yes      | MUST describe the expected result when the capability runs.                                                                 |
+| `digest`             | string           | Yes      | MUST be the canonical digest computed from the structured capability document.                                              |
+| `version`            | string           | Optional | MAY identify the capability version. Semantic versions are RECOMMENDED.                                                     |
+| `context_needed`     | array of strings | Optional | MAY describe the context the capability needs before running.                                                               |
+| `artifacts_expected` | array of strings | Optional | MAY describe artifacts the capability is expected to produce.                                                               |
+| `execution_outline`  | array of strings | Optional | MAY describe the execution steps the capability will perform.                                                               |
+| `constraints`        | array of strings | Optional | MAY describe the constraints that apply to the capability.                                                                  |
+| `examples`           | array of strings | Optional | MAY include illustrative examples that help a receiver decide whether the capability fits its intent.                       |
 | `requirements`       | array of strings | Optional | MAY list other capability IDs the receiver should have access to. Entries MUST be non-empty and unique after normalization. |
 
 Senders MUST compute `capability.digest` from the canonical structured capability document.

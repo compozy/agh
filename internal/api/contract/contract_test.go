@@ -161,8 +161,12 @@ func TestSessionPayloadJSONIncludesSessionStopFields(t *testing.T) {
 			State:       session.StateStopped,
 			StopReason:  store.StopUserCanceled,
 			StopDetail:  "requested by API",
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			Failure: &store.SessionFailure{
+				Kind:    store.FailureCanceled,
+				Summary: "requested by API",
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
 		})
 
 		var got map[string]any
@@ -173,6 +177,13 @@ func TestSessionPayloadJSONIncludesSessionStopFields(t *testing.T) {
 		}
 		if got["stop_detail"] != "requested by API" {
 			t.Fatalf("stop_detail = %#v, want %q", got["stop_detail"], "requested by API")
+		}
+		failure, ok := got["failure"].(map[string]any)
+		if !ok {
+			t.Fatalf("failure = %#v, want object", got["failure"])
+		}
+		if failure["kind"] != string(store.FailureCanceled) || failure["summary"] != "requested by API" {
+			t.Fatalf("failure JSON = %#v", failure)
 		}
 	})
 }

@@ -191,6 +191,8 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	memoryGroup := api.Group("/memory")
 	memoryGroup.GET("", handlers.ListMemory)
+	memoryGroup.GET("/health", handlers.MemoryHealth)
+	memoryGroup.GET("/history", handlers.MemoryHistory)
 	memoryGroup.GET("/search", handlers.SearchMemory)
 	memoryGroup.POST("/reindex", handlers.ReindexMemory)
 	memoryGroup.POST("/consolidate", handlers.ConsolidateMemory)

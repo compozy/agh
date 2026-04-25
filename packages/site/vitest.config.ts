@@ -18,6 +18,5 @@ export default defineConfig({
     globals: true,
     include: ["**/*.{test,spec}.{ts,tsx}"],
     exclude: ["**/node_modules/**", "**/out/**", "**/.next/**"],
-    passWithNoTests: true,
   },
 });

@@ -1,0 +1,44 @@
+---
+title: "agh config check"
+description: "Alias for config validate"
+---
+
+## agh config check
+
+Alias for config validate
+
+```
+agh config check [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for check
+      --repair-env         Repair a structured workspace .env before validating
+      --workspace string   Workspace root whose overlay should be validated
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh config check -o json
+```
+
+Use `--repair-env` to explicitly rewrite a structured workspace `.env` when AGH detects bounded
+repairs such as safe multi-assignment splitting or non-ASCII cleanup for secret-like values. Unsupported
+content is reported without rewriting the file.

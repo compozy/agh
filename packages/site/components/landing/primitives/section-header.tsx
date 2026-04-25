@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
 import { cn } from "@agh/ui/utils";
+import type { ReactNode } from "react";
 
 interface SectionHeaderProps {
   eyebrow?: string;
@@ -20,7 +20,7 @@ export function SectionHeader({
   className,
 }: SectionHeaderProps) {
   const alignClass = align === "center" ? "text-center mx-auto" : "text-left";
-  const maxWidth = align === "center" ? "max-w-[720px]" : "max-w-[640px]";
+  const maxWidth = align === "center" ? "max-w-[750px]" : "max-w-[700px]";
   const titleClass =
     size === "lg"
       ? "text-[clamp(2.6rem,5.5vw,4.2rem)] leading-[0.98] font-normal tracking-[-0.035em]"

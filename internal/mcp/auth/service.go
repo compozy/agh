@@ -1,0 +1,546 @@
+package auth
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+)
+
+// ServiceOption configures the OAuth service.
+type ServiceOption func(*Service)
+
+// Service executes OAuth 2.1 authorization-code flows for remote MCP servers.
+type Service struct {
+	store  TokenStore
+	client *http.Client
+	random io.Reader
+	now    func() time.Time
+}
+
+// NewService constructs an MCP auth service.
+func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
+	if store == nil {
+		return nil, errors.New("mcp auth: token store is required")
+	}
+	service := &Service{
+		store:  store,
+		client: &http.Client{Timeout: defaultMetadataClientTimeout},
+		now: func() time.Time {
+			return time.Now().UTC()
+		},
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(service)
+		}
+	}
+	if service.client == nil {
+		service.client = &http.Client{Timeout: defaultMetadataClientTimeout}
+	}
+	if service.now == nil {
+		service.now = func() time.Time { return time.Now().UTC() }
+	}
+	return service, nil
+}
+
+// WithHTTPClient overrides the HTTP client used for metadata and token calls.
+func WithHTTPClient(client *http.Client) ServiceOption {
+	return func(service *Service) {
+		service.client = client
+	}
+}
+
+// WithRandom overrides the entropy source for tests.
+func WithRandom(random io.Reader) ServiceOption {
+	return func(service *Service) {
+		service.random = random
+	}
+}
+
+// WithNow overrides the clock for tests.
+func WithNow(now func() time.Time) ServiceOption {
+	return func(service *Service) {
+		service.now = now
+	}
+}
+
+// LoginState holds the short-lived in-memory authorization flow state.
+type LoginState struct {
+	ServerName       string
+	RedirectURL      string
+	State            string
+	Verifier         string
+	AuthorizationURL string
+	Metadata         Metadata
+	Config           ServerConfig
+}
+
+// BeginLogin discovers metadata, generates PKCE state, and returns the URL the
+// operator must open. The returned verifier is sensitive and must stay in memory.
+func (s *Service) BeginLogin(
+	ctx context.Context,
+	cfg ServerConfig,
+	redirectURL string,
+) (LoginState, error) {
+	if err := cfg.Validate(); err != nil {
+		return LoginState{}, err
+	}
+	if err := validateAbsoluteHTTPURL("redirect URL", redirectURL); err != nil {
+		return LoginState{}, err
+	}
+
+	metadata, err := discoverMetadata(ctx, s.client, cfg)
+	if err != nil {
+		return LoginState{}, err
+	}
+	if !supportsS256(metadata.CodeChallengeMethodsSupported) {
+		return LoginState{}, errors.New("mcp auth: OAuth server must support S256 PKCE")
+	}
+	pkce, err := newPKCEPair(s.random)
+	if err != nil {
+		return LoginState{}, err
+	}
+	if err := validateVerifier(pkce.Verifier); err != nil {
+		return LoginState{}, err
+	}
+	state, err := newState(s.random)
+	if err != nil {
+		return LoginState{}, err
+	}
+
+	authURL, err := authorizationURL(metadata.AuthorizationEndpoint, cfg, redirectURL, state, pkce)
+	if err != nil {
+		return LoginState{}, err
+	}
+	return LoginState{
+		ServerName:       strings.TrimSpace(cfg.ServerName),
+		RedirectURL:      strings.TrimSpace(redirectURL),
+		State:            state,
+		Verifier:         pkce.Verifier,
+		AuthorizationURL: authURL,
+		Metadata:         metadata,
+		Config:           cfg,
+	}, nil
+}
+
+// Exchange validates the OAuth callback and stores the token response.
+func (s *Service) Exchange(ctx context.Context, state LoginState, callbackURL string) (Status, error) {
+	code, err := authorizationCodeFromCallback(callbackURL, state.State)
+	if err != nil {
+		return Status{}, err
+	}
+	if err := validateVerifier(state.Verifier); err != nil {
+		return Status{}, err
+	}
+
+	token, err := s.exchangeCode(ctx, state, code)
+	if err != nil {
+		return Status{}, err
+	}
+	if err := s.store.SaveMCPAuthToken(ctx, token); err != nil {
+		return Status{}, fmt.Errorf("mcp auth: persist token for %q: %w", state.ServerName, err)
+	}
+	return statusFromToken(state.Config, &token, s.now()), nil
+}
+
+// Refresh refreshes a persisted token and updates durable storage.
+func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error) {
+	if err := cfg.Validate(); err != nil {
+		return Status{}, err
+	}
+	current, err := s.store.GetMCPAuthToken(ctx, cfg.ServerName)
+	if err != nil {
+		if errors.Is(err, ErrTokenNotFound) {
+			return statusFromToken(cfg, nil, s.now()), nil
+		}
+		return Status{}, err
+	}
+	if strings.TrimSpace(current.RefreshToken) == "" {
+		return statusFromTokenWithDiagnostic(
+			cfg,
+			&current,
+			s.now(),
+			"refresh token is unavailable; run login again",
+		), nil
+	}
+
+	metadata, err := discoverMetadata(ctx, s.client, cfg)
+	if err != nil {
+		return Status{}, err
+	}
+	refreshed, err := s.refreshToken(ctx, cfg, metadata, current)
+	if err != nil {
+		return Status{}, err
+	}
+	if err := s.store.SaveMCPAuthToken(ctx, refreshed); err != nil {
+		return Status{}, fmt.Errorf("mcp auth: persist refreshed token for %q: %w", cfg.ServerName, err)
+	}
+	return statusFromToken(cfg, &refreshed, s.now()), nil
+}
+
+// Status returns redacted durable auth state for one server.
+func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) {
+	if strings.TrimSpace(cfg.Type) == "" {
+		return Status{
+			ServerName: strings.TrimSpace(cfg.ServerName),
+			Status:     StatusUnconfigured,
+			RemoteURL:  strings.TrimSpace(cfg.RemoteURL),
+		}, nil
+	}
+	if err := cfg.Validate(); err != nil {
+		return Status{}, err
+	}
+	token, err := s.store.GetMCPAuthToken(ctx, cfg.ServerName)
+	if err != nil {
+		if errors.Is(err, ErrTokenNotFound) {
+			return statusFromToken(cfg, nil, s.now()), nil
+		}
+		return Status{}, err
+	}
+	return statusFromToken(cfg, &token, s.now()), nil
+}
+
+// Logout revokes the refresh token when revocation metadata is configured,
+// then deletes local durable token state.
+func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) {
+	if err := cfg.Validate(); err != nil {
+		return Status{}, err
+	}
+	token, err := s.store.GetMCPAuthToken(ctx, cfg.ServerName)
+	if err != nil && !errors.Is(err, ErrTokenNotFound) {
+		return Status{}, err
+	}
+	var remoteErr error
+	if err == nil {
+		metadata, metaErr := discoverMetadata(ctx, s.client, cfg)
+		if metaErr != nil {
+			remoteErr = fmt.Errorf("mcp auth: discover revocation metadata: %w", metaErr)
+		} else if strings.TrimSpace(metadata.RevocationEndpoint) != "" {
+			if revokeErr := s.revoke(ctx, cfg, metadata, token); revokeErr != nil {
+				remoteErr = fmt.Errorf("mcp auth: revoke remote token: %w", revokeErr)
+			}
+		}
+	}
+	if err := s.store.DeleteMCPAuthToken(ctx, cfg.ServerName); err != nil {
+		return Status{}, err
+	}
+	if remoteErr != nil {
+		return statusFromTokenWithDiagnostic(
+			cfg,
+			nil,
+			s.now(),
+			"local logout completed; remote revocation failed: "+remoteErr.Error(),
+		), nil
+	}
+	return statusFromToken(cfg, nil, s.now()), nil
+}
+
+func authorizationURL(
+	endpoint string,
+	cfg ServerConfig,
+	redirectURL string,
+	state string,
+	pkce PKCEPair,
+) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(endpoint))
+	if err != nil {
+		return "", fmt.Errorf("mcp auth: parse authorization endpoint: %w", err)
+	}
+	values := parsed.Query()
+	values.Set("response_type", "code")
+	values.Set("client_id", strings.TrimSpace(cfg.ClientID))
+	values.Set("redirect_uri", strings.TrimSpace(redirectURL))
+	values.Set("state", state)
+	values.Set("code_challenge", pkce.Challenge)
+	values.Set("code_challenge_method", pkce.Method)
+	if scopes := strings.Join(trimStrings(cfg.Scopes), " "); scopes != "" {
+		values.Set("scope", scopes)
+	}
+	parsed.RawQuery = values.Encode()
+	return parsed.String(), nil
+}
+
+func authorizationCodeFromCallback(callbackURL string, wantState string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(callbackURL))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", errors.New("mcp auth: callback URL is invalid")
+	}
+	values := parsed.Query()
+	if gotState := values.Get("state"); gotState == "" || gotState != wantState {
+		return "", errors.New("mcp auth: OAuth callback state mismatch")
+	}
+	if oauthErr := strings.TrimSpace(values.Get("error")); oauthErr != "" {
+		return "", fmt.Errorf("mcp auth: OAuth callback error: %s", oauthErr)
+	}
+	code := strings.TrimSpace(values.Get("code"))
+	if code == "" {
+		return "", errors.New("mcp auth: OAuth callback code is required")
+	}
+	return code, nil
+}
+
+type tokenEndpointResponse struct {
+	AccessToken      string `json:"access_token"`
+	RefreshToken     string `json:"refresh_token"`
+	TokenType        string `json:"token_type"`
+	ExpiresIn        int64  `json:"expires_in"`
+	Scope            string `json:"scope"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
+func (s *Service) exchangeCode(ctx context.Context, state LoginState, code string) (TokenRecord, error) {
+	values := url.Values{}
+	values.Set("grant_type", "authorization_code")
+	values.Set("code", code)
+	values.Set("redirect_uri", strings.TrimSpace(state.RedirectURL))
+	values.Set("client_id", strings.TrimSpace(state.Config.ClientID))
+	values.Set("code_verifier", state.Verifier)
+	if strings.TrimSpace(state.Config.ClientSecret) != "" {
+		values.Set("client_secret", state.Config.ClientSecret)
+	}
+
+	resp, err := s.postForm(ctx, state.Metadata.TokenEndpoint, values)
+	if err != nil {
+		return TokenRecord{}, err
+	}
+	return s.tokenRecordFromResponse(state.Config, state.Metadata, resp, TokenRecord{})
+}
+
+func (s *Service) refreshToken(
+	ctx context.Context,
+	cfg ServerConfig,
+	metadata Metadata,
+	current TokenRecord,
+) (TokenRecord, error) {
+	values := url.Values{}
+	values.Set("grant_type", "refresh_token")
+	values.Set("refresh_token", current.RefreshToken)
+	values.Set("client_id", strings.TrimSpace(cfg.ClientID))
+	if strings.TrimSpace(cfg.ClientSecret) != "" {
+		values.Set("client_secret", cfg.ClientSecret)
+	}
+
+	resp, err := s.postForm(ctx, metadata.TokenEndpoint, values)
+	if err != nil {
+		return TokenRecord{}, err
+	}
+	return s.tokenRecordFromResponse(cfg, metadata, resp, current)
+}
+
+func (s *Service) postForm(ctx context.Context, endpoint string, values url.Values) (tokenEndpointResponse, error) {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		strings.TrimSpace(endpoint),
+		strings.NewReader(values.Encode()),
+	)
+	if err != nil {
+		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: build token request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: call token endpoint: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	var payload tokenEndpointResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: decode token response: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if strings.TrimSpace(payload.Error) == "" {
+			return tokenEndpointResponse{}, fmt.Errorf("mcp auth: token endpoint HTTP %d", resp.StatusCode)
+		}
+		return tokenEndpointResponse{}, fmt.Errorf(
+			"mcp auth: token endpoint rejected request: %s",
+			payload.Error,
+		)
+	}
+	if strings.TrimSpace(payload.Error) != "" {
+		return tokenEndpointResponse{}, fmt.Errorf(
+			"mcp auth: token endpoint returned error: %s",
+			payload.Error,
+		)
+	}
+	return payload, nil
+}
+
+func (s *Service) tokenRecordFromResponse(
+	cfg ServerConfig,
+	metadata Metadata,
+	resp tokenEndpointResponse,
+	current TokenRecord,
+) (TokenRecord, error) {
+	if strings.TrimSpace(resp.AccessToken) == "" {
+		return TokenRecord{}, errors.New("mcp auth: token response access_token is required")
+	}
+	tokenType := strings.TrimSpace(resp.TokenType)
+	if tokenType == "" {
+		tokenType = "Bearer"
+	}
+	if !strings.EqualFold(tokenType, "Bearer") {
+		return TokenRecord{}, errors.New("mcp auth: token response token_type must be Bearer")
+	}
+
+	now := s.now().UTC()
+	refreshToken := strings.TrimSpace(resp.RefreshToken)
+	if refreshToken == "" {
+		refreshToken = strings.TrimSpace(current.RefreshToken)
+	}
+	scopes := trimStrings(strings.Fields(resp.Scope))
+	if len(scopes) == 0 {
+		scopes = trimStrings(cfg.Scopes)
+	}
+	expiresAt := time.Time{}
+	if resp.ExpiresIn > 0 {
+		expiresAt = now.Add(time.Duration(resp.ExpiresIn) * time.Second)
+	}
+	obtainedAt := current.ObtainedAt
+	if obtainedAt.IsZero() {
+		obtainedAt = now
+	}
+
+	return TokenRecord{
+		ServerName:   strings.TrimSpace(cfg.ServerName),
+		Issuer:       strings.TrimSpace(metadata.Issuer),
+		ClientID:     strings.TrimSpace(cfg.ClientID),
+		Scopes:       scopes,
+		AccessToken:  strings.TrimSpace(resp.AccessToken),
+		RefreshToken: refreshToken,
+		TokenType:    tokenType,
+		ExpiresAt:    expiresAt,
+		ObtainedAt:   obtainedAt,
+		UpdatedAt:    now,
+	}, nil
+}
+
+func (s *Service) revoke(ctx context.Context, cfg ServerConfig, metadata Metadata, token TokenRecord) error {
+	revokeToken := strings.TrimSpace(token.RefreshToken)
+	hint := "refresh_token"
+	if revokeToken == "" {
+		revokeToken = strings.TrimSpace(token.AccessToken)
+		hint = "access_token"
+	}
+	if revokeToken == "" {
+		return nil
+	}
+
+	values := url.Values{}
+	values.Set("token", revokeToken)
+	values.Set("token_type_hint", hint)
+	values.Set("client_id", strings.TrimSpace(cfg.ClientID))
+	if strings.TrimSpace(cfg.ClientSecret) != "" {
+		values.Set("client_secret", cfg.ClientSecret)
+	}
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		strings.TrimSpace(metadata.RevocationEndpoint),
+		strings.NewReader(values.Encode()),
+	)
+	if err != nil {
+		return fmt.Errorf("mcp auth: build revocation request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("mcp auth: call revocation endpoint: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("mcp auth: revocation endpoint HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func statusFromToken(cfg ServerConfig, token *TokenRecord, now time.Time) Status {
+	return statusFromTokenWithDiagnostic(cfg, token, now, "")
+}
+
+func statusFromTokenWithDiagnostic(
+	cfg ServerConfig,
+	token *TokenRecord,
+	now time.Time,
+	diagnostic string,
+) Status {
+	status := Status{
+		ServerName:       strings.TrimSpace(cfg.ServerName),
+		Status:           StatusNeedsLogin,
+		RemoteURL:        strings.TrimSpace(cfg.RemoteURL),
+		AuthType:         strings.TrimSpace(cfg.Type),
+		ClientID:         strings.TrimSpace(cfg.ClientID),
+		Scopes:           trimStrings(cfg.Scopes),
+		RevocationURL:    strings.TrimSpace(cfg.RevocationURL),
+		AuthorizationURL: strings.TrimSpace(cfg.AuthorizationURL),
+		Diagnostic:       strings.TrimSpace(diagnostic),
+	}
+	if strings.TrimSpace(cfg.Type) == "" {
+		status.Status = StatusUnconfigured
+		return status
+	}
+	if token == nil {
+		status.Diagnostic = firstNonEmpty(status.Diagnostic, "login required")
+		return status
+	}
+
+	status.TokenPresent = strings.TrimSpace(token.AccessToken) != ""
+	status.Refreshable = strings.TrimSpace(token.RefreshToken) != ""
+	status.Issuer = strings.TrimSpace(token.Issuer)
+	if len(token.Scopes) > 0 {
+		status.Scopes = append([]string(nil), token.Scopes...)
+	}
+	if !token.ExpiresAt.IsZero() {
+		expiresAt := token.ExpiresAt.UTC()
+		status.ExpiresAt = &expiresAt
+	}
+	if !token.UpdatedAt.IsZero() {
+		updatedAt := token.UpdatedAt.UTC()
+		status.UpdatedAt = &updatedAt
+	}
+	switch {
+	case !status.TokenPresent:
+		status.Status = StatusInvalid
+		status.Diagnostic = firstNonEmpty(status.Diagnostic, "stored token is missing access token")
+	case status.ExpiresAt != nil && !status.ExpiresAt.After(now.UTC()):
+		status.Status = StatusExpired
+		status.Diagnostic = firstNonEmpty(status.Diagnostic, "token is expired")
+	default:
+		status.Status = StatusAuthenticated
+	}
+	return status
+}
+
+func supportsS256(methods []string) bool {
+	if len(methods) == 0 {
+		return false
+	}
+	for _, method := range methods {
+		if strings.EqualFold(strings.TrimSpace(method), "S256") {
+			return true
+		}
+	}
+	return false
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}

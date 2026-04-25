@@ -164,7 +164,7 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	}
 	if !strings.Contains(
 		toonOut,
-		"sessions[1]{id,name,agent_name,provider,environment_backend,state,workspace,channel,updated_at}:",
+		"sessions[1]{id,name,agent_name,provider,environment_backend,state,failure_kind,workspace,channel,updated_at}:",
 	) {
 		t.Fatalf("toon output = %q, want TOON table", toonOut)
 	}

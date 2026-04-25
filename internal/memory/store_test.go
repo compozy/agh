@@ -3,6 +3,7 @@ package memory
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
+	storepkg "github.com/pedronauck/agh/internal/store"
 )
 
 type testMemoryMeta struct {
@@ -876,6 +878,82 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		}
 	})
 
+	t.Run("Should scope health operation stats to visible workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		globalDir := filepath.Join(baseDir, "global")
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		workspaceA := filepath.Join(baseDir, "workspace-a")
+		workspaceB := filepath.Join(baseDir, "workspace-b")
+		storeA := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceA)
+		storeB := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceB)
+		for _, store := range []*Store{storeA, storeB} {
+			if err := store.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+		}
+
+		if err := storeA.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+			Name: "Shared Preferences",
+			Type: MemoryTypeUser,
+		}, "Global signal.\n")); err != nil {
+			t.Fatalf("storeA.Write(global) error = %v", err)
+		}
+		if err := storeA.Write(ScopeWorkspace, "project-a.md", mustMemoryContent(t, testMemoryMeta{
+			Name: "Workspace A",
+			Type: MemoryTypeProject,
+		}, "Workspace A signal.\n")); err != nil {
+			t.Fatalf("storeA.Write(workspace) error = %v", err)
+		}
+		if err := storeB.Write(ScopeWorkspace, "project-b.md", mustMemoryContent(t, testMemoryMeta{
+			Name: "Workspace B",
+			Type: MemoryTypeProject,
+		}, "Workspace B signal.\n")); err != nil {
+			t.Fatalf("storeB.Write(workspace) error = %v", err)
+		}
+
+		db, err := storeA.catalog.ensureDB(ctx)
+		if err != nil {
+			t.Fatalf("catalog.ensureDB() error = %v", err)
+		}
+		globalAt := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
+		workspaceAAt := globalAt.Add(time.Minute)
+		workspaceBAt := globalAt.Add(2 * time.Minute)
+		updates := []struct {
+			scope         Scope
+			workspaceRoot string
+			timestamp     time.Time
+		}{
+			{scope: ScopeGlobal, timestamp: globalAt},
+			{scope: ScopeWorkspace, workspaceRoot: workspaceA, timestamp: workspaceAAt},
+			{scope: ScopeWorkspace, workspaceRoot: workspaceB, timestamp: workspaceBAt},
+		}
+		for _, update := range updates {
+			if _, err := db.ExecContext(
+				ctx,
+				`UPDATE memory_operation_log SET timestamp = ? WHERE scope = ? AND workspace_root = ?`,
+				storepkg.FormatTimestamp(update.timestamp),
+				string(update.scope),
+				update.workspaceRoot,
+			); err != nil {
+				t.Fatalf("update operation timestamp for %q/%q error = %v", update.scope, update.workspaceRoot, err)
+			}
+		}
+
+		stats, err := storeA.HealthStats(ctx, []string{workspaceA})
+		if err != nil {
+			t.Fatalf("storeA.HealthStats() error = %v", err)
+		}
+		if got, want := stats.OperationCount, 2; got != want {
+			t.Fatalf("HealthStats().OperationCount = %d, want %d", got, want)
+		}
+		if stats.LastOperationAt == nil || !stats.LastOperationAt.Equal(workspaceAAt) {
+			t.Fatalf("HealthStats().LastOperationAt = %v, want %s", stats.LastOperationAt, workspaceAAt)
+		}
+	})
+
 	t.Run("Should clamp oversized search limits server-side", func(t *testing.T) {
 		t.Parallel()
 
@@ -1045,6 +1123,277 @@ func TestStoreSearchAndReindex(t *testing.T) {
 				firstReindex.Format(time.RFC3339Nano),
 				secondReindex.Format(time.RFC3339Nano),
 			)
+		}
+	})
+}
+
+func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	baseDir := t.TempDir()
+	globalDir := filepath.Join(baseDir, "global")
+	workspaceRoot := filepath.Join(baseDir, "workspace")
+	catalogPath := filepath.Join(baseDir, "agh.db")
+	store := NewStore(globalDir, WithCatalogDatabasePath(catalogPath))
+	workspaceStore := store.ForWorkspace(workspaceRoot)
+	if err := workspaceStore.EnsureDirs(); err != nil {
+		t.Fatalf("Store.EnsureDirs() error = %v", err)
+	}
+
+	if err := workspaceStore.Write(ScopeGlobal, "prefs.md", mustMemoryContent(t, testMemoryMeta{
+		Name:        "Global Preferences",
+		Description: "Common token lives globally",
+		Type:        MemoryTypeUser,
+	}, "Common token is global.\n")); err != nil {
+		t.Fatalf("Store.Write(global) error = %v", err)
+	}
+	if err := workspaceStore.Write(ScopeWorkspace, "project.md", mustMemoryContent(t, testMemoryMeta{
+		Name:        "Project Memory",
+		Description: "Common token lives in the workspace",
+		Type:        MemoryTypeProject,
+	}, "Common token is workspace-local.\n")); err != nil {
+		t.Fatalf("Store.Write(workspace) error = %v", err)
+	}
+
+	sinceBeforeSearch := time.Now().Add(-time.Second).UTC()
+	results, err := workspaceStore.Search(ctx, "common token=super-secret", SearchOptions{
+		Workspace: workspaceRoot,
+		Limit:     5,
+	})
+	if err != nil {
+		t.Fatalf("Store.Search() error = %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("len(results) = %d, want 2; results=%#v", len(results), results)
+	}
+
+	workspaceWrites, err := workspaceStore.History(ctx, OperationHistoryQuery{
+		Scope:     ScopeWorkspace,
+		Workspace: workspaceRoot,
+		Operation: OperationWrite,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("Store.History(workspace writes) error = %v", err)
+	}
+	if len(workspaceWrites) != 1 {
+		t.Fatalf("len(workspaceWrites) = %d, want 1; records=%#v", len(workspaceWrites), workspaceWrites)
+	}
+	if workspaceWrites[0].Filename != "project.md" || workspaceWrites[0].Workspace != workspaceRoot {
+		t.Fatalf("workspace write record = %#v, want workspace project.md", workspaceWrites[0])
+	}
+
+	globalWrites, err := workspaceStore.History(ctx, OperationHistoryQuery{
+		Scope:     ScopeGlobal,
+		Operation: OperationWrite,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("Store.History(global writes) error = %v", err)
+	}
+	if len(globalWrites) != 1 || globalWrites[0].Filename != "prefs.md" || globalWrites[0].Workspace != "" {
+		t.Fatalf("global write records = %#v, want one global prefs.md record", globalWrites)
+	}
+
+	searches, err := workspaceStore.History(ctx, OperationHistoryQuery{
+		Workspace: workspaceRoot,
+		Operation: OperationSearch,
+		Since:     sinceBeforeSearch,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("Store.History(searches) error = %v", err)
+	}
+	if len(searches) != 1 {
+		t.Fatalf("len(searches) = %d, want 1; records=%#v", len(searches), searches)
+	}
+	if strings.Contains(searches[0].Summary, "super-secret") ||
+		!strings.Contains(searches[0].Summary, "token=[REDACTED]") {
+		t.Fatalf("search summary = %q, want redacted secret token", searches[0].Summary)
+	}
+
+	futureHistory, err := workspaceStore.History(ctx, OperationHistoryQuery{
+		Operation: OperationSearch,
+		Since:     time.Now().Add(time.Hour).UTC(),
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("Store.History(future since) error = %v", err)
+	}
+	if len(futureHistory) != 0 {
+		t.Fatalf("len(futureHistory) = %d, want 0", len(futureHistory))
+	}
+
+	for idx := range maxHistoryLimit + 5 {
+		if err := workspaceStore.logCatalogEvent(ctx, OperationRecord{
+			Operation: OperationReindex,
+			Summary:   fmt.Sprintf("iteration=%d", idx),
+		}); err != nil {
+			t.Fatalf("logCatalogEvent(%d) error = %v", idx, err)
+		}
+	}
+	bounded, err := workspaceStore.History(ctx, OperationHistoryQuery{
+		Operation: OperationReindex,
+		Limit:     maxHistoryLimit + 10,
+	})
+	if err != nil {
+		t.Fatalf("Store.History(bounded) error = %v", err)
+	}
+	if len(bounded) != maxHistoryLimit {
+		t.Fatalf("len(bounded) = %d, want %d", len(bounded), maxHistoryLimit)
+	}
+
+	stats, err := workspaceStore.HealthStats(ctx, []string{workspaceRoot})
+	if err != nil {
+		t.Fatalf("Store.HealthStats() error = %v", err)
+	}
+	if stats.OperationCount < maxHistoryLimit+8 || stats.LastOperationAt == nil {
+		t.Fatalf("HealthStats() = %#v, want operation count and last operation", stats)
+	}
+
+	reopened := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceRoot)
+	reopenedWrites, err := reopened.History(ctx, OperationHistoryQuery{
+		Operation: OperationWrite,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("reopened.History(writes) error = %v", err)
+	}
+	if len(reopenedWrites) != 2 {
+		t.Fatalf("len(reopenedWrites) = %d, want 2; records=%#v", len(reopenedWrites), reopenedWrites)
+	}
+}
+
+func TestStoreOperationHistoryIsolatesWorkspaceDefaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should isolate history by workspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		globalDir := filepath.Join(baseDir, "global")
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		workspaceA := filepath.Join(baseDir, "workspace-a")
+		workspaceB := filepath.Join(baseDir, "workspace-b")
+		storeA := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceA)
+		storeB := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceB)
+		for _, store := range []*Store{storeA, storeB} {
+			if err := store.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+		}
+
+		if err := storeA.Write(ScopeWorkspace, "project-a.md", mustMemoryContent(t, testMemoryMeta{
+			Name: "Workspace A",
+			Type: MemoryTypeProject,
+		}, "Alpha workspace signal.\n")); err != nil {
+			t.Fatalf("storeA.Write(workspace) error = %v", err)
+		}
+		if err := storeB.Write(ScopeWorkspace, "project-b.md", mustMemoryContent(t, testMemoryMeta{
+			Name: "Workspace B",
+			Type: MemoryTypeProject,
+		}, "Beta workspace signal.\n")); err != nil {
+			t.Fatalf("storeB.Write(workspace) error = %v", err)
+		}
+
+		if _, err := storeA.Search(ctx, "alpha signal", SearchOptions{Limit: 5}); err != nil {
+			t.Fatalf("storeA.Search() error = %v", err)
+		}
+		if _, err := storeB.Search(ctx, "beta signal", SearchOptions{Limit: 5}); err != nil {
+			t.Fatalf("storeB.Search() error = %v", err)
+		}
+
+		historyA, err := storeA.History(ctx, OperationHistoryQuery{Operation: OperationSearch, Limit: 10})
+		if err != nil {
+			t.Fatalf("storeA.History(searches) error = %v", err)
+		}
+		if len(historyA) != 1 || historyA[0].Workspace != workspaceA || historyA[0].Scope != ScopeWorkspace {
+			t.Fatalf("storeA history = %#v, want only workspace A search", historyA)
+		}
+
+		historyB, err := storeB.History(ctx, OperationHistoryQuery{Operation: OperationSearch, Limit: 10})
+		if err != nil {
+			t.Fatalf("storeB.History(searches) error = %v", err)
+		}
+		if len(historyB) != 1 || historyB[0].Workspace != workspaceB || historyB[0].Scope != ScopeWorkspace {
+			t.Fatalf("storeB history = %#v, want only workspace B search", historyB)
+		}
+	})
+}
+
+func TestStoreOperationHistoryMigratesLegacyCatalogSchema(t *testing.T) {
+	t.Run("Should migrate legacy operation log columns before history queries", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		legacyDB, err := storepkg.OpenSQLiteDatabase(ctx, catalogPath, func(ctx context.Context, db *sql.DB) error {
+			if err := storepkg.EnsureSchema(ctx, db, []string{
+				`CREATE TABLE IF NOT EXISTS memory_operation_log (
+					id         TEXT PRIMARY KEY,
+					type       TEXT NOT NULL,
+					agent_name TEXT NOT NULL DEFAULT 'daemon',
+					summary    TEXT NOT NULL DEFAULT '',
+					timestamp  TEXT NOT NULL
+				);`,
+				`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_type ON memory_operation_log(type);`,
+				`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_timestamp ON memory_operation_log(timestamp);`,
+			}); err != nil {
+				return err
+			}
+			_, err := db.ExecContext(
+				ctx,
+				`INSERT INTO memory_operation_log (id, type, agent_name, summary, timestamp)
+				 VALUES (?, ?, ?, ?, ?)`,
+				"memevt_legacy",
+				string(OperationWrite),
+				"daemon",
+				"legacy write",
+				storepkg.FormatTimestamp(time.Now().UTC()),
+			)
+			return err
+		})
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(legacy catalog) error = %v", err)
+		}
+		if err := legacyDB.Close(); err != nil {
+			t.Fatalf("legacyDB.Close() error = %v", err)
+		}
+
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(catalogPath),
+		).ForWorkspace(workspaceRoot)
+		history, err := store.History(ctx, OperationHistoryQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("Store.History(legacy catalog) error = %v", err)
+		}
+		if len(history) != 1 || history[0].Summary != "legacy write" {
+			t.Fatalf("legacy history = %#v, want migrated legacy record", history)
+		}
+		if err := store.logCatalogEvent(ctx, OperationRecord{
+			Operation: OperationSearch,
+			Scope:     ScopeWorkspace,
+			Workspace: workspaceRoot,
+			Filename:  "project.md",
+			Summary:   "workspace search",
+		}); err != nil {
+			t.Fatalf("logCatalogEvent(after migration) error = %v", err)
+		}
+		workspaceHistory, err := store.History(ctx, OperationHistoryQuery{
+			Scope:     ScopeWorkspace,
+			Workspace: workspaceRoot,
+			Limit:     10,
+		})
+		if err != nil {
+			t.Fatalf("Store.History(workspace after migration) error = %v", err)
+		}
+		if len(workspaceHistory) != 1 || workspaceHistory[0].Filename != "project.md" {
+			t.Fatalf("workspace history = %#v, want post-migration scoped record", workspaceHistory)
 		}
 	})
 }

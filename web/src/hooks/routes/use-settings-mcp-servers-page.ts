@@ -64,7 +64,7 @@ function toDraft(entry: SettingsMCPServerEntry): MCPDraft {
   const env = entry.env ? Object.entries(entry.env).map(([key, value]) => ({ key, value })) : [];
   return {
     name: entry.name,
-    command: entry.command,
+    command: entry.command ?? "",
     args: [...(entry.args ?? [])],
     env,
   };
@@ -81,7 +81,7 @@ function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
   for (const entry of envEntries) {
     env[entry.key] = entry.value;
   }
-  const server: SettingsMCPServerRequest["server"] = { name, command };
+  const server: SettingsMCPServerRequest["server"] = { name, transport: "stdio", command };
   if (args.length > 0) server.args = args;
   if (envEntries.length > 0) server.env = env;
   return { server };

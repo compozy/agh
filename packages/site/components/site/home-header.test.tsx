@@ -4,12 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { HomeHeader } from "./home-header";
 
-vi.mock("fumadocs-core/framework", () => ({
+vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
 vi.mock("fumadocs-ui/layouts/home", () => ({
-  useHomeLayout: () => ({ slots: {} }),
+  useHomeLayout: () => ({
+    slots: {},
+  }),
 }));
 
 vi.mock("next/link", () => ({

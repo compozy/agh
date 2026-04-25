@@ -1,8 +1,17 @@
+import { createElement } from "react";
+import { Book, Layers } from "lucide-react";
 import { searchPath } from "fumadocs-core/breadcrumb";
-import type { Folder, Node, Root } from "fumadocs-core/page-tree";
+import type { Folder, Item, Node, Root } from "fumadocs-core/page-tree";
+
+const CORE_FOLDER_ID = "core";
+const OVERVIEW_PAGE_ID = "runtime-overview";
 
 function isFolder(node: Node): node is Folder {
   return node.type === "folder";
+}
+
+function isPage(node: Node): node is Item {
+  return node.type === "page";
 }
 
 function findRuntimeRootFolder(pageTree: Root, id: string): Folder | undefined {
@@ -11,41 +20,70 @@ function findRuntimeRootFolder(pageTree: Root, id: string): Folder | undefined {
   );
 }
 
+function buildOverviewPage(): Item {
+  return {
+    type: "page",
+    $id: OVERVIEW_PAGE_ID,
+    name: "Overview",
+    url: "/runtime",
+    icon: createElement(Book),
+  };
+}
+
+function buildCoreConceptsPage(landingPage: Item): Item {
+  return {
+    ...landingPage,
+    name: "Core Concepts",
+    icon: createElement(Layers),
+  };
+}
+
+function rebuildCoreFolder(coreFolder: Folder): Folder {
+  const landingPage = coreFolder.children.find(isPage);
+  if (!landingPage) return coreFolder;
+
+  return {
+    ...coreFolder,
+    children: [
+      buildOverviewPage(),
+      buildCoreConceptsPage(landingPage),
+      ...coreFolder.children.filter(child => child.$id !== landingPage.$id),
+    ],
+  };
+}
+
 function createRuntimeLandingFallback(pageTree: Root): Root | undefined {
-  const coreFolder = findRuntimeRootFolder(pageTree, "core");
-  const landingPage = coreFolder?.children.find(
-    (child): child is Extract<Node, { type: "page" }> => child.type === "page"
-  );
+  const coreFolder = findRuntimeRootFolder(pageTree, CORE_FOLDER_ID);
+  if (!coreFolder) return undefined;
 
-  if (!coreFolder || !landingPage) return undefined;
-
+  const rebuiltCore = rebuildCoreFolder(coreFolder);
   return {
     ...pageTree,
     $id: `${pageTree.$id ?? "runtime"}-landing-fallback`,
     children: pageTree.children.map(node =>
-      isFolder(node) && node.$id === coreFolder.$id
-        ? {
-            ...node,
-            index: {
-              ...landingPage,
-              url: "/runtime",
-            },
-            children: node.children.filter(child => child.$id !== landingPage.$id),
-          }
-        : node
+      isFolder(node) && node.$id === coreFolder.$id ? rebuiltCore : node
     ),
   };
 }
 
 export function createRuntimeLayoutTree(pageTree: Root): Root {
-  const landingFallback = createRuntimeLandingFallback(pageTree);
-  if (!landingFallback) return pageTree;
+  const coreFolder = findRuntimeRootFolder(pageTree, CORE_FOLDER_ID);
+  if (!coreFolder) return pageTree;
 
-  return {
+  const layoutTree: Root = {
     ...pageTree,
     $id: `${pageTree.$id ?? "runtime"}-layout`,
-    fallback: landingFallback,
+    children: pageTree.children.map(node =>
+      isFolder(node) && node.$id === coreFolder.$id ? rebuildCoreFolder(node) : node
+    ),
   };
+
+  const landingFallback = createRuntimeLandingFallback(pageTree);
+  if (landingFallback) {
+    layoutTree.fallback = landingFallback;
+  }
+
+  return layoutTree;
 }
 
 export function resolveSidebarRoot(tree: Root, url: string): Root | Folder {

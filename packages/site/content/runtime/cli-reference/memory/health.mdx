@@ -1,0 +1,52 @@
+---
+title: "agh memory health"
+description: "Show memory health"
+---
+
+## agh memory health
+
+Show memory health
+
+```
+agh memory health [flags]
+```
+
+### Examples
+
+```
+  # Show global and current-workspace memory health
+  agh memory health
+
+  # Show memory health as JSON
+  agh memory health -o json
+```
+
+### Options
+
+```
+  -h, --help   help for health
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh memory health -o json
+```
+
+The response reports whether memory is enabled and configured, file counts for global and
+workspace-scoped memory, derived catalog health, operation counts, dream consolidation state, and
+the last observed memory operation when available.

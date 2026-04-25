@@ -60,6 +60,44 @@ archives:
         formats:
           - zip
 
+homebrew_casks:
+  - name: agh
+    ids:
+      - agh-archive
+    binaries:
+      - agh
+    directory: Casks
+    homepage: "https://github.com/pedronauck/agh"
+    description: "AGH — Agent Operating System"
+    caveats: |
+      AGH is distributed through the AGH Homebrew tap. Use `brew upgrade --cask agh`
+      for managed updates, or set AGH_MANAGED=homebrew in shell wrappers that need
+      managed lifecycle diagnostics from `agh update` and `agh uninstall`.
+    repository:
+      owner: pedronauck
+      name: homebrew-agh
+      branch: main
+      token: "{{ .Env.RELEASE_TOKEN }}"
+
+nfpms:
+  - id: agh-linux-packages
+    package_name: agh
+    file_name_template: "{{ .ConventionalFileName }}"
+    ids:
+      - agh
+    if: '{{ eq .Os "linux" }}'
+    vendor: AGH
+    homepage: "https://github.com/pedronauck/agh"
+    maintainer: "AGH Team"
+    description: "AGH — Agent Operating System"
+    license: "BSL-1.1"
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    formats:
+      - deb
+      - rpm
+
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
@@ -149,5 +187,6 @@ release:
 
 sboms:
   - artifacts: archive
+  - artifacts: package
   - id: source
     artifacts: source

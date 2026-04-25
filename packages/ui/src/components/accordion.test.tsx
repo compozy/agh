@@ -14,7 +14,7 @@ function AccordionExample({
   defaultValue,
 }: {
   multiple?: boolean;
-  defaultValue?: readonly string[];
+  defaultValue?: string[];
 }) {
   return (
     <Accordion multiple={multiple} defaultValue={defaultValue}>

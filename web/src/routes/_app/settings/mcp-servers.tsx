@@ -287,7 +287,7 @@ function MCPServersTable({
               Name
             </TableHead>
             <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-              Command
+              Endpoint
             </TableHead>
             <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
               Source
@@ -331,6 +331,8 @@ function MCPServerRow({
   const shadowed = server.source_metadata.shadowed_sources ?? [];
   const envCount = server.env ? Object.keys(server.env).length : 0;
   const argsCount = server.args?.length ?? 0;
+  const endpoint = server.transport === "stdio" ? server.command : server.url;
+  const canEdit = server.transport === "stdio";
 
   return (
     <TableRow data-testid={`settings-page-mcp-servers-row-${server.name}`}>
@@ -351,7 +353,7 @@ function MCPServerRow({
         className="font-mono text-xs text-[color:var(--color-text-secondary)]"
         data-testid={`settings-page-mcp-servers-row-${server.name}-command`}
       >
-        {server.command}
+        {endpoint ?? "-"}
       </TableCell>
       <TableCell>
         <SettingsSourceBadge
@@ -379,6 +381,8 @@ function MCPServerRow({
             variant="ghost"
             size="sm"
             onClick={() => onEdit(server)}
+            disabled={!canEdit}
+            title={canEdit ? undefined : "Remote MCP servers are managed from config and CLI auth."}
             data-testid={`settings-page-mcp-servers-row-${server.name}-edit`}
           >
             Edit

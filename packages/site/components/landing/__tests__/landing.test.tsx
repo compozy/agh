@@ -26,6 +26,7 @@ vi.mock("next/navigation", () => ({
 
 import { Hero } from "../hero";
 import { FeaturesSection } from "../features-section";
+import { BentoSection } from "../bento-section";
 import { SupportedAgents } from "../supported-agents";
 import { RuntimeMicroDiagram } from "../runtime-micro-diagram";
 import { RuntimeSection } from "../runtime-section";
@@ -59,22 +60,78 @@ describe("Hero", () => {
 });
 
 describe("FeaturesSection", () => {
-  it("renders the eight runtime capabilities", () => {
+  it("renders six illustrated runtime capabilities", () => {
     render(<FeaturesSection />);
-    const eyebrows = [
-      "Sessions",
-      "Memory",
-      "Skills",
-      "Workspaces",
-      "Automation",
-      "Observability",
-      "Hooks",
-      "Bridges",
-    ];
+    const eyebrows = ["Sessions", "Memory", "Skills", "Workspaces", "Automation", "Observability"];
     for (const label of eyebrows) {
       expect(screen.getByText(label)).toBeDefined();
     }
+
+    expect(screen.getAllByTestId("feature-card")).toHaveLength(6);
+    expect(screen.queryByText("Hooks")).toBeNull();
+    expect(screen.queryByText("Bridges")).toBeNull();
     expect(screen.getByText("Everything a modern agent runtime should have.")).toBeDefined();
+  });
+
+  it("uses the six everything illustration assets", () => {
+    render(<FeaturesSection />);
+
+    const expectedSources = [
+      "/images/everything/illustration_01.png",
+      "/images/everything/illustration_02.png",
+      "/images/everything/illustration_04.png",
+      "/images/everything/illustration_05.png",
+      "/images/everything/illustration_06.png",
+      "/images/everything/illustration_03.png",
+    ];
+
+    const sources = screen.getAllByRole("img").map(image => image.getAttribute("src"));
+
+    for (const source of expectedSources) {
+      expect(sources).toContain(source);
+    }
+  });
+});
+
+describe("BentoSection", () => {
+  it("renders the five-tile runtime bento without an extra section header", () => {
+    render(<BentoSection />);
+
+    expect(screen.getByTestId("bento-grid")).toBeDefined();
+    expect(screen.getAllByRole("article")).toHaveLength(5);
+    expect(screen.queryByText("The runtime surface in five parts.")).toBeNull();
+
+    for (const label of ["Runtime", "Network", "Bridges", "Memory", "Trace"]) {
+      expect(screen.getByText(label)).toBeDefined();
+    }
+
+    for (const title of [
+      "Your agents. Under control.",
+      "Built-in network. Delegate. Deliver. Done.",
+      "From anywhere. Into a session.",
+      "Context that remembers.",
+      "Every step Traceable.",
+    ]) {
+      expect(screen.getByRole("heading", { name: title })).toBeDefined();
+    }
+  });
+
+  it("uses the five exported bento illustration assets", () => {
+    render(<BentoSection />);
+
+    const expectedSources = [
+      "/images/bento-illustrations/runtime-v2.png",
+      "/images/bento-illustrations/network-v2.png",
+      "/images/bento-illustrations/bridges-v2.png",
+      "/images/bento-illustrations/memory-v2.png",
+      "/images/bento-illustrations/trace-v2.png",
+    ];
+
+    const sources = screen.getAllByRole("img").map(image => image.getAttribute("src"));
+
+    for (const source of expectedSources) {
+      expect(sources).toContain(source);
+    }
   });
 });
 
@@ -101,6 +158,18 @@ describe("RuntimeSection", () => {
     for (const title of expected) {
       expect(screen.getByText(title)).toBeDefined();
     }
+  });
+
+  it("uses the runtime daemon illustration in the sticky rail", () => {
+    render(<RuntimeSection />);
+
+    expect(
+      screen
+        .getByAltText(
+          "AGH daemon connecting CLI, API, and web UI surfaces to sessions, memory, skills, workspaces, and observability."
+        )
+        .getAttribute("src")
+    ).toBe("/images/runtime/illustration_1.png");
   });
 
   it("gives the sticky runtime rail a large-screen top inset", () => {
@@ -149,12 +218,25 @@ describe("BridgesSection", () => {
 });
 
 describe("ExtensibilitySection", () => {
-  it("renders five extensibility cards", () => {
+  it("renders four extensibility cards", () => {
     render(<ExtensibilitySection />);
-    const eyebrows = ["Hooks", "Skills", "Memory", "Automation", "Extensions"];
+    expect(screen.getAllByRole("article")).toHaveLength(4);
+    const eyebrows = ["Hooks", "Skills", "Automation", "Extensions"];
     for (const label of eyebrows) {
       expect(screen.getByText(label)).toBeDefined();
     }
+  });
+
+  it("uses the dedicated skill contract illustration for the lower section", () => {
+    render(<ExtensibilitySection />);
+
+    expect(
+      screen
+        .getByAltText(
+          "deploy-staging.skill.md shown as a Markdown skill contract with frontmatter, deployment capabilities, and a staged execution trace."
+        )
+        .getAttribute("src")
+    ).toBe("/images/extensibility-skill-contract-v1.png");
   });
 });
 

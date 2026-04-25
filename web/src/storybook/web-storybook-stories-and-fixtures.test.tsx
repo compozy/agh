@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -10,7 +11,9 @@ import {
 import { workspaceDetailFixture, workspaceFixtures } from "@/systems/workspace/mocks";
 
 describe("storybook story and fixture regressions", () => {
-  const fromWeb = (path: string) => resolve(process.cwd(), path);
+  const testDir = dirname(fileURLToPath(import.meta.url));
+  const webRoot = resolve(testDir, "../..");
+  const fromWeb = (path: string) => resolve(webRoot, path);
 
   it("loads the edited story modules", { timeout: 15_000 }, async () => {
     const modules = await Promise.all([
@@ -33,7 +36,7 @@ describe("storybook story and fixture regressions", () => {
   it("keeps the scoped story and fixture source aligned with the review fixes", async () => {
     const sources = await Promise.all([
       readFile(
-        resolve(process.cwd(), "../packages/ui/src/components/stories/collapsible.stories.tsx"),
+        resolve(webRoot, "../packages/ui/src/components/stories/collapsible.stories.tsx"),
         "utf8"
       ),
       readFile(

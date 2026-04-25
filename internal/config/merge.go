@@ -110,10 +110,11 @@ type daytonaProfileOverlay struct {
 }
 
 type observabilityOverlay struct {
-	Enabled        *bool                           `toml:"enabled"`
-	RetentionDays  *int                            `toml:"retention_days"`
-	MaxGlobalBytes *int64                          `toml:"max_global_bytes"`
-	Transcripts    observabilityTranscriptsOverlay `toml:"transcripts"`
+	Enabled           *bool                           `toml:"enabled"`
+	RetentionDays     *int                            `toml:"retention_days"`
+	MaxGlobalBytes    *int64                          `toml:"max_global_bytes"`
+	AgentProbeTimeout *time.Duration                  `toml:"agent_probe_timeout"`
+	Transcripts       observabilityTranscriptsOverlay `toml:"transcripts"`
 }
 
 type observabilityTranscriptsOverlay struct {
@@ -192,10 +193,25 @@ type hooksOverlay struct {
 }
 
 type mcpServerOverlay struct {
-	Name    *string            `toml:"name"`
-	Command *string            `toml:"command"`
-	Args    *[]string          `toml:"args"`
-	Env     *map[string]string `toml:"env"`
+	Name      *string             `toml:"name"`
+	Transport *MCPServerTransport `toml:"transport"`
+	Command   *string             `toml:"command"`
+	Args      *[]string           `toml:"args"`
+	Env       *map[string]string  `toml:"env"`
+	URL       *string             `toml:"url"`
+	Auth      mcpAuthOverlay      `toml:"auth"`
+}
+
+type mcpAuthOverlay struct {
+	Type             *MCPAuthType `toml:"type"`
+	IssuerURL        *string      `toml:"issuer_url"`
+	MetadataURL      *string      `toml:"metadata_url"`
+	AuthorizationURL *string      `toml:"authorization_url"`
+	TokenURL         *string      `toml:"token_url"`
+	RevocationURL    *string      `toml:"revocation_url"`
+	ClientID         *string      `toml:"client_id"`
+	ClientSecretEnv  *string      `toml:"client_secret_env"`
+	Scopes           *[]string    `toml:"scopes"`
 }
 
 // ApplyConfigOverlayFile deep-merges an optional TOML config file into dst.
@@ -421,6 +437,9 @@ func (o observabilityOverlay) Apply(dst *ObservabilityConfig) {
 	if o.MaxGlobalBytes != nil {
 		dst.MaxGlobalBytes = *o.MaxGlobalBytes
 	}
+	if o.AgentProbeTimeout != nil {
+		dst.AgentProbeTimeout = *o.AgentProbeTimeout
+	}
 	o.Transcripts.Apply(&dst.Transcripts)
 }
 
@@ -598,6 +617,9 @@ func (o mcpServerOverlay) Apply(dst *MCPServer) {
 	if o.Name != nil {
 		dst.Name = *o.Name
 	}
+	if o.Transport != nil {
+		dst.Transport = *o.Transport
+	}
 	if o.Command != nil {
 		dst.Command = *o.Command
 	}
@@ -606,6 +628,40 @@ func (o mcpServerOverlay) Apply(dst *MCPServer) {
 	}
 	if o.Env != nil {
 		dst.Env = mergeStringMaps(dst.Env, *o.Env)
+	}
+	if o.URL != nil {
+		dst.URL = *o.URL
+	}
+	o.Auth.Apply(&dst.Auth)
+}
+
+func (o mcpAuthOverlay) Apply(dst *MCPAuthConfig) {
+	if o.Type != nil {
+		dst.Type = *o.Type
+	}
+	if o.IssuerURL != nil {
+		dst.IssuerURL = *o.IssuerURL
+	}
+	if o.MetadataURL != nil {
+		dst.MetadataURL = *o.MetadataURL
+	}
+	if o.AuthorizationURL != nil {
+		dst.AuthorizationURL = *o.AuthorizationURL
+	}
+	if o.TokenURL != nil {
+		dst.TokenURL = *o.TokenURL
+	}
+	if o.RevocationURL != nil {
+		dst.RevocationURL = *o.RevocationURL
+	}
+	if o.ClientID != nil {
+		dst.ClientID = *o.ClientID
+	}
+	if o.ClientSecretEnv != nil {
+		dst.ClientSecretEnv = *o.ClientSecretEnv
+	}
+	if o.Scopes != nil {
+		dst.Scopes = append([]string(nil), (*o.Scopes)...)
 	}
 }
 

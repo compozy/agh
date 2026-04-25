@@ -1222,6 +1222,42 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
+		Path:        "/api/memory/health",
+		OperationID: "getMemoryHealth",
+		Summary:     "Get memory health",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("workspace", "Workspace id or path", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryHealthPayload{}},
+			{Status: 400, Description: "Invalid memory health filter", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/memory/history",
+		OperationID: "listMemoryHistory",
+		Summary:     "List redacted memory operation history",
+		Tags:        []string{"memory"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			enumQueryParam("scope", "Memory scope", memoryScopeValues()),
+			queryParam("workspace", "Workspace id or path", false),
+			queryParam("operation", "Memory operation type", false),
+			dateTimeQueryParam("since", "Only operations since this timestamp"),
+			intQueryParam("limit", "Maximum number of operations to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.MemoryHistoryResponse{}},
+			{Status: 400, Description: "Invalid memory history filter", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
 		Path:        "/api/memory/{filename}",
 		OperationID: "readMemory",
 		Summary:     "Read one memory document",

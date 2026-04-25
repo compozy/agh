@@ -16,6 +16,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
@@ -27,6 +28,8 @@ import (
 	"github.com/pedronauck/agh/internal/workref"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
+
+const maxDiagnosticPayloadBytes = 2048
 
 // SessionPayloadFromInfo converts a session info snapshot into the shared session payload.
 func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
@@ -47,6 +50,7 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		State:         info.State,
 		StopReason:    info.StopReason,
 		StopDetail:    info.StopDetail,
+		Failure:       SessionFailurePayloadFromStore(info.Failure),
 		ACPSessionID:  info.ACPSessionID,
 		CreatedAt:     info.CreatedAt,
 		UpdatedAt:     info.UpdatedAt,
@@ -143,6 +147,23 @@ func SessionPayloadsFromInfos(infos []*session.Info) []contract.SessionPayload {
 	return payload
 }
 
+// SessionFailurePayloadFromStore converts a stored failure diagnostic into the
+// shared API payload.
+func SessionFailurePayloadFromStore(failure *store.SessionFailure) *contract.SessionFailurePayload {
+	if failure == nil {
+		return nil
+	}
+	normalized := failure.Normalize()
+	if normalized.IsZero() {
+		return nil
+	}
+	return &contract.SessionFailurePayload{
+		Kind:            normalized.Kind,
+		Summary:         diagnostics.RedactAndBound(normalized.Summary, maxDiagnosticPayloadBytes),
+		CrashBundlePath: diagnostics.RedactAndBound(normalized.CrashBundlePath, maxDiagnosticPayloadBytes),
+	}
+}
+
 // ACPCapsPayloadFromInfo converts ACP capability info into the shared payload.
 func ACPCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
 	if !caps.SupportsLoadSession && len(caps.SupportedModes) == 0 && len(caps.SupportedModels) == 0 {
@@ -159,7 +180,7 @@ func ACPCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
 // SessionEventPayloadFromEvent converts a session event into the shared payload.
 func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) contract.SessionEventPayload {
 	ref := workref.NewPath(sessionWorkspaceFromInfo(info))
-	return contract.SessionEventPayload{
+	payload := contract.SessionEventPayload{
 		ID:            event.ID,
 		SessionID:     event.SessionID,
 		Sequence:      event.Sequence,
@@ -171,23 +192,28 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) 
 		Content:       PayloadJSON(event.Content),
 		Timestamp:     event.Timestamp,
 	}
+	if info != nil && event.Type == session.EventTypeSessionStopped {
+		payload.StopReason = info.StopReason
+		payload.StopDetail = info.StopDetail
+		payload.Failure = SessionFailurePayloadFromStore(info.Failure)
+	}
+	return payload
 }
 
 // AgentPayloadFromDef converts an agent definition into the shared payload.
 func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
 	mcpServers := make([]contract.AgentMCPServerJSON, 0, len(agent.MCPServers))
 	for _, server := range agent.MCPServers {
-		var env map[string]string
-		if len(server.Env) > 0 {
-			env = make(map[string]string, len(server.Env))
-			maps.Copy(env, server.Env)
-		}
+		redacted := aghconfig.RedactedMCPServer(server)
 
 		mcpServers = append(mcpServers, contract.AgentMCPServerJSON{
-			Name:    server.Name,
-			Command: server.Command,
-			Args:    append([]string(nil), server.Args...),
-			Env:     env,
+			Name:      redacted.Name,
+			Transport: string(redacted.Transport),
+			Command:   redacted.Command,
+			Args:      append([]string(nil), redacted.Args...),
+			Env:       redacted.Env,
+			URL:       redacted.URL,
+			Auth:      settingsMCPAuthConfigPayload(redacted.Auth),
 		})
 	}
 
@@ -228,6 +254,7 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		Resource:   event.Resource,
 		Decision:   event.Decision,
 		Error:      event.Error,
+		Failure:    SessionFailurePayloadFromStore(event.Failure),
 		Usage:      TokenUsagePayloadFromUsage(event.Usage),
 		Runtime:    runtimeActivityPayloadFromEvent(event.Runtime),
 		Raw:        payloadJSONBytes(event.Raw),
@@ -269,7 +296,10 @@ func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEven
 }
 
 // ObserveHealthPayloadFromHealth converts the observer health snapshot into the shared payload.
-func ObserveHealthPayloadFromHealth(health observepkg.Health) contract.ObserveHealthPayload {
+func ObserveHealthPayloadFromHealth(health *observepkg.Health) contract.ObserveHealthPayload {
+	if health == nil {
+		return contract.ObserveHealthPayload{}
+	}
 	return contract.ObserveHealthPayload{
 		Status:             health.Status,
 		UptimeSeconds:      health.UptimeSeconds,
@@ -277,10 +307,97 @@ func ObserveHealthPayloadFromHealth(health observepkg.Health) contract.ObserveHe
 		ActiveAgents:       health.ActiveAgents,
 		GlobalDBSizeBytes:  health.GlobalDBSizeBytes,
 		SessionDBSizeBytes: health.SessionDBSizeBytes,
+		Persistence:        ObservePersistenceHealthPayloadFromHealth(health.Persistence),
+		Retention:          ObserveRetentionHealthPayloadFromHealth(health.Retention),
+		Failures:           ObserveFailureHealthPayloadFromHealth(health.Failures),
+		AgentProbes:        AgentProbeHealthPayloadsFromACP(health.AgentProbes),
 		Bridges:            BridgeAggregateHealthPayloadFromObserve(health.Bridges),
 		Activities:         SessionActivityHealthPayloadsFromObserve(health.Activities),
 		Version:            health.Version,
 	}
+}
+
+// ObservePersistenceHealthPayloadFromHealth converts persistence health into the shared payload.
+func ObservePersistenceHealthPayloadFromHealth(
+	health observepkg.PersistenceHealth,
+) contract.ObservePersistenceHealthPayload {
+	return contract.ObservePersistenceHealthPayload{
+		Status:             strings.TrimSpace(health.Status),
+		GlobalDBSizeBytes:  health.GlobalDBSizeBytes,
+		SessionDBSizeBytes: health.SessionDBSizeBytes,
+	}
+}
+
+// ObserveRetentionHealthPayloadFromHealth converts retention health into the shared payload.
+func ObserveRetentionHealthPayloadFromHealth(
+	health observepkg.RetentionHealth,
+) contract.ObserveRetentionHealthPayload {
+	return contract.ObserveRetentionHealthPayload{
+		Enabled:                  health.Enabled,
+		RetentionDays:            health.RetentionDays,
+		SweepIntervalSeconds:     health.SweepIntervalSeconds,
+		LastSweepStatus:          strings.TrimSpace(health.LastSweepStatus),
+		LastSweepAt:              cloneTimePtr(health.LastSweepAt),
+		LastCutoffAt:             cloneTimePtr(health.LastCutoffAt),
+		LastSweepError:           strings.TrimSpace(health.LastSweepError),
+		DeletedEventSummaries:    health.DeletedEventSummaries,
+		DeletedTokenStats:        health.DeletedTokenStats,
+		DeletedPermissionLogRows: health.DeletedPermissionLogRows,
+	}
+}
+
+// ObserveFailureHealthPayloadFromHealth converts lifecycle failure health into
+// the shared payload.
+func ObserveFailureHealthPayloadFromHealth(
+	health observepkg.FailureHealth,
+) contract.ObserveFailureHealthPayload {
+	payload := contract.ObserveFailureHealthPayload{
+		Status: strings.TrimSpace(health.Status),
+		Total:  health.Total,
+	}
+	if len(health.ByKind) > 0 {
+		payload.ByKind = make(map[store.FailureKind]int, len(health.ByKind))
+		maps.Copy(payload.ByKind, health.ByKind)
+	}
+	if len(health.Recent) > 0 {
+		payload.Recent = make([]contract.SessionFailureHealthPayload, 0, len(health.Recent))
+		for _, failure := range health.Recent {
+			payload.Recent = append(payload.Recent, contract.SessionFailureHealthPayload{
+				SessionID:       strings.TrimSpace(failure.SessionID),
+				AgentName:       strings.TrimSpace(failure.AgentName),
+				Provider:        strings.TrimSpace(failure.Provider),
+				WorkspaceID:     strings.TrimSpace(failure.WorkspaceID),
+				State:           strings.TrimSpace(failure.State),
+				FailureKind:     failure.FailureKind,
+				Summary:         diagnostics.RedactAndBound(failure.Summary, maxDiagnosticPayloadBytes),
+				CrashBundlePath: diagnostics.RedactAndBound(failure.CrashBundlePath, maxDiagnosticPayloadBytes),
+				UpdatedAt:       failure.UpdatedAt,
+			})
+		}
+	}
+	return payload
+}
+
+// AgentProbeHealthPayloadsFromACP converts downstream ACP probe results into
+// the shared health payload.
+func AgentProbeHealthPayloadsFromACP(probes []acp.ProbeResult) []contract.AgentProbeHealthPayload {
+	if len(probes) == 0 {
+		return nil
+	}
+	payloads := make([]contract.AgentProbeHealthPayload, 0, len(probes))
+	for _, probe := range probes {
+		payloads = append(payloads, contract.AgentProbeHealthPayload{
+			AgentName:  strings.TrimSpace(probe.AgentName),
+			Provider:   strings.TrimSpace(probe.Provider),
+			Command:    diagnostics.RedactAndBound(probe.Command, maxDiagnosticPayloadBytes),
+			Executable: strings.TrimSpace(probe.Executable),
+			Status:     strings.TrimSpace(probe.Status),
+			Error:      diagnostics.RedactAndBound(probe.Error, maxDiagnosticPayloadBytes),
+			CheckedAt:  probe.CheckedAt,
+			DurationMS: probe.DurationMS,
+		})
+	}
+	return payloads
 }
 
 // SessionActivityHealthPayloadsFromObserve converts observer activity health
@@ -334,12 +451,55 @@ func AutomationHealthPayloadFromStatus(
 		},
 		SchedulerRunning: status.SchedulerRunning,
 		NextFire:         status.NextFire,
+		ScheduledJobs:    AutomationSchedulerStatePayloadsFromStates(status.ScheduledJobs),
 	}
+}
+
+// AutomationSchedulerStatePayloadFromState converts durable scheduler metadata
+// into the shared response payload.
+func AutomationSchedulerStatePayloadFromState(
+	state automationpkg.ScheduledJobState,
+) contract.AutomationSchedulerStatePayload {
+	payload := contract.AutomationSchedulerStatePayload{
+		JobID:               state.JobID,
+		Registered:          state.Registered,
+		NextRunAt:           state.NextRun,
+		LastRunAt:           state.LastRun,
+		LastScheduledAt:     state.LastScheduledAt,
+		LastFireID:          state.LastFireID,
+		CatchUpPolicy:       state.CatchUpPolicy,
+		MisfireGraceSeconds: state.MisfireGraceSeconds,
+		LastMisfireAt:       state.LastMisfireAt,
+		MisfireCount:        state.MisfireCount,
+	}
+	if state.Durable != nil {
+		payload.ConsecutiveResumeFailures = state.Durable.ConsecutiveResumeFailures
+		updatedAt := state.Durable.UpdatedAt
+		if !updatedAt.IsZero() {
+			payload.UpdatedAt = &updatedAt
+		}
+	}
+	return payload
+}
+
+// AutomationSchedulerStatePayloadsFromStates converts scheduler states into response payloads.
+func AutomationSchedulerStatePayloadsFromStates(
+	states []automationpkg.ScheduledJobState,
+) []contract.AutomationSchedulerStatePayload {
+	payloads := make([]contract.AutomationSchedulerStatePayload, 0, len(states))
+	for _, state := range states {
+		payloads = append(payloads, AutomationSchedulerStatePayloadFromState(state))
+	}
+	return payloads
 }
 
 // JobPayloadFromJob converts an automation job into the shared response
 // payload, optionally enriching it with scheduler next-run metadata.
-func JobPayloadFromJob(job automationpkg.Job, nextRun *time.Time) contract.JobPayload {
+func JobPayloadFromJob(
+	job automationpkg.Job,
+	nextRun *time.Time,
+	schedulerState *contract.AutomationSchedulerStatePayload,
+) contract.JobPayload {
 	payload := contract.JobPayload{
 		ID:          job.ID,
 		Scope:       job.Scope,
@@ -354,6 +514,7 @@ func JobPayloadFromJob(job automationpkg.Job, nextRun *time.Time) contract.JobPa
 		CreatedAt:   job.CreatedAt,
 		UpdatedAt:   job.UpdatedAt,
 		NextRun:     nextRun,
+		Scheduler:   schedulerState,
 	}
 	if job.Schedule != nil {
 		schedule := *job.Schedule
@@ -372,12 +533,28 @@ func JobPayloadFromJob(job automationpkg.Job, nextRun *time.Time) contract.JobPa
 
 // JobPayloadsFromJobs converts a slice of jobs into response payloads using
 // the supplied next-run map.
-func JobPayloadsFromJobs(jobs []automationpkg.Job, nextRunByID map[string]*time.Time) []contract.JobPayload {
+func JobPayloadsFromJobs(
+	jobs []automationpkg.Job,
+	schedulerStateByID map[string]contract.AutomationSchedulerStatePayload,
+) []contract.JobPayload {
 	payloads := make([]contract.JobPayload, 0, len(jobs))
 	for _, job := range jobs {
-		payloads = append(payloads, JobPayloadFromJob(job, timePointerFromMap(nextRunByID, job.ID)))
+		var schedulerState *contract.AutomationSchedulerStatePayload
+		if state, ok := schedulerStateByID[job.ID]; ok {
+			stateCopy := state
+			schedulerState = &stateCopy
+		}
+		payloads = append(payloads, JobPayloadFromJob(job, schedulerNextRun(schedulerState), schedulerState))
 	}
 	return payloads
+}
+
+func schedulerNextRun(state *contract.AutomationSchedulerStatePayload) *time.Time {
+	if state == nil || state.NextRunAt == nil {
+		return nil
+	}
+	nextRun := state.NextRunAt.UTC()
+	return &nextRun
 }
 
 // TriggerPayloadFromTrigger converts an automation trigger into the shared
@@ -415,17 +592,21 @@ func TriggerPayloadsFromTriggers(triggers []automationpkg.Trigger) []contract.Tr
 // RunPayloadFromRun converts an automation run into the shared response payload.
 func RunPayloadFromRun(run automationpkg.Run) contract.RunPayload {
 	return contract.RunPayload{
-		ID:        run.ID,
-		JobID:     run.JobID,
-		TriggerID: run.TriggerID,
-		SessionID: run.SessionID,
-		TaskID:    run.TaskID,
-		TaskRunID: run.TaskRunID,
-		Status:    run.Status,
-		Attempt:   run.Attempt,
-		StartedAt: run.StartedAt,
-		EndedAt:   run.EndedAt,
-		Error:     run.Error,
+		ID:              run.ID,
+		JobID:           run.JobID,
+		TriggerID:       run.TriggerID,
+		SessionID:       run.SessionID,
+		TaskID:          run.TaskID,
+		TaskRunID:       run.TaskRunID,
+		FireID:          run.FireID,
+		Status:          run.Status,
+		Attempt:         run.Attempt,
+		ScheduledAt:     run.ScheduledAt,
+		StartedAt:       run.StartedAt,
+		EndedAt:         run.EndedAt,
+		Error:           run.Error,
+		DeliveryError:   run.DeliveryError,
+		DeliveryErrorAt: run.DeliveryErrorAt,
 	}
 }
 
@@ -1206,6 +1387,8 @@ func settingsInstalledExtensionPayloads(
 			Health:        strings.TrimSpace(value.Health),
 			HealthMessage: strings.TrimSpace(value.HealthMessage),
 			LastError:     strings.TrimSpace(value.LastError),
+			RequiresEnv:   append([]string(nil), value.RequiresEnv...),
+			MissingEnv:    append([]string(nil), value.MissingEnv...),
 		})
 	}
 	return payloads
@@ -1256,15 +1439,58 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 	for _, value := range values {
 		payloads = append(payloads, contract.SettingsMCPServerItemPayload{
 			Name:           strings.TrimSpace(value.Name),
+			Transport:      strings.TrimSpace(string(value.Transport)),
 			Command:        strings.TrimSpace(value.Command),
 			Args:           cloneStrings(value.Args),
 			Env:            cloneStringMap(value.Env),
+			URL:            strings.TrimSpace(value.URL),
+			Auth:           settingsMCPAuthConfigPayload(value.Auth),
+			AuthStatus:     settingsMCPAuthStatusPayload(value.AuthStatus),
 			Scope:          contract.SettingsScopeKind(value.Scope),
 			WorkspaceID:    strings.TrimSpace(value.WorkspaceID),
 			SourceMetadata: settingsSourceMetadataPayload(value.SourceMetadata),
 		})
 	}
 	return payloads
+}
+
+func settingsMCPAuthConfigPayload(value aghconfig.MCPAuthConfig) *contract.SettingsMCPAuthConfigPayload {
+	if value.IsZero() {
+		return nil
+	}
+	return &contract.SettingsMCPAuthConfigPayload{
+		Type:             strings.TrimSpace(string(value.Type)),
+		IssuerURL:        strings.TrimSpace(value.IssuerURL),
+		MetadataURL:      strings.TrimSpace(value.MetadataURL),
+		AuthorizationURL: strings.TrimSpace(value.AuthorizationURL),
+		TokenURL:         strings.TrimSpace(value.TokenURL),
+		RevocationURL:    strings.TrimSpace(value.RevocationURL),
+		ClientID:         strings.TrimSpace(value.ClientID),
+		ClientSecretEnv:  strings.TrimSpace(value.ClientSecretEnv),
+		Scopes:           cloneStrings(value.Scopes),
+	}
+}
+
+func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.SettingsMCPAuthStatusPayload {
+	if value == nil {
+		return nil
+	}
+	return &contract.SettingsMCPAuthStatusPayload{
+		ServerName:       strings.TrimSpace(value.ServerName),
+		Status:           strings.TrimSpace(string(value.Status)),
+		RemoteURL:        strings.TrimSpace(value.RemoteURL),
+		AuthType:         strings.TrimSpace(value.AuthType),
+		ClientID:         strings.TrimSpace(value.ClientID),
+		Issuer:           strings.TrimSpace(value.Issuer),
+		Scopes:           cloneStrings(value.Scopes),
+		ExpiresAt:        cloneTimePtr(value.ExpiresAt),
+		UpdatedAt:        cloneTimePtr(value.UpdatedAt),
+		Refreshable:      value.Refreshable,
+		TokenPresent:     value.TokenPresent,
+		RevocationURL:    strings.TrimSpace(value.RevocationURL),
+		Diagnostic:       strings.TrimSpace(value.Diagnostic),
+		AuthorizationURL: strings.TrimSpace(value.AuthorizationURL),
+	}
 }
 
 func settingsEnvironmentItemPayloads(values []settingspkg.EnvironmentItem) []contract.SettingsEnvironmentItemPayload {

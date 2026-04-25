@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"math/rand"
 	"net"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	retrypkg "github.com/pedronauck/agh/internal/retry"
 )
 
 // ErrorClass is the shared bridge-sdk provider failure classification.
@@ -341,10 +341,8 @@ func RetryDo[T any](ctx context.Context, config RetryConfig, fn func(context.Con
 			config.OnRetry(attempt, config.Attempts, classified)
 		}
 
-		select {
-		case <-ctx.Done():
-			return zero, ctx.Err()
-		case <-time.After(delay):
+		if err := retrypkg.Wait(ctx, delay); err != nil {
+			return zero, fmt.Errorf("bridgesdk: wait before retry: %w", err)
 		}
 	}
 
@@ -356,18 +354,12 @@ func retryDelay(config RetryConfig, attempt int, recovery RecoveryDecision) time
 		return recovery.RetryAfter
 	}
 
-	delay := float64(config.MinDelay) * math.Pow(2, float64(attempt-1))
-	if time.Duration(delay) > config.MaxDelay {
-		delay = float64(config.MaxDelay)
-	}
-	if config.Jitter > 0 {
-		jitterRange := delay * config.Jitter
-		delay += (config.RandFloat()*2 - 1) * jitterRange
-	}
-	if delay < float64(config.MinDelay) {
-		delay = float64(config.MinDelay)
-	}
-	return time.Duration(delay)
+	return retrypkg.Delay(retrypkg.Policy{
+		BaseDelay:   config.MinDelay,
+		MaxDelay:    config.MaxDelay,
+		JitterRatio: config.Jitter,
+		RandFloat64: config.RandFloat,
+	}, attempt)
 }
 
 func errorMessage(err error) string {

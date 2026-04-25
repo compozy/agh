@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -221,6 +222,186 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}
 		if payload.Memory.WorkspaceFiles != 1 || !payload.Memory.DreamEnabled {
 			t.Fatalf("memory payload = %#v", payload.Memory)
+		}
+	})
+
+	t.Run("Should report memory health directly", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, workspace, _ := setup(t)
+		query := url.Values{}
+		query.Set("workspace", workspace)
+		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health?"+query.Encode(), nil)
+		if healthResp.Code != http.StatusOK {
+			t.Fatalf("memory health status = %d, want %d", healthResp.Code, http.StatusOK)
+		}
+
+		var payload contract.MemoryHealthPayload
+		testutil.DecodeJSONResponse(t, healthResp, &payload)
+		if payload.Status != "ok" || !payload.Configured || payload.WorkspaceCount != 1 || payload.WorkspaceFiles != 1 {
+			t.Fatalf("memory health payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should report unavailable memory health when store is missing", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health", nil)
+		if healthResp.Code != http.StatusOK {
+			t.Fatalf("memory health status = %d, want %d", healthResp.Code, http.StatusOK)
+		}
+
+		var payload contract.MemoryHealthPayload
+		testutil.DecodeJSONResponse(t, healthResp, &payload)
+		if payload.Status != "unavailable" || payload.Configured || payload.Reason == "" {
+			t.Fatalf("memory health payload = %#v, want unavailable and unconfigured", payload)
+		}
+	})
+
+	t.Run("Should report disabled memory health before missing store", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Memory.Enabled = false
+		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health", nil)
+		if healthResp.Code != http.StatusOK {
+			t.Fatalf("memory health status = %d, want %d", healthResp.Code, http.StatusOK)
+		}
+
+		var payload contract.MemoryHealthPayload
+		testutil.DecodeJSONResponse(t, healthResp, &payload)
+		if payload.Status != "disabled" || payload.Reason == "" || payload.Enabled {
+			t.Fatalf("memory health payload = %#v, want disabled", payload)
+		}
+	})
+
+	t.Run("Should report degraded memory health for orphaned catalog rows", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		workspace := filepath.Join(baseDir, "workspace")
+		store := memory.NewStore(
+			filepath.Join(baseDir, "global"),
+			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		).ForWorkspace(workspace)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("EnsureDirs() error = %v", err)
+		}
+		if err := store.Write(
+			memory.ScopeWorkspace,
+			"orphan.md",
+			[]byte(memoryDocument(t, "Orphan", memory.MemoryTypeProject, "orphan signal")),
+		); err != nil {
+			t.Fatalf("Write(workspace) error = %v", err)
+		}
+		if _, err := store.Search(context.Background(), "orphan signal", memory.SearchOptions{
+			Workspace: workspace,
+			Limit:     5,
+		}); err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if err := os.Remove(filepath.Join(workspace, aghconfig.DirName, "memory", "orphan.md")); err != nil {
+			t.Fatalf("os.Remove(orphan memory) error = %v", err)
+		}
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			store,
+			nil,
+		)
+		query := url.Values{}
+		query.Set("workspace", workspace)
+		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health?"+query.Encode(), nil)
+		if healthResp.Code != http.StatusOK {
+			t.Fatalf("memory health status = %d, want %d", healthResp.Code, http.StatusOK)
+		}
+
+		var payload contract.MemoryHealthPayload
+		testutil.DecodeJSONResponse(t, healthResp, &payload)
+		if payload.Status != "degraded" || payload.OrphanedFiles != 1 || !strings.Contains(payload.Reason, "orphaned") {
+			t.Fatalf("memory health payload = %#v, want degraded orphan report", payload)
+		}
+	})
+
+	t.Run("Should list filtered redacted memory history", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		workspace := filepath.Join(baseDir, "workspace")
+		store := memory.NewStore(
+			filepath.Join(baseDir, "global"),
+			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		).ForWorkspace(workspace)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("EnsureDirs() error = %v", err)
+		}
+		if err := store.Write(
+			memory.ScopeWorkspace,
+			"project.md",
+			[]byte(memoryDocument(t, "Project", memory.MemoryTypeProject, "common signal")),
+		); err != nil {
+			t.Fatalf("Write(workspace) error = %v", err)
+		}
+		since := time.Now().Add(-time.Second).UTC()
+		if _, err := store.Search(context.Background(), "common token=super-secret", memory.SearchOptions{
+			Workspace: workspace,
+			Limit:     5,
+		}); err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			store,
+			nil,
+		)
+		query := url.Values{}
+		query.Set("workspace", workspace)
+		query.Set("operation", "memory.search")
+		query.Set("since", since.Format(time.RFC3339Nano))
+		query.Set("limit", "2")
+		historyResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/history?"+query.Encode(), nil)
+		if historyResp.Code != http.StatusOK {
+			t.Fatalf(
+				"memory history status = %d, want %d; body=%s",
+				historyResp.Code,
+				http.StatusOK,
+				historyResp.Body.String(),
+			)
+		}
+
+		var payload contract.MemoryHistoryResponse
+		testutil.DecodeJSONResponse(t, historyResp, &payload)
+		if len(payload.Operations) != 1 {
+			t.Fatalf("len(payload.Operations) = %d, want 1; payload=%#v", len(payload.Operations), payload)
+		}
+		got := payload.Operations[0]
+		if got.Operation != "memory.search" || got.Workspace != workspace {
+			t.Fatalf("operation payload = %#v, want workspace memory.search", got)
+		}
+		if strings.Contains(got.Summary, "super-secret") || !strings.Contains(got.Summary, "token=[REDACTED]") {
+			t.Fatalf("operation summary = %q, want redacted token", got.Summary)
 		}
 	})
 

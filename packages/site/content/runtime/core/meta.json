@@ -4,10 +4,10 @@
     "root": true,
     "pages": [
         "index",
-        "overview",
         "getting-started",
         "sessions",
         "agents",
+        "network",
         "memory",
         "skills",
         "workspaces",

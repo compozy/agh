@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -201,29 +202,82 @@ func TestClassifyErrorCoversHTTPNetAndStringFallbacks(t *testing.T) {
 func TestRetryDoStopsOnPermanentErrorAndHonorsContextCancellation(t *testing.T) {
 	t.Parallel()
 
-	_, err := RetryDo(context.Background(), RetryConfig{
-		Attempts: 3,
-		MinDelay: time.Millisecond,
-		MaxDelay: time.Millisecond,
-	}, func(context.Context) (string, error) {
-		return "", &PermanentError{Err: errors.New("bad request")}
-	})
-	if err == nil {
-		t.Fatal("RetryDo(permanent) error = nil, want non-nil")
-	}
+	t.Run("Should stop immediately on permanent errors", func(t *testing.T) {
+		t.Parallel()
 
-	canceled, cancel := context.WithCancel(context.Background())
-	cancel()
-	_, err = RetryDo(canceled, RetryConfig{
-		Attempts: 3,
-		MinDelay: time.Millisecond,
-		MaxDelay: time.Millisecond,
-	}, func(context.Context) (string, error) {
-		return "", &RateLimitError{Err: errors.New("slow down"), RetryAfter: time.Millisecond}
+		_, err := RetryDo(context.Background(), RetryConfig{
+			Attempts: 3,
+			MinDelay: time.Millisecond,
+			MaxDelay: time.Millisecond,
+		}, func(context.Context) (string, error) {
+			return "", &PermanentError{Err: errors.New("bad request")}
+		})
+		if err == nil {
+			t.Fatal("RetryDo(permanent) error = nil, want non-nil")
+		}
 	})
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("RetryDo(canceled) error = %v, want context.Canceled", err)
-	}
+
+	t.Run("Should preserve context cancellation while waiting to retry", func(t *testing.T) {
+		t.Parallel()
+
+		canceled, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := RetryDo(canceled, RetryConfig{
+			Attempts: 3,
+			MinDelay: time.Millisecond,
+			MaxDelay: time.Millisecond,
+		}, func(context.Context) (string, error) {
+			return "", &RateLimitError{Err: errors.New("slow down"), RetryAfter: time.Millisecond}
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("RetryDo(canceled) error = %v, want context.Canceled", err)
+		}
+		if !strings.Contains(err.Error(), "wait before retry") {
+			t.Fatalf("RetryDo(canceled) error = %v, want retry wait context", err)
+		}
+	})
+}
+
+func TestRetryDoAppliesDefaultsAndStopsWhenDelayContextCancels(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply default single attempt", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := RetryDo(context.Background(), RetryConfig{}, func(context.Context) (string, error) {
+			return "", &TransientError{Err: errors.New("temporary failure")}
+		})
+		if err == nil {
+			t.Fatal("RetryDo(default single attempt) error = nil, want transient failure")
+		}
+	})
+
+	t.Run("Should stop when delay context cancels", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		attempts := 0
+		onRetry := 0
+		_, err := RetryDo(ctx, RetryConfig{
+			Attempts: 2,
+			OnRetry: func(int, int, ClassifiedError) {
+				onRetry++
+				cancel()
+			},
+		}, func(context.Context) (string, error) {
+			attempts++
+			return "", &TransientError{Err: errors.New("temporary failure")}
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("RetryDo(canceled during delay) error = %v, want context.Canceled", err)
+		}
+		if attempts != 1 {
+			t.Fatalf("attempts = %d, want 1", attempts)
+		}
+		if onRetry != 1 {
+			t.Fatalf("onRetry calls = %d, want 1", onRetry)
+		}
+	})
 }
 
 func TestRetryDelayPrefersRetryAfterAndAppliesBackoff(t *testing.T) {
@@ -239,37 +293,93 @@ func TestRetryDelayPrefersRetryAfterAndAppliesBackoff(t *testing.T) {
 		},
 	}
 
-	if got, want := retryDelay(
-		config,
-		1,
-		RecoveryDecision{RetryAfter: 25 * time.Millisecond},
-	), 25*time.Millisecond; got != want {
-		t.Fatalf("retryDelay(retry_after) = %s, want %s", got, want)
-	}
-	if got, want := retryDelay(config, 3, RecoveryDecision{}), 40*time.Millisecond; got != want {
-		t.Fatalf("retryDelay(backoff) = %s, want %s", got, want)
+	for _, tc := range []struct {
+		name     string
+		attempt  int
+		recovery RecoveryDecision
+		want     time.Duration
+	}{
+		{
+			name:     "Should prefer Retry-After",
+			attempt:  1,
+			recovery: RecoveryDecision{RetryAfter: 25 * time.Millisecond},
+			want:     25 * time.Millisecond,
+		},
+		{
+			name:    "Should apply exponential backoff",
+			attempt: 3,
+			want:    40 * time.Millisecond,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := retryDelay(config, tc.attempt, tc.recovery); got != tc.want {
+				t.Fatalf("retryDelay() = %s, want %s", got, tc.want)
+			}
+		})
 	}
 }
 
 func TestErrorHelpersHandleEmptyValues(t *testing.T) {
 	t.Parallel()
 
-	if got := (&HTTPError{StatusCode: http.StatusTooManyRequests}).Error(); got == "" {
-		t.Fatal("HTTPError.Error() = empty string, want fallback text")
-	}
-	if got := (&AuthError{}).Error(); got != "" {
-		t.Fatalf("AuthError{}.Error() = %q, want empty string", got)
-	}
-	if got := (&RateLimitError{}).Error(); got != "" {
-		t.Fatalf("RateLimitError{}.Error() = %q, want empty string", got)
-	}
-	if got := (&TransientError{}).Error(); got != "" {
-		t.Fatalf("TransientError{}.Error() = %q, want empty string", got)
-	}
-	if got := (&PermanentError{}).Error(); got != "" {
-		t.Fatalf("PermanentError{}.Error() = %q, want empty string", got)
-	}
-	if got := errorMessage(nil); got != "" {
-		t.Fatalf("errorMessage(nil) = %q, want empty string", got)
-	}
+	t.Run("Should handle empty Error methods", func(t *testing.T) {
+		t.Parallel()
+
+		var nilHTTP *HTTPError
+		if got := nilHTTP.Error(); got != "" {
+			t.Fatalf("nil HTTPError.Error() = %q, want empty string", got)
+		}
+		if got := (&HTTPError{StatusCode: http.StatusTooManyRequests}).Error(); got == "" {
+			t.Fatal("HTTPError.Error() = empty string, want fallback text")
+		}
+		if got := (&AuthError{}).Error(); got != "" {
+			t.Fatalf("AuthError{}.Error() = %q, want empty string", got)
+		}
+		if got := (&RateLimitError{}).Error(); got != "" {
+			t.Fatalf("RateLimitError{}.Error() = %q, want empty string", got)
+		}
+		if got := (&TransientError{}).Error(); got != "" {
+			t.Fatalf("TransientError{}.Error() = %q, want empty string", got)
+		}
+		if got := (&PermanentError{}).Error(); got != "" {
+			t.Fatalf("PermanentError{}.Error() = %q, want empty string", got)
+		}
+		if got := errorMessage(nil); got != "" {
+			t.Fatalf("errorMessage(nil) = %q, want empty string", got)
+		}
+	})
+
+	t.Run("Should handle nil Unwrap receivers", func(t *testing.T) {
+		t.Parallel()
+
+		var nilAuth *AuthError
+		if err := nilAuth.Unwrap(); err != nil {
+			t.Fatalf("nil AuthError.Unwrap() = %v, want nil", err)
+		}
+		var nilRateLimit *RateLimitError
+		if err := nilRateLimit.Unwrap(); err != nil {
+			t.Fatalf("nil RateLimitError.Unwrap() = %v, want nil", err)
+		}
+		var nilTransient *TransientError
+		if err := nilTransient.Unwrap(); err != nil {
+			t.Fatalf("nil TransientError.Unwrap() = %v, want nil", err)
+		}
+		var nilPermanent *PermanentError
+		if err := nilPermanent.Unwrap(); err != nil {
+			t.Fatalf("nil PermanentError.Unwrap() = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should classify nil and default errors safely", func(t *testing.T) {
+		t.Parallel()
+
+		if got := ClassifyError(nil); got.Class != "" || got.Err != nil {
+			t.Fatalf("ClassifyError(nil) = %#v, want zero classification", got)
+		}
+		if got := ClassifyError(errors.New("domain-specific provider failure")); got.Class != ErrorClassPermanent {
+			t.Fatalf("ClassifyError(default) = %q, want permanent", got.Class)
+		}
+	})
 }

@@ -3,6 +3,7 @@ import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/
 export type AutomationJob = OperationResponse<"getAutomationJob", 200>["job"];
 export type AutomationTrigger = OperationResponse<"getAutomationTrigger", 200>["trigger"];
 export type AutomationRun = OperationResponse<"getAutomationRun", 200>["run"];
+export type AutomationSchedulerState = NonNullable<AutomationJob["scheduler"]>;
 
 export type AutomationJobListFilter = OperationQuery<"listAutomationJobs">;
 export type AutomationTriggerListFilter = OperationQuery<"listAutomationTriggers">;

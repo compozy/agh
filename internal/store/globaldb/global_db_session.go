@@ -77,6 +77,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 
 	sqlQuery := `SELECT id, name, agent_name, provider, workspace_id, channel, session_type,
 		state, acp_session_id, stop_reason, stop_detail,
+		failure_kind, failure_summary, crash_bundle_path,
 		subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 		activity_json,
 		environment_id, environment_backend, environment_profile, environment_instance_id,
@@ -199,12 +200,12 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		ctx,
 		`INSERT INTO sessions (
 			id, name, agent_name, provider, workspace_id, session_type, channel, state,
-			acp_session_id, stop_reason, stop_detail,
+			acp_session_id, stop_reason, stop_detail, failure_kind, failure_summary, crash_bundle_path,
 			subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason, activity_json,
 			environment_id, environment_backend, environment_profile, environment_instance_id,
 			environment_state, environment_provider_state_json,
 			environment_last_sync_at, environment_last_sync_error, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			agent_name = excluded.agent_name,
@@ -216,6 +217,9 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			acp_session_id = excluded.acp_session_id,
 			stop_reason = excluded.stop_reason,
 			stop_detail = excluded.stop_detail,
+			failure_kind = excluded.failure_kind,
+			failure_summary = excluded.failure_summary,
+			crash_bundle_path = excluded.crash_bundle_path,
 			subprocess_pid = excluded.subprocess_pid,
 			subprocess_started_at = excluded.subprocess_started_at,
 			last_update_at = excluded.last_update_at,
@@ -242,6 +246,9 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		store.NullableStringPointer(session.ACPSessionID),
 		store.NullableString(string(session.StopReason)),
 		store.NullableString(session.StopDetail),
+		sessionFailureKind(session.Failure),
+		sessionFailureSummary(session.Failure),
+		sessionCrashBundlePath(session.Failure),
 		sessionLivenessPID(session.Liveness),
 		sessionLivenessStartedAt(session.Liveness),
 		sessionLivenessLastUpdateAt(session.Liveness),
@@ -286,6 +293,28 @@ func (g *GlobalDB) loadSessionIDs(ctx context.Context, tx *sql.Tx) (map[string]s
 	return ids, nil
 }
 
+func sessionFailureKind(failure *store.SessionFailure) any {
+	if failure == nil {
+		return nil
+	}
+	normalized := failure.Normalize()
+	return store.NullableString(string(normalized.Kind))
+}
+
+func sessionFailureSummary(failure *store.SessionFailure) string {
+	if failure == nil {
+		return ""
+	}
+	return failure.Normalize().Summary
+}
+
+func sessionCrashBundlePath(failure *store.SessionFailure) string {
+	if failure == nil {
+		return ""
+	}
+	return failure.Normalize().CrashBundlePath
+}
+
 type sqlExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
@@ -301,6 +330,15 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 	if update.StopReasonSet {
 		assignments = append(assignments, "stop_reason = ?", "stop_detail = ?")
 		args = append(args, store.NullableStringPointer(update.StopReason), store.NullableString(update.StopDetail))
+	}
+	if update.FailureSet {
+		assignments = append(assignments, "failure_kind = ?", "failure_summary = ?", "crash_bundle_path = ?")
+		args = append(
+			args,
+			sessionFailureKind(update.Failure),
+			sessionFailureSummary(update.Failure),
+			sessionCrashBundlePath(update.Failure),
+		)
 	}
 	if update.Liveness != nil {
 		activityJSON, err := sessionLivenessActivityJSON(update.Liveness)
@@ -364,6 +402,9 @@ type sessionInfoRow struct {
 	acpSessionID         sql.NullString
 	stopReason           sql.NullString
 	stopDetail           sql.NullString
+	failureKind          sql.NullString
+	failureSummary       string
+	crashBundlePath      string
 	subprocessPID        int
 	subprocessStartedAt  sql.NullString
 	lastUpdateAt         sql.NullString
@@ -401,6 +442,19 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	}
 	if detail := store.NullString(row.stopDetail); detail != nil {
 		session.StopDetail = *detail
+	}
+	failure := store.SessionFailure{
+		Summary:         strings.TrimSpace(row.failureSummary),
+		CrashBundlePath: strings.TrimSpace(row.crashBundlePath),
+	}
+	if kind := store.NullString(row.failureKind); kind != nil {
+		failure.Kind = store.FailureKind(*kind)
+	}
+	if !failure.IsZero() {
+		if err := failure.Validate(); err != nil {
+			return store.SessionInfo{}, err
+		}
+		session.Failure = &failure
 	}
 	liveness, err := scanSessionLiveness(
 		row.subprocessPID,
@@ -453,6 +507,9 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.acpSessionID,
 		&row.stopReason,
 		&row.stopDetail,
+		&row.failureKind,
+		&row.failureSummary,
+		&row.crashBundlePath,
 		&row.subprocessPID,
 		&row.subprocessStartedAt,
 		&row.lastUpdateAt,

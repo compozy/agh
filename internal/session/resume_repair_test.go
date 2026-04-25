@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
@@ -105,6 +106,51 @@ func TestClassifyPreviousStop(t *testing.T) {
 				t.Fatalf("classifyPreviousStop() detail = %q, want %q", gotMeta.StopDetail, tc.wantDetail)
 			}
 			assertOptionalStringEqual(t, gotMeta.ACPSessionID, tc.wantACP)
+		})
+	}
+}
+
+func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
+	testCases := []struct {
+		name         string
+		state        State
+		fallbackKind store.FailureKind
+	}{
+		{name: "ShouldPreserveActiveFailureDetails", state: StateActive, fallbackKind: store.FailureProcess},
+		{name: "ShouldPreserveStoppingFailureDetails", state: StateStopping, fallbackKind: store.FailureProcess},
+		{name: "ShouldPreserveStartingFailureDetails", state: StateStarting, fallbackKind: store.FailureStartup},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			meta := store.SessionMeta{
+				State: string(tc.state),
+				Failure: &store.SessionFailure{
+					CrashBundlePath: "/tmp/agh/crash-bundles/existing.json",
+				},
+			}
+
+			repaired, changed := ClassifyInactiveMetaForRecovery(now, meta)
+			if !changed {
+				t.Fatal("ClassifyInactiveMetaForRecovery() changed = false, want true")
+			}
+			if repaired.Failure == nil {
+				t.Fatal("ClassifyInactiveMetaForRecovery().Failure = nil, want repaired failure")
+			}
+			if got, want := repaired.Failure.Kind, tc.fallbackKind; got != want {
+				t.Fatalf("Failure.Kind = %q, want %q", got, want)
+			}
+			if repaired.Failure.Summary == "" {
+				t.Fatal("Failure.Summary = empty, want fallback summary filled")
+			}
+			if got, want := repaired.Failure.CrashBundlePath, "/tmp/agh/crash-bundles/existing.json"; got != want {
+				t.Fatalf("Failure.CrashBundlePath = %q, want %q", got, want)
+			}
 		})
 	}
 }

@@ -20,6 +20,7 @@
         "format:check": "bunx oxfmt --check",
         "typecheck": "turbo run typecheck",
         "test": "bunx vitest run",
+        "tests": "bun run test",
         "test:e2e:runtime": "make test-e2e-runtime",
         "test:e2e:web": "make test-e2e-web",
         "test:e2e": "make test-e2e",

@@ -1,5 +1,4 @@
-import { Brain, FileCode2, Plug, Sparkles, Timer } from "lucide-react";
-import { CodeBlock } from "./primitives/code-block";
+import { FileCode2, Plug, Sparkles, Timer } from "lucide-react";
 import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
@@ -11,7 +10,7 @@ const FEATURES = [
     title: "Observe and mutate lifecycle events",
     description:
       "Run shell, builtin, or sub-agent actions on ~40 lifecycle events — session start, tool call, permission request, network receipt.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "hooks catalog" },
+    cite: { href: "/runtime", label: "hooks catalog" },
   },
   {
     icon: <Sparkles className="h-4 w-4" />,
@@ -19,15 +18,7 @@ const FEATURES = [
     title: "Drop-in SKILL.md bundles",
     description:
       "Share reusable instruction sets with YAML frontmatter and Markdown body. Bundled defaults + global + workspace scopes.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "skills guide" },
-  },
-  {
-    icon: <Brain className="h-4 w-4" />,
-    eyebrow: "Memory",
-    title: "Global + workspace, with dream consolidation",
-    description:
-      "Four memory types (user, feedback, project, reference). A consolidation pass synthesizes indexes from recent sessions.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "memory scopes" },
+    cite: { href: "/runtime", label: "skills guide" },
   },
   {
     icon: <Timer className="h-4 w-4" />,
@@ -35,7 +26,7 @@ const FEATURES = [
     title: "Cron + webhook + event triggers",
     description:
       "Durable jobs and triggers stored in SQLite. Schedule work. Delegate to peers. Track runs.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "automation" },
+    cite: { href: "/runtime", label: "automation" },
   },
   {
     icon: <Plug className="h-4 w-4" />,
@@ -43,24 +34,9 @@ const FEATURES = [
     title: "Install from local or marketplace",
     description:
       "Extensions bundle skills, hooks, bridge adapters, and MCP servers. Ship them as zip files or via a GitHub registry.",
-    cite: { href: "/runtime/core/overview/what-is-agh", label: "extensions" },
+    cite: { href: "/runtime", label: "extensions" },
   },
 ];
-
-const SKILL_MD = `---
-name: deploy-staging
-description: Trigger a staged deploy from any session
-kind: skill
-capabilities: [deploy, rollback]
----
-
-Runs a validated deploy to staging and streams logs
-back as a trace. Delegates to the deployer peer if
-one is online; otherwise runs locally.
-
-# [[hooks]]
-# event = "session.prompt.before"
-# run = "sh .agh/hooks/redact-secrets.sh"`;
 
 export function ExtensibilitySection() {
   return (
@@ -68,11 +44,11 @@ export function ExtensibilitySection() {
       <SectionHeader
         align="start"
         eyebrow="Extensibility"
-        title="Hooks, skills, memory, automation, extensions."
+        title="Hooks, skills, automation, extensions."
         description="The daemon is extensible at every seam you actually need. No plugins to write — contracts are plain files."
       />
 
-      <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-20 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {FEATURES.map(feature => (
           <FeatureCard
             key={feature.eyebrow}
@@ -85,7 +61,7 @@ export function ExtensibilitySection() {
         ))}
       </div>
 
-      <div className="mt-20 grid gap-6 lg:grid-cols-[1fr_minmax(0,520px)] lg:items-start">
+      <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-center lg:gap-10">
         <div className="max-w-[56ch] text-sm leading-relaxed text-(--color-text-secondary)">
           <h3 className="font-display text-2xl mb-2 mt-8 text-white">
             A skill is a Markdown file with frontmatter.
@@ -100,7 +76,13 @@ export function ExtensibilitySection() {
             Contract on disk — not a plugin API.
           </p>
         </div>
-        <CodeBlock code={SKILL_MD} caption="deploy-staging.skill.md" language="markdown" />
+        <img
+          src="/images/extensibility-skill-contract-v1.png"
+          alt="deploy-staging.skill.md shown as a Markdown skill contract with frontmatter, deployment capabilities, and a staged execution trace."
+          loading="lazy"
+          decoding="async"
+          className="block w-full object-cover object-center opacity-95"
+        />
       </div>
     </SectionFrame>
   );

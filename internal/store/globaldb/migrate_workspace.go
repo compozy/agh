@@ -80,27 +80,26 @@ func migrateGlobalSchema(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	if !hasSessions {
-		return nil
-	}
+	if hasSessions {
+		columns, err := tableColumns(ctx, db, "sessions")
+		if err != nil {
+			return err
+		}
 
-	columns, err := tableColumns(ctx, db, "sessions")
-	if err != nil {
-		return err
-	}
+		_, hasWorkspaceID := columns["workspace_id"]
+		_, hasLegacyWorkspace := columns["workspace"]
+		if !hasWorkspaceID && hasLegacyWorkspace {
+			if err := migrateLegacyGlobalSessions(ctx, db); err != nil {
+				return err
+			}
+		}
 
-	_, hasWorkspaceID := columns["workspace_id"]
-	_, hasLegacyWorkspace := columns["workspace"]
-	if !hasWorkspaceID && hasLegacyWorkspace {
-		if err := migrateLegacyGlobalSessions(ctx, db); err != nil {
+		if err := migrateSessionColumns(ctx, db); err != nil {
 			return err
 		}
 	}
 
-	if err := migrateSessionColumns(ctx, db); err != nil {
-		return err
-	}
-	return nil
+	return store.RunMigrations(ctx, db, globalSchemaMigrations)
 }
 
 func migrateWorkspaceColumns(ctx context.Context, db *sql.DB) error {
@@ -588,6 +587,9 @@ func sessionColumnSpecs() []migrationColumnSpec {
 		{name: "provider", sql: `ALTER TABLE sessions ADD COLUMN provider TEXT NOT NULL DEFAULT ''`},
 		{name: "stop_reason", sql: `ALTER TABLE sessions ADD COLUMN stop_reason TEXT`},
 		{name: "stop_detail", sql: `ALTER TABLE sessions ADD COLUMN stop_detail TEXT`},
+		{name: "failure_kind", sql: `ALTER TABLE sessions ADD COLUMN failure_kind TEXT`},
+		{name: "failure_summary", sql: `ALTER TABLE sessions ADD COLUMN failure_summary TEXT NOT NULL DEFAULT ''`},
+		{name: "crash_bundle_path", sql: `ALTER TABLE sessions ADD COLUMN crash_bundle_path TEXT NOT NULL DEFAULT ''`},
 		{name: "channel", sql: `ALTER TABLE sessions ADD COLUMN channel TEXT NOT NULL DEFAULT ''`},
 		{name: "subprocess_pid", sql: `ALTER TABLE sessions ADD COLUMN subprocess_pid INTEGER NOT NULL DEFAULT 0`},
 		{name: "subprocess_started_at", sql: `ALTER TABLE sessions ADD COLUMN subprocess_started_at TEXT`},
@@ -618,6 +620,37 @@ func sessionColumnSpecs() []migrationColumnSpec {
 			name: "environment_last_sync_error",
 			sql:  `ALTER TABLE sessions ADD COLUMN environment_last_sync_error TEXT NOT NULL DEFAULT ''`,
 		},
+	}
+}
+
+func migrateSessionFailureColumns(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "sessions")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	columns, err := tableColumns(ctx, tx, "sessions")
+	if err != nil {
+		return err
+	}
+	for _, column := range sessionFailureColumnSpecs() {
+		if _, ok := columns[column.name]; ok {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, column.sql); err != nil {
+			return fmt.Errorf("store: add sessions.%s column: %w", column.name, err)
+		}
+	}
+	return nil
+}
+
+func sessionFailureColumnSpecs() []migrationColumnSpec {
+	return []migrationColumnSpec{
+		{name: "failure_kind", sql: `ALTER TABLE sessions ADD COLUMN failure_kind TEXT`},
+		{name: "failure_summary", sql: `ALTER TABLE sessions ADD COLUMN failure_summary TEXT NOT NULL DEFAULT ''`},
+		{name: "crash_bundle_path", sql: `ALTER TABLE sessions ADD COLUMN crash_bundle_path TEXT NOT NULL DEFAULT ''`},
 	}
 }
 
@@ -939,6 +972,9 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 			acp_session_id TEXT,
 			stop_reason    TEXT,
 			stop_detail    TEXT,
+			failure_kind   TEXT,
+			failure_summary TEXT NOT NULL DEFAULT '',
+			crash_bundle_path TEXT NOT NULL DEFAULT '',
 			environment_id TEXT NOT NULL DEFAULT '',
 			environment_backend TEXT NOT NULL DEFAULT 'local',
 			environment_profile TEXT NOT NULL DEFAULT '',
