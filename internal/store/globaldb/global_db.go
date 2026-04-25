@@ -519,6 +519,12 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateMCPAuthTokens,
 		Checksum: "2026-04-25-add-mcp-auth-tokens",
 	},
+	{
+		Version:  5,
+		Name:     "add_tool_process_records",
+		Up:       migrateToolProcessRecords,
+		Checksum: "2026-04-24-add-tool-process-records",
+	},
 }
 
 func migrateMCPAuthTokens(ctx context.Context, tx *sql.Tx) error {

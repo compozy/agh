@@ -41,6 +41,14 @@ func SignalCommandProcessGroup(cmd *exec.Cmd, sig syscall.Signal) error {
 	}
 
 	pgid := cmd.Process.Pid
+	return SignalProcessGroupID(pgid, sig)
+}
+
+// SignalProcessGroupID delivers sig to the process group identified by pgid.
+func SignalProcessGroupID(pgid int, sig syscall.Signal) error {
+	if pgid <= 0 {
+		return fmt.Errorf("procutil: invalid process group id %d", pgid)
+	}
 	if runtime.GOOS == "linux" {
 		err := signalProcessGroupMembersLinux(pgid, sig)
 		switch {
@@ -68,6 +76,14 @@ func WaitForCommandProcessGroupExit(cmd *exec.Cmd, timeout time.Duration) error 
 	}
 
 	pgid := cmd.Process.Pid
+	return WaitForProcessGroupIDExit(pgid, timeout)
+}
+
+// WaitForProcessGroupIDExit blocks until the process group identified by pgid no longer exists.
+func WaitForProcessGroupIDExit(pgid int, timeout time.Duration) error {
+	if pgid <= 0 {
+		return fmt.Errorf("procutil: invalid process group id %d", pgid)
+	}
 	if timeout <= 0 {
 		timeout = processGroupPollInterval
 	}
@@ -93,8 +109,16 @@ func WaitForCommandProcessGroupExit(cmd *exec.Cmd, timeout time.Duration) error 
 // KillCommandProcessGroupAndWait forcefully terminates any remaining members of
 // the command's process group, then waits for the group to disappear.
 func KillCommandProcessGroupAndWait(cmd *exec.Cmd, timeout time.Duration) error {
-	signalErr := SignalCommandProcessGroup(cmd, syscall.SIGKILL)
-	waitErr := WaitForCommandProcessGroupExit(cmd, timeout)
+	if cmd == nil || cmd.Process == nil || cmd.Process.Pid <= 0 {
+		return nil
+	}
+	return KillProcessGroupIDAndWait(cmd.Process.Pid, timeout)
+}
+
+// KillProcessGroupIDAndWait forcefully terminates any remaining members of a process group.
+func KillProcessGroupIDAndWait(pgid int, timeout time.Duration) error {
+	signalErr := SignalProcessGroupID(pgid, syscall.SIGKILL)
+	waitErr := WaitForProcessGroupIDExit(pgid, timeout)
 	return joinProcessGroupKillResult(signalErr, waitErr)
 }
 

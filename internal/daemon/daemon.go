@@ -33,6 +33,7 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/pedronauck/agh/internal/toolruntime"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -236,6 +237,7 @@ type extensionManagerDeps struct {
 	SourceSessions    resources.SourceSessionManager
 	ResourceCodecs    *resources.CodecRegistry
 	ResourceTrigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	ProcessRegistry   *toolruntime.Registry
 }
 
 type automationRuntime interface {
@@ -278,6 +280,7 @@ type SessionManagerDeps struct {
 	WorkspaceResolver    workspacepkg.RuntimeResolver
 	EnvironmentRegistry  *environment.Registry
 	SessionSupervision   aghconfig.SessionSupervisionConfig
+	ProcessRegistry      *toolruntime.Registry
 }
 
 // Daemon is the sole AGH composition root.
@@ -527,6 +530,10 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			session.WithEnvironmentRegistry(deps.EnvironmentRegistry),
 			session.WithSessionSupervision(deps.SessionSupervision),
+			session.WithDriver(session.NewACPDriverAdapter(acp.New(
+				acp.WithLogger(deps.Logger),
+				acp.WithProcessRegistry(deps.ProcessRegistry),
+			))),
 		)
 	}
 }
@@ -620,6 +627,7 @@ func buildExtensionManagerOptions(
 		extensionpkg.WithCapabilityChecker(capChecker),
 		extensionpkg.WithLogger(deps.Logger),
 		extensionpkg.WithSourceSessionManager(sourceSessions),
+		extensionpkg.WithProcessRegistry(deps.ProcessRegistry),
 	}
 	if sink, ok := deps.Observer.(extensionpkg.BridgeTelemetrySink); ok {
 		opts = append(opts, extensionpkg.WithBridgeTelemetrySink(sink))

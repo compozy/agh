@@ -139,11 +139,13 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 		return nil, err
 	}
 	defer session.finishPromptSetup()
+	session.setCurrentTurnID(req.turnID)
 	session.setCurrentTurnSource(turnState.turnSource)
 	session.setCurrentPromptMeta(req.meta)
 	clearTurnSource := true
 	defer func() {
 		if clearTurnSource {
+			session.clearCurrentTurnID()
 			session.clearCurrentTurnSource()
 			session.clearCurrentPromptMeta()
 		}
@@ -352,6 +354,7 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 	if !session.IsPrompting() {
 		return nil
 	}
+	turnID := session.CurrentTurnID()
 
 	proc := session.processHandle()
 	if proc == nil {
@@ -364,6 +367,12 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 			return nil
 		}
 		return fmt.Errorf("session: cancel prompt for %q: %w", target, cancelErr)
+	}
+	if scoped, ok := m.driver.(ScopedInterrupter); ok && strings.TrimSpace(turnID) != "" {
+		if _, err := scoped.Interrupt(ctx, target, turnID); err != nil &&
+			!errors.Is(err, ErrScopedInterruptNotFound) {
+			return fmt.Errorf("session: interrupt scoped tools for %q: %w", target, err)
+		}
 	}
 	return nil
 }
@@ -424,6 +433,7 @@ func (m *Manager) pumpPrompt(
 		m.finishPromptMessage(ctx, turnState, time.Time{})
 		m.dispatchTurnEnd(ctx, turnState, time.Time{})
 		if session != nil {
+			session.clearCurrentTurnID()
 			session.clearCurrentTurnSource()
 			session.clearCurrentPromptMeta()
 			m.startNextQueuedSyntheticPrompt(session.ID)

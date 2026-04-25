@@ -98,6 +98,7 @@ type Session struct {
 	environmentDestroyOnStop bool
 	promptSetupCount         int
 	promptSetupDone          chan struct{}
+	currentTurnID            string
 	currentTurnSource        TurnSource
 	currentPromptMeta        acp.PromptMeta
 }
@@ -220,6 +221,17 @@ func (s *Session) CurrentTurnSource() TurnSource {
 	return s.currentTurnSource
 }
 
+// CurrentTurnID reports the active prompt turn identifier.
+func (s *Session) CurrentTurnID() string {
+	if s == nil {
+		return ""
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentTurnID
+}
+
 // CurrentPromptMeta reports the normalized metadata for the currently active prompt turn.
 func (s *Session) CurrentPromptMeta() acp.PromptMeta {
 	if s == nil {
@@ -240,7 +252,17 @@ func (s *Session) IsPrompting() bool {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.promptSetupCount > 0 || s.currentTurnSource != ""
+	return s.promptSetupCount > 0 || s.currentTurnSource != "" || s.currentTurnID != ""
+}
+
+func (s *Session) setCurrentTurnID(turnID string) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentTurnID = strings.TrimSpace(turnID)
 }
 
 func (s *Session) setCurrentTurnSource(source TurnSource) {
@@ -271,6 +293,16 @@ func (s *Session) clearCurrentTurnSource() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentTurnSource = ""
+}
+
+func (s *Session) clearCurrentTurnID() {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentTurnID = ""
 }
 
 func (s *Session) clearCurrentPromptMeta() {

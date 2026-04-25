@@ -3,6 +3,7 @@ package hooks
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/toolruntime"
 	"golang.org/x/sys/execabs"
 )
 
@@ -59,12 +61,20 @@ func WithSubprocessEnv(env map[string]string) SubprocessExecutorOption {
 	}
 }
 
+// WithSubprocessProcessRegistry injects the shared process registry for subprocess hook commands.
+func WithSubprocessProcessRegistry(registry *toolruntime.Registry) SubprocessExecutorOption {
+	return func(executor *SubprocessExecutor) {
+		executor.registry = registry
+	}
+}
+
 // SubprocessExecutor runs hooks through a local shell command boundary.
 type SubprocessExecutor struct {
-	command string
-	args    []string
-	dir     string
-	env     map[string]string
+	command  string
+	args     []string
+	dir      string
+	env      map[string]string
+	registry *toolruntime.Registry
 }
 
 var _ Executor = (*SubprocessExecutor)(nil)
@@ -118,7 +128,7 @@ func (e *SubprocessExecutor) Execute(ctx context.Context, hook RegisteredHook, p
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
-	err = runSubprocessCommand(hookCtx, cmd)
+	err = runSubprocessCommand(hookCtx, cmd, hook, payload, e.registry)
 	output := []byte(stdout.String())
 	if err != nil {
 		return output, subprocessRunError(hookCtx, timeout, err, stderr)
@@ -147,9 +157,20 @@ func subprocessHookTimeout(timeout time.Duration) time.Duration {
 	return defaultSubprocessHookTimeout
 }
 
-func runSubprocessCommand(ctx context.Context, cmd *exec.Cmd) error {
+func runSubprocessCommand(
+	ctx context.Context,
+	cmd *exec.Cmd,
+	hook RegisteredHook,
+	payload []byte,
+	registry *toolruntime.Registry,
+) error {
 	if err := cmd.Start(); err != nil {
 		return err
+	}
+
+	record, err := registerSubprocessHook(ctx, cmd, hook, payload, registry)
+	if err != nil {
+		return errors.Join(err, cleanupStartedSubprocessCommand(cmd))
 	}
 
 	waitCh := make(chan error, 1)
@@ -159,26 +180,151 @@ func runSubprocessCommand(ctx context.Context, cmd *exec.Cmd) error {
 
 	select {
 	case err := <-waitCh:
-		return err
+		return errors.Join(err, completeSubprocessHook(context.Background(), record, cmd, err))
 	case <-ctx.Done():
+		checkpointErr := checkpointSubprocessHook(
+			context.Background(),
+			record,
+			toolruntime.ProcessStateInterrupting,
+			ctx.Err().Error(),
+		)
 		terminateErr := terminateSubprocessCommand(cmd)
 		timer := time.NewTimer(subprocessShutdownGrace)
 		defer timer.Stop()
 
 		select {
 		case err := <-waitCh:
-			return errors.Join(terminateErr, err, forceSubprocessCommandExit(cmd, subprocessProcessGroupWait))
+			groupErr := forceSubprocessCommandExit(cmd, subprocessProcessGroupWait)
+			completeErr := completeSubprocessHook(context.Background(), record, cmd, errors.Join(err, groupErr))
+			return errors.Join(checkpointErr, terminateErr, err, groupErr, completeErr)
 		case <-timer.C:
 			killErr := killSubprocessCommand(cmd)
 			waitErr := <-waitCh
+			groupErr := forceSubprocessCommandExit(cmd, subprocessProcessGroupWait)
+			completeErr := completeSubprocessHook(context.Background(), record, cmd, errors.Join(waitErr, groupErr))
 			return errors.Join(
+				checkpointErr,
 				terminateErr,
 				killErr,
 				waitErr,
-				forceSubprocessCommandExit(cmd, subprocessProcessGroupWait),
+				groupErr,
+				completeErr,
 			)
 		}
 	}
+}
+
+func cleanupStartedSubprocessCommand(cmd *exec.Cmd) error {
+	if cmd == nil {
+		return nil
+	}
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	terminateErr := terminateSubprocessCommand(cmd)
+	timer := time.NewTimer(subprocessShutdownGrace)
+	defer timer.Stop()
+
+	select {
+	case waitErr := <-waitCh:
+		return errors.Join(terminateErr, waitErr, forceSubprocessCommandExit(cmd, subprocessProcessGroupWait))
+	case <-timer.C:
+		killErr := killSubprocessCommand(cmd)
+		waitErr := <-waitCh
+		return errors.Join(
+			terminateErr,
+			killErr,
+			waitErr,
+			forceSubprocessCommandExit(cmd, subprocessProcessGroupWait),
+		)
+	}
+}
+
+func registerSubprocessHook(
+	ctx context.Context,
+	cmd *exec.Cmd,
+	hook RegisteredHook,
+	payload []byte,
+	registry *toolruntime.Registry,
+) (*toolruntime.Handle, error) {
+	if registry == nil || cmd == nil || cmd.Process == nil {
+		return nil, nil
+	}
+	owner := subprocessHookOwner(hook, payload)
+	command := cmd.Path
+	args := []string(nil)
+	if len(cmd.Args) > 0 {
+		command = cmd.Args[0]
+		args = cmd.Args[1:]
+	}
+	return registry.Register(ctx, toolruntime.RegisterConfig{
+		Source:         toolruntime.ProcessSourceHook,
+		Owner:          owner,
+		PID:            cmd.Process.Pid,
+		ProcessGroupID: cmd.Process.Pid,
+		Command:        command,
+		Args:           args,
+		Cwd:            cmd.Dir,
+		Interrupt: func(_ context.Context, _ toolruntime.ProcessRecord) error {
+			return terminateSubprocessCommand(cmd)
+		},
+	})
+}
+
+func subprocessHookOwner(hook RegisteredHook, payload []byte) toolruntime.ProcessOwner {
+	owner := toolruntime.ProcessOwner{HookName: strings.TrimSpace(hook.Name)}
+	var contextPayload struct {
+		SessionID     string `json:"session_id"`
+		TurnID        string `json:"turn_id"`
+		ToolCallID    string `json:"tool_call_id"`
+		EnvironmentID string `json:"environment_id"`
+	}
+	if len(payload) > 0 {
+		if err := json.Unmarshal(payload, &contextPayload); err != nil {
+			return owner
+		}
+	}
+	owner.SessionID = contextPayload.SessionID
+	owner.TurnID = contextPayload.TurnID
+	owner.ToolCallID = contextPayload.ToolCallID
+	owner.EnvironmentID = contextPayload.EnvironmentID
+	return owner
+}
+
+func checkpointSubprocessHook(
+	ctx context.Context,
+	record *toolruntime.Handle,
+	state toolruntime.ProcessState,
+	reason string,
+) error {
+	if record == nil {
+		return nil
+	}
+	return record.Checkpoint(ctx, toolruntime.ProcessCheckpoint{
+		State: state,
+		Error: reason,
+	})
+}
+
+func completeSubprocessHook(
+	ctx context.Context,
+	record *toolruntime.Handle,
+	cmd *exec.Cmd,
+	err error,
+) error {
+	if record == nil {
+		return nil
+	}
+	completion := toolruntime.ProcessCompletion{Err: err}
+	if cmd != nil && cmd.ProcessState != nil {
+		exitCode := cmd.ProcessState.ExitCode()
+		if exitCode >= 0 {
+			completion.ExitCode = &exitCode
+		}
+	}
+	return record.Complete(ctx, completion)
 }
 
 func subprocessProcessEnv(env map[string]string) []string {

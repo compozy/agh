@@ -159,7 +159,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(first) error = %v", err)
 	}
-	if got, want := len(firstRecords), 4; got != want {
+	if got, want := len(firstRecords), 5; got != want {
 		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
 	}
 	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
@@ -173,6 +173,9 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	}
 	if firstRecords[3].Version != 4 || firstRecords[3].Name != "add_mcp_auth_tokens" {
 		t.Fatalf("firstRecords[3] = %#v, want add_mcp_auth_tokens v4", firstRecords[3])
+	}
+	if firstRecords[4].Version != 5 || firstRecords[4].Name != "add_tool_process_records" {
+		t.Fatalf("firstRecords[4] = %#v, want add_tool_process_records v5", firstRecords[4])
 	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
@@ -191,7 +194,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(second) error = %v", err)
 	}
-	if got, want := len(secondRecords), 4; got != want {
+	if got, want := len(secondRecords), 5; got != want {
 		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
 	}
 	for i := range firstRecords {

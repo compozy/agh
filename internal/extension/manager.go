@@ -23,6 +23,7 @@ import (
 	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
+	"github.com/pedronauck/agh/internal/toolruntime"
 	"github.com/pedronauck/agh/internal/version"
 )
 
@@ -201,6 +202,7 @@ type Manager struct {
 	bridgeRuntimeResolver BridgeRuntimeResolver
 	bridgeTelemetrySink   BridgeTelemetrySink
 	sourceSessions        resources.SourceSessionManager
+	processRegistry       *toolruntime.Registry
 	logger                *slog.Logger
 	now                   func() time.Time
 	getenv                func(string) string
@@ -257,6 +259,13 @@ func WithBridgeTelemetrySink(sink BridgeTelemetrySink) Option {
 func WithSourceSessionManager(manager resources.SourceSessionManager) Option {
 	return func(mgr *Manager) {
 		mgr.sourceSessions = manager
+	}
+}
+
+// WithProcessRegistry injects shared tool process ownership tracking.
+func WithProcessRegistry(registry *toolruntime.Registry) Option {
+	return func(manager *Manager) {
+		manager.processRegistry = registry
 	}
 }
 
@@ -1303,6 +1312,13 @@ func (m *Manager) launchConfigFor(
 		Logger:          m.logger,
 		ShutdownTimeout: shutdownTimeout,
 		PostSignalGrace: m.subprocessSignalGrace,
+		ProcessRegistry: m.processRegistry,
+		ProcessRecord: toolruntime.RegisterConfig{
+			Source: toolruntime.ProcessSourceExtension,
+			Owner: toolruntime.ProcessOwner{
+				ExtensionName: ext.info.Name,
+			},
+		},
 	}
 	return launchCfg, runtime, healthInterval, nil
 }

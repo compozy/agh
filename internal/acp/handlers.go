@@ -18,6 +18,8 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/kballard/go-shellquote"
 	"golang.org/x/sys/execabs"
+
+	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 const (
@@ -81,8 +83,9 @@ type wireCost struct {
 }
 
 type terminalManager struct {
-	ctx    context.Context
-	logger *slog.Logger
+	ctx      context.Context
+	logger   *slog.Logger
+	registry *toolruntime.Registry
 
 	nextID atomic.Uint64
 
@@ -93,10 +96,12 @@ type terminalManager struct {
 type managedTerminal struct {
 	id string
 
-	cmd *exec.Cmd
+	cmd           *exec.Cmd
+	processRecord *toolruntime.Handle
 
-	networkOwned bool
-	ownerTurnID  string
+	networkOwned   bool
+	ownerSessionID string
+	ownerTurnID    string
 
 	mu         sync.RWMutex
 	output     []byte
@@ -106,8 +111,9 @@ type managedTerminal struct {
 }
 
 type terminalOwnership struct {
-	networkOwned bool
-	ownerTurnID  string
+	networkOwned   bool
+	ownerSessionID string
+	ownerTurnID    string
 }
 
 type terminalOutputWriter struct {
@@ -365,7 +371,10 @@ func (p *AgentProcess) handleCreateTerminal(
 	ctx context.Context,
 	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalResponse, error) {
-	ownership := terminalOwnership{}
+	ownership := terminalOwnership{
+		ownerSessionID: p.SessionID,
+		ownerTurnID:    p.activeTurnID(),
+	}
 	if p.isNetworkTurn() {
 		argv, err := terminalArgv(request)
 		if err != nil {
@@ -375,8 +384,9 @@ func (p *AgentProcess) handleCreateTerminal(
 			return acpsdk.CreateTerminalResponse{}, ErrToolBlockedForNetworkTurn
 		}
 		ownership = terminalOwnership{
-			networkOwned: true,
-			ownerTurnID:  p.activeTurnID(),
+			networkOwned:   true,
+			ownerSessionID: p.SessionID,
+			ownerTurnID:    p.activeTurnID(),
 		}
 	}
 
@@ -389,6 +399,16 @@ func (p *AgentProcess) handleCreateTerminal(
 		return acpsdk.CreateTerminalResponse{}, err
 	}
 	p.recordTerminalOwnership(response.TerminalId, ownership)
+	if err := p.registerExternalTerminalProcess(ctx, host, response.TerminalId, request, ownership); err != nil {
+		if killErr := host.KillTerminal(response.TerminalId); killErr != nil {
+			slog.Default().Warn(
+				"acp: cleanup unregistered terminal",
+				"terminal_id", response.TerminalId,
+				"error", killErr,
+			)
+		}
+		return acpsdk.CreateTerminalResponse{}, err
+	}
 	return response, nil
 }
 
@@ -405,6 +425,96 @@ func (p *AgentProcess) recordTerminalOwnership(id string, ownership terminalOwne
 	p.terminalOwnership[id] = ownership
 }
 
+func (p *AgentProcess) registerExternalTerminalProcess(
+	ctx context.Context,
+	host ToolHost,
+	id string,
+	request acpsdk.CreateTerminalRequest,
+	ownership terminalOwnership,
+) error {
+	if p.processRegistry == nil || strings.TrimSpace(id) == "" {
+		return nil
+	}
+	argv, err := terminalArgv(request)
+	if err != nil {
+		return err
+	}
+	registerCtx := ctx
+	if registerCtx == nil {
+		registerCtx = context.Background()
+	}
+	cwd := p.Cwd
+	if request.Cwd != nil {
+		cwd = *request.Cwd
+	}
+	var handle *toolruntime.Handle
+	handle, err = p.processRegistry.Register(registerCtx, toolruntime.RegisterConfig{
+		Source: toolruntime.ProcessSourceEnvironmentTerminal,
+		Owner: toolruntime.ProcessOwner{
+			SessionID:  ownership.ownerSessionID,
+			TurnID:     ownership.ownerTurnID,
+			TerminalID: id,
+		},
+		Command: argv[0],
+		Args:    argv[1:],
+		Cwd:     cwd,
+		Interrupt: func(callbackCtx context.Context, _ toolruntime.ProcessRecord) error {
+			if killErr := host.KillTerminal(id); killErr != nil {
+				return killErr
+			}
+			if handle != nil {
+				return handle.Complete(
+					context.WithoutCancel(callbackCtx),
+					toolruntime.ProcessCompletion{Err: errors.New("terminal interrupted")},
+				)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("acp: register terminal process %q: %w", id, err)
+	}
+
+	p.terminalProcessMu.Lock()
+	defer p.terminalProcessMu.Unlock()
+	if p.terminalProcesses == nil {
+		p.terminalProcesses = make(map[string]*toolruntime.Handle)
+	}
+	p.terminalProcesses[id] = handle
+	return nil
+}
+
+func (p *AgentProcess) completeExternalTerminalProcess(
+	ctx context.Context,
+	id string,
+	completion toolruntime.ProcessCompletion,
+) {
+	handle := p.takeExternalTerminalProcess(id)
+	if handle == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := handle.Complete(ctx, completion); err != nil {
+		slog.Default().Warn("acp: complete terminal process record", "terminal_id", id, "error", err)
+	}
+}
+
+func (p *AgentProcess) takeExternalTerminalProcess(id string) *toolruntime.Handle {
+	if strings.TrimSpace(id) == "" {
+		return nil
+	}
+	p.terminalProcessMu.Lock()
+	defer p.terminalProcessMu.Unlock()
+	if p.terminalProcesses == nil {
+		return nil
+	}
+	handle := p.terminalProcesses[id]
+	delete(p.terminalProcesses, id)
+	return handle
+}
+
 func (p *AgentProcess) handleKillTerminal(
 	request acpsdk.KillTerminalCommandRequest,
 ) (acpsdk.KillTerminalCommandResponse, error) {
@@ -414,6 +524,11 @@ func (p *AgentProcess) handleKillTerminal(
 	if err := p.toolHostOrDefault().KillTerminal(request.TerminalId); err != nil {
 		return acpsdk.KillTerminalCommandResponse{}, err
 	}
+	p.completeExternalTerminalProcess(
+		context.Background(),
+		request.TerminalId,
+		toolruntime.ProcessCompletion{Err: errors.New("terminal killed")},
+	)
 	return acpsdk.KillTerminalCommandResponse{}, nil
 }
 
@@ -469,6 +584,11 @@ func (p *AgentProcess) handleWaitForTerminalExit(
 	if err != nil {
 		return acpsdk.WaitForTerminalExitResponse{}, err
 	}
+	p.completeExternalTerminalProcess(
+		context.Background(),
+		request.TerminalId,
+		toolruntime.ProcessCompletion{ExitCode: acpsdk.Ptr(exitCode)},
+	)
 	return acpsdk.WaitForTerminalExitResponse{
 		ExitCode: acpsdk.Ptr(exitCode),
 	}, nil
@@ -483,6 +603,11 @@ func (p *AgentProcess) handleReleaseTerminal(
 	if err := p.toolHostOrDefault().ReleaseTerminal(request.TerminalId); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
+	p.completeExternalTerminalProcess(
+		context.Background(),
+		request.TerminalId,
+		toolruntime.ProcessCompletion{Error: "terminal released"},
+	)
 	return acpsdk.ReleaseTerminalResponse{}, nil
 }
 
@@ -497,7 +622,13 @@ func (p *AgentProcess) toolHostOrDefault() ToolHost {
 	if procCtx == nil {
 		procCtx = context.Background()
 	}
-	host := newLocalToolHostFromPolicy(procCtx, p.Cwd, p.permissions, slog.Default())
+	host := newLocalToolHostFromPolicy(
+		procCtx,
+		p.Cwd,
+		p.permissions,
+		slog.Default(),
+		WithLocalProcessRegistry(p.processRegistry),
+	)
 	if p.terminals != nil {
 		host.terminals = p.terminals
 	} else {
@@ -507,19 +638,32 @@ func (p *AgentProcess) toolHostOrDefault() ToolHost {
 	return host
 }
 
-func newTerminalManager(ctx context.Context, logger *slog.Logger) *terminalManager {
+func newTerminalManager(
+	ctx context.Context,
+	logger *slog.Logger,
+	registries ...*toolruntime.Registry,
+) *terminalManager {
+	var registry *toolruntime.Registry
+	if len(registries) > 0 {
+		registry = registries[0]
+	}
 	return &terminalManager{
 		ctx:       ctx,
 		logger:    logger,
+		registry:  registry,
 		terminals: make(map[string]*managedTerminal),
 	}
 }
 
 func (m *terminalManager) create(
+	ctx context.Context,
 	cwd string,
 	request acpsdk.CreateTerminalRequest,
 	ownership terminalOwnership,
 ) (acpsdk.CreateTerminalResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	argv, err := terminalArgv(request)
 	if err != nil {
 		return acpsdk.CreateTerminalResponse{}, err
@@ -534,11 +678,12 @@ func (m *terminalManager) create(
 	cmd.Env = mergeCommandEnv(os.Environ(), request.Env)
 
 	term := &managedTerminal{
-		id:           fmt.Sprintf("term-%d", m.nextID.Add(1)),
-		cmd:          cmd,
-		networkOwned: ownership.networkOwned,
-		ownerTurnID:  strings.TrimSpace(ownership.ownerTurnID),
-		done:         make(chan struct{}),
+		id:             fmt.Sprintf("term-%d", m.nextID.Add(1)),
+		cmd:            cmd,
+		networkOwned:   ownership.networkOwned,
+		ownerSessionID: strings.TrimSpace(ownership.ownerSessionID),
+		ownerTurnID:    strings.TrimSpace(ownership.ownerTurnID),
+		done:           make(chan struct{}),
 	}
 	writer := &terminalOutputWriter{terminal: term}
 	cmd.Stdout = writer
@@ -547,8 +692,18 @@ func (m *terminalManager) create(
 	if err := cmd.Start(); err != nil {
 		return acpsdk.CreateTerminalResponse{}, fmt.Errorf("acp: start terminal command %q: %w", argv[0], err)
 	}
+	if err := m.registerTerminalProcess(ctx, term, cwd, argv); err != nil {
+		if killErr := killManagedProcess(cmd); killErr != nil {
+			m.logTerminalKillError(term.id, "registration cleanup", killErr)
+		}
+		if waitErr := cmd.Wait(); waitErr != nil {
+			m.logTerminalKillError(term.id, "registration wait cleanup", waitErr)
+		}
+		return acpsdk.CreateTerminalResponse{}, err
+	}
 	if m.ctx != nil {
 		watchTerminalShutdown(m.ctx, term.done, func() {
+			term.checkpointInterrupting(context.Background(), "manager shutdown")
 			if err := killManagedProcess(cmd); err != nil {
 				m.logTerminalKillError(term.id, "manager shutdown", err)
 			}
@@ -559,9 +714,45 @@ func (m *terminalManager) create(
 	m.terminals[term.id] = term
 	m.mu.Unlock()
 
-	go term.wait()
+	waitCtx := context.WithoutCancel(ctx)
+	go term.wait(waitCtx)
 
 	return acpsdk.CreateTerminalResponse{TerminalId: term.id}, nil
+}
+
+func (m *terminalManager) registerTerminalProcess(
+	ctx context.Context,
+	term *managedTerminal,
+	cwd string,
+	argv []string,
+) error {
+	if m.registry == nil || term == nil || term.cmd == nil || term.cmd.Process == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	handle, err := m.registry.Register(ctx, toolruntime.RegisterConfig{
+		Source: toolruntime.ProcessSourceACPTerminal,
+		Owner: toolruntime.ProcessOwner{
+			SessionID:  term.ownerSessionID,
+			TurnID:     term.ownerTurnID,
+			TerminalID: term.id,
+		},
+		PID:            term.cmd.Process.Pid,
+		ProcessGroupID: term.cmd.Process.Pid,
+		Command:        argv[0],
+		Args:           argv[1:],
+		Cwd:            cwd,
+		Interrupt: func(_ context.Context, _ toolruntime.ProcessRecord) error {
+			return terminateManagedProcess(term.cmd)
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("acp: register terminal process %q: %w", term.id, err)
+	}
+	term.processRecord = handle
+	return nil
 }
 
 func newManagedTerminalCommand(argv []string) (*exec.Cmd, error) {
@@ -588,6 +779,7 @@ func (m *terminalManager) kill(id string) error {
 	if err != nil {
 		return err
 	}
+	term.checkpointInterrupting(context.Background(), "terminal killed")
 	if err := killManagedProcess(term.cmd); err != nil {
 		return fmt.Errorf("acp: kill terminal %q: %w", id, err)
 	}
@@ -622,6 +814,7 @@ func (m *terminalManager) release(id string) error {
 	if err != nil {
 		return err
 	}
+	term.checkpointInterrupting(context.Background(), "terminal released")
 	if killErr := killManagedProcess(term.cmd); killErr != nil {
 		m.logTerminalKillError(id, "release", killErr)
 	}
@@ -640,6 +833,7 @@ func (m *terminalManager) closeAll() {
 	m.mu.RUnlock()
 
 	for _, terminal := range terminals {
+		terminal.checkpointInterrupting(context.Background(), "terminal manager closing")
 		if err := killManagedProcess(terminal.cmd); err != nil {
 			m.logTerminalKillError(terminal.id, "close_all", err)
 		}
@@ -678,7 +872,7 @@ func (t *managedTerminal) appendOutput(p []byte) {
 	}
 }
 
-func (t *managedTerminal) wait() {
+func (t *managedTerminal) wait(ctx context.Context) {
 	err := t.cmd.Wait()
 	groupWaitErr := forceManagedProcessGroupExit(t.cmd, 250*time.Millisecond)
 	exitStatus := &acpsdk.TerminalExitStatus{}
@@ -700,7 +894,49 @@ func (t *managedTerminal) wait() {
 	t.mu.Lock()
 	t.exitStatus = exitStatus
 	t.mu.Unlock()
+	t.completeProcess(ctx, exitStatus, err, groupWaitErr)
 	close(t.done)
+}
+
+func (t *managedTerminal) checkpointInterrupting(ctx context.Context, reason string) {
+	if t == nil || t.processRecord == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := t.processRecord.Checkpoint(ctx, toolruntime.ProcessCheckpoint{
+		State: toolruntime.ProcessStateInterrupting,
+		Error: reason,
+	}); err != nil {
+		slog.Default().Warn("acp: checkpoint terminal process record", "terminal_id", t.id, "error", err)
+	}
+}
+
+func (t *managedTerminal) completeProcess(
+	ctx context.Context,
+	exitStatus *acpsdk.TerminalExitStatus,
+	waitErr error,
+	groupWaitErr error,
+) {
+	if t == nil || t.processRecord == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	completion := toolruntime.ProcessCompletion{}
+	if exitStatus != nil && exitStatus.ExitCode != nil {
+		completion.ExitCode = exitStatus.ExitCode
+	}
+	if waitErr != nil {
+		completion.Err = waitErr
+	} else if groupWaitErr != nil {
+		completion.Err = groupWaitErr
+	}
+	if err := t.processRecord.Complete(ctx, completion); err != nil {
+		slog.Default().Warn("acp: complete terminal process record", "terminal_id", t.id, "error", err)
+	}
 }
 
 func (t *managedTerminal) snapshot() (string, bool, *acpsdk.TerminalExitStatus) {

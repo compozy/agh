@@ -22,7 +22,7 @@ export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
 
 | Path                                        | Purpose                                                                                                                                                     |
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$AGH_HOME/agh.db`                          | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, and network audit records. |
+| `$AGH_HOME/agh.db`                          | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
 | `$AGH_HOME/sessions/<session-id>/events.db` | Full event store for one AGH session.                                                                                                                       |
 | `$AGH_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                 |
 
@@ -103,6 +103,15 @@ List registered workspaces:
 ```sql
 select id, root_dir, name, updated_at
 from workspaces
+order by updated_at desc;
+```
+
+List active tool process checkpoints:
+
+```sql
+select id, source, session_id, turn_id, pid, state, updated_at
+from tool_processes
+where state in ('running', 'interrupting')
 order by updated_at desc;
 ```
 
