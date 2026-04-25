@@ -1,0 +1,25 @@
+{
+  "status": "valid",
+  "scope": "workspace",
+  "workspace_root": "/tmp/agh-hermes-env-workspace.dHe7VH",
+  "config_file": "/tmp/agh-hermes-env.o0fHXU/config.toml",
+  "redacted": true,
+  "dot_env": {
+    "path": "/tmp/agh-hermes-env-workspace.dHe7VH/.env",
+    "status": "repaired",
+    "repaired": true,
+    "diagnostics": [
+      {
+        "line": 1,
+        "code": "multi_key_line",
+        "message": ".env line contains multiple assignments and can be split safely"
+      },
+      {
+        "line": 1,
+        "key": "HERMES_ENV_API_KEY",
+        "code": "sanitized_secret_value",
+        "message": "secret-like .env value contains non-ASCII characters that will be stripped"
+      }
+    ]
+  }
+}

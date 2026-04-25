@@ -1,0 +1,56 @@
+[
+  {
+    "id": "ev-95a38a944f46017a",
+    "session_id": "sess-646c5e8506d7a35e",
+    "sequence": 1,
+    "turn_id": "turn-629ad68657215051",
+    "type": "error",
+    "agent_name": "broken",
+    "workspace_id": "ws_e168bcc7043308b7",
+    "workspace_path": "/Users/pedronauck/dev/compozy/agh",
+    "content": {
+      "schema": "agh.session.event.v1",
+      "type": "error",
+      "turn_id": "turn-629ad68657215051",
+      "timestamp": "2026-04-25T05:00:31.245131Z",
+      "error": "agent subprocess startup failed: acp: start agent \"broken\" subprocess \"agh-hermes-missing-agent-binary --acp\" in \"/Users/pedronauck/dev/compozy/agh\": acp: start subprocess \"agh-hermes-missing-agent-binary --acp\": subprocess: resolve executable \"agh-hermes-missing-agent-binary\": exec: \"agh-hermes-missing-agent-binary\": executable file not found in $PATH",
+      "failure": {
+        "kind": "startup_failure",
+        "summary": "agent subprocess startup failed: acp: start agent \"broken\" subprocess \"agh-hermes-missing-agent-binary --acp\" in \"/Users/pedronauck/dev/compozy/agh\": acp: start subprocess \"agh-hermes-missing-agent-binary --acp\": subprocess: resolve executable \"agh-hermes-missing-agent-binary\": exec: \"agh-hermes-missing-agent-binary\": executable file not found in $PATH",
+        "crash_bundle_path": "/tmp/agh-hermes-failure.NbJEUi/logs/crash-bundles/sess-646c5e8506d7a35e-startup_failure-1777093231228374000.json"
+      }
+    },
+    "timestamp": "2026-04-25T05:00:31.245131Z"
+  },
+  {
+    "id": "ev-5521dee971c54520",
+    "session_id": "sess-646c5e8506d7a35e",
+    "sequence": 2,
+    "turn_id": "turn-1c63cb275b33f82e",
+    "type": "session_stopped",
+    "agent_name": "broken",
+    "workspace_id": "ws_e168bcc7043308b7",
+    "workspace_path": "/Users/pedronauck/dev/compozy/agh",
+    "content": {
+      "schema": "agh.session.event.v1",
+      "type": "session_stopped",
+      "turn_id": "turn-1c63cb275b33f82e",
+      "timestamp": "2026-04-25T05:00:31.245131Z",
+      "stop_reason": "error",
+      "error": "agent subprocess startup failed: acp: start agent \"broken\" subprocess \"agh-hermes-missing-agent-binary --acp\" in \"/Users/pedronauck/dev/compozy/agh\": acp: start subprocess \"agh-hermes-missing-agent-binary --acp\": subprocess: resolve executable \"agh-hermes-missing-agent-binary\": exec: \"agh-hermes-missing-agent-binary\": executable file not found in $PATH",
+      "failure": {
+        "kind": "startup_failure",
+        "summary": "agent subprocess startup failed: acp: start agent \"broken\" subprocess \"agh-hermes-missing-agent-binary --acp\" in \"/Users/pedronauck/dev/compozy/agh\": acp: start subprocess \"agh-hermes-missing-agent-binary --acp\": subprocess: resolve executable \"agh-hermes-missing-agent-binary\": exec: \"agh-hermes-missing-agent-binary\": executable file not found in $PATH",
+        "crash_bundle_path": "/tmp/agh-hermes-failure.NbJEUi/logs/crash-bundles/sess-646c5e8506d7a35e-startup_failure-1777093231228374000.json"
+      }
+    },
+    "stop_reason": "error",
+    "stop_detail": "agent subprocess startup failed: acp: start agent \"broken\" subprocess \"agh-hermes-missing-agent-binary --acp\" in \"/Users/pedronauck/dev/compozy/agh\": acp: start subprocess \"agh-hermes-missing-agent-binary --acp\": subprocess: resolve executable \"agh-hermes-missing-agent-binary\": exec: \"agh-hermes-missing-agent-binary\": executable file not found in $PATH",
+    "failure": {
+      "kind": "startup_failure",
+      "summary": "agent subprocess startup failed: acp: start agent \"broken\" subprocess \"agh-hermes-missing-agent-binary --acp\" in \"/Users/pedronauck/dev/compozy/agh\": acp: start subprocess \"agh-hermes-missing-agent-binary --acp\": subprocess: resolve executable \"agh-hermes-missing-agent-binary\": exec: \"agh-hermes-missing-agent-binary\": executable file not found in $PATH",
+      "crash_bundle_path": "/tmp/agh-hermes-failure.NbJEUi/logs/crash-bundles/sess-646c5e8506d7a35e-startup_failure-1777093231228374000.json"
+    },
+    "timestamp": "2026-04-25T05:00:31.245131Z"
+  }
+]

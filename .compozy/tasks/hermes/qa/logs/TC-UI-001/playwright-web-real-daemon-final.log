@@ -1,0 +1,52 @@
+{
+  "results": [
+    {
+      "flow": "automation",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:3001/settings/automation",
+      "finalURL": "http://127.0.0.1:3001/settings/automation",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-UI-001/automation-desktop.png",
+      "verdict": "PASS"
+    },
+    {
+      "flow": "mcp-servers",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:3001/settings/mcp-servers",
+      "finalURL": "http://127.0.0.1:3001/settings/mcp-servers",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-UI-001/mcp-servers-desktop.png",
+      "verdict": "PASS"
+    },
+    {
+      "flow": "hooks-extensions",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:3001/settings/hooks-extensions",
+      "finalURL": "http://127.0.0.1:3001/settings/hooks-extensions",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-UI-001/hooks-extensions-desktop.png",
+      "verdict": "PASS"
+    },
+    {
+      "flow": "memory",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:3001/settings/memory",
+      "finalURL": "http://127.0.0.1:3001/settings/memory",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-UI-001/memory-desktop.png",
+      "verdict": "PASS"
+    },
+    {
+      "flow": "automation",
+      "viewport": "mobile",
+      "url": "http://127.0.0.1:3001/settings/automation",
+      "finalURL": "http://127.0.0.1:3001/settings/automation",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-UI-001/automation-mobile.png",
+      "verdict": "PASS"
+    },
+    {
+      "flow": "mcp-servers",
+      "viewport": "mobile",
+      "url": "http://127.0.0.1:3001/settings/mcp-servers",
+      "finalURL": "http://127.0.0.1:3001/settings/mcp-servers",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-UI-001/mcp-servers-mobile.png",
+      "verdict": "PASS"
+    }
+  ]
+}

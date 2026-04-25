@@ -1,0 +1,100 @@
+{
+  "scope": "global",
+  "redacted": true,
+  "config": {
+    "automation": {
+      "default_fire_limit": {
+        "max": 12,
+        "window": "1h"
+      },
+      "enabled": true,
+      "max_concurrent_jobs": 5,
+      "timezone": "UTC"
+    },
+    "daemon": {
+      "socket": "/tmp/agh-hermes-mcp.ESO57D/daemon.sock"
+    },
+    "defaults": {
+      "agent": "general"
+    },
+    "environments": {},
+    "extensions": {},
+    "hooks": {},
+    "http": {
+      "host": "127.0.0.1",
+      "port": 50855
+    },
+    "limits": {
+      "max_concurrent_agents": 20,
+      "max_sessions": 10
+    },
+    "log": {
+      "level": "info"
+    },
+    "mcp_servers": [
+      {
+        "auth": {
+          "authorization_url": "https://auth.example/authorize",
+          "client_id": "client-id",
+          "client_secret_env": "HERMES_MCP_SECRET",
+          "scopes": [
+            "read"
+          ],
+          "token_url": "https://auth.example/token",
+          "type": "oauth2_pkce"
+        },
+        "name": "linear",
+        "transport": "sse",
+        "url": "https://mcp.example/sse"
+      }
+    ],
+    "memory": {
+      "dream": {
+        "agent": "general",
+        "check_interval": "30m0s",
+        "enabled": true,
+        "min_hours": 24,
+        "min_sessions": 3
+      },
+      "enabled": true,
+      "global_dir": "/tmp/agh-hermes-mcp.ESO57D/memory"
+    },
+    "network": {
+      "default_channel": "default",
+      "enabled": true,
+      "greet_interval": 30,
+      "max_payload": 1048576,
+      "max_queue_depth": 100,
+      "max_replay_age": 300,
+      "port": -1
+    },
+    "observability": {
+      "enabled": true,
+      "max_global_bytes": 1073741824,
+      "retention_days": 7,
+      "transcripts": {
+        "enabled": true,
+        "max_bytes_per_session": 268435456,
+        "segment_bytes": 1048576
+      }
+    },
+    "permissions": {
+      "mode": "approve-all"
+    },
+    "providers": {},
+    "session": {
+      "limits": {},
+      "supervision": {
+        "activity_heartbeat_interval": "30s",
+        "inactivity_timeout": "30m0s",
+        "inactivity_warning_after": "15m0s",
+        "progress_notify_interval": "10m0s",
+        "timeout_cancel_grace": "30s"
+      }
+    },
+    "skills": {
+      "enabled": true,
+      "poll_interval": "3s"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+automation_job_overlays             memory_catalog_state              
+automation_jobs                     memory_operation_log              
+automation_runs                     network_audit_log                 
+automation_scheduler_state          network_channels                  
+automation_trigger_overlays         network_timeline_log              
+automation_trigger_webhook_secrets  permission_log                    
+automation_triggers                 resource_records                  
+bridge_ingest_dedup                 resource_source_state             
+bridge_instances                    schema_migrations                 
+bridge_routes                       sessions                          
+bridge_secret_bindings              task_dependencies                 
+event_summaries                     task_events                       
+extensions                          task_run_idempotency              
+mcp_auth_tokens                     task_runs                         
+memory_catalog_entries              task_triage_state                 
+memory_catalog_fts                  tasks                             
+memory_catalog_fts_config           token_stats                       
+memory_catalog_fts_data             tool_processes                    
+memory_catalog_fts_docsize          workspaces                        
+memory_catalog_fts_idx            

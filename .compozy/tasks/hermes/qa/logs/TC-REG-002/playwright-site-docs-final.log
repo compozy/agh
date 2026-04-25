@@ -1,0 +1,68 @@
+{
+  "results": [
+    {
+      "page": "session-lifecycle",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:3002/runtime/core/sessions/lifecycle/",
+      "finalURL": "http://127.0.0.1:3002/runtime/core/sessions/lifecycle/",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-REG-002/session-lifecycle-desktop.png",
+      "verdict": "PASS"
+    },
+    {
+      "page": "automation-jobs",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:3002/runtime/core/automation/jobs/",
+      "finalURL": "http://127.0.0.1:3002/runtime/core/automation/jobs/",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-REG-002/automation-jobs-desktop.png",
+      "verdict": "PASS"
+    },
+    {
+      "page": "mcp-json",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:3002/runtime/core/configuration/mcp-json/",
+      "finalURL": "http://127.0.0.1:3002/runtime/core/configuration/mcp-json/",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-REG-002/mcp-json-desktop.png",
+      "verdict": "PASS"
+    },
+    {
+      "page": "memory-system",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:3002/runtime/core/memory/system/",
+      "finalURL": "http://127.0.0.1:3002/runtime/core/memory/system/",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-REG-002/memory-system-desktop.png",
+      "verdict": "PASS"
+    },
+    {
+      "page": "daemon-operations",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:3002/runtime/core/operations/daemon/",
+      "finalURL": "http://127.0.0.1:3002/runtime/core/operations/daemon/",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-REG-002/daemon-operations-desktop.png",
+      "verdict": "PASS"
+    },
+    {
+      "page": "installation-release",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:3002/runtime/core/getting-started/installation/",
+      "finalURL": "http://127.0.0.1:3002/runtime/core/getting-started/installation/",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-REG-002/installation-release-desktop.png",
+      "verdict": "PASS"
+    },
+    {
+      "page": "memory-system",
+      "viewport": "mobile",
+      "url": "http://127.0.0.1:3002/runtime/core/memory/system/",
+      "finalURL": "http://127.0.0.1:3002/runtime/core/memory/system/",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-REG-002/memory-system-mobile.png",
+      "verdict": "PASS"
+    },
+    {
+      "page": "installation-release",
+      "viewport": "mobile",
+      "url": "http://127.0.0.1:3002/runtime/core/getting-started/installation/",
+      "finalURL": "http://127.0.0.1:3002/runtime/core/getting-started/installation/",
+      "screenshot": "../.compozy/tasks/hermes/qa/screenshots/TC-REG-002/installation-release-mobile.png",
+      "verdict": "PASS"
+    }
+  ]
+}

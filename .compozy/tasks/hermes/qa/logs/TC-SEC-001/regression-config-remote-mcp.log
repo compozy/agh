@@ -1,0 +1,4 @@
+=== RUN   TestLoadSupportsRemoteMCPAuthFieldsInTOML
+--- PASS: TestLoadSupportsRemoteMCPAuthFieldsInTOML (0.00s)
+PASS
+ok  	github.com/pedronauck/agh/internal/config	0.012s

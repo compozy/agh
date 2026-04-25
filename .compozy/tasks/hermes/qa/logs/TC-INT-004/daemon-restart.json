@@ -1,0 +1,17 @@
+Manage the AGH daemon
+
+Usage:
+  agh daemon [command]
+
+Available Commands:
+  start       Start the AGH daemon
+  status      Show daemon status
+  stop        Stop the AGH daemon
+
+Flags:
+  -h, --help   help for daemon
+
+Global Flags:
+  -o, --output string   Output format: human, json, or toon (default "human")
+
+Use "agh daemon [command] --help" for more information about a command.

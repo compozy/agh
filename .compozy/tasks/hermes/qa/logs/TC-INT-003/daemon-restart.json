@@ -1,0 +1,21 @@
+{
+  "status": "running",
+  "pid": 61586,
+  "started_at": "2026-04-25T05:00:45.145329Z",
+  "socket": "/tmp/agh-hermes-failure.NbJEUi/daemon.sock",
+  "http_host": "localhost",
+  "http_port": 2123,
+  "user_home_dir": "/Users/pedronauck",
+  "active_sessions": 0,
+  "total_sessions": 1,
+  "version": "92adb526-dirty",
+  "network": {
+    "enabled": true,
+    "status": "running",
+    "configured_default_channel": "default",
+    "effective_default_channel": "default",
+    "effective_default_source": "config",
+    "listener_host": "127.0.0.1",
+    "listener_port": 50283
+  }
+}

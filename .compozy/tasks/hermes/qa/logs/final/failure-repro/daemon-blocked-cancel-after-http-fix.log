@@ -1,0 +1,6 @@
+=== RUN   TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning
+=== PAUSE TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning
+=== CONT  TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning
+--- PASS: TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning (3.46s)
+PASS
+ok  	github.com/pedronauck/agh/internal/daemon	4.507s

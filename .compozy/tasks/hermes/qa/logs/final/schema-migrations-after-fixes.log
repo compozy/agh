@@ -1,0 +1,6 @@
+1|create_global_schema|70e2c16c9d32e692891ab71d075ca823782626e7c9f6ffbbc88c5d662704e089
+2|add_session_failure_diagnostics|2026-04-24-add-session-failure-diagnostics
+3|add_automation_scheduler_state|2026-04-24-add-automation-scheduler-state
+4|add_mcp_auth_tokens|2026-04-25-add-mcp-auth-tokens
+5|add_tool_process_records|2026-04-24-add-tool-process-records
+6|add_memory_operation_scope|2026-04-25-add-memory-operation-scope

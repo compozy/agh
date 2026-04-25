@@ -1,0 +1,1 @@
+{"extensions":[{"name":"hermes-env-ext","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","requires_env":["HERMES_PRESENT_TOKEN","HERMES_MISSING_TOKEN"],"missing_env":["HERMES_MISSING_TOKEN"],"health":"healthy","daemon_running":true}]}

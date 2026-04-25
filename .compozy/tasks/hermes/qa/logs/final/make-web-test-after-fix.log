@@ -1,0 +1,13 @@
+[0m[2m[35m$[0m [2m[1mbun run codegen-check && bun run test:raw[0m
+[0m[2m[35m$[0m [2m[1mbun run --cwd .. codegen-check[0m
+[0m[2m[35m$[0m [2m[1mmake codegen-check[0m
+[0m[2m[35m$[0m [2m[1mvitest run[0m
+
+ RUN  v4.1.4 /Users/pedronauck/Dev/compozy/agh/web
+
+
+ Test Files  190 passed (190)
+      Tests  1412 passed (1412)
+   Start at  02:43:47
+   Duration  18.16s (transform 9.68s, setup 10.89s, import 108.05s, tests 28.05s, environment 91.52s)
+

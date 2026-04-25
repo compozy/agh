@@ -1,0 +1,5 @@
+1|create_global_schema|64
+2|add_session_failure_diagnostics|42
+3|add_automation_scheduler_state|41
+4|add_mcp_auth_tokens|30
+5|add_tool_process_records|35

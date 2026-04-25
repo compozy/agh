@@ -1,0 +1,64 @@
+{
+  "status": "degraded",
+  "uptime_seconds": 6,
+  "active_sessions": 0,
+  "active_agents": 0,
+  "global_db_size_bytes": 959776,
+  "session_db_size_bytes": 65536,
+  "persistence": {
+    "status": "ok",
+    "global_db_size_bytes": 959776,
+    "session_db_size_bytes": 65536
+  },
+  "retention": {
+    "enabled": true,
+    "retention_days": 7,
+    "sweep_interval_seconds": 86400,
+    "last_sweep_status": "ok",
+    "last_sweep_at": "2026-04-25T05:00:25.095918Z",
+    "last_cutoff_at": "2026-04-18T05:00:25.095918Z",
+    "deleted_event_summaries": 0,
+    "deleted_token_stats": 0,
+    "deleted_permission_log_rows": 0
+  },
+  "failures": {
+    "status": "ok",
+    "total": 0
+  },
+  "agent_probes": [
+    {
+      "agent_name": "broken",
+      "provider": "broken",
+      "command": "agh-hermes-missing-agent-binary --acp",
+      "status": "missing",
+      "error": "resolve executable \"agh-hermes-missing-agent-binary\": exec: \"agh-hermes-missing-agent-binary\": executable file not found in $PATH",
+      "checked_at": "2026-04-25T05:00:31.296667Z",
+      "duration_ms": 0
+    },
+    {
+      "provider": "broken",
+      "command": "agh-hermes-missing-agent-binary --acp",
+      "status": "missing",
+      "error": "resolve executable \"agh-hermes-missing-agent-binary\": exec: \"agh-hermes-missing-agent-binary\": executable file not found in $PATH",
+      "checked_at": "2026-04-25T05:00:31.296786Z",
+      "duration_ms": 0
+    }
+  ],
+  "bridges": {
+    "total_instances": 0,
+    "route_count": 0,
+    "delivery_backlog": 0,
+    "delivery_dropped_total": 0,
+    "delivery_failures_total": 0,
+    "auth_failures_total": 0,
+    "status_counts": {
+      "disabled": 0,
+      "starting": 0,
+      "ready": 0,
+      "degraded": 0,
+      "auth_required": 0,
+      "error": 0
+    }
+  },
+  "version": "92adb526-dirty"
+}

@@ -1,0 +1,458 @@
+✓  extensions/bridges/discord (1.078s)
+✓  cmd/agh (1.081s)
+✓  internal/api/contract (1.081s)
+✓  extensions/bridges/linear (1.171s)
+∅  internal/automation/model
+✓  extensions/bridges/telegram (1.193s)
+✓  extensions/bridges/github (1.227s)
+✓  extensions/bridges/whatsapp (1.234s)
+∅  internal/bundles/model
+✓  internal/api/core (1.702s)
+✓  extensions/bridges/slack (1.775s)
+✓  internal/api/testutil (1.05s)
+✓  internal/api/spec (1.354s)
+✓  internal/bridges (1.093s)
+✓  extensions/bridges/teams (2.294s)
+✓  internal/bundles (1.108s)
+∅  internal/diagnostics
+✓  internal/bridgesdk (1.551s)
+✓  internal/cli/docpost (1.047s)
+∅  internal/environment/daytona/cmd/agh-daytona-sidecar
+✓  internal/codegen/sdkts (1.066s)
+✓  internal/environment (1.046s)
+✓  extensions/bridges/gchat (3.612s)
+✓  internal/e2elane (1.175s)
+✓  internal/environment/daytona (1.475s)
+✓  internal/config (1.932s)
+✓  internal/environment/providertest (1.041s)
+✓  internal/environment/local (1.131s)
+✓  internal/codegen/openapits (2.247s)
+✓  internal/extension/protocol (1.038s)
+✓  internal/extension/contract (1.039s)
+✓  internal/extension/surfaces (1.04s)
+✓  cmd/agh-codegen (4.888s)
+✓  internal/filesnap (1.026s)
+✓  internal/fileutil (1.046s)
+∅  internal/network/rules
+✓  internal/frontmatter (1.034s)
+✓  internal/logger (1.053s)
+✓  internal/mcp/auth (1.053s)
+✓  internal/memory/consolidation (1.143s)
+✓  internal/hooks (1.666s)
+✓  internal/procutil (1.079s)
+✓  internal/registry/clawhub (1.162s)
+✓  internal/registry (1.342s)
+✓  internal/registry/github (1.173s)
+✓  internal/retry (1.134s)
+✓  internal/skills/bundled (1.386s)
+✓  internal/settings (2.301s)
+✓  internal/resources (3.459s)
+✓  internal/network (4.846s)
+✓  internal/sse (1.102s)
+✓  internal/store (1.933s)
+✓  internal/acp (11.709s)
+✓  internal/testutil (1.134s)
+✓  internal/store/sessiondb (4.286s)
+∅  internal/testutil/acpmock/cmd/acpmock-driver
+✓  internal/skills (8.845s)
+✓  internal/automation (15.311s)
+✓  internal/extensiontest (12.284s)
+✓  internal/testutil/acpmock (3.898s)
+✓  internal/toolruntime (1.121s)
+✓  internal/tools (1.13s)
+✓  internal/transcript (1.114s)
+∅  sdk/examples/secret-guard
+✓  internal/version (1.092s)
+✓  internal/subprocess (7.529s)
+∅  web
+✓  internal/workref (1.167s)
+✓  sdk/examples/telegram-reference (2.312s)
+✓  internal/task (9.262s)
+✓  internal/workspace (6.076s)
+✖  internal/cli (21.804s)
+✓  internal/observe (22.669s)
+✓  internal/api/udsapi (30.535s)
+✓  internal/memory (38.229s)
+✓  internal/store/globaldb (39.014s)
+✓  internal/testutil/e2e (36.138s)
+✖  internal/api/httpapi (51.821s)
+✓  internal/session (48.58s)
+✖  internal/extension (1m27.451s)
+✖  internal/daemon (1m34.037s)
+
+=== Skipped
+=== SKIP: internal/environment/daytona TestDaytonaLauncherTransportValidation (0.00s)
+    launcher_transport_integration_test.go:23: DAYTONA_API_KEY is required for Daytona launcher transport validation
+
+=== SKIP: internal/environment/daytona TestDaytonaProviderIntegrationFullLifecycle (0.00s)
+    provider_integration_test.go:22: DAYTONA_API_KEY is required for Daytona provider integration tests
+
+=== SKIP: internal/environment/daytona TestDaytonaSSHNonPTYValidation (0.00s)
+    ssh_validation_test.go:47: DAYTONA_API_KEY is required for Daytona SSH validation
+
+=== Failed
+=== FAIL: internal/api/httpapi TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect (2.69s)
+    httpapi_integration_test.go:234: persisted events after disconnect = []store.SessionEvent{store.SessionEvent{ID:"ev-0203d06838665c9d", SessionID:"sess-b5215ca6d3d1da26", Sequence:1, TurnID:"turn-b6759b65d50689c0", Type:"user_message", AgentName:"coder", Content:"{\"schema\":\"agh.session.event.v1\",\"type\":\"user_message\",\"session_id\":\"acp-session-2\",\"turn_id\":\"turn-b6759b65d50689c0\",\"timestamp\":\"2026-04-25T05:26:13.939254Z\",\"text\":\"hello\"}", Timestamp:time.Date(2026, time.April, 25, 5, 26, 13, 939254000, time.UTC)}, store.SessionEvent{ID:"ev-b48790d4b7192179", SessionID:"sess-b5215ca6d3d1da26", Sequence:2, TurnID:"turn-b6759b65d50689c0", Type:"agent_message", AgentName:"coder", Content:"{\"schema\":\"agh.session.event.v1\",\"type\":\"agent_message\",\"session_id\":\"acp-session-2\",\"turn_id\":\"turn-b6759b65d50689c0\",\"timestamp\":\"2026-04-25T05:26:13.965842Z\",\"text\":\"hello\"}", Timestamp:time.Date(2026, time.April, 25, 5, 26, 13, 965842000, time.UTC)}, store.SessionEvent{ID:"ev-e7ff34ccb030b111", SessionID:"sess-b5215ca6d3d1da26", Sequence:3, TurnID:"turn-b6759b65d50689c0", Type:"tool_call", AgentName:"coder", Content:"{\"schema\":\"agh.session.event.v1\",\"type\":\"tool_call\",\"session_id\":\"acp-session-2\",\"turn_id\":\"turn-b6759b65d50689c0\",\"timestamp\":\"2026-04-25T05:26:13.965844Z\",\"title\":\"read_file\",\"tool_name\":\"read_file\",\"tool_call_id\":\"call-1\"}", Timestamp:time.Date(2026, time.April, 25, 5, 26, 13, 965844000, time.UTC)}}, want tool_result and done
+
+=== FAIL: internal/api/httpapi TestHTTPApprovePermissionFullFlow (1.27s)
+    httpapi_integration_test.go:634: approve status = 409, want 200; body={"error":"session: pending permission not found"}
+
+=== FAIL: internal/cli TestSessionListOutputFormatsIntegration (1.94s)
+    cli_integration_test.go:169: toon output = "sessions[1]{id,name,agent_name,provider,environment_backend,state,failure_kind,workspace,channel,updated_at}:\n  sess-cb9c19d20518e3ca,demo,coder,fake,local,active,\"\",/private/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/TestSessionListOutputFormatsIntegration3948600951/002,default,2026-04-25T05:26:31Z\n", want TOON table
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/bridges              --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListBridges-fm (2 handlers)
+[GIN-debug] POST   /api/bridges              --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CreateBridge-fm (2 handlers)
+[GIN-debug] GET    /api/bridges/providers    --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListBridgeProviders-fm (2 handlers)
+[GIN-debug] GET    /api/bridges/health/stream --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).StreamBridgeHealth-fm (2 handlers)
+[GIN-debug] GET    /api/bridges/:id          --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetBridge-fm (2 handlers)
+[GIN-debug] PATCH  /api/bridges/:id          --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateBridge-fm (2 handlers)
+[GIN-debug] POST   /api/bridges/:id/enable   --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).EnableBridge-fm (2 handlers)
+[GIN-debug] POST   /api/bridges/:id/disable  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DisableBridge-fm (2 handlers)
+[GIN-debug] POST   /api/bridges/:id/restart  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).RestartBridge-fm (2 handlers)
+[GIN-debug] GET    /api/bridges/:id/routes   --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListBridgeRoutes-fm (2 handlers)
+[GIN-debug] GET    /api/bridges/:id/secret-bindings --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListBridgeSecretBindings-fm (2 handlers)
+[GIN-debug] PUT    /api/bridges/:id/secret-bindings/:binding_name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutBridgeSecretBinding-fm (2 handlers)
+[GIN-debug] DELETE /api/bridges/:id/secret-bindings/:binding_name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteBridgeSecretBinding-fm (2 handlers)
+[GIN-debug] POST   /api/bridges/:id/test-delivery --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).TestBridgeDelivery-fm (2 handlers)
+[GIN-debug] POST   /api/workspaces           --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CreateWorkspace-fm (2 handlers)
+[GIN-debug] GET    /api/workspaces           --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListWorkspaces-fm (2 handlers)
+[GIN-debug] GET    /api/workspaces/:id       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetWorkspace-fm (2 handlers)
+[GIN-debug] PATCH  /api/workspaces/:id       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateWorkspace-fm (2 handlers)
+[GIN-debug] DELETE /api/workspaces/:id       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteWorkspace-fm (2 handlers)
+[GIN-debug] POST   /api/workspaces/resolve   --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ResolveWorkspace-fm (2 handlers)
+[GIN-debug] GET    /api/sessions             --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSessions-fm (2 handlers)
+[GIN-debug] POST   /api/sessions             --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CreateSession-fm (2 handlers)
+[GIN-debug] GET    /api/sessions/:id         --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSession-fm (2 handlers)
+[GIN-debug] DELETE /api/sessions/:id         --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSession-fm (2 handlers)
+[GIN-debug] POST   /api/sessions/:id/stop    --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).StopSession-fm (2 handlers)
+[GIN-debug] POST   /api/sessions/:id/resume  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ResumeSession-fm (2 handlers)
+[GIN-debug] POST   /api/sessions/:id/clear   --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ClearSessionConversation-fm (2 handlers)
+[GIN-debug] POST   /api/sessions/:id/prompt  --> github.com/pedronauck/agh/internal/api/udsapi.(*Handlers).promptSession-fm (2 handlers)
+[GIN-debug] POST   /api/sessions/:id/prompt/cancel --> github.com/pedronauck/agh/internal/api/udsapi.(*Handlers).cancelSessionPrompt-fm (2 handlers)
+[GIN-debug] GET    /api/sessions/:id/events  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).SessionEvents-fm (2 handlers)
+[GIN-debug] GET    /api/sessions/:id/history --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).SessionHistory-fm (2 handlers)
+[GIN-debug] GET    /api/sessions/:id/transcript --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).SessionTranscript-fm (2 handlers)
+[GIN-debug] GET    /api/sessions/:id/stream  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).StreamSession-fm (2 handlers)
+[GIN-debug] POST   /api/sessions/:id/approve --> github.com/pedronauck/agh/internal/api/udsapi.(*Handlers).approveSession-fm (2 handlers)
+[GIN-debug] GET    /api/agents               --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListAgents-fm (2 handlers)
+[GIN-debug] GET    /api/agents/:name         --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetAgent-fm (2 handlers)
+[GIN-debug] GET    /api/observe/events       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ObserveEvents-fm (2 handlers)
+[GIN-debug] GET    /api/observe/events/stream --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).StreamObserveEvents-fm (2 handlers)
+[GIN-debug] GET    /api/observe/health       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).Health-fm (2 handlers)
+[GIN-debug] GET    /api/observe/tasks/dashboard --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).TaskDashboard-fm (2 handlers)
+[GIN-debug] GET    /api/observe/tasks/inbox  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).TaskInbox-fm (2 handlers)
+[GIN-debug] GET    /api/hooks/catalog        --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).HookCatalog-fm (2 handlers)
+[GIN-debug] GET    /api/hooks/runs           --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).HookRuns-fm (2 handlers)
+[GIN-debug] GET    /api/hooks/events         --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).HookEvents-fm (2 handlers)
+[GIN-debug] GET    /api/resources            --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListResources-fm (2 handlers)
+[GIN-debug] GET    /api/resources/:kind      --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListResources-fm (2 handlers)
+[GIN-debug] GET    /api/resources/:kind/:id  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetResource-fm (2 handlers)
+[GIN-debug] PUT    /api/resources/:kind/:id  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutResource-fm (2 handlers)
+[GIN-debug] DELETE /api/resources/:kind/:id  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteResource-fm (2 handlers)
+[GIN-debug] GET    /api/automation/jobs      --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListAutomationJobs-fm (2 handlers)
+[GIN-debug] POST   /api/automation/jobs      --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CreateAutomationJob-fm (2 handlers)
+[GIN-debug] GET    /api/automation/jobs/:id  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetAutomationJob-fm (2 handlers)
+[GIN-debug] PATCH  /api/automation/jobs/:id  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateAutomationJob-fm (2 handlers)
+[GIN-debug] DELETE /api/automation/jobs/:id  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteAutomationJob-fm (2 handlers)
+[GIN-debug] POST   /api/automation/jobs/:id/trigger --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).TriggerAutomationJob-fm (2 handlers)
+[GIN-debug] GET    /api/automation/jobs/:id/runs --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).AutomationJobRuns-fm (2 handlers)
+[GIN-debug] GET    /api/automation/triggers  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListAutomationTriggers-fm (2 handlers)
+[GIN-debug] POST   /api/automation/triggers  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CreateAutomationTrigger-fm (2 handlers)
+[GIN-debug] GET    /api/automation/triggers/:id --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetAutomationTrigger-fm (2 handlers)
+[GIN-debug] PATCH  /api/automation/triggers/:id --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateAutomationTrigger-fm (2 handlers)
+[GIN-debug] DELETE /api/automation/triggers/:id --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteAutomationTrigger-fm (2 handlers)
+[GIN-debug] GET    /api/automation/triggers/:id/runs --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).AutomationTriggerRuns-fm (2 handlers)
+[GIN-debug] GET    /api/automation/runs      --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListAutomationRuns-fm (2 handlers)
+[GIN-debug] GET    /api/automation/runs/:id  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetAutomationRun-fm (2 handlers)
+[GIN-debug] POST   /api/tasks                --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CreateTask-fm (2 handlers)
+[GIN-debug] GET    /api/tasks                --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListTasks-fm (2 handlers)
+[GIN-debug] GET    /api/tasks/:id            --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetTask-fm (2 handlers)
+[GIN-debug] DELETE /api/tasks/:id            --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteTask-fm (2 handlers)
+[GIN-debug] PATCH  /api/tasks/:id            --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateTask-fm (2 handlers)
+[GIN-debug] POST   /api/tasks/:id/publish    --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PublishTask-fm (2 handlers)
+[GIN-debug] POST   /api/tasks/:id/cancel     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CancelTask-fm (2 handlers)
+[GIN-debug] POST   /api/tasks/:id/children   --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CreateChildTask-fm (2 handlers)
+[GIN-debug] POST   /api/tasks/:id/dependencies --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).AddTaskDependency-fm (2 handlers)
+[GIN-debug] DELETE /api/tasks/:id/dependencies/:depends_on_id --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).RemoveTaskDependency-fm (2 handlers)
+[GIN-debug] GET    /api/tasks/:id/timeline   --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).TaskTimeline-fm (2 handlers)
+[GIN-debug] GET    /api/tasks/:id/stream     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).StreamTask-fm (2 handlers)
+[GIN-debug] GET    /api/tasks/:id/tree       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).TaskTree-fm (2 handlers)
+[GIN-debug] POST   /api/tasks/:id/approve    --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ApproveTask-fm (2 handlers)
+[GIN-debug] POST   /api/tasks/:id/reject     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).RejectTask-fm (2 handlers)
+[GIN-debug] POST   /api/tasks/:id/triage/read --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).MarkTaskRead-fm (2 handlers)
+[GIN-debug] POST   /api/tasks/:id/triage/archive --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ArchiveTask-fm (2 handlers)
+[GIN-debug] POST   /api/tasks/:id/triage/dismiss --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DismissTask-fm (2 handlers)
+[GIN-debug] POST   /api/tasks/:id/runs       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).EnqueueTaskRun-fm (2 handlers)
+[GIN-debug] GET    /api/tasks/:id/runs       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListTaskRuns-fm (2 handlers)
+[GIN-debug] GET    /api/task-runs/:id        --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetTaskRun-fm (2 handlers)
+[GIN-debug] POST   /api/task-runs/:id/claim  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ClaimTaskRun-fm (2 handlers)
+[GIN-debug] POST   /api/task-runs/:id/start  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).StartTaskRun-fm (2 handlers)
+[GIN-debug] POST   /api/task-runs/:id/attach-session --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).AttachTaskRunSession-fm (2 handlers)
+[GIN-debug] POST   /api/task-runs/:id/complete --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CompleteTaskRun-fm (2 handlers)
+[GIN-debug] POST   /api/task-runs/:id/fail   --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).FailTaskRun-fm (2 handlers)
+[GIN-debug] POST   /api/task-runs/:id/cancel --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CancelTaskRun-fm (2 handlers)
+[GIN-debug] GET    /api/skills               --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSkills-fm (2 handlers)
+[GIN-debug] GET    /api/skills/:name         --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSkill-fm (2 handlers)
+[GIN-debug] GET    /api/skills/:name/content --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSkillContent-fm (2 handlers)
+[GIN-debug] POST   /api/skills/:name/enable  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).EnableSkill-fm (2 handlers)
+[GIN-debug] POST   /api/skills/:name/disable --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DisableSkill-fm (2 handlers)
+[GIN-debug] GET    /api/memory               --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListMemory-fm (2 handlers)
+[GIN-debug] GET    /api/memory/health        --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).MemoryHealth-fm (2 handlers)
+[GIN-debug] GET    /api/memory/history       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).MemoryHistory-fm (2 handlers)
+[GIN-debug] GET    /api/memory/search        --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).SearchMemory-fm (2 handlers)
+[GIN-debug] POST   /api/memory/reindex       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ReindexMemory-fm (2 handlers)
+[GIN-debug] POST   /api/memory/consolidate   --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ConsolidateMemory-fm (2 handlers)
+[GIN-debug] GET    /api/memory/:filename     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ReadMemory-fm (2 handlers)
+[GIN-debug] PUT    /api/memory/:filename     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).WriteMemory-fm (2 handlers)
+[GIN-debug] DELETE /api/memory/:filename     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteMemory-fm (2 handlers)
+[GIN-debug] GET    /api/daemon/status        --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DaemonStatus-fm (2 handlers)
+[GIN-debug] GET    /api/network/status       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).NetworkStatus-fm (2 handlers)
+[GIN-debug] GET    /api/network/peers        --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).NetworkPeers-fm (2 handlers)
+[GIN-debug] GET    /api/network/peers/:peer_id --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).NetworkPeer-fm (2 handlers)
+[GIN-debug] GET    /api/network/peers/:peer_id/messages --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).NetworkPeerMessages-fm (2 handlers)
+[GIN-debug] GET    /api/network/channels     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).NetworkChannels-fm (2 handlers)
+[GIN-debug] POST   /api/network/channels     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).CreateNetworkChannel-fm (2 handlers)
+[GIN-debug] GET    /api/network/channels/:channel --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).NetworkChannel-fm (2 handlers)
+[GIN-debug] GET    /api/network/channels/:channel/messages --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).NetworkChannelMessages-fm (2 handlers)
+[GIN-debug] POST   /api/network/send         --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).NetworkSend-fm (2 handlers)
+[GIN-debug] GET    /api/network/inbox        --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).NetworkInbox-fm (2 handlers)
+[GIN-debug] GET    /api/bundles/catalog      --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListBundleCatalog-fm (2 handlers)
+[GIN-debug] POST   /api/bundles/preview      --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PreviewBundleActivation-fm (2 handlers)
+[GIN-debug] GET    /api/bundles/activations  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListBundleActivations-fm (2 handlers)
+[GIN-debug] POST   /api/bundles/activations  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ActivateBundle-fm (2 handlers)
+[GIN-debug] GET    /api/bundles/activations/:id --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetBundleActivation-fm (2 handlers)
+[GIN-debug] PATCH  /api/bundles/activations/:id --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateBundleActivation-fm (2 handlers)
+[GIN-debug] DELETE /api/bundles/activations/:id --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteBundleActivation-fm (2 handlers)
+[GIN-debug] GET    /api/bundles/network/settings --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).BundleNetworkSettings-fm (2 handlers)
+[GIN-debug] GET    /api/extensions           --> github.com/pedronauck/agh/internal/api/udsapi.(*Handlers).ListExtensions-fm (2 handlers)
+[GIN-debug] POST   /api/extensions           --> github.com/pedronauck/agh/internal/api/udsapi.(*Handlers).InstallExtension-fm (2 handlers)
+[GIN-debug] GET    /api/extensions/:name     --> github.com/pedronauck/agh/internal/api/udsapi.(*Handlers).ExtensionStatus-fm (2 handlers)
+[GIN-debug] POST   /api/extensions/:name/enable --> github.com/pedronauck/agh/internal/api/udsapi.(*Handlers).EnableExtension-fm (2 handlers)
+[GIN-debug] POST   /api/extensions/:name/disable --> github.com/pedronauck/agh/internal/api/udsapi.(*Handlers).DisableExtension-fm (2 handlers)
+[GIN-debug] GET    /api/settings/general     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsGeneral-fm (2 handlers)
+[GIN-debug] PATCH  /api/settings/general     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateSettingsGeneral-fm (2 handlers)
+[GIN-debug] GET    /api/settings/memory      --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsMemory-fm (2 handlers)
+[GIN-debug] PATCH  /api/settings/memory      --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateSettingsMemory-fm (2 handlers)
+[GIN-debug] GET    /api/settings/skills      --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsSkills-fm (2 handlers)
+[GIN-debug] PATCH  /api/settings/skills      --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateSettingsSkills-fm (2 handlers)
+[GIN-debug] GET    /api/settings/automation  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsAutomation-fm (2 handlers)
+[GIN-debug] PATCH  /api/settings/automation  --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateSettingsAutomation-fm (2 handlers)
+[GIN-debug] GET    /api/settings/network     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsNetwork-fm (2 handlers)
+[GIN-debug] PATCH  /api/settings/network     --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateSettingsNetwork-fm (2 handlers)
+[GIN-debug] GET    /api/settings/observability --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsObservability-fm (2 handlers)
+[GIN-debug] PATCH  /api/settings/observability --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateSettingsObservability-fm (2 handlers)
+[GIN-debug] GET    /api/settings/observability/log-tail --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).StreamSettingsObservabilityLogTail-fm (2 handlers)
+[GIN-debug] GET    /api/settings/hooks-extensions --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsHooksExtensions-fm (2 handlers)
+[GIN-debug] PATCH  /api/settings/hooks-extensions --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).UpdateSettingsHooksExtensions-fm (2 handlers)
+[GIN-debug] GET    /api/settings/providers   --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsProviders-fm (2 handlers)
+[GIN-debug] GET    /api/settings/providers/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsProvider-fm (2 handlers)
+[GIN-debug] PUT    /api/settings/providers/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsProvider-fm (2 handlers)
+[GIN-debug] DELETE /api/settings/providers/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsProvider-fm (2 handlers)
+[GIN-debug] GET    /api/settings/mcp-servers --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsMCPServers-fm (2 handlers)
+[GIN-debug] PUT    /api/settings/mcp-servers/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsMCPServer-fm (2 handlers)
+[GIN-debug] DELETE /api/settings/mcp-servers/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsMCPServer-fm (2 handlers)
+[GIN-debug] GET    /api/settings/environments --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsEnvironments-fm (2 handlers)
+[GIN-debug] GET    /api/settings/environments/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsEnvironment-fm (2 handlers)
+[GIN-debug] PUT    /api/settings/environments/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsEnvironment-fm (2 handlers)
+[GIN-debug] DELETE /api/settings/environments/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsEnvironment-fm (2 handlers)
+[GIN-debug] GET    /api/settings/hooks       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsHooks-fm (2 handlers)
+[GIN-debug] PUT    /api/settings/hooks/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsHook-fm (2 handlers)
+[GIN-debug] DELETE /api/settings/hooks/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsHook-fm (2 handlers)
+[GIN-debug] POST   /api/settings/actions/restart --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).TriggerSettingsRestart-fm (2 handlers)
+[GIN-debug] GET    /api/settings/actions/restart/:operation_id --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsRestartStatus-fm (2 handlers)
+
+=== FAIL: internal/daemon TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning (0.51s)
+    daemon_acpmock_faults_integration_test.go:166: events = []contract.AgentEventPayload{contract.AgentEventPayload{Type:"user_message", SessionID:"faulty-session-1", TurnID:"turn-f7b790561581e81a", RequestID:"", Timestamp:time.Date(2026, time.April, 25, 5, 27, 42, 596404000, time.UTC), Text:"block until canceled", Title:"", ToolCallID:"", StopReason:"", Action:"", Resource:"", Decision:"", Error:"", Failure:(*contract.SessionFailurePayload)(nil), Usage:(*contract.TokenUsagePayload)(nil), Runtime:(*contract.RuntimeActivityPayload)(nil), Raw:json.RawMessage(nil)}, contract.AgentEventPayload{Type:"runtime_progress", SessionID:"faulty-session-1", TurnID:"turn-f7b790561581e81a", RequestID:"", Timestamp:time.Date(2026, time.April, 25, 5, 27, 42, 628791083, time.UTC), Text:"Still working...", Title:"", ToolCallID:"", StopReason:"", Action:"", Resource:"", Decision:"", Error:"", Failure:(*contract.SessionFailurePayload)(nil), Usage:(*contract.TokenUsagePayload)(nil), Runtime:(*contract.RuntimeActivityPayload)(0xc000d0c960), Raw:json.RawMessage(nil)}, contract.AgentEventPayload{Type:"session_stopped", SessionID:"faulty-session-1", TurnID:"turn-64e4a581c4651a5c", RequestID:"", Timestamp:time.Date(2026, time.April, 25, 5, 27, 42, 685158000, time.UTC), Text:"", Title:"", ToolCallID:"", StopReason:"user_canceled", Action:"", Resource:"", Decision:"", Error:"", Failure:(*contract.SessionFailurePayload)(nil), Usage:(*contract.TokenUsagePayload)(nil), Runtime:(*contract.RuntimeActivityPayload)(nil), Raw:json.RawMessage(nil)}}, want error event after blocked peer disconnect
+    artifacts.go:248: retained E2E artifacts at /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/agh-e2e-testdaemone2eacpmockblockedcancelstopspromptwithoutorphaning-2750191311
+
+=== FAIL: internal/extension TestReferenceExtensionsEndToEnd (4.11s)
+    reference_integration_test.go:119: InstallExtension("sdk/examples/prompt-enhancer") error = extension: reject runtime dependency symlink "/Users/pedronauck/dev/compozy/agh/sdk/examples/prompt-enhancer/node_modules/@agh/extension-sdk": symlink target "/Users/pedronauck/dev/compozy/agh/sdk/typescript" escapes source root "/Users/pedronauck/dev/compozy/agh/sdk/examples/prompt-enhancer"
+==================
+WARNING: DATA RACE
+Read at 0x00c000d10390 by goroutine 10392:
+  bytes.(*Buffer).Len()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/bytes/buffer.go:97 +0x70
+  github.com/pedronauck/agh/internal/extension_test.newReferenceHarness.func2()
+      /Users/pedronauck/dev/compozy/agh/internal/extension/reference_integration_test.go:332 +0x30
+  testing.(*common).Cleanup.func1()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:1317 +0x124
+  testing.(*common).runCleanup()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:1667 +0x16c
+  testing.tRunner.func2()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2030 +0x48
+  runtime.Goexit()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/runtime/panic.go:694 +0x5c
+  testing.(*common).Fatalf()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:1228 +0x84
+  github.com/pedronauck/agh/internal/extension_test.(*referenceHarness).installExtension()
+      /Users/pedronauck/dev/compozy/agh/internal/extension/reference_integration_test.go:358 +0x314
+  github.com/pedronauck/agh/internal/extension_test.TestReferenceExtensionsEndToEnd()
+      /Users/pedronauck/dev/compozy/agh/internal/extension/reference_integration_test.go:119 +0x258
+  testing.tRunner()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2036 +0x164
+  testing.(*T).Run.gowrap1()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2101 +0x34
+
+Previous write at 0x00c000d10390 by goroutine 10724:
+  bytes.(*Buffer).tryGrowByReslice()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/bytes/buffer.go:135 +0x98
+  bytes.(*Buffer).Write()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/bytes/buffer.go:195 +0xac
+  log/slog.(*commonHandler).handle()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/log/slog/handler.go:322 +0x67c
+  log/slog.(*TextHandler).Handle()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/log/slog/text_handler.go:93 +0x6c
+  log/slog.(*Logger).log()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/log/slog/logger.go:256 +0x1b4
+  log/slog.(*Logger).Info()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/log/slog/logger.go:209 +0x64c
+  github.com/pedronauck/agh/internal/hooks.(*Hooks).ApplyBindingState()
+      /Users/pedronauck/dev/compozy/agh/internal/hooks/binding_state.go:78 +0x424
+  github.com/pedronauck/agh/internal/daemon.(*hookBindingProjector).Apply()
+      /Users/pedronauck/dev/compozy/agh/internal/daemon/hook_binding_resources.go:290 +0xa8
+  github.com/pedronauck/agh/internal/resources.TypedProjector[go.shape.f209b54ae70723efe3d15e55662bf21fc8ad0ed28d489afb9aae0a128415b6e3].Apply-fm()
+      <autogenerated>:1 +0x5c
+  github.com/pedronauck/agh/internal/resources.(*projectorRegistration).Apply()
+      /Users/pedronauck/dev/compozy/agh/internal/resources/projector.go:78 +0x64
+  github.com/pedronauck/agh/internal/resources.(*reconcileDriver).runPass()
+      /Users/pedronauck/dev/compozy/agh/internal/resources/reconcile.go:735 +0x208
+  github.com/pedronauck/agh/internal/resources.(*reconcileDriver).run()
+      /Users/pedronauck/dev/compozy/agh/internal/resources/reconcile.go:628 +0xd8
+  github.com/pedronauck/agh/internal/resources.NewReconcileDriver.gowrap1()
+      /Users/pedronauck/dev/compozy/agh/internal/resources/reconcile.go:327 +0x2c
+
+Goroutine 10392 (running) created at:
+  testing.(*T).Run()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2101 +0x7bc
+  testing.runTests.func1()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2585 +0x78
+  testing.tRunner()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2036 +0x164
+  testing.runTests()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2583 +0x7a0
+  testing.(*M).Run()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2443 +0xb38
+  main.main()
+      _testmain.go:566 +0x100
+
+Goroutine 10724 (running) created at:
+  github.com/pedronauck/agh/internal/resources.NewReconcileDriver()
+      /Users/pedronauck/dev/compozy/agh/internal/resources/reconcile.go:327 +0xcb8
+  github.com/pedronauck/agh/internal/daemon.(*Daemon).applyRuntimeFactoryDefaults.(*Daemon).applyResourceReconcileDriverFactoryDefault.func6()
+      /Users/pedronauck/dev/compozy/agh/internal/daemon/daemon.go:705 +0x104
+  github.com/pedronauck/agh/internal/daemon.(*Daemon).bootResourceReconcile()
+      /Users/pedronauck/dev/compozy/agh/internal/daemon/boot.go:767 +0x620
+  github.com/pedronauck/agh/internal/daemon.(*Daemon).boot()
+      /Users/pedronauck/dev/compozy/agh/internal/daemon/boot.go:173 +0x230
+  github.com/pedronauck/agh/internal/daemon.(*Daemon).Run()
+      /Users/pedronauck/dev/compozy/agh/internal/daemon/daemon.go:971 +0x4c
+  github.com/pedronauck/agh/internal/extension_test.newReferenceHarness.func1()
+      /Users/pedronauck/dev/compozy/agh/internal/extension/reference_integration_test.go:321 +0x44
+==================
+==================
+WARNING: DATA RACE
+Read at 0x00c000561150 by goroutine 10392:
+  runtime.slicebytetostring()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/runtime/string.go:139 +0x0
+  bytes.(*Buffer).String()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/bytes/buffer.go:77 +0x11c
+  github.com/pedronauck/agh/internal/extension_test.newReferenceHarness.func2()
+      /Users/pedronauck/dev/compozy/agh/internal/extension/reference_integration_test.go:333 +0xa4
+  testing.(*common).Cleanup.func1()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:1317 +0x124
+  testing.(*common).runCleanup()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:1667 +0x16c
+  testing.tRunner.func2()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2030 +0x48
+  runtime.Goexit()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/runtime/panic.go:694 +0x5c
+  testing.(*common).Fatalf()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:1228 +0x84
+  github.com/pedronauck/agh/internal/extension_test.(*referenceHarness).installExtension()
+      /Users/pedronauck/dev/compozy/agh/internal/extension/reference_integration_test.go:358 +0x314
+  github.com/pedronauck/agh/internal/extension_test.TestReferenceExtensionsEndToEnd()
+      /Users/pedronauck/dev/compozy/agh/internal/extension/reference_integration_test.go:119 +0x258
+  testing.tRunner()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2036 +0x164
+  testing.(*T).Run.gowrap1()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2101 +0x34
+
+Previous write at 0x00c000561157 by goroutine 10724:
+  runtime.slicecopy()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/runtime/slice.go:392 +0x0
+  bytes.(*Buffer).Write()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/bytes/buffer.go:199 +0xfc
+  log/slog.(*commonHandler).handle()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/log/slog/handler.go:322 +0x67c
+  log/slog.(*TextHandler).Handle()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/log/slog/text_handler.go:93 +0x6c
+  log/slog.(*Logger).log()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/log/slog/logger.go:256 +0x1b4
+  log/slog.(*Logger).Info()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/log/slog/logger.go:209 +0x64c
+  github.com/pedronauck/agh/internal/hooks.(*Hooks).ApplyBindingState()
+      /Users/pedronauck/dev/compozy/agh/internal/hooks/binding_state.go:78 +0x424
+  github.com/pedronauck/agh/internal/daemon.(*hookBindingProjector).Apply()
+      /Users/pedronauck/dev/compozy/agh/internal/daemon/hook_binding_resources.go:290 +0xa8
+  github.com/pedronauck/agh/internal/resources.TypedProjector[go.shape.f209b54ae70723efe3d15e55662bf21fc8ad0ed28d489afb9aae0a128415b6e3].Apply-fm()
+      <autogenerated>:1 +0x5c
+  github.com/pedronauck/agh/internal/resources.(*projectorRegistration).Apply()
+      /Users/pedronauck/dev/compozy/agh/internal/resources/projector.go:78 +0x64
+  github.com/pedronauck/agh/internal/resources.(*reconcileDriver).runPass()
+      /Users/pedronauck/dev/compozy/agh/internal/resources/reconcile.go:735 +0x208
+  github.com/pedronauck/agh/internal/resources.(*reconcileDriver).run()
+      /Users/pedronauck/dev/compozy/agh/internal/resources/reconcile.go:628 +0xd8
+  github.com/pedronauck/agh/internal/resources.NewReconcileDriver.gowrap1()
+      /Users/pedronauck/dev/compozy/agh/internal/resources/reconcile.go:327 +0x2c
+
+Goroutine 10392 (running) created at:
+  testing.(*T).Run()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2101 +0x7bc
+  testing.runTests.func1()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2585 +0x78
+  testing.tRunner()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2036 +0x164
+  testing.runTests()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2583 +0x7a0
+  testing.(*M).Run()
+      /Users/pedronauck/.local/share/mise/installs/go/1.26.1/src/testing/testing.go:2443 +0xb38
+  main.main()
+      _testmain.go:566 +0x100
+
+Goroutine 10724 (running) created at:
+  github.com/pedronauck/agh/internal/resources.NewReconcileDriver()
+      /Users/pedronauck/dev/compozy/agh/internal/resources/reconcile.go:327 +0xcb8
+  github.com/pedronauck/agh/internal/daemon.(*Daemon).applyRuntimeFactoryDefaults.(*Daemon).applyResourceReconcileDriverFactoryDefault.func6()
+      /Users/pedronauck/dev/compozy/agh/internal/daemon/daemon.go:705 +0x104
+  github.com/pedronauck/agh/internal/daemon.(*Daemon).bootResourceReconcile()
+      /Users/pedronauck/dev/compozy/agh/internal/daemon/boot.go:767 +0x620
+  github.com/pedronauck/agh/internal/daemon.(*Daemon).boot()
+      /Users/pedronauck/dev/compozy/agh/internal/daemon/boot.go:173 +0x230
+  github.com/pedronauck/agh/internal/daemon.(*Daemon).Run()
+      /Users/pedronauck/dev/compozy/agh/internal/daemon/daemon.go:971 +0x4c
+  github.com/pedronauck/agh/internal/extension_test.newReferenceHarness.func1()
+      /Users/pedronauck/dev/compozy/agh/internal/extension/reference_integration_test.go:321 +0x44
+==================
+    reference_integration_test.go:333: reference daemon logs:
+        time=2026-04-25T02:27:15.458-03:00 level=INFO msg=network.started listener_host=127.0.0.1 listener_port=54112 connected=true
+        time=2026-04-25T02:27:15.467-03:00 level=INFO msg=automation.managed.resource_sync component=automation source=config jobs_synced=0 triggers_synced=0 jobs_removed=0 triggers_removed=0
+        time=2026-04-25T02:27:15.469-03:00 level=INFO msg=automation.scheduler.started component=automation jobs_loaded=0
+        time=2026-04-25T02:27:15.469-03:00 level=INFO msg=automation.manager.started component=automation jobs_synced=0 triggers_synced=0 jobs_removed=0 triggers_removed=0 jobs_loaded=0 triggers_loaded=0
+        time=2026-04-25T02:27:15.495-03:00 level=WARN msg="api: stream shutdown bridge not provided; streaming handlers will rely on caller context until a transport installs one"
+        time=2026-04-25T02:27:15.495-03:00 level=WARN msg="api: stream shutdown bridge not provided; streaming handlers will rely on caller context until a transport installs one"
+        time=2026-04-25T02:27:15.508-03:00 level=INFO msg=automation.scheduler.started component=automation jobs_loaded=0
+        time=2026-04-25T02:27:15.508-03:00 level=INFO msg=automation.scheduler.shutdown component=automation shutdown_duration_ms=0
+        time=2026-04-25T02:27:15.514-03:00 level=INFO msg=hook.registry.projected version=1 resource_revision=1 hook_count=3 hook_count_delta=3 duration_ms=0
+        time=2026-04-25T02:27:15.516-03:00 level=INFO msg="daemon: environment reconciliation complete" sessions=0
+        time=2026-04-25T02:27:15.516-03:00 level=INFO msg="daemon: boot reconciliation complete" indexed_sessions=0 orphaned_sessions=0
+        time=2026-04-25T02:27:15.568-03:00 level=INFO msg=extension.lifecycle.loaded extension=secret-guard source=user active=true skill_count=0 agent_count=0 hook_count=1
+        time=2026-04-25T02:27:15.577-03:00 level=INFO msg=hook.registry.projected version=2 resource_revision=1 hook_count=4 hook_count_delta=1 duration_ms=0
+    testing.go:1712: race detected during execution of test
+
+DONE 6333 tests, 3 skipped, 5 failures in 96.506s
+exit status 1
+Error: race-enabled go command [run gotest.tools/gotestsum@v1.13.0 --format pkgname -- -race -parallel=4 -tags integration ./...]: exit status 1
+make: *** [test-integration] Error 1

@@ -1,0 +1,24 @@
+{
+  "id": "sess-646c5e8506d7a35e",
+  "agent_name": "broken",
+  "provider": "broken",
+  "workspace_id": "ws_e168bcc7043308b7",
+  "workspace_path": "/Users/pedronauck/dev/compozy/agh",
+  "channel": "default",
+  "state": "stopped",
+  "stop_reason": "error",
+  "stop_detail": "agent subprocess startup failed: acp: start agent \"broken\" subprocess \"agh-hermes-missing-agent-binary --acp\" in \"/Users/pedronauck/dev/compozy/agh\": acp: start subprocess \"agh-hermes-missing-agent-binary --acp\": subprocess: resolve executable \"agh-hermes-missing-agent-binary\": exec: \"agh-hermes-missing-agent-binary\": executable file not found in $PATH",
+  "failure": {
+    "kind": "startup_failure",
+    "summary": "agent subprocess startup failed: acp: start agent \"broken\" subprocess \"agh-hermes-missing-agent-binary --acp\" in \"/Users/pedronauck/dev/compozy/agh\": acp: start subprocess \"agh-hermes-missing-agent-binary --acp\": subprocess: resolve executable \"agh-hermes-missing-agent-binary\": exec: \"agh-hermes-missing-agent-binary\": executable file not found in $PATH",
+    "crash_bundle_path": "/tmp/agh-hermes-failure.NbJEUi/logs/crash-bundles/sess-646c5e8506d7a35e-startup_failure-1777093231228374000.json"
+  },
+  "environment": {
+    "environment_id": "env-01b9c726db5dce66",
+    "backend": "local",
+    "profile": "local",
+    "state": "prepared"
+  },
+  "created_at": "2026-04-25T05:00:25.166246Z",
+  "updated_at": "2026-04-25T05:00:31.236718Z"
+}
