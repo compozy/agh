@@ -12712,7 +12712,24 @@
                                 "permission.resolved",
                                 "permission.denied",
                                 "context.pre_compact",
-                                "context.post_compact"
+                                "context.post_compact",
+                                "coordinator.pre_spawn",
+                                "coordinator.spawned",
+                                "coordinator.decision",
+                                "coordinator.stopped",
+                                "coordinator.failed",
+                                "task.run.enqueued",
+                                "task.run.pre_claim",
+                                "task.run.post_claim",
+                                "task.run.lease_extended",
+                                "task.run.lease_expired",
+                                "task.run.lease_recovered",
+                                "task.run.released",
+                                "spawn.pre_create",
+                                "spawn.created",
+                                "spawn.parent_stopped",
+                                "spawn.ttl_expired",
+                                "spawn.reaped"
                             ],
                             "type": "string"
                         }
@@ -12761,6 +12778,42 @@
                                                             },
                                                             "agent_type": {
                                                                 "type": "string"
+                                                            },
+                                                            "autonomy": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "child_session_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "coordination_channel_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "coordinator_session_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "parent_session_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "release_reason": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "root_session_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "run_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "spawn_role": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "task_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "workflow_id": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
                                                             },
                                                             "compaction_reason": {
                                                                 "type": "string"
@@ -13101,7 +13154,24 @@
                                 "permission.resolved",
                                 "permission.denied",
                                 "context.pre_compact",
-                                "context.post_compact"
+                                "context.post_compact",
+                                "coordinator.pre_spawn",
+                                "coordinator.spawned",
+                                "coordinator.decision",
+                                "coordinator.stopped",
+                                "coordinator.failed",
+                                "task.run.enqueued",
+                                "task.run.pre_claim",
+                                "task.run.post_claim",
+                                "task.run.lease_extended",
+                                "task.run.lease_expired",
+                                "task.run.lease_recovered",
+                                "task.run.released",
+                                "spawn.pre_create",
+                                "spawn.created",
+                                "spawn.parent_stopped",
+                                "spawn.ttl_expired",
+                                "spawn.reaped"
                             ],
                             "type": "string"
                         }
@@ -24218,7 +24288,24 @@
                                                                     "permission.resolved",
                                                                     "permission.denied",
                                                                     "context.pre_compact",
-                                                                    "context.post_compact"
+                                                                    "context.post_compact",
+                                                                    "coordinator.pre_spawn",
+                                                                    "coordinator.spawned",
+                                                                    "coordinator.decision",
+                                                                    "coordinator.stopped",
+                                                                    "coordinator.failed",
+                                                                    "task.run.enqueued",
+                                                                    "task.run.pre_claim",
+                                                                    "task.run.post_claim",
+                                                                    "task.run.lease_extended",
+                                                                    "task.run.lease_expired",
+                                                                    "task.run.lease_recovered",
+                                                                    "task.run.released",
+                                                                    "spawn.pre_create",
+                                                                    "spawn.created",
+                                                                    "spawn.parent_stopped",
+                                                                    "spawn.ttl_expired",
+                                                                    "spawn.reaped"
                                                                 ],
                                                                 "type": "string"
                                                             },
@@ -24240,6 +24327,42 @@
                                                                     },
                                                                     "agent_type": {
                                                                         "type": "string"
+                                                                    },
+                                                                    "autonomy": {
+                                                                        "nullable": true,
+                                                                        "properties": {
+                                                                            "child_session_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "coordination_channel_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "coordinator_session_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "parent_session_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "release_reason": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "root_session_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "run_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "spawn_role": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "task_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "workflow_id": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
                                                                     },
                                                                     "compaction_reason": {
                                                                         "type": "string"
@@ -24606,7 +24729,24 @@
                                                                     "permission.resolved",
                                                                     "permission.denied",
                                                                     "context.pre_compact",
-                                                                    "context.post_compact"
+                                                                    "context.post_compact",
+                                                                    "coordinator.pre_spawn",
+                                                                    "coordinator.spawned",
+                                                                    "coordinator.decision",
+                                                                    "coordinator.stopped",
+                                                                    "coordinator.failed",
+                                                                    "task.run.enqueued",
+                                                                    "task.run.pre_claim",
+                                                                    "task.run.post_claim",
+                                                                    "task.run.lease_extended",
+                                                                    "task.run.lease_expired",
+                                                                    "task.run.lease_recovered",
+                                                                    "task.run.released",
+                                                                    "spawn.pre_create",
+                                                                    "spawn.created",
+                                                                    "spawn.parent_stopped",
+                                                                    "spawn.ttl_expired",
+                                                                    "spawn.reaped"
                                                                 ],
                                                                 "type": "string"
                                                             },
@@ -24628,6 +24768,42 @@
                                                                     },
                                                                     "agent_type": {
                                                                         "type": "string"
+                                                                    },
+                                                                    "autonomy": {
+                                                                        "nullable": true,
+                                                                        "properties": {
+                                                                            "child_session_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "coordination_channel_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "coordinator_session_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "parent_session_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "release_reason": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "root_session_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "run_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "spawn_role": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "task_id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "workflow_id": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
                                                                     },
                                                                     "compaction_reason": {
                                                                         "type": "string"
@@ -25367,7 +25543,24 @@
                                                     "permission.resolved",
                                                     "permission.denied",
                                                     "context.pre_compact",
-                                                    "context.post_compact"
+                                                    "context.post_compact",
+                                                    "coordinator.pre_spawn",
+                                                    "coordinator.spawned",
+                                                    "coordinator.decision",
+                                                    "coordinator.stopped",
+                                                    "coordinator.failed",
+                                                    "task.run.enqueued",
+                                                    "task.run.pre_claim",
+                                                    "task.run.post_claim",
+                                                    "task.run.lease_extended",
+                                                    "task.run.lease_expired",
+                                                    "task.run.lease_recovered",
+                                                    "task.run.released",
+                                                    "spawn.pre_create",
+                                                    "spawn.created",
+                                                    "spawn.parent_stopped",
+                                                    "spawn.ttl_expired",
+                                                    "spawn.reaped"
                                                 ],
                                                 "type": "string"
                                             },
@@ -25385,6 +25578,42 @@
                                                     },
                                                     "agent_type": {
                                                         "type": "string"
+                                                    },
+                                                    "autonomy": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "child_session_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "coordination_channel_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "coordinator_session_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "parent_session_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "release_reason": {
+                                                                "type": "string"
+                                                            },
+                                                            "root_session_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "run_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "spawn_role": {
+                                                                "type": "string"
+                                                            },
+                                                            "task_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "workflow_id": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
                                                     },
                                                     "compaction_reason": {
                                                         "type": "string"

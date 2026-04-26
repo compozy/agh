@@ -126,6 +126,24 @@ var sdkRootTypes = []NamedType{
 	{Name: "PermissionRequestPatch", Value: hooks.PermissionRequestPatch{}},
 	{Name: "ContextCompactPayload", Value: hooks.ContextCompactPayload{}},
 	{Name: "ContextCompactionPatch", Value: hooks.ContextCompactionPatch{}},
+	{Name: "AutonomyObservationPatch", Value: hooks.AutonomyObservationPatch{}},
+	{Name: "CoordinatorContext", Value: hooks.CoordinatorContext{}},
+	{Name: "CoordinatorPreSpawnPayload", Value: hooks.CoordinatorPreSpawnPayload{}},
+	{Name: "CoordinatorLifecyclePayload", Value: hooks.CoordinatorLifecyclePayload{}},
+	{Name: "CoordinatorSpawnPatch", Value: hooks.CoordinatorSpawnPatch{}},
+	{Name: "TaskRunClaimCriteria", Value: hooks.TaskRunClaimCriteria{}},
+	{Name: "TaskRunContext", Value: hooks.TaskRunContext{}},
+	{Name: "TaskRunEnqueuedPayload", Value: hooks.TaskRunEnqueuedPayload{}},
+	{Name: "TaskRunPreClaimPayload", Value: hooks.TaskRunPreClaimPayload{}},
+	{Name: "TaskRunPostClaimPayload", Value: hooks.TaskRunPostClaimPayload{}},
+	{Name: "TaskRunLeasePayload", Value: hooks.TaskRunLeasePayload{}},
+	{Name: "TaskRunPreClaimPatch", Value: hooks.TaskRunPreClaimPatch{}},
+	{Name: "PermissionSet", Value: hooks.PermissionSet{}},
+	{Name: "SpawnContext", Value: hooks.SpawnContext{}},
+	{Name: "SpawnPreCreatePayload", Value: hooks.SpawnPreCreatePayload{}},
+	{Name: "SpawnLifecyclePayload", Value: hooks.SpawnLifecyclePayload{}},
+	{Name: "SpawnCreatePatch", Value: hooks.SpawnCreatePatch{}},
+	{Name: "AutonomyMatcher", Value: hooks.AutonomyMatcher{}},
 	{Name: "HookMatcher", Value: hooks.HookMatcher{}},
 	{Name: "HookDecl", Value: hooks.HookDecl{}},
 }
@@ -305,6 +323,99 @@ var namedHookTypes = map[string]NamedType{
 	"ContextCompactionPatch":      {Name: "ContextCompactionPatch", Value: hooks.ContextCompactionPatch{}},
 	"ContextPreCompactPatch":      {Name: "ContextPreCompactPatch", Value: hooks.ContextPreCompactPatch{}},
 	"ContextPostCompactPatch":     {Name: "ContextPostCompactPatch", Value: hooks.ContextPostCompactPatch{}},
+	"AutonomyObservationPatch":    {Name: "AutonomyObservationPatch", Value: hooks.AutonomyObservationPatch{}},
+	"CoordinatorContext":          {Name: "CoordinatorContext", Value: hooks.CoordinatorContext{}},
+	"CoordinatorPreSpawnPayload": {
+		Name:  "CoordinatorPreSpawnPayload",
+		Value: hooks.CoordinatorPreSpawnPayload{},
+	},
+	"CoordinatorLifecyclePayload": {
+		Name:  "CoordinatorLifecyclePayload",
+		Value: hooks.CoordinatorLifecyclePayload{},
+	},
+	"CoordinatorSpawnedPayload": {
+		Name:  "CoordinatorSpawnedPayload",
+		Value: hooks.CoordinatorSpawnedPayload{},
+	},
+	"CoordinatorDecisionPayload": {
+		Name:  "CoordinatorDecisionPayload",
+		Value: hooks.CoordinatorDecisionPayload{},
+	},
+	"CoordinatorStoppedPayload": {
+		Name:  "CoordinatorStoppedPayload",
+		Value: hooks.CoordinatorStoppedPayload{},
+	},
+	"CoordinatorFailedPayload": {
+		Name:  "CoordinatorFailedPayload",
+		Value: hooks.CoordinatorFailedPayload{},
+	},
+	"CoordinatorSpawnPatch":       {Name: "CoordinatorSpawnPatch", Value: hooks.CoordinatorSpawnPatch{}},
+	"CoordinatorObservationPatch": {Name: "CoordinatorObservationPatch", Value: hooks.CoordinatorObservationPatch{}},
+	"TaskRunClaimCriteria":        {Name: "TaskRunClaimCriteria", Value: hooks.TaskRunClaimCriteria{}},
+	"TaskRunContext":              {Name: "TaskRunContext", Value: hooks.TaskRunContext{}},
+	"TaskRunEnqueuedPayload": {
+		Name:  "TaskRunEnqueuedPayload",
+		Value: hooks.TaskRunEnqueuedPayload{},
+	},
+	"TaskRunPreClaimPayload": {
+		Name:  "TaskRunPreClaimPayload",
+		Value: hooks.TaskRunPreClaimPayload{},
+	},
+	"TaskRunPostClaimPayload": {
+		Name:  "TaskRunPostClaimPayload",
+		Value: hooks.TaskRunPostClaimPayload{},
+	},
+	"TaskRunLeasePayload": {
+		Name:  "TaskRunLeasePayload",
+		Value: hooks.TaskRunLeasePayload{},
+	},
+	"TaskRunLeaseExtendedPayload": {
+		Name:  "TaskRunLeaseExtendedPayload",
+		Value: hooks.TaskRunLeaseExtendedPayload{},
+	},
+	"TaskRunLeaseExpiredPayload": {
+		Name:  "TaskRunLeaseExpiredPayload",
+		Value: hooks.TaskRunLeaseExpiredPayload{},
+	},
+	"TaskRunLeaseRecoveredPayload": {
+		Name:  "TaskRunLeaseRecoveredPayload",
+		Value: hooks.TaskRunLeaseRecoveredPayload{},
+	},
+	"TaskRunReleasedPayload": {
+		Name:  "TaskRunReleasedPayload",
+		Value: hooks.TaskRunReleasedPayload{},
+	},
+	"TaskRunPreClaimPatch":    {Name: "TaskRunPreClaimPatch", Value: hooks.TaskRunPreClaimPatch{}},
+	"TaskRunObservationPatch": {Name: "TaskRunObservationPatch", Value: hooks.TaskRunObservationPatch{}},
+	"PermissionSet":           {Name: "PermissionSet", Value: hooks.PermissionSet{}},
+	"SpawnContext":            {Name: "SpawnContext", Value: hooks.SpawnContext{}},
+	"SpawnPreCreatePayload": {
+		Name:  "SpawnPreCreatePayload",
+		Value: hooks.SpawnPreCreatePayload{},
+	},
+	"SpawnLifecyclePayload": {
+		Name:  "SpawnLifecyclePayload",
+		Value: hooks.SpawnLifecyclePayload{},
+	},
+	"SpawnCreatedPayload": {
+		Name:  "SpawnCreatedPayload",
+		Value: hooks.SpawnCreatedPayload{},
+	},
+	"SpawnParentStoppedPayload": {
+		Name:  "SpawnParentStoppedPayload",
+		Value: hooks.SpawnParentStoppedPayload{},
+	},
+	"SpawnTTLExpiredPayload": {
+		Name:  "SpawnTTLExpiredPayload",
+		Value: hooks.SpawnTTLExpiredPayload{},
+	},
+	"SpawnReapedPayload": {
+		Name:  "SpawnReapedPayload",
+		Value: hooks.SpawnReapedPayload{},
+	},
+	"SpawnCreatePatch":      {Name: "SpawnCreatePatch", Value: hooks.SpawnCreatePatch{}},
+	"SpawnObservationPatch": {Name: "SpawnObservationPatch", Value: hooks.SpawnObservationPatch{}},
+	"AutonomyMatcher":       {Name: "AutonomyMatcher", Value: hooks.AutonomyMatcher{}},
 }
 
 func namedHookType(name string) (NamedType, error) {

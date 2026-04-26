@@ -9,7 +9,7 @@ import (
 )
 
 // HookSource identifies where a hook was declared.
-type HookSource int
+type HookSource uint8
 
 const (
 	HookSourceNative HookSource = iota
@@ -137,38 +137,48 @@ func (o HookRunOutcome) Validate() error {
 
 // HookMatcher narrows when a hook is eligible to run.
 type HookMatcher struct {
-	AgentName          string `json:"agent_name,omitempty"          yaml:"agent_name,omitempty"`
-	AgentType          string `json:"agent_type,omitempty"          yaml:"agent_type,omitempty"`
-	WorkspaceID        string `json:"workspace_id,omitempty"        yaml:"workspace_id,omitempty"`
-	WorkspaceRoot      string `json:"workspace_root,omitempty"      yaml:"workspace_root,omitempty"`
-	SessionType        string `json:"session_type,omitempty"        yaml:"session_type,omitempty"`
-	EnvironmentID      string `json:"environment_id,omitempty"      yaml:"environment_id,omitempty"`
-	EnvironmentBackend string `json:"environment_backend,omitempty" yaml:"environment_backend,omitempty"`
-	EnvironmentProfile string `json:"environment_profile,omitempty" yaml:"environment_profile,omitempty"`
-	SyncDirection      string `json:"sync_direction,omitempty"      yaml:"sync_direction,omitempty"`
-	InputClass         string `json:"input_class,omitempty"         yaml:"input_class,omitempty"`
-	ACPEventType       string `json:"acp_event_type,omitempty"      yaml:"acp_event_type,omitempty"`
-	TurnID             string `json:"turn_id,omitempty"             yaml:"turn_id,omitempty"`
-	ToolName           string `json:"tool_name,omitempty"           yaml:"tool_name,omitempty"`
-	ToolNamespace      string `json:"tool_namespace,omitempty"      yaml:"tool_namespace,omitempty"`
-	ToolReadOnly       *bool  `json:"tool_read_only,omitempty"      yaml:"tool_read_only,omitempty"`
-	DecisionClass      string `json:"decision_class,omitempty"      yaml:"decision_class,omitempty"`
-	MessageRole        string `json:"message_role,omitempty"        yaml:"message_role,omitempty"`
-	MessageDeltaType   string `json:"message_delta_type,omitempty"  yaml:"message_delta_type,omitempty"`
-	CompactionReason   string `json:"compaction_reason,omitempty"   yaml:"compaction_reason,omitempty"`
-	CompactionStrategy string `json:"compaction_strategy,omitempty" yaml:"compaction_strategy,omitempty"`
+	AgentName          string           `json:"agent_name,omitempty"          yaml:"agent_name,omitempty"`
+	AgentType          string           `json:"agent_type,omitempty"          yaml:"agent_type,omitempty"`
+	WorkspaceID        string           `json:"workspace_id,omitempty"        yaml:"workspace_id,omitempty"`
+	WorkspaceRoot      string           `json:"workspace_root,omitempty"      yaml:"workspace_root,omitempty"`
+	SessionType        string           `json:"session_type,omitempty"        yaml:"session_type,omitempty"`
+	EnvironmentID      string           `json:"environment_id,omitempty"      yaml:"environment_id,omitempty"`
+	EnvironmentBackend string           `json:"environment_backend,omitempty" yaml:"environment_backend,omitempty"`
+	EnvironmentProfile string           `json:"environment_profile,omitempty" yaml:"environment_profile,omitempty"`
+	SyncDirection      string           `json:"sync_direction,omitempty"      yaml:"sync_direction,omitempty"`
+	InputClass         string           `json:"input_class,omitempty"         yaml:"input_class,omitempty"`
+	ACPEventType       string           `json:"acp_event_type,omitempty"      yaml:"acp_event_type,omitempty"`
+	TurnID             string           `json:"turn_id,omitempty"             yaml:"turn_id,omitempty"`
+	ToolName           string           `json:"tool_name,omitempty"           yaml:"tool_name,omitempty"`
+	ToolNamespace      string           `json:"tool_namespace,omitempty"      yaml:"tool_namespace,omitempty"`
+	ToolReadOnly       *bool            `json:"tool_read_only,omitempty"      yaml:"tool_read_only,omitempty"`
+	DecisionClass      string           `json:"decision_class,omitempty"      yaml:"decision_class,omitempty"`
+	MessageRole        string           `json:"message_role,omitempty"        yaml:"message_role,omitempty"`
+	MessageDeltaType   string           `json:"message_delta_type,omitempty"  yaml:"message_delta_type,omitempty"`
+	CompactionReason   string           `json:"compaction_reason,omitempty"   yaml:"compaction_reason,omitempty"`
+	CompactionStrategy string           `json:"compaction_strategy,omitempty" yaml:"compaction_strategy,omitempty"`
+	Autonomy           *AutonomyMatcher `json:"autonomy,omitempty"            yaml:"autonomy,omitempty"`
+}
+
+// AutonomyMatcher narrows autonomy hooks by task, coordinator, and spawn correlation fields.
+type AutonomyMatcher struct {
+	TaskID                string `json:"task_id,omitempty"                 yaml:"task_id,omitempty"`
+	RunID                 string `json:"run_id,omitempty"                  yaml:"run_id,omitempty"`
+	WorkflowID            string `json:"workflow_id,omitempty"             yaml:"workflow_id,omitempty"`
+	CoordinationChannelID string `json:"coordination_channel_id,omitempty" yaml:"coordination_channel_id,omitempty"`
+	CoordinatorSessionID  string `json:"coordinator_session_id,omitempty"  yaml:"coordinator_session_id,omitempty"`
+	ParentSessionID       string `json:"parent_session_id,omitempty"       yaml:"parent_session_id,omitempty"`
+	RootSessionID         string `json:"root_session_id,omitempty"         yaml:"root_session_id,omitempty"`
+	ChildSessionID        string `json:"child_session_id,omitempty"        yaml:"child_session_id,omitempty"`
+	SpawnRole             string `json:"spawn_role,omitempty"              yaml:"spawn_role,omitempty"`
+	ReleaseReason         string `json:"release_reason,omitempty"          yaml:"release_reason,omitempty"`
 }
 
 // HookDecl is the declarative record supplied by config, agent definitions, or skills.
 type HookDecl struct {
 	Name         string            `json:"name"                    yaml:"name"`
 	Event        HookEvent         `json:"event"                   yaml:"event"`
-	Source       HookSource        `json:"source"                  yaml:"source"`
 	Mode         HookMode          `json:"mode,omitempty"          yaml:"mode,omitempty"`
-	Required     bool              `json:"required,omitempty"      yaml:"required,omitempty"`
-	Priority     int               `json:"priority,omitempty"      yaml:"priority,omitempty"`
-	PrioritySet  bool              `json:"-"                       yaml:"-"`
-	Timeout      time.Duration     `json:"timeout,omitempty"       yaml:"timeout,omitempty"`
 	Matcher      HookMatcher       `json:"matcher"                 yaml:"matcher,omitempty"`
 	ExecutorKind HookExecutorKind  `json:"executor_kind,omitempty" yaml:"executor_kind,omitempty"`
 	Command      string            `json:"command,omitempty"       yaml:"command,omitempty"`
@@ -177,6 +187,11 @@ type HookDecl struct {
 	Env          map[string]string `json:"env,omitempty"           yaml:"env,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty"      yaml:"metadata,omitempty"`
 	SkillSource  HookSkillSource   `json:"-"                       yaml:"-"`
+	Timeout      time.Duration     `json:"timeout,omitempty"       yaml:"timeout,omitempty"`
+	Priority     int               `json:"priority,omitempty"      yaml:"priority,omitempty"`
+	Source       HookSource        `json:"source"                  yaml:"source"`
+	Required     bool              `json:"required,omitempty"      yaml:"required,omitempty"`
+	PrioritySet  bool              `json:"-"                       yaml:"-"`
 }
 
 // RegisteredHook is the normalized hook ready for dispatch.

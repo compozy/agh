@@ -333,3 +333,100 @@ func TestHookMatcherMatchesPermissionResolution(t *testing.T) {
 		t.Fatal("MatchesPermissionResolution() = false, want true")
 	}
 }
+
+func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
+	t.Parallel()
+
+	coordinatorMatcher := HookMatcher{
+		AgentName:   "coordinator",
+		WorkspaceID: "ws-1",
+		Autonomy: &AutonomyMatcher{
+			TaskID:                "task-1",
+			RunID:                 "run-1",
+			WorkflowID:            "wf-1",
+			CoordinationChannelID: "coord-ch-1",
+			CoordinatorSessionID:  "coord-sess-1",
+		},
+	}
+	if !coordinatorMatcher.MatchesCoordinator(CoordinatorContext{
+		AgentName:             "coordinator",
+		WorkspaceID:           "ws-1",
+		TaskID:                "task-1",
+		RunID:                 "run-1",
+		WorkflowID:            "wf-1",
+		CoordinationChannelID: "coord-ch-1",
+		CoordinatorSessionID:  "coord-sess-1",
+	}) {
+		t.Fatal("MatchesCoordinator() = false, want true")
+	}
+	if coordinatorMatcher.MatchesCoordinator(CoordinatorContext{
+		AgentName:             "coordinator",
+		WorkspaceID:           "ws-1",
+		TaskID:                "task-1",
+		RunID:                 "run-1",
+		WorkflowID:            "wf-1",
+		CoordinationChannelID: "coord-ch-2",
+		CoordinatorSessionID:  "coord-sess-1",
+	}) {
+		t.Fatal("MatchesCoordinator() = true, want false for coordination channel mismatch")
+	}
+
+	taskRunMatcher := HookMatcher{
+		WorkspaceID: "ws-1",
+		Autonomy: &AutonomyMatcher{
+			TaskID:                "task-1",
+			RunID:                 "run-1",
+			CoordinationChannelID: "coord-*",
+			ReleaseReason:         "timeout",
+		},
+	}
+	if !taskRunMatcher.MatchesTaskRun(TaskRunContext{
+		WorkspaceID:           "ws-1",
+		TaskID:                "task-1",
+		RunID:                 "run-1",
+		CoordinationChannelID: "coord-ch-1",
+		ReleaseReason:         "timeout",
+	}) {
+		t.Fatal("MatchesTaskRun() = false, want true")
+	}
+	if taskRunMatcher.MatchesTaskRun(TaskRunContext{
+		WorkspaceID:           "ws-1",
+		TaskID:                "task-1",
+		RunID:                 "run-2",
+		CoordinationChannelID: "coord-ch-1",
+		ReleaseReason:         "timeout",
+	}) {
+		t.Fatal("MatchesTaskRun() = true, want false for run mismatch")
+	}
+
+	spawnMatcher := HookMatcher{
+		WorkspaceID: "ws-1",
+		Autonomy: &AutonomyMatcher{
+			ParentSessionID:       "parent-1",
+			RootSessionID:         "root-1",
+			ChildSessionID:        "child-*",
+			SpawnRole:             "reviewer",
+			CoordinationChannelID: "coord-ch-1",
+		},
+	}
+	if !spawnMatcher.MatchesSpawn(SpawnContext{
+		WorkspaceID:           "ws-1",
+		ParentSessionID:       "parent-1",
+		RootSessionID:         "root-1",
+		ChildSessionID:        "child-1",
+		SpawnRole:             "reviewer",
+		CoordinationChannelID: "coord-ch-1",
+	}) {
+		t.Fatal("MatchesSpawn() = false, want true")
+	}
+	if spawnMatcher.MatchesSpawn(SpawnContext{
+		WorkspaceID:           "ws-1",
+		ParentSessionID:       "parent-1",
+		RootSessionID:         "root-1",
+		ChildSessionID:        "child-1",
+		SpawnRole:             "coder",
+		CoordinationChannelID: "coord-ch-1",
+	}) {
+		t.Fatal("MatchesSpawn() = true, want false for spawn role mismatch")
+	}
+}

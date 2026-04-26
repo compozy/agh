@@ -145,6 +145,83 @@ func TestValidateHookDeclRejectsIllegalMatcherField(t *testing.T) {
 	}
 }
 
+func TestValidateHookDeclAllowsAutonomyMatcherFields(t *testing.T) {
+	t.Parallel()
+
+	for _, decl := range []HookDecl{
+		{
+			Name:    "coordinator",
+			Event:   HookCoordinatorPreSpawn,
+			Source:  HookSourceConfig,
+			Command: "./hook.sh",
+			Matcher: HookMatcher{
+				WorkspaceID: "ws-1",
+				Autonomy: &AutonomyMatcher{
+					TaskID:                "task-*",
+					RunID:                 "run-1",
+					CoordinationChannelID: "coord-ch-1",
+					CoordinatorSessionID:  "coord-sess-1",
+				},
+			},
+		},
+		{
+			Name:    "task-run",
+			Event:   HookTaskRunPreClaim,
+			Source:  HookSourceConfig,
+			Command: "./hook.sh",
+			Matcher: HookMatcher{
+				WorkspaceID: "ws-1",
+				Autonomy: &AutonomyMatcher{
+					TaskID:                "task-1",
+					RunID:                 "run-*",
+					CoordinationChannelID: "coord-ch-1",
+				},
+			},
+		},
+		{
+			Name:    "spawn",
+			Event:   HookSpawnPreCreate,
+			Source:  HookSourceConfig,
+			Command: "./hook.sh",
+			Matcher: HookMatcher{
+				WorkspaceID: "ws-1",
+				Autonomy: &AutonomyMatcher{
+					ParentSessionID:       "parent-1",
+					RootSessionID:         "root-1",
+					ChildSessionID:        "child-*",
+					SpawnRole:             "reviewer",
+					CoordinationChannelID: "coord-ch-1",
+				},
+			},
+		},
+	} {
+		if err := ValidateHookDecl(decl); err != nil {
+			t.Fatalf("ValidateHookDecl(%q) error = %v", decl.Name, err)
+		}
+	}
+}
+
+func TestValidateHookDeclRejectsIllegalAutonomyMatcherField(t *testing.T) {
+	t.Parallel()
+
+	err := ValidateHookDecl(HookDecl{
+		Name:    "bad-task-run-matcher",
+		Event:   HookTaskRunPreClaim,
+		Source:  HookSourceConfig,
+		Command: "./hook.sh",
+		Matcher: HookMatcher{
+			Autonomy: &AutonomyMatcher{ParentSessionID: "parent-1"},
+		},
+	})
+	if err == nil {
+		t.Fatal("ValidateHookDecl() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "parent_session_id") ||
+		!strings.Contains(err.Error(), string(HookTaskRunPreClaim)) {
+		t.Fatalf("ValidateHookDecl() error = %q, want autonomy matcher field detail", err)
+	}
+}
+
 func TestNormalizeHookDeclClonesMutableFields(t *testing.T) {
 	t.Parallel()
 

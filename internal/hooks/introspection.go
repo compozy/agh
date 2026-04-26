@@ -310,6 +310,125 @@ var hookEventDescriptors = map[HookEvent]EventDescriptor{
 		PayloadSchema: "ContextPostCompactPayload",
 		PatchSchema:   "ContextPostCompactPatch",
 	},
+	HookCoordinatorPreSpawn: {
+		Event:         HookCoordinatorPreSpawn,
+		Family:        HookEventFamilyCoordinator,
+		SyncEligible:  true,
+		PayloadSchema: "CoordinatorPreSpawnPayload",
+		PatchSchema:   "CoordinatorSpawnPatch",
+	},
+	HookCoordinatorSpawned: {
+		Event:         HookCoordinatorSpawned,
+		Family:        HookEventFamilyCoordinator,
+		SyncEligible:  true,
+		PayloadSchema: "CoordinatorSpawnedPayload",
+		PatchSchema:   "CoordinatorObservationPatch",
+	},
+	HookCoordinatorDecision: {
+		Event:         HookCoordinatorDecision,
+		Family:        HookEventFamilyCoordinator,
+		SyncEligible:  true,
+		PayloadSchema: "CoordinatorDecisionPayload",
+		PatchSchema:   "CoordinatorObservationPatch",
+	},
+	HookCoordinatorStopped: {
+		Event:         HookCoordinatorStopped,
+		Family:        HookEventFamilyCoordinator,
+		SyncEligible:  true,
+		PayloadSchema: "CoordinatorStoppedPayload",
+		PatchSchema:   "CoordinatorObservationPatch",
+	},
+	HookCoordinatorFailed: {
+		Event:         HookCoordinatorFailed,
+		Family:        HookEventFamilyCoordinator,
+		SyncEligible:  true,
+		PayloadSchema: "CoordinatorFailedPayload",
+		PatchSchema:   "CoordinatorObservationPatch",
+	},
+	HookTaskRunEnqueued: {
+		Event:         HookTaskRunEnqueued,
+		Family:        HookEventFamilyTaskRun,
+		SyncEligible:  true,
+		PayloadSchema: "TaskRunEnqueuedPayload",
+		PatchSchema:   "TaskRunObservationPatch",
+	},
+	HookTaskRunPreClaim: {
+		Event:         HookTaskRunPreClaim,
+		Family:        HookEventFamilyTaskRun,
+		SyncEligible:  true,
+		PayloadSchema: "TaskRunPreClaimPayload",
+		PatchSchema:   "TaskRunPreClaimPatch",
+	},
+	HookTaskRunPostClaim: {
+		Event:         HookTaskRunPostClaim,
+		Family:        HookEventFamilyTaskRun,
+		SyncEligible:  true,
+		PayloadSchema: "TaskRunPostClaimPayload",
+		PatchSchema:   "TaskRunObservationPatch",
+	},
+	HookTaskRunLeaseExtended: {
+		Event:         HookTaskRunLeaseExtended,
+		Family:        HookEventFamilyTaskRun,
+		SyncEligible:  true,
+		PayloadSchema: "TaskRunLeaseExtendedPayload",
+		PatchSchema:   "TaskRunObservationPatch",
+	},
+	HookTaskRunLeaseExpired: {
+		Event:         HookTaskRunLeaseExpired,
+		Family:        HookEventFamilyTaskRun,
+		SyncEligible:  true,
+		PayloadSchema: "TaskRunLeaseExpiredPayload",
+		PatchSchema:   "TaskRunObservationPatch",
+	},
+	HookTaskRunLeaseRecovered: {
+		Event:         HookTaskRunLeaseRecovered,
+		Family:        HookEventFamilyTaskRun,
+		SyncEligible:  true,
+		PayloadSchema: "TaskRunLeaseRecoveredPayload",
+		PatchSchema:   "TaskRunObservationPatch",
+	},
+	HookTaskRunReleased: {
+		Event:         HookTaskRunReleased,
+		Family:        HookEventFamilyTaskRun,
+		SyncEligible:  true,
+		PayloadSchema: "TaskRunReleasedPayload",
+		PatchSchema:   "TaskRunObservationPatch",
+	},
+	HookSpawnPreCreate: {
+		Event:         HookSpawnPreCreate,
+		Family:        HookEventFamilySpawn,
+		SyncEligible:  true,
+		PayloadSchema: "SpawnPreCreatePayload",
+		PatchSchema:   "SpawnCreatePatch",
+	},
+	HookSpawnCreated: {
+		Event:         HookSpawnCreated,
+		Family:        HookEventFamilySpawn,
+		SyncEligible:  true,
+		PayloadSchema: "SpawnCreatedPayload",
+		PatchSchema:   "SpawnObservationPatch",
+	},
+	HookSpawnParentStopped: {
+		Event:         HookSpawnParentStopped,
+		Family:        HookEventFamilySpawn,
+		SyncEligible:  true,
+		PayloadSchema: "SpawnParentStoppedPayload",
+		PatchSchema:   "SpawnObservationPatch",
+	},
+	HookSpawnTTLExpired: {
+		Event:         HookSpawnTTLExpired,
+		Family:        HookEventFamilySpawn,
+		SyncEligible:  true,
+		PayloadSchema: "SpawnTTLExpiredPayload",
+		PatchSchema:   "SpawnObservationPatch",
+	},
+	HookSpawnReaped: {
+		Event:         HookSpawnReaped,
+		Family:        HookEventFamilySpawn,
+		SyncEligible:  true,
+		PayloadSchema: "SpawnReapedPayload",
+		PatchSchema:   "SpawnObservationPatch",
+	},
 }
 
 // Catalog returns the currently resolved hook catalog in deterministic pipeline order.
@@ -412,6 +531,10 @@ func cloneHookMatcher(src HookMatcher) HookMatcher {
 	if src.ToolReadOnly != nil {
 		value := *src.ToolReadOnly
 		cloned.ToolReadOnly = &value
+	}
+	if src.Autonomy != nil {
+		value := *src.Autonomy
+		cloned.Autonomy = &value
 	}
 	return cloned
 }

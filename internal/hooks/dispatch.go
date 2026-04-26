@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -675,6 +676,309 @@ func (h *Hooks) DispatchContextPostCompact(
 	)
 }
 
+// DispatchCoordinatorPreSpawn runs the coordinator.pre_spawn hook pipeline.
+func (h *Hooks) DispatchCoordinatorPreSpawn(
+	ctx context.Context,
+	payload CoordinatorPreSpawnPayload,
+) (CoordinatorPreSpawnPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookCoordinatorPreSpawn,
+		payload,
+		dispatchConfig[CoordinatorPreSpawnPayload, CoordinatorSpawnPatch]{
+			match:  matchCoordinatorPreSpawn,
+			apply:  applyCoordinatorSpawnPatch,
+			denied: coordinatorSpawnPatchDenied,
+			denyErr: func(CoordinatorPreSpawnPayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookCoordinatorPreSpawn)
+			},
+		},
+	)
+}
+
+// DispatchCoordinatorSpawned runs the coordinator.spawned hook dispatch.
+func (h *Hooks) DispatchCoordinatorSpawned(
+	ctx context.Context,
+	payload CoordinatorSpawnedPayload,
+) (CoordinatorSpawnedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookCoordinatorSpawned,
+		payload,
+		dispatchConfig[CoordinatorSpawnedPayload, CoordinatorObservationPatch]{
+			match: matchCoordinatorLifecycle,
+			apply: applyNoop[CoordinatorSpawnedPayload, CoordinatorObservationPatch],
+		},
+	)
+}
+
+// DispatchCoordinatorDecision runs the coordinator.decision hook dispatch.
+func (h *Hooks) DispatchCoordinatorDecision(
+	ctx context.Context,
+	payload CoordinatorDecisionPayload,
+) (CoordinatorDecisionPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookCoordinatorDecision,
+		payload,
+		dispatchConfig[CoordinatorDecisionPayload, CoordinatorObservationPatch]{
+			match: matchCoordinatorLifecycle,
+			apply: applyNoop[CoordinatorDecisionPayload, CoordinatorObservationPatch],
+		},
+	)
+}
+
+// DispatchCoordinatorStopped runs the coordinator.stopped hook dispatch.
+func (h *Hooks) DispatchCoordinatorStopped(
+	ctx context.Context,
+	payload CoordinatorStoppedPayload,
+) (CoordinatorStoppedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookCoordinatorStopped,
+		payload,
+		dispatchConfig[CoordinatorStoppedPayload, CoordinatorObservationPatch]{
+			match: matchCoordinatorLifecycle,
+			apply: applyNoop[CoordinatorStoppedPayload, CoordinatorObservationPatch],
+		},
+	)
+}
+
+// DispatchCoordinatorFailed runs the coordinator.failed hook dispatch.
+func (h *Hooks) DispatchCoordinatorFailed(
+	ctx context.Context,
+	payload CoordinatorFailedPayload,
+) (CoordinatorFailedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookCoordinatorFailed,
+		payload,
+		dispatchConfig[CoordinatorFailedPayload, CoordinatorObservationPatch]{
+			match: matchCoordinatorLifecycle,
+			apply: applyNoop[CoordinatorFailedPayload, CoordinatorObservationPatch],
+		},
+	)
+}
+
+// DispatchTaskRunEnqueued runs the task.run.enqueued hook dispatch.
+func (h *Hooks) DispatchTaskRunEnqueued(
+	ctx context.Context,
+	payload TaskRunEnqueuedPayload,
+) (TaskRunEnqueuedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskRunEnqueued,
+		payload,
+		dispatchConfig[TaskRunEnqueuedPayload, TaskRunObservationPatch]{
+			match: matchTaskRunEnqueued,
+			apply: applyNoop[TaskRunEnqueuedPayload, TaskRunObservationPatch],
+		},
+	)
+}
+
+// DispatchTaskRunPreClaim runs the task.run.pre_claim hook pipeline.
+func (h *Hooks) DispatchTaskRunPreClaim(
+	ctx context.Context,
+	payload TaskRunPreClaimPayload,
+) (TaskRunPreClaimPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskRunPreClaim,
+		payload,
+		dispatchConfig[TaskRunPreClaimPayload, TaskRunPreClaimPatch]{
+			match:  matchTaskRunPreClaim,
+			apply:  applyTaskRunPreClaimPatch,
+			denied: taskRunPreClaimPatchDenied,
+			denyErr: func(TaskRunPreClaimPayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookTaskRunPreClaim)
+			},
+			guard: guardTaskRunPreClaimPatch,
+		},
+	)
+}
+
+// DispatchTaskRunPostClaim runs the task.run.post_claim hook dispatch.
+func (h *Hooks) DispatchTaskRunPostClaim(
+	ctx context.Context,
+	payload TaskRunPostClaimPayload,
+) (TaskRunPostClaimPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskRunPostClaim,
+		payload,
+		dispatchConfig[TaskRunPostClaimPayload, TaskRunObservationPatch]{
+			match: matchTaskRunPostClaim,
+			apply: applyNoop[TaskRunPostClaimPayload, TaskRunObservationPatch],
+		},
+	)
+}
+
+// DispatchTaskRunLeaseExtended runs the task.run.lease_extended hook dispatch.
+func (h *Hooks) DispatchTaskRunLeaseExtended(
+	ctx context.Context,
+	payload TaskRunLeaseExtendedPayload,
+) (TaskRunLeaseExtendedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskRunLeaseExtended,
+		payload,
+		dispatchConfig[TaskRunLeaseExtendedPayload, TaskRunObservationPatch]{
+			match: matchTaskRunLease,
+			apply: applyNoop[TaskRunLeaseExtendedPayload, TaskRunObservationPatch],
+		},
+	)
+}
+
+// DispatchTaskRunLeaseExpired runs the task.run.lease_expired hook dispatch.
+func (h *Hooks) DispatchTaskRunLeaseExpired(
+	ctx context.Context,
+	payload TaskRunLeaseExpiredPayload,
+) (TaskRunLeaseExpiredPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskRunLeaseExpired,
+		payload,
+		dispatchConfig[TaskRunLeaseExpiredPayload, TaskRunObservationPatch]{
+			match: matchTaskRunLease,
+			apply: applyNoop[TaskRunLeaseExpiredPayload, TaskRunObservationPatch],
+		},
+	)
+}
+
+// DispatchTaskRunLeaseRecovered runs the task.run.lease_recovered hook dispatch.
+func (h *Hooks) DispatchTaskRunLeaseRecovered(
+	ctx context.Context,
+	payload TaskRunLeaseRecoveredPayload,
+) (TaskRunLeaseRecoveredPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskRunLeaseRecovered,
+		payload,
+		dispatchConfig[TaskRunLeaseRecoveredPayload, TaskRunObservationPatch]{
+			match: matchTaskRunLease,
+			apply: applyNoop[TaskRunLeaseRecoveredPayload, TaskRunObservationPatch],
+		},
+	)
+}
+
+// DispatchTaskRunReleased runs the task.run.released hook dispatch.
+func (h *Hooks) DispatchTaskRunReleased(
+	ctx context.Context,
+	payload TaskRunReleasedPayload,
+) (TaskRunReleasedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskRunReleased,
+		payload,
+		dispatchConfig[TaskRunReleasedPayload, TaskRunObservationPatch]{
+			match: matchTaskRunLease,
+			apply: applyNoop[TaskRunReleasedPayload, TaskRunObservationPatch],
+		},
+	)
+}
+
+// DispatchSpawnPreCreate runs the spawn.pre_create hook pipeline.
+func (h *Hooks) DispatchSpawnPreCreate(
+	ctx context.Context,
+	payload SpawnPreCreatePayload,
+) (SpawnPreCreatePayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookSpawnPreCreate,
+		payload,
+		dispatchConfig[SpawnPreCreatePayload, SpawnCreatePatch]{
+			match:  matchSpawnPreCreate,
+			apply:  applySpawnCreatePatch,
+			denied: spawnCreatePatchDenied,
+			denyErr: func(SpawnPreCreatePayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookSpawnPreCreate)
+			},
+			guard: guardSpawnCreatePatch,
+		},
+	)
+}
+
+// DispatchSpawnCreated runs the spawn.created hook dispatch.
+func (h *Hooks) DispatchSpawnCreated(
+	ctx context.Context,
+	payload SpawnCreatedPayload,
+) (SpawnCreatedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookSpawnCreated,
+		payload,
+		dispatchConfig[SpawnCreatedPayload, SpawnObservationPatch]{
+			match: matchSpawnLifecycle,
+			apply: applyNoop[SpawnCreatedPayload, SpawnObservationPatch],
+		},
+	)
+}
+
+// DispatchSpawnParentStopped runs the spawn.parent_stopped hook dispatch.
+func (h *Hooks) DispatchSpawnParentStopped(
+	ctx context.Context,
+	payload SpawnParentStoppedPayload,
+) (SpawnParentStoppedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookSpawnParentStopped,
+		payload,
+		dispatchConfig[SpawnParentStoppedPayload, SpawnObservationPatch]{
+			match: matchSpawnLifecycle,
+			apply: applyNoop[SpawnParentStoppedPayload, SpawnObservationPatch],
+		},
+	)
+}
+
+// DispatchSpawnTTLExpired runs the spawn.ttl_expired hook dispatch.
+func (h *Hooks) DispatchSpawnTTLExpired(
+	ctx context.Context,
+	payload SpawnTTLExpiredPayload,
+) (SpawnTTLExpiredPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookSpawnTTLExpired,
+		payload,
+		dispatchConfig[SpawnTTLExpiredPayload, SpawnObservationPatch]{
+			match: matchSpawnLifecycle,
+			apply: applyNoop[SpawnTTLExpiredPayload, SpawnObservationPatch],
+		},
+	)
+}
+
+// DispatchSpawnReaped runs the spawn.reaped hook dispatch.
+func (h *Hooks) DispatchSpawnReaped(
+	ctx context.Context,
+	payload SpawnReapedPayload,
+) (SpawnReapedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookSpawnReaped,
+		payload,
+		dispatchConfig[SpawnReapedPayload, SpawnObservationPatch]{
+			match: matchSpawnLifecycle,
+			apply: applyNoop[SpawnReapedPayload, SpawnObservationPatch],
+		},
+	)
+}
+
 func executeDispatch[P any, R any](
 	ctx context.Context,
 	h *Hooks,
@@ -1000,6 +1304,66 @@ func applyContextCompactionPatch(payload ContextCompactPayload, patch ContextCom
 	return payload
 }
 
+func applyCoordinatorSpawnPatch(
+	payload CoordinatorPreSpawnPayload,
+	patch CoordinatorSpawnPatch,
+) CoordinatorPreSpawnPayload {
+	if patch.Deny {
+		payload.Denied = true
+		payload.DenyReason = patch.DenyReason
+	}
+	if patch.AgentName != nil {
+		payload.AgentName = strings.TrimSpace(*patch.AgentName)
+	}
+	if patch.Provider != nil {
+		payload.Provider = strings.TrimSpace(*patch.Provider)
+	}
+	if patch.Model != nil {
+		payload.Model = strings.TrimSpace(*patch.Model)
+	}
+	return payload
+}
+
+func applyTaskRunPreClaimPatch(
+	payload TaskRunPreClaimPayload,
+	patch TaskRunPreClaimPatch,
+) TaskRunPreClaimPayload {
+	if patch.Deny {
+		payload.Denied = true
+		payload.DenyReason = patch.DenyReason
+	}
+	if patch.AddRequiredCapabilities != nil {
+		payload.Criteria.RequiredCapabilities = unionStringSet(
+			payload.Criteria.RequiredCapabilities,
+			patch.AddRequiredCapabilities,
+		)
+	}
+	if patch.PriorityMin != nil && *patch.PriorityMin > payload.Criteria.PriorityMin {
+		payload.Criteria.PriorityMin = *patch.PriorityMin
+	}
+	return payload
+}
+
+func applySpawnCreatePatch(payload SpawnPreCreatePayload, patch SpawnCreatePatch) SpawnPreCreatePayload {
+	if patch.Deny {
+		payload.Denied = true
+		payload.DenyReason = patch.DenyReason
+	}
+	if patch.AgentName != nil {
+		payload.AgentName = strings.TrimSpace(*patch.AgentName)
+	}
+	if patch.SpawnRole != nil {
+		payload.SpawnRole = strings.TrimSpace(*patch.SpawnRole)
+	}
+	if patch.TTLSeconds != nil {
+		payload.TTLSeconds = *patch.TTLSeconds
+	}
+	if patch.ChildPermissions != nil {
+		payload.ChildPermissions = normalizePermissionSet(patch.ChildPermissions)
+	}
+	return payload
+}
+
 func cloneContextBlocks(blocks []ContextBlock) []ContextBlock {
 	if blocks == nil {
 		return nil
@@ -1070,4 +1434,203 @@ func toolResultPatchDenied(patch ToolResultPatch) bool {
 
 func contextCompactionPatchDenied(patch ContextCompactionPatch) bool {
 	return patch.Deny
+}
+
+func coordinatorSpawnPatchDenied(patch CoordinatorSpawnPatch) bool {
+	return patch.Deny
+}
+
+func taskRunPreClaimPatchDenied(patch TaskRunPreClaimPatch) bool {
+	return patch.Deny
+}
+
+func spawnCreatePatchDenied(patch SpawnCreatePatch) bool {
+	return patch.Deny
+}
+
+func guardTaskRunPreClaimPatch(
+	_ context.Context,
+	hook RegisteredHook,
+	payload TaskRunPreClaimPayload,
+	patch TaskRunPreClaimPatch,
+) error {
+	if patch.PriorityMin != nil && *patch.PriorityMin < payload.Criteria.PriorityMin {
+		return fmt.Errorf(
+			"%w: hook %q cannot lower task-run claim priority_min from %d to %d",
+			ErrHookPatchRejected,
+			hook.Name,
+			payload.Criteria.PriorityMin,
+			*patch.PriorityMin,
+		)
+	}
+	for _, capability := range patch.AddRequiredCapabilities {
+		if strings.TrimSpace(capability) == "" {
+			return fmt.Errorf(
+				"%w: hook %q cannot add blank task-run claim capability",
+				ErrHookPatchRejected,
+				hook.Name,
+			)
+		}
+	}
+	return nil
+}
+
+func guardSpawnCreatePatch(
+	_ context.Context,
+	hook RegisteredHook,
+	payload SpawnPreCreatePayload,
+	patch SpawnCreatePatch,
+) error {
+	if patch.TTLSeconds != nil && *patch.TTLSeconds <= 0 {
+		return fmt.Errorf(
+			"%w: hook %q cannot set non-positive spawn ttl_seconds",
+			ErrHookPatchRejected,
+			hook.Name,
+		)
+	}
+
+	child := payload.ChildPermissions
+	if patch.ChildPermissions != nil {
+		child = patch.ChildPermissions
+	}
+	if err := validatePermissionSubset(payload.ParentPermissions, child); err != nil {
+		return fmt.Errorf("%w: hook %q spawn permission patch rejected: %w", ErrHookPatchRejected, hook.Name, err)
+	}
+	return nil
+}
+
+func validatePermissionSubset(parent *PermissionSet, child *PermissionSet) error {
+	if err := validatePermissionAtoms("tools", permissionTools(parent), permissionTools(child)); err != nil {
+		return err
+	}
+	if err := validatePermissionAtoms("skills", permissionSkills(parent), permissionSkills(child)); err != nil {
+		return err
+	}
+	if err := validatePermissionAtoms(
+		"mcp_servers",
+		permissionMCPServers(parent),
+		permissionMCPServers(child),
+	); err != nil {
+		return err
+	}
+	if err := validatePermissionAtoms(
+		"workspace_paths",
+		permissionWorkspacePaths(parent),
+		permissionWorkspacePaths(child),
+	); err != nil {
+		return err
+	}
+	if err := validatePermissionAtoms(
+		"network_channels",
+		permissionNetworkChannels(parent),
+		permissionNetworkChannels(child),
+	); err != nil {
+		return err
+	}
+	return validatePermissionAtoms(
+		"environment_profiles",
+		permissionEnvironmentProfiles(parent),
+		permissionEnvironmentProfiles(child),
+	)
+}
+
+func permissionTools(src *PermissionSet) []string {
+	if src == nil {
+		return nil
+	}
+	return src.Tools
+}
+
+func permissionSkills(src *PermissionSet) []string {
+	if src == nil {
+		return nil
+	}
+	return src.Skills
+}
+
+func permissionMCPServers(src *PermissionSet) []string {
+	if src == nil {
+		return nil
+	}
+	return src.MCPServers
+}
+
+func permissionWorkspacePaths(src *PermissionSet) []string {
+	if src == nil {
+		return nil
+	}
+	return src.WorkspacePaths
+}
+
+func permissionNetworkChannels(src *PermissionSet) []string {
+	if src == nil {
+		return nil
+	}
+	return src.NetworkChannels
+}
+
+func permissionEnvironmentProfiles(src *PermissionSet) []string {
+	if src == nil {
+		return nil
+	}
+	return src.EnvironmentProfiles
+}
+
+func validatePermissionAtoms(category string, parent []string, child []string) error {
+	allowed := make(map[string]struct{}, len(parent))
+	for _, atom := range parent {
+		trimmed := strings.TrimSpace(atom)
+		if trimmed == "" {
+			return fmt.Errorf("parent %s includes a blank permission atom", category)
+		}
+		allowed[trimmed] = struct{}{}
+	}
+	for _, atom := range child {
+		trimmed := strings.TrimSpace(atom)
+		if trimmed == "" {
+			return fmt.Errorf("child %s includes a blank permission atom", category)
+		}
+		if _, ok := allowed[trimmed]; !ok {
+			return fmt.Errorf("child %s permission atom %q widens parent permissions", category, trimmed)
+		}
+	}
+	return nil
+}
+
+func normalizePermissionSet(src *PermissionSet) *PermissionSet {
+	if src == nil {
+		return nil
+	}
+	return &PermissionSet{
+		Tools:               uniqueTrimmedStrings(src.Tools),
+		Skills:              uniqueTrimmedStrings(src.Skills),
+		MCPServers:          uniqueTrimmedStrings(src.MCPServers),
+		WorkspacePaths:      uniqueTrimmedStrings(src.WorkspacePaths),
+		NetworkChannels:     uniqueTrimmedStrings(src.NetworkChannels),
+		EnvironmentProfiles: uniqueTrimmedStrings(src.EnvironmentProfiles),
+	}
+}
+
+func unionStringSet(base []string, additions []string) []string {
+	return uniqueTrimmedStrings(append(append([]string(nil), base...), additions...))
+}
+
+func uniqueTrimmedStrings(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }

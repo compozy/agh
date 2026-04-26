@@ -207,6 +207,70 @@ func TestHookBindingResourceReconcileFiresPermissionHooksThroughSessionNotifier(
 	}
 }
 
+func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *testing.T) {
+	taskRunPayloads := make(chan hookspkg.TaskRunEnqueuedPayload, 1)
+	h := newHookBindingIntegrationHarness(t, map[string]hookspkg.Executor{
+		"task-run-hook": hookspkg.NewTypedNativeExecutor(
+			func(
+				_ context.Context,
+				_ hookspkg.RegisteredHook,
+				payload hookspkg.TaskRunEnqueuedPayload,
+			) (hookspkg.TaskRunObservationPatch, error) {
+				select {
+				case taskRunPayloads <- payload:
+				default:
+				}
+				return hookspkg.TaskRunObservationPatch{}, nil
+			},
+		),
+	})
+
+	h.putBinding(t, "task-run-hook", 0, resources.ResourceScope{
+		Kind: resources.ResourceScopeKindWorkspace,
+		ID:   "ws-1",
+	}, hookspkg.HookDecl{
+		Name:         "task-run-hook",
+		Event:        hookspkg.HookTaskRunEnqueued,
+		Source:       hookspkg.HookSourceNative,
+		Mode:         hookspkg.HookModeSync,
+		ExecutorKind: hookspkg.HookExecutorNative,
+		Matcher: hookspkg.HookMatcher{
+			WorkspaceID: "ws-1",
+			Autonomy: &hookspkg.AutonomyMatcher{
+				TaskID:                "task-1",
+				CoordinationChannelID: "coord-ch-1",
+			},
+		},
+	})
+	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
+		t.Fatalf("driver.RunBoot() error = %v", err)
+	}
+
+	if _, err := h.notifier.DispatchTaskRunEnqueued(testutil.Context(t), hookspkg.TaskRunEnqueuedPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookTaskRunEnqueued,
+			Timestamp: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
+		},
+		TaskRunContext: hookspkg.TaskRunContext{
+			TaskID:                "task-1",
+			RunID:                 "run-1",
+			WorkspaceID:           "ws-1",
+			CoordinationChannelID: "coord-ch-1",
+		},
+	}); err != nil {
+		t.Fatalf("DispatchTaskRunEnqueued() error = %v", err)
+	}
+
+	select {
+	case payload := <-taskRunPayloads:
+		if payload.RunID != "run-1" || payload.CoordinationChannelID != "coord-ch-1" {
+			t.Fatalf("task-run payload = %#v, want run and coordination channel metadata", payload.TaskRunContext)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for resource-backed task.run.enqueued hook")
+	}
+}
+
 func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *testing.T) {
 	toolPayloads := make(chan hookspkg.ToolPreCallPayload, 2)
 

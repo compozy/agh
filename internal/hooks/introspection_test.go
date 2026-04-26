@@ -117,6 +117,64 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		descriptor.PatchSchema != "EnvironmentSyncAfterPatch" {
 		t.Fatalf("environment.sync.after descriptor = %#v, want async sync-after descriptor", descriptor)
 	}
+	autonomyDescriptors := map[HookEvent]struct {
+		family  HookEventFamily
+		payload string
+		patch   string
+	}{
+		HookCoordinatorPreSpawn: {HookEventFamilyCoordinator, "CoordinatorPreSpawnPayload", "CoordinatorSpawnPatch"},
+		HookCoordinatorSpawned: {
+			HookEventFamilyCoordinator,
+			"CoordinatorSpawnedPayload",
+			"CoordinatorObservationPatch",
+		},
+		HookCoordinatorDecision: {
+			HookEventFamilyCoordinator,
+			"CoordinatorDecisionPayload",
+			"CoordinatorObservationPatch",
+		},
+		HookCoordinatorStopped: {
+			HookEventFamilyCoordinator,
+			"CoordinatorStoppedPayload",
+			"CoordinatorObservationPatch",
+		},
+		HookCoordinatorFailed: {
+			HookEventFamilyCoordinator,
+			"CoordinatorFailedPayload",
+			"CoordinatorObservationPatch",
+		},
+		HookTaskRunEnqueued:  {HookEventFamilyTaskRun, "TaskRunEnqueuedPayload", "TaskRunObservationPatch"},
+		HookTaskRunPreClaim:  {HookEventFamilyTaskRun, "TaskRunPreClaimPayload", "TaskRunPreClaimPatch"},
+		HookTaskRunPostClaim: {HookEventFamilyTaskRun, "TaskRunPostClaimPayload", "TaskRunObservationPatch"},
+		HookTaskRunLeaseExtended: {
+			HookEventFamilyTaskRun,
+			"TaskRunLeaseExtendedPayload",
+			"TaskRunObservationPatch",
+		},
+		HookTaskRunLeaseExpired:   {HookEventFamilyTaskRun, "TaskRunLeaseExpiredPayload", "TaskRunObservationPatch"},
+		HookTaskRunLeaseRecovered: {HookEventFamilyTaskRun, "TaskRunLeaseRecoveredPayload", "TaskRunObservationPatch"},
+		HookTaskRunReleased:       {HookEventFamilyTaskRun, "TaskRunReleasedPayload", "TaskRunObservationPatch"},
+		HookSpawnPreCreate:        {HookEventFamilySpawn, "SpawnPreCreatePayload", "SpawnCreatePatch"},
+		HookSpawnCreated:          {HookEventFamilySpawn, "SpawnCreatedPayload", "SpawnObservationPatch"},
+		HookSpawnParentStopped:    {HookEventFamilySpawn, "SpawnParentStoppedPayload", "SpawnObservationPatch"},
+		HookSpawnTTLExpired:       {HookEventFamilySpawn, "SpawnTTLExpiredPayload", "SpawnObservationPatch"},
+		HookSpawnReaped:           {HookEventFamilySpawn, "SpawnReapedPayload", "SpawnObservationPatch"},
+	}
+	for event, want := range autonomyDescriptors {
+		descriptor := byEvent[event]
+		if descriptor.Family != want.family ||
+			!descriptor.SyncEligible ||
+			descriptor.PayloadSchema != want.payload ||
+			descriptor.PatchSchema != want.patch {
+			t.Fatalf("%s descriptor = %#v, want family=%q payload=%q patch=%q sync=true",
+				event,
+				descriptor,
+				want.family,
+				want.payload,
+				want.patch,
+			)
+		}
+	}
 }
 
 func TestHooksCatalogFiltersByEventSourceModeAndExposesExecutorKind(t *testing.T) {

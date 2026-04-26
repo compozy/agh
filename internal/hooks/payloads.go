@@ -647,6 +647,225 @@ type ContextPreCompactPatch = ContextCompactionPatch
 // ContextPostCompactPatch is the post-compact patch surface.
 type ContextPostCompactPatch = ContextCompactionPatch
 
+// AutonomyObservationPatch captures optional labels for committed autonomy lifecycle events.
+type AutonomyObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+// CoordinatorContext carries the coordinator identifiers shared across coordinator hooks.
+type CoordinatorContext struct {
+	WorkspaceID           string `json:"workspace_id,omitempty"`
+	Workspace             string `json:"workspace,omitempty"`
+	AgentName             string `json:"agent_name,omitempty"`
+	CoordinatorSessionID  string `json:"coordinator_session_id,omitempty"`
+	TaskID                string `json:"task_id,omitempty"`
+	RunID                 string `json:"run_id,omitempty"`
+	WorkflowID            string `json:"workflow_id,omitempty"`
+	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
+	Provider              string `json:"provider,omitempty"`
+	Model                 string `json:"model,omitempty"`
+}
+
+// CoordinatorPreSpawnPayload is delivered before the daemon creates a coordinator session.
+type CoordinatorPreSpawnPayload struct {
+	PayloadBase
+	CoordinatorContext
+	Reason     string `json:"reason,omitempty"`
+	Denied     bool   `json:"denied,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
+// CoordinatorLifecyclePayload is shared by committed coordinator lifecycle hooks.
+type CoordinatorLifecyclePayload struct {
+	PayloadBase
+	CoordinatorContext
+	DecisionKind string `json:"decision_kind,omitempty"`
+	Decision     string `json:"decision,omitempty"`
+	StopReason   string `json:"stop_reason,omitempty"`
+	Error        string `json:"error,omitempty"`
+}
+
+// CoordinatorSpawnedPayload is delivered after a coordinator session is created.
+type CoordinatorSpawnedPayload = CoordinatorLifecyclePayload
+
+// CoordinatorDecisionPayload is delivered when a coordinator records a semantic decision.
+type CoordinatorDecisionPayload = CoordinatorLifecyclePayload
+
+// CoordinatorStoppedPayload is delivered after a coordinator session stops.
+type CoordinatorStoppedPayload = CoordinatorLifecyclePayload
+
+// CoordinatorFailedPayload is delivered after a coordinator lifecycle failure.
+type CoordinatorFailedPayload = CoordinatorLifecyclePayload
+
+// CoordinatorSpawnPatch mutates or denies coordinator spawn requests.
+type CoordinatorSpawnPatch struct {
+	ControlPatch
+	AgentName *string `json:"agent_name,omitempty"`
+	Provider  *string `json:"provider,omitempty"`
+	Model     *string `json:"model,omitempty"`
+}
+
+// CoordinatorObservationPatch is the observation patch surface for committed coordinator hooks.
+type CoordinatorObservationPatch = AutonomyObservationPatch
+
+// TaskRunClaimCriteria carries the mutable claim criteria exposed to task-run pre-claim hooks.
+type TaskRunClaimCriteria struct {
+	WorkspaceID           string   `json:"workspace_id,omitempty"`
+	ClaimerSessionID      string   `json:"claimer_session_id,omitempty"`
+	AgentName             string   `json:"agent_name,omitempty"`
+	RequiredCapabilities  []string `json:"required_capabilities,omitempty"`
+	PriorityMin           int      `json:"priority_min,omitempty"`
+	CoordinationChannelID string   `json:"coordination_channel_id,omitempty"`
+}
+
+// TaskRunContext carries task-run identifiers shared across task-run hooks.
+type TaskRunContext struct {
+	TaskID                string    `json:"task_id,omitempty"`
+	RunID                 string    `json:"run_id,omitempty"`
+	WorkspaceID           string    `json:"workspace_id,omitempty"`
+	WorkflowID            string    `json:"workflow_id,omitempty"`
+	CoordinationChannelID string    `json:"coordination_channel_id,omitempty"`
+	NetworkChannel        string    `json:"network_channel,omitempty"`
+	AgentName             string    `json:"agent_name,omitempty"`
+	SessionID             string    `json:"session_id,omitempty"`
+	ActorKind             string    `json:"actor_kind,omitempty"`
+	ActorRef              string    `json:"actor_ref,omitempty"`
+	TaskStatus            string    `json:"task_status,omitempty"`
+	RunStatus             string    `json:"run_status,omitempty"`
+	Attempt               int       `json:"attempt,omitempty"`
+	LeaseUntil            time.Time `json:"lease_until"`
+	ReleaseReason         string    `json:"release_reason,omitempty"`
+	Error                 string    `json:"error,omitempty"`
+}
+
+// TaskRunEnqueuedPayload is delivered after a task run is enqueued and its audit event is committed.
+type TaskRunEnqueuedPayload struct {
+	PayloadBase
+	TaskRunContext
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// TaskRunPreClaimPayload is delivered before a task run claim commits.
+type TaskRunPreClaimPayload struct {
+	PayloadBase
+	TaskRunContext
+	Criteria   TaskRunClaimCriteria `json:"criteria"`
+	Denied     bool                 `json:"denied,omitempty"`
+	DenyReason string               `json:"deny_reason,omitempty"`
+}
+
+// TaskRunPostClaimPayload is delivered after a task run claim and audit event commit.
+type TaskRunPostClaimPayload struct {
+	PayloadBase
+	TaskRunContext
+	ClaimedAt time.Time `json:"claimed_at"`
+}
+
+// TaskRunLeasePayload is shared by committed task-run lease lifecycle hooks.
+type TaskRunLeasePayload struct {
+	PayloadBase
+	TaskRunContext
+	PreviousRunStatus string `json:"previous_run_status,omitempty"`
+	PreviousSessionID string `json:"previous_session_id,omitempty"`
+	RecoveryAction    string `json:"recovery_action,omitempty"`
+	RecoveryReason    string `json:"recovery_reason,omitempty"`
+}
+
+// TaskRunLeaseExtendedPayload is delivered after a task-run lease is extended.
+type TaskRunLeaseExtendedPayload = TaskRunLeasePayload
+
+// TaskRunLeaseExpiredPayload is delivered after a task-run lease expires.
+type TaskRunLeaseExpiredPayload = TaskRunLeasePayload
+
+// TaskRunLeaseRecoveredPayload is delivered after lease recovery commits.
+type TaskRunLeaseRecoveredPayload = TaskRunLeasePayload
+
+// TaskRunReleasedPayload is delivered after a task run lease is released.
+type TaskRunReleasedPayload = TaskRunLeasePayload
+
+// TaskRunPreClaimPatch denies or narrows task-run claim criteria.
+type TaskRunPreClaimPatch struct {
+	ControlPatch
+	AddRequiredCapabilities []string `json:"add_required_capabilities,omitempty"`
+	PriorityMin             *int     `json:"priority_min,omitempty"`
+}
+
+// TaskRunObservationPatch is the observation patch surface for committed task-run hooks.
+type TaskRunObservationPatch = AutonomyObservationPatch
+
+// PermissionSet captures concrete permission atoms that spawned children may only narrow.
+type PermissionSet struct {
+	Tools               []string `json:"tools,omitempty"`
+	Skills              []string `json:"skills,omitempty"`
+	MCPServers          []string `json:"mcp_servers,omitempty"`
+	WorkspacePaths      []string `json:"workspace_paths,omitempty"`
+	NetworkChannels     []string `json:"network_channels,omitempty"`
+	EnvironmentProfiles []string `json:"environment_profiles,omitempty"`
+}
+
+// SpawnContext carries spawn identifiers shared across spawn lifecycle hooks.
+type SpawnContext struct {
+	ParentSessionID       string `json:"parent_session_id,omitempty"`
+	RootSessionID         string `json:"root_session_id,omitempty"`
+	ChildSessionID        string `json:"child_session_id,omitempty"`
+	WorkspaceID           string `json:"workspace_id,omitempty"`
+	Workspace             string `json:"workspace,omitempty"`
+	AgentName             string `json:"agent_name,omitempty"`
+	SpawnRole             string `json:"spawn_role,omitempty"`
+	SpawnDepth            int    `json:"spawn_depth,omitempty"`
+	TTLSeconds            int64  `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent      bool   `json:"auto_stop_on_parent,omitempty"`
+	TaskID                string `json:"task_id,omitempty"`
+	RunID                 string `json:"run_id,omitempty"`
+	WorkflowID            string `json:"workflow_id,omitempty"`
+	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
+}
+
+// SpawnPreCreatePayload is delivered before a child session is created.
+type SpawnPreCreatePayload struct {
+	PayloadBase
+	SpawnContext
+	ParentPermissions *PermissionSet `json:"parent_permissions"`
+	ChildPermissions  *PermissionSet `json:"child_permissions"`
+	Denied            bool           `json:"denied,omitempty"`
+	DenyReason        string         `json:"deny_reason,omitempty"`
+}
+
+// SpawnLifecyclePayload is shared by committed spawn lifecycle hooks.
+type SpawnLifecyclePayload struct {
+	PayloadBase
+	SpawnContext
+	ParentPermissions *PermissionSet `json:"parent_permissions,omitempty"`
+	ChildPermissions  *PermissionSet `json:"child_permissions,omitempty"`
+	StopReason        string         `json:"stop_reason,omitempty"`
+	ReapReason        string         `json:"reap_reason,omitempty"`
+	Error             string         `json:"error,omitempty"`
+}
+
+// SpawnCreatedPayload is delivered after a child session is created.
+type SpawnCreatedPayload = SpawnLifecyclePayload
+
+// SpawnParentStoppedPayload is delivered when parent-stop reaps a child session.
+type SpawnParentStoppedPayload = SpawnLifecyclePayload
+
+// SpawnTTLExpiredPayload is delivered when TTL expiry reaps a child session.
+type SpawnTTLExpiredPayload = SpawnLifecyclePayload
+
+// SpawnReapedPayload is delivered after a child session is reaped.
+type SpawnReapedPayload = SpawnLifecyclePayload
+
+// SpawnCreatePatch mutates or denies child-session spawn requests.
+type SpawnCreatePatch struct {
+	ControlPatch
+	AgentName        *string        `json:"agent_name,omitempty"`
+	SpawnRole        *string        `json:"spawn_role,omitempty"`
+	TTLSeconds       *int64         `json:"ttl_seconds,omitempty"`
+	ChildPermissions *PermissionSet `json:"child_permissions,omitempty"`
+}
+
+// SpawnObservationPatch is the observation patch surface for committed spawn lifecycle hooks.
+type SpawnObservationPatch = AutonomyObservationPatch
+
 func (p SessionPreCreatePayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
@@ -725,4 +944,63 @@ func (p PermissionResolutionPayload) hookSessionContext() SessionContext {
 
 func (p ContextCompactPayload) hookSessionContext() SessionContext {
 	return p.SessionContext
+}
+
+func (p CoordinatorPreSpawnPayload) hookSessionContext() SessionContext {
+	return SessionContext{
+		SessionID:   p.CoordinatorSessionID,
+		AgentName:   p.AgentName,
+		WorkspaceID: p.WorkspaceID,
+		Workspace:   p.Workspace,
+	}
+}
+
+func (p CoordinatorLifecyclePayload) hookSessionContext() SessionContext {
+	return SessionContext{
+		SessionID:   p.CoordinatorSessionID,
+		AgentName:   p.AgentName,
+		WorkspaceID: p.WorkspaceID,
+		Workspace:   p.Workspace,
+	}
+}
+
+func (p TaskRunEnqueuedPayload) hookSessionContext() SessionContext {
+	return taskRunSessionContext(p.TaskRunContext)
+}
+
+func (p TaskRunPreClaimPayload) hookSessionContext() SessionContext {
+	return taskRunSessionContext(p.TaskRunContext)
+}
+
+func (p TaskRunPostClaimPayload) hookSessionContext() SessionContext {
+	return taskRunSessionContext(p.TaskRunContext)
+}
+
+func (p TaskRunLeasePayload) hookSessionContext() SessionContext {
+	return taskRunSessionContext(p.TaskRunContext)
+}
+
+func (p SpawnPreCreatePayload) hookSessionContext() SessionContext {
+	return spawnSessionContext(p.SpawnContext)
+}
+
+func (p SpawnLifecyclePayload) hookSessionContext() SessionContext {
+	return spawnSessionContext(p.SpawnContext)
+}
+
+func taskRunSessionContext(ctx TaskRunContext) SessionContext {
+	return SessionContext{
+		SessionID:   ctx.SessionID,
+		AgentName:   ctx.AgentName,
+		WorkspaceID: ctx.WorkspaceID,
+	}
+}
+
+func spawnSessionContext(ctx SpawnContext) SessionContext {
+	return SessionContext{
+		SessionID:   ctx.ChildSessionID,
+		AgentName:   ctx.AgentName,
+		WorkspaceID: ctx.WorkspaceID,
+		Workspace:   ctx.Workspace,
+	}
 }

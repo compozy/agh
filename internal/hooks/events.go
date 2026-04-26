@@ -18,6 +18,9 @@ const (
 	HookEventFamilyTool        HookEventFamily = "tool"
 	HookEventFamilyPermission  HookEventFamily = "permission"
 	HookEventFamilyContext     HookEventFamily = "context"
+	HookEventFamilyCoordinator HookEventFamily = "coordinator"
+	HookEventFamilyTaskRun     HookEventFamily = "task.run"
+	HookEventFamilySpawn       HookEventFamily = "spawn"
 )
 
 // Validate ensures the event family is part of the supported taxonomy.
@@ -34,7 +37,10 @@ func (f HookEventFamily) Validate() error {
 		HookEventFamilyMessage,
 		HookEventFamilyTool,
 		HookEventFamilyPermission,
-		HookEventFamilyContext:
+		HookEventFamilyContext,
+		HookEventFamilyCoordinator,
+		HookEventFamilyTaskRun,
+		HookEventFamilySpawn:
 		return nil
 	default:
 		return fmt.Errorf("hooks: invalid hook event family %q", f)
@@ -94,6 +100,26 @@ const (
 
 	HookContextPreCompact  HookEvent = "context.pre_compact"
 	HookContextPostCompact HookEvent = "context.post_compact"
+
+	HookCoordinatorPreSpawn HookEvent = "coordinator.pre_spawn"
+	HookCoordinatorSpawned  HookEvent = "coordinator.spawned"
+	HookCoordinatorDecision HookEvent = "coordinator.decision"
+	HookCoordinatorStopped  HookEvent = "coordinator.stopped"
+	HookCoordinatorFailed   HookEvent = "coordinator.failed"
+
+	HookTaskRunEnqueued       HookEvent = "task.run.enqueued"
+	HookTaskRunPreClaim       HookEvent = "task.run.pre_claim"
+	HookTaskRunPostClaim      HookEvent = "task.run.post_claim"
+	HookTaskRunLeaseExtended  HookEvent = "task.run.lease_extended"
+	HookTaskRunLeaseExpired   HookEvent = "task.run.lease_expired"
+	HookTaskRunLeaseRecovered HookEvent = "task.run.lease_recovered"
+	HookTaskRunReleased       HookEvent = "task.run.released"
+
+	HookSpawnPreCreate     HookEvent = "spawn.pre_create"
+	HookSpawnCreated       HookEvent = "spawn.created"
+	HookSpawnParentStopped HookEvent = "spawn.parent_stopped"
+	HookSpawnTTLExpired    HookEvent = "spawn.ttl_expired"
+	HookSpawnReaped        HookEvent = "spawn.reaped"
 )
 
 type hookEventSpec struct {
@@ -185,6 +211,74 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 	},
 	HookContextPreCompact:  {family: HookEventFamilyContext, syncEligible: true},
 	HookContextPostCompact: {family: HookEventFamilyContext, syncEligible: true},
+	HookCoordinatorPreSpawn: {
+		family:       HookEventFamilyCoordinator,
+		syncEligible: true,
+	},
+	HookCoordinatorSpawned: {
+		family:       HookEventFamilyCoordinator,
+		syncEligible: true,
+	},
+	HookCoordinatorDecision: {
+		family:       HookEventFamilyCoordinator,
+		syncEligible: true,
+	},
+	HookCoordinatorStopped: {
+		family:       HookEventFamilyCoordinator,
+		syncEligible: true,
+	},
+	HookCoordinatorFailed: {
+		family:       HookEventFamilyCoordinator,
+		syncEligible: true,
+	},
+	HookTaskRunEnqueued: {
+		family:       HookEventFamilyTaskRun,
+		syncEligible: true,
+	},
+	HookTaskRunPreClaim: {
+		family:       HookEventFamilyTaskRun,
+		syncEligible: true,
+	},
+	HookTaskRunPostClaim: {
+		family:       HookEventFamilyTaskRun,
+		syncEligible: true,
+	},
+	HookTaskRunLeaseExtended: {
+		family:       HookEventFamilyTaskRun,
+		syncEligible: true,
+	},
+	HookTaskRunLeaseExpired: {
+		family:       HookEventFamilyTaskRun,
+		syncEligible: true,
+	},
+	HookTaskRunLeaseRecovered: {
+		family:       HookEventFamilyTaskRun,
+		syncEligible: true,
+	},
+	HookTaskRunReleased: {
+		family:       HookEventFamilyTaskRun,
+		syncEligible: true,
+	},
+	HookSpawnPreCreate: {
+		family:       HookEventFamilySpawn,
+		syncEligible: true,
+	},
+	HookSpawnCreated: {
+		family:       HookEventFamilySpawn,
+		syncEligible: true,
+	},
+	HookSpawnParentStopped: {
+		family:       HookEventFamilySpawn,
+		syncEligible: true,
+	},
+	HookSpawnTTLExpired: {
+		family:       HookEventFamilySpawn,
+		syncEligible: true,
+	},
+	HookSpawnReaped: {
+		family:       HookEventFamilySpawn,
+		syncEligible: true,
+	},
 }
 
 var allHookEvents = []HookEvent{
@@ -226,6 +320,23 @@ var allHookEvents = []HookEvent{
 	HookPermissionDenied,
 	HookContextPreCompact,
 	HookContextPostCompact,
+	HookCoordinatorPreSpawn,
+	HookCoordinatorSpawned,
+	HookCoordinatorDecision,
+	HookCoordinatorStopped,
+	HookCoordinatorFailed,
+	HookTaskRunEnqueued,
+	HookTaskRunPreClaim,
+	HookTaskRunPostClaim,
+	HookTaskRunLeaseExtended,
+	HookTaskRunLeaseExpired,
+	HookTaskRunLeaseRecovered,
+	HookTaskRunReleased,
+	HookSpawnPreCreate,
+	HookSpawnCreated,
+	HookSpawnParentStopped,
+	HookSpawnTTLExpired,
+	HookSpawnReaped,
 }
 
 var _ = func() bool {

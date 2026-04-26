@@ -8319,7 +8319,24 @@ export interface operations {
           | "permission.resolved"
           | "permission.denied"
           | "context.pre_compact"
-          | "context.post_compact";
+          | "context.post_compact"
+          | "coordinator.pre_spawn"
+          | "coordinator.spawned"
+          | "coordinator.decision"
+          | "coordinator.stopped"
+          | "coordinator.failed"
+          | "task.run.enqueued"
+          | "task.run.pre_claim"
+          | "task.run.post_claim"
+          | "task.run.lease_extended"
+          | "task.run.lease_expired"
+          | "task.run.lease_recovered"
+          | "task.run.released"
+          | "spawn.pre_create"
+          | "spawn.created"
+          | "spawn.parent_stopped"
+          | "spawn.ttl_expired"
+          | "spawn.reaped";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -8345,6 +8362,18 @@ export interface operations {
                 acp_event_type?: string;
                 agent_name?: string;
                 agent_type?: string;
+                autonomy?: {
+                  child_session_id?: string;
+                  coordination_channel_id?: string;
+                  coordinator_session_id?: string;
+                  parent_session_id?: string;
+                  release_reason?: string;
+                  root_session_id?: string;
+                  run_id?: string;
+                  spawn_role?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                } | null;
                 compaction_reason?: string;
                 compaction_strategy?: string;
                 decision_class?: string;
@@ -8535,7 +8564,24 @@ export interface operations {
           | "permission.resolved"
           | "permission.denied"
           | "context.pre_compact"
-          | "context.post_compact";
+          | "context.post_compact"
+          | "coordinator.pre_spawn"
+          | "coordinator.spawned"
+          | "coordinator.decision"
+          | "coordinator.stopped"
+          | "coordinator.failed"
+          | "task.run.enqueued"
+          | "task.run.pre_claim"
+          | "task.run.post_claim"
+          | "task.run.lease_extended"
+          | "task.run.lease_expired"
+          | "task.run.lease_recovered"
+          | "task.run.released"
+          | "spawn.pre_create"
+          | "spawn.created"
+          | "spawn.parent_stopped"
+          | "spawn.ttl_expired"
+          | "spawn.reaped";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */
@@ -13804,13 +13850,42 @@ export interface operations {
                   | "permission.resolved"
                   | "permission.denied"
                   | "context.pre_compact"
-                  | "context.post_compact";
+                  | "context.post_compact"
+                  | "coordinator.pre_spawn"
+                  | "coordinator.spawned"
+                  | "coordinator.decision"
+                  | "coordinator.stopped"
+                  | "coordinator.failed"
+                  | "task.run.enqueued"
+                  | "task.run.pre_claim"
+                  | "task.run.post_claim"
+                  | "task.run.lease_extended"
+                  | "task.run.lease_expired"
+                  | "task.run.lease_recovered"
+                  | "task.run.released"
+                  | "spawn.pre_create"
+                  | "spawn.created"
+                  | "spawn.parent_stopped"
+                  | "spawn.ttl_expired"
+                  | "spawn.reaped";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
                   acp_event_type?: string;
                   agent_name?: string;
                   agent_type?: string;
+                  autonomy?: {
+                    child_session_id?: string;
+                    coordination_channel_id?: string;
+                    coordinator_session_id?: string;
+                    parent_session_id?: string;
+                    release_reason?: string;
+                    root_session_id?: string;
+                    run_id?: string;
+                    spawn_role?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                  } | null;
                   compaction_reason?: string;
                   compaction_strategy?: string;
                   decision_class?: string;
@@ -13982,13 +14057,42 @@ export interface operations {
                   | "permission.resolved"
                   | "permission.denied"
                   | "context.pre_compact"
-                  | "context.post_compact";
+                  | "context.post_compact"
+                  | "coordinator.pre_spawn"
+                  | "coordinator.spawned"
+                  | "coordinator.decision"
+                  | "coordinator.stopped"
+                  | "coordinator.failed"
+                  | "task.run.enqueued"
+                  | "task.run.pre_claim"
+                  | "task.run.post_claim"
+                  | "task.run.lease_extended"
+                  | "task.run.lease_expired"
+                  | "task.run.lease_recovered"
+                  | "task.run.released"
+                  | "spawn.pre_create"
+                  | "spawn.created"
+                  | "spawn.parent_stopped"
+                  | "spawn.ttl_expired"
+                  | "spawn.reaped";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
                   acp_event_type?: string;
                   agent_name?: string;
                   agent_type?: string;
+                  autonomy?: {
+                    child_session_id?: string;
+                    coordination_channel_id?: string;
+                    coordinator_session_id?: string;
+                    parent_session_id?: string;
+                    release_reason?: string;
+                    root_session_id?: string;
+                    run_id?: string;
+                    spawn_role?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                  } | null;
                   compaction_reason?: string;
                   compaction_strategy?: string;
                   decision_class?: string;
@@ -14284,13 +14388,42 @@ export interface operations {
               | "permission.resolved"
               | "permission.denied"
               | "context.pre_compact"
-              | "context.post_compact";
+              | "context.post_compact"
+              | "coordinator.pre_spawn"
+              | "coordinator.spawned"
+              | "coordinator.decision"
+              | "coordinator.stopped"
+              | "coordinator.failed"
+              | "task.run.enqueued"
+              | "task.run.pre_claim"
+              | "task.run.post_claim"
+              | "task.run.lease_extended"
+              | "task.run.lease_expired"
+              | "task.run.lease_recovered"
+              | "task.run.released"
+              | "spawn.pre_create"
+              | "spawn.created"
+              | "spawn.parent_stopped"
+              | "spawn.ttl_expired"
+              | "spawn.reaped";
             /** @enum {string} */
             executor_kind?: "native" | "subprocess" | "wasm";
             matcher: {
               acp_event_type?: string;
               agent_name?: string;
               agent_type?: string;
+              autonomy?: {
+                child_session_id?: string;
+                coordination_channel_id?: string;
+                coordinator_session_id?: string;
+                parent_session_id?: string;
+                release_reason?: string;
+                root_session_id?: string;
+                run_id?: string;
+                spawn_role?: string;
+                task_id?: string;
+                workflow_id?: string;
+              } | null;
               compaction_reason?: string;
               compaction_strategy?: string;
               decision_class?: string;

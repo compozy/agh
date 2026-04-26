@@ -90,6 +90,38 @@ func (payload AutomationTriggerPreFirePayload) cloneForAsync() AutomationTrigger
 	return cloneAutomationTriggerPreFirePayload(payload)
 }
 
+func (payload CoordinatorPreSpawnPayload) cloneForAsync() CoordinatorPreSpawnPayload {
+	return payload
+}
+
+func (payload CoordinatorLifecyclePayload) cloneForAsync() CoordinatorLifecyclePayload {
+	return payload
+}
+
+func (payload TaskRunEnqueuedPayload) cloneForAsync() TaskRunEnqueuedPayload {
+	return cloneTaskRunEnqueuedPayload(payload)
+}
+
+func (payload TaskRunPreClaimPayload) cloneForAsync() TaskRunPreClaimPayload {
+	return cloneTaskRunPreClaimPayload(payload)
+}
+
+func (payload TaskRunPostClaimPayload) cloneForAsync() TaskRunPostClaimPayload {
+	return payload
+}
+
+func (payload TaskRunLeasePayload) cloneForAsync() TaskRunLeasePayload {
+	return payload
+}
+
+func (payload SpawnPreCreatePayload) cloneForAsync() SpawnPreCreatePayload {
+	return cloneSpawnPreCreatePayload(payload)
+}
+
+func (payload SpawnLifecyclePayload) cloneForAsync() SpawnLifecyclePayload {
+	return cloneSpawnLifecyclePayload(payload)
+}
+
 func cloneEnvironmentPreparePayload(payload EnvironmentPreparePayload) EnvironmentPreparePayload {
 	payload.Profile = cloneEnvironmentProfilePayload(payload.Profile)
 	payload.LocalAdditionalDirs = cloneStringSlice(payload.LocalAdditionalDirs)
@@ -136,6 +168,41 @@ func cloneAutomationJobPreFirePayload(payload AutomationJobPreFirePayload) Autom
 func cloneAutomationTriggerPreFirePayload(payload AutomationTriggerPreFirePayload) AutomationTriggerPreFirePayload {
 	payload.Payload = cloneAnyMap(payload.Payload)
 	return payload
+}
+
+func cloneTaskRunEnqueuedPayload(payload TaskRunEnqueuedPayload) TaskRunEnqueuedPayload {
+	return payload
+}
+
+func cloneTaskRunPreClaimPayload(payload TaskRunPreClaimPayload) TaskRunPreClaimPayload {
+	payload.Criteria.RequiredCapabilities = cloneStringSlice(payload.Criteria.RequiredCapabilities)
+	return payload
+}
+
+func cloneSpawnPreCreatePayload(payload SpawnPreCreatePayload) SpawnPreCreatePayload {
+	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
+	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)
+	return payload
+}
+
+func cloneSpawnLifecyclePayload(payload SpawnLifecyclePayload) SpawnLifecyclePayload {
+	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
+	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)
+	return payload
+}
+
+func clonePermissionSet(src *PermissionSet) *PermissionSet {
+	if src == nil {
+		return nil
+	}
+	return &PermissionSet{
+		Tools:               cloneStringSlice(src.Tools),
+		Skills:              cloneStringSlice(src.Skills),
+		MCPServers:          cloneStringSlice(src.MCPServers),
+		WorkspacePaths:      cloneStringSlice(src.WorkspacePaths),
+		NetworkChannels:     cloneStringSlice(src.NetworkChannels),
+		EnvironmentProfiles: cloneStringSlice(src.EnvironmentProfiles),
+	}
 }
 
 func cloneAgentPreStartPayload(payload AgentPreStartPayload) AgentPreStartPayload {

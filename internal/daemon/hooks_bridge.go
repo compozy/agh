@@ -15,6 +15,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/toolruntime"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -117,6 +118,74 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.ContextPostCompactPayload,
 	) (hookspkg.ContextPostCompactPayload, error)
+	DispatchCoordinatorPreSpawn(
+		context.Context,
+		hookspkg.CoordinatorPreSpawnPayload,
+	) (hookspkg.CoordinatorPreSpawnPayload, error)
+	DispatchCoordinatorSpawned(
+		context.Context,
+		hookspkg.CoordinatorSpawnedPayload,
+	) (hookspkg.CoordinatorSpawnedPayload, error)
+	DispatchCoordinatorDecision(
+		context.Context,
+		hookspkg.CoordinatorDecisionPayload,
+	) (hookspkg.CoordinatorDecisionPayload, error)
+	DispatchCoordinatorStopped(
+		context.Context,
+		hookspkg.CoordinatorStoppedPayload,
+	) (hookspkg.CoordinatorStoppedPayload, error)
+	DispatchCoordinatorFailed(
+		context.Context,
+		hookspkg.CoordinatorFailedPayload,
+	) (hookspkg.CoordinatorFailedPayload, error)
+	DispatchTaskRunEnqueued(
+		context.Context,
+		hookspkg.TaskRunEnqueuedPayload,
+	) (hookspkg.TaskRunEnqueuedPayload, error)
+	DispatchTaskRunPreClaim(
+		context.Context,
+		hookspkg.TaskRunPreClaimPayload,
+	) (hookspkg.TaskRunPreClaimPayload, error)
+	DispatchTaskRunPostClaim(
+		context.Context,
+		hookspkg.TaskRunPostClaimPayload,
+	) (hookspkg.TaskRunPostClaimPayload, error)
+	DispatchTaskRunLeaseExtended(
+		context.Context,
+		hookspkg.TaskRunLeaseExtendedPayload,
+	) (hookspkg.TaskRunLeaseExtendedPayload, error)
+	DispatchTaskRunLeaseExpired(
+		context.Context,
+		hookspkg.TaskRunLeaseExpiredPayload,
+	) (hookspkg.TaskRunLeaseExpiredPayload, error)
+	DispatchTaskRunLeaseRecovered(
+		context.Context,
+		hookspkg.TaskRunLeaseRecoveredPayload,
+	) (hookspkg.TaskRunLeaseRecoveredPayload, error)
+	DispatchTaskRunReleased(
+		context.Context,
+		hookspkg.TaskRunReleasedPayload,
+	) (hookspkg.TaskRunReleasedPayload, error)
+	DispatchSpawnPreCreate(
+		context.Context,
+		hookspkg.SpawnPreCreatePayload,
+	) (hookspkg.SpawnPreCreatePayload, error)
+	DispatchSpawnCreated(
+		context.Context,
+		hookspkg.SpawnCreatedPayload,
+	) (hookspkg.SpawnCreatedPayload, error)
+	DispatchSpawnParentStopped(
+		context.Context,
+		hookspkg.SpawnParentStoppedPayload,
+	) (hookspkg.SpawnParentStoppedPayload, error)
+	DispatchSpawnTTLExpired(
+		context.Context,
+		hookspkg.SpawnTTLExpiredPayload,
+	) (hookspkg.SpawnTTLExpiredPayload, error)
+	DispatchSpawnReaped(
+		context.Context,
+		hookspkg.SpawnReapedPayload,
+	) (hookspkg.SpawnReapedPayload, error)
 }
 
 type sessionLifecycleObserver interface {
@@ -233,6 +302,7 @@ var _ session.EventHooks = (*hooksNotifier)(nil)
 var _ session.AgentHooks = (*hooksNotifier)(nil)
 var _ session.ConversationHooks = (*hooksNotifier)(nil)
 var _ session.CompactionHooks = (*hooksNotifier)(nil)
+var _ taskpkg.RunHookDispatcher = (*hooksNotifier)(nil)
 var _ session.AgentEventNotifier = (*hooksNotifier)(nil)
 var _ session.EnvironmentLifecycleNotifier = (*hooksNotifier)(nil)
 
@@ -601,6 +671,227 @@ func (n *hooksNotifier) DispatchContextPostCompact(
 		hookspkg.HookContextPostCompact,
 		payload,
 		hookRuntime.DispatchContextPostCompact,
+	)
+}
+
+func (n *hooksNotifier) DispatchCoordinatorPreSpawn(
+	ctx context.Context,
+	payload hookspkg.CoordinatorPreSpawnPayload,
+) (hookspkg.CoordinatorPreSpawnPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookCoordinatorPreSpawn,
+		payload,
+		hookRuntime.DispatchCoordinatorPreSpawn,
+	)
+}
+
+func (n *hooksNotifier) DispatchCoordinatorSpawned(
+	ctx context.Context,
+	payload hookspkg.CoordinatorSpawnedPayload,
+) (hookspkg.CoordinatorSpawnedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookCoordinatorSpawned,
+		payload,
+		hookRuntime.DispatchCoordinatorSpawned,
+	)
+}
+
+func (n *hooksNotifier) DispatchCoordinatorDecision(
+	ctx context.Context,
+	payload hookspkg.CoordinatorDecisionPayload,
+) (hookspkg.CoordinatorDecisionPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookCoordinatorDecision,
+		payload,
+		hookRuntime.DispatchCoordinatorDecision,
+	)
+}
+
+func (n *hooksNotifier) DispatchCoordinatorStopped(
+	ctx context.Context,
+	payload hookspkg.CoordinatorStoppedPayload,
+) (hookspkg.CoordinatorStoppedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookCoordinatorStopped,
+		payload,
+		hookRuntime.DispatchCoordinatorStopped,
+	)
+}
+
+func (n *hooksNotifier) DispatchCoordinatorFailed(
+	ctx context.Context,
+	payload hookspkg.CoordinatorFailedPayload,
+) (hookspkg.CoordinatorFailedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookCoordinatorFailed,
+		payload,
+		hookRuntime.DispatchCoordinatorFailed,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskRunEnqueued(
+	ctx context.Context,
+	payload hookspkg.TaskRunEnqueuedPayload,
+) (hookspkg.TaskRunEnqueuedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskRunEnqueued,
+		payload,
+		hookRuntime.DispatchTaskRunEnqueued,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskRunPreClaim(
+	ctx context.Context,
+	payload hookspkg.TaskRunPreClaimPayload,
+) (hookspkg.TaskRunPreClaimPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskRunPreClaim,
+		payload,
+		hookRuntime.DispatchTaskRunPreClaim,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskRunPostClaim(
+	ctx context.Context,
+	payload hookspkg.TaskRunPostClaimPayload,
+) (hookspkg.TaskRunPostClaimPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskRunPostClaim,
+		payload,
+		hookRuntime.DispatchTaskRunPostClaim,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskRunLeaseRecovered(
+	ctx context.Context,
+	payload hookspkg.TaskRunLeaseRecoveredPayload,
+) (hookspkg.TaskRunLeaseRecoveredPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskRunLeaseRecovered,
+		payload,
+		hookRuntime.DispatchTaskRunLeaseRecovered,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskRunLeaseExtended(
+	ctx context.Context,
+	payload hookspkg.TaskRunLeaseExtendedPayload,
+) (hookspkg.TaskRunLeaseExtendedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskRunLeaseExtended,
+		payload,
+		hookRuntime.DispatchTaskRunLeaseExtended,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskRunLeaseExpired(
+	ctx context.Context,
+	payload hookspkg.TaskRunLeaseExpiredPayload,
+) (hookspkg.TaskRunLeaseExpiredPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskRunLeaseExpired,
+		payload,
+		hookRuntime.DispatchTaskRunLeaseExpired,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskRunReleased(
+	ctx context.Context,
+	payload hookspkg.TaskRunReleasedPayload,
+) (hookspkg.TaskRunReleasedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskRunReleased,
+		payload,
+		hookRuntime.DispatchTaskRunReleased,
+	)
+}
+
+func (n *hooksNotifier) DispatchSpawnPreCreate(
+	ctx context.Context,
+	payload hookspkg.SpawnPreCreatePayload,
+) (hookspkg.SpawnPreCreatePayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookSpawnPreCreate,
+		payload,
+		hookRuntime.DispatchSpawnPreCreate,
+	)
+}
+
+func (n *hooksNotifier) DispatchSpawnCreated(
+	ctx context.Context,
+	payload hookspkg.SpawnCreatedPayload,
+) (hookspkg.SpawnCreatedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookSpawnCreated,
+		payload,
+		hookRuntime.DispatchSpawnCreated,
+	)
+}
+
+func (n *hooksNotifier) DispatchSpawnParentStopped(
+	ctx context.Context,
+	payload hookspkg.SpawnParentStoppedPayload,
+) (hookspkg.SpawnParentStoppedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookSpawnParentStopped,
+		payload,
+		hookRuntime.DispatchSpawnParentStopped,
+	)
+}
+
+func (n *hooksNotifier) DispatchSpawnTTLExpired(
+	ctx context.Context,
+	payload hookspkg.SpawnTTLExpiredPayload,
+) (hookspkg.SpawnTTLExpiredPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookSpawnTTLExpired,
+		payload,
+		hookRuntime.DispatchSpawnTTLExpired,
+	)
+}
+
+func (n *hooksNotifier) DispatchSpawnReaped(
+	ctx context.Context,
+	payload hookspkg.SpawnReapedPayload,
+) (hookspkg.SpawnReapedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookSpawnReaped,
+		payload,
+		hookRuntime.DispatchSpawnReaped,
 	)
 }
 

@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 38
+const expectedHookEventCount = 55
 
 func TestAllHookEvents(t *testing.T) {
 	t.Parallel()
@@ -77,5 +77,59 @@ func TestHookEventFamilyAndInvalidValidation(t *testing.T) {
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("invalid.Validate() error = nil, want non-nil")
+	}
+}
+
+func TestAutonomyHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {
+	t.Parallel()
+
+	expected := map[HookEvent]HookEventFamily{
+		HookCoordinatorPreSpawn:   HookEventFamilyCoordinator,
+		HookCoordinatorSpawned:    HookEventFamilyCoordinator,
+		HookCoordinatorDecision:   HookEventFamilyCoordinator,
+		HookCoordinatorStopped:    HookEventFamilyCoordinator,
+		HookCoordinatorFailed:     HookEventFamilyCoordinator,
+		HookTaskRunEnqueued:       HookEventFamilyTaskRun,
+		HookTaskRunPreClaim:       HookEventFamilyTaskRun,
+		HookTaskRunPostClaim:      HookEventFamilyTaskRun,
+		HookTaskRunLeaseExtended:  HookEventFamilyTaskRun,
+		HookTaskRunLeaseExpired:   HookEventFamilyTaskRun,
+		HookTaskRunLeaseRecovered: HookEventFamilyTaskRun,
+		HookTaskRunReleased:       HookEventFamilyTaskRun,
+		HookSpawnPreCreate:        HookEventFamilySpawn,
+		HookSpawnCreated:          HookEventFamilySpawn,
+		HookSpawnParentStopped:    HookEventFamilySpawn,
+		HookSpawnTTLExpired:       HookEventFamilySpawn,
+		HookSpawnReaped:           HookEventFamilySpawn,
+	}
+	seen := make(map[HookEvent]struct{}, len(AllHookEvents()))
+	for _, event := range AllHookEvents() {
+		seen[event] = struct{}{}
+	}
+	for event, family := range expected {
+		if _, ok := seen[event]; !ok {
+			t.Fatalf("AllHookEvents() missing %q", event)
+		}
+		if got := event.Family(); got != family {
+			t.Fatalf("%s.Family() = %q, want %q", event, got, family)
+		}
+		if !event.SyncEligible() {
+			t.Fatalf("%s.SyncEligible() = false, want true", event)
+		}
+	}
+}
+
+func TestSchedulerObservabilityNamesAreNotHookEvents(t *testing.T) {
+	t.Parallel()
+
+	for _, event := range []HookEvent{
+		"scheduler.wake",
+		"scheduler.no_match",
+		"scheduler.recovery",
+		"task.run.scheduler_wake",
+	} {
+		if err := event.Validate(); err == nil {
+			t.Fatalf("%q validated as a hook event, want absent from taxonomy", event)
+		}
 	}
 }

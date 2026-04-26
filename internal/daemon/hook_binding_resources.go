@@ -169,7 +169,7 @@ func newHookBindingCodecSpec(decl hookspkg.HookDecl) hookBindingCodecSpec {
 	}
 }
 
-func (s hookBindingCodecSpec) hookDecl() hookspkg.HookDecl {
+func (s *hookBindingCodecSpec) hookDecl() hookspkg.HookDecl {
 	return cloneDaemonHookDecl(hookspkg.HookDecl{
 		Name:         s.Name,
 		Event:        s.Event,
