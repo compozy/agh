@@ -113,6 +113,10 @@ func (s networkServiceStub) Inbox(context.Context, string) ([]network.Envelope, 
 	return nil, nil
 }
 
+func (s networkServiceStub) WaitInbox(context.Context, string, string) ([]network.Envelope, error) {
+	return nil, nil
+}
+
 func (s bundleServiceStub) Catalog(context.Context) ([]bundlepkg.CatalogEntry, error) {
 	return nil, nil
 }

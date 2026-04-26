@@ -101,6 +101,11 @@ type stubClient struct {
 	failTaskRunFn             func(context.Context, string, FailTaskRunRequest) (TaskRunRecord, error)
 	cancelTaskRunFn           func(context.Context, string, CancelTaskRunRequest) (TaskRunRecord, error)
 	agentMeFn                 func(context.Context, agentidentity.Credentials) (AgentMeRecord, error)
+	agentContextFn            func(context.Context, agentidentity.Credentials) (AgentContextRecord, error)
+	agentChannelsFn           func(context.Context, agentidentity.Credentials) ([]AgentChannelRecord, error)
+	agentChannelRecvFn        func(context.Context, string, AgentChannelRecvQuery, agentidentity.Credentials) ([]AgentChannelMessageRecord, error)
+	agentChannelSendFn        func(context.Context, string, AgentChannelSendRequest, agentidentity.Credentials) (AgentChannelMessageRecord, error)
+	agentChannelReplyFn       func(context.Context, AgentChannelReplyRequest, agentidentity.Credentials) (AgentChannelMessageRecord, error)
 }
 
 var _ DaemonClient = (*stubClient)(nil)
@@ -872,6 +877,61 @@ func (s *stubClient) AgentMe(ctx context.Context, credentials agentidentity.Cred
 		return s.agentMeFn(ctx, credentials)
 	}
 	return AgentMeRecord{}, errors.New("unexpected AgentMe call")
+}
+
+func (s *stubClient) AgentContext(
+	ctx context.Context,
+	credentials agentidentity.Credentials,
+) (AgentContextRecord, error) {
+	if s.agentContextFn != nil {
+		return s.agentContextFn(ctx, credentials)
+	}
+	return AgentContextRecord{}, errors.New("unexpected AgentContext call")
+}
+
+func (s *stubClient) AgentChannels(
+	ctx context.Context,
+	credentials agentidentity.Credentials,
+) ([]AgentChannelRecord, error) {
+	if s.agentChannelsFn != nil {
+		return s.agentChannelsFn(ctx, credentials)
+	}
+	return nil, errors.New("unexpected AgentChannels call")
+}
+
+func (s *stubClient) AgentChannelRecv(
+	ctx context.Context,
+	channel string,
+	query AgentChannelRecvQuery,
+	credentials agentidentity.Credentials,
+) ([]AgentChannelMessageRecord, error) {
+	if s.agentChannelRecvFn != nil {
+		return s.agentChannelRecvFn(ctx, channel, query, credentials)
+	}
+	return nil, errors.New("unexpected AgentChannelRecv call")
+}
+
+func (s *stubClient) AgentChannelSend(
+	ctx context.Context,
+	channel string,
+	request AgentChannelSendRequest,
+	credentials agentidentity.Credentials,
+) (AgentChannelMessageRecord, error) {
+	if s.agentChannelSendFn != nil {
+		return s.agentChannelSendFn(ctx, channel, request, credentials)
+	}
+	return AgentChannelMessageRecord{}, errors.New("unexpected AgentChannelSend call")
+}
+
+func (s *stubClient) AgentChannelReply(
+	ctx context.Context,
+	request AgentChannelReplyRequest,
+	credentials agentidentity.Credentials,
+) (AgentChannelMessageRecord, error) {
+	if s.agentChannelReplyFn != nil {
+		return s.agentChannelReplyFn(ctx, request, credentials)
+	}
+	return AgentChannelMessageRecord{}, errors.New("unexpected AgentChannelReply call")
 }
 
 func newTestDeps(t *testing.T, client DaemonClient) commandDeps {

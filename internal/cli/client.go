@@ -133,6 +133,25 @@ type DaemonClient interface {
 	FailTaskRun(ctx context.Context, id string, request FailTaskRunRequest) (TaskRunRecord, error)
 	CancelTaskRun(ctx context.Context, id string, request CancelTaskRunRequest) (TaskRunRecord, error)
 	AgentMe(ctx context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error)
+	AgentContext(ctx context.Context, credentials agentidentity.Credentials) (AgentContextRecord, error)
+	AgentChannels(ctx context.Context, credentials agentidentity.Credentials) ([]AgentChannelRecord, error)
+	AgentChannelRecv(
+		ctx context.Context,
+		channel string,
+		query AgentChannelRecvQuery,
+		credentials agentidentity.Credentials,
+	) ([]AgentChannelMessageRecord, error)
+	AgentChannelSend(
+		ctx context.Context,
+		channel string,
+		request AgentChannelSendRequest,
+		credentials agentidentity.Credentials,
+	) (AgentChannelMessageRecord, error)
+	AgentChannelReply(
+		ctx context.Context,
+		request AgentChannelReplyRequest,
+		credentials agentidentity.Credentials,
+	) (AgentChannelMessageRecord, error)
 }
 
 // CreateSessionRequest captures the shared daemon session creation payload.
@@ -315,6 +334,27 @@ type TaskRunRecord = contract.TaskRunPayload
 
 // AgentMeRecord is the shared agent caller identity payload.
 type AgentMeRecord = contract.AgentMePayload
+
+// AgentContextRecord is the shared bounded agent situation payload.
+type AgentContextRecord = contract.AgentContextPayload
+
+// AgentChannelRecord is one discoverable coordination channel payload.
+type AgentChannelRecord = contract.CoordinationChannelPayload
+
+// AgentChannelMessageRecord is one safe agent channel message payload.
+type AgentChannelMessageRecord = contract.AgentChannelMessagePayload
+
+// AgentChannelSendRequest captures one agent channel send payload.
+type AgentChannelSendRequest = contract.AgentChannelSendRequest
+
+// AgentChannelReplyRequest captures one agent channel reply payload.
+type AgentChannelReplyRequest = contract.AgentChannelReplyRequest
+
+// AgentChannelRecvQuery captures receive options for agent channel messages.
+type AgentChannelRecvQuery struct {
+	Wait  bool
+	Limit int
+}
 
 // TaskEventRecord is the shared task audit-event payload.
 type TaskEventRecord = contract.TaskEventPayload
@@ -1475,6 +1515,92 @@ func (c *unixSocketClient) AgentMe(
 	return response.Me, nil
 }
 
+func (c *unixSocketClient) AgentContext(
+	ctx context.Context,
+	credentials agentidentity.Credentials,
+) (AgentContextRecord, error) {
+	var response contract.AgentContextResponse
+	if err := c.doAgentJSON(ctx, http.MethodGet, "/api/agent/context", nil, nil, credentials, &response); err != nil {
+		return AgentContextRecord{}, err
+	}
+	return response.Context, nil
+}
+
+func (c *unixSocketClient) AgentChannels(
+	ctx context.Context,
+	credentials agentidentity.Credentials,
+) ([]AgentChannelRecord, error) {
+	var response contract.AgentChannelsResponse
+	if err := c.doAgentJSON(ctx, http.MethodGet, "/api/agent/channels", nil, nil, credentials, &response); err != nil {
+		return nil, err
+	}
+	return response.Channels, nil
+}
+
+func (c *unixSocketClient) AgentChannelRecv(
+	ctx context.Context,
+	channel string,
+	query AgentChannelRecvQuery,
+	credentials agentidentity.Credentials,
+) ([]AgentChannelMessageRecord, error) {
+	var response contract.AgentChannelMessagesResponse
+	path := "/api/agent/channels/" + url.PathEscape(strings.TrimSpace(channel)) + "/recv"
+	if err := c.doAgentJSON(
+		ctx,
+		http.MethodGet,
+		path,
+		agentChannelRecvValues(query),
+		nil,
+		credentials,
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response.Messages, nil
+}
+
+func (c *unixSocketClient) AgentChannelSend(
+	ctx context.Context,
+	channel string,
+	request AgentChannelSendRequest,
+	credentials agentidentity.Credentials,
+) (AgentChannelMessageRecord, error) {
+	var response contract.AgentChannelMessageResponse
+	path := "/api/agent/channels/" + url.PathEscape(strings.TrimSpace(channel)) + "/send"
+	if err := c.doAgentJSON(
+		ctx,
+		http.MethodPost,
+		path,
+		nil,
+		request,
+		credentials,
+		&response,
+	); err != nil {
+		return AgentChannelMessageRecord{}, err
+	}
+	return response.Message, nil
+}
+
+func (c *unixSocketClient) AgentChannelReply(
+	ctx context.Context,
+	request AgentChannelReplyRequest,
+	credentials agentidentity.Credentials,
+) (AgentChannelMessageRecord, error) {
+	var response contract.AgentChannelMessageResponse
+	if err := c.doAgentJSON(
+		ctx,
+		http.MethodPost,
+		"/api/agent/channels/reply",
+		nil,
+		request,
+		credentials,
+		&response,
+	); err != nil {
+		return AgentChannelMessageRecord{}, err
+	}
+	return response.Message, nil
+}
+
 func (c *unixSocketClient) extensionAction(ctx context.Context, name string, action string) (ExtensionRecord, error) {
 	var response struct {
 		Extension ExtensionRecord `json:"extension"`
@@ -1792,6 +1918,17 @@ func networkInboxValues(sessionID string) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
+	}
+	return values
+}
+
+func agentChannelRecvValues(query AgentChannelRecvQuery) url.Values {
+	values := url.Values{}
+	if query.Wait {
+		values.Set("wait", "true")
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
 	}
 	return values
 }

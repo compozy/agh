@@ -1,0 +1,666 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/pedronauck/agh/internal/agentidentity"
+	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/session"
+)
+
+func TestMeCommandJSONReturnsValidatedIdentity(t *testing.T) {
+	t.Parallel()
+
+	client := &stubClient{}
+	deps := newAgentCommandTestDeps(t, client)
+	client.agentMeFn = func(_ context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error) {
+		assertAgentCredentials(t, credentials)
+		return AgentMeRecord{
+			Self: contract.AgentIdentityPayload{
+				SessionID: "sess-agent",
+				AgentName: "coder",
+				Provider:  "test-provider",
+				Model:     "test-model",
+			},
+			Workspace: contract.AgentWorkspacePayload{
+				ID:      "ws-1",
+				RootDir: "/workspace/project",
+			},
+			Session: contract.AgentSessionPayload{
+				ID:        "sess-agent",
+				State:     session.StateActive,
+				Channel:   "builders",
+				CreatedAt: fixedTestNow,
+				UpdatedAt: fixedTestNow,
+			},
+		}, nil
+	}
+
+	stdout, _, err := executeRootCommand(t, deps, "me", "-o", "json")
+	if err != nil {
+		t.Fatalf("agh me error = %v", err)
+	}
+
+	var got AgentMeRecord
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("json.Unmarshal(agh me) error = %v", err)
+	}
+	if got.Self.SessionID != "sess-agent" || got.Self.AgentName != "coder" || got.Workspace.ID != "ws-1" {
+		t.Fatalf("agh me payload = %#v, want caller session/workspace identity", got)
+	}
+}
+
+func TestMeContextCommandJSONKeepsStableSectionOrder(t *testing.T) {
+	t.Parallel()
+
+	client := &stubClient{}
+	deps := newAgentCommandTestDeps(t, client)
+	client.agentContextFn = func(_ context.Context, credentials agentidentity.Credentials) (AgentContextRecord, error) {
+		assertAgentCredentials(t, credentials)
+		return AgentContextRecord{
+			Self: contract.AgentIdentityPayload{
+				SessionID: "sess-agent",
+				AgentName: "coder",
+				Provider:  "test-provider",
+			},
+			Workspace: contract.AgentWorkspacePayload{ID: "ws-1", RootDir: "/workspace/project"},
+			Session: contract.AgentSessionPayload{
+				ID:        "sess-agent",
+				State:     session.StateActive,
+				CreatedAt: fixedTestNow,
+				UpdatedAt: fixedTestNow,
+			},
+			Task:                contract.AgentTaskContextPayload{Available: true},
+			CoordinationChannel: contract.AgentCoordinationChannelContextPayload{Available: true},
+			InboxSummary:        contract.AgentInboxSummaryPayload{},
+			PeerRoster:          contract.AgentPeerRosterPayload{},
+			Capabilities:        contract.AgentCapabilitySectionPayload{},
+			Limits:              contract.AgentLimitsPayload{ContextSectionLimit: 20},
+			Provenance: contract.AgentContextProvenancePayload{
+				GeneratedAt: fixedTestNow,
+				Source:      "test",
+			},
+		}, nil
+	}
+
+	stdout, _, err := executeRootCommand(t, deps, "me", "context", "-o", "json")
+	if err != nil {
+		t.Fatalf("agh me context error = %v", err)
+	}
+
+	assertJSONKeyOrder(t, stdout, []string{
+		"self",
+		"workspace",
+		"session",
+		"task",
+		"coordination_channel",
+		"inbox_summary",
+		"peer_roster",
+		"capabilities",
+		"limits",
+		"provenance",
+	})
+}
+
+func TestChannelSendRejectsMissingInputsAndInvalidIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		deps func(t *testing.T, client *stubClient) commandDeps
+		args []string
+	}{
+		{
+			name: "missing channel",
+			deps: newAgentCommandTestDeps,
+			args: []string{"ch", "send", "--body", `{"text":"ok"}`, "--task-id", "task-1", "--run-id", "run-1"},
+		},
+		{
+			name: "missing body",
+			deps: newAgentCommandTestDeps,
+			args: []string{"ch", "send", "builders", "--task-id", "task-1", "--run-id", "run-1"},
+		},
+		{
+			name: "invalid caller identity",
+			deps: newMissingAgentIdentityDeps,
+			args: []string{
+				"ch", "send", "builders",
+				"--body", `{"text":"ok"}`,
+				"--task-id", "task-1",
+				"--run-id", "run-1",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &stubClient{
+				agentChannelSendFn: func(
+					context.Context,
+					string,
+					AgentChannelSendRequest,
+					agentidentity.Credentials,
+				) (AgentChannelMessageRecord, error) {
+					t.Fatal("AgentChannelSend should not be called for invalid input")
+					return AgentChannelMessageRecord{}, errors.New("unexpected")
+				},
+			}
+			_, _, err := executeRootCommand(t, tt.deps(t, client), tt.args...)
+			if err == nil {
+				t.Fatal("agh ch send error = nil, want validation/identity error")
+			}
+		})
+	}
+}
+
+func TestAgentCommandsRejectMissingIdentityBeforeAgentCalls(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "me", args: []string{"me", "-o", "json"}},
+		{name: "me context", args: []string{"me", "context", "-o", "json"}},
+		{name: "ch list", args: []string{"ch", "list", "-o", "json"}},
+		{name: "ch recv", args: []string{"ch", "recv", "builders", "-o", "json"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &stubClient{}
+			_, _, err := executeRootCommand(t, newMissingAgentIdentityDeps(t, client), tt.args...)
+			if !errors.Is(err, agentidentity.ErrIdentityRequired) {
+				t.Fatalf("executeRootCommand(%v) error = %v, want ErrIdentityRequired", tt.args, err)
+			}
+		})
+	}
+}
+
+func TestChannelListCommandJSONReturnsVisibleChannels(t *testing.T) {
+	t.Parallel()
+
+	client := &stubClient{}
+	deps := newAgentCommandTestDeps(t, client)
+	client.agentChannelsFn = func(_ context.Context, credentials agentidentity.Credentials) ([]AgentChannelRecord, error) {
+		assertAgentCredentials(t, credentials)
+		return []AgentChannelRecord{{
+			ID:                  "builders",
+			Channel:             "builders",
+			DisplayName:         "builders",
+			Purpose:             "task_coordination",
+			WorkspaceID:         "ws-1",
+			AllowedMessageKinds: contract.CoordinationMessageKinds(),
+		}}, nil
+	}
+
+	stdout, _, err := executeRootCommand(t, deps, "ch", "list", "-o", "json")
+	if err != nil {
+		t.Fatalf("agh ch list error = %v", err)
+	}
+
+	var channels []AgentChannelRecord
+	if err := json.Unmarshal([]byte(stdout), &channels); err != nil {
+		t.Fatalf("json.Unmarshal(channels) error = %v", err)
+	}
+	if len(channels) != 1 ||
+		channels[0].ID != "builders" ||
+		len(channels[0].AllowedMessageKinds) != len(contract.CoordinationMessageKinds()) {
+		t.Fatalf("channels = %#v, want builders with MVP message kinds", channels)
+	}
+}
+
+func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []contract.CoordinationMessageKind{
+		contract.CoordinationMessageStatus,
+		contract.CoordinationMessageBlocker,
+		contract.CoordinationMessageResult,
+	} {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+
+			client := &stubClient{}
+			deps := newAgentCommandTestDeps(t, client)
+			client.agentChannelSendFn = func(
+				_ context.Context,
+				channel string,
+				request AgentChannelSendRequest,
+				credentials agentidentity.Credentials,
+			) (AgentChannelMessageRecord, error) {
+				assertAgentCredentials(t, credentials)
+				if channel != "builders" {
+					t.Fatalf("channel = %q, want builders", channel)
+				}
+				if request.Metadata.TaskID != "task-1" ||
+					request.Metadata.RunID != "run-1" ||
+					request.Metadata.WorkflowID != "wf-1" ||
+					request.Metadata.CoordinationChannelID != "builders" ||
+					request.Metadata.CorrelationID != "corr-1" ||
+					request.Metadata.MessageKind != kind {
+					t.Fatalf("metadata = %#v, want task/run/%s correlation", request.Metadata, kind)
+				}
+				if string(request.Metadata.Ext["note"]) != `"safe"` {
+					t.Fatalf("metadata.Ext = %#v, want note", request.Metadata.Ext)
+				}
+				if request.IdempotencyKey != "idem-1" {
+					t.Fatalf("idempotency key = %q, want idem-1", request.IdempotencyKey)
+				}
+				return AgentChannelMessageRecord{
+					MessageID: "msg-1",
+					ChannelID: "builders",
+					Body:      request.Body,
+					Metadata:  request.Metadata,
+					Timestamp: fixedTestNow,
+				}, nil
+			}
+
+			_, _, err := executeRootCommand(
+				t,
+				deps,
+				"ch", "send", "builders",
+				"--body", `{"text":"ok"}`,
+				"--task-id", "task-1",
+				"--run-id", "run-1",
+				"--workflow-id", "wf-1",
+				"--kind", string(kind),
+				"--correlation-id", "corr-1",
+				"--metadata-ext", `{"note":"safe"}`,
+				"--idempotency-key", "idem-1",
+				"-o", "json",
+			)
+			if err != nil {
+				t.Fatalf("agh ch send error = %v", err)
+			}
+		})
+	}
+
+	for _, tt := range []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "body",
+			args: []string{
+				"ch", "send", "builders",
+				"--body", `{"claim_token":"secret"}`,
+				"--task-id", "task-1",
+				"--run-id", "run-1",
+			},
+		},
+		{
+			name: "metadata ext",
+			args: []string{
+				"ch", "send", "builders",
+				"--body", `{"text":"ok"}`,
+				"--task-id", "task-1",
+				"--run-id", "run-1",
+				"--metadata-ext", `{"claim_token":"secret"}`,
+			},
+		},
+	} {
+		t.Run("reject raw claim token in "+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &stubClient{
+				agentChannelSendFn: func(
+					context.Context,
+					string,
+					AgentChannelSendRequest,
+					agentidentity.Credentials,
+				) (AgentChannelMessageRecord, error) {
+					t.Fatal("AgentChannelSend should not be called when claim_token is present")
+					return AgentChannelMessageRecord{}, errors.New("unexpected")
+				},
+			}
+			_, _, err := executeRootCommand(t, newAgentCommandTestDeps(t, client), tt.args...)
+			if !errors.Is(err, contract.ErrRawClaimTokenMetadata) {
+				t.Fatalf("agh ch send error = %v, want ErrRawClaimTokenMetadata", err)
+			}
+		})
+	}
+}
+
+func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t *testing.T) {
+	t.Parallel()
+
+	client := &stubClient{}
+	deps := newAgentCommandTestDeps(t, client)
+	client.agentChannelReplyFn = func(
+		_ context.Context,
+		request AgentChannelReplyRequest,
+		credentials agentidentity.Credentials,
+	) (AgentChannelMessageRecord, error) {
+		assertAgentCredentials(t, credentials)
+		if request.ReplyToMessageID != "msg-source" {
+			t.Fatalf("reply_to_message_id = %q, want msg-source", request.ReplyToMessageID)
+		}
+		if string(request.Body) != `{"text":"ack"}` {
+			t.Fatalf("body = %s, want ack JSON", request.Body)
+		}
+		if !zeroCLICoordinationMetadata(request.Metadata) {
+			t.Fatalf("metadata = %#v, want zero metadata for server-side source resolution", request.Metadata)
+		}
+		return AgentChannelMessageRecord{
+			MessageID: "msg-reply",
+			ChannelID: "builders",
+			Body:      request.Body,
+			Metadata: contract.CoordinationMessageMetadataPayload{
+				TaskID:                "task-1",
+				RunID:                 "run-1",
+				CoordinationChannelID: "builders",
+				MessageKind:           contract.CoordinationMessageReply,
+				CorrelationID:         "run-1",
+			},
+			Timestamp: fixedTestNow,
+		}, nil
+	}
+
+	if _, _, err := executeRootCommand(
+		t,
+		deps,
+		"ch", "reply",
+		"--to-message", "msg-source",
+		"--body", `{"text":"ack"}`,
+		"-o", "json",
+	); err != nil {
+		t.Fatalf("agh ch reply error = %v", err)
+	}
+
+	_, _, err := executeRootCommand(
+		t,
+		deps,
+		"ch", "reply",
+		"--to-message", "msg-source",
+		"--body", `{"text":"ack"}`,
+		"--task-id", "task-1",
+		"--run-id", "run-1",
+		"--coordination-channel-id", "builders",
+		"--kind", "status",
+	)
+	if err == nil || !strings.Contains(err.Error(), "--kind must be reply") {
+		t.Fatalf("agh ch reply --kind status error = %v, want reply-kind validation", err)
+	}
+}
+
+func TestChannelRecvJSONLOutputEmitsOneObjectPerMessage(t *testing.T) {
+	t.Parallel()
+
+	client := &stubClient{}
+	deps := newAgentCommandTestDeps(t, client)
+	client.agentChannelRecvFn = func(
+		_ context.Context,
+		channel string,
+		query AgentChannelRecvQuery,
+		credentials agentidentity.Credentials,
+	) ([]AgentChannelMessageRecord, error) {
+		assertAgentCredentials(t, credentials)
+		if channel != "builders" || !query.Wait || query.Limit != 2 {
+			t.Fatalf("recv channel/query = %q/%#v, want builders wait limit=2", channel, query)
+		}
+		return []AgentChannelMessageRecord{
+			agentChannelTestMessage("msg-1", contract.CoordinationMessageStatus),
+			agentChannelTestMessage("msg-2", contract.CoordinationMessageResult),
+		}, nil
+	}
+
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"ch", "recv", "builders",
+		"--wait",
+		"--limit", "2",
+		"-o", "jsonl",
+	)
+	if err != nil {
+		t.Fatalf("agh ch recv error = %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("jsonl line count = %d, want 2; output=%q", len(lines), stdout)
+	}
+	for index, line := range lines {
+		var message AgentChannelMessageRecord
+		if err := json.Unmarshal([]byte(line), &message); err != nil {
+			t.Fatalf("json.Unmarshal(line %d) error = %v", index, err)
+		}
+		if message.MessageID == "" || message.Metadata.MessageKind == "" {
+			t.Fatalf("message line %d = %#v, want populated message", index, message)
+		}
+	}
+}
+
+func TestAgentCommandsRenderHumanAndToonOutputs(t *testing.T) {
+	t.Parallel()
+
+	client := &stubClient{}
+	deps := newAgentCommandTestDeps(t, client)
+	meRecord := AgentMeRecord{
+		Self: contract.AgentIdentityPayload{
+			SessionID: "sess-agent",
+			AgentName: "coder",
+			Provider:  "test-provider",
+			Model:     "test-model",
+		},
+		Workspace: contract.AgentWorkspacePayload{ID: "ws-1", RootDir: "/workspace/project"},
+		Session: contract.AgentSessionPayload{
+			ID:        "sess-agent",
+			State:     session.StateActive,
+			CreatedAt: fixedTestNow,
+			UpdatedAt: fixedTestNow,
+		},
+	}
+	contextRecord := AgentContextRecord{
+		Self:      meRecord.Self,
+		Workspace: meRecord.Workspace,
+		Session:   meRecord.Session,
+		Provenance: contract.AgentContextProvenancePayload{
+			GeneratedAt: fixedTestNow,
+			Source:      "test",
+		},
+	}
+	channelRecord := AgentChannelRecord{
+		ID:                  "builders",
+		Channel:             "builders",
+		DisplayName:         "builders",
+		Purpose:             "task_coordination",
+		WorkspaceID:         "ws-1",
+		AllowedMessageKinds: contract.CoordinationMessageKinds(),
+	}
+	statusMessage := agentChannelTestMessage("msg-1", contract.CoordinationMessageStatus)
+	replyMessage := agentChannelTestMessage("msg-reply", contract.CoordinationMessageReply)
+
+	client.agentMeFn = func(context.Context, agentidentity.Credentials) (AgentMeRecord, error) {
+		return meRecord, nil
+	}
+	client.agentContextFn = func(context.Context, agentidentity.Credentials) (AgentContextRecord, error) {
+		return contextRecord, nil
+	}
+	client.agentChannelsFn = func(context.Context, agentidentity.Credentials) ([]AgentChannelRecord, error) {
+		return []AgentChannelRecord{channelRecord}, nil
+	}
+	client.agentChannelRecvFn = func(
+		context.Context,
+		string,
+		AgentChannelRecvQuery,
+		agentidentity.Credentials,
+	) ([]AgentChannelMessageRecord, error) {
+		return []AgentChannelMessageRecord{statusMessage}, nil
+	}
+	client.agentChannelSendFn = func(
+		context.Context,
+		string,
+		AgentChannelSendRequest,
+		agentidentity.Credentials,
+	) (AgentChannelMessageRecord, error) {
+		return statusMessage, nil
+	}
+	client.agentChannelReplyFn = func(
+		context.Context,
+		AgentChannelReplyRequest,
+		agentidentity.Credentials,
+	) (AgentChannelMessageRecord, error) {
+		return replyMessage, nil
+	}
+
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "me human", args: []string{"me", "-o", "human"}, want: "Agent"},
+		{name: "me toon", args: []string{"me", "-o", "toon"}, want: "agent_me{session_id"},
+		{name: "context human", args: []string{"me", "context", "-o", "human"}, want: `"source": "test"`},
+		{name: "context toon", args: []string{"me", "context", "-o", "toon"}, want: `"source": "test"`},
+		{name: "channels human", args: []string{"ch", "list", "-o", "human"}, want: "Agent Channels"},
+		{name: "channels toon", args: []string{"ch", "list", "-o", "toon"}, want: "agent_channels[1]"},
+		{name: "recv human", args: []string{"ch", "recv", "builders", "-o", "human"}, want: "Agent Channel Messages"},
+		{name: "recv toon", args: []string{"ch", "recv", "builders", "-o", "toon"}, want: "agent_channel_messages[1]"},
+		{
+			name: "send human",
+			args: []string{
+				"ch", "send", "builders",
+				"--body", `{"text":"ok"}`,
+				"--task-id", "task-1",
+				"--run-id", "run-1",
+				"-o", "human",
+			},
+			want: "Agent Channel Message",
+		},
+		{
+			name: "reply toon",
+			args: []string{
+				"ch", "reply",
+				"--to-message", "msg-1",
+				"--body", `{"text":"ack"}`,
+				"-o", "toon",
+			},
+			want: "agent_channel_message{message_id",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, _, err := executeRootCommand(t, deps, tt.args...)
+			if err != nil {
+				t.Fatalf("executeRootCommand(%v) error = %v", tt.args, err)
+			}
+			if !strings.Contains(stdout, tt.want) {
+				t.Fatalf("output = %q, want substring %q", stdout, tt.want)
+			}
+		})
+	}
+}
+
+func newAgentCommandTestDeps(t *testing.T, client *stubClient) commandDeps {
+	t.Helper()
+
+	client.getSessionFn = func(_ context.Context, id string) (SessionRecord, error) {
+		if id != "sess-agent" {
+			return SessionRecord{}, session.ErrSessionNotFound
+		}
+		return agentCommandSessionRecord(), nil
+	}
+	deps := newTestDeps(t, client)
+	deps.getenv = agentCommandEnv
+	return deps
+}
+
+func newMissingAgentIdentityDeps(t *testing.T, client *stubClient) commandDeps {
+	t.Helper()
+
+	client.getSessionFn = func(context.Context, string) (SessionRecord, error) {
+		t.Fatal("GetSession should not be called when agent env identity is missing")
+		return SessionRecord{}, errors.New("unexpected")
+	}
+	return newTestDeps(t, client)
+}
+
+func agentCommandEnv(key string) string {
+	switch key {
+	case agentidentity.EnvSessionID:
+		return "sess-agent"
+	case agentidentity.EnvAgent:
+		return "coder"
+	default:
+		return ""
+	}
+}
+
+func agentCommandSessionRecord() SessionRecord {
+	return SessionRecord{
+		ID:            "sess-agent",
+		Name:          "worker",
+		AgentName:     "coder",
+		Provider:      "test-provider",
+		WorkspaceID:   "ws-1",
+		WorkspacePath: "/workspace/project",
+		Channel:       "builders",
+		Type:          session.SessionTypeUser,
+		State:         session.StateActive,
+		CreatedAt:     fixedTestNow,
+		UpdatedAt:     fixedTestNow,
+	}
+}
+
+func assertAgentCredentials(t *testing.T, credentials agentidentity.Credentials) {
+	t.Helper()
+
+	if credentials.SessionID != "sess-agent" ||
+		credentials.AgentName != "coder" ||
+		credentials.WorkspaceID != "" {
+		t.Fatalf("credentials = %#v, want validated agent env identity", credentials)
+	}
+}
+
+func assertJSONKeyOrder(t *testing.T, output string, keys []string) {
+	t.Helper()
+
+	previousIndex := -1
+	for _, key := range keys {
+		index := strings.Index(output, `"`+key+`"`)
+		if index < 0 {
+			t.Fatalf("JSON output missing key %q: %s", key, output)
+		}
+		if index <= previousIndex {
+			t.Fatalf("JSON key %q appears out of order in %s", key, output)
+		}
+		previousIndex = index
+	}
+}
+
+func zeroCLICoordinationMetadata(metadata contract.CoordinationMessageMetadataPayload) bool {
+	return strings.TrimSpace(metadata.TaskID) == "" &&
+		strings.TrimSpace(metadata.RunID) == "" &&
+		strings.TrimSpace(metadata.WorkflowID) == "" &&
+		strings.TrimSpace(metadata.CoordinationChannelID) == "" &&
+		strings.TrimSpace(string(metadata.MessageKind)) == "" &&
+		strings.TrimSpace(metadata.CorrelationID) == "" &&
+		len(metadata.Ext) == 0
+}
+
+func agentChannelTestMessage(id string, kind contract.CoordinationMessageKind) AgentChannelMessageRecord {
+	return AgentChannelMessageRecord{
+		MessageID:     id,
+		ChannelID:     "builders",
+		FromSessionID: "sess-peer",
+		Body:          json.RawMessage(`{"text":"ok"}`),
+		Metadata: contract.CoordinationMessageMetadataPayload{
+			TaskID:                "task-1",
+			RunID:                 "run-1",
+			CoordinationChannelID: "builders",
+			MessageKind:           kind,
+			CorrelationID:         "run-1",
+		},
+		Timestamp: time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC),
+	}
+}

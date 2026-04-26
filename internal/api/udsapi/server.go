@@ -70,6 +70,7 @@ type Server struct {
 	settingsRestart core.SettingsRestartController
 	workspaces      core.WorkspaceService
 	agentCatalog    core.AgentCatalog
+	agentContext    core.AgentContextService
 	skillsRegistry  core.SkillsRegistry
 	memoryStore     *memory.Store
 	dreamTrigger    core.DreamTrigger
@@ -100,6 +101,7 @@ type handlerConfig struct {
 	settingsRestart core.SettingsRestartController
 	workspaces      core.WorkspaceService
 	agentCatalog    core.AgentCatalog
+	agentContext    core.AgentContextService
 	skillsRegistry  core.SkillsRegistry
 	memoryStore     *memory.Store
 	dreamTrigger    core.DreamTrigger
@@ -276,6 +278,13 @@ func WithAgentCatalog(catalog core.AgentCatalog) Option {
 	}
 }
 
+// WithAgentContext injects the bounded agent situation context service.
+func WithAgentContext(service core.AgentContextService) Option {
+	return func(server *Server) {
+		server.agentContext = service
+	}
+}
+
 // WithDreamTrigger injects the dream-consolidation trigger surfaced by the daemon.
 func WithDreamTrigger(trigger core.DreamTrigger) Option {
 	return func(server *Server) {
@@ -425,6 +434,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		settingsRestart: s.settingsRestart,
 		workspaces:      s.workspaces,
 		agentCatalog:    s.agentCatalog,
+		agentContext:    s.agentContext,
 		skillsRegistry:  s.skillsRegistry,
 		memoryStore:     s.memoryStore,
 		dreamTrigger:    s.dreamTrigger,
@@ -652,6 +662,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			SettingsRestart:              cfg.settingsRestart,
 			Workspaces:                   cfg.workspaces,
 			AgentCatalog:                 cfg.agentCatalog,
+			AgentContextService:          cfg.agentContext,
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,
 			DreamTrigger:                 cfg.dreamTrigger,

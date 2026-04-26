@@ -4690,6 +4690,10 @@ func (f *fakeNetworkRuntime) Inbox(_ context.Context, sessionID string) ([]netwo
 	return append([]network.Envelope(nil), f.inboxes[sessionID]...), nil
 }
 
+func (f *fakeNetworkRuntime) WaitInbox(ctx context.Context, sessionID string, _ string) ([]network.Envelope, error) {
+	return f.Inbox(ctx, sessionID)
+}
+
 func (f *fakeNetworkRuntime) JoinChannel(_ context.Context, join session.NetworkPeerJoin) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

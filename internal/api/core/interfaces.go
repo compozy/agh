@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
@@ -102,6 +103,12 @@ type NetworkService interface {
 	ListChannels(ctx context.Context) ([]network.ChannelInfo, error)
 	Status(ctx context.Context) (*network.Status, error)
 	Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error)
+	WaitInbox(ctx context.Context, sessionID string, channel string) ([]network.Envelope, error)
+}
+
+// AgentContextService assembles the bounded situation payload for a validated agent session.
+type AgentContextService interface {
+	ContextForSession(ctx context.Context, info *session.Info) (contract.AgentContextPayload, error)
 }
 
 // NetworkStore exposes persisted network audit, channel metadata CRUD, and timeline queries to the API layer.

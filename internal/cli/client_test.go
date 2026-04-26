@@ -66,6 +66,138 @@ func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 	}
 }
 
+func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
+	t.Parallel()
+
+	credentials := agentidentity.Credentials{
+		SessionID:   "sess-1",
+		AgentName:   "coder",
+		WorkspaceID: "ws-1",
+	}
+	metadata := contract.CoordinationMessageMetadataPayload{
+		TaskID:                "task-1",
+		RunID:                 "run-1",
+		CoordinationChannelID: "builders",
+		MessageKind:           contract.CoordinationMessageStatus,
+		CorrelationID:         "run-1",
+	}
+	var sawChannels bool
+	var sawRecv bool
+	var sawSend bool
+	var sawReply bool
+
+	client := &unixSocketClient{
+		socketPath: "/tmp/agh.sock",
+		httpClient: &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				assertAgentRequestHeaders(t, req, credentials)
+				switch {
+				case req.Method == http.MethodGet && req.URL.Path == "/api/agent/channels":
+					sawChannels = true
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"channels":[{"id":"builders","channel":"builders","display_name":"builders","workspace_id":"ws-1","allowed_message_kinds":["status","request","reply","blocker","handoff","result","review_request"]}]}`,
+					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/agent/channels/builders/recv":
+					sawRecv = true
+					if req.URL.Query().Get("wait") != "true" || req.URL.Query().Get("limit") != "3" {
+						t.Fatalf("recv query = %s, want wait=true&limit=3", req.URL.RawQuery)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"messages":[{"message_id":"msg-1","channel_id":"builders","from_session_id":"sess-peer","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}]}`,
+					), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/channels/builders/send":
+					sawSend = true
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(send body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"task_id":"task-1"`) ||
+						!strings.Contains(string(body), `"body":{"text":"ok"}`) {
+						t.Fatalf("send body = %s, want message and metadata", body)
+					}
+					return newHTTPResponse(
+						http.StatusAccepted,
+						`{"message":{"message_id":"msg-send","channel_id":"builders","from_session_id":"sess-1","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
+					), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/channels/reply":
+					sawReply = true
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatalf("io.ReadAll(reply body) error = %v", err)
+					}
+					if !strings.Contains(string(body), `"reply_to_message_id":"msg-1"`) {
+						t.Fatalf("reply body = %s, want reply_to_message_id", body)
+					}
+					return newHTTPResponse(
+						http.StatusAccepted,
+						`{"message":{"message_id":"msg-reply","channel_id":"builders","from_session_id":"sess-1","to_session_id":"sess-peer","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"reply","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
+					), nil
+				default:
+					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+					return nil, nil
+				}
+			}),
+		},
+	}
+
+	if channels, err := client.AgentChannels(context.Background(), credentials); err != nil {
+		t.Fatalf("AgentChannels() error = %v", err)
+	} else if len(channels) != 1 || channels[0].ID != "builders" {
+		t.Fatalf("AgentChannels() = %#v, want builders", channels)
+	}
+	if messages, err := client.AgentChannelRecv(
+		context.Background(),
+		"builders",
+		AgentChannelRecvQuery{Wait: true, Limit: 3},
+		credentials,
+	); err != nil {
+		t.Fatalf("AgentChannelRecv() error = %v", err)
+	} else if len(messages) != 1 || messages[0].MessageID != "msg-1" {
+		t.Fatalf("AgentChannelRecv() = %#v, want msg-1", messages)
+	}
+	if message, err := client.AgentChannelSend(context.Background(), "builders", AgentChannelSendRequest{
+		Body:     json.RawMessage(`{"text":"ok"}`),
+		Metadata: metadata,
+	}, credentials); err != nil {
+		t.Fatalf("AgentChannelSend() error = %v", err)
+	} else if message.MessageID != "msg-send" {
+		t.Fatalf("AgentChannelSend() = %#v, want msg-send", message)
+	}
+	if message, err := client.AgentChannelReply(context.Background(), AgentChannelReplyRequest{
+		ReplyToMessageID: "msg-1",
+		Body:             json.RawMessage(`{"text":"ack"}`),
+	}, credentials); err != nil {
+		t.Fatalf("AgentChannelReply() error = %v", err)
+	} else if message.MessageID != "msg-reply" {
+		t.Fatalf("AgentChannelReply() = %#v, want msg-reply", message)
+	}
+	if !sawChannels || !sawRecv || !sawSend || !sawReply {
+		t.Fatalf(
+			"method coverage channels=%t recv=%t send=%t reply=%t, want all true",
+			sawChannels,
+			sawRecv,
+			sawSend,
+			sawReply,
+		)
+	}
+}
+
+func assertAgentRequestHeaders(t *testing.T, req *http.Request, credentials agentidentity.Credentials) {
+	t.Helper()
+
+	if got := req.Header.Get(agentidentity.HeaderSessionID); got != credentials.SessionID {
+		t.Fatalf("%s = %q, want %q", agentidentity.HeaderSessionID, got, credentials.SessionID)
+	}
+	if got := req.Header.Get(agentidentity.HeaderAgent); got != credentials.AgentName {
+		t.Fatalf("%s = %q, want %q", agentidentity.HeaderAgent, got, credentials.AgentName)
+	}
+	if got := req.Header.Get(agentidentity.HeaderWorkspaceID); got != credentials.WorkspaceID {
+		t.Fatalf("%s = %q, want %q", agentidentity.HeaderWorkspaceID, got, credentials.WorkspaceID)
+	}
+}
+
 func TestUnixSocketClientMethods(t *testing.T) {
 	t.Parallel()
 

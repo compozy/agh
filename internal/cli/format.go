@@ -21,6 +21,8 @@ const (
 	OutputHuman OutputFormat = "human"
 	// OutputJSON renders raw JSON payloads.
 	OutputJSON OutputFormat = "json"
+	// OutputJSONL renders newline-delimited JSON for streaming-style commands.
+	OutputJSONL OutputFormat = "jsonl"
 	// OutputToon renders a compact LLM-friendly TOON-like text document.
 	OutputToon OutputFormat = "toon"
 )
@@ -86,6 +88,8 @@ func resolveOutputFormat(cmd *cobra.Command) (OutputFormat, error) {
 		return OutputHuman, nil
 	case OutputJSON:
 		return OutputJSON, nil
+	case OutputJSONL:
+		return OutputJSONL, nil
 	case OutputToon:
 		return OutputToon, nil
 	default:
@@ -102,6 +106,8 @@ func writeCommandOutput(cmd *cobra.Command, bundle outputBundle) error {
 	switch mode {
 	case OutputJSON:
 		return writeJSON(cmd, bundle.jsonValue)
+	case OutputJSONL:
+		return errors.New("cli: jsonl output is only supported by streaming commands")
 	case OutputToon:
 		if bundle.toon == nil {
 			return errors.New("cli: toon formatter is required")
@@ -121,6 +127,12 @@ func writeCommandOutput(cmd *cobra.Command, bundle outputBundle) error {
 		}
 		return writeRawCommandOutput(cmd, rendered)
 	}
+}
+
+func writeJSONLine(cmd *cobra.Command, value any) error {
+	encoder := json.NewEncoder(cmd.OutOrStdout())
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(value)
 }
 
 func writeJSON(cmd *cobra.Command, value any) error {

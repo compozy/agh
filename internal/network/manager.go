@@ -734,6 +734,21 @@ func (m *Manager) Inbox(ctx context.Context, sessionID string) ([]Envelope, erro
 	return m.deliveries.inbox(strings.TrimSpace(sessionID)), nil
 }
 
+// WaitInbox blocks until one or more queued inbound envelopes are available for
+// the local session, optionally filtered by channel.
+func (m *Manager) WaitInbox(ctx context.Context, sessionID string, channel string) ([]Envelope, error) {
+	if ctx == nil {
+		return nil, errors.New("network: wait inbox context is required")
+	}
+	if m == nil || m.deliveries == nil {
+		return nil, errors.New("network: delivery coordinator is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return m.deliveries.waitInbox(ctx, strings.TrimSpace(sessionID), strings.TrimSpace(channel))
+}
+
 // Shutdown drains all background work and stops the owned transport.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	if ctx == nil {

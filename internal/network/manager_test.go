@@ -486,6 +486,77 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 	})
 }
 
+func TestManagerWaitInboxWakesOnNewChannelMessage(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	prompter := newFakeDeliveryPrompter()
+	manager, err := NewManager(
+		ctx,
+		testManagerConfig(),
+		prompter,
+		filepath.Join(t.TempDir(), "network.audit"),
+		nil,
+		WithManagerLogger(discardManagerLogger()),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	if err := manager.JoinChannel(ctx, testJoinRequest("sess-a", "coder.sess-a", "builders")); err != nil {
+		t.Fatalf("JoinChannel(sess-a) error = %v", err)
+	}
+	if err := manager.JoinChannel(ctx, testJoinRequest("sess-b", "reviewer.sess-b", "builders")); err != nil {
+		t.Fatalf("JoinChannel(sess-b) error = %v", err)
+	}
+	prompter.setPrompting("sess-a", true)
+	prompter.setPrompting("sess-b", true)
+
+	waitCtx, waitCancel := context.WithTimeout(ctx, 2*time.Second)
+	defer waitCancel()
+	resultCh := make(chan []Envelope, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		messages, waitErr := manager.WaitInbox(waitCtx, "sess-b", "builders")
+		if waitErr != nil {
+			errCh <- waitErr
+			return
+		}
+		resultCh <- messages
+	}()
+
+	messageID, err := manager.Send(ctx, SendRequest{
+		SessionID: "sess-a",
+		Channel:   "builders",
+		Kind:      KindSay,
+		Body:      mustRawJSON(t, map[string]any{"text": "wake reviewer"}),
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	select {
+	case err := <-errCh:
+		t.Fatalf("WaitInbox() error = %v", err)
+	case messages := <-resultCh:
+		if len(messages) != 1 {
+			t.Fatalf("WaitInbox() len = %d, want 1", len(messages))
+		}
+		if messages[0].ID != messageID || messages[0].Channel != "builders" {
+			t.Fatalf("WaitInbox() message = %#v, want sent builders message %q", messages[0], messageID)
+		}
+	case <-waitCtx.Done():
+		t.Fatalf("WaitInbox() did not wake before timeout: %v", waitCtx.Err())
+	}
+}
+
 func TestManagerAuditsBusyQueueOverflowAsRejected(t *testing.T) {
 	t.Run("ShouldAuditBusyQueueOverflowAsRejected", func(t *testing.T) {
 		t.Parallel()

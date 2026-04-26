@@ -31,23 +31,23 @@ func StatusForAgentIdentityError(err error) int {
 
 // AgentMe returns the daemon-validated caller identity for agent-facing UDS operations.
 func (h *BaseHandlers) AgentMe(c *gin.Context) {
-	caller, ok := h.requireAgentCaller(c, agentActionMe, "")
+	caller, ok := h.requireAgentCaller(c, agentActionMe)
 	if !ok {
 		return
 	}
-	c.JSON(http.StatusOK, contract.AgentMeResponse{Me: agentMePayloadFromCaller(caller)})
+	payload := agentMePayloadFromCaller(caller)
+	h.enrichAgentMePayload(c.Request.Context(), caller, &payload)
+	c.JSON(http.StatusOK, contract.AgentMeResponse{Me: contract.NormalizeAgentMePayload(payload)})
 }
 
 func (h *BaseHandlers) requireAgentCaller(
 	c *gin.Context,
 	action string,
-	expectedWorkspaceID string,
 ) (agentidentity.Caller, bool) {
 	caller, err := h.resolveAgentCaller(
 		c.Request.Context(),
 		agentCallerCredentialsFromRequest(c),
 		action,
-		expectedWorkspaceID,
 	)
 	if err != nil {
 		h.respondError(c, StatusForAgentIdentityError(err), err)
@@ -60,17 +60,15 @@ func (h *BaseHandlers) resolveAgentCaller(
 	ctx context.Context,
 	credentials agentidentity.Credentials,
 	action string,
-	expectedWorkspaceID string,
 ) (agentidentity.Caller, error) {
 	if h == nil || h.Sessions == nil {
 		return agentidentity.Caller{}, errors.New("api: session service is not configured")
 	}
 	return agentidentity.Resolve(ctx, agentidentity.ResolveOptions{
-		Credentials:         credentials,
-		Lookup:              h.agentSessionLookup,
-		ExpectedWorkspaceID: strings.TrimSpace(expectedWorkspaceID),
-		OriginKind:          taskOriginKindForTransport(h.transportName()),
-		OriginRef:           strings.TrimSpace(action),
+		Credentials: credentials,
+		Lookup:      h.agentSessionLookup,
+		OriginKind:  taskOriginKindForTransport(h.transportName()),
+		OriginRef:   strings.TrimSpace(action),
 	})
 }
 

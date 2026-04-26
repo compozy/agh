@@ -73,6 +73,7 @@ type deliveryCoordinator struct {
 	mu       sync.Mutex
 	queues   map[string]*inboundQueue
 	inFlight map[string]queuedEnvelope
+	waiters  map[string][]chan struct{}
 
 	deliveries sync.Map
 	wg         sync.WaitGroup
@@ -172,6 +173,7 @@ func newDeliveryCoordinator(
 		scheduleRetry:  scheduleDeliveryRetry,
 		queues:         make(map[string]*inboundQueue),
 		inFlight:       make(map[string]queuedEnvelope),
+		waiters:        make(map[string][]chan struct{}),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -251,6 +253,7 @@ func (c *deliveryCoordinator) acceptOne(ctx context.Context, delivery Delivery) 
 			"queue_depth", result.Depth,
 		)
 	}
+	c.notifyWaiters(sessionID)
 
 	if !c.prompter.IsPrompting(sessionID) {
 		c.trigger(sessionID)
@@ -284,6 +287,53 @@ func (c *deliveryCoordinator) inbox(sessionID string) []Envelope {
 	return queue.snapshot()
 }
 
+func (c *deliveryCoordinator) waitInbox(
+	ctx context.Context,
+	sessionID string,
+	channel string,
+) ([]Envelope, error) {
+	if ctx == nil {
+		return nil, errors.New("network: wait inbox context is required")
+	}
+	if c == nil {
+		return nil, errors.New("network: delivery coordinator is required")
+	}
+
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return nil, fmt.Errorf("%w: delivery session id is required", ErrMissingField)
+	}
+	channel = strings.TrimSpace(channel)
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if err := c.lifecycleCtx.Err(); err != nil {
+			return nil, err
+		}
+		if messages := filterInboxByChannel(c.inbox(target), channel); len(messages) > 0 {
+			return messages, nil
+		}
+
+		waiter := c.registerWaiter(target)
+		if messages := filterInboxByChannel(c.inbox(target), channel); len(messages) > 0 {
+			c.unregisterWaiter(target, waiter)
+			return messages, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			c.unregisterWaiter(target, waiter)
+			return nil, ctx.Err()
+		case <-c.lifecycleCtx.Done():
+			c.unregisterWaiter(target, waiter)
+			return nil, c.lifecycleCtx.Err()
+		case <-waiter:
+		}
+	}
+}
+
 func (c *deliveryCoordinator) queueDepth(sessionID string) int {
 	if c == nil {
 		return 0
@@ -298,6 +348,20 @@ func (c *deliveryCoordinator) queueDepth(sessionID string) int {
 	return queue.len()
 }
 
+func filterInboxByChannel(envelopes []Envelope, channel string) []Envelope {
+	channel = strings.TrimSpace(channel)
+	if channel == "" {
+		return envelopes
+	}
+	filtered := make([]Envelope, 0, len(envelopes))
+	for _, envelope := range envelopes {
+		if strings.TrimSpace(envelope.Channel) == channel {
+			filtered = append(filtered, envelope)
+		}
+	}
+	return filtered
+}
+
 func (c *deliveryCoordinator) dropSession(sessionID string) {
 	if c == nil {
 		return
@@ -305,7 +369,53 @@ func (c *deliveryCoordinator) dropSession(sessionID string) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.queues, strings.TrimSpace(sessionID))
+	target := strings.TrimSpace(sessionID)
+	delete(c.queues, target)
+	waiters := c.waiters[target]
+	delete(c.waiters, target)
+	for _, waiter := range waiters {
+		close(waiter)
+	}
+}
+
+func (c *deliveryCoordinator) registerWaiter(sessionID string) chan struct{} {
+	waiter := make(chan struct{})
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	target := strings.TrimSpace(sessionID)
+	c.waiters[target] = append(c.waiters[target], waiter)
+	return waiter
+}
+
+func (c *deliveryCoordinator) unregisterWaiter(sessionID string, waiter chan struct{}) {
+	if waiter == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	target := strings.TrimSpace(sessionID)
+	waiters := c.waiters[target]
+	for index, candidate := range waiters {
+		if candidate != waiter {
+			continue
+		}
+		c.waiters[target] = append(waiters[:index], waiters[index+1:]...)
+		if len(c.waiters[target]) == 0 {
+			delete(c.waiters, target)
+		}
+		return
+	}
+}
+
+func (c *deliveryCoordinator) notifyWaiters(sessionID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	target := strings.TrimSpace(sessionID)
+	waiters := c.waiters[target]
+	delete(c.waiters, target)
+	for _, waiter := range waiters {
+		close(waiter)
+	}
 }
 
 func (c *deliveryCoordinator) wait() {

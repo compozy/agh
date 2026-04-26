@@ -85,7 +85,8 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().StringP(outputFlagName, "o", string(OutputHuman), "Output format: human, json, or toon")
+	cmd.PersistentFlags().
+		StringP(outputFlagName, "o", string(OutputHuman), "Output format: human, json, jsonl, or toon")
 
 	cmd.AddCommand(newVersionCommand())
 	cmd.AddCommand(newInstallCommand(deps))
@@ -94,6 +95,8 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newUninstallCommand(deps))
 	cmd.AddCommand(newDaemonCommand(deps))
 	cmd.AddCommand(newNetworkCommand(deps))
+	cmd.AddCommand(newMeCommand(deps))
+	cmd.AddCommand(newChannelCommand(deps))
 	cmd.AddCommand(newSessionCommand(deps))
 	cmd.AddCommand(newBridgeCommand(deps))
 	cmd.AddCommand(newWorkspaceCommand(deps))

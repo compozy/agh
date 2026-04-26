@@ -853,6 +853,7 @@ type StubNetworkService struct {
 	ListChannelsFn func(context.Context) ([]network.ChannelInfo, error)
 	StatusFn       func(context.Context) (*network.Status, error)
 	InboxFn        func(context.Context, string) ([]network.Envelope, error)
+	WaitInboxFn    func(context.Context, string, string) ([]network.Envelope, error)
 }
 
 type StubNetworkStore struct {
@@ -897,6 +898,17 @@ func (s StubNetworkService) Inbox(ctx context.Context, sessionID string) ([]netw
 		return s.InboxFn(ctx, sessionID)
 	}
 	return nil, nil
+}
+
+func (s StubNetworkService) WaitInbox(
+	ctx context.Context,
+	sessionID string,
+	channel string,
+) ([]network.Envelope, error) {
+	if s.WaitInboxFn != nil {
+		return s.WaitInboxFn(ctx, sessionID, channel)
+	}
+	return s.Inbox(ctx, sessionID)
 }
 
 func (s StubNetworkStore) ListNetworkAudit(
