@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -155,7 +156,7 @@ func (h *BaseHandlers) agentCoordinatorConfigPayload(
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	cfg, err := h.CoordinatorConfig.ResolveCoordinatorConfig(ctx, trimmedWorkspaceID)
 	if err != nil {
-		return contract.CoordinatorConfigPayload{}, err
+		return contract.CoordinatorConfigPayload{}, fmt.Errorf("resolve coordinator config: %w", err)
 	}
 	source := contract.CoordinatorConfigSourceGlobal
 	if trimmedWorkspaceID != "" {

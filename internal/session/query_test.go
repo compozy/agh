@@ -577,6 +577,7 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 		Name:         "stored",
 		AgentName:    "coder",
 		Provider:     "codex",
+		Model:        "  gpt-4o  ",
 		WorkspaceID:  "ws-1",
 		State:        string(StateStopped),
 		StopReason:   &stopReason,
@@ -590,6 +591,9 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	}
 	if got := info.Provider; got != "codex" {
 		t.Fatalf("sessionInfoFromMeta().Provider = %q, want %q", got, "codex")
+	}
+	if got := info.Model; got != "gpt-4o" {
+		t.Fatalf("sessionInfoFromMeta().Model = %q, want %q", got, "gpt-4o")
 	}
 	if got := info.State; got != StateStopped {
 		t.Fatalf("sessionInfoFromMeta().State = %q, want %q", got, StateStopped)

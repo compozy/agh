@@ -596,12 +596,11 @@ func (o *Observer) validateObservedEvent(
 }
 
 func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string) (observedSession, bool) {
+	requireObserverContext(ctx, "recoverSessionSnapshot")
+
 	id := strings.TrimSpace(sessionID)
 	if id == "" {
 		return observedSession{}, false
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 
 	if o.sessionSource != nil {
@@ -628,7 +627,9 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 			continue
 		}
 		snapshot := o.observedSessionSnapshot(ctx, id, info.AgentName, info.WorkspaceID)
-		o.trackSession(id, snapshot)
+		if strings.TrimSpace(info.State) != string(session.StateStopped) {
+			o.trackSession(id, snapshot)
+		}
 		return snapshot, true
 	}
 	return observedSession{}, false
@@ -640,12 +641,11 @@ func (o *Observer) observedSessionSnapshot(
 	agentName string,
 	workspaceID string,
 ) observedSession {
+	requireObserverContext(ctx, "observedSessionSnapshot")
+
 	snapshot := observedSession{
 		agentName:   strings.TrimSpace(agentName),
 		workspaceID: strings.TrimSpace(workspaceID),
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	if o.resolvePermissionMode == nil {
 		return snapshot
@@ -667,6 +667,12 @@ func (o *Observer) observedSessionSnapshot(
 	}
 	snapshot.permissionMode = strings.TrimSpace(permissionMode)
 	return snapshot
+}
+
+func requireObserverContext(ctx context.Context, caller string) {
+	if ctx == nil {
+		panic("observe: nil context passed to " + caller)
+	}
 }
 
 func observedEventTimestamp(event acp.AgentEvent, now func() time.Time) time.Time {

@@ -726,10 +726,12 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	prompter := newFakeDeliveryPrompter()
+	cfg := testManagerConfig()
+	cfg.GreetInterval = 3600
 
 	manager, err := NewManager(
 		ctx,
-		testManagerConfig(),
+		cfg,
 		prompter,
 		filepath.Join(t.TempDir(), "network.audit"),
 		nil,

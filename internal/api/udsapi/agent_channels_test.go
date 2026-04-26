@@ -72,47 +72,51 @@ func TestAgentContextReturnsSituationPayload(t *testing.T) {
 func TestAgentCoordinatorConfigRouteReturnsResolvedPayload(t *testing.T) {
 	t.Parallel()
 
-	manager := activeAgentSessionManager(t)
-	handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
-	handlers.CoordinatorConfig = agentCoordinatorConfigResolverFunc(
-		func(_ context.Context, workspaceID string) (aghconfig.CoordinatorConfig, error) {
-			if workspaceID != "ws-1" {
-				t.Fatalf("ResolveCoordinatorConfig() workspaceID = %q, want ws-1", workspaceID)
-			}
-			return aghconfig.CoordinatorConfig{
-				Enabled:               true,
-				AgentName:             "coordinator",
-				Provider:              "codex",
-				Model:                 "gpt-4o",
-				DefaultTTL:            45 * time.Minute,
-				MaxChildren:           5,
-				MaxActivePerWorkspace: 1,
-			}, nil
-		},
-	)
-	engine := newTestRouter(t, handlers)
+	t.Run("Should return resolved workspace coordinator payload", func(t *testing.T) {
+		t.Parallel()
 
-	recorder := performAgentKernelRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/api/agent/coordinator/config",
-		nil,
-		agentKernelHeaders(),
-	)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
+		manager := activeAgentSessionManager(t)
+		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+		handlers.CoordinatorConfig = agentCoordinatorConfigResolverFunc(
+			func(_ context.Context, workspaceID string) (aghconfig.CoordinatorConfig, error) {
+				if workspaceID != "ws-1" {
+					t.Fatalf("ResolveCoordinatorConfig() workspaceID = %q, want ws-1", workspaceID)
+				}
+				return aghconfig.CoordinatorConfig{
+					Enabled:               true,
+					AgentName:             "coordinator",
+					Provider:              "codex",
+					Model:                 "gpt-4o",
+					DefaultTTL:            45 * time.Minute,
+					MaxChildren:           5,
+					MaxActivePerWorkspace: 1,
+				}, nil
+			},
+		)
+		engine := newTestRouter(t, handlers)
 
-	var response contract.AgentCoordinatorConfigResponse
-	decodeJSONResponse(t, recorder, &response)
-	if !response.Coordinator.Enabled ||
-		response.Coordinator.AgentName != "coordinator" ||
-		response.Coordinator.DefaultTTLSeconds != 2700 ||
-		response.Coordinator.Source != contract.CoordinatorConfigSourceWorkspace ||
-		response.Coordinator.WorkspaceID != "ws-1" {
-		t.Fatalf("coordinator = %#v, want workspace coordinator payload", response.Coordinator)
-	}
+		recorder := performAgentKernelRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/agent/coordinator/config",
+			nil,
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		var response contract.AgentCoordinatorConfigResponse
+		decodeJSONResponse(t, recorder, &response)
+		if !response.Coordinator.Enabled ||
+			response.Coordinator.AgentName != "coordinator" ||
+			response.Coordinator.DefaultTTLSeconds != 2700 ||
+			response.Coordinator.Source != contract.CoordinatorConfigSourceWorkspace ||
+			response.Coordinator.WorkspaceID != "ws-1" {
+			t.Fatalf("coordinator = %#v, want workspace coordinator payload", response.Coordinator)
+		}
+	})
 }
 
 func TestAgentChannelSendUsesCallerIdentityAndRejectsRawClaimToken(t *testing.T) {

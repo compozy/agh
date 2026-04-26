@@ -122,7 +122,7 @@ func defaultTaskRunHooks(hooks RunHookDispatcher) RunHookDispatcher {
 
 func taskRunObservationHookContext(ctx context.Context) context.Context {
 	if ctx == nil {
-		return context.Background()
+		return context.TODO()
 	}
 	return context.WithoutCancel(ctx)
 }

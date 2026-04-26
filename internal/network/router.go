@@ -613,6 +613,10 @@ func (r *Router) handleWhoisRequest(
 	now time.Time,
 ) (RouteResult, error) {
 	discoveryRequest := parseWhoisCapabilityDiscoveryRequest(envelope.Ext)
+	if envelope.IsDirected() && hasDirectedTarget && isEnvelopeSender(directedTarget, envelope) {
+		result.Ignored = true
+		return result, nil
+	}
 	responders := r.whoisRequestResponders(envelope, whois, directedTarget, hasDirectedTarget)
 
 	for _, responder := range responders {

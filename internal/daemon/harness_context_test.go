@@ -95,7 +95,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			},
 		},
 		{
-			name: "coordinator startup session resolves coordinator policy",
+			name: "Should resolve coordinator policy for coordinator startup session",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceStartup,
 				Session: HarnessSessionInput{
@@ -125,7 +125,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			},
 		},
 		{
-			name: "spawned worker network turn resolves spawned policy",
+			name: "Should resolve spawned policy for spawned worker network turn",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{
@@ -417,44 +417,48 @@ func TestSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testi
 func TestSectionSelectorAcceptsCoordinatorStartupSession(t *testing.T) {
 	t.Parallel()
 
-	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled: true,
-		SkillsPromptSectionEnabled: true,
+	t.Run("Should select coordinator startup sections", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+			MemoryPromptSectionEnabled: true,
+			SkillsPromptSectionEnabled: true,
+		})
+		selector := NewSectionSelector(resolver, nil)
+		descriptors := defaultStartupPromptSectionDescriptors(
+			promptSectionProviderFunc(
+				func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "memory", nil },
+			),
+			promptSectionProviderFunc(
+				func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "skills", nil },
+			),
+			nil,
+		)
+
+		selected, resolved, err := selector.Select(session.StartupPromptContext{
+			SessionType: session.SessionTypeCoordinator,
+			Channel:     "coord-run-1",
+		}, descriptors)
+		if err != nil {
+			t.Fatalf("Select(coordinator) error = %v", err)
+		}
+
+		if resolved.Session.SessionClass != SessionClassCoordinator {
+			t.Fatalf("SessionClass = %q, want %q", resolved.Session.SessionClass, SessionClassCoordinator)
+		}
+		wantNames := []string{
+			string(HarnessPromptSectionMemory),
+			string(HarnessPromptSectionSkills),
+			string(HarnessPromptSectionNetwork),
+		}
+		gotNames := make([]string, 0, len(selected))
+		for _, descriptor := range selected {
+			gotNames = append(gotNames, descriptor.Name)
+		}
+		if !slices.Equal(gotNames, wantNames) {
+			t.Fatalf("selected section names = %#v, want %#v", gotNames, wantNames)
+		}
 	})
-	selector := NewSectionSelector(resolver, nil)
-	descriptors := defaultStartupPromptSectionDescriptors(
-		promptSectionProviderFunc(
-			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "memory", nil },
-		),
-		promptSectionProviderFunc(
-			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "skills", nil },
-		),
-		nil,
-	)
-
-	selected, resolved, err := selector.Select(session.StartupPromptContext{
-		SessionType: session.SessionTypeCoordinator,
-		Channel:     "coord-run-1",
-	}, descriptors)
-	if err != nil {
-		t.Fatalf("Select(coordinator) error = %v", err)
-	}
-
-	if resolved.Session.SessionClass != SessionClassCoordinator {
-		t.Fatalf("SessionClass = %q, want %q", resolved.Session.SessionClass, SessionClassCoordinator)
-	}
-	wantNames := []string{
-		string(HarnessPromptSectionMemory),
-		string(HarnessPromptSectionSkills),
-		string(HarnessPromptSectionNetwork),
-	}
-	gotNames := make([]string, 0, len(selected))
-	for _, descriptor := range selected {
-		gotNames = append(gotNames, descriptor.Name)
-	}
-	if !slices.Equal(gotNames, wantNames) {
-		t.Fatalf("selected section names = %#v, want %#v", gotNames, wantNames)
-	}
 }
 
 func TestHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {

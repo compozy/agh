@@ -440,11 +440,31 @@ func TestMatcherFieldAllowedForEvent(t *testing.T) {
 		field string
 		want  bool
 	}{
-		{name: "session workspace root", event: HookSessionPostCreate, field: "workspace_root", want: true},
-		{name: "task run workspace id", event: HookTaskRunEnqueued, field: "workspace_id", want: true},
-		{name: "task run workspace root", event: HookTaskRunEnqueued, field: "workspace_root", want: false},
-		{name: "message workspace id", event: HookMessageDelta, field: "workspace_id", want: false},
-		{name: "invalid event", event: HookEvent("bad.event"), field: "workspace_id", want: false},
+		{
+			name:  "Should allow workspace root for session post-create hook",
+			event: HookSessionPostCreate,
+			field: "workspace_root",
+			want:  true,
+		},
+		{
+			name:  "Should allow workspace id for task-run enqueued hook",
+			event: HookTaskRunEnqueued,
+			field: "workspace_id",
+			want:  true,
+		},
+		{
+			name:  "Should deny workspace root for task-run enqueued hook",
+			event: HookTaskRunEnqueued,
+			field: "workspace_root",
+			want:  false,
+		},
+		{
+			name:  "Should deny workspace id for message delta hook",
+			event: HookMessageDelta,
+			field: "workspace_id",
+			want:  false,
+		},
+		{name: "Should deny invalid event", event: HookEvent("bad.event"), field: "workspace_id", want: false},
 	}
 
 	for _, tt := range tests {

@@ -526,11 +526,12 @@ func coordinationChannelMatches(work *RunSnapshot, candidate SessionSnapshot) bo
 	if work == nil {
 		return false
 	}
+	runChannel := strings.TrimSpace(work.Run.CoordinationChannelID)
 	sessionChannel := strings.TrimSpace(candidate.Channel)
-	if sessionChannel == "" {
+	if runChannel == "" {
 		return true
 	}
-	return strings.TrimSpace(work.Run.CoordinationChannelID) == sessionChannel
+	return sessionChannel == runChannel
 }
 
 func scopeMatches(task taskpkg.Task, candidate SessionSnapshot) bool {

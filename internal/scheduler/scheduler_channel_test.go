@@ -88,4 +88,39 @@ func TestRunOnceHonorsCoordinationChannel(t *testing.T) {
 			t.Fatalf("wake targets = %d, want 0", got)
 		}
 	})
+
+	t.Run(
+		"Should record no match when only unscoped sessions are available for channel-bound work",
+		func(t *testing.T) {
+			t.Parallel()
+
+			base := time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)
+			work := workSnapshot("task-1", "run-1", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+			work.Run.CoordinationChannelID = "finance"
+			source := &fakeTaskSource{pending: []RunSnapshot{work}}
+			sessions := &fakeSessionSource{sessions: []SessionSnapshot{
+				{
+					ID:           "sess-unscoped",
+					WorkspaceID:  "ws-1",
+					Channel:      "",
+					State:        "active",
+					Capabilities: []string{"go"},
+					CreatedAt:    base,
+				},
+			}}
+			waker := &fakeWaker{}
+			scheduler := newTestScheduler(t, source, sessions, waker, WithClock(clockwork.NewFakeClockAt(base)))
+
+			result, err := scheduler.RunOnce(testutil.Context(t))
+			if err != nil {
+				t.Fatalf("RunOnce() error = %v", err)
+			}
+			if result.WakeAttempts != 0 || result.NoMatchRuns != 1 {
+				t.Fatalf("result = %#v, want one no-match and no wake attempts", result)
+			}
+			if got := len(waker.targetsSnapshot()); got != 0 {
+				t.Fatalf("wake targets = %d, want 0", got)
+			}
+		},
+	)
 }

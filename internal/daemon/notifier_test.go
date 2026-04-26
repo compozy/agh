@@ -412,61 +412,104 @@ func TestHooksBridgeHelperCloningAndTimestamp(t *testing.T) {
 func TestScopeWorkspaceHookDeclsOnlyInjectsSupportedMatcherFields(t *testing.T) {
 	t.Parallel()
 
-	resolved := workspaceResolvedForTest("ws-1", "/tmp/ws-1")
-	decls := []hookspkg.HookDecl{
-		{
-			Name:  "session",
-			Event: hookspkg.HookSessionPostCreate,
-		},
-		{
-			Name:  "task-run",
-			Event: hookspkg.HookTaskRunEnqueued,
-		},
-		{
-			Name:  "message",
-			Event: hookspkg.HookMessageDelta,
-		},
-	}
-
-	scoped := scopeWorkspaceHookDecls(decls, &resolved)
-	if len(scoped) != len(decls) {
-		t.Fatalf("len(scoped) = %d, want %d", len(scoped), len(decls))
-	}
-
-	if scoped[0].Matcher.WorkspaceID != resolved.ID {
-		t.Fatalf("session WorkspaceID = %q, want %q", scoped[0].Matcher.WorkspaceID, resolved.ID)
-	}
-	if scoped[0].Matcher.WorkspaceRoot != resolved.RootDir {
-		t.Fatalf("session WorkspaceRoot = %q, want %q", scoped[0].Matcher.WorkspaceRoot, resolved.RootDir)
-	}
-	if err := hookspkg.ValidateMatcherForEvent(scoped[0].Event, scoped[0].Matcher); err != nil {
-		t.Fatalf("session matcher validation error = %v", err)
-	}
-
-	if scoped[1].Matcher.WorkspaceID != resolved.ID {
-		t.Fatalf("task-run WorkspaceID = %q, want %q", scoped[1].Matcher.WorkspaceID, resolved.ID)
-	}
-	if scoped[1].Matcher.WorkspaceRoot != "" {
-		t.Fatalf(
-			"task-run WorkspaceRoot = %q, want empty because task-run hooks do not support it",
-			scoped[1].Matcher.WorkspaceRoot,
-		)
-	}
-	if err := hookspkg.ValidateMatcherForEvent(scoped[1].Event, scoped[1].Matcher); err != nil {
-		t.Fatalf("task-run matcher validation error = %v", err)
-	}
-
-	if scoped[2].Matcher.WorkspaceID != "" || scoped[2].Matcher.WorkspaceRoot != "" {
-		t.Fatalf("message matcher workspace fields = %#v, want no unsupported workspace scoping", scoped[2].Matcher)
-	}
-	if err := hookspkg.ValidateMatcherForEvent(scoped[2].Event, scoped[2].Matcher); err != nil {
-		t.Fatalf("message matcher validation error = %v", err)
-	}
-
-	for idx, decl := range decls {
-		if decl.Matcher.WorkspaceID != "" || decl.Matcher.WorkspaceRoot != "" {
-			t.Fatalf("decls[%d] matcher workspace fields were mutated: %#v", idx, decl.Matcher)
+	newDecls := func() []hookspkg.HookDecl {
+		return []hookspkg.HookDecl{
+			{
+				Name:  "session",
+				Event: hookspkg.HookSessionPostCreate,
+			},
+			{
+				Name:  "task-run",
+				Event: hookspkg.HookTaskRunEnqueued,
+			},
+			{
+				Name:  "message",
+				Event: hookspkg.HookMessageDelta,
+			},
 		}
+	}
+	resolved := workspaceResolvedForTest("ws-1", "/tmp/ws-1")
+
+	testCases := []struct {
+		name   string
+		assert func(t *testing.T, decls []hookspkg.HookDecl, scoped []hookspkg.HookDecl)
+	}{
+		{
+			name: "Should inject workspace id and root for session hooks",
+			assert: func(t *testing.T, _ []hookspkg.HookDecl, scoped []hookspkg.HookDecl) {
+				t.Helper()
+
+				if scoped[0].Matcher.WorkspaceID != resolved.ID {
+					t.Fatalf("session WorkspaceID = %q, want %q", scoped[0].Matcher.WorkspaceID, resolved.ID)
+				}
+				if scoped[0].Matcher.WorkspaceRoot != resolved.RootDir {
+					t.Fatalf("session WorkspaceRoot = %q, want %q", scoped[0].Matcher.WorkspaceRoot, resolved.RootDir)
+				}
+				if err := hookspkg.ValidateMatcherForEvent(scoped[0].Event, scoped[0].Matcher); err != nil {
+					t.Fatalf("session matcher validation error = %v", err)
+				}
+			},
+		},
+		{
+			name: "Should inject only workspace id for task-run hooks",
+			assert: func(t *testing.T, _ []hookspkg.HookDecl, scoped []hookspkg.HookDecl) {
+				t.Helper()
+
+				if scoped[1].Matcher.WorkspaceID != resolved.ID {
+					t.Fatalf("task-run WorkspaceID = %q, want %q", scoped[1].Matcher.WorkspaceID, resolved.ID)
+				}
+				if scoped[1].Matcher.WorkspaceRoot != "" {
+					t.Fatalf(
+						"task-run WorkspaceRoot = %q, want empty because task-run hooks do not support it",
+						scoped[1].Matcher.WorkspaceRoot,
+					)
+				}
+				if err := hookspkg.ValidateMatcherForEvent(scoped[1].Event, scoped[1].Matcher); err != nil {
+					t.Fatalf("task-run matcher validation error = %v", err)
+				}
+			},
+		},
+		{
+			name: "Should not inject workspace fields for message hooks",
+			assert: func(t *testing.T, _ []hookspkg.HookDecl, scoped []hookspkg.HookDecl) {
+				t.Helper()
+
+				if scoped[2].Matcher.WorkspaceID != "" || scoped[2].Matcher.WorkspaceRoot != "" {
+					t.Fatalf(
+						"message matcher workspace fields = %#v, want no unsupported workspace scoping",
+						scoped[2].Matcher,
+					)
+				}
+				if err := hookspkg.ValidateMatcherForEvent(scoped[2].Event, scoped[2].Matcher); err != nil {
+					t.Fatalf("message matcher validation error = %v", err)
+				}
+			},
+		},
+		{
+			name: "Should not mutate original declarations",
+			assert: func(t *testing.T, decls []hookspkg.HookDecl, _ []hookspkg.HookDecl) {
+				t.Helper()
+
+				for idx, decl := range decls {
+					if decl.Matcher.WorkspaceID != "" || decl.Matcher.WorkspaceRoot != "" {
+						t.Fatalf("decls[%d] matcher workspace fields were mutated: %#v", idx, decl.Matcher)
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			decls := newDecls()
+			scoped := scopeWorkspaceHookDecls(decls, &resolved)
+			if len(scoped) != len(decls) {
+				t.Fatalf("len(scoped) = %d, want %d", len(scoped), len(decls))
+			}
+			tc.assert(t, decls, scoped)
+		})
 	}
 }
 
