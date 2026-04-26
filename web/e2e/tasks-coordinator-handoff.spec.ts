@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { sessionLifecycleSelectors, tasksOperatorSelectors } from "./fixtures/selectors";
 import { seedBrowserTasksOperatorFlow } from "./fixtures/runtime";
 import { expect, test } from "./fixtures/test";
+import { useGlobalWorkspaceIfPrompted } from "./fixtures/workspace";
 
 /**
  * ADR-010 (manual operator control) and ADR-012 (task-run coordination
@@ -55,9 +56,7 @@ test("creating a task is saved intent — no run is enqueued and labels never im
 }) => {
   const tasksUI = tasksOperatorSelectors(appPage);
 
-  if (await tasksUI.workspaceOnboarding.isVisible()) {
-    await tasksUI.workspaceUseGlobal.click();
-  }
+  await useGlobalWorkspaceIfPrompted(tasksUI);
 
   await expect(tasksUI.navTasks).toBeVisible();
   await tasksUI.navTasks.click();
@@ -116,9 +115,7 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
 }) => {
   const tasksUI = tasksOperatorSelectors(appPage);
 
-  if (await tasksUI.workspaceOnboarding.isVisible()) {
-    await tasksUI.workspaceUseGlobal.click();
-  }
+  await useGlobalWorkspaceIfPrompted(tasksUI);
 
   await tasksUI.navTasks.click();
   await tasksUI.openCreate.click();
@@ -186,9 +183,7 @@ test("approving an agent-created approval task is the coordinator-handoff bounda
     sessionAgentName: handoffAgentName,
   });
 
-  if (await tasksUI.workspaceOnboarding.isVisible()) {
-    await tasksUI.workspaceUseGlobal.click();
-  }
+  await useGlobalWorkspaceIfPrompted(tasksUI);
 
   await tasksUI.navTasks.click();
   await expect(appPage).toHaveURL(/\/tasks$/);
@@ -237,9 +232,7 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   const tasksUI = tasksOperatorSelectors(appPage);
   const sessionUI = sessionLifecycleSelectors(appPage);
 
-  if (await tasksUI.workspaceOnboarding.isVisible()) {
-    await tasksUI.workspaceUseGlobal.click();
-  }
+  await useGlobalWorkspaceIfPrompted(tasksUI);
 
   await expect(sessionUI.appSidebar).toBeVisible();
 
@@ -247,11 +240,27 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   await expect(newSessionButton).toBeVisible();
   await newSessionButton.click();
 
+  await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
+  await expect(appPage.getByTestId("session-create-agent-select")).toHaveValue(handoffAgentName);
+
+  const createResponsePromise = appPage.waitForResponse(response => {
+    return response.request().method() === "POST" && response.url().endsWith("/api/sessions");
+  });
+  await appPage.getByTestId("session-create-dialog-submit").click();
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBeTruthy();
+
+  await expect.poll(() => new URL(appPage.url()).pathname).toMatch(/^\/session\/[^/]+$/);
+  const sessionId = new URL(appPage.url()).pathname.replace(/^\/session\//, "");
+
   await expect(sessionUI.chatHeader).toBeVisible();
-  await expect.poll(() => new URL(appPage.url()).pathname).toMatch(/^\/session\//);
 
   const sessions = await runtime.requestJSON<{
     sessions: Array<{ id: string; agent_name: string; state?: string }>;
   }>("/api/sessions");
-  expect(sessions.sessions.some(session => session.agent_name === handoffAgentName)).toBe(true);
+  expect(
+    sessions.sessions.some(
+      session => session.id === sessionId && session.agent_name === handoffAgentName
+    )
+  ).toBe(true);
 });

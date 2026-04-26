@@ -14,6 +14,11 @@ import (
 
 const FixtureVersion = 2
 
+const (
+	aghSituationContextOpen  = "<agh-situation-context>"
+	aghSituationContextClose = "</agh-situation-context>"
+)
+
 type StepKind string
 
 const (
@@ -314,7 +319,7 @@ func (m TurnMatch) matches(input turnMatchInput, occurrence int) bool {
 	if normalized.TurnSource != "" && input.Meta.Normalize().TurnSource != normalized.TurnSource {
 		return false
 	}
-	if normalized.UserText != "" && strings.TrimSpace(input.UserText) != normalized.UserText {
+	if normalized.UserText != "" && canonicalUserText(input.UserText) != normalized.UserText {
 		return false
 	}
 	if normalized.Network != nil {
@@ -326,6 +331,20 @@ func (m TurnMatch) matches(input turnMatchInput, occurrence int) bool {
 		}
 	}
 	return true
+}
+
+func canonicalUserText(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if !strings.HasPrefix(trimmed, aghSituationContextOpen) {
+		return trimmed
+	}
+
+	_, after, ok := strings.Cut(trimmed, aghSituationContextClose)
+	if !ok {
+		return trimmed
+	}
+
+	return strings.TrimSpace(after)
 }
 
 // Normalize returns a trimmed copy of the network matcher.

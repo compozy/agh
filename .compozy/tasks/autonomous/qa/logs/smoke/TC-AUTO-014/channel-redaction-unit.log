@@ -1,0 +1,4 @@
+ok  	github.com/pedronauck/agh/internal/api/udsapi	0.276s
+ok  	github.com/pedronauck/agh/internal/api/core	0.060s
+ok  	github.com/pedronauck/agh/internal/cli	0.124s
+ok  	github.com/pedronauck/agh/internal/api/contract	0.032s

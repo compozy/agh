@@ -1,0 +1,45 @@
+(node:92981) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:92981) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2mRunning [22m4[2m tests using [22m1[2m worker[22m
+
+(node:92985) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:92985) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [32m✓[39m  [2m1 [22me2e/tasks-coordinator-handoff.spec.ts:53:1 › creating a task is saved intent — no run is enqueued and labels never imply autonomy[2m (7.7s)[22m
+  [32m✓[39m  [2m2 [22me2e/tasks-coordinator-handoff.spec.ts:112:1 › publishing a draft hands off to the coordinator and binds a coordination channel[2m (2.4s)[22m
+  [32m✓[39m  [2m3 [22me2e/tasks-coordinator-handoff.spec.ts:176:1 › approving an agent-created approval task is the coordinator-handoff boundary, not creation[2m (1.8s)[22m
+  [31m✘[39m  [2m4 [22m[31me2e/tasks-coordinator-handoff.spec.ts:228:1 › starting a manual session is unaffected by task autonomy labels[39m[2m (5.9s)[22m
+
+
+[31m  1) e2e/tasks-coordinator-handoff.spec.ts:228:1 › starting a manual session is unaffected by task autonomy labels [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('chat-header')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('chat-header')[22m
+
+
+      241 |   await newSessionButton.click();
+      242 |
+    > 243 |   await expect(sessionUI.chatHeader).toBeVisible();
+          |                                      ^
+      244 |   await expect.poll(() => new URL(appPage.url()).pathname).toMatch(/^\/session\//);
+      245 |
+      246 |   const sessions = await runtime.requestJSON<{
+    [2m    at /Users/pedronauck/Dev/compozy/agh/web/e2e/tasks-coordinator-handoff.spec.ts:243:38[22m
+
+[2m    Error Context: ../.tmp/playwright/test-results/tasks-coordinator-handoff--ab2ad-ted-by-task-autonomy-labels/error-context.md[22m
+
+[31m  1 failed[39m
+[31m    e2e/tasks-coordinator-handoff.spec.ts:228:1 › starting a manual session is unaffected by task autonomy labels [39m
+[32m  3 passed[39m[2m (18.4s)[22m

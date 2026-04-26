@@ -331,6 +331,25 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		t.Fatalf("alpha.SelectTurn(missing) error = %v, want no-match error", err)
 	}
 
+	augmentedPrompt := strings.Join([]string{
+		"<agh-situation-context>",
+		`{"self":{"session_id":"sess_123","agent_name":"alpha"}}`,
+		"</agh-situation-context>",
+		"",
+		"hello alpha",
+	}, "\n")
+	turn, err := alpha.SelectTurn(
+		augmentedPrompt,
+		1,
+		acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+	)
+	if err != nil {
+		t.Fatalf("alpha.SelectTurn(augmented prompt) error = %v", err)
+	}
+	if got, want := turn.Name, "alpha-hello"; got != want {
+		t.Fatalf("augmented turn.Name = %q, want %q", got, want)
+	}
+
 	networkFixture, err := LoadFixture(filepath.Join("testdata", "network_collaboration_fixture.json"))
 	if err != nil {
 		t.Fatalf("LoadFixture(network) error = %v", err)
@@ -339,7 +358,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fixture.Agent(ops-coordinator) error = %v", err)
 	}
-	turn, err := ops.SelectTurn("", 2, acp.PromptMeta{
+	turn, err = ops.SelectTurn("", 2, acp.PromptMeta{
 		TurnSource: acp.PromptTurnSourceNetwork,
 		Network: &acp.PromptNetworkMeta{
 			MessageID:   "msg_direct_01",

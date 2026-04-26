@@ -1,0 +1,100 @@
+(node:83092) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:83092) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2mRunning [22m4[2m tests using [22m1[2m worker[22m
+
+(node:83115) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:83115) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [31m✘[39m  [2m1 [22m[31me2e/tasks-coordinator-handoff.spec.ts:52:1 › creating a task is saved intent — no run is enqueued and labels never imply autonomy[39m[2m (12.6s)[22m
+(node:83783) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:83783) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [31m✘[39m  [2m2 [22m[31me2e/tasks-coordinator-handoff.spec.ts:113:1 › publishing a draft hands off to the coordinator and binds a coordination channel[39m[2m (1.5m)[22m
+(node:86544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:86544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [32m✓[39m  [2m3 [22me2e/tasks-coordinator-handoff.spec.ts:179:1 › approving an agent-created approval task is the coordinator-handoff boundary, not creation[2m (6.9s)[22m
+  [31m✘[39m  [2m4 [22m[31me2e/tasks-coordinator-handoff.spec.ts:233:1 › starting a manual session is unaffected by task autonomy labels[39m[2m (5.4s)[22m
+
+
+[31m  1) e2e/tasks-coordinator-handoff.spec.ts:52:1 › creating a task is saved intent — no run is enqueued and labels never imply autonomy [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('nav-tasks')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('nav-tasks')[22m
+
+
+      60 |   }
+      61 |
+    > 62 |   await expect(tasksUI.navTasks).toBeVisible();
+         |                                  ^
+      63 |   await tasksUI.navTasks.click();
+      64 |   await expect(appPage).toHaveURL(/\/tasks$/);
+      65 |
+    [2m    at /Users/pedronauck/Dev/compozy/agh/web/e2e/tasks-coordinator-handoff.spec.ts:62:34[22m
+
+[2m    Error Context: ../.tmp/playwright/test-results/tasks-coordinator-handoff--9eba7-labels-never-imply-autonomy/error-context.md[22m
+
+[31m  2) e2e/tasks-coordinator-handoff.spec.ts:113:1 › publishing a draft hands off to the coordinator and binds a coordination channel [39m
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 90000ms exceeded.
+    Call log:
+    [2m  - waiting for getByTestId('nav-tasks')[22m
+
+
+      121 |   }
+      122 |
+    > 123 |   await tasksUI.navTasks.click();
+          |                          ^
+      124 |   await tasksUI.openCreate.click();
+      125 |   await tasksUI.createPriority("high").click();
+      126 |   const publishedTitle = `Coordinator handoff publish ${Date.now()}`;
+    [2m    at /Users/pedronauck/Dev/compozy/agh/web/e2e/tasks-coordinator-handoff.spec.ts:123:26[22m
+
+[2m    Error Context: ../.tmp/playwright/test-results/tasks-coordinator-handoff--77ade-inds-a-coordination-channel/error-context.md[22m
+
+[31m  3) e2e/tasks-coordinator-handoff.spec.ts:233:1 › starting a manual session is unaffected by task autonomy labels [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('app-sidebar')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('app-sidebar')[22m
+
+
+      242 |   }
+      243 |
+    > 244 |   await expect(sessionUI.appSidebar).toBeVisible();
+          |                                      ^
+      245 |
+      246 |   const newSessionButton = sessionUI.newSessionButton(handoffAgentName);
+      247 |   await expect(newSessionButton).toBeVisible();
+    [2m    at /Users/pedronauck/Dev/compozy/agh/web/e2e/tasks-coordinator-handoff.spec.ts:244:38[22m
+
+[2m    Error Context: ../.tmp/playwright/test-results/tasks-coordinator-handoff--ab2ad-ted-by-task-autonomy-labels/error-context.md[22m
+
+[31m  3 failed[39m
+[31m    e2e/tasks-coordinator-handoff.spec.ts:52:1 › creating a task is saved intent — no run is enqueued and labels never imply autonomy [39m
+[31m    e2e/tasks-coordinator-handoff.spec.ts:113:1 › publishing a draft hands off to the coordinator and binds a coordination channel [39m
+[31m    e2e/tasks-coordinator-handoff.spec.ts:233:1 › starting a manual session is unaffected by task autonomy labels [39m
+[32m  1 passed[39m[2m (1.9m)[22m

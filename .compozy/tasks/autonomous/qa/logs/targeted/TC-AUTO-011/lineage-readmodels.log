@@ -1,0 +1,3 @@
+ok  	github.com/pedronauck/agh/internal/session	1.397s
+ok  	github.com/pedronauck/agh/internal/store/globaldb	1.386s
+ok  	github.com/pedronauck/agh/internal/api/contract	0.020s [no tests to run]

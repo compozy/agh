@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { sessionLifecycleSelectors, tasksOperatorSelectors } from "./fixtures/selectors";
 import { seedBrowserTasksOperatorFlow } from "./fixtures/runtime";
 import { expect, test } from "./fixtures/test";
+import { useGlobalWorkspaceIfPrompted } from "./fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -46,9 +47,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
     sessionAgentName: tasksSessionAgentName,
   });
 
-  if (await tasksUI.workspaceOnboarding.isVisible()) {
-    await tasksUI.workspaceUseGlobal.click();
-  }
+  await useGlobalWorkspaceIfPrompted(tasksUI);
 
   await expect(tasksUI.appSidebar).toBeVisible();
   await expect(tasksUI.navTasks).toBeVisible();
@@ -129,16 +128,14 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await browserArtifacts.captureScreenshot("tasks-detail-route", appPage);
 
   await tasksUI.detailTabAgents.click();
-  await expect
-    .poll(async () => {
-      return (
-        (await tasksUI.multiAgentEmpty.isVisible()) ||
-        (await tasksUI.multiAgentNoActive.isVisible()) ||
-        (await tasksUI.multiAgentDisconnected.isVisible())
-      );
-    })
-    .toBe(true);
-  await browserArtifacts.captureScreenshot("tasks-live-fallback", appPage);
+  await expect(tasksUI.multiAgentPanel).toBeVisible();
+  await expect(tasksUI.multiAgentSummary).toContainText("1 running");
+  await expect(tasksUI.multiAgentAgentRun(createdDraftId)).toBeVisible();
+  await expect(tasksUI.multiAgentAgentRun(createdDraftId)).toHaveAttribute(
+    "href",
+    new RegExp(`/tasks/${createdDraftId}/runs/`)
+  );
+  await browserArtifacts.captureScreenshot("tasks-live-agents", appPage);
 
   await tasksUI.detailBreadcrumbTasks.click();
   await expect(appPage).toHaveURL(/\/tasks$/);

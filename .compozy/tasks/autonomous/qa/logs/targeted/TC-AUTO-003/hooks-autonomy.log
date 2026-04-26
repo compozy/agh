@@ -1,0 +1,3 @@
+ok  	github.com/pedronauck/agh/internal/hooks	0.117s
+ok  	github.com/pedronauck/agh/internal/task	0.010s
+ok  	github.com/pedronauck/agh/internal/daemon	0.439s

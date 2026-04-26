@@ -7,6 +7,7 @@ import {
   seedBrowserAutomationOperatorFlow,
 } from "./fixtures/runtime";
 import { expect, test } from "./fixtures/test";
+import { useGlobalWorkspaceIfPrompted } from "./fixtures/workspace";
 
 const automationTaskFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -46,9 +47,7 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
     agentName: automationAgentName,
   });
 
-  if (await automationUI.workspaceOnboarding.isVisible()) {
-    await automationUI.workspaceUseGlobal.click();
-  }
+  await useGlobalWorkspaceIfPrompted(automationUI);
 
   await expect(automationUI.appSidebar).toBeVisible();
   await expect(automationUI.navJobs).toBeVisible();

@@ -1,0 +1,66 @@
+[0m[2m[35m$[0m [2m[1mbun run source:generate[0m
+[0m[2m[35m$[0m [2m[1mfumadocs-mdx source.config.ts .source[0m
+[MDX] generated files in 8.587416999999988ms
+[0m[2m[35m$[0m [2m[1mnext build[0m
+(node:2685) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▲ Next.js 16.2.4 (Turbopack)
+
+[MDX] generated files in 361.63729199999995ms
+  Creating an optimized production build ...
+(node:2685) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3021) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✓ Compiled successfully in 6.0s
+  Running TypeScript ...
+  Finished TypeScript in 2.4s ...
+  Collecting page data using 10 workers ...
+(node:3213) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3220) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3237) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3233) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3235) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3226) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3236) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3209) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3234) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  Generating static pages using 10 workers (0/242) ...
+(node:3238) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  Generating static pages using 10 workers (60/242)
+  Generating static pages using 10 workers (120/242)
+  Generating static pages using 10 workers (181/242)
+✓ Generating static pages using 10 workers (242/242) in 1213ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /api/search
+├ ○ /opengraph-image
+├ ● /protocol/[[...slug]]
+│ ├ /protocol/capability-discovery
+│ ├ /protocol/conformance
+│ ├ /protocol/delivery
+│ └ [+14 more paths]
+├ ○ /robots.txt
+├ ● /runtime/[[...slug]]
+│ ├ /runtime
+│ ├ /runtime/api-reference
+│ ├ /runtime/core
+│ └ [+215 more paths]
+└ ○ /sitemap.xml
+
+
+○  (Static)  prerendered as static content
+●  (SSG)     prerendered as static HTML (uses generateStaticParams)

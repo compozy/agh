@@ -1,0 +1,4 @@
+ok  	github.com/pedronauck/agh/internal/session	1.275s
+ok  	github.com/pedronauck/agh/internal/daemon	0.035s
+ok  	github.com/pedronauck/agh/internal/api/core	0.035s
+ok  	github.com/pedronauck/agh/internal/cli	0.035s [no tests to run]

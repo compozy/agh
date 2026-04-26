@@ -1,0 +1,17 @@
+(node:96489) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96489) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2mRunning [22m4[2m tests using [22m1[2m worker[22m
+
+(node:96493) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:96493) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [32m✓[39m  [2m1 [22me2e/tasks-coordinator-handoff.spec.ts:53:1 › creating a task is saved intent — no run is enqueued and labels never imply autonomy[2m (7.6s)[22m
+  [32m✓[39m  [2m2 [22me2e/tasks-coordinator-handoff.spec.ts:112:1 › publishing a draft hands off to the coordinator and binds a coordination channel[2m (2.2s)[22m
+  [32m✓[39m  [2m3 [22me2e/tasks-coordinator-handoff.spec.ts:176:1 › approving an agent-created approval task is the coordinator-handoff boundary, not creation[2m (1.9s)[22m
+  [32m✓[39m  [2m4 [22me2e/tasks-coordinator-handoff.spec.ts:228:1 › starting a manual session is unaffected by task autonomy labels[2m (1.2s)[22m
+
+[32m  4 passed[39m[2m (13.4s)[22m

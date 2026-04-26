@@ -9,6 +9,7 @@ import {
   triggerBrowserBridgeIngress,
 } from "./fixtures/runtime";
 import { expect, test } from "./fixtures/test";
+import { useGlobalWorkspaceIfPrompted } from "./fixtures/workspace";
 
 const bridgeIngressFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -58,9 +59,7 @@ test("operator can edit bridge config, enable runtime, observe health updates, a
   const bridgeUI = bridgeOperatorSelectors(appPage);
   const seeded = await seedBrowserBridgeOperatorFlow(runtime);
 
-  if (await bridgeUI.workspaceOnboarding.isVisible()) {
-    await bridgeUI.workspaceUseGlobal.click();
-  }
+  await useGlobalWorkspaceIfPrompted(bridgeUI);
 
   await expect(bridgeUI.appSidebar).toBeVisible();
   await expect(bridgeUI.navBridges).toBeVisible();

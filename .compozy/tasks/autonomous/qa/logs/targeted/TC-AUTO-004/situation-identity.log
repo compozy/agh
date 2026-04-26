@@ -1,0 +1,4 @@
+ok  	github.com/pedronauck/agh/internal/situation	0.013s
+ok  	github.com/pedronauck/agh/internal/agentidentity	0.009s
+ok  	github.com/pedronauck/agh/internal/api/udsapi	0.374s
+ok  	github.com/pedronauck/agh/internal/cli	0.065s

@@ -1,0 +1,16 @@
+(node:33275) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:33275) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2mRunning [22m3[2m tests using [22m1[2m worker[22m
+
+(node:33297) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:33297) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [32m✓[39m  [2m1 [22me2e/automation.spec.ts:39:1 › operator can inspect automation, trigger a real run, and inspect the linked session transcript[2m (8.0s)[22m
+  [32m✓[39m  [2m2 [22me2e/session-onboarding.spec.ts:34:1 › operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls[2m (2.0s)[22m
+  [32m✓[39m  [2m3 [22me2e/tasks.spec.ts:39:1 › operator can execute the shipped Tasks flow through the shared daemon-served browser lane[2m (3.8s)[22m
+
+[32m  3 passed[39m[2m (14.3s)[22m

@@ -1,0 +1,118 @@
+[0m[2m[35m$[0m [2m[1mbun run codegen-check && bun run test:e2e:daemon-served:raw[0m
+[0m[2m[35m$[0m [2m[1mbun run --cwd .. codegen-check[0m
+[0m[2m[35m$[0m [2m[1mmake codegen-check[0m
+[0m[2m[35m$[0m [2m[1mplaywright test --grep-invert @nightly[0m
+(node:13779) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13779) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2mRunning [22m19[2m tests using [22m1[2m worker[22m
+
+(node:13801) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13801) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [31m✘[39m  [2m 1 [22m[31me2e/automation.spec.ts:39:1 › operator can inspect automation, trigger a real run, and inspect the linked session transcript[39m[2m (684ms)[22m
+(node:13833) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13833) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [32m✓[39m  [2m 2 [22me2e/bridges.spec.ts:54:1 › operator can edit bridge config, enable runtime, observe health updates, and resolve delivery targets[2m (4.5s)[22m
+  [32m✓[39m  [2m 3 [22me2e/harness-smoke.spec.ts:6:1 › boots against the daemon-served onboarding shell and captures a trace plus screenshot bundle[2m (533ms)[22m
+  [32m✓[39m  [2m 4 [22me2e/harness-smoke.spec.ts:28:1 › captures console and network diagnostics after a forced failure path[2m (551ms)[22m
+  [32m✓[39m  [2m 5 [22me2e/network.spec.ts:46:1 › operator can create a network channel, inspect peers, observe timeline state, and reload without losing visibility[2m (17.5s)[22m
+  [31m✘[39m  [2m 6 [22m[31me2e/session-onboarding.spec.ts:34:1 › operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls[39m[2m (6.2s)[22m
+(node:15044) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15044) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [32m✓[39m  [2m 7 [22me2e/session-provider-override.spec.ts:59:1 › operator can create a provider-override session and gets an inline resume failure when that provider disappears[2m (2.3s)[22m
+  [32m✓[39m  [2m 8 [22me2e/settings-transport.spec.ts:17:1 › operator sees non-loopback HTTP mutation restrictions with explicit operator messaging[2m (1.5s)[22m
+  [32m✓[39m  [2m 9 [22me2e/settings.spec.ts:23:1 › operator can navigate the settings shell and complete a restart-aware general save that survives refresh polling[2m (3.0s)[22m
+  [32m✓[39m  [2m10 [22me2e/settings.spec.ts:117:1 › operator can distinguish skills actions that apply now from policy changes that require restart[2m (1.8s)[22m
+  [32m✓[39m  [2m11 [22me2e/settings.spec.ts:166:1 › operator can replace a builtin provider with a config overlay and delete it back to builtin fallback[2m (1.5s)[22m
+  [32m✓[39m  [2m12 [22me2e/settings.spec.ts:218:1 › operator can manage MCP servers across global and workspace scopes with visible target semantics[2m (1.4s)[22m
+  [32m✓[39m  [2m13 [22me2e/settings.spec.ts:294:1 › operator can distinguish restart-aware hook edits from immediate extension operations on hooks and extensions[2m (2.3s)[22m
+  [32m✓[39m  [2m14 [22me2e/storybook-bootstrap.spec.ts:15:1 › registers the MSW worker and bypasses unknown requests in web Storybook[2m (8.5s)[22m
+  [32m✓[39m  [2m15 [22me2e/tasks-coordinator-handoff.spec.ts:53:1 › creating a task is saved intent — no run is enqueued and labels never imply autonomy[2m (2.4s)[22m
+  [32m✓[39m  [2m16 [22me2e/tasks-coordinator-handoff.spec.ts:112:1 › publishing a draft hands off to the coordinator and binds a coordination channel[2m (2.3s)[22m
+  [32m✓[39m  [2m17 [22me2e/tasks-coordinator-handoff.spec.ts:176:1 › approving an agent-created approval task is the coordinator-handoff boundary, not creation[2m (2.0s)[22m
+  [32m✓[39m  [2m18 [22me2e/tasks-coordinator-handoff.spec.ts:228:1 › starting a manual session is unaffected by task autonomy labels[2m (1.3s)[22m
+  [31m✘[39m  [2m19 [22m[31me2e/tasks.spec.ts:39:1 › operator can execute the shipped Tasks flow through the shared daemon-served browser lane[39m[2m (7.4s)[22m
+
+
+[31m  1) e2e/automation.spec.ts:39:1 › operator can inspect automation, trigger a real run, and inspect the linked session transcript [39m
+
+    Error: request /api/automation/jobs/job-4b1f9f76edb74c1a/trigger failed with 500: {"error":"Internal Server Error"}
+
+    [90m   at [39mfixtures/runtime.ts:227
+
+      225 |     if (!response.ok) {
+      226 |       const payload = await response.text();
+    > 227 |       throw new Error(`request ${pathname} failed with ${response.status}: ${payload.trim()}`);
+          |             ^
+      228 |     }
+      229 |     return (await response.json()) as T;
+      230 |   }
+    [2m    at ActiveBrowserRuntime.requestJSON (/Users/pedronauck/Dev/compozy/agh/web/e2e/fixtures/runtime.ts:227:13)[22m
+    [2m    at seedBrowserAutomationOperatorFlow (/Users/pedronauck/Dev/compozy/agh/web/e2e/fixtures/runtime-seed.ts:677:5)[22m
+    [2m    at /Users/pedronauck/Dev/compozy/agh/web/e2e/automation.spec.ts:46:18[22m
+
+[2m    Error Context: ../.tmp/playwright/test-results/automation-operator-can-in-d52e1-e-linked-session-transcript/error-context.md[22m
+
+[31m  2) e2e/session-onboarding.spec.ts:34:1 › operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByTestId('permission-prompt')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('permission-prompt')[22m
+
+
+      70 |   await ui.composerTextarea.press("Enter");
+      71 |
+    > 72 |   await expect(ui.permissionPrompt).toBeVisible();
+         |                                     ^
+      73 |   await expect(ui.chatView).toContainText(browserLifecyclePrompt);
+      74 |   await expect(ui.chatView).toContainText("Streaming response started.");
+      75 |
+    [2m    at /Users/pedronauck/Dev/compozy/agh/web/e2e/session-onboarding.spec.ts:72:37[22m
+
+[2m    Error Context: ../.tmp/playwright/test-results/session-onboarding-operato-a90fc-tinuity-and-resume-controls/error-context.md[22m
+
+[31m  3) e2e/tasks.spec.ts:39:1 › operator can execute the shipped Tasks flow through the shared daemon-served browser lane [39m
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32mtrue[39m
+    Received: [31mfalse[39m
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      129 |
+      130 |   await tasksUI.detailTabAgents.click();
+    > 131 |   await expect
+          |   ^
+      132 |     .poll(async () => {
+      133 |       return (
+      134 |         (await tasksUI.multiAgentEmpty.isVisible()) ||
+    [2m    at /Users/pedronauck/Dev/compozy/agh/web/e2e/tasks.spec.ts:131:3[22m
+
+[2m    Error Context: ../.tmp/playwright/test-results/tasks-operator-can-execute-d8178--daemon-served-browser-lane/error-context.md[22m
+
+[31m  3 failed[39m
+[31m    e2e/automation.spec.ts:39:1 › operator can inspect automation, trigger a real run, and inspect the linked session transcript [39m
+[31m    e2e/session-onboarding.spec.ts:34:1 › operator can onboard, create a session, submit work, approve a permission request, reload transcript continuity, and resume controls [39m
+[31m    e2e/tasks.spec.ts:39:1 › operator can execute the shipped Tasks flow through the shared daemon-served browser lane [39m
+[32m  16 passed[39m[2m (1.2m)[22m
+[0m[31merror[0m[2m:[0m script [1m"test:e2e:daemon-served:raw"[0m exited with code 1[0m
+[0m[31merror[0m[2m:[0m script [1m"test:e2e:daemon-served"[0m exited with code 1[0m
+Error: exit status 1
+make: *** [test-e2e-web] Error 1

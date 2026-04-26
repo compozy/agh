@@ -1,0 +1,114 @@
+internal/network/envelope.go:18:	KindWhois      Kind = "whois"
+internal/network/envelope.go:19:	KindSay        Kind = "say"
+internal/network/envelope.go:20:	KindDirect     Kind = "direct"
+internal/network/envelope.go:22:	KindReceipt    Kind = "receipt"
+internal/network/envelope.go:23:	KindTrace      Kind = "trace"
+internal/network/envelope.go:28:	KindWhois:      {},
+internal/network/envelope.go:29:	KindSay:        {},
+internal/network/envelope.go:30:	KindDirect:     {},
+internal/network/envelope.go:32:	KindReceipt:    {},
+internal/network/envelope.go:33:	KindTrace:      {},
+internal/network/envelope.go:245:func (WhoisBody) Kind() Kind { return KindWhois }
+internal/network/envelope.go:255:func (SayBody) Kind() Kind { return KindSay }
+internal/network/envelope.go:265:func (DirectBody) Kind() Kind { return KindDirect }
+internal/network/envelope.go:299:func (ReceiptBody) Kind() Kind { return KindReceipt }
+internal/network/envelope.go:310:func (TraceBody) Kind() Kind { return KindTrace }
+internal/api/udsapi/agent_channels_test.go:89:			`{"body":{"text":"progress"},"metadata":{"task_id":"task-1","run_id":"run-1","workflow_id":"wf-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+internal/api/udsapi/agent_channels_test.go:96:	if seen.SessionID != "sess-agent" || seen.Channel != "builders" || seen.Kind != network.KindSay {
+internal/api/udsapi/agent_channels_test.go:103:		metadata.MessageKind != contract.CoordinationMessageStatus {
+internal/api/udsapi/agent_channels_test.go:113:			body: []byte(`{"body":{"claim_token":"secret"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`),
+internal/api/udsapi/agent_channels_test.go:117:			body: []byte(`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1","ext":{"claim_token":"secret"}}}`),
+internal/api/udsapi/agent_channels_test.go:149:			`{"body":{"text":"progress"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+internal/api/udsapi/agent_channels_test.go:185:		len(response.Channels[0].AllowedMessageKinds) != len(contract.CoordinationMessageKinds()) {
+internal/api/udsapi/agent_channels_test.go:200:				agentChannelEnvelope(t, "msg-other", "other", contract.CoordinationMessageStatus),
+internal/api/udsapi/agent_channels_test.go:201:				agentChannelEnvelope(t, "msg-builders", "builders", contract.CoordinationMessageResult),
+internal/api/udsapi/agent_channels_test.go:230:		response.Messages[0].Metadata.MessageKind != contract.CoordinationMessageResult {
+internal/api/udsapi/agent_channels_test.go:239:	source := agentChannelEnvelope(t, "msg-source", "builders", contract.CoordinationMessageRequest)
+internal/api/udsapi/agent_channels_test.go:268:		seen.Kind != network.KindDirect ||
+internal/api/udsapi/agent_channels_test.go:279:		metadata.MessageKind != contract.CoordinationMessageReply {
+internal/api/udsapi/agent_channels_test.go:359:	kind contract.CoordinationMessageKind,
+internal/api/udsapi/agent_channels_test.go:366:		Kind:     network.KindSay,
+internal/api/udsapi/agent_channels_test.go:377:func mustCoordinationMetadata(t *testing.T, kind contract.CoordinationMessageKind) json.RawMessage {
+internal/api/udsapi/agent_channels_test.go:380:	content, err := json.Marshal(contract.CoordinationMessageMetadataPayload{
+internal/api/udsapi/agent_channels_test.go:394:func decodeCoordinationExt(t *testing.T, ext network.ExtensionMap) contract.CoordinationMessageMetadataPayload {
+internal/api/udsapi/agent_channels_test.go:397:	var metadata contract.CoordinationMessageMetadataPayload
+internal/cli/agent_kernel.go:158:	flags := coordinationMetadataFlags{kind: string(contract.CoordinationMessageStatus)}
+internal/cli/agent_kernel.go:185:			metadata, err := flags.metadata(channel, contract.CoordinationMessageStatus, true)
+internal/cli/agent_kernel.go:189:			if metadata.MessageKind == contract.CoordinationMessageReply {
+internal/cli/agent_kernel.go:227:	flags := coordinationMetadataFlags{kind: string(contract.CoordinationMessageReply)}
+internal/cli/agent_kernel.go:248:			metadata, err := flags.metadata("", contract.CoordinationMessageReply, false)
+internal/cli/agent_kernel.go:253:				metadata.MessageKind != contract.CoordinationMessageReply {
+internal/cli/agent_kernel.go:313:	defaultKind contract.CoordinationMessageKind,
+internal/cli/agent_kernel.go:315:) (contract.CoordinationMessageMetadataPayload, error) {
+internal/cli/agent_kernel.go:318:		return contract.CoordinationMessageMetadataPayload{}, err
+internal/cli/agent_kernel.go:328:		return contract.CoordinationMessageMetadataPayload{}, nil
+internal/cli/agent_kernel.go:331:	kind := contract.CoordinationMessageKind(firstCLIValue(f.kind, string(defaultKind)))
+internal/cli/agent_kernel.go:332:	metadata := contract.CoordinationMessageMetadataPayload{
+internal/cli/agent_kernel.go:342:		return contract.CoordinationMessageMetadataPayload{}, err
+internal/cli/agent_kernel.go:525:func zeroCLIAgentCoordinationMetadata(metadata contract.CoordinationMessageMetadataPayload) bool {
+internal/api/contract/agents.go:15:// CoordinationMessageKind identifies the MVP task-run coordination message kind.
+internal/api/contract/agents.go:16:type CoordinationMessageKind string
+internal/api/contract/agents.go:19:	// CoordinationMessageStatus reports non-authoritative work progress.
+internal/api/contract/agents.go:20:	CoordinationMessageStatus CoordinationMessageKind = "status"
+internal/api/contract/agents.go:21:	// CoordinationMessageRequest asks another participant for information or action.
+internal/api/contract/agents.go:22:	CoordinationMessageRequest CoordinationMessageKind = "request"
+internal/api/contract/agents.go:23:	// CoordinationMessageReply answers a prior coordination message.
+internal/api/contract/agents.go:24:	CoordinationMessageReply CoordinationMessageKind = "reply"
+internal/api/contract/agents.go:25:	// CoordinationMessageBlocker reports a blocking condition for coordinated work.
+internal/api/contract/agents.go:26:	CoordinationMessageBlocker CoordinationMessageKind = "blocker"
+internal/api/contract/agents.go:27:	// CoordinationMessageHandoff transfers conversational context between participants.
+internal/api/contract/agents.go:28:	CoordinationMessageHandoff CoordinationMessageKind = "handoff"
+internal/api/contract/agents.go:29:	// CoordinationMessageResult shares task-run output before or after terminal task APIs.
+internal/api/contract/agents.go:30:	CoordinationMessageResult CoordinationMessageKind = "result"
+internal/api/contract/agents.go:31:	// CoordinationMessageReviewRequest asks for review of coordinated work.
+internal/api/contract/agents.go:32:	CoordinationMessageReviewRequest CoordinationMessageKind = "review_request"
+internal/api/contract/agents.go:50:	// ErrInvalidCoordinationMessageMetadata reports missing or invalid typed correlation metadata.
+internal/api/contract/agents.go:51:	ErrInvalidCoordinationMessageMetadata = errors.New("contract: invalid coordination message metadata")
+internal/api/contract/agents.go:149:	AllowedMessageKinds []CoordinationMessageKind `json:"allowed_message_kinds"`
+internal/api/contract/agents.go:191:	Kind      CoordinationMessageKind            `json:"kind"`
+internal/api/contract/agents.go:192:	Metadata  CoordinationMessageMetadataPayload `json:"metadata"`
+internal/api/contract/agents.go:301:// CoordinationMessageMetadataPayload carries typed task/run correlation for channel messages.
+internal/api/contract/agents.go:302:type CoordinationMessageMetadataPayload struct {
+internal/api/contract/agents.go:307:	MessageKind           CoordinationMessageKind    `json:"message_kind"`
+internal/api/contract/agents.go:315:	Metadata       CoordinationMessageMetadataPayload `json:"metadata"`
+internal/api/contract/agents.go:323:	Metadata         CoordinationMessageMetadataPayload `json:"metadata"`
+internal/api/contract/agents.go:334:	Metadata      CoordinationMessageMetadataPayload `json:"metadata"`
+internal/api/contract/agents.go:359:// CoordinationMessageKinds returns the accepted MVP coordination message kinds.
+internal/api/contract/agents.go:360:func CoordinationMessageKinds() []CoordinationMessageKind {
+internal/api/contract/agents.go:361:	return []CoordinationMessageKind{
+internal/api/contract/agents.go:362:		CoordinationMessageStatus,
+internal/api/contract/agents.go:363:		CoordinationMessageRequest,
+internal/api/contract/agents.go:364:		CoordinationMessageReply,
+internal/api/contract/agents.go:365:		CoordinationMessageBlocker,
+internal/api/contract/agents.go:366:		CoordinationMessageHandoff,
+internal/api/contract/agents.go:367:		CoordinationMessageResult,
+internal/api/contract/agents.go:368:		CoordinationMessageReviewRequest,
+internal/api/contract/agents.go:429:		payload.AllowedMessageKinds = CoordinationMessageKinds()
+internal/api/contract/agents.go:444:func (p CoordinationMessageMetadataPayload) Validate() error {
+internal/api/contract/agents.go:446:		return fmt.Errorf("%w: task_id is required", ErrInvalidCoordinationMessageMetadata)
+internal/api/contract/agents.go:449:		return fmt.Errorf("%w: run_id is required", ErrInvalidCoordinationMessageMetadata)
+internal/api/contract/agents.go:452:		return fmt.Errorf("%w: coordination_channel_id is required", ErrInvalidCoordinationMessageMetadata)
+internal/api/contract/agents.go:455:		return fmt.Errorf("%w: correlation_id is required", ErrInvalidCoordinationMessageMetadata)
+internal/api/contract/agents.go:457:	if !validCoordinationMessageKind(p.MessageKind) {
+internal/api/contract/agents.go:458:		return fmt.Errorf("%w: unsupported message_kind %q", ErrInvalidCoordinationMessageMetadata, p.MessageKind)
+internal/api/contract/agents.go:467:func (p *CoordinationMessageMetadataPayload) UnmarshalJSON(data []byte) error {
+internal/api/contract/agents.go:472:	type metadataAlias CoordinationMessageMetadataPayload
+internal/api/contract/agents.go:477:	*p = CoordinationMessageMetadataPayload(decoded)
+internal/api/contract/agents.go:557:func validCoordinationMessageKind(kind CoordinationMessageKind) bool {
+internal/api/contract/agents.go:558:	return slices.Contains(CoordinationMessageKinds(), kind)
+internal/cli/agent_kernel_test.go:347:			AllowedMessageKinds: contract.CoordinationMessageKinds(),
+internal/cli/agent_kernel_test.go:362:		len(channels[0].AllowedMessageKinds) != len(contract.CoordinationMessageKinds()) {
+internal/cli/agent_kernel_test.go:370:	for _, kind := range []contract.CoordinationMessageKind{
+internal/cli/agent_kernel_test.go:371:		contract.CoordinationMessageStatus,
+internal/cli/agent_kernel_test.go:372:		contract.CoordinationMessageBlocker,
+internal/cli/agent_kernel_test.go:373:		contract.CoordinationMessageResult,
+internal/cli/agent_kernel_test.go:503:			Metadata: contract.CoordinationMessageMetadataPayload{
+internal/cli/agent_kernel_test.go:507:				MessageKind:           contract.CoordinationMessageReply,
+internal/cli/agent_kernel_test.go:557:			agentChannelTestMessage("msg-1", contract.CoordinationMessageStatus),
+internal/cli/agent_kernel_test.go:558:			agentChannelTestMessage("msg-2", contract.CoordinationMessageResult),
+internal/cli/agent_kernel_test.go:624:		AllowedMessageKinds: contract.CoordinationMessageKinds(),
+internal/cli/agent_kernel_test.go:626:	statusMessage := agentChannelTestMessage("msg-1", contract.CoordinationMessageStatus)
+internal/cli/agent_kernel_test.go:627:	replyMessage := agentChannelTestMessage("msg-reply", contract.CoordinationMessageReply)
+internal/cli/agent_kernel_test.go:787:func zeroCLICoordinationMetadata(metadata contract.CoordinationMessageMetadataPayload) bool {
+internal/cli/agent_kernel_test.go:797:func agentChannelTestMessage(id string, kind contract.CoordinationMessageKind) AgentChannelMessageRecord {
+internal/cli/agent_kernel_test.go:803:		Metadata: contract.CoordinationMessageMetadataPayload{

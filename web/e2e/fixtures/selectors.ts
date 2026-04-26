@@ -411,6 +411,8 @@ export const tasksOperatorTestIds = {
   multiAgentDisconnected: "tasks-multi-agent-disconnected",
   multiAgentEmpty: "tasks-multi-agent-empty",
   multiAgentNoActive: "tasks-multi-agent-no-active",
+  multiAgentPanel: "tasks-multi-agent-panel",
+  multiAgentSummary: "tasks-multi-agent-summary",
   navTasks: "nav-tasks",
   openCreate: "tasks-open-create",
   runDetailContent: "tasks-run-detail-content",
@@ -463,6 +465,9 @@ export interface TasksOperatorSelectors {
   multiAgentDisconnected: Locator;
   multiAgentEmpty: Locator;
   multiAgentNoActive: Locator;
+  multiAgentPanel: Locator;
+  multiAgentSummary: Locator;
+  multiAgentAgentRun(taskId: string): Locator;
   navTasks: Locator;
   openCreate: Locator;
   runDetailContent: Locator;
@@ -741,6 +746,10 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     multiAgentDisconnected: page.getByTestId(tasksOperatorTestIds.multiAgentDisconnected),
     multiAgentEmpty: page.getByTestId(tasksOperatorTestIds.multiAgentEmpty),
     multiAgentNoActive: page.getByTestId(tasksOperatorTestIds.multiAgentNoActive),
+    multiAgentPanel: page.getByTestId(tasksOperatorTestIds.multiAgentPanel),
+    multiAgentSummary: page.getByTestId(tasksOperatorTestIds.multiAgentSummary),
+    multiAgentAgentRun: (taskId: string) =>
+      page.getByTestId(`tasks-multi-agent-agent-run-${taskId}`),
     navTasks: page.getByTestId(tasksOperatorTestIds.navTasks),
     openCreate: page.getByTestId(tasksOperatorTestIds.openCreate),
     runDetailContent: page.getByTestId(tasksOperatorTestIds.runDetailContent),
