@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/agentidentity"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
@@ -23,6 +24,46 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
+	t.Parallel()
+
+	client := &unixSocketClient{
+		socketPath: "/tmp/agh.sock",
+		httpClient: &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodGet || req.URL.Path != "/api/agent/me" {
+					t.Fatalf("request = %s %s, want GET /api/agent/me", req.Method, req.URL.Path)
+				}
+				if got := req.Header.Get(agentidentity.HeaderSessionID); got != "sess-1" {
+					t.Fatalf("%s = %q, want sess-1", agentidentity.HeaderSessionID, got)
+				}
+				if got := req.Header.Get(agentidentity.HeaderAgent); got != "coder" {
+					t.Fatalf("%s = %q, want coder", agentidentity.HeaderAgent, got)
+				}
+				if got := req.Header.Get(agentidentity.HeaderWorkspaceID); got != "ws-1" {
+					t.Fatalf("%s = %q, want ws-1", agentidentity.HeaderWorkspaceID, got)
+				}
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"me":{"self":{"session_id":"sess-1","agent_name":"coder","provider":"test"},"workspace":{"id":"ws-1"},"session":{"id":"sess-1","agent_name":"coder","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"capabilities":[],"channels":[],"active_task_leases":[]}}`,
+				), nil
+			}),
+		},
+	}
+
+	me, err := client.AgentMe(context.Background(), agentidentity.Credentials{
+		SessionID:   "sess-1",
+		AgentName:   "coder",
+		WorkspaceID: "ws-1",
+	})
+	if err != nil {
+		t.Fatalf("AgentMe() error = %v", err)
+	}
+	if me.Self.SessionID != "sess-1" || me.Self.AgentName != "coder" {
+		t.Fatalf("AgentMe() = %#v, want validated response", me.Self)
+	}
 }
 
 func TestUnixSocketClientMethods(t *testing.T) {

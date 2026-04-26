@@ -101,6 +101,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/workspaces/:id",
 		"GET /api/agents",
 		"GET /api/agents/:name",
+		"GET /api/agent/me",
 		"GET /api/automation/jobs",
 		"GET /api/automation/jobs/:id",
 		"GET /api/automation/jobs/:id/runs",

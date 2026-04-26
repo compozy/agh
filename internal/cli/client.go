@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/agentidentity"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
@@ -131,6 +132,7 @@ type DaemonClient interface {
 	CompleteTaskRun(ctx context.Context, id string, request CompleteTaskRunRequest) (TaskRunRecord, error)
 	FailTaskRun(ctx context.Context, id string, request FailTaskRunRequest) (TaskRunRecord, error)
 	CancelTaskRun(ctx context.Context, id string, request CancelTaskRunRequest) (TaskRunRecord, error)
+	AgentMe(ctx context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error)
 }
 
 // CreateSessionRequest captures the shared daemon session creation payload.
@@ -310,6 +312,9 @@ type TaskDependencyRecord = contract.TaskDependencyPayload
 
 // TaskRunRecord is the shared task-run payload.
 type TaskRunRecord = contract.TaskRunPayload
+
+// AgentMeRecord is the shared agent caller identity payload.
+type AgentMeRecord = contract.AgentMePayload
 
 // TaskEventRecord is the shared task audit-event payload.
 type TaskEventRecord = contract.TaskEventPayload
@@ -1459,6 +1464,17 @@ func (c *unixSocketClient) CancelTaskRun(
 	return c.taskRunAction(ctx, strings.TrimSpace(id), "cancel", request)
 }
 
+func (c *unixSocketClient) AgentMe(
+	ctx context.Context,
+	credentials agentidentity.Credentials,
+) (AgentMeRecord, error) {
+	var response contract.AgentMeResponse
+	if err := c.doAgentJSON(ctx, http.MethodGet, "/api/agent/me", nil, nil, credentials, &response); err != nil {
+		return AgentMeRecord{}, err
+	}
+	return response.Me, nil
+}
+
 func (c *unixSocketClient) extensionAction(ctx context.Context, name string, action string) (ExtensionRecord, error) {
 	var response struct {
 		Extension ExtensionRecord `json:"extension"`
@@ -1507,13 +1523,43 @@ func (c *unixSocketClient) doJSON(
 	if err != nil {
 		return err
 	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
 
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return readAPIError(response)
+	return c.decodeJSONResponse(ctx, method, path, response, responseBody)
+}
+
+func (c *unixSocketClient) doAgentJSON(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	requestBody any,
+	credentials agentidentity.Credentials,
+	responseBody any,
+) error {
+	response, err := c.doRequestWithCredentials(ctx, method, path, query, requestBody, "", credentials)
+	if err != nil {
+		return err
 	}
 	defer func() {
 		_ = response.Body.Close()
 	}()
+
+	return c.decodeJSONResponse(ctx, method, path, response, responseBody)
+}
+
+func (c *unixSocketClient) decodeJSONResponse(
+	_ context.Context,
+	method string,
+	path string,
+	response *http.Response,
+	responseBody any,
+) error {
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return readAPIError(response)
+	}
 	if responseBody == nil {
 		return drainResponseBody(method, path, response.Body)
 	}
@@ -1536,13 +1582,13 @@ func (c *unixSocketClient) doSSE(
 	if err != nil {
 		return err
 	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return readAPIError(response)
 	}
-	defer func() {
-		_ = response.Body.Close()
-	}()
 
 	if handler == nil {
 		return drainResponseBody(method, path, response.Body)
@@ -1557,6 +1603,26 @@ func (c *unixSocketClient) doRequest(
 	query url.Values,
 	requestBody any,
 	lastEventID string,
+) (*http.Response, error) {
+	return c.doRequestWithCredentials(
+		ctx,
+		method,
+		path,
+		query,
+		requestBody,
+		lastEventID,
+		agentidentity.Credentials{},
+	)
+}
+
+func (c *unixSocketClient) doRequestWithCredentials(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	requestBody any,
+	lastEventID string,
+	credentials agentidentity.Credentials,
 ) (*http.Response, error) {
 	if ctx == nil {
 		return nil, errors.New("cli: context is required")
@@ -1587,12 +1653,28 @@ func (c *unixSocketClient) doRequest(
 	if strings.TrimSpace(lastEventID) != "" {
 		req.Header.Set("Last-Event-ID", strings.TrimSpace(lastEventID))
 	}
+	setAgentIdentityHeaders(req, credentials)
 
 	response, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("cli: %s %s via %s: %w", method, path, c.socketPath, err)
 	}
 	return response, nil
+}
+
+func setAgentIdentityHeaders(req *http.Request, credentials agentidentity.Credentials) {
+	if req == nil {
+		return
+	}
+	if sessionID := strings.TrimSpace(credentials.SessionID); sessionID != "" {
+		req.Header.Set(agentidentity.HeaderSessionID, sessionID)
+	}
+	if agentName := strings.TrimSpace(credentials.AgentName); agentName != "" {
+		req.Header.Set(agentidentity.HeaderAgent, agentName)
+	}
+	if workspaceID := strings.TrimSpace(credentials.WorkspaceID); workspaceID != "" {
+		req.Header.Set(agentidentity.HeaderWorkspaceID, workspaceID)
+	}
 }
 
 func decodeSSE(ctx context.Context, body io.Reader, handler SSEHandler) error {
@@ -1948,10 +2030,6 @@ func taskRunValues(query TaskRunListQuery) url.Values {
 }
 
 func readAPIError(response *http.Response) error {
-	defer func() {
-		_ = response.Body.Close()
-	}()
-
 	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if err != nil {
 		return fmt.Errorf("cli: read api error response: %w", err)

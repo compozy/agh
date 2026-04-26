@@ -1,10 +1,13 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/pedronauck/agh/internal/agentidentity"
+	"github.com/spf13/cobra"
+)
 
 const (
-	envSessionID = "AGH_SESSION_ID"
-	envAgentID   = "AGH_AGENT"
+	envSessionID = agentidentity.EnvSessionID
+	envAgentID   = agentidentity.EnvAgent
 	envAgentName = "AGH_AGENT_NAME"
 )
 

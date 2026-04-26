@@ -10,6 +10,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerWorkspaceRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
 	registerAgentRoutes(api, handlers)
+	registerAgentKernelRoutes(api, handlers)
 	registerObserveRoutes(api, handlers)
 	registerHookRoutes(api, handlers)
 	registerResourceRoutes(api, handlers)
@@ -82,6 +83,13 @@ func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
 	{
 		agents.GET("", handlers.ListAgents)
 		agents.GET("/:name", handlers.GetAgent)
+	}
+}
+
+func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
+	agent := api.Group("/agent")
+	{
+		agent.GET("/me", handlers.AgentMe)
 	}
 }
 

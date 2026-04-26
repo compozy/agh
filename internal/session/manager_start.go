@@ -418,6 +418,8 @@ func sessionStartEnv(base []string, session *Session) []string {
 	}
 
 	env = setSessionStartEnvValue(env, "AGH_SESSION_ID", strings.TrimSpace(session.ID))
+	env = setSessionStartEnvValue(env, "AGH_AGENT", strings.TrimSpace(session.AgentName))
+	env = setSessionStartEnvValue(env, "AGH_AGENT_NAME", strings.TrimSpace(session.AgentName))
 	env = unsetSessionStartEnvKeys(env, "AGH_SESSION_CHANNEL", "AGH_PEER_ID")
 
 	channel := strings.TrimSpace(session.Channel)

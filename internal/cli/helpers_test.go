@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/agentidentity"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -99,6 +100,7 @@ type stubClient struct {
 	completeTaskRunFn         func(context.Context, string, CompleteTaskRunRequest) (TaskRunRecord, error)
 	failTaskRunFn             func(context.Context, string, FailTaskRunRequest) (TaskRunRecord, error)
 	cancelTaskRunFn           func(context.Context, string, CancelTaskRunRequest) (TaskRunRecord, error)
+	agentMeFn                 func(context.Context, agentidentity.Credentials) (AgentMeRecord, error)
 }
 
 var _ DaemonClient = (*stubClient)(nil)
@@ -863,6 +865,13 @@ func (s *stubClient) CancelTaskRun(
 		return s.cancelTaskRunFn(ctx, id, request)
 	}
 	return TaskRunRecord{}, errors.New("unexpected CancelTaskRun call")
+}
+
+func (s *stubClient) AgentMe(ctx context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error) {
+	if s.agentMeFn != nil {
+		return s.agentMeFn(ctx, credentials)
+	}
+	return AgentMeRecord{}, errors.New("unexpected AgentMe call")
 }
 
 func newTestDeps(t *testing.T, client DaemonClient) commandDeps {

@@ -143,7 +143,7 @@ func ExecuteContext(ctx context.Context, args []string, stdout io.Writer, stderr
 
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		_, _ = fmt.Fprintf(stderr, "error: %v\n", err)
-		return 1
+		return cliExitCodeForError(err)
 	}
 	return 0
 }

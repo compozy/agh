@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/agentidentity"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
@@ -58,6 +59,52 @@ func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
 				t.Fatalf("executeRootCommand(%v) error = %v, want %q", tt.args, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestTaskCreateRemainsOperatorExplicitWithAgentEnv(t *testing.T) {
+	t.Parallel()
+
+	var gotRequest CreateTaskRequest
+	deps := newTestDeps(t, &stubClient{
+		createTaskFn: func(_ context.Context, request CreateTaskRequest) (TaskRecord, error) {
+			gotRequest = request
+			return TaskRecord{
+				ID:    "task-1",
+				Title: request.Title,
+				Scope: taskpkg.ScopeWorkspace,
+			}, nil
+		},
+	})
+	deps.getenv = func(key string) string {
+		switch key {
+		case agentidentity.EnvSessionID:
+			return "agent-session"
+		case agentidentity.EnvAgent:
+			return "coder"
+		default:
+			return ""
+		}
+	}
+
+	if _, _, err := executeRootCommand(
+		t,
+		deps,
+		"task",
+		"create",
+		"--scope",
+		"workspace",
+		"--workspace",
+		"alpha",
+		"--title",
+		"Manual task",
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("executeRootCommand(task create) error = %v", err)
+	}
+	if gotRequest.Workspace != "alpha" {
+		t.Fatalf("Workspace = %q, want explicit workspace alpha", gotRequest.Workspace)
 	}
 }
 
