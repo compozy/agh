@@ -63,6 +63,7 @@ type bootState struct {
 	tasks               *taskRuntime
 	spawnReaper         *spawnReaper
 	scheduler           *schedulerRuntime
+	coordinator         *coordinatorRuntime
 	network             networkRuntime
 	observer            Observer
 	lifecycleObservers  *sessionLifecycleFanout
@@ -172,6 +173,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return err
 	}
 	if err := d.bootHooks(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootCoordinator(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootAutomation(ctx, state, cleanup); err != nil {

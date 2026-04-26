@@ -201,6 +201,10 @@ type sessionLifecycleObserver interface {
 	OnSessionStopped(context.Context, *session.Session)
 }
 
+type taskRunEnqueuedObserver interface {
+	OnTaskRunEnqueued(context.Context, hookspkg.TaskRunEnqueuedPayload)
+}
+
 type dreamCheckEnqueuer interface {
 	EnqueueCheck(reason string, workspaceRef string)
 }
@@ -296,10 +300,11 @@ func (f *hookTelemetryFanout) snapshot() []hookspkg.TelemetrySink {
 type hooksNotifier struct {
 	mu sync.RWMutex
 
-	logger           *slog.Logger
-	now              func() time.Time
-	hooks            hookRuntime
-	agentEventNotify session.Notifier
+	logger               *slog.Logger
+	now                  func() time.Time
+	hooks                hookRuntime
+	agentEventNotify     session.Notifier
+	taskRunEnqueuedHooks []taskRunEnqueuedObserver
 }
 
 var _ session.Notifier = (*hooksNotifier)(nil)
@@ -335,6 +340,24 @@ func (n *hooksNotifier) setRuntime(hooks hookRuntime, agentEventNotify session.N
 
 	n.hooks = hooks
 	n.agentEventNotify = agentEventNotify
+}
+
+func (n *hooksNotifier) AddTaskRunEnqueuedObserver(observer taskRunEnqueuedObserver) {
+	if n == nil || observer == nil {
+		return
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.taskRunEnqueuedHooks = append(n.taskRunEnqueuedHooks, observer)
+}
+
+func (n *hooksNotifier) taskRunEnqueuedObservers() []taskRunEnqueuedObserver {
+	if n == nil {
+		return nil
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return append([]taskRunEnqueuedObserver(nil), n.taskRunEnqueuedHooks...)
 }
 
 // OnSessionCreated is a no-op; lifecycle observation is handled via hook dispatch.
@@ -752,13 +775,20 @@ func (n *hooksNotifier) DispatchTaskRunEnqueued(
 	ctx context.Context,
 	payload hookspkg.TaskRunEnqueuedPayload,
 ) (hookspkg.TaskRunEnqueuedPayload, error) {
-	return dispatchRuntime(
+	result, err := dispatchRuntime(
 		ctx,
 		n,
 		hookspkg.HookTaskRunEnqueued,
 		payload,
 		hookRuntime.DispatchTaskRunEnqueued,
 	)
+	if err != nil {
+		return result, err
+	}
+	for _, observer := range n.taskRunEnqueuedObservers() {
+		observer.OnTaskRunEnqueued(ctx, result)
+	}
+	return result, nil
 }
 
 func (n *hooksNotifier) DispatchTaskRunPreClaim(

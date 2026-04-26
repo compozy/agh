@@ -31,6 +31,42 @@ func TestCoordinatorConfigResolverReturnsBundledDefaultIdentity(t *testing.T) {
 	}
 }
 
+func TestCoordinatorConfigResolverPrefersGlobalConfigOverBundledDefault(t *testing.T) {
+	t.Parallel()
+
+	cfg := defaultCoordinatorResolverConfig(t)
+	cfg.Autonomy.Coordinator.Enabled = true
+	cfg.Autonomy.Coordinator.AgentName = "global-coordinator"
+	cfg.Autonomy.Coordinator.Provider = "codex"
+	cfg.Autonomy.Coordinator.Model = "global-model"
+	cfg.Autonomy.Coordinator.DefaultTTL = 4 * time.Hour
+	cfg.Autonomy.Coordinator.MaxChildren = 4
+	resolver := newCoordinatorConfigResolver(&cfg, nil, nil)
+
+	resolved, err := resolver.ResolveCoordinatorConfig(context.Background(), "")
+	if err != nil {
+		t.Fatalf("ResolveCoordinatorConfig() error = %v", err)
+	}
+	if !resolved.Enabled {
+		t.Fatal("ResolveCoordinatorConfig() Enabled = false, want global true")
+	}
+	if got, want := resolved.AgentName, "global-coordinator"; got != want {
+		t.Fatalf("ResolveCoordinatorConfig() AgentName = %q, want %q", got, want)
+	}
+	if got, want := resolved.Provider, "codex"; got != want {
+		t.Fatalf("ResolveCoordinatorConfig() Provider = %q, want %q", got, want)
+	}
+	if got, want := resolved.Model, "global-model"; got != want {
+		t.Fatalf("ResolveCoordinatorConfig() Model = %q, want %q", got, want)
+	}
+	if got, want := resolved.DefaultTTL, 4*time.Hour; got != want {
+		t.Fatalf("ResolveCoordinatorConfig() DefaultTTL = %s, want %s", got, want)
+	}
+	if got, want := resolved.MaxChildren, 4; got != want {
+		t.Fatalf("ResolveCoordinatorConfig() MaxChildren = %d, want %d", got, want)
+	}
+}
+
 func TestCoordinatorConfigResolverPrefersWorkspaceConfig(t *testing.T) {
 	t.Parallel()
 
