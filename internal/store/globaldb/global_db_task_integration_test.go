@@ -4,6 +4,7 @@ package globaldb
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,6 +171,13 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	storedQueued.StartedAt = storedQueued.QueuedAt.Add(45 * time.Second)
 	storedQueued.ClaimedAt = storedQueued.QueuedAt.Add(15 * time.Second)
 	storedQueued.ClaimedBy = actorForTest(taskpkg.ActorKindDaemon, "scheduler")
+	storedQueued.ClaimToken = "raw-reopen-claim-token"
+	storedQueued.ClaimTokenHash = "sha256:" + strings.Repeat("b", 64)
+	storedQueued.LeaseUntil = storedQueued.ClaimedAt.Add(20 * time.Minute)
+	storedQueued.HeartbeatAt = storedQueued.ClaimedAt.Add(30 * time.Second)
+	storedQueued.CoordinationChannelID = "coord-reopen-run"
+	storedQueued.RequiredCapabilities = []string{"golang", "sqlite"}
+	storedQueued.PreferredCapabilities = []string{"claude", "codex"}
 	if err := second.UpdateTaskRun(ctx, storedQueued); err != nil {
 		t.Fatalf("UpdateTaskRun(attached) error = %v", err)
 	}
@@ -201,6 +209,16 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	if got, want := len(runs), 1; got != want {
 		t.Fatalf("len(ListTaskRuns()) = %d, want %d", got, want)
 	}
+	assertTaskRunEqual(t, runs[0], storedQueued)
+
+	runsByChannel, err := third.ListTaskRuns(ctx, taskpkg.RunQuery{CoordinationChannelID: storedQueued.CoordinationChannelID})
+	if err != nil {
+		t.Fatalf("ListTaskRuns(coordination channel) error = %v", err)
+	}
+	if got, want := len(runsByChannel), 1; got != want {
+		t.Fatalf("len(ListTaskRuns(coordination channel)) = %d, want %d", got, want)
+	}
+	assertTaskRunEqual(t, runsByChannel[0], storedQueued)
 }
 
 func TestGlobalDBTaskSearchFiltersAndOrderingSurviveReopen(t *testing.T) {

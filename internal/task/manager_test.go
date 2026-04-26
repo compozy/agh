@@ -615,6 +615,7 @@ func (s *inMemoryManagerStore) ListTaskRuns(_ context.Context, query RunQuery) (
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
 	normalized.Status = normalized.Status.Normalize()
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
+	normalized.CoordinationChannelID = strings.TrimSpace(normalized.CoordinationChannelID)
 
 	runs := make([]Run, 0)
 	for _, run := range s.runs {
@@ -625,6 +626,9 @@ func (s *inMemoryManagerStore) ListTaskRuns(_ context.Context, query RunQuery) (
 			continue
 		}
 		if normalized.SessionID != "" && run.SessionID != normalized.SessionID {
+			continue
+		}
+		if normalized.CoordinationChannelID != "" && run.CoordinationChannelID != normalized.CoordinationChannelID {
 			continue
 		}
 		runs = append(runs, cloneTaskRun(run))
@@ -4123,6 +4127,35 @@ func TestManagerHelperCoverage(t *testing.T) {
 	if allowsRunTransition(TaskRunStatusCompleted, TaskRunStatusRunning) {
 		t.Fatal("allowsRunTransition(completed, running) = true, want false")
 	}
+	if activeRunRank(TaskRunStatusRunning) <= activeRunRank(TaskRunStatusClaimed) {
+		t.Fatal("activeRunRank(running) should outrank claimed")
+	}
+	if !prefersActiveRun(
+		Run{ID: "run-running", Status: TaskRunStatusRunning},
+		Run{ID: "run-claimed", Status: TaskRunStatusClaimed},
+	) {
+		t.Fatal("prefersActiveRun(running, claimed) = false, want true")
+	}
+	if !prefersActiveRun(
+		Run{ID: "run-b", Status: TaskRunStatusQueued, QueuedAt: time.Date(2026, 4, 14, 17, 0, 0, 0, time.UTC)},
+		Run{ID: "run-a", Status: TaskRunStatusQueued, QueuedAt: time.Date(2026, 4, 14, 17, 0, 0, 0, time.UTC)},
+	) {
+		t.Fatal("prefersActiveRun() should break equal activity ties by id")
+	}
+	if got := taskRunCoordinationChannelID(Run{
+		Metadata: json.RawMessage(`{"coordination_channel_id":"metadata-channel"}`),
+	}); got != "metadata-channel" {
+		t.Fatalf("taskRunCoordinationChannelID(metadata) = %q, want metadata-channel", got)
+	}
+	if got := taskRunCoordinationChannelID(Run{NetworkChannel: "network-channel"}); got != "network-channel" {
+		t.Fatalf("taskRunCoordinationChannelID(network) = %q, want network-channel", got)
+	}
+	if got := taskRunMetadataStringList(
+		json.RawMessage(`{"required_capabilities":["golang",42,"sqlite"]}`),
+		"required_capabilities",
+	); len(got) != 2 || got[0] != "golang" || got[1] != "sqlite" {
+		t.Fatalf("taskRunMetadataStringList() = %#v, want golang/sqlite", got)
+	}
 
 	joined := errorsJoin(nil, ErrValidation)
 	if !errors.Is(joined, ErrValidation) {
@@ -5036,6 +5069,8 @@ func cloneTaskRun(record Run) Run {
 	}
 	cloned.Metadata = cloneRawJSON(record.Metadata)
 	cloned.Result = cloneRawJSON(record.Result)
+	cloned.RequiredCapabilities = append([]string(nil), record.RequiredCapabilities...)
+	cloned.PreferredCapabilities = append([]string(nil), record.PreferredCapabilities...)
 	return cloned
 }
 

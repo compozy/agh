@@ -1839,7 +1839,7 @@ func (m *Service) dispatchTaskRunPreClaim(
 			WorkspaceID:           contextPayload.WorkspaceID,
 			ClaimerSessionID:      taskRunHookClaimerSessionID(run, actor),
 			AgentName:             contextPayload.AgentName,
-			RequiredCapabilities:  taskRunMetadataStringList(run.Metadata, "required_capabilities"),
+			RequiredCapabilities:  append([]string(nil), run.RequiredCapabilities...),
 			PriorityMin:           taskPriorityMin(taskRecord.Priority),
 			CoordinationChannelID: contextPayload.CoordinationChannelID,
 		},
@@ -1916,11 +1916,15 @@ func (m *Service) taskRunHookContext(run Run, taskRecord Task, actor ActorContex
 		TaskStatus:            string(taskRecord.Status.Normalize()),
 		RunStatus:             string(run.Status.Normalize()),
 		Attempt:               run.Attempt,
+		LeaseUntil:            run.LeaseUntil,
 		Error:                 strings.TrimSpace(run.Error),
 	}
 }
 
 func taskRunCoordinationChannelID(run Run) string {
+	if value := strings.TrimSpace(run.CoordinationChannelID); value != "" {
+		return value
+	}
 	if value := taskRunMetadataString(run.Metadata, "coordination_channel_id"); value != "" {
 		return value
 	}
@@ -3200,18 +3204,22 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 		return nil
 	}
 	return &RunSummary{
-		ID:          current.ID,
-		TaskID:      current.TaskID,
-		Status:      current.Status,
-		Attempt:     current.Attempt,
-		MaxAttempts: maxAttempts,
-		SessionID:   current.SessionID,
-		ClaimedBy:   cloneActorIdentity(current.ClaimedBy),
-		QueuedAt:    current.QueuedAt,
-		ClaimedAt:   current.ClaimedAt,
-		StartedAt:   current.StartedAt,
-		EndedAt:     current.EndedAt,
-		Error:       current.Error,
+		ID:                    current.ID,
+		TaskID:                current.TaskID,
+		Status:                current.Status,
+		Attempt:               current.Attempt,
+		MaxAttempts:           maxAttempts,
+		SessionID:             current.SessionID,
+		ClaimedBy:             cloneActorIdentity(current.ClaimedBy),
+		ClaimTokenHash:        current.ClaimTokenHash,
+		LeaseUntil:            current.LeaseUntil,
+		HeartbeatAt:           current.HeartbeatAt,
+		CoordinationChannelID: current.CoordinationChannelID,
+		QueuedAt:              current.QueuedAt,
+		ClaimedAt:             current.ClaimedAt,
+		StartedAt:             current.StartedAt,
+		EndedAt:               current.EndedAt,
+		Error:                 current.Error,
 	}
 }
 

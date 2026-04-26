@@ -816,34 +816,10 @@ func (g *GlobalDB) createQueuedRunWithExecutor(
 }
 
 func insertQueuedTaskRun(ctx context.Context, exec taskSQLExecutor, run taskpkg.Run) error {
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO task_runs (
-			id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
-			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, metadata_json, result_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		run.ID,
-		run.TaskID,
-		string(run.Status),
-		run.Attempt,
-		taskActorKindValue(run.ClaimedBy),
-		taskActorRefValue(run.ClaimedBy),
-		store.NullableString(run.SessionID),
-		string(run.Origin.Kind),
-		run.Origin.Ref,
-		store.NullableString(run.IdempotencyKey),
-		store.NullableString(run.NetworkChannel),
-		store.FormatTimestamp(run.QueuedAt),
-		nullableTaskTimestamp(run.ClaimedAt),
-		nullableTaskTimestamp(run.StartedAt),
-		nullableTaskTimestamp(run.EndedAt),
-		store.NullableString(run.Error),
-		nullableTaskJSON(run.Metadata),
-		nullableTaskJSON(run.Result),
-	); err != nil {
-		return fmt.Errorf("store: create task run %q: %w", run.ID, err)
+	if err := insertTaskRunWithExecutor(ctx, exec, run); err != nil {
+		return err
 	}
-	return nil
+	return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, run)
 }
 
 func (g *GlobalDB) saveQueuedRunIdempotencyWithExecutor(
@@ -926,9 +902,11 @@ func (g *GlobalDB) GetTaskRunByIdempotencyKey(
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT
-			tr.id, tr.task_id, tr.status, tr.attempt, tr.claimed_by_kind, tr.claimed_by_ref, tr.session_id,
-			tr.origin_kind, tr.origin_ref, tr.idempotency_key, tr.network_channel, tr.queued_at, tr.claimed_at,
-			tr.started_at, tr.ended_at, tr.error, tr.metadata_json, tr.result_json
+			tr.id, tr.task_id, tr.status, tr.attempt, tr.claimed_by_kind, tr.claimed_by_ref,
+			tr.session_id, tr.origin_kind, tr.origin_ref, tr.idempotency_key, tr.network_channel,
+			tr.claim_token, tr.claim_token_hash, tr.lease_until, tr.heartbeat_at,
+			tr.coordination_channel_id, tr.queued_at, tr.claimed_at, tr.started_at, tr.ended_at,
+			tr.error, tr.metadata_json, tr.result_json
 		 FROM task_run_idempotency tri
 		 JOIN task_runs tr ON tr.id = tri.run_id
 		 WHERE tri.idempotency_key = ? AND tri.origin_kind = ? AND tri.origin_ref = ?`,
@@ -944,7 +922,7 @@ func (g *GlobalDB) GetTaskRunByIdempotencyKey(
 		}
 		return taskpkg.Run{}, err
 	}
-	return run, nil
+	return g.loadTaskRunCapabilities(ctx, g.db, run)
 }
 
 // SaveTaskRunIdempotency inserts one origin-scoped idempotency binding for a persisted run.
@@ -1127,9 +1105,7 @@ func (g *GlobalDB) getTaskRunWithExecutor(
 
 	row := exec.QueryRowContext(
 		ctx,
-		`SELECT
-			id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
-			idempotency_key, network_channel, queued_at, claimed_at, started_at, ended_at, error, metadata_json, result_json
+		`SELECT `+taskRunSelectColumnsSQL+`
 		 FROM task_runs
 		 WHERE id = ?`,
 		trimmedRunID,
@@ -1142,7 +1118,7 @@ func (g *GlobalDB) getTaskRunWithExecutor(
 		}
 		return taskpkg.Run{}, err
 	}
-	return run, nil
+	return g.loadTaskRunCapabilities(ctx, exec, run)
 }
 
 func (g *GlobalDB) getTaskWithExecutor(

@@ -27,6 +27,8 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"tasks",
 		"task_triage_state",
 		"task_runs",
+		"task_run_required_capabilities",
+		"task_run_preferred_capabilities",
 		"task_dependencies",
 		"task_events",
 		"task_run_idempotency",
@@ -85,6 +87,19 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"error",
 		"metadata_json",
 		"result_json",
+		"claim_token",
+		"claim_token_hash",
+		"lease_until",
+		"heartbeat_at",
+		"coordination_channel_id",
+	})
+	assertTableColumns(t, globalDB.db, "task_run_required_capabilities", []string{
+		"run_id",
+		"capability_id",
+	})
+	assertTableColumns(t, globalDB.db, "task_run_preferred_capabilities", []string{
+		"run_id",
+		"capability_id",
 	})
 	assertTableColumns(t, globalDB.db, "task_dependencies", []string{
 		"task_id",
@@ -132,6 +147,16 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_task_runs_status",
 		"idx_task_runs_session",
 		"idx_task_runs_channel",
+		"idx_task_runs_pending_claim",
+		"idx_task_runs_active_lease_recovery",
+		"idx_task_runs_coordination_channel",
+		"idx_task_runs_session_status",
+	)
+	assertIndexesPresent(t, globalDB.db, "task_run_required_capabilities",
+		"idx_task_run_required_capabilities_capability",
+	)
+	assertIndexesPresent(t, globalDB.db, "task_run_preferred_capabilities",
+		"idx_task_run_preferred_capabilities_capability",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_dependencies",
 		"idx_task_dependencies_task",
@@ -146,6 +171,53 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 	)
 	assertIndexesPresent(t, globalDB.db, "task_run_idempotency",
 		"idx_task_run_idempotency_run",
+	)
+}
+
+func TestOpenGlobalDBTaskRunClaimIndexesSupportPlannedScans(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+
+	assertQueryPlanUsesIndex(
+		t,
+		globalDB.db,
+		`SELECT id
+		 FROM task_runs
+		 WHERE status = ? AND (lease_until IS NULL OR lease_until <= ?)
+		 ORDER BY queued_at ASC, id ASC`,
+		"idx_task_runs_pending_claim",
+		string(taskpkg.TaskRunStatusQueued),
+		"2026-04-26T12:00:00Z",
+	)
+	assertQueryPlanUsesIndex(
+		t,
+		globalDB.db,
+		`SELECT id
+		 FROM task_runs
+		 WHERE status = ? AND lease_until <= ? AND heartbeat_at <= ?`,
+		"idx_task_runs_active_lease_recovery",
+		string(taskpkg.TaskRunStatusClaimed),
+		"2026-04-26T12:00:00Z",
+		"2026-04-26T11:59:00Z",
+	)
+	assertQueryPlanUsesIndex(
+		t,
+		globalDB.db,
+		`SELECT run_id
+		 FROM task_run_required_capabilities
+		 WHERE capability_id = ?`,
+		"idx_task_run_required_capabilities_capability",
+		"golang",
+	)
+	assertQueryPlanUsesIndex(
+		t,
+		globalDB.db,
+		`SELECT run_id
+		 FROM task_run_preferred_capabilities
+		 WHERE capability_id = ?`,
+		"idx_task_run_preferred_capabilities_capability",
+		"codex",
 	)
 }
 
@@ -269,6 +341,91 @@ func TestGlobalDBDeleteTaskMapsChildConstraintToValidationError(t *testing.T) {
 			t.Fatalf("DeleteTask(parent) error = %q, want mapped task validation error", err.Error())
 		}
 	})
+}
+
+func TestDeleteTaskTransactionStoreDelegatesTaskStateReadsAndMutations(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+
+	parent := taskRecordForTest("task-tx-parent")
+	if err := globalDB.CreateTask(ctx, parent); err != nil {
+		t.Fatalf("CreateTask(parent) error = %v", err)
+	}
+	child := taskRecordForTest("task-tx-child")
+	child.ParentTaskID = parent.ID
+	if err := globalDB.CreateTask(ctx, child); err != nil {
+		t.Fatalf("CreateTask(child) error = %v", err)
+	}
+	dependency := taskpkg.Dependency{
+		TaskID:          child.ID,
+		DependsOnTaskID: parent.ID,
+		Kind:            taskpkg.DependencyKindBlocks,
+		CreatedAt:       child.CreatedAt.Add(time.Minute),
+	}
+	if err := globalDB.CreateDependency(ctx, dependency); err != nil {
+		t.Fatalf("CreateDependency() error = %v", err)
+	}
+	run := taskRunForTest("run-tx-child", child.ID)
+	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+
+	txStore := &deleteTaskTxStore{global: globalDB, exec: globalDB.db}
+	gotChild, err := txStore.GetTask(ctx, child.ID)
+	if err != nil {
+		t.Fatalf("txStore.GetTask() error = %v", err)
+	}
+	assertTaskEqual(t, gotChild, child)
+
+	child.Title = "Updated by transaction store"
+	child.UpdatedAt = child.UpdatedAt.Add(2 * time.Minute)
+	if err := txStore.UpdateTask(ctx, child); err != nil {
+		t.Fatalf("txStore.UpdateTask() error = %v", err)
+	}
+	updatedChild, err := globalDB.GetTask(ctx, child.ID)
+	if err != nil {
+		t.Fatalf("GetTask(updated child) error = %v", err)
+	}
+	assertTaskEqual(t, updatedChild, child)
+
+	children, err := txStore.CountDirectChildren(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("txStore.CountDirectChildren() error = %v", err)
+	}
+	if got, want := children, 1; got != want {
+		t.Fatalf("txStore.CountDirectChildren() = %d, want %d", got, want)
+	}
+	dependencies, err := txStore.ListDependencies(ctx, child.ID)
+	if err != nil {
+		t.Fatalf("txStore.ListDependencies() error = %v", err)
+	}
+	if got, want := len(dependencies), 1; got != want {
+		t.Fatalf("len(txStore.ListDependencies()) = %d, want %d", got, want)
+	}
+	dependents, err := txStore.ListDependents(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("txStore.ListDependents() error = %v", err)
+	}
+	if got, want := len(dependents), 1; got != want {
+		t.Fatalf("len(txStore.ListDependents()) = %d, want %d", got, want)
+	}
+	runs, err := txStore.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: child.ID})
+	if err != nil {
+		t.Fatalf("txStore.ListTaskRuns() error = %v", err)
+	}
+	if got, want := len(runs), 1; got != want {
+		t.Fatalf("len(txStore.ListTaskRuns()) = %d, want %d", got, want)
+	}
+	assertTaskRunEqual(t, runs[0], run)
+
+	if err := txStore.DeleteTask(ctx, child.ID); err != nil {
+		t.Fatalf("txStore.DeleteTask() error = %v", err)
+	}
+	if _, err := globalDB.GetTask(ctx, child.ID); !errors.Is(err, taskpkg.ErrTaskNotFound) {
+		t.Fatalf("GetTask(deleted child) error = %v, want ErrTaskNotFound", err)
+	}
 }
 
 func TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings(t *testing.T) {
@@ -554,6 +711,13 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	runningRun.NetworkChannel = "finance"
 	runningRun.ClaimedAt = queuedRun.QueuedAt.Add(30 * time.Second)
 	runningRun.StartedAt = queuedRun.QueuedAt.Add(time.Minute)
+	runningRun.ClaimToken = "raw-claim-token"
+	runningRun.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
+	runningRun.LeaseUntil = runningRun.ClaimedAt.Add(10 * time.Minute)
+	runningRun.HeartbeatAt = runningRun.ClaimedAt.Add(15 * time.Second)
+	runningRun.CoordinationChannelID = "coord-run-queued"
+	runningRun.RequiredCapabilities = []string{"golang", "sqlite"}
+	runningRun.PreferredCapabilities = []string{"claude", "codex"}
 	if err := globalDB.UpdateTaskRun(testutil.Context(t), runningRun); err != nil {
 		t.Fatalf("UpdateTaskRun(running) error = %v", err)
 	}
@@ -574,6 +738,18 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if got, want := len(runsBySession), 1; got != want {
 		t.Fatalf("len(ListTaskRuns(session)) = %d, want %d", got, want)
 	}
+
+	runsByChannel, err := globalDB.ListTaskRuns(
+		testutil.Context(t),
+		taskpkg.RunQuery{CoordinationChannelID: "coord-run-queued"},
+	)
+	if err != nil {
+		t.Fatalf("ListTaskRuns(coordination channel) error = %v", err)
+	}
+	if got, want := len(runsByChannel), 1; got != want {
+		t.Fatalf("len(ListTaskRuns(coordination channel)) = %d, want %d", got, want)
+	}
+	assertTaskRunEqual(t, runsByChannel[0], runningRun)
 
 	runsByStatus, err := globalDB.ListTaskRunsByStatus(
 		testutil.Context(t),
@@ -1528,16 +1704,56 @@ func assertTaskRunEqual(t *testing.T, got taskpkg.Run, want taskpkg.Run) {
 		got.Origin != want.Origin ||
 		got.IdempotencyKey != want.IdempotencyKey ||
 		got.NetworkChannel != want.NetworkChannel ||
+		got.ClaimToken != want.ClaimToken ||
+		got.ClaimTokenHash != want.ClaimTokenHash ||
+		got.CoordinationChannelID != want.CoordinationChannelID ||
 		!got.QueuedAt.Equal(want.QueuedAt) ||
 		!got.ClaimedAt.Equal(want.ClaimedAt) ||
 		!got.StartedAt.Equal(want.StartedAt) ||
 		!got.EndedAt.Equal(want.EndedAt) ||
+		!got.LeaseUntil.Equal(want.LeaseUntil) ||
+		!got.HeartbeatAt.Equal(want.HeartbeatAt) ||
 		got.Error != want.Error ||
 		string(got.Metadata) != string(want.Metadata) ||
-		string(got.Result) != string(want.Result) {
+		string(got.Result) != string(want.Result) ||
+		!testutil.EqualStringSlices(got.RequiredCapabilities, want.RequiredCapabilities) ||
+		!testutil.EqualStringSlices(got.PreferredCapabilities, want.PreferredCapabilities) {
 		t.Fatalf("task run = %#v, want %#v", got, want)
 	}
 	assertActorEqual(t, got.ClaimedBy, want.ClaimedBy)
+}
+
+func assertQueryPlanUsesIndex(t *testing.T, db *sql.DB, query string, indexName string, args ...any) {
+	t.Helper()
+
+	rows, err := db.QueryContext(testutil.Context(t), "EXPLAIN QUERY PLAN "+query, args...)
+	if err != nil {
+		t.Fatalf("EXPLAIN QUERY PLAN error = %v", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	details := make([]string, 0)
+	for rows.Next() {
+		var (
+			id      int
+			parent  int
+			notUsed int
+			detail  string
+		)
+		if err := rows.Scan(&id, &parent, &notUsed, &detail); err != nil {
+			t.Fatalf("scan query plan error = %v", err)
+		}
+		details = append(details, detail)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate query plan error = %v", err)
+	}
+	joined := strings.Join(details, "\n")
+	if !strings.Contains(joined, indexName) {
+		t.Fatalf("query plan = %q, want index %q", joined, indexName)
+	}
 }
 
 func assertOwnershipEqual(t *testing.T, got *taskpkg.Ownership, want *taskpkg.Ownership) {

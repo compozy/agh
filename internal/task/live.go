@@ -425,18 +425,22 @@ func (m *Service) loadTaskLiveContext(
 
 func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
 	return &RunSummary{
-		ID:          run.ID,
-		TaskID:      run.TaskID,
-		Status:      run.Status,
-		Attempt:     run.Attempt,
-		MaxAttempts: maxAttempts,
-		SessionID:   run.SessionID,
-		ClaimedBy:   cloneActorIdentity(run.ClaimedBy),
-		QueuedAt:    run.QueuedAt,
-		ClaimedAt:   run.ClaimedAt,
-		StartedAt:   run.StartedAt,
-		EndedAt:     run.EndedAt,
-		Error:       run.Error,
+		ID:                    run.ID,
+		TaskID:                run.TaskID,
+		Status:                run.Status,
+		Attempt:               run.Attempt,
+		MaxAttempts:           maxAttempts,
+		SessionID:             run.SessionID,
+		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:        run.ClaimTokenHash,
+		LeaseUntil:            run.LeaseUntil,
+		HeartbeatAt:           run.HeartbeatAt,
+		CoordinationChannelID: run.CoordinationChannelID,
+		QueuedAt:              run.QueuedAt,
+		ClaimedAt:             run.ClaimedAt,
+		StartedAt:             run.StartedAt,
+		EndedAt:               run.EndedAt,
+		Error:                 run.Error,
 	}
 }
 

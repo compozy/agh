@@ -1571,22 +1571,74 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 	}
 
 	return contract.TaskRunPayload{
-		ID:             run.ID,
-		TaskID:         run.TaskID,
-		Status:         run.Status,
-		Attempt:        run.Attempt,
-		ClaimedBy:      cloneActorIdentity(run.ClaimedBy),
-		SessionID:      run.SessionID,
-		Origin:         run.Origin,
-		IdempotencyKey: run.IdempotencyKey,
-		NetworkChannel: run.NetworkChannel,
-		QueuedAt:       run.QueuedAt,
-		ClaimedAt:      optionalTime(run.ClaimedAt),
-		StartedAt:      optionalTime(run.StartedAt),
-		EndedAt:        optionalTime(run.EndedAt),
-		Error:          run.Error,
-		Metadata:       cloneRawMessage(run.Metadata),
-		Result:         cloneRawMessage(run.Result),
+		ID:                    run.ID,
+		TaskID:                run.TaskID,
+		Status:                run.Status,
+		Attempt:               run.Attempt,
+		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
+		SessionID:             run.SessionID,
+		Origin:                run.Origin,
+		IdempotencyKey:        run.IdempotencyKey,
+		NetworkChannel:        run.NetworkChannel,
+		ClaimTokenHash:        run.ClaimTokenHash,
+		LeaseUntil:            optionalTime(run.LeaseUntil),
+		HeartbeatAt:           optionalTime(run.HeartbeatAt),
+		CoordinationChannelID: run.CoordinationChannelID,
+		QueuedAt:              run.QueuedAt,
+		ClaimedAt:             optionalTime(run.ClaimedAt),
+		StartedAt:             optionalTime(run.StartedAt),
+		EndedAt:               optionalTime(run.EndedAt),
+		Error:                 run.Error,
+		Metadata:              redactRawClaimTokenFields(run.Metadata),
+		Result:                redactRawClaimTokenFields(run.Result),
+	}
+}
+
+func redactRawClaimTokenFields(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	var decoded any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return cloneRawMessage(raw)
+	}
+	redacted, changed := redactRawClaimTokenValue(decoded)
+	if !changed {
+		return cloneRawMessage(raw)
+	}
+	encoded, err := json.Marshal(redacted)
+	if err != nil {
+		return nil
+	}
+	return encoded
+}
+
+func redactRawClaimTokenValue(value any) (any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		changed := false
+		redacted := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			if strings.EqualFold(strings.TrimSpace(key), "claim_token") {
+				changed = true
+				continue
+			}
+			next, nestedChanged := redactRawClaimTokenValue(nested)
+			redacted[key] = next
+			changed = changed || nestedChanged
+		}
+		return redacted, changed
+	case []any:
+		changed := false
+		redacted := make([]any, len(typed))
+		for idx, nested := range typed {
+			next, nestedChanged := redactRawClaimTokenValue(nested)
+			redacted[idx] = next
+			changed = changed || nestedChanged
+		}
+		return redacted, changed
+	default:
+		return value, false
 	}
 }
 

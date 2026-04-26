@@ -1714,18 +1714,22 @@ func TaskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *contract.Tas
 	}
 
 	return &contract.TaskRunSummaryPayload{
-		ID:          summary.ID,
-		TaskID:      summary.TaskID,
-		Status:      summary.Status,
-		Attempt:     summary.Attempt,
-		MaxAttempts: summary.MaxAttempts,
-		SessionID:   summary.SessionID,
-		ClaimedBy:   cloneActorIdentity(summary.ClaimedBy),
-		QueuedAt:    summary.QueuedAt,
-		ClaimedAt:   optionalTime(summary.ClaimedAt),
-		StartedAt:   optionalTime(summary.StartedAt),
-		EndedAt:     optionalTime(summary.EndedAt),
-		Error:       summary.Error,
+		ID:                    summary.ID,
+		TaskID:                summary.TaskID,
+		Status:                summary.Status,
+		Attempt:               summary.Attempt,
+		MaxAttempts:           summary.MaxAttempts,
+		SessionID:             summary.SessionID,
+		ClaimedBy:             cloneActorIdentity(summary.ClaimedBy),
+		ClaimTokenHash:        summary.ClaimTokenHash,
+		LeaseUntil:            optionalTime(summary.LeaseUntil),
+		HeartbeatAt:           optionalTime(summary.HeartbeatAt),
+		CoordinationChannelID: summary.CoordinationChannelID,
+		QueuedAt:              summary.QueuedAt,
+		ClaimedAt:             optionalTime(summary.ClaimedAt),
+		StartedAt:             optionalTime(summary.StartedAt),
+		EndedAt:               optionalTime(summary.EndedAt),
+		Error:                 summary.Error,
 	}
 }
 

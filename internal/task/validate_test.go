@@ -336,6 +336,94 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("task run lease metadata and capabilities", func(t *testing.T) {
+		t.Parallel()
+
+		base := validRun()
+		base.Status = TaskRunStatusRunning
+		base.ClaimedBy = &ActorIdentity{Kind: ActorKindDaemon, Ref: "scheduler"}
+		base.SessionID = "sess-1"
+		base.ClaimedAt = base.QueuedAt.Add(time.Minute)
+		base.StartedAt = base.ClaimedAt.Add(time.Minute)
+		base.ClaimToken = "raw-token"
+		base.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
+		base.LeaseUntil = base.ClaimedAt.Add(15 * time.Minute)
+		base.HeartbeatAt = base.ClaimedAt.Add(30 * time.Second)
+		base.CoordinationChannelID = "coord-run-1"
+		base.RequiredCapabilities = []string{"golang", "sqlite"}
+		base.PreferredCapabilities = []string{"claude", "codex"}
+		if err := base.Validate(); err != nil {
+			t.Fatalf("Run.Validate(valid lease) error = %v", err)
+		}
+
+		tests := []struct {
+			name   string
+			mutate func(*Run)
+		}{
+			{
+				name: "claim token requires hash",
+				mutate: func(run *Run) {
+					run.ClaimTokenHash = ""
+				},
+			},
+			{
+				name: "malformed hash",
+				mutate: func(run *Run) {
+					run.ClaimTokenHash = "sha256:" + strings.Repeat("A", 64)
+				},
+			},
+			{
+				name: "lease before claimed at",
+				mutate: func(run *Run) {
+					run.LeaseUntil = run.ClaimedAt.Add(-time.Second)
+				},
+			},
+			{
+				name: "heartbeat after lease",
+				mutate: func(run *Run) {
+					run.HeartbeatAt = run.LeaseUntil.Add(time.Second)
+				},
+			},
+			{
+				name: "required capability with whitespace",
+				mutate: func(run *Run) {
+					run.RequiredCapabilities = []string{"golang linux"}
+				},
+			},
+			{
+				name: "preferred capability with comma",
+				mutate: func(run *Run) {
+					run.PreferredCapabilities = []string{"agent,codex"}
+				},
+			},
+			{
+				name: "raw token in metadata",
+				mutate: func(run *Run) {
+					run.Metadata = json.RawMessage(`{"nested":{"claim_token":"raw"}}`)
+				},
+			},
+			{
+				name: "raw token in result",
+				mutate: func(run *Run) {
+					run.Result = json.RawMessage(`{"claim_token":"raw"}`)
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				run := base
+				tt.mutate(&run)
+				err := run.Validate()
+				if err == nil || !errors.Is(err, ErrValidation) {
+					t.Fatalf("Run.Validate() error = %v, want ErrValidation", err)
+				}
+			})
+		}
+	})
+
 	t.Run("task event invalid payload", func(t *testing.T) {
 		t.Parallel()
 		event := validEvent()

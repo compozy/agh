@@ -3,8 +3,11 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
+
+const maxCapabilityIDLength = 128
 
 // Normalize returns the normalized representation of the scope.
 func (s Scope) Normalize() Scope {
@@ -454,13 +457,130 @@ func (r Run) Validate() error {
 			TaskRunStatusQueued,
 		)
 	}
+	if err := validateRunLeaseMetadata(r); err != nil {
+		return err
+	}
+	if err := ValidateCapabilityIDs(r.RequiredCapabilities, "task_run.required_capabilities"); err != nil {
+		return err
+	}
+	if err := ValidateCapabilityIDs(r.PreferredCapabilities, "task_run.preferred_capabilities"); err != nil {
+		return err
+	}
 	if err := ValidateMetadataSize(r.Metadata, "task_run.metadata"); err != nil {
 		return err
+	}
+	if hasRawClaimTokenField(r.Metadata) {
+		return fmt.Errorf("%w: task_run.metadata must not contain raw claim_token", ErrValidation)
 	}
 	if err := ValidateResultSize(r.Result, "task_run.result"); err != nil {
 		return err
 	}
+	if hasRawClaimTokenField(r.Result) {
+		return fmt.Errorf("%w: task_run.result must not contain raw claim_token", ErrValidation)
+	}
 	return nil
+}
+
+func validateRunLeaseMetadata(r Run) error {
+	claimToken := strings.TrimSpace(r.ClaimToken)
+	claimTokenHash := strings.TrimSpace(r.ClaimTokenHash)
+	if claimToken != "" && claimTokenHash == "" {
+		return fmt.Errorf("%w: task_run.claim_token_hash is required when claim_token is set", ErrValidation)
+	}
+	if claimTokenHash != "" && !isCanonicalClaimTokenHash(claimTokenHash) {
+		return fmt.Errorf("%w: task_run.claim_token_hash must be a lowercase sha256 hex hash", ErrValidation)
+	}
+	if !r.LeaseUntil.IsZero() && claimTokenHash == "" {
+		return fmt.Errorf("%w: task_run.claim_token_hash is required when lease_until is set", ErrValidation)
+	}
+	if !r.HeartbeatAt.IsZero() && claimTokenHash == "" {
+		return fmt.Errorf("%w: task_run.claim_token_hash is required when heartbeat_at is set", ErrValidation)
+	}
+	if !r.ClaimedAt.IsZero() && !r.LeaseUntil.IsZero() && !r.LeaseUntil.After(r.ClaimedAt) {
+		return fmt.Errorf("%w: task_run.lease_until must be after claimed_at", ErrValidation)
+	}
+	if !r.HeartbeatAt.IsZero() && !r.LeaseUntil.IsZero() && r.HeartbeatAt.After(r.LeaseUntil) {
+		return fmt.Errorf("%w: task_run.heartbeat_at must not be after lease_until", ErrValidation)
+	}
+	if !r.ClaimedAt.IsZero() && !r.HeartbeatAt.IsZero() && r.HeartbeatAt.Before(r.ClaimedAt) {
+		return fmt.Errorf("%w: task_run.heartbeat_at must not be before claimed_at", ErrValidation)
+	}
+	return nil
+}
+
+func isCanonicalClaimTokenHash(value string) bool {
+	hash := strings.TrimSpace(value)
+	hash = strings.TrimPrefix(hash, "sha256:")
+	if len(hash) != 64 {
+		return false
+	}
+	for _, r := range hash {
+		if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// ValidateCapabilityIDs reports whether every capability identifier is safe for exact matching.
+func ValidateCapabilityIDs(values []string, path string) error {
+	if strings.TrimSpace(path) == "" {
+		return fmt.Errorf("%w: capability path is required", ErrValidation)
+	}
+	seen := make(map[string]struct{}, len(values))
+	for idx, raw := range values {
+		value := strings.TrimSpace(raw)
+		field := fmt.Sprintf("%s[%d]", path, idx)
+		if value == "" {
+			return fmt.Errorf("%w: %s is required", ErrValidation, field)
+		}
+		if len(value) > maxCapabilityIDLength {
+			return fmt.Errorf("%w: %s exceeds %d bytes", ErrValidation, field, maxCapabilityIDLength)
+		}
+		if containsCapabilitySeparator(value) {
+			return fmt.Errorf("%w: %s must not contain whitespace or commas", ErrValidation, field)
+		}
+		if _, ok := seen[value]; ok {
+			return fmt.Errorf("%w: %s duplicates capability %q", ErrValidation, field, value)
+		}
+		seen[value] = struct{}{}
+	}
+	return nil
+}
+
+func containsCapabilitySeparator(value string) bool {
+	return strings.ContainsAny(value, " \t\r\n,")
+}
+
+func hasRawClaimTokenField(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var decoded any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return false
+	}
+	return hasRawClaimTokenFieldValue(decoded)
+}
+
+func hasRawClaimTokenFieldValue(value any) bool {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, nested := range typed {
+			if strings.EqualFold(strings.TrimSpace(key), "claim_token") {
+				return true
+			}
+			if hasRawClaimTokenFieldValue(nested) {
+				return true
+			}
+		}
+	case []any:
+		if slices.ContainsFunc(typed, hasRawClaimTokenFieldValue) {
+			return true
+		}
+	}
+	return false
 }
 
 // Validate reports whether the boot-recovery request contains one supported
