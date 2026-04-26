@@ -51,7 +51,13 @@ func greetCapabilityLabel(card PeerCard) (string, int) {
 
 	for idx, capability := range card.Capabilities {
 		if trimmed := strings.TrimSpace(capability); trimmed != "" {
-			return trimmed, len(card.Capabilities) - idx - 1
+			extra := 0
+			for _, candidate := range card.Capabilities[idx+1:] {
+				if strings.TrimSpace(candidate) != "" {
+					extra++
+				}
+			}
+			return trimmed, extra
 		}
 	}
 	return "", 0

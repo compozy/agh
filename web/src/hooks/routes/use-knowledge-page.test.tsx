@@ -7,6 +7,8 @@ const useMemoriesMock = vi.fn();
 const useMemoryMock = vi.fn();
 const deleteMutateAsync = vi.fn();
 const deleteReset = vi.fn();
+let mockDeletePending = false;
+let mockDeleteError: Error | null = null;
 
 vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({
@@ -29,8 +31,8 @@ vi.mock("@/systems/knowledge", async () => {
     useMemories: (...args: unknown[]) => useMemoriesMock(...args),
     useMemory: (...args: unknown[]) => useMemoryMock(...args),
     useDeleteMemory: () => ({
-      error: null,
-      isPending: false,
+      error: mockDeleteError,
+      isPending: mockDeletePending,
       mutateAsync: deleteMutateAsync,
       reset: deleteReset,
     }),
@@ -58,6 +60,8 @@ const WORKSPACE_MEMORY: MemoryHeader = {
 describe("useKnowledgePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDeletePending = false;
+    mockDeleteError = null;
     useMemoriesMock.mockImplementation(
       (scope?: string, workspace?: string, options?: { enabled?: boolean }) => {
         if (scope === "global") {
@@ -78,6 +82,9 @@ describe("useKnowledgePage", () => {
       data: "# Memory content",
       isLoading: false,
       error: null,
+    });
+    deleteReset.mockImplementation(() => {
+      mockDeleteError = null;
     });
     deleteMutateAsync.mockResolvedValue({ ok: true });
   });
@@ -131,5 +138,80 @@ describe("useKnowledgePage", () => {
       filename: "launch-brief-0425.md",
       workspace: "/workspaces/signalforge",
     });
+  });
+
+  it("preserves existing memory keys when decorating memory lists", async () => {
+    useMemoriesMock.mockImplementation(
+      (scope?: string, workspace?: string, options?: { enabled?: boolean }) => {
+        if (scope === "global") {
+          return {
+            data: [{ ...GLOBAL_MEMORY, key: "legacy:operator-playbook-0425.md" }],
+            isLoading: false,
+            error: null,
+            options,
+          };
+        }
+        if (scope === "workspace") {
+          return {
+            data: workspace ? [WORKSPACE_MEMORY] : [],
+            isLoading: false,
+            error: null,
+            options,
+          };
+        }
+        return { data: [], isLoading: false, error: null, options };
+      }
+    );
+
+    const { result } = renderHook(() => useKnowledgePage());
+
+    await waitFor(() => {
+      expect(result.current.memories[0]?.key).toBe("legacy:operator-playbook-0425.md");
+    });
+
+    expect(result.current.effectiveSelectedMemoryKey).toBe("legacy:operator-playbook-0425.md");
+  });
+
+  it("clears delete state when tab, search, or selection changes", async () => {
+    const deleteFailure = new Error("Failed to delete knowledge entry");
+    const { result, rerender } = renderHook(() => useKnowledgePage());
+
+    async function failDeleteOnSelectedMemory() {
+      deleteMutateAsync.mockImplementationOnce(async () => {
+        mockDeleteError = deleteFailure;
+        throw deleteFailure;
+      });
+
+      await act(async () => {
+        await expect(
+          result.current.handleDelete(result.current.selectedMemory as KnowledgeMemoryItem)
+        ).rejects.toThrow(deleteFailure.message);
+      });
+
+      rerender();
+      expect(result.current.deleteError).toBe(deleteFailure.message);
+    }
+
+    await waitFor(() => {
+      expect(result.current.selectedMemory).not.toBeNull();
+    });
+
+    await failDeleteOnSelectedMemory();
+    act(() => {
+      result.current.setSelectedMemoryKey("workspace:launch-brief-0425.md");
+    });
+    expect(result.current.deleteError).toBeNull();
+
+    await failDeleteOnSelectedMemory();
+    act(() => {
+      result.current.setSearchQuery("launch");
+    });
+    expect(result.current.deleteError).toBeNull();
+
+    await failDeleteOnSelectedMemory();
+    act(() => {
+      result.current.setActiveTab("workspace");
+    });
+    expect(result.current.deleteError).toBeNull();
   });
 });

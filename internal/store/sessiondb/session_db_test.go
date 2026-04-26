@@ -3,6 +3,7 @@ package sessiondb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -90,84 +91,119 @@ func TestOpenSessionDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testi
 }
 
 func TestOpenSessionDBStripsCanonicalRawPayloadsAndVacuumsOldRows(t *testing.T) {
-	t.Parallel()
+	t.Run("Should strip canonical raw payloads and vacuum old session rows", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := testutil.Context(t)
-	path := filepath.Join(t.TempDir(), SessionDatabaseName)
-	legacyRaw := strings.Repeat("search result line\n", 350000)
-	legacyContent := fmt.Sprintf(
-		`{"schema":%q,"type":"tool_call","turn_id":"turn-1","tool_call_id":"call-1","timestamp":"2026-04-25T22:00:00Z","raw":{"sessionUpdate":"tool_call_update","toolCallId":"call-1","content":[{"type":"content","content":{"type":"text","text":%q}}]}}`,
-		canonicalEventSchema,
-		legacyRaw,
-	)
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		legacyRaw := strings.Repeat("search result line\n", 350000)
+		legacyContent := fmt.Sprintf(
+			`{"schema":%q,"type":"tool_call","turn_id":"turn-1","tool_call_id":"call-1","timestamp":"2026-04-25T22:00:00Z","raw":{"sessionUpdate":"tool_call_update","toolCallId":"call-1","content":[{"type":"content","content":{"type":"text","text":%q}}]}}`,
+			canonicalEventSchema,
+			legacyRaw,
+		)
 
-	legacyDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		if err := store.RunMigrations(ctx, db, sessionSchemaMigrations[:1]); err != nil {
-			return err
-		}
-		_, err := db.ExecContext(
+		legacyDB, err := store.OpenSQLiteDatabase(
 			ctx,
-			`INSERT INTO events (id, sequence, turn_id, type, agent_name, content, timestamp)
-			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			path,
+			func(ctx context.Context, db *sql.DB) error {
+				if err := store.RunMigrations(ctx, db, sessionSchemaMigrations[:1]); err != nil {
+					return err
+				}
+				_, err := db.ExecContext(
+					ctx,
+					`INSERT INTO events (id, sequence, turn_id, type, agent_name, content, timestamp)
+					 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+					"ev-legacy",
+					1,
+					"turn-1",
+					"tool_call",
+					"ceo",
+					legacyContent,
+					"2026-04-25T22:00:00Z",
+				)
+				return err
+			},
+		)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(legacy) error = %v", err)
+		}
+		if err := store.Checkpoint(ctx, legacyDB); err != nil {
+			t.Fatalf("Checkpoint(legacy) error = %v", err)
+		}
+		if err := legacyDB.Close(); err != nil {
+			t.Fatalf("legacyDB.Close() error = %v", err)
+		}
+
+		before, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("Stat(before) error = %v", err)
+		}
+
+		sessionDB, err := OpenSessionDB(ctx, "sess-legacy-raw", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB(migrated) error = %v", err)
+		}
+
+		var migratedContent string
+		if err := sessionDB.db.QueryRowContext(
+			ctx,
+			`SELECT content FROM events WHERE id = ?`,
 			"ev-legacy",
-			1,
-			"turn-1",
-			"tool_call",
-			"ceo",
-			legacyContent,
-			"2026-04-25T22:00:00Z",
-		)
-		return err
+		).Scan(&migratedContent); err != nil {
+			t.Fatalf("QueryRowContext(content) error = %v", err)
+		}
+		if strings.Contains(migratedContent, `"raw"`) {
+			t.Fatalf(
+				"migrated content still contains raw payload: %q",
+				migratedContent[:smallerInt(len(migratedContent), 200)],
+			)
+		}
+
+		if err := store.Checkpoint(ctx, sessionDB.db); err != nil {
+			t.Fatalf("Checkpoint(migrated) error = %v", err)
+		}
+		if err := sessionDB.Close(ctx); err != nil {
+			t.Fatalf("Close(migrated) error = %v", err)
+		}
+
+		after, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("Stat(after) error = %v", err)
+		}
+		if after.Size() >= before.Size() {
+			t.Fatalf(
+				"events.db size after migrate = %d, want smaller than %d",
+				after.Size(),
+				before.Size(),
+			)
+		}
 	})
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase(legacy) error = %v", err)
-	}
-	if err := store.Checkpoint(ctx, legacyDB); err != nil {
-		t.Fatalf("Checkpoint(legacy) error = %v", err)
-	}
-	if err := legacyDB.Close(); err != nil {
-		t.Fatalf("legacyDB.Close() error = %v", err)
-	}
+}
 
-	before, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("Stat(before) error = %v", err)
-	}
+func TestOpenSessionSQLiteDoesNotFailWhenVacuumFails(t *testing.T) {
+	t.Run("Should keep opening the session database when vacuuming fails", func(t *testing.T) {
+		t.Parallel()
 
-	sessionDB, err := OpenSessionDB(ctx, "sess-legacy-raw", path)
-	if err != nil {
-		t.Fatalf("OpenSessionDB(migrated) error = %v", err)
-	}
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		sentinel := errors.New("vacuum unavailable")
 
-	var migratedContent string
-	if err := sessionDB.db.QueryRowContext(
-		ctx,
-		`SELECT content FROM events WHERE id = ?`,
-		"ev-legacy",
-	).Scan(&migratedContent); err != nil {
-		t.Fatalf("QueryRowContext(content) error = %v", err)
-	}
-	if strings.Contains(migratedContent, `"raw"`) {
-		t.Fatalf(
-			"migrated content still contains raw payload: %q",
-			migratedContent[:smallerInt(len(migratedContent), 200)],
-		)
-	}
+		db, err := openSessionSQLiteWithVacuum(ctx, path, func(context.Context, *sql.DB) error {
+			return sentinel
+		})
+		if err != nil {
+			t.Fatalf("openSessionSQLiteWithVacuum() error = %v, want nil", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Fatalf("db.Close() error = %v", err)
+			}
+		})
 
-	if err := store.Checkpoint(ctx, sessionDB.db); err != nil {
-		t.Fatalf("Checkpoint(migrated) error = %v", err)
-	}
-	if err := sessionDB.Close(ctx); err != nil {
-		t.Fatalf("Close(migrated) error = %v", err)
-	}
-
-	after, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("Stat(after) error = %v", err)
-	}
-	if after.Size() >= before.Size() {
-		t.Fatalf("events.db size after migrate = %d, want smaller than %d", after.Size(), before.Size())
-	}
+		assertTablesPresent(t, db, "schema_migrations", "events", "token_usage")
+		assertJournalModeWAL(t, db)
+	})
 }
 
 func smallerInt(a int, b int) int {

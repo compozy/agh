@@ -725,81 +725,142 @@ func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *tes
 func TestGlobalDBReserveQueuedRunRejectsConcurrentOpenRun(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
-	ctx := testutil.Context(t)
-	taskRecord := taskRecordForTest("task-run-reserve-open-guard")
-	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
+	tests := []struct {
+		name      string
+		status    taskpkg.RunStatus
+		configure func(taskpkg.Run) taskpkg.Run
+	}{
+		{
+			name:   "Should reject another queued reservation while a queued run exists",
+			status: taskpkg.TaskRunStatusQueued,
+			configure: func(run taskpkg.Run) taskpkg.Run {
+				return run
+			},
+		},
+		{
+			name:   "Should reject another queued reservation while a claimed run exists",
+			status: taskpkg.TaskRunStatusClaimed,
+			configure: func(run taskpkg.Run) taskpkg.Run {
+				run.ClaimedBy = actorForTest(taskpkg.ActorKindDaemon, "scheduler")
+				run.ClaimedAt = run.QueuedAt.Add(30 * time.Second)
+				return run
+			},
+		},
+		{
+			name:   "Should reject another queued reservation while a starting run exists",
+			status: taskpkg.TaskRunStatusStarting,
+			configure: func(run taskpkg.Run) taskpkg.Run {
+				run.ClaimedBy = actorForTest(taskpkg.ActorKindDaemon, "scheduler")
+				run.ClaimedAt = run.QueuedAt.Add(30 * time.Second)
+				run.SessionID = "sess-open-starting"
+				run.StartedAt = run.QueuedAt.Add(time.Minute)
+				return run
+			},
+		},
+		{
+			name:   "Should reject another queued reservation while a running run exists",
+			status: taskpkg.TaskRunStatusRunning,
+			configure: func(run taskpkg.Run) taskpkg.Run {
+				run.ClaimedBy = actorForTest(taskpkg.ActorKindDaemon, "scheduler")
+				run.ClaimedAt = run.QueuedAt.Add(30 * time.Second)
+				run.SessionID = "sess-open-running"
+				run.StartedAt = run.QueuedAt.Add(time.Minute)
+				return run
+			},
+		},
 	}
 
-	origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"}
-	queuedAt := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
-	_, firstRun, existing, err := globalDB.ReserveQueuedRun(
-		ctx,
-		taskRecord.ID,
-		"run-reserved-open-a",
-		"open-key",
-		origin,
-		"ops",
-		nil,
-		queuedAt,
-	)
-	if err != nil {
-		t.Fatalf("ReserveQueuedRun(first) error = %v", err)
-	}
-	if existing {
-		t.Fatal("ReserveQueuedRun(first) existing = true, want false")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	_, duplicateRun, duplicateExisting, err := globalDB.ReserveQueuedRun(
-		ctx,
-		taskRecord.ID,
-		"run-reserved-open-duplicate",
-		"open-key",
-		origin,
-		"ops",
-		nil,
-		queuedAt.Add(time.Second),
-	)
-	if err != nil {
-		t.Fatalf("ReserveQueuedRun(idempotent duplicate) error = %v", err)
-	}
-	if !duplicateExisting {
-		t.Fatal("ReserveQueuedRun(idempotent duplicate) existing = false, want true")
-	}
-	if got, want := duplicateRun.ID, firstRun.ID; got != want {
-		t.Fatalf("ReserveQueuedRun(idempotent duplicate).ID = %q, want %q", got, want)
-	}
+			globalDB := openTestGlobalDB(t)
+			ctx := testutil.Context(t)
+			taskRecord := taskRecordForTest("task-run-reserve-open-guard")
+			if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask() error = %v", err)
+			}
 
-	_, secondRun, secondExisting, err := globalDB.ReserveQueuedRun(
-		ctx,
-		taskRecord.ID,
-		"run-reserved-open-b",
-		"new-open-key",
-		origin,
-		"ops",
-		nil,
-		queuedAt.Add(2*time.Second),
-	)
-	if secondExisting {
-		t.Fatal("ReserveQueuedRun(second) existing = true, want false")
-	}
-	if secondRun.ID != "" {
-		t.Fatalf("ReserveQueuedRun(second) run = %#v, want zero value", secondRun)
-	}
-	if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
-		t.Fatalf("ReserveQueuedRun(second) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
-	}
+			origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"}
+			queuedAt := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+			_, firstRun, existing, err := globalDB.ReserveQueuedRun(
+				ctx,
+				taskRecord.ID,
+				"run-reserved-open-a",
+				"open-key",
+				origin,
+				"ops",
+				nil,
+				queuedAt,
+			)
+			if err != nil {
+				t.Fatalf("ReserveQueuedRun(first) error = %v", err)
+			}
+			if existing {
+				t.Fatal("ReserveQueuedRun(first) existing = true, want false")
+			}
 
-	runs, err := globalDB.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
-	if err != nil {
-		t.Fatalf("ListTaskRuns() error = %v", err)
-	}
-	if got, want := len(runs), 1; got != want {
-		t.Fatalf("len(ListTaskRuns()) = %d, want %d", got, want)
-	}
-	if got, want := runs[0].ID, firstRun.ID; got != want {
-		t.Fatalf("stored run id = %q, want %q", got, want)
+			storedFirstRun, err := globalDB.GetTaskRun(ctx, firstRun.ID)
+			if err != nil {
+				t.Fatalf("GetTaskRun(first) error = %v", err)
+			}
+			storedFirstRun.Status = tt.status
+			storedFirstRun = tt.configure(storedFirstRun)
+			if err := globalDB.UpdateTaskRun(ctx, storedFirstRun); err != nil {
+				t.Fatalf("UpdateTaskRun(%s) error = %v", tt.status, err)
+			}
+
+			_, duplicateRun, duplicateExisting, err := globalDB.ReserveQueuedRun(
+				ctx,
+				taskRecord.ID,
+				"run-reserved-open-duplicate",
+				"open-key",
+				origin,
+				"ops",
+				nil,
+				queuedAt.Add(time.Second),
+			)
+			if err != nil {
+				t.Fatalf("ReserveQueuedRun(idempotent duplicate) error = %v", err)
+			}
+			if !duplicateExisting {
+				t.Fatal("ReserveQueuedRun(idempotent duplicate) existing = false, want true")
+			}
+			if got, want := duplicateRun.ID, firstRun.ID; got != want {
+				t.Fatalf("ReserveQueuedRun(idempotent duplicate).ID = %q, want %q", got, want)
+			}
+
+			_, secondRun, secondExisting, err := globalDB.ReserveQueuedRun(
+				ctx,
+				taskRecord.ID,
+				"run-reserved-open-b",
+				"new-open-key",
+				origin,
+				"ops",
+				nil,
+				queuedAt.Add(2*time.Second),
+			)
+			if secondExisting {
+				t.Fatal("ReserveQueuedRun(second) existing = true, want false")
+			}
+			if secondRun.ID != "" {
+				t.Fatalf("ReserveQueuedRun(second) run = %#v, want zero value", secondRun)
+			}
+			if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+				t.Fatalf("ReserveQueuedRun(second) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+			}
+
+			runs, err := globalDB.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+			if err != nil {
+				t.Fatalf("ListTaskRuns() error = %v", err)
+			}
+			if got, want := len(runs), 1; got != want {
+				t.Fatalf("len(ListTaskRuns()) = %d, want %d", got, want)
+			}
+			if got, want := runs[0].ID, firstRun.ID; got != want {
+				t.Fatalf("stored run id = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

@@ -47,6 +47,7 @@ describe("storybook story and fixture regressions", () => {
         fromWeb("src/systems/knowledge/components/stories/knowledge-list-panel.stories.tsx"),
         "utf8"
       ),
+      readFile(fromWeb("src/styles.css"), "utf8"),
       readFile(
         fromWeb("src/systems/network/components/stories/network-create-channel-dialog.stories.tsx"),
         "utf8"
@@ -72,6 +73,7 @@ describe("storybook story and fixture regressions", () => {
       collapsibleStory,
       knowledgeDetailStory,
       knowledgeListStory,
+      stylesSource,
       networkCreateDialogStory,
       automationEditorDialogStory,
       copyButtonStory,
@@ -89,6 +91,12 @@ describe("storybook story and fixture regressions", () => {
     expect(knowledgeListStory).toContain(
       'import { KnowledgeListPanel } from "@/systems/knowledge/components/knowledge-list-panel";'
     );
+    expect(knowledgeListStory).toContain(
+      'import { knowledgeMemoryKey } from "@/systems/knowledge";'
+    );
+    expect(knowledgeListStory).toContain("memory-item-${knowledgeMemoryKey(defaultMemories[2])}");
+    expect(stylesSource).toContain("animation-duration: var(--duration-base);");
+    expect(stylesSource).toContain("animation-timing-function: var(--ease-out);");
     expect(networkCreateDialogStory).toContain(
       'import { NetworkCreateChannelDialog } from "../network-create-channel-dialog";'
     );

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -753,11 +754,34 @@ type rowScanner interface {
 }
 
 func openSessionSQLite(ctx context.Context, path string) (*sql.DB, error) {
+	return openSessionSQLiteWithVacuum(ctx, path, vacuumSessionSQLite)
+}
+
+type sessionVacuumFunc func(context.Context, *sql.DB) error
+
+func openSessionSQLiteWithVacuum(
+	ctx context.Context,
+	path string,
+	vacuumFn sessionVacuumFunc,
+) (*sql.DB, error) {
 	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
 		if err := store.RunMigrations(ctx, db, sessionSchemaMigrations); err != nil {
 			return err
 		}
-		return vacuumSessionSQLite(ctx, db)
+		if vacuumFn == nil {
+			return nil
+		}
+		if err := vacuumFn(ctx, db); err != nil {
+			slog.Default().WarnContext(
+				ctx,
+				"store: skip session sqlite vacuum after non-fatal failure",
+				"path",
+				path,
+				"error",
+				err,
+			)
+		}
+		return nil
 	})
 }
 

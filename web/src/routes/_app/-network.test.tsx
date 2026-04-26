@@ -618,6 +618,57 @@ describe("network route", () => {
     ).toBeInTheDocument();
   });
 
+  it("sums coalesced peer presence counts when presence history is shown", () => {
+    routerState.searchParams = { peer: "peer_remote", presence: "shown" };
+    mockPeerMessages = [
+      makeChannelMessage({
+        kind: "greet",
+        local: false,
+        direction: "received",
+        message_id: "msg_presence_1",
+        peer_from: "peer_remote",
+        presence_count: 3,
+        preview_text: "Remote Reviewer ready for review handoffs",
+        text: "Remote Reviewer ready for review handoffs",
+        timestamp: "2026-04-13T10:40:00Z",
+      }),
+      makeChannelMessage({
+        kind: "greet",
+        local: false,
+        direction: "received",
+        message_id: "msg_presence_2",
+        peer_from: "peer_remote",
+        presence_count: 2,
+        preview_text: "Remote Reviewer ready for review handoffs",
+        text: "Remote Reviewer ready for review handoffs",
+        timestamp: "2026-04-13T10:41:00Z",
+      }),
+      makeChannelMessage({
+        body: { text: "Received. I am validating the handoff now." },
+        direction: "received",
+        display_name: "Remote Reviewer",
+        kind: "direct",
+        local: false,
+        message_id: "msg_dm_2",
+        peer_from: "peer_remote",
+        peer_to: "peer_local",
+        preview_text: "Received. I am validating the handoff now.",
+        text: "Received. I am validating the handoff now.",
+        timestamp: "2026-04-13T10:43:00Z",
+      }),
+    ];
+
+    render(<NetworkPage />);
+
+    expect(
+      within(screen.getByTestId("network-room-header")).getByText("Remote Reviewer")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /presence 5/i })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
   it("prefers a valid channel target when stale peer and channel params are both present", () => {
     routerState.searchParams = { channel: "coord.core", peer: "peer_missing" };
 

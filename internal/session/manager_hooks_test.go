@@ -246,6 +246,26 @@ func TestResumeUsesPatchedPreResumePayloadAndFiresPostResume(t *testing.T) {
 	}
 }
 
+func TestFallbackLifecycleContextUsesManagerLifecycleContext(t *testing.T) {
+	t.Parallel()
+
+	type contextKey string
+
+	lifecycleKey := contextKey("lifecycle")
+	requestKey := contextKey("request")
+	lifecycleCtx := context.WithValue(context.Background(), lifecycleKey, "manager")
+	manager := &Manager{lifecycleCtx: lifecycleCtx}
+
+	if got := manager.fallbackLifecycleContext().Value(lifecycleKey); got != "manager" {
+		t.Fatalf("fallbackLifecycleContext() lifecycle value = %#v, want manager fallback", got)
+	}
+
+	requestCtx := context.WithValue(context.Background(), requestKey, "request")
+	if got := manager.hookLifecycleContext(requestCtx).Value(requestKey); got != "request" {
+		t.Fatalf("hookLifecycleContext(requestCtx) request value = %#v, want original request context", got)
+	}
+}
+
 func TestPromptUsesPatchedInputMessage(t *testing.T) {
 	t.Parallel()
 

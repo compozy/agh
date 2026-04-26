@@ -23,7 +23,9 @@ function useAppLayout() {
   const activeWorkspaceDetail = useWorkspace(activeWorkspaceId ?? "", {
     enabled: activeWorkspaceId !== null,
   });
-  const workspaceAgents = activeWorkspaceDetail.data?.agents ?? agents;
+  const hasWorkspaceScopedAgents =
+    activeWorkspaceId !== null && activeWorkspaceDetail.data?.agents !== undefined;
+  const workspaceAgents = hasWorkspaceScopedAgents ? activeWorkspaceDetail.data?.agents : agents;
   const [isWorkspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
   const { data: sessions } = useSessions(activeWorkspaceId, {
     enabled: activeWorkspaceId !== null,
@@ -57,12 +59,15 @@ function useAppLayout() {
     areWorkspacesLoading,
     workspacesError,
     agents: workspaceAgents,
-    agentsLoading: agentsLoading || (activeWorkspaceId !== null && activeWorkspaceDetail.isLoading),
-    agentsError:
-      agentsError ||
-      (activeWorkspaceId !== null &&
-        activeWorkspaceDetail.isError &&
-        workspaceAgents === undefined),
+    agentsLoading: hasWorkspaceScopedAgents
+      ? false
+      : agentsLoading || (activeWorkspaceId !== null && activeWorkspaceDetail.isLoading),
+    agentsError: hasWorkspaceScopedAgents
+      ? false
+      : agentsError ||
+        (activeWorkspaceId !== null &&
+          activeWorkspaceDetail.isError &&
+          workspaceAgents === undefined),
     isWorkspaceSetupOpen,
     setWorkspaceSetupOpen,
     sessions,

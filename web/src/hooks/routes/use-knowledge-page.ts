@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import { useDeleteMemory, useMemories, useMemory } from "@/systems/knowledge";
-import { knowledgeMemoryKey } from "@/systems/knowledge/lib/knowledge-formatters";
 import {
   filterKnowledgeMemories,
+  knowledgeMemoryKey,
   sortKnowledgeMemories,
-} from "@/systems/knowledge/lib/knowledge-list";
-import type { KnowledgeMemoryItem, KnowledgeScope } from "@/systems/knowledge/types";
+  useDeleteMemory,
+  useMemories,
+  useMemory,
+  type KnowledgeMemoryItem,
+  type KnowledgeScope,
+} from "@/systems/knowledge";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 type Tab = "all" | "global" | "workspace";
@@ -18,7 +21,7 @@ function decorateKnowledgeMemories(
   return (memories ?? []).map(memory => ({
     ...memory,
     scope,
-    key: `${scope}:${memory.filename}`,
+    key: memory.key ?? knowledgeMemoryKey({ ...memory, scope }),
   }));
 }
 
@@ -98,18 +101,27 @@ function useKnowledgePage() {
         ? (workspaceMemoriesQuery.error ?? null)
         : (globalMemoriesQuery.error ?? workspaceMemoriesQuery.error ?? null);
 
-  useEffect(() => {
-    if (!deleteTargetKey || isDeletePending) {
-      return;
+  const clearDeleteState = () => {
+    if (deleteTargetKey !== null || deleteMutationError !== null) {
+      resetDeleteMutation();
     }
-
-    if (selectedMemory && knowledgeMemoryKey(selectedMemory) === deleteTargetKey) {
-      return;
-    }
-
-    resetDeleteMutation();
     setDeleteTargetKey(null);
-  }, [deleteTargetKey, isDeletePending, resetDeleteMutation, selectedMemory]);
+  };
+
+  const handleSetActiveTab = (nextTab: Tab) => {
+    clearDeleteState();
+    setActiveTab(nextTab);
+  };
+
+  const handleSetSearchQuery = (nextQuery: string) => {
+    clearDeleteState();
+    setSearchQuery(nextQuery);
+  };
+
+  const handleSetSelectedMemoryKey = (nextMemoryKey: string | null) => {
+    clearDeleteState();
+    setSelectedMemoryKey(nextMemoryKey);
+  };
 
   const handleDelete = async (memory: KnowledgeMemoryItem) => {
     const scope = memory.scope;
@@ -118,8 +130,8 @@ function useKnowledgePage() {
     }
 
     const memoryKey = knowledgeMemoryKey(memory);
-    setDeleteTargetKey(memoryKey);
     resetDeleteMutation();
+    setDeleteTargetKey(memoryKey);
     await deleteMemory({
       scope,
       filename: memory.filename,
@@ -152,9 +164,9 @@ function useKnowledgePage() {
     selectedContent,
     selectedMemory,
     selectedScope,
-    setActiveTab,
-    setSearchQuery,
-    setSelectedMemoryKey,
+    setActiveTab: handleSetActiveTab,
+    setSearchQuery: handleSetSearchQuery,
+    setSelectedMemoryKey: handleSetSelectedMemoryKey,
   };
 }
 

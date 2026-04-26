@@ -566,13 +566,16 @@ func (d *Dispatcher) evaluateFireLimit(
 	if err != nil {
 		return nil, fmt.Errorf("automation: evaluate fire limit: %w", err)
 	}
-	count := int64(len(runs))
-	if count < int64(fireLimit.Max) {
-		return nil, nil
-	}
 
-	var retryAt time.Time
+	var (
+		count   int64
+		retryAt time.Time
+	)
 	for _, run := range runs {
+		if !countsTowardFireLimit(run) {
+			continue
+		}
+		count++
 		if run.StartedAt == nil || run.StartedAt.IsZero() {
 			continue
 		}
@@ -580,6 +583,9 @@ func (d *Dispatcher) evaluateFireLimit(
 		if retryAt.IsZero() || candidate.Before(retryAt) {
 			retryAt = candidate
 		}
+	}
+	if count < int64(fireLimit.Max) {
+		return nil, nil
 	}
 	if retryAt.IsZero() {
 		retryAt = now
@@ -594,6 +600,10 @@ func (d *Dispatcher) evaluateFireLimit(
 		Window:  window,
 		RetryAt: retryAt,
 	}, nil
+}
+
+func countsTowardFireLimit(run Run) bool {
+	return run.Status != RunCancelled
 }
 
 func (d *Dispatcher) dispatchTaskBackedAttempt(

@@ -38,10 +38,17 @@ export { KnowledgeDeleteDialog } from "./components/knowledge-delete-dialog";
 export {
   compareKnowledgeScope,
   deriveScopeFromFilename,
+  knowledgeMemoryKey,
   formatKnowledgeDateTime,
   formatKnowledgeRelativeTime,
   knowledgeScopeLabel,
   knowledgeScopeShortLabel,
   memoryScopeTone,
   memoryTypeTone,
+  resolveKnowledgeScope,
 } from "./lib/knowledge-formatters";
+export {
+  filterKnowledgeMemories,
+  groupKnowledgeMemoriesByScope,
+  sortKnowledgeMemories,
+} from "./lib/knowledge-list";

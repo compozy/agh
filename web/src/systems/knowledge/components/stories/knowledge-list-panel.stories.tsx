@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
 import { PanelSurface } from "@/storybook/story-layout";
+import { knowledgeMemoryKey } from "@/systems/knowledge";
 import type { KnowledgeMemoryItem } from "@/systems/knowledge/types";
 
 import { KnowledgeListPanel } from "@/systems/knowledge/components/knowledge-list-panel";
@@ -65,7 +66,7 @@ export const Default: Story = {
         onSearchChange={() => undefined}
         onSelectMemory={() => undefined}
         searchQuery=""
-        selectedMemoryKey={defaultMemories[0]?.key ?? null}
+        selectedMemoryKey={defaultMemories[0] ? knowledgeMemoryKey(defaultMemories[0]) : null}
       />
     </PanelSurface>
   ),
@@ -137,7 +138,7 @@ export const ScopeGlobalOnly: Story = {
         onSearchChange={() => undefined}
         onSelectMemory={() => undefined}
         searchQuery=""
-        selectedMemoryKey={defaultMemories[0]?.key ?? null}
+        selectedMemoryKey={defaultMemories[0] ? knowledgeMemoryKey(defaultMemories[0]) : null}
       />
     </PanelSurface>
   ),
@@ -192,13 +193,13 @@ export const RowSelect: Story = {
         onSearchChange={() => undefined}
         onSelectMemory={() => undefined}
         searchQuery=""
-        selectedMemoryKey={defaultMemories[0]?.key ?? null}
+        selectedMemoryKey={defaultMemories[0] ? knowledgeMemoryKey(defaultMemories[0]) : null}
       />
     </PanelSurface>
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const row = await canvas.findByTestId(`memory-item-${defaultMemories[2].key}`);
+    const row = await canvas.findByTestId(`memory-item-${knowledgeMemoryKey(defaultMemories[2])}`);
     await userEvent.click(row);
     await expect(row).toBeVisible();
   },

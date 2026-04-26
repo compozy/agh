@@ -494,7 +494,11 @@ function makePeerActiveRoom({
     messageCount: rawMessages.length,
     messages: filteredMessages,
     presenceCount: showPresence
-      ? rawMessages.filter(message => message.kind === "greet").length
+      ? rawMessages.reduce(
+          (count, message) =>
+            message.kind === "greet" ? count + (message.presence_count ?? 1) : count,
+          0
+        )
       : 0,
     preview: summarizePeerPreview(room),
     purpose: null,

@@ -726,12 +726,17 @@ func (g *GlobalDB) reserveQueuedRunWithExecutor(
 		return taskRecord, runRecord, true, nil
 	}
 
-	existingRuns, err := g.listTaskRunsWithExecutor(ctx, exec, taskpkg.RunQuery{TaskID: taskRecord.ID})
+	openRunID, err := g.findOpenRunIDForQueuedRunReservation(ctx, exec, taskRecord.ID)
 	if err != nil {
 		return taskpkg.Task{}, taskpkg.Run{}, false, err
 	}
-	if err := validateNoOpenRunForQueuedRunReservation(taskRecord, existingRuns); err != nil {
-		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	if openRunID != "" {
+		return taskpkg.Task{}, taskpkg.Run{}, false, fmt.Errorf(
+			"%w: task %q has open run %q; finish or cancel it before enqueueing another run",
+			taskpkg.ErrInvalidStatusTransition,
+			taskRecord.ID,
+			openRunID,
+		)
 	}
 
 	runRecord, err = g.createQueuedRunWithExecutor(ctx, exec, taskRecord, input)
@@ -1331,28 +1336,33 @@ func validateTaskForQueuedRunReservation(taskRecord taskpkg.Task) error {
 	}
 }
 
-func validateNoOpenRunForQueuedRunReservation(taskRecord taskpkg.Task, runs []taskpkg.Run) error {
-	for _, run := range runs {
-		if isTerminalStoredRunStatus(run.Status) {
-			continue
-		}
-		return fmt.Errorf(
-			"%w: task %q has open run %q; finish or cancel it before enqueueing another run",
-			taskpkg.ErrInvalidStatusTransition,
-			taskRecord.ID,
-			run.ID,
-		)
-	}
-	return nil
-}
+func (g *GlobalDB) findOpenRunIDForQueuedRunReservation(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskID string,
+) (string, error) {
+	row := exec.QueryRowContext(
+		ctx,
+		`SELECT id
+		   FROM task_runs
+		  WHERE task_id = ?
+		    AND status NOT IN (?, ?, ?)
+		  ORDER BY queued_at DESC, id DESC
+		  LIMIT 1`,
+		taskID,
+		string(taskpkg.TaskRunStatusCompleted),
+		string(taskpkg.TaskRunStatusFailed),
+		string(taskpkg.TaskRunStatusCanceled),
+	)
 
-func isTerminalStoredRunStatus(status taskpkg.RunStatus) bool {
-	switch status.Normalize() {
-	case taskpkg.TaskRunStatusCompleted, taskpkg.TaskRunStatusFailed, taskpkg.TaskRunStatusCanceled:
-		return true
-	default:
-		return false
+	var runID string
+	if err := row.Scan(&runID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", fmt.Errorf("store: lookup open queued run reservation for task %q: %w", taskID, err)
 	}
+	return runID, nil
 }
 
 func normalizeStoredTaskMaxAttempts(maxAttempts int) int {

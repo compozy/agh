@@ -31,6 +31,7 @@ interface KnowledgeListItemProps {
 }
 
 function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemProps) {
+  const memoryKey = knowledgeMemoryKey(memory);
   const scope = resolveKnowledgeScope(memory);
   return (
     <button
@@ -41,7 +42,7 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
         isSelected && "bg-[color:var(--color-surface)]"
       )}
       data-state={isSelected ? "selected" : undefined}
-      data-testid={`memory-item-${memory.key ?? memory.filename}`}
+      data-testid={`memory-item-${memoryKey}`}
       onClick={onSelect}
       type="button"
     >

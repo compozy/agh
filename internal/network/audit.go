@@ -270,6 +270,12 @@ func (w *FileAuditWriter) shouldWriteTimelineMessage(entry store.NetworkMessageE
 	if w.presence.lastSeen == nil {
 		w.presence.lastSeen = make(map[string]time.Time)
 	}
+	cutoff := at.Add(-w.presence.duration)
+	for existingKey, seenAt := range w.presence.lastSeen {
+		if seenAt.Before(cutoff) {
+			delete(w.presence.lastSeen, existingKey)
+		}
+	}
 	lastSeen, ok := w.presence.lastSeen[key]
 	w.presence.lastSeen[key] = at
 	if !ok {

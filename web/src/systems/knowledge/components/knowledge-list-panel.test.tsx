@@ -135,6 +135,20 @@ describe("KnowledgeListPanel", () => {
     expect(onSelectMemory).toHaveBeenCalledWith("workspace:project-context.md");
   });
 
+  it("uses the canonical knowledge memory key for row test ids when memory.key is absent", () => {
+    renderPanel({
+      memories: [
+        GLOBAL,
+        {
+          ...WORKSPACE,
+          key: undefined,
+        },
+      ],
+    });
+
+    expect(screen.getByTestId("memory-item-workspace:project-context.md")).toBeInTheDocument();
+  });
+
   it("renders the 3px accent indicator on the selected row only", () => {
     renderPanel({ selectedMemoryKey: "workspace:project-context.md" });
     const selected = screen.getByTestId("memory-item-workspace:project-context.md");

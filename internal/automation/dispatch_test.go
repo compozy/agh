@@ -561,69 +561,126 @@ func TestDispatchFireLimitPersistsAcrossDispatcherRecreation(t *testing.T) {
 }
 
 func TestDispatchScheduledReservedRunCancelsOnFireLimit(t *testing.T) {
-	t.Parallel()
+	t.Run(
+		"Should cancel the reserved run and preserve retry timing when the fire limit is reached",
+		func(t *testing.T) {
+			t.Parallel()
 
-	now := time.Date(2026, 4, 10, 23, 0, 0, 0, time.UTC)
-	store := newMemoryRunStore()
-	dispatcher := newTestDispatcher(
-		t,
-		newRecordingSessionCreator(),
-		store,
-		WithDispatcherNow(func() time.Time { return now }),
+			now := time.Date(2026, 4, 10, 23, 0, 0, 0, time.UTC)
+			store := newMemoryRunStore()
+			dispatcher := newTestDispatcher(
+				t,
+				newRecordingSessionCreator(),
+				store,
+				WithDispatcherNow(func() time.Time { return now }),
+			)
+
+			job := testJob(AutomationScopeGlobal, "job-scheduled-fire-limit", "")
+			job.FireLimit = FireLimitConfig{Max: 1, Window: "1h"}
+
+			earlierStartedAt := now.Add(-15 * time.Minute)
+			if _, err := store.CreateRun(testutil.Context(t), Run{
+				ID:        "run-existing",
+				JobID:     job.ID,
+				Status:    RunCompleted,
+				Attempt:   1,
+				StartedAt: timePointer(earlierStartedAt),
+				EndedAt:   timePointer(earlierStartedAt.Add(time.Minute)),
+			}); err != nil {
+				t.Fatalf("CreateRun(existing) error = %v", err)
+			}
+
+			reservedRun, err := store.CreateRun(testutil.Context(t), Run{
+				ID:          "run-reserved",
+				JobID:       job.ID,
+				Status:      RunScheduled,
+				Attempt:     1,
+				ScheduledAt: timePointer(now),
+				StartedAt:   timePointer(now),
+			})
+			if err != nil {
+				t.Fatalf("CreateRun(reserved) error = %v", err)
+			}
+
+			run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+				Kind:        DispatchKindSchedule,
+				Job:         &job,
+				ReservedRun: &reservedRun,
+			})
+			if !errors.Is(err, ErrFireLimitReached) {
+				t.Fatalf("Dispatch() error = %v, want ErrFireLimitReached", err)
+			}
+			var fireLimitErr *FireLimitError
+			if !errors.As(err, &fireLimitErr) {
+				t.Fatalf("Dispatch() error = %v, want FireLimitError details", err)
+			}
+			wantRetryAt := earlierStartedAt.Add(time.Hour)
+			if got := fireLimitErr.RetryAt; !got.Equal(wantRetryAt) {
+				t.Fatalf(
+					"fireLimitErr.RetryAt = %s, want %s",
+					got.Format(time.RFC3339),
+					wantRetryAt.Format(time.RFC3339),
+				)
+			}
+			if run == nil {
+				t.Fatal("Dispatch() run = nil, want canceled reserved run")
+			}
+			if got, want := run.Status, RunCancelled; got != want {
+				t.Fatalf("run.Status = %q, want %q", got, want)
+			}
+			if got := run.Error; got == "" || !strings.Contains(got, ErrFireLimitReached.Error()) {
+				t.Fatalf("run.Error = %q, want fire-limit message", got)
+			}
+		},
 	)
+}
 
-	job := testJob(AutomationScopeGlobal, "job-scheduled-fire-limit", "")
-	job.FireLimit = FireLimitConfig{Max: 1, Window: "1h"}
+func TestDispatchFireLimitIgnoresCancelledRuns(t *testing.T) {
+	t.Run("Should ignore canceled runs when counting the fire-limit window", func(t *testing.T) {
+		t.Parallel()
 
-	earlierStartedAt := now.Add(-15 * time.Minute)
-	if _, err := store.CreateRun(testutil.Context(t), Run{
-		ID:        "run-existing",
-		JobID:     job.ID,
-		Status:    RunCompleted,
-		Attempt:   1,
-		StartedAt: timePointer(earlierStartedAt),
-		EndedAt:   timePointer(earlierStartedAt.Add(time.Minute)),
-	}); err != nil {
-		t.Fatalf("CreateRun(existing) error = %v", err)
-	}
+		now := time.Date(2026, 4, 10, 23, 0, 0, 0, time.UTC)
+		store := newMemoryRunStore()
+		creator := newRecordingSessionCreator()
+		dispatcher := newTestDispatcher(
+			t,
+			creator,
+			store,
+			WithDispatcherNow(func() time.Time { return now }),
+		)
 
-	reservedRun, err := store.CreateRun(testutil.Context(t), Run{
-		ID:          "run-reserved",
-		JobID:       job.ID,
-		Status:      RunScheduled,
-		Attempt:     1,
-		ScheduledAt: timePointer(now),
-		StartedAt:   timePointer(now),
+		job := testJob(AutomationScopeGlobal, "job-canceled-fire-limit", "")
+		job.FireLimit = FireLimitConfig{Max: 1, Window: "1h"}
+
+		cancelledAt := now.Add(-10 * time.Minute)
+		if _, err := store.CreateRun(testutil.Context(t), Run{
+			ID:        "run-canceled",
+			JobID:     job.ID,
+			Status:    RunCancelled,
+			Attempt:   1,
+			StartedAt: timePointer(cancelledAt),
+			EndedAt:   timePointer(cancelledAt.Add(time.Minute)),
+		}); err != nil {
+			t.Fatalf("CreateRun(canceled) error = %v", err)
+		}
+
+		run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+			Kind: DispatchKindManual,
+			Job:  &job,
+		})
+		if err != nil {
+			t.Fatalf("Dispatch() error = %v", err)
+		}
+		if run == nil {
+			t.Fatal("Dispatch() run = nil, want created run")
+		}
+		if got, want := run.Status, RunCompleted; got != want {
+			t.Fatalf("run.Status = %q, want %q", got, want)
+		}
+		if got, want := len(creator.createCalls()), 1; got != want {
+			t.Fatalf("len(Create calls) = %d, want %d", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("CreateRun(reserved) error = %v", err)
-	}
-
-	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
-		Kind:        DispatchKindSchedule,
-		Job:         &job,
-		ReservedRun: &reservedRun,
-	})
-	if !errors.Is(err, ErrFireLimitReached) {
-		t.Fatalf("Dispatch() error = %v, want ErrFireLimitReached", err)
-	}
-	var fireLimitErr *FireLimitError
-	if !errors.As(err, &fireLimitErr) {
-		t.Fatalf("Dispatch() error = %v, want FireLimitError details", err)
-	}
-	wantRetryAt := earlierStartedAt.Add(time.Hour)
-	if got := fireLimitErr.RetryAt; !got.Equal(wantRetryAt) {
-		t.Fatalf("fireLimitErr.RetryAt = %s, want %s", got.Format(time.RFC3339), wantRetryAt.Format(time.RFC3339))
-	}
-	if run == nil {
-		t.Fatal("Dispatch() run = nil, want canceled reserved run")
-	}
-	if got, want := run.Status, RunCancelled; got != want {
-		t.Fatalf("run.Status = %q, want %q", got, want)
-	}
-	if got := run.Error; got == "" || !strings.Contains(got, ErrFireLimitReached.Error()) {
-		t.Fatalf("run.Error = %q, want fire-limit message", got)
-	}
 }
 
 func TestDispatchBackoffRetryRecordsAttemptMetadata(t *testing.T) {
