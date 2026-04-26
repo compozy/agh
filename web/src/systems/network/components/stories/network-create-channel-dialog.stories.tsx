@@ -12,6 +12,12 @@ const meta: Meta<typeof NetworkCreateChannelDialog> = {
   component: NetworkCreateChannelDialog,
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "Dialog used by the network route to create a materialized channel from selected local agents.",
+      },
+    },
   },
 };
 
@@ -57,12 +63,20 @@ function NetworkCreateChannelDialogHarness({ conflictMessage }: { conflictMessag
   );
 }
 
+/**
+ * Default create-channel dialog with two local agents selected.
+ */
 export const Default: Story = {
+  args: {},
   render: () => <NetworkCreateChannelDialogHarness />,
 };
 
+/**
+ * Duplicate-name validation message shown above the dialog.
+ */
 export const Error: Story = {
   name: "DuplicateNameError",
+  args: {},
   render: () => (
     <NetworkCreateChannelDialogHarness conflictMessage="Channel name already exists in this workspace." />
   ),

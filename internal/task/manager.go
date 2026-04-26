@@ -1966,7 +1966,7 @@ func (m *Service) dispatchTaskRunEnqueued(
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 		IdempotencyKey: strings.TrimSpace(idempotencyKey),
 	}
-	_, err := m.taskHooks.DispatchTaskRunEnqueued(ctx, payload)
+	_, err := m.taskHooks.DispatchTaskRunEnqueued(taskRunObservationHookContext(ctx), payload)
 	return err
 }
 
@@ -2020,7 +2020,7 @@ func (m *Service) dispatchTaskRunPostClaim(
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 		ClaimedAt:      run.ClaimedAt,
 	}
-	_, err := m.taskHooks.DispatchTaskRunPostClaim(ctx, payload)
+	_, err := m.taskHooks.DispatchTaskRunPostClaim(taskRunObservationHookContext(ctx), payload)
 	return err
 }
 
@@ -2044,7 +2044,7 @@ func (m *Service) dispatchTaskRunLeaseRecovered(
 		RecoveryAction:    string(recovery.Action.Normalize()),
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
 	}
-	_, err := m.taskHooks.DispatchTaskRunLeaseRecovered(ctx, payload)
+	_, err := m.taskHooks.DispatchTaskRunLeaseRecovered(taskRunObservationHookContext(ctx), payload)
 	return err
 }
 

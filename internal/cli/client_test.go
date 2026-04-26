@@ -29,41 +29,45 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
-		httpClient: &http.Client{
-			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				if req.Method != http.MethodGet || req.URL.Path != "/api/agent/me" {
-					t.Fatalf("request = %s %s, want GET /api/agent/me", req.Method, req.URL.Path)
-				}
-				if got := req.Header.Get(agentidentity.HeaderSessionID); got != "sess-1" {
-					t.Fatalf("%s = %q, want sess-1", agentidentity.HeaderSessionID, got)
-				}
-				if got := req.Header.Get(agentidentity.HeaderAgent); got != "coder" {
-					t.Fatalf("%s = %q, want coder", agentidentity.HeaderAgent, got)
-				}
-				if got := req.Header.Get(agentidentity.HeaderWorkspaceID); got != "ws-1" {
-					t.Fatalf("%s = %q, want ws-1", agentidentity.HeaderWorkspaceID, got)
-				}
-				return newHTTPResponse(
-					http.StatusOK,
-					`{"me":{"self":{"session_id":"sess-1","agent_name":"coder","provider":"test"},"workspace":{"id":"ws-1"},"session":{"id":"sess-1","agent_name":"coder","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"capabilities":[],"channels":[],"active_task_leases":[]}}`,
-				), nil
-			}),
-		},
-	}
+	t.Run("Should send identity headers", func(t *testing.T) {
+		t.Parallel()
 
-	me, err := client.AgentMe(context.Background(), agentidentity.Credentials{
-		SessionID:   "sess-1",
-		AgentName:   "coder",
-		WorkspaceID: "ws-1",
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodGet || req.URL.Path != "/api/agent/me" {
+						t.Fatalf("request = %s %s, want GET /api/agent/me", req.Method, req.URL.Path)
+					}
+					if got := req.Header.Get(agentidentity.HeaderSessionID); got != "sess-1" {
+						t.Fatalf("%s = %q, want sess-1", agentidentity.HeaderSessionID, got)
+					}
+					if got := req.Header.Get(agentidentity.HeaderAgent); got != "coder" {
+						t.Fatalf("%s = %q, want coder", agentidentity.HeaderAgent, got)
+					}
+					if got := req.Header.Get(agentidentity.HeaderWorkspaceID); got != "ws-1" {
+						t.Fatalf("%s = %q, want ws-1", agentidentity.HeaderWorkspaceID, got)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"me":{"self":{"session_id":"sess-1","agent_name":"coder","provider":"test"},"workspace":{"id":"ws-1"},"session":{"id":"sess-1","agent_name":"coder","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"capabilities":[],"channels":[],"active_task_leases":[]}}`,
+					), nil
+				}),
+			},
+		}
+
+		me, err := client.AgentMe(context.Background(), agentidentity.Credentials{
+			SessionID:   "sess-1",
+			AgentName:   "coder",
+			WorkspaceID: "ws-1",
+		})
+		if err != nil {
+			t.Fatalf("AgentMe() error = %v", err)
+		}
+		if me.Self.SessionID != "sess-1" || me.Self.AgentName != "coder" {
+			t.Fatalf("AgentMe() = %#v, want validated response", me.Self)
+		}
 	})
-	if err != nil {
-		t.Fatalf("AgentMe() error = %v", err)
-	}
-	if me.Self.SessionID != "sess-1" || me.Self.AgentName != "coder" {
-		t.Fatalf("AgentMe() = %#v, want validated response", me.Self)
-	}
 }
 
 func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
@@ -401,30 +405,34 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 	t.Parallel()
 
-	rawToken := "agh_claim_CLIENTERRORTOKEN123"
-	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
-		httpClient: &http.Client{
-			Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
-				return newHTTPResponse(
-					http.StatusConflict,
-					`{"error":"task: invalid claim token: `+rawToken+`"}`,
-				), nil
-			}),
-		},
-	}
-	_, err := client.AgentTaskRelease(
-		context.Background(),
-		"run-1",
-		AgentTaskReleaseRequest{ClaimToken: rawToken},
-		agentidentity.Credentials{SessionID: "sess-1", AgentName: "coder"},
-	)
-	if err == nil {
-		t.Fatal("AgentTaskRelease() error = nil, want redacted API error")
-	}
-	if strings.Contains(err.Error(), rawToken) || !strings.Contains(err.Error(), "agh_claim_[REDACTED]") {
-		t.Fatalf("error = %q, want redacted claim token", err.Error())
-	}
+	t.Run("Should redact claim tokens from task errors", func(t *testing.T) {
+		t.Parallel()
+
+		rawToken := "agh_claim_CLIENTERRORTOKEN123"
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+					return newHTTPResponse(
+						http.StatusConflict,
+						`{"error":"task: invalid claim token: `+rawToken+`"}`,
+					), nil
+				}),
+			},
+		}
+		_, err := client.AgentTaskRelease(
+			context.Background(),
+			"run-1",
+			AgentTaskReleaseRequest{ClaimToken: rawToken},
+			agentidentity.Credentials{SessionID: "sess-1", AgentName: "coder"},
+		)
+		if err == nil {
+			t.Fatal("AgentTaskRelease() error = nil, want redacted API error")
+		}
+		if strings.Contains(err.Error(), rawToken) || !strings.Contains(err.Error(), "agh_claim_[REDACTED]") {
+			t.Fatalf("error = %q, want redacted claim token", err.Error())
+		}
+	})
 }
 
 func agentTaskLeaseHTTPResponse(status taskpkg.RunStatus) *http.Response {

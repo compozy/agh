@@ -87,19 +87,33 @@ func (h *BaseHandlers) AgentChannelRecv(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("channel is required")))
 		return
 	}
+	if err := network.ValidateChannel(channel); err != nil {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return
+	}
+	wait, err := parseBoolQuery(c, "wait")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return
+	}
+	limit, err := parsePositiveIntQuery(c, "limit")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return
+	}
 
 	envelopes, err := agentChannelInbox(
 		c.Request.Context(),
 		service,
 		caller.Session.ID,
 		channel,
-		parseBoolQuery(c, "wait"),
+		wait,
 	)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	messages := agentChannelMessagesFromEnvelopes(envelopes, channel, parsePositiveIntQuery(c, "limit"))
+	messages := agentChannelMessagesFromEnvelopes(envelopes, channel, limit)
 	c.JSON(http.StatusOK, contract.AgentChannelMessagesResponse{Messages: messages})
 }
 
@@ -319,6 +333,9 @@ func (h *BaseHandlers) enrichAgentMePayload(
 	}
 	if h == nil {
 		return
+	}
+	if coordinatorPayload, err := h.agentCoordinatorConfigPayload(ctx, caller.Session.WorkspaceID); err == nil {
+		payload.Coordinator = coordinatorPayload
 	}
 	service, err := h.networkServiceRequired()
 	if err != nil {
@@ -774,6 +791,7 @@ func sessionInfoFromAgentCaller(caller agentidentity.Caller) *session.Info {
 		Name:        strings.TrimSpace(caller.Session.Name),
 		AgentName:   strings.TrimSpace(caller.Session.AgentName),
 		Provider:    strings.TrimSpace(caller.Session.Provider),
+		Model:       strings.TrimSpace(caller.Session.Model),
 		WorkspaceID: strings.TrimSpace(caller.Session.WorkspaceID),
 		Workspace:   strings.TrimSpace(caller.Session.WorkspacePath),
 		Channel:     strings.TrimSpace(caller.Session.Channel),
@@ -793,27 +811,37 @@ func sortCoordinationChannels(channels []contract.CoordinationChannelPayload) {
 	})
 }
 
-func parseBoolQuery(c *gin.Context, key string) bool {
+func parseBoolQuery(c *gin.Context, key string) (bool, error) {
 	if c == nil {
-		return false
+		return false, nil
 	}
 	raw := strings.TrimSpace(c.Query(key))
 	if raw == "" {
-		return false
+		return false, nil
 	}
 	parsed, err := strconv.ParseBool(raw)
-	return err == nil && parsed
+	if err != nil {
+		return false, fmt.Errorf("query parameter %q must be a boolean: %w", key, err)
+	}
+	return parsed, nil
 }
 
-func parsePositiveIntQuery(c *gin.Context, key string) int {
+func parsePositiveIntQuery(c *gin.Context, key string) (int, error) {
 	if c == nil {
-		return 0
+		return 0, nil
 	}
-	parsed, err := strconv.Atoi(strings.TrimSpace(c.Query(key)))
-	if err != nil || parsed <= 0 {
-		return 0
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return 0, nil
 	}
-	return parsed
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("query parameter %q must be a positive integer: %w", key, err)
+	}
+	if parsed <= 0 {
+		return 0, fmt.Errorf("query parameter %q must be a positive integer: %d", key, parsed)
+	}
+	return parsed, nil
 }
 
 func (h *BaseHandlers) nowUTC() time.Time {

@@ -851,73 +851,100 @@ func TestListReturnsClonedWorkspaces(t *testing.T) {
 func TestCloneConfigProducesDeepCopy(t *testing.T) {
 	t.Parallel()
 
-	toolReadOnly := true
-	original := aghconfig.Config{
-		Session: aghconfig.SessionConfig{
-			Limits: aghconfig.SessionLimitsConfig{
-				Timeout: time.Minute,
+	t.Run("Should produce an independent deep copy", func(t *testing.T) {
+		t.Parallel()
+
+		toolReadOnly := true
+		original := aghconfig.Config{
+			Session: aghconfig.SessionConfig{
+				Limits: aghconfig.SessionLimitsConfig{
+					Timeout: time.Minute,
+				},
 			},
-		},
-		Providers: map[string]aghconfig.ProviderConfig{
-			"claude": {
-				Command:      "claude",
-				DefaultModel: "sonnet",
-				APIKeyEnv:    "ANTHROPIC_API_KEY",
-				MCPServers: []aghconfig.MCPServer{
-					{
-						Name:    "github",
-						Command: "npx",
-						Args:    []string{"-y"},
-						Env:     map[string]string{"TOKEN": "one"},
+			Autonomy: aghconfig.AutonomyConfig{
+				Coordinator: aghconfig.CoordinatorConfig{
+					Enabled:               true,
+					AgentName:             "coordinator",
+					Provider:              "codex",
+					Model:                 "gpt-4o",
+					DefaultTTL:            45 * time.Minute,
+					MaxChildren:           5,
+					MaxActivePerWorkspace: 1,
+				},
+			},
+			Providers: map[string]aghconfig.ProviderConfig{
+				"claude": {
+					Command:      "claude",
+					DefaultModel: "sonnet",
+					APIKeyEnv:    "ANTHROPIC_API_KEY",
+					MCPServers: []aghconfig.MCPServer{
+						{
+							Name:    "github",
+							Command: "npx",
+							Args:    []string{"-y"},
+							Env:     map[string]string{"TOKEN": "one"},
+						},
 					},
 				},
 			},
-		},
-		Skills: aghconfig.SkillsConfig{
-			Enabled:        true,
-			DisabledSkills: []string{"alpha"},
-			PollInterval:   time.Second,
-		},
-		Hooks: aghconfig.HooksConfig{
-			Declarations: []hookspkg.HookDecl{{
-				Name: "test-hook",
-				Args: []string{"one"},
-				Env:  map[string]string{"TOKEN": "one"},
-				Metadata: map[string]string{
-					"origin": "test",
-				},
-				Matcher: hookspkg.HookMatcher{
-					ToolReadOnly: &toolReadOnly,
-				},
-			}},
-		},
-	}
+			Skills: aghconfig.SkillsConfig{
+				Enabled:        true,
+				DisabledSkills: []string{"alpha"},
+				PollInterval:   time.Second,
+			},
+			Hooks: aghconfig.HooksConfig{
+				Declarations: []hookspkg.HookDecl{{
+					Name: "test-hook",
+					Args: []string{"one"},
+					Env:  map[string]string{"TOKEN": "one"},
+					Metadata: map[string]string{
+						"origin": "test",
+					},
+					Matcher: hookspkg.HookMatcher{
+						ToolReadOnly: &toolReadOnly,
+					},
+				}},
+			},
+		}
 
-	cloned := cloneConfig(&original)
-	cloned.Session.Limits.Timeout = 2 * time.Minute
-	cloned.Providers["claude"] = aghconfig.ProviderConfig{}
-	cloned.Skills.DisabledSkills[0] = "beta"
-	cloned.Hooks.Declarations[0].Args[0] = "two"
-	cloned.Hooks.Declarations[0].Env["TOKEN"] = "two"
-	cloned.Hooks.Declarations[0].Metadata["origin"] = "mutated"
-	*cloned.Hooks.Declarations[0].Matcher.ToolReadOnly = false
+		cloned := cloneConfig(&original)
+		cloned.Session.Limits.Timeout = 2 * time.Minute
+		cloned.Autonomy.Coordinator.Enabled = false
+		cloned.Autonomy.Coordinator.AgentName = "mutated-coordinator"
+		cloned.Autonomy.Coordinator.DefaultTTL = 2 * time.Hour
+		cloned.Providers["claude"] = aghconfig.ProviderConfig{}
+		cloned.Skills.DisabledSkills[0] = "beta"
+		cloned.Hooks.Declarations[0].Args[0] = "two"
+		cloned.Hooks.Declarations[0].Env["TOKEN"] = "two"
+		cloned.Hooks.Declarations[0].Metadata["origin"] = "mutated"
+		*cloned.Hooks.Declarations[0].Matcher.ToolReadOnly = false
 
-	if got, want := original.Session.Limits.Timeout, time.Minute; got != want {
-		t.Fatalf("original Session.Limits.Timeout = %s, want %s", got, want)
-	}
-	provider := original.Providers["claude"]
-	if provider.Command != "claude" || provider.MCPServers[0].Env["TOKEN"] != "one" {
-		t.Fatalf("original provider mutated: %#v", provider)
-	}
-	if got, want := original.Skills.DisabledSkills, []string{"alpha"}; !slices.Equal(got, want) {
-		t.Fatalf("original Skills.DisabledSkills = %#v, want %#v", got, want)
-	}
-	hook := original.Hooks.Declarations[0]
-	if hook.Args[0] != "one" || hook.Env["TOKEN"] != "one" ||
-		hook.Metadata["origin"] != "test" || hook.Matcher.ToolReadOnly == nil ||
-		!*hook.Matcher.ToolReadOnly {
-		t.Fatalf("original hook mutated: %#v", hook)
-	}
+		if got, want := original.Session.Limits.Timeout, time.Minute; got != want {
+			t.Fatalf("original Session.Limits.Timeout = %s, want %s", got, want)
+		}
+		if got, want := original.Autonomy.Coordinator.DefaultTTL, 45*time.Minute; got != want {
+			t.Fatalf("original Autonomy.Coordinator.DefaultTTL = %s, want %s", got, want)
+		}
+		if !original.Autonomy.Coordinator.Enabled {
+			t.Fatal("original Autonomy.Coordinator.Enabled = false, want true")
+		}
+		if got, want := original.Autonomy.Coordinator.AgentName, "coordinator"; got != want {
+			t.Fatalf("original Autonomy.Coordinator.AgentName = %q, want %q", got, want)
+		}
+		provider := original.Providers["claude"]
+		if provider.Command != "claude" || provider.MCPServers[0].Env["TOKEN"] != "one" {
+			t.Fatalf("original provider mutated: %#v", provider)
+		}
+		if got, want := original.Skills.DisabledSkills, []string{"alpha"}; !slices.Equal(got, want) {
+			t.Fatalf("original Skills.DisabledSkills = %#v, want %#v", got, want)
+		}
+		hook := original.Hooks.Declarations[0]
+		if hook.Args[0] != "one" || hook.Env["TOKEN"] != "one" ||
+			hook.Metadata["origin"] != "test" || hook.Matcher.ToolReadOnly == nil ||
+			!*hook.Matcher.ToolReadOnly {
+			t.Fatalf("original hook mutated: %#v", hook)
+		}
+	})
 }
 
 func TestWorkspaceHelperFunctions(t *testing.T) {

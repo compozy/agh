@@ -1067,6 +1067,82 @@ func TestGlobalDBUpdateTaskRunRejectsSessionRebinding(t *testing.T) {
 	}
 }
 
+func TestGlobalDBUpdateTaskRunAllowsQueuedSessionRelease(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should release queued session when requeued", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-run-queued-release")
+		if err := globalDB.CreateTask(testutil.Context(t), taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		run := taskRunForTest("run-queued-release", taskRecord.ID)
+		run.Status = taskpkg.TaskRunStatusClaimed
+		run.ClaimedBy = &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-queued-release"}
+		run.SessionID = "sess-queued-release"
+		run.ClaimedAt = run.QueuedAt.Add(time.Minute)
+		if err := globalDB.CreateTaskRun(testutil.Context(t), run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		run.Status = taskpkg.TaskRunStatusQueued
+		run.ClaimedBy = nil
+		run.SessionID = ""
+		run.ClaimedAt = time.Time{}
+		err := globalDB.UpdateTaskRun(testutil.Context(t), run)
+		if err != nil {
+			t.Fatalf("UpdateTaskRun(requeue release) error = %v", err)
+		}
+
+		stored, err := globalDB.GetTaskRun(testutil.Context(t), run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(requeued) error = %v", err)
+		}
+		if got, want := stored.Status, taskpkg.TaskRunStatusQueued; got != want {
+			t.Fatalf("stored.Status = %q, want %q", got, want)
+		}
+		if stored.SessionID != "" || stored.ClaimedBy != nil || !stored.ClaimedAt.IsZero() {
+			t.Fatalf(
+				"stored lease fields = session %q claimed_by %#v claimed_at %v, want released",
+				stored.SessionID,
+				stored.ClaimedBy,
+				stored.ClaimedAt,
+			)
+		}
+	})
+}
+
+func TestGlobalDBUpdateTaskRunRejectsActiveSessionClear(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject clearing session binding for active runs", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-run-active-clear")
+		if err := globalDB.CreateTask(testutil.Context(t), taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		run := taskRunForTest("run-active-clear", taskRecord.ID)
+		run.Status = taskpkg.TaskRunStatusRunning
+		run.SessionID = "sess-active-clear"
+		run.StartedAt = run.QueuedAt.Add(time.Minute)
+		if err := globalDB.CreateTaskRun(testutil.Context(t), run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		run.SessionID = ""
+		err := globalDB.UpdateTaskRun(testutil.Context(t), run)
+		if !errors.Is(err, taskpkg.ErrSessionAlreadyBound) {
+			t.Fatalf("UpdateTaskRun(active clear) error = %v, want ErrSessionAlreadyBound", err)
+		}
+	})
+}
+
 func TestGlobalDBTaskAndRunReferenceErrors(t *testing.T) {
 	t.Parallel()
 

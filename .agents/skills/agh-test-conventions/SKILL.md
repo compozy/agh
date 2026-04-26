@@ -50,11 +50,23 @@ trigger: implicit
 3. Deterministic time: replace `time.Now()` with injected clocks; deterministic IDs use injected ID generators.
 4. For new types satisfying interfaces, ensure `var _ Interface = (*Type)(nil)` exists in production code (not in the test file).
 
-**Step 6: Pre-Commit Validation**
+**Step 6: Apply Integration / E2E Discipline**
+
+1. Integration tests live in `*_integration_test.go` with `//go:build integration` at the top. Co-locate them with the package they test — never in a separate `test/` directory.
+2. `make test` runs unit only. `make test-integration` adds the `+integration` build tag. `make test-e2e-runtime` is the daemon-side Go harness; `make test-e2e-web` is the browser-side Playwright harness.
+3. Use `TestMain` for expensive one-time setup/teardown.
+4. Use real dependencies — real SQLite via `t.TempDir()`, mock ACP server as a subprocess (`acpmock`). Avoid in-process fakes when a real subprocess can be wired.
+5. Keep integration tests fast enough for CI: ~30s max per package.
+6. **E2E tests are part of the runtime contract.** When a runtime contract changes (prompt augmenter, situation context, fixture format), the E2E mock and matchers ship in the same PR. Otherwise tests pass against a stale prompt and fail later.
+7. Read `references/test-shape-rules.md` "Integration / E2E" section for additional patterns.
+
+**Step 7: Pre-Commit Validation**
 
 1. Run `python3 scripts/check-test-conventions.py <file_path>` to scan the test file for violations. The script is a regex-based fast check; it complements `make verify`.
 2. If the script reports violations, fix them before running `make verify`.
 3. After edits, run `go test ./<package> -count=1 -race` for the affected package, then `make verify`.
+4. **`make verify` is the commit gate.** If verification is blocked by an external/branch-side asset issue (missing test fixture, etc.), do NOT commit — report the verified blocker and hold.
+5. **Test failures are production bugs.** Fix production code; do not weaken assertions. The only legitimate exception is documenting an INVALID review item with concrete evidence.
 
 ## Error Handling
 

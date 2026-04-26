@@ -516,7 +516,22 @@ func isEligibleSession(work *RunSnapshot, candidate SessionSnapshot, busy map[st
 	if !scopeMatches(work.Task, candidate) {
 		return false
 	}
+	if !coordinationChannelMatches(work, candidate) {
+		return false
+	}
 	return capabilitiesCover(candidate.Capabilities, work.Run.RequiredCapabilities)
+}
+
+func coordinationChannelMatches(work *RunSnapshot, candidate SessionSnapshot) bool {
+	if work == nil {
+		return false
+	}
+	runChannel := strings.TrimSpace(work.Run.CoordinationChannelID)
+	sessionChannel := strings.TrimSpace(candidate.Channel)
+	if runChannel == "" {
+		return true
+	}
+	return sessionChannel == runChannel
 }
 
 func scopeMatches(task taskpkg.Task, candidate SessionSnapshot) bool {

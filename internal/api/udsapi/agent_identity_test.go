@@ -31,16 +31,17 @@ func TestAgentMeRejectsInvalidCallerIdentity(t *testing.T) {
 		name       string
 		headers    map[string]string
 		statusInfo *session.Info
+		statusErr  error
 		wantStatus int
 	}{
 		{
-			name:       "missing env headers",
+			name:       "Should reject missing env headers",
 			headers:    map[string]string{},
 			statusInfo: active,
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name: "stopped session",
+			name: "Should reject stopped sessions",
 			headers: map[string]string{
 				agentidentity.HeaderSessionID: "sess-1",
 				agentidentity.HeaderAgent:     "coder",
@@ -53,7 +54,7 @@ func TestAgentMeRejectsInvalidCallerIdentity(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name: "agent mismatch",
+			name: "Should reject agent mismatches",
 			headers: map[string]string{
 				agentidentity.HeaderSessionID: "sess-1",
 				agentidentity.HeaderAgent:     "reviewer",
@@ -62,7 +63,7 @@ func TestAgentMeRejectsInvalidCallerIdentity(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name: "workspace mismatch",
+			name: "Should reject workspace mismatches",
 			headers: map[string]string{
 				agentidentity.HeaderSessionID:   "sess-1",
 				agentidentity.HeaderAgent:       "coder",
@@ -70,6 +71,15 @@ func TestAgentMeRejectsInvalidCallerIdentity(t *testing.T) {
 			},
 			statusInfo: active,
 			wantStatus: http.StatusForbidden,
+		},
+		{
+			name: "Should preserve lookup unavailable status",
+			headers: map[string]string{
+				agentidentity.HeaderSessionID: "sess-1",
+				agentidentity.HeaderAgent:     "coder",
+			},
+			statusErr:  context.DeadlineExceeded,
+			wantStatus: http.StatusServiceUnavailable,
 		},
 	}
 
@@ -79,6 +89,9 @@ func TestAgentMeRejectsInvalidCallerIdentity(t *testing.T) {
 
 			manager := stubSessionManager{
 				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					if tt.statusErr != nil {
+						return nil, tt.statusErr
+					}
 					if tt.statusInfo == nil {
 						return nil, session.ErrSessionNotFound
 					}
@@ -105,49 +118,56 @@ func TestAgentMeRejectsInvalidCallerIdentity(t *testing.T) {
 func TestAgentMeReturnsValidatedCallerIdentity(t *testing.T) {
 	t.Parallel()
 
-	manager := stubSessionManager{
-		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			if id != "sess-1" {
-				return nil, session.ErrSessionNotFound
-			}
-			now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
-			return &session.Info{
-				ID:          "sess-1",
-				Name:        "worker",
-				AgentName:   "coder",
-				Provider:    "test-provider",
-				WorkspaceID: "ws-1",
-				Workspace:   "/workspace",
-				Channel:     "coord",
-				Type:        session.SessionTypeUser,
-				State:       session.StateActive,
-				CreatedAt:   now,
-				UpdatedAt:   now,
-			}, nil
-		},
-	}
-	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
-	recorder := performAgentMeRequest(t, engine, map[string]string{
-		agentidentity.HeaderSessionID:   "sess-1",
-		agentidentity.HeaderAgent:       "coder",
-		agentidentity.HeaderWorkspaceID: "ws-1",
-	})
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
+	t.Run("Should return validated caller identity", func(t *testing.T) {
+		t.Parallel()
 
-	var response contract.AgentMeResponse
-	decodeJSONResponse(t, recorder, &response)
-	if response.Me.Self.SessionID != "sess-1" || response.Me.Self.AgentName != "coder" {
-		t.Fatalf("response.Me.Self = %#v, want validated caller", response.Me.Self)
-	}
-	if response.Me.Session.State != session.StateActive || response.Me.Workspace.ID != "ws-1" {
-		encoded, err := json.Marshal(response.Me)
-		if err != nil {
-			t.Fatalf("json.Marshal(AgentMePayload) error = %v", err)
+		manager := stubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				if id != "sess-1" {
+					return nil, session.ErrSessionNotFound
+				}
+				now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
+				return &session.Info{
+					ID:          "sess-1",
+					Name:        "worker",
+					AgentName:   "coder",
+					Provider:    "test-provider",
+					Model:       "test-model",
+					WorkspaceID: "ws-1",
+					Workspace:   "/workspace",
+					Channel:     "coord",
+					Type:        session.SessionTypeUser,
+					State:       session.StateActive,
+					CreatedAt:   now,
+					UpdatedAt:   now,
+				}, nil
+			},
 		}
-		t.Fatalf("response.Me = %s, want active session in workspace ws-1", encoded)
-	}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performAgentMeRequest(t, engine, map[string]string{
+			agentidentity.HeaderSessionID:   "sess-1",
+			agentidentity.HeaderAgent:       "coder",
+			agentidentity.HeaderWorkspaceID: "ws-1",
+		})
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		var response contract.AgentMeResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Me.Self.SessionID != "sess-1" ||
+			response.Me.Self.AgentName != "coder" ||
+			response.Me.Self.Model != "test-model" {
+			t.Fatalf("response.Me.Self = %#v, want validated caller with model", response.Me.Self)
+		}
+		if response.Me.Session.State != session.StateActive || response.Me.Workspace.ID != "ws-1" {
+			encoded, err := json.Marshal(response.Me)
+			if err != nil {
+				t.Fatalf("json.Marshal(AgentMePayload) error = %v", err)
+			}
+			t.Fatalf("response.Me = %s, want active session in workspace ws-1", encoded)
+		}
+	})
 }
 
 func TestAgentMeReportsUnavailableWhenSessionServiceMissing(t *testing.T) {

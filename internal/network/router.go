@@ -444,7 +444,9 @@ func (r *Router) handleReceivedCapability(ctx context.Context, state receiveStat
 		return result, nil
 	}
 	if state.envelope.IsDirected() {
-		result.Deliveries = []Delivery{deliveryFromLocalPeer(state.directedTarget, state.envelope)}
+		if delivery, ok := deliveryFromLocalPeer(state.directedTarget, state.envelope); ok {
+			result.Deliveries = []Delivery{delivery}
+		}
 		return result, nil
 	}
 	result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(state.envelope.Channel), state.envelope)
@@ -457,7 +459,9 @@ func (r *Router) handleReceivedLifecycle(ctx context.Context, state receiveState
 		return RouteResult{}, err
 	}
 	if deliver {
-		result.Deliveries = []Delivery{deliveryFromLocalPeer(state.directedTarget, state.envelope)}
+		if delivery, ok := deliveryFromLocalPeer(state.directedTarget, state.envelope); ok {
+			result.Deliveries = []Delivery{delivery}
+		}
 	}
 	return result, nil
 }
@@ -584,7 +588,9 @@ func (r *Router) handleWhois(
 			}
 		}
 		if hasDirectedTarget {
-			result.Deliveries = []Delivery{deliveryFromLocalPeer(directedTarget, envelope)}
+			if delivery, ok := deliveryFromLocalPeer(directedTarget, envelope); ok {
+				result.Deliveries = []Delivery{delivery}
+			}
 		}
 		return result, nil
 	case WhoisTypeRequest:
@@ -607,6 +613,10 @@ func (r *Router) handleWhoisRequest(
 	now time.Time,
 ) (RouteResult, error) {
 	discoveryRequest := parseWhoisCapabilityDiscoveryRequest(envelope.Ext)
+	if envelope.IsDirected() && hasDirectedTarget && isEnvelopeSender(directedTarget, envelope) {
+		result.Ignored = true
+		return result, nil
+	}
 	responders := r.whoisRequestResponders(envelope, whois, directedTarget, hasDirectedTarget)
 
 	for _, responder := range responders {
@@ -631,12 +641,20 @@ func (r *Router) whoisRequestResponders(
 	hasDirectedTarget bool,
 ) []LocalPeer {
 	if envelope.IsDirected() {
-		if hasDirectedTarget {
+		if hasDirectedTarget && !isEnvelopeSender(directedTarget, envelope) {
 			return []LocalPeer{directedTarget}
 		}
 		return nil
 	}
-	return r.peers.MatchLocalPeers(envelope.Channel, whois.Query)
+	matches := r.peers.MatchLocalPeers(envelope.Channel, whois.Query)
+	responders := make([]LocalPeer, 0, len(matches))
+	for _, peer := range matches {
+		if isEnvelopeSender(peer, envelope) {
+			continue
+		}
+		responders = append(responders, peer)
+	}
+	return responders
 }
 
 func (r *Router) buildWhoisResponseEnvelope(
@@ -937,17 +955,29 @@ func deliveriesFromLocalPeers(peers []LocalPeer, envelope Envelope) []Delivery {
 
 	deliveries := make([]Delivery, 0, len(peers))
 	for _, peer := range peers {
-		deliveries = append(deliveries, deliveryFromLocalPeer(peer, envelope))
+		delivery, ok := deliveryFromLocalPeer(peer, envelope)
+		if !ok {
+			continue
+		}
+		deliveries = append(deliveries, delivery)
 	}
 	return deliveries
 }
 
-func deliveryFromLocalPeer(peer LocalPeer, envelope Envelope) Delivery {
+func deliveryFromLocalPeer(peer LocalPeer, envelope Envelope) (Delivery, bool) {
+	if strings.TrimSpace(peer.PeerID) == "" || isEnvelopeSender(peer, envelope) {
+		return Delivery{}, false
+	}
 	return Delivery{
 		SessionID: peer.SessionID,
 		PeerID:    peer.PeerID,
 		Envelope:  envelope,
-	}
+	}, true
+}
+
+func isEnvelopeSender(peer LocalPeer, envelope Envelope) bool {
+	return strings.TrimSpace(peer.PeerID) != "" &&
+		strings.TrimSpace(peer.PeerID) == strings.TrimSpace(envelope.From)
 }
 
 func buildDirectReceipt(

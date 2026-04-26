@@ -17,6 +17,7 @@ const monoBadgeVariants = cva(
           "border border-[color:var(--color-divider)] bg-transparent text-[color:var(--color-text-label)]",
         neutral: "bg-[color:var(--color-neutral-tint)] text-[color:var(--color-text-label)]",
         accent: "bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)]",
+        "solid-accent": "bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]",
         success: "bg-[color:var(--color-success-tint)] text-[color:var(--color-success)]",
         warning: "bg-[color:var(--color-warning-tint)] text-[color:var(--color-warning)]",
         danger: "bg-[color:var(--color-danger-tint)] text-[color:var(--color-danger)]",
@@ -43,7 +44,8 @@ export interface MonoBadgeProps
 
 /**
  * Inline mono pill for identifiers (agent IDs, versions, protocol names) and
- * status badges. Uppercase by default, tinted via the DESIGN.md §4 tint formula.
+ * status badges. Uppercase by default, with semantic tones using the DESIGN.md
+ * §4 tint formula and `solid-accent` reserved for accent-filled emphasis.
  */
 function MonoBadge({ tone, uppercase, className, ...props }: MonoBadgeProps) {
   const dataSlot = props["data-slot"] ?? "mono-badge";

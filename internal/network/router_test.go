@@ -138,8 +138,11 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 	if err != nil {
 		t.Fatalf("Receive(broadcast) error = %v", err)
 	}
-	if got, want := len(broadcastResult.Deliveries), 2; got != want {
+	if got, want := len(broadcastResult.Deliveries), 1; got != want {
 		t.Fatalf("len(broadcast deliveries) = %d, want %d", got, want)
+	}
+	if got, want := broadcastResult.Deliveries[0].SessionID, "sess-b"; got != want {
+		t.Fatalf("broadcast delivery session = %q, want %q", got, want)
 	}
 
 	directInbound, err := router.Receive(context.Background(), transport.Message(1).payload)
@@ -152,6 +155,139 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 	if got, want := directInbound.Deliveries[0].SessionID, "sess-b"; got != want {
 		t.Fatalf("direct delivery session = %q, want %q", got, want)
 	}
+}
+
+func TestRouterDoesNotDeliverLocalEchoesToSender(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T) (*Router, *spyRouterTransport, PeerCard) {
+		t.Helper()
+
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		sender := mustPeerCard(t, "coordinator.sess-a")
+		if _, err := registry.RegisterLocal("sess-a", "marketing", sender, now); err != nil {
+			t.Fatalf("RegisterLocal(sender) error = %v", err)
+		}
+
+		transport := &spyRouterTransport{}
+		router, err := NewRouter(
+			registry,
+			transport,
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+		return router, transport, sender
+	}
+
+	t.Run("Should suppress broadcast self-echo deliveries", func(t *testing.T) {
+		t.Parallel()
+
+		router, transport, _ := setup(t)
+		if _, err := router.Send(context.Background(), SendRequest{
+			SessionID: "sess-a",
+			Channel:   "marketing",
+			Kind:      KindSay,
+			Body:      mustRawJSON(t, SayBody{Text: "local status"}),
+		}); err != nil {
+			t.Fatalf("Send(say self echo) error = %v", err)
+		}
+		broadcastResult, err := router.Receive(context.Background(), transport.Message(0).payload)
+		if err != nil {
+			t.Fatalf("Receive(say self echo) error = %v", err)
+		}
+		if got := len(broadcastResult.Deliveries); got != 0 {
+			t.Fatalf("len(self broadcast deliveries) = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should suppress directed self-echo deliveries", func(t *testing.T) {
+		t.Parallel()
+
+		router, transport, sender := setup(t)
+		if _, err := router.Send(context.Background(), SendRequest{
+			SessionID:     "sess-a",
+			Channel:       "marketing",
+			Kind:          KindDirect,
+			To:            stringPtr(sender.PeerID),
+			InteractionID: stringPtr("int-self"),
+			Body:          mustRawJSON(t, DirectBody{Text: "self-directed loop"}),
+		}); err != nil {
+			t.Fatalf("Send(direct self echo) error = %v", err)
+		}
+		directResult, err := router.Receive(context.Background(), transport.Message(0).payload)
+		if err != nil {
+			t.Fatalf("Receive(direct self echo) error = %v", err)
+		}
+		if got := len(directResult.Deliveries); got != 0 {
+			t.Fatalf("len(self direct deliveries) = %d, want 0", got)
+		}
+	})
+}
+
+func TestRouterIgnoresDirectedWhoisRequestToSender(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should ignore directed self whois without generated responses", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 26, 12, 30, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		sender := mustPeerCard(t, "coordinator.sess-a")
+		if _, err := registry.RegisterLocal("sess-a", "marketing", sender, now); err != nil {
+			t.Fatalf("RegisterLocal(sender) error = %v", err)
+		}
+
+		transport := &spyRouterTransport{}
+		router, err := NewRouter(
+			registry,
+			transport,
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+		payload, err := json.Marshal(Envelope{
+			Protocol: ProtocolV0,
+			ID:       "msg_whois_self",
+			Kind:     KindWhois,
+			Channel:  "marketing",
+			From:     sender.PeerID,
+			To:       stringPtr(sender.PeerID),
+			TS:       now.Unix(),
+			Body: mustRawJSON(t, WhoisBody{
+				Type:  WhoisTypeRequest,
+				Query: "self-directed",
+			}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(self whois) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(self whois) error = %v", err)
+		}
+		if !result.Ignored || result.Rejected {
+			t.Fatalf("self whois result = %#v, want ignored and not rejected", result)
+		}
+		if len(result.Generated) != 0 || len(result.Deliveries) != 0 {
+			t.Fatalf("self whois result = %#v, want no generated responses or deliveries", result)
+		}
+		if got := transport.Count(); got != 0 {
+			t.Fatalf("transport publish count = %d, want 0", got)
+		}
+	})
 }
 
 func TestRouterRejectsDuplicateBeforeReprocessingLifecycleState(t *testing.T) {

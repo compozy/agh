@@ -1,6 +1,6 @@
 # CLAUDE.md (packages/site)
 
-Fumadocs documentation site at `agh.compozy.com`. Built with Next.js 16, Fumadocs 16, Remotion (for protocol illustrations). Bun-managed.
+Fumadocs documentation site at `agh.network`. Built with Next.js 16, Fumadocs 16, Remotion (for protocol illustrations). Bun-managed.
 
 ## Critical Rules
 

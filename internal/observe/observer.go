@@ -420,28 +420,7 @@ func (o *Observer) Close(ctx context.Context) error {
 // OnSessionCreated registers the session in the global observability database.
 func (o *Observer) OnSessionCreated(ctx context.Context, sess *session.Session) {
 	info := sess.Info()
-	snapshot := observedSession{
-		agentName:   info.AgentName,
-		workspaceID: info.WorkspaceID,
-	}
-	if o.resolvePermissionMode != nil {
-		permissionMode, err := o.resolvePermissionMode(ctx, info.AgentName, info.WorkspaceID)
-		if err != nil {
-			o.logger.Warn(
-				"observe: resolve permission mode failed",
-				"session_id",
-				info.ID,
-				"agent_name",
-				info.AgentName,
-				"workspace_id",
-				info.WorkspaceID,
-				"error",
-				err,
-			)
-		} else {
-			snapshot.permissionMode = strings.TrimSpace(permissionMode)
-		}
-	}
+	snapshot := o.observedSessionSnapshot(ctx, info.ID, info.AgentName, info.WorkspaceID)
 
 	o.trackSession(info.ID, snapshot)
 
@@ -535,7 +514,7 @@ func (o *Observer) observeAgentEvent(ctx context.Context, sessionID string, payl
 		return
 	}
 
-	id, snapshot, ok := o.validateObservedEvent(sessionID, event)
+	id, snapshot, ok := o.validateObservedEvent(ctx, sessionID, event)
 	if !ok {
 		return
 	}
@@ -576,6 +555,7 @@ func (o *Observer) observeAgentEvent(ctx context.Context, sessionID string, payl
 }
 
 func (o *Observer) validateObservedEvent(
+	ctx context.Context,
 	sessionID string,
 	event acp.AgentEvent,
 ) (string, observedSession, bool) {
@@ -587,8 +567,17 @@ func (o *Observer) validateObservedEvent(
 
 	snapshot, ok := o.sessionSnapshot(id)
 	if !ok {
-		o.logger.Warn("observe: skipped agent event for unknown session", "session_id", id, "event_type", event.Type)
-		return "", observedSession{}, false
+		snapshot, ok = o.recoverSessionSnapshot(ctx, id)
+		if !ok {
+			o.logger.Warn(
+				"observe: skipped agent event for unknown session",
+				"session_id",
+				id,
+				"event_type",
+				event.Type,
+			)
+			return "", observedSession{}, false
+		}
 	}
 	if strings.TrimSpace(event.Type) == "" {
 		o.logger.Warn(
@@ -604,6 +593,86 @@ func (o *Observer) validateObservedEvent(
 	}
 
 	return id, snapshot, true
+}
+
+func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string) (observedSession, bool) {
+	requireObserverContext(ctx, "recoverSessionSnapshot")
+
+	id := strings.TrimSpace(sessionID)
+	if id == "" {
+		return observedSession{}, false
+	}
+
+	if o.sessionSource != nil {
+		for _, info := range o.sessionSource.List() {
+			if info == nil || strings.TrimSpace(info.ID) != id {
+				continue
+			}
+			snapshot := o.observedSessionSnapshot(ctx, id, info.AgentName, info.WorkspaceID)
+			o.trackSession(id, snapshot)
+			return snapshot, true
+		}
+	}
+
+	if o.registry == nil {
+		return observedSession{}, false
+	}
+	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{})
+	if err != nil {
+		o.logger.Warn("observe: recover session snapshot failed", "session_id", id, "error", err)
+		return observedSession{}, false
+	}
+	for _, info := range sessions {
+		if strings.TrimSpace(info.ID) != id {
+			continue
+		}
+		snapshot := o.observedSessionSnapshot(ctx, id, info.AgentName, info.WorkspaceID)
+		if strings.TrimSpace(info.State) != string(session.StateStopped) {
+			o.trackSession(id, snapshot)
+		}
+		return snapshot, true
+	}
+	return observedSession{}, false
+}
+
+func (o *Observer) observedSessionSnapshot(
+	ctx context.Context,
+	sessionID string,
+	agentName string,
+	workspaceID string,
+) observedSession {
+	requireObserverContext(ctx, "observedSessionSnapshot")
+
+	snapshot := observedSession{
+		agentName:   strings.TrimSpace(agentName),
+		workspaceID: strings.TrimSpace(workspaceID),
+	}
+	if o.resolvePermissionMode == nil {
+		return snapshot
+	}
+	permissionMode, err := o.resolvePermissionMode(ctx, snapshot.agentName, snapshot.workspaceID)
+	if err != nil {
+		o.logger.Warn(
+			"observe: resolve permission mode failed",
+			"session_id",
+			strings.TrimSpace(sessionID),
+			"agent_name",
+			snapshot.agentName,
+			"workspace_id",
+			snapshot.workspaceID,
+			"error",
+			err,
+		)
+		return snapshot
+	}
+	snapshot.permissionMode = strings.TrimSpace(permissionMode)
+	return snapshot
+}
+
+func requireObserverContext(ctx context.Context, caller string) {
+	if ctx == nil {
+		panic("observe: nil context passed to " + caller)
+	}
 }
 
 func observedEventTimestamp(event acp.AgentEvent, now func() time.Time) time.Time {

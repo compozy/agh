@@ -17,7 +17,7 @@ Update the runtime-facing site docs so capability authoring, agent definitions, 
 - ALWAYS READ `_techspec.md`, ADRs, and the rewritten runtime docs from task_05 before starting (`_prd.md` is absent for this feature)
 - REFERENCE TECHSPEC sections "System Architecture", "Data Models", and "Technical Considerations"
 - KEEP RUNTIME DOCS DISTINCT FROM PROTOCOL DOCS - this task should teach authoring and runtime behavior, not duplicate the full protocol reference
-- ALIGN SITE RUNTIME WORDING WITH `docs/agents/capabilities.md` - the site must not fork its own capability story
+- ALIGN SITE RUNTIME WORDING WITH `docs/rfcs/005_capability-catalogs-agent-directories.md` - the site must not fork its own capability story
 - TESTS REQUIRED - runtime pages and metadata must remain internally consistent after the rewrite
 - GREENFIELD: replace stale explanations directly instead of stacking warning callouts on obsolete copy
 </critical>
@@ -27,7 +27,7 @@ Update the runtime-facing site docs so capability authoring, agent definitions, 
 - MUST reflect the approved schema decisions: current local layouts remain, `version` is optional, `digest` is runtime-computed, and `requirements` targets `capability.id`
 - MUST update runtime overview or agent-definition pages that currently imply capabilities and recipes are separate concepts
 - MUST keep site runtime navigation metadata coherent after page rewrites
-- MUST align examples and explanatory copy with `docs/agents/capabilities.md` and the finalized backend behavior
+- MUST align examples and explanatory copy with `docs/rfcs/005_capability-catalogs-agent-directories.md` and the finalized backend behavior
 - SHOULD keep operator-facing explanations focused on authoring, discovery visibility, and runtime expectations rather than raw protocol detail
 </requirements>
 
@@ -47,7 +47,7 @@ See TechSpec "System Architecture", "Data Models", and task_05 outputs. This tas
 - `packages/site/content/runtime/core/configuration/agent-md.mdx` - configuration guide that may need updated capability catalog references
 - `packages/site/content/runtime/core/overview/what-is-agh.mdx` - runtime overview page that may still describe old concepts or flows
 - `packages/site/content/runtime/core/agents/meta.json` - runtime agents-section navigation metadata
-- `docs/agents/capabilities.md` - rewritten repository guide that the site runtime copy must mirror
+- `docs/rfcs/005_capability-catalogs-agent-directories.md` - rewritten repository guide that the site runtime copy must mirror
 
 ### Dependent Files
 - `packages/site/content/runtime/core/overview/architecture.mdx` - architecture page may need wording updates if it mentions network/runtime capability concepts
@@ -63,7 +63,7 @@ See TechSpec "System Architecture", "Data Models", and task_05 outputs. This tas
 - Updated runtime site docs for capability authoring and behavior
 - Runtime examples aligned with the finalized unified schema **(REQUIRED)**
 - Navigation and metadata updates for any touched runtime pages **(REQUIRED)**
-- Consistency checks against `docs/agents/capabilities.md` and the ADRs **(REQUIRED)**
+- Consistency checks against `docs/rfcs/005_capability-catalogs-agent-directories.md` and the ADRs **(REQUIRED)**
 - Documentation quality checks with no conflicting capability/recipe explanations left in runtime-facing site docs **(REQUIRED)**
 
 ## Tests
@@ -73,7 +73,7 @@ See TechSpec "System Architecture", "Data Models", and task_05 outputs. This tas
   - [ ] Agent-definition and overview pages no longer imply recipe is a separate authored/runtime primitive
   - [ ] Runtime metadata files remain valid after any page rewrites or nav changes
 - Integration tests:
-  - [ ] The runtime site section reads consistently with `docs/agents/capabilities.md` and task_05 outputs
+  - [ ] The runtime site section reads consistently with `docs/rfcs/005_capability-catalogs-agent-directories.md` and task_05 outputs
   - [ ] Capability-vs-skill explanations remain clear without reintroducing the old capability/recipe split
 - Test coverage target: >=80%
 - All tests must pass

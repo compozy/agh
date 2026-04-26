@@ -16,214 +16,226 @@ import (
 func TestMeCommandJSONReturnsValidatedIdentity(t *testing.T) {
 	t.Parallel()
 
-	client := &stubClient{}
-	deps := newAgentCommandTestDeps(t, client)
-	client.agentMeFn = func(_ context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error) {
-		assertAgentCredentials(t, credentials)
-		return AgentMeRecord{
-			Self: contract.AgentIdentityPayload{
-				SessionID: "sess-agent",
-				AgentName: "coder",
-				Provider:  "test-provider",
-				Model:     "test-model",
-			},
-			Workspace: contract.AgentWorkspacePayload{
-				ID:      "ws-1",
-				RootDir: "/workspace/project",
-			},
-			Session: contract.AgentSessionPayload{
-				ID:        "sess-agent",
-				State:     session.StateActive,
-				Channel:   "builders",
-				CreatedAt: fixedTestNow,
-				UpdatedAt: fixedTestNow,
-			},
-		}, nil
-	}
+	t.Run("Should return validated identity as JSON", func(t *testing.T) {
+		t.Parallel()
 
-	stdout, _, err := executeRootCommand(t, deps, "me", "-o", "json")
-	if err != nil {
-		t.Fatalf("agh me error = %v", err)
-	}
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentMeFn = func(_ context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error) {
+			assertAgentCredentials(t, credentials)
+			return AgentMeRecord{
+				Self: contract.AgentIdentityPayload{
+					SessionID: "sess-agent",
+					AgentName: "coder",
+					Provider:  "test-provider",
+					Model:     "test-model",
+				},
+				Workspace: contract.AgentWorkspacePayload{
+					ID:      "ws-1",
+					RootDir: "/workspace/project",
+				},
+				Session: contract.AgentSessionPayload{
+					ID:        "sess-agent",
+					State:     session.StateActive,
+					Channel:   "builders",
+					CreatedAt: fixedTestNow,
+					UpdatedAt: fixedTestNow,
+				},
+			}, nil
+		}
 
-	var got AgentMeRecord
-	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
-		t.Fatalf("json.Unmarshal(agh me) error = %v", err)
-	}
-	if got.Self.SessionID != "sess-agent" || got.Self.AgentName != "coder" || got.Workspace.ID != "ws-1" {
-		t.Fatalf("agh me payload = %#v, want caller session/workspace identity", got)
-	}
+		stdout, _, err := executeRootCommand(t, deps, "me", "-o", "json")
+		if err != nil {
+			t.Fatalf("agh me error = %v", err)
+		}
+
+		var got AgentMeRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("json.Unmarshal(agh me) error = %v", err)
+		}
+		if got.Self.SessionID != "sess-agent" || got.Self.AgentName != "coder" || got.Workspace.ID != "ws-1" {
+			t.Fatalf("agh me payload = %#v, want caller session/workspace identity", got)
+		}
+	})
 }
 
 func TestMeContextCommandJSONKeepsStableSectionOrder(t *testing.T) {
 	t.Parallel()
 
-	client := &stubClient{}
-	deps := newAgentCommandTestDeps(t, client)
-	client.agentContextFn = func(_ context.Context, credentials agentidentity.Credentials) (AgentContextRecord, error) {
-		assertAgentCredentials(t, credentials)
-		return AgentContextRecord{
-			Self: contract.AgentIdentityPayload{
-				SessionID: "sess-agent",
-				AgentName: "coder",
-				Provider:  "test-provider",
-			},
-			Workspace: contract.AgentWorkspacePayload{ID: "ws-1", RootDir: "/workspace/project"},
-			Session: contract.AgentSessionPayload{
-				ID:        "sess-agent",
-				State:     session.StateActive,
-				CreatedAt: fixedTestNow,
-				UpdatedAt: fixedTestNow,
-			},
-			Task:                contract.AgentTaskContextPayload{Available: true},
-			CoordinationChannel: contract.AgentCoordinationChannelContextPayload{Available: true},
-			InboxSummary:        contract.AgentInboxSummaryPayload{},
-			PeerRoster:          contract.AgentPeerRosterPayload{},
-			Capabilities:        contract.AgentCapabilitySectionPayload{},
-			Limits:              contract.AgentLimitsPayload{ContextSectionLimit: 20},
-			Provenance: contract.AgentContextProvenancePayload{
-				GeneratedAt: fixedTestNow,
-				Source:      "test",
-			},
-		}, nil
-	}
+	t.Run("Should keep stable JSON section order", func(t *testing.T) {
+		t.Parallel()
 
-	stdout, _, err := executeRootCommand(t, deps, "me", "context", "-o", "json")
-	if err != nil {
-		t.Fatalf("agh me context error = %v", err)
-	}
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentContextFn = func(_ context.Context, credentials agentidentity.Credentials) (AgentContextRecord, error) {
+			assertAgentCredentials(t, credentials)
+			return AgentContextRecord{
+				Self: contract.AgentIdentityPayload{
+					SessionID: "sess-agent",
+					AgentName: "coder",
+					Provider:  "test-provider",
+				},
+				Workspace: contract.AgentWorkspacePayload{ID: "ws-1", RootDir: "/workspace/project"},
+				Session: contract.AgentSessionPayload{
+					ID:        "sess-agent",
+					State:     session.StateActive,
+					CreatedAt: fixedTestNow,
+					UpdatedAt: fixedTestNow,
+				},
+				Task:                contract.AgentTaskContextPayload{Available: true},
+				CoordinationChannel: contract.AgentCoordinationChannelContextPayload{Available: true},
+				InboxSummary:        contract.AgentInboxSummaryPayload{},
+				PeerRoster:          contract.AgentPeerRosterPayload{},
+				Capabilities:        contract.AgentCapabilitySectionPayload{},
+				Limits:              contract.AgentLimitsPayload{ContextSectionLimit: 20},
+				Provenance: contract.AgentContextProvenancePayload{
+					GeneratedAt: fixedTestNow,
+					Source:      "test",
+				},
+			}, nil
+		}
 
-	assertJSONKeyOrder(t, stdout, []string{
-		"self",
-		"workspace",
-		"session",
-		"task",
-		"coordination_channel",
-		"inbox_summary",
-		"peer_roster",
-		"capabilities",
-		"limits",
-		"provenance",
+		stdout, _, err := executeRootCommand(t, deps, "me", "context", "-o", "json")
+		if err != nil {
+			t.Fatalf("agh me context error = %v", err)
+		}
+
+		assertJSONKeyOrder(t, stdout, []string{
+			"self",
+			"workspace",
+			"session",
+			"task",
+			"coordination_channel",
+			"inbox_summary",
+			"peer_roster",
+			"capabilities",
+			"limits",
+			"provenance",
+		})
 	})
 }
 
 func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 	t.Parallel()
 
-	var gotRequest AgentSpawnRequest
-	client := &stubClient{}
-	deps := newAgentCommandTestDeps(t, client)
-	client.agentSpawnFn = func(
-		_ context.Context,
-		request AgentSpawnRequest,
-		credentials agentidentity.Credentials,
-	) (AgentSpawnRecord, error) {
-		assertAgentCredentials(t, credentials)
-		gotRequest = request
-		ttl := fixedTestNow.Add(2 * time.Minute)
-		return AgentSpawnRecord{
-			Session: SessionRecord{
-				ID:            "sess-child",
-				Name:          request.Name,
-				AgentName:     request.AgentName,
-				Provider:      request.Provider,
-				WorkspaceID:   "ws-1",
-				WorkspacePath: "/workspace/project",
-				Channel:       "builders",
-				Type:          session.SessionTypeSpawned,
-				State:         session.StateActive,
-				CreatedAt:     fixedTestNow,
-				UpdatedAt:     fixedTestNow,
-			},
-			Lineage: contract.SessionLineagePayload{
-				ParentSessionID:  "sess-agent",
-				RootSessionID:    "sess-agent",
-				SpawnDepth:       1,
-				SpawnRole:        request.SpawnRole,
-				TTLExpiresAt:     &ttl,
-				AutoStopOnParent: request.AutoStopOnParent,
-				SpawnBudget: contract.SpawnBudgetPayload{
-					MaxChildren: 5,
-					MaxDepth:    1,
-					TTLSeconds:  request.TTLSeconds,
+	t.Run("Should map bounded child request", func(t *testing.T) {
+		t.Parallel()
+
+		var gotRequest AgentSpawnRequest
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentSpawnFn = func(
+			_ context.Context,
+			request AgentSpawnRequest,
+			credentials agentidentity.Credentials,
+		) (AgentSpawnRecord, error) {
+			assertAgentCredentials(t, credentials)
+			gotRequest = request
+			ttl := fixedTestNow.Add(2 * time.Minute)
+			return AgentSpawnRecord{
+				Session: SessionRecord{
+					ID:            "sess-child",
+					Name:          request.Name,
+					AgentName:     request.AgentName,
+					Provider:      request.Provider,
+					WorkspaceID:   "ws-1",
+					WorkspacePath: "/workspace/project",
+					Channel:       "builders",
+					Type:          session.SessionTypeSpawned,
+					State:         session.StateActive,
+					CreatedAt:     fixedTestNow,
+					UpdatedAt:     fixedTestNow,
 				},
-				PermissionPolicy: request.Permissions,
-			},
-			Permissions: request.Permissions,
-		}, nil
-	}
+				Lineage: contract.SessionLineagePayload{
+					ParentSessionID:  "sess-agent",
+					RootSessionID:    "sess-agent",
+					SpawnDepth:       1,
+					SpawnRole:        request.SpawnRole,
+					TTLExpiresAt:     &ttl,
+					AutoStopOnParent: request.AutoStopOnParent,
+					SpawnBudget: contract.SpawnBudgetPayload{
+						MaxChildren: 5,
+						MaxDepth:    1,
+						TTLSeconds:  request.TTLSeconds,
+					},
+					PermissionPolicy: request.Permissions,
+				},
+				Permissions: request.Permissions,
+			}, nil
+		}
 
-	stdout, _, err := executeRootCommand(
-		t,
-		deps,
-		"spawn",
-		"--agent",
-		"coder",
-		"--provider",
-		"codex",
-		"--model",
-		"gpt-test",
-		"--name",
-		"child",
-		"--prompt-overlay",
-		"focus",
-		"--role",
-		"worker",
-		"--ttl-seconds",
-		"120",
-		"--tool",
-		"read",
-		"--skill",
-		"go",
-		"--mcp-server",
-		"filesystem",
-		"--workspace-path",
-		"/workspace/project",
-		"--channel",
-		"builders",
-		"--environment-profile",
-		"default",
-		"--idempotency-key",
-		"spawn-1",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("agh spawn error = %v", err)
-	}
-	if gotRequest.AgentName != "coder" ||
-		gotRequest.Provider != "codex" ||
-		gotRequest.Model != "gpt-test" ||
-		gotRequest.Name != "child" ||
-		gotRequest.PromptOverlay != "focus" ||
-		gotRequest.SpawnRole != "worker" ||
-		gotRequest.TTLSeconds != 120 ||
-		!gotRequest.AutoStopOnParent ||
-		gotRequest.IdempotencyKey != "spawn-1" {
-		t.Fatalf("spawn request = %#v, want parsed bounded spawn request", gotRequest)
-	}
-	if len(gotRequest.Permissions.Tools) != 1 ||
-		gotRequest.Permissions.Tools[0] != "read" ||
-		len(gotRequest.Permissions.Skills) != 1 ||
-		gotRequest.Permissions.Skills[0] != "go" ||
-		len(gotRequest.Permissions.MCPServers) != 1 ||
-		gotRequest.Permissions.MCPServers[0] != "filesystem" ||
-		len(gotRequest.Permissions.WorkspacePaths) != 1 ||
-		gotRequest.Permissions.WorkspacePaths[0] != "/workspace/project" ||
-		len(gotRequest.Permissions.NetworkChannels) != 1 ||
-		gotRequest.Permissions.NetworkChannels[0] != "builders" ||
-		len(gotRequest.Permissions.EnvironmentProfiles) != 1 ||
-		gotRequest.Permissions.EnvironmentProfiles[0] != "default" {
-		t.Fatalf("spawn permissions = %#v, want all repeatable atom flags", gotRequest.Permissions)
-	}
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"spawn",
+			"--agent",
+			"coder",
+			"--provider",
+			"codex",
+			"--model",
+			"gpt-test",
+			"--name",
+			"child",
+			"--prompt-overlay",
+			"focus",
+			"--role",
+			"worker",
+			"--ttl-seconds",
+			"120",
+			"--tool",
+			"read",
+			"--skill",
+			"go",
+			"--mcp-server",
+			"filesystem",
+			"--workspace-path",
+			"/workspace/project",
+			"--channel",
+			"builders",
+			"--environment-profile",
+			"default",
+			"--idempotency-key",
+			"spawn-1",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("agh spawn error = %v", err)
+		}
+		if gotRequest.AgentName != "coder" ||
+			gotRequest.Provider != "codex" ||
+			gotRequest.Model != "gpt-test" ||
+			gotRequest.Name != "child" ||
+			gotRequest.PromptOverlay != "focus" ||
+			gotRequest.SpawnRole != "worker" ||
+			gotRequest.TTLSeconds != 120 ||
+			!gotRequest.AutoStopOnParent ||
+			gotRequest.IdempotencyKey != "spawn-1" {
+			t.Fatalf("spawn request = %#v, want parsed bounded spawn request", gotRequest)
+		}
+		if len(gotRequest.Permissions.Tools) != 1 ||
+			gotRequest.Permissions.Tools[0] != "read" ||
+			len(gotRequest.Permissions.Skills) != 1 ||
+			gotRequest.Permissions.Skills[0] != "go" ||
+			len(gotRequest.Permissions.MCPServers) != 1 ||
+			gotRequest.Permissions.MCPServers[0] != "filesystem" ||
+			len(gotRequest.Permissions.WorkspacePaths) != 1 ||
+			gotRequest.Permissions.WorkspacePaths[0] != "/workspace/project" ||
+			len(gotRequest.Permissions.NetworkChannels) != 1 ||
+			gotRequest.Permissions.NetworkChannels[0] != "builders" ||
+			len(gotRequest.Permissions.EnvironmentProfiles) != 1 ||
+			gotRequest.Permissions.EnvironmentProfiles[0] != "default" {
+			t.Fatalf("spawn permissions = %#v, want all repeatable atom flags", gotRequest.Permissions)
+		}
 
-	var output AgentSpawnRecord
-	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
-		t.Fatalf("json.Unmarshal(spawn output) error = %v", err)
-	}
-	if output.Session.ID != "sess-child" || output.Lineage.ParentSessionID != "sess-agent" {
-		t.Fatalf("spawn output = %#v, want child session with parent lineage", output)
-	}
+		var output AgentSpawnRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(spawn output) error = %v", err)
+		}
+		if output.Session.ID != "sess-child" || output.Lineage.ParentSessionID != "sess-agent" {
+			t.Fatalf("spawn output = %#v, want child session with parent lineage", output)
+		}
+	})
 }
 
 func TestChannelSendRejectsMissingInputsAndInvalidIdentity(t *testing.T) {
@@ -235,17 +247,17 @@ func TestChannelSendRejectsMissingInputsAndInvalidIdentity(t *testing.T) {
 		args []string
 	}{
 		{
-			name: "missing channel",
+			name: "Should reject missing channel",
 			deps: newAgentCommandTestDeps,
 			args: []string{"ch", "send", "--body", `{"text":"ok"}`, "--task-id", "task-1", "--run-id", "run-1"},
 		},
 		{
-			name: "missing body",
+			name: "Should reject missing body",
 			deps: newAgentCommandTestDeps,
 			args: []string{"ch", "send", "builders", "--task-id", "task-1", "--run-id", "run-1"},
 		},
 		{
-			name: "invalid caller identity",
+			name: "Should reject invalid caller identity",
 			deps: newMissingAgentIdentityDeps,
 			args: []string{
 				"ch", "send", "builders",
@@ -286,21 +298,21 @@ func TestAgentCommandsRejectMissingIdentityBeforeAgentCalls(t *testing.T) {
 		name string
 		args []string
 	}{
-		{name: "me", args: []string{"me", "-o", "json"}},
-		{name: "me context", args: []string{"me", "context", "-o", "json"}},
-		{name: "ch list", args: []string{"ch", "list", "-o", "json"}},
-		{name: "ch recv", args: []string{"ch", "recv", "builders", "-o", "json"}},
-		{name: "task next", args: []string{"task", "next", "-o", "json"}},
+		{name: "Should reject me without identity", args: []string{"me", "-o", "json"}},
+		{name: "Should reject me context without identity", args: []string{"me", "context", "-o", "json"}},
+		{name: "Should reject ch list without identity", args: []string{"ch", "list", "-o", "json"}},
+		{name: "Should reject ch recv without identity", args: []string{"ch", "recv", "builders", "-o", "json"}},
+		{name: "Should reject task next without identity", args: []string{"task", "next", "-o", "json"}},
 		{
-			name: "task heartbeat",
+			name: "Should reject task heartbeat without identity",
 			args: []string{"task", "heartbeat", "run-1", "--claim-token", "agh_claim_token", "-o", "json"},
 		},
 		{
-			name: "task complete",
+			name: "Should reject task complete without identity",
 			args: []string{"task", "complete", "run-1", "--claim-token", "agh_claim_token", "-o", "json"},
 		},
 		{
-			name: "task fail",
+			name: "Should reject task fail without identity",
 			args: []string{
 				"task",
 				"fail",
@@ -314,7 +326,7 @@ func TestAgentCommandsRejectMissingIdentityBeforeAgentCalls(t *testing.T) {
 			},
 		},
 		{
-			name: "task release",
+			name: "Should reject task release without identity",
 			args: []string{"task", "release", "run-1", "--claim-token", "agh_claim_token", "-o", "json"},
 		},
 	}
@@ -334,389 +346,433 @@ func TestAgentCommandsRejectMissingIdentityBeforeAgentCalls(t *testing.T) {
 func TestChannelListCommandJSONReturnsVisibleChannels(t *testing.T) {
 	t.Parallel()
 
-	client := &stubClient{}
-	deps := newAgentCommandTestDeps(t, client)
-	client.agentChannelsFn = func(_ context.Context, credentials agentidentity.Credentials) ([]AgentChannelRecord, error) {
-		assertAgentCredentials(t, credentials)
-		return []AgentChannelRecord{{
+	t.Run("Should return visible channels as JSON", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentChannelsFn = func(_ context.Context, credentials agentidentity.Credentials) ([]AgentChannelRecord, error) {
+			assertAgentCredentials(t, credentials)
+			return []AgentChannelRecord{{
+				ID:                  "builders",
+				Channel:             "builders",
+				DisplayName:         "builders",
+				Purpose:             "task_coordination",
+				WorkspaceID:         "ws-1",
+				AllowedMessageKinds: contract.CoordinationMessageKinds(),
+			}}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "ch", "list", "-o", "json")
+		if err != nil {
+			t.Fatalf("agh ch list error = %v", err)
+		}
+
+		var channels []AgentChannelRecord
+		if err := json.Unmarshal([]byte(stdout), &channels); err != nil {
+			t.Fatalf("json.Unmarshal(channels) error = %v", err)
+		}
+		if len(channels) != 1 ||
+			channels[0].ID != "builders" ||
+			len(channels[0].AllowedMessageKinds) != len(contract.CoordinationMessageKinds()) {
+			t.Fatalf("channels = %#v, want builders with MVP message kinds", channels)
+		}
+	})
+}
+
+func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve coordination metadata and reject raw claim tokens", func(t *testing.T) {
+		t.Parallel()
+
+		for _, kind := range []contract.CoordinationMessageKind{
+			contract.CoordinationMessageStatus,
+			contract.CoordinationMessageBlocker,
+			contract.CoordinationMessageResult,
+		} {
+			t.Run("Should preserve "+string(kind)+" coordination metadata", func(t *testing.T) {
+				t.Parallel()
+
+				client := &stubClient{}
+				deps := newAgentCommandTestDeps(t, client)
+				client.agentChannelSendFn = func(
+					_ context.Context,
+					channel string,
+					request AgentChannelSendRequest,
+					credentials agentidentity.Credentials,
+				) (AgentChannelMessageRecord, error) {
+					assertAgentCredentials(t, credentials)
+					if channel != "builders" {
+						t.Fatalf("channel = %q, want builders", channel)
+					}
+					if request.Metadata.TaskID != "task-1" ||
+						request.Metadata.RunID != "run-1" ||
+						request.Metadata.WorkflowID != "wf-1" ||
+						request.Metadata.CoordinationChannelID != "builders" ||
+						request.Metadata.CorrelationID != "corr-1" ||
+						request.Metadata.MessageKind != kind {
+						t.Fatalf("metadata = %#v, want task/run/%s correlation", request.Metadata, kind)
+					}
+					if string(request.Metadata.Ext["note"]) != `"safe"` {
+						t.Fatalf("metadata.Ext = %#v, want note", request.Metadata.Ext)
+					}
+					if request.IdempotencyKey != "idem-1" {
+						t.Fatalf("idempotency key = %q, want idem-1", request.IdempotencyKey)
+					}
+					return AgentChannelMessageRecord{
+						MessageID: "msg-1",
+						ChannelID: "builders",
+						Body:      request.Body,
+						Metadata:  request.Metadata,
+						Timestamp: fixedTestNow,
+					}, nil
+				}
+
+				_, _, err := executeRootCommand(
+					t,
+					deps,
+					"ch", "send", "builders",
+					"--body", `{"text":"ok"}`,
+					"--task-id", "task-1",
+					"--run-id", "run-1",
+					"--workflow-id", "wf-1",
+					"--kind", string(kind),
+					"--correlation-id", "corr-1",
+					"--metadata-ext", `{"note":"safe"}`,
+					"--idempotency-key", "idem-1",
+					"-o", "json",
+				)
+				if err != nil {
+					t.Fatalf("agh ch send error = %v", err)
+				}
+			})
+		}
+
+		for _, tt := range []struct {
+			name string
+			args []string
+		}{
+			{
+				name: "Should reject raw claim token in body",
+				args: []string{
+					"ch", "send", "builders",
+					"--body", `{"claim_token":"secret"}`,
+					"--task-id", "task-1",
+					"--run-id", "run-1",
+				},
+			},
+			{
+				name: "Should reject raw claim token in metadata ext",
+				args: []string{
+					"ch", "send", "builders",
+					"--body", `{"text":"ok"}`,
+					"--task-id", "task-1",
+					"--run-id", "run-1",
+					"--metadata-ext", `{"claim_token":"secret"}`,
+				},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				client := &stubClient{
+					agentChannelSendFn: func(
+						context.Context,
+						string,
+						AgentChannelSendRequest,
+						agentidentity.Credentials,
+					) (AgentChannelMessageRecord, error) {
+						t.Fatal("AgentChannelSend should not be called when claim_token is present")
+						return AgentChannelMessageRecord{}, errors.New("unexpected")
+					},
+				}
+				_, _, err := executeRootCommand(t, newAgentCommandTestDeps(t, client), tt.args...)
+				if !errors.Is(err, contract.ErrRawClaimTokenMetadata) {
+					t.Fatalf("agh ch send error = %v, want ErrRawClaimTokenMetadata", err)
+				}
+			})
+		}
+	})
+}
+
+func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send only message ID and body when metadata is server-resolved", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentChannelReplyFn = func(
+			_ context.Context,
+			request AgentChannelReplyRequest,
+			credentials agentidentity.Credentials,
+		) (AgentChannelMessageRecord, error) {
+			assertAgentCredentials(t, credentials)
+			if request.ReplyToMessageID != "msg-source" {
+				t.Fatalf("reply_to_message_id = %q, want msg-source", request.ReplyToMessageID)
+			}
+			if string(request.Body) != `{"text":"ack"}` {
+				t.Fatalf("body = %s, want ack JSON", request.Body)
+			}
+			if !zeroCLICoordinationMetadata(request.Metadata) {
+				t.Fatalf("metadata = %#v, want zero metadata for server-side source resolution", request.Metadata)
+			}
+			return AgentChannelMessageRecord{
+				MessageID: "msg-reply",
+				ChannelID: "builders",
+				Body:      request.Body,
+				Metadata: contract.CoordinationMessageMetadataPayload{
+					TaskID:                "task-1",
+					RunID:                 "run-1",
+					CoordinationChannelID: "builders",
+					MessageKind:           contract.CoordinationMessageReply,
+					CorrelationID:         "run-1",
+				},
+				Timestamp: fixedTestNow,
+			}, nil
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"ch", "reply",
+			"--to-message", "msg-source",
+			"--body", `{"text":"ack"}`,
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("agh ch reply error = %v", err)
+		}
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"ch", "reply",
+			"--to-message", "msg-source",
+			"--body", `{"text":"ack"}`,
+			"--kind", "status",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--kind must be reply") {
+			t.Fatalf("agh ch reply --kind status error = %v, want reply-kind validation", err)
+		}
+
+		_, _, err = executeRootCommand(
+			t,
+			deps,
+			"ch", "reply",
+			"--to-message", "msg-source",
+			"--body", `{"text":"ack"}`,
+			"--task-id", "task-1",
+			"--run-id", "run-1",
+			"--coordination-channel-id", "builders",
+			"--kind", "status",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--kind must be reply") {
+			t.Fatalf("agh ch reply --kind status error = %v, want reply-kind validation", err)
+		}
+	})
+}
+
+func TestChannelRecvJSONLOutputEmitsOneObjectPerMessage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit one JSONL object per message", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentChannelRecvFn = func(
+			_ context.Context,
+			channel string,
+			query AgentChannelRecvQuery,
+			credentials agentidentity.Credentials,
+		) ([]AgentChannelMessageRecord, error) {
+			assertAgentCredentials(t, credentials)
+			if channel != "builders" || !query.Wait || query.Limit != 2 {
+				t.Fatalf("recv channel/query = %q/%#v, want builders wait limit=2", channel, query)
+			}
+			return []AgentChannelMessageRecord{
+				agentChannelTestMessage("msg-1", contract.CoordinationMessageStatus),
+				agentChannelTestMessage("msg-2", contract.CoordinationMessageResult),
+			}, nil
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"ch", "recv", "builders",
+			"--wait",
+			"--limit", "2",
+			"-o", "jsonl",
+		)
+		if err != nil {
+			t.Fatalf("agh ch recv error = %v", err)
+		}
+
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("jsonl line count = %d, want 2; output=%q", len(lines), stdout)
+		}
+		for index, line := range lines {
+			var message AgentChannelMessageRecord
+			if err := json.Unmarshal([]byte(line), &message); err != nil {
+				t.Fatalf("json.Unmarshal(line %d) error = %v", index, err)
+			}
+			if message.MessageID == "" || message.Metadata.MessageKind == "" {
+				t.Fatalf("message line %d = %#v, want populated message", index, message)
+			}
+		}
+	})
+}
+
+func TestAgentCommandsRenderHumanAndToonOutputs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render human and toon outputs", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		meRecord := AgentMeRecord{
+			Self: contract.AgentIdentityPayload{
+				SessionID: "sess-agent",
+				AgentName: "coder",
+				Provider:  "test-provider",
+				Model:     "test-model",
+			},
+			Workspace: contract.AgentWorkspacePayload{ID: "ws-1", RootDir: "/workspace/project"},
+			Session: contract.AgentSessionPayload{
+				ID:        "sess-agent",
+				State:     session.StateActive,
+				CreatedAt: fixedTestNow,
+				UpdatedAt: fixedTestNow,
+			},
+		}
+		contextRecord := AgentContextRecord{
+			Self:      meRecord.Self,
+			Workspace: meRecord.Workspace,
+			Session:   meRecord.Session,
+			Provenance: contract.AgentContextProvenancePayload{
+				GeneratedAt: fixedTestNow,
+				Source:      "test",
+			},
+		}
+		channelRecord := AgentChannelRecord{
 			ID:                  "builders",
 			Channel:             "builders",
 			DisplayName:         "builders",
 			Purpose:             "task_coordination",
 			WorkspaceID:         "ws-1",
 			AllowedMessageKinds: contract.CoordinationMessageKinds(),
-		}}, nil
-	}
+		}
+		statusMessage := agentChannelTestMessage("msg-1", contract.CoordinationMessageStatus)
+		replyMessage := agentChannelTestMessage("msg-reply", contract.CoordinationMessageReply)
 
-	stdout, _, err := executeRootCommand(t, deps, "ch", "list", "-o", "json")
-	if err != nil {
-		t.Fatalf("agh ch list error = %v", err)
-	}
+		client.agentMeFn = func(context.Context, agentidentity.Credentials) (AgentMeRecord, error) {
+			return meRecord, nil
+		}
+		client.agentContextFn = func(context.Context, agentidentity.Credentials) (AgentContextRecord, error) {
+			return contextRecord, nil
+		}
+		client.agentChannelsFn = func(context.Context, agentidentity.Credentials) ([]AgentChannelRecord, error) {
+			return []AgentChannelRecord{channelRecord}, nil
+		}
+		client.agentChannelRecvFn = func(
+			context.Context,
+			string,
+			AgentChannelRecvQuery,
+			agentidentity.Credentials,
+		) ([]AgentChannelMessageRecord, error) {
+			return []AgentChannelMessageRecord{statusMessage}, nil
+		}
+		client.agentChannelSendFn = func(
+			context.Context,
+			string,
+			AgentChannelSendRequest,
+			agentidentity.Credentials,
+		) (AgentChannelMessageRecord, error) {
+			return statusMessage, nil
+		}
+		client.agentChannelReplyFn = func(
+			context.Context,
+			AgentChannelReplyRequest,
+			agentidentity.Credentials,
+		) (AgentChannelMessageRecord, error) {
+			return replyMessage, nil
+		}
 
-	var channels []AgentChannelRecord
-	if err := json.Unmarshal([]byte(stdout), &channels); err != nil {
-		t.Fatalf("json.Unmarshal(channels) error = %v", err)
-	}
-	if len(channels) != 1 ||
-		channels[0].ID != "builders" ||
-		len(channels[0].AllowedMessageKinds) != len(contract.CoordinationMessageKinds()) {
-		t.Fatalf("channels = %#v, want builders with MVP message kinds", channels)
-	}
-}
-
-func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing.T) {
-	t.Parallel()
-
-	for _, kind := range []contract.CoordinationMessageKind{
-		contract.CoordinationMessageStatus,
-		contract.CoordinationMessageBlocker,
-		contract.CoordinationMessageResult,
-	} {
-		t.Run(string(kind), func(t *testing.T) {
-			t.Parallel()
-
-			client := &stubClient{}
-			deps := newAgentCommandTestDeps(t, client)
-			client.agentChannelSendFn = func(
-				_ context.Context,
-				channel string,
-				request AgentChannelSendRequest,
-				credentials agentidentity.Credentials,
-			) (AgentChannelMessageRecord, error) {
-				assertAgentCredentials(t, credentials)
-				if channel != "builders" {
-					t.Fatalf("channel = %q, want builders", channel)
-				}
-				if request.Metadata.TaskID != "task-1" ||
-					request.Metadata.RunID != "run-1" ||
-					request.Metadata.WorkflowID != "wf-1" ||
-					request.Metadata.CoordinationChannelID != "builders" ||
-					request.Metadata.CorrelationID != "corr-1" ||
-					request.Metadata.MessageKind != kind {
-					t.Fatalf("metadata = %#v, want task/run/%s correlation", request.Metadata, kind)
-				}
-				if string(request.Metadata.Ext["note"]) != `"safe"` {
-					t.Fatalf("metadata.Ext = %#v, want note", request.Metadata.Ext)
-				}
-				if request.IdempotencyKey != "idem-1" {
-					t.Fatalf("idempotency key = %q, want idem-1", request.IdempotencyKey)
-				}
-				return AgentChannelMessageRecord{
-					MessageID: "msg-1",
-					ChannelID: "builders",
-					Body:      request.Body,
-					Metadata:  request.Metadata,
-					Timestamp: fixedTestNow,
-				}, nil
-			}
-
-			_, _, err := executeRootCommand(
-				t,
-				deps,
-				"ch", "send", "builders",
-				"--body", `{"text":"ok"}`,
-				"--task-id", "task-1",
-				"--run-id", "run-1",
-				"--workflow-id", "wf-1",
-				"--kind", string(kind),
-				"--correlation-id", "corr-1",
-				"--metadata-ext", `{"note":"safe"}`,
-				"--idempotency-key", "idem-1",
-				"-o", "json",
-			)
-			if err != nil {
-				t.Fatalf("agh ch send error = %v", err)
-			}
-		})
-	}
-
-	for _, tt := range []struct {
-		name string
-		args []string
-	}{
-		{
-			name: "body",
-			args: []string{
-				"ch", "send", "builders",
-				"--body", `{"claim_token":"secret"}`,
-				"--task-id", "task-1",
-				"--run-id", "run-1",
+		tests := []struct {
+			name string
+			args []string
+			want string
+		}{
+			{name: "Should render me human output", args: []string{"me", "-o", "human"}, want: "Agent"},
+			{name: "Should render me toon output", args: []string{"me", "-o", "toon"}, want: "agent_me{session_id"},
+			{
+				name: "Should render context human output",
+				args: []string{"me", "context", "-o", "human"},
+				want: `"source": "test"`,
 			},
-		},
-		{
-			name: "metadata ext",
-			args: []string{
-				"ch", "send", "builders",
-				"--body", `{"text":"ok"}`,
-				"--task-id", "task-1",
-				"--run-id", "run-1",
-				"--metadata-ext", `{"claim_token":"secret"}`,
+			{
+				name: "Should render context toon output",
+				args: []string{"me", "context", "-o", "toon"},
+				want: `"source": "test"`,
 			},
-		},
-	} {
-		t.Run("reject raw claim token in "+tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			client := &stubClient{
-				agentChannelSendFn: func(
-					context.Context,
-					string,
-					AgentChannelSendRequest,
-					agentidentity.Credentials,
-				) (AgentChannelMessageRecord, error) {
-					t.Fatal("AgentChannelSend should not be called when claim_token is present")
-					return AgentChannelMessageRecord{}, errors.New("unexpected")
+			{
+				name: "Should render channels human output",
+				args: []string{"ch", "list", "-o", "human"},
+				want: "Agent Channels",
+			},
+			{
+				name: "Should render channels toon output",
+				args: []string{"ch", "list", "-o", "toon"},
+				want: "agent_channels[1]",
+			},
+			{
+				name: "Should render recv human output",
+				args: []string{"ch", "recv", "builders", "-o", "human"},
+				want: "Agent Channel Messages",
+			},
+			{
+				name: "Should render recv toon output",
+				args: []string{"ch", "recv", "builders", "-o", "toon"},
+				want: "agent_channel_messages[1]",
+			},
+			{
+				name: "Should render send human output",
+				args: []string{
+					"ch", "send", "builders",
+					"--body", `{"text":"ok"}`,
+					"--task-id", "task-1",
+					"--run-id", "run-1",
+					"-o", "human",
 				},
-			}
-			_, _, err := executeRootCommand(t, newAgentCommandTestDeps(t, client), tt.args...)
-			if !errors.Is(err, contract.ErrRawClaimTokenMetadata) {
-				t.Fatalf("agh ch send error = %v, want ErrRawClaimTokenMetadata", err)
-			}
-		})
-	}
-}
-
-func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t *testing.T) {
-	t.Parallel()
-
-	client := &stubClient{}
-	deps := newAgentCommandTestDeps(t, client)
-	client.agentChannelReplyFn = func(
-		_ context.Context,
-		request AgentChannelReplyRequest,
-		credentials agentidentity.Credentials,
-	) (AgentChannelMessageRecord, error) {
-		assertAgentCredentials(t, credentials)
-		if request.ReplyToMessageID != "msg-source" {
-			t.Fatalf("reply_to_message_id = %q, want msg-source", request.ReplyToMessageID)
-		}
-		if string(request.Body) != `{"text":"ack"}` {
-			t.Fatalf("body = %s, want ack JSON", request.Body)
-		}
-		if !zeroCLICoordinationMetadata(request.Metadata) {
-			t.Fatalf("metadata = %#v, want zero metadata for server-side source resolution", request.Metadata)
-		}
-		return AgentChannelMessageRecord{
-			MessageID: "msg-reply",
-			ChannelID: "builders",
-			Body:      request.Body,
-			Metadata: contract.CoordinationMessageMetadataPayload{
-				TaskID:                "task-1",
-				RunID:                 "run-1",
-				CoordinationChannelID: "builders",
-				MessageKind:           contract.CoordinationMessageReply,
-				CorrelationID:         "run-1",
+				want: "Agent Channel Message",
 			},
-			Timestamp: fixedTestNow,
-		}, nil
-	}
-
-	if _, _, err := executeRootCommand(
-		t,
-		deps,
-		"ch", "reply",
-		"--to-message", "msg-source",
-		"--body", `{"text":"ack"}`,
-		"-o", "json",
-	); err != nil {
-		t.Fatalf("agh ch reply error = %v", err)
-	}
-
-	_, _, err := executeRootCommand(
-		t,
-		deps,
-		"ch", "reply",
-		"--to-message", "msg-source",
-		"--body", `{"text":"ack"}`,
-		"--kind", "status",
-	)
-	if err == nil || !strings.Contains(err.Error(), "--kind must be reply") {
-		t.Fatalf("agh ch reply --kind status error = %v, want reply-kind validation", err)
-	}
-
-	_, _, err = executeRootCommand(
-		t,
-		deps,
-		"ch", "reply",
-		"--to-message", "msg-source",
-		"--body", `{"text":"ack"}`,
-		"--task-id", "task-1",
-		"--run-id", "run-1",
-		"--coordination-channel-id", "builders",
-		"--kind", "status",
-	)
-	if err == nil || !strings.Contains(err.Error(), "--kind must be reply") {
-		t.Fatalf("agh ch reply --kind status error = %v, want reply-kind validation", err)
-	}
-}
-
-func TestChannelRecvJSONLOutputEmitsOneObjectPerMessage(t *testing.T) {
-	t.Parallel()
-
-	client := &stubClient{}
-	deps := newAgentCommandTestDeps(t, client)
-	client.agentChannelRecvFn = func(
-		_ context.Context,
-		channel string,
-		query AgentChannelRecvQuery,
-		credentials agentidentity.Credentials,
-	) ([]AgentChannelMessageRecord, error) {
-		assertAgentCredentials(t, credentials)
-		if channel != "builders" || !query.Wait || query.Limit != 2 {
-			t.Fatalf("recv channel/query = %q/%#v, want builders wait limit=2", channel, query)
-		}
-		return []AgentChannelMessageRecord{
-			agentChannelTestMessage("msg-1", contract.CoordinationMessageStatus),
-			agentChannelTestMessage("msg-2", contract.CoordinationMessageResult),
-		}, nil
-	}
-
-	stdout, _, err := executeRootCommand(
-		t,
-		deps,
-		"ch", "recv", "builders",
-		"--wait",
-		"--limit", "2",
-		"-o", "jsonl",
-	)
-	if err != nil {
-		t.Fatalf("agh ch recv error = %v", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(stdout), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("jsonl line count = %d, want 2; output=%q", len(lines), stdout)
-	}
-	for index, line := range lines {
-		var message AgentChannelMessageRecord
-		if err := json.Unmarshal([]byte(line), &message); err != nil {
-			t.Fatalf("json.Unmarshal(line %d) error = %v", index, err)
-		}
-		if message.MessageID == "" || message.Metadata.MessageKind == "" {
-			t.Fatalf("message line %d = %#v, want populated message", index, message)
-		}
-	}
-}
-
-func TestAgentCommandsRenderHumanAndToonOutputs(t *testing.T) {
-	t.Parallel()
-
-	client := &stubClient{}
-	deps := newAgentCommandTestDeps(t, client)
-	meRecord := AgentMeRecord{
-		Self: contract.AgentIdentityPayload{
-			SessionID: "sess-agent",
-			AgentName: "coder",
-			Provider:  "test-provider",
-			Model:     "test-model",
-		},
-		Workspace: contract.AgentWorkspacePayload{ID: "ws-1", RootDir: "/workspace/project"},
-		Session: contract.AgentSessionPayload{
-			ID:        "sess-agent",
-			State:     session.StateActive,
-			CreatedAt: fixedTestNow,
-			UpdatedAt: fixedTestNow,
-		},
-	}
-	contextRecord := AgentContextRecord{
-		Self:      meRecord.Self,
-		Workspace: meRecord.Workspace,
-		Session:   meRecord.Session,
-		Provenance: contract.AgentContextProvenancePayload{
-			GeneratedAt: fixedTestNow,
-			Source:      "test",
-		},
-	}
-	channelRecord := AgentChannelRecord{
-		ID:                  "builders",
-		Channel:             "builders",
-		DisplayName:         "builders",
-		Purpose:             "task_coordination",
-		WorkspaceID:         "ws-1",
-		AllowedMessageKinds: contract.CoordinationMessageKinds(),
-	}
-	statusMessage := agentChannelTestMessage("msg-1", contract.CoordinationMessageStatus)
-	replyMessage := agentChannelTestMessage("msg-reply", contract.CoordinationMessageReply)
-
-	client.agentMeFn = func(context.Context, agentidentity.Credentials) (AgentMeRecord, error) {
-		return meRecord, nil
-	}
-	client.agentContextFn = func(context.Context, agentidentity.Credentials) (AgentContextRecord, error) {
-		return contextRecord, nil
-	}
-	client.agentChannelsFn = func(context.Context, agentidentity.Credentials) ([]AgentChannelRecord, error) {
-		return []AgentChannelRecord{channelRecord}, nil
-	}
-	client.agentChannelRecvFn = func(
-		context.Context,
-		string,
-		AgentChannelRecvQuery,
-		agentidentity.Credentials,
-	) ([]AgentChannelMessageRecord, error) {
-		return []AgentChannelMessageRecord{statusMessage}, nil
-	}
-	client.agentChannelSendFn = func(
-		context.Context,
-		string,
-		AgentChannelSendRequest,
-		agentidentity.Credentials,
-	) (AgentChannelMessageRecord, error) {
-		return statusMessage, nil
-	}
-	client.agentChannelReplyFn = func(
-		context.Context,
-		AgentChannelReplyRequest,
-		agentidentity.Credentials,
-	) (AgentChannelMessageRecord, error) {
-		return replyMessage, nil
-	}
-
-	tests := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{name: "me human", args: []string{"me", "-o", "human"}, want: "Agent"},
-		{name: "me toon", args: []string{"me", "-o", "toon"}, want: "agent_me{session_id"},
-		{name: "context human", args: []string{"me", "context", "-o", "human"}, want: `"source": "test"`},
-		{name: "context toon", args: []string{"me", "context", "-o", "toon"}, want: `"source": "test"`},
-		{name: "channels human", args: []string{"ch", "list", "-o", "human"}, want: "Agent Channels"},
-		{name: "channels toon", args: []string{"ch", "list", "-o", "toon"}, want: "agent_channels[1]"},
-		{name: "recv human", args: []string{"ch", "recv", "builders", "-o", "human"}, want: "Agent Channel Messages"},
-		{name: "recv toon", args: []string{"ch", "recv", "builders", "-o", "toon"}, want: "agent_channel_messages[1]"},
-		{
-			name: "send human",
-			args: []string{
-				"ch", "send", "builders",
-				"--body", `{"text":"ok"}`,
-				"--task-id", "task-1",
-				"--run-id", "run-1",
-				"-o", "human",
+			{
+				name: "Should render reply toon output",
+				args: []string{
+					"ch", "reply",
+					"--to-message", "msg-1",
+					"--body", `{"text":"ack"}`,
+					"-o", "toon",
+				},
+				want: "agent_channel_message{message_id",
 			},
-			want: "Agent Channel Message",
-		},
-		{
-			name: "reply toon",
-			args: []string{
-				"ch", "reply",
-				"--to-message", "msg-1",
-				"--body", `{"text":"ack"}`,
-				"-o", "toon",
-			},
-			want: "agent_channel_message{message_id",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			stdout, _, err := executeRootCommand(t, deps, tt.args...)
-			if err != nil {
-				t.Fatalf("executeRootCommand(%v) error = %v", tt.args, err)
-			}
-			if !strings.Contains(stdout, tt.want) {
-				t.Fatalf("output = %q, want substring %q", stdout, tt.want)
-			}
-		})
-	}
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				stdout, _, err := executeRootCommand(t, deps, tt.args...)
+				if err != nil {
+					t.Fatalf("executeRootCommand(%v) error = %v", tt.args, err)
+				}
+				if !strings.Contains(stdout, tt.want) {
+					t.Fatalf("output = %q, want substring %q", stdout, tt.want)
+				}
+			})
+		}
+	})
 }
 
 func newAgentCommandTestDeps(t *testing.T, client *stubClient) commandDeps {

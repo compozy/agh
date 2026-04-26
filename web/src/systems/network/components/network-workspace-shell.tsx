@@ -11,7 +11,21 @@ import {
   Workflow,
 } from "lucide-react";
 
-import { Button, Empty, MonoBadge, SearchInput, StatusDot, Textarea } from "@agh/ui";
+import {
+  Button,
+  Empty,
+  KIND_DOT_COLORS,
+  KindChip,
+  MonoBadge,
+  MonoChip,
+  Pills,
+  SearchInput,
+  SidebarSectionLabel,
+  StatusDot,
+  Textarea,
+  WireCard,
+  WireChip,
+} from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import {
@@ -20,7 +34,6 @@ import {
   formatNetworkKindLabel,
   formatNetworkRelativeTime,
   getMessageAuthorInitial,
-  getNetworkKindTone,
   getNetworkMessagePrimaryText,
   getNetworkStatusTone,
 } from "../lib/network-formatters";
@@ -63,14 +76,25 @@ interface NetworkWorkspaceShellProps {
   starredChannelRooms: NetworkRoomListItem[];
 }
 
-const toneClasses = {
-  accent: "bg-[color:var(--color-accent-tint)] text-[color:var(--color-accent)]",
-  danger: "bg-[color:var(--color-danger-tint)] text-[color:var(--color-danger)]",
-  info: "bg-[color:var(--color-info-tint)] text-[color:var(--color-info)]",
-  neutral: "bg-[color:var(--color-neutral-tint)] text-[color:var(--color-text-label)]",
-  success: "bg-[color:var(--color-success-tint)] text-[color:var(--color-success)]",
-  warning: "bg-[color:var(--color-warning-tint)] text-[color:var(--color-warning)]",
-} as const;
+const AVATAR_PALETTE: ReadonlyArray<readonly [string, string]> = [
+  ["var(--color-accent-tint)", "var(--color-accent)"],
+  ["var(--color-info-tint)", "var(--color-info)"],
+  ["var(--color-success-tint)", "var(--color-success)"],
+  ["var(--color-warning-tint)", "var(--color-warning)"],
+  ["var(--color-danger-tint)", "var(--color-danger)"],
+  ["var(--color-neutral-tint)", "var(--color-text-label)"],
+  ["var(--color-surface-elevated)", "var(--color-text-primary)"],
+  ["var(--color-surface-panel)", "var(--color-text-secondary)"],
+];
+
+function pickAvatarColors(seed: string): readonly [string, string] {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  }
+  const index = Math.abs(hash) % AVATAR_PALETTE.length;
+  return AVATAR_PALETTE[index]!;
+}
 
 function fieldToneToBadgeTone(field?: NetworkRoomField["tone"]) {
   switch (field) {
@@ -132,30 +156,11 @@ function isGroupedWithPrevious(
   return currentAt - previousAt <= 5 * 60_000;
 }
 
-function NetworkRoomKindPill({ kind, labelOverride }: { kind: string; labelOverride?: string }) {
-  const tone = getNetworkKindTone(kind);
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-[var(--radius-chip)] px-1.5 py-0.5 font-mono text-[10px] font-medium lowercase",
-        toneClasses[tone]
-      )}
-    >
-      {labelOverride ?? formatNetworkKindLabel(kind)}
-    </span>
-  );
-}
-
 function NetworkShellSection({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <section className="space-y-2">
-      <div className="px-3">
-        <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-          {title}
-        </span>
-      </div>
-      <div className="space-y-1">{children}</div>
+    <section className="space-y-1">
+      <SidebarSectionLabel>{title}</SidebarSectionLabel>
+      <div>{children}</div>
     </section>
   );
 }
@@ -172,68 +177,67 @@ function NetworkSidebarRow({
   onToggleStar?: (channel: string) => void;
 }) {
   const isChannel = item.roomType === "channel";
+  const unread = item.unreadCount > 0;
 
   return (
     <div
       className={cn(
-        "flex w-full items-start gap-1 rounded-[var(--radius-md)] border text-left transition-colors focus-within:border-[color:var(--color-accent-dim)]",
-        active
-          ? "border-[color:var(--color-accent-dim)] bg-[color:var(--color-accent-tint)]"
-          : "border-transparent hover:border-[color:var(--color-divider)] hover:bg-[color:var(--color-surface)]"
+        "group relative mx-1.5 flex items-center gap-2 rounded-[6px] pr-1.5 transition-colors",
+        active ? "bg-[color:var(--color-surface)]" : "hover:bg-[color:var(--color-hover)]"
       )}
       data-testid={`network-room-${item.roomType}-${item.id}`}
     >
+      {active ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded-r-[2px] bg-[color:var(--color-accent)]"
+        />
+      ) : null}
       <button
         aria-current={active ? "page" : undefined}
-        className="flex min-w-0 flex-1 items-start gap-3 px-3 py-2.5 text-left focus-visible:outline-none"
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]"
         onClick={() => onSelect(item)}
         type="button"
       >
-        <div className="mt-0.5 flex items-center gap-2">
+        <span className="flex shrink-0 items-center">
           {isChannel ? (
-            <Hash className="size-3.5 text-[color:var(--color-text-secondary)]" />
+            <Hash
+              aria-hidden="true"
+              className={cn(
+                "size-[13px]",
+                active
+                  ? "text-[color:var(--color-text-primary)]"
+                  : "text-[color:var(--color-text-tertiary)]"
+              )}
+            />
           ) : (
             <StatusDot tone={item.tone} />
           )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                "truncate text-[13px] font-medium",
-                item.unreadCount > 0
-                  ? "text-[color:var(--color-text-primary)]"
-                  : "text-[color:var(--color-text-secondary)]"
-              )}
-            >
-              {item.title}
-            </span>
-            {item.unreadCount > 0 ? (
-              <MonoBadge className="ml-auto" tone="accent">
-                {item.unreadCount}
-              </MonoBadge>
-            ) : null}
-          </div>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="truncate text-[12px] text-[color:var(--color-text-tertiary)]">
-              {item.preview}
-            </span>
-          </div>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-              {item.meta}
-            </span>
-            <span className="text-[color:var(--color-text-tertiary)]">·</span>
-            <span className="truncate font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-              {item.subtitle}
-            </span>
-          </div>
-        </div>
+        </span>
+        <span
+          className={cn(
+            "truncate font-mono text-[12px] tracking-[-0.01em]",
+            active
+              ? "text-[color:var(--color-text-primary)] font-medium"
+              : "text-[color:var(--color-text-secondary)]",
+            unread && "font-semibold text-[color:var(--color-text-primary)]"
+          )}
+        >
+          {item.title}
+        </span>
       </button>
+      {unread ? (
+        <MonoBadge tone="solid-accent" uppercase={false}>
+          {item.unreadCount}
+        </MonoBadge>
+      ) : null}
       {isChannel ? (
         <button
           aria-label={item.isStarred ? "Unstar channel" : "Star channel"}
-          className="mt-2 mr-2 rounded-[var(--radius-md)] p-1 text-[color:var(--color-text-tertiary)] transition-colors hover:bg-[color:var(--color-surface-elevated)] hover:text-[color:var(--color-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+          className={cn(
+            "rounded-[4px] p-1 text-[color:var(--color-text-tertiary)] opacity-0 transition-opacity focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)] group-hover:opacity-100",
+            (item.isStarred || active) && "opacity-100"
+          )}
           onClick={event => {
             event.stopPropagation();
             onToggleStar?.(item.id);
@@ -241,7 +245,7 @@ function NetworkSidebarRow({
           type="button"
         >
           <Sparkles
-            className={cn("size-3.5", item.isStarred && "text-[color:var(--color-accent)]")}
+            className={cn("size-3", item.isStarred && "text-[color:var(--color-accent)]")}
           />
         </button>
       ) : null}
@@ -258,31 +262,30 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
   switch (message.kind) {
     case "capability":
       return (
-        <div className="space-y-3 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <MonoBadge tone="info">capability</MonoBadge>
+        <WireCard className="w-full max-w-none space-y-3 p-3.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {readString(capability, "id") ? (
-              <MonoBadge uppercase={false}>{readString(capability, "id")}</MonoBadge>
+              <MonoChip>{readString(capability, "id")}</MonoChip>
             ) : null}
             {readString(capability, "version") ? (
-              <MonoBadge uppercase={false}>{readString(capability, "version")}</MonoBadge>
+              <MonoChip>{readString(capability, "version")}</MonoChip>
             ) : null}
           </div>
           <div className="space-y-1">
-            <p className="text-[14px] font-medium text-[color:var(--color-text-primary)]">
+            <p className="text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
               {readString(capability, "summary") ?? getNetworkMessagePrimaryText(message)}
             </p>
             {readString(capability, "outcome") ? (
-              <p className="text-[13px] leading-6 text-[color:var(--color-text-secondary)]">
+              <p className="text-[12.5px] leading-5 text-[color:var(--color-text-secondary)]">
                 {readString(capability, "outcome")}
               </p>
             ) : null}
           </div>
           {readStringList(capability, "execution_outline").length > 0 ? (
-            <div className="space-y-2">
-              <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+            <div className="space-y-1.5">
+              <SidebarSectionLabel className="px-0 pt-0 pb-0">
                 Execution Outline
-              </span>
+              </SidebarSectionLabel>
               <div className="space-y-1">
                 {readStringList(capability, "execution_outline").map((step, stepIndex) => (
                   <p
@@ -295,46 +298,34 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
               </div>
             </div>
           ) : null}
-        </div>
+        </WireCard>
       );
     case "receipt":
       return (
-        <div className="space-y-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <MonoBadge tone="warning">receipt</MonoBadge>
-            {readString(body, "status") ? (
-              <MonoBadge uppercase={false} tone="warning">
-                {readString(body, "status")}
-              </MonoBadge>
-            ) : null}
-            {readString(body, "for_id") ? (
-              <MonoBadge uppercase={false}>{readString(body, "for_id")}</MonoBadge>
-            ) : null}
+        <WireCard className="w-full max-w-none space-y-1.5 p-3.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {readString(body, "status") ? <MonoChip>{readString(body, "status")}</MonoChip> : null}
+            {readString(body, "for_id") ? <MonoChip>{readString(body, "for_id")}</MonoChip> : null}
           </div>
-          <p className="text-[13px] leading-6 text-[color:var(--color-text-secondary)]">
+          <p className="text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
             {readString(body, "detail") ?? getNetworkMessagePrimaryText(message)}
           </p>
-        </div>
+        </WireCard>
       );
     case "greet":
       return (
-        <div className="space-y-3 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <MonoBadge tone="success">
-              {message.presence_count && message.presence_count > 1 ? "presence" : "greet"}
-            </MonoBadge>
+        <WireCard className="w-full max-w-none space-y-2.5 p-3.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {readString(peerCard, "display_name") ? (
-              <span className="text-[13px] font-medium text-[color:var(--color-text-primary)]">
+              <span className="font-mono text-[12px] font-medium text-[color:var(--color-text-primary)]">
                 {readString(peerCard, "display_name")}
               </span>
             ) : null}
             {message.presence_count && message.presence_count > 1 ? (
-              <MonoBadge uppercase={false} tone="success">
-                {message.presence_count} heartbeats
-              </MonoBadge>
+              <MonoChip>{message.presence_count} heartbeats</MonoChip>
             ) : null}
           </div>
-          <p className="text-[13px] leading-6 text-[color:var(--color-text-secondary)]">
+          <p className="text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
             {readString(body, "summary") ?? getNetworkMessagePrimaryText(message)}
           </p>
           {message.presence_started_at && message.presence_last_seen_at ? (
@@ -344,26 +335,23 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
             </p>
           ) : null}
           {readStringList(peerCard, "capabilities").length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {readStringList(peerCard, "capabilities").map(capabilityName => (
-                <MonoBadge key={capabilityName} uppercase={false}>
-                  {capabilityName}
-                </MonoBadge>
+                <MonoChip key={capabilityName}>{capabilityName}</MonoChip>
               ))}
             </div>
           ) : null}
-        </div>
+        </WireCard>
       );
     case "whois":
       return (
-        <div className="space-y-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <MonoBadge tone="warning">whois</MonoBadge>
-            {readString(body, "type") ? (
-              <MonoBadge uppercase={false}>{readString(body, "type")}</MonoBadge>
-            ) : null}
-          </div>
-          <p className="text-[13px] leading-6 text-[color:var(--color-text-secondary)]">
+        <WireCard className="w-full max-w-none space-y-1.5 p-3.5">
+          {readString(body, "type") ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <MonoChip>{readString(body, "type")}</MonoChip>
+            </div>
+          ) : null}
+          <p className="text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
             {readString(body, "query") ?? getNetworkMessagePrimaryText(message)}
           </p>
           {readString(peerCard, "peer_id") ? (
@@ -371,33 +359,26 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
               {readString(peerCard, "peer_id")}
             </p>
           ) : null}
-        </div>
+        </WireCard>
       );
     case "trace":
       return (
-        <div className="space-y-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <MonoBadge tone="info">trace</MonoBadge>
-            {readString(body, "state") ? (
-              <MonoBadge uppercase={false} tone="info">
-                {readString(body, "state")}
-              </MonoBadge>
-            ) : null}
-          </div>
-          <p className="text-[13px] leading-6 text-[color:var(--color-text-secondary)]">
+        <WireCard className="w-full max-w-none space-y-1.5 p-3.5">
+          {readString(body, "state") ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <MonoChip>{readString(body, "state")}</MonoChip>
+            </div>
+          ) : null}
+          <p className="text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
             {readString(body, "message") ?? getNetworkMessagePrimaryText(message)}
           </p>
-        </div>
+        </WireCard>
       );
     default:
       return (
-        <div className="space-y-2">
-          {intent ? (
-            <MonoBadge uppercase={false} tone="neutral">
-              {intent}
-            </MonoBadge>
-          ) : null}
-          <p className="whitespace-pre-wrap text-[14px] leading-6 text-[color:var(--color-text-primary)]">
+        <div className="space-y-1.5">
+          {intent ? <MonoChip>{intent}</MonoChip> : null}
+          <p className="whitespace-pre-wrap text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
             {getNetworkMessagePrimaryText(message)}
           </p>
         </div>
@@ -436,63 +417,63 @@ function NetworkMessageList({
   }
 
   return (
-    <div className="space-y-1 px-5 pb-8" data-testid="network-message-list">
+    <div className="px-5 pb-8" data-testid="network-message-list">
       {messages.map((message, index) => {
         const grouped = isGroupedWithPrevious(messages[index - 1], message);
+        const senderSeed = message.display_name ?? message.peer_from;
+        const [avatarBg, avatarFg] = pickAvatarColors(senderSeed);
+        const kindLabel =
+          message.kind === "greet" && (message.presence_count ?? 0) > 1
+            ? "presence"
+            : formatNetworkKindLabel(message.kind);
 
         return (
           <article
-            className={cn("flex gap-3 rounded-[var(--radius-md)] px-3 py-3", grouped && "pt-1")}
+            className={cn(
+              "group/msg flex gap-3.5 transition-colors hover:bg-[color:var(--color-hover)]",
+              grouped ? "px-2 py-1" : "px-2 pt-3.5 pb-2"
+            )}
             data-testid={`network-message-${message.message_id}`}
             key={message.message_id}
           >
-            <div className="w-10 shrink-0">
-              {grouped ? null : (
-                <div className="flex size-10 items-center justify-center rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] font-mono text-[12px] font-medium text-[color:var(--color-text-primary)]">
+            <div className="w-9 shrink-0">
+              {grouped ? (
+                <span className="flex h-[18px] items-center justify-center font-mono text-[10px] text-[color:var(--color-text-tertiary)] opacity-0 transition-opacity group-hover/msg:opacity-100">
+                  {message.timestamp.slice(11, 16)}
+                </span>
+              ) : (
+                <div
+                  aria-hidden="true"
+                  className="flex size-9 items-center justify-center rounded-[6px] font-mono text-[10px] font-semibold tracking-[-0.02em]"
+                  style={{ background: avatarBg, color: avatarFg }}
+                >
                   {getMessageAuthorInitial(message)}
                 </div>
               )}
             </div>
-            <div className="min-w-0 flex-1 space-y-2">
+            <div className="min-w-0 flex-1 space-y-1.5">
               {grouped ? null : (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[14px] font-medium text-[color:var(--color-text-primary)]">
+                  <span className="font-mono text-[13px] font-semibold text-[color:var(--color-text-primary)]">
                     {message.display_name ?? message.peer_from}
                   </span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+                  <KindChip kind={message.kind} label={kindLabel} />
+                  <span className="font-mono text-[10.5px] text-[color:var(--color-text-tertiary)]">
                     {formatNetworkRelativeTime(message.timestamp)}
                   </span>
-                  <NetworkRoomKindPill
-                    kind={message.kind}
-                    labelOverride={
-                      message.kind === "greet" && (message.presence_count ?? 0) > 0
-                        ? "presence"
-                        : undefined
-                    }
-                  />
-                  <MonoBadge tone={message.direction === "sent" ? "accent" : "default"}>
-                    {message.direction}
-                  </MonoBadge>
+                  {message.direction === "sent" ? (
+                    <MonoBadge tone="accent" uppercase={false}>
+                      {message.direction}
+                    </MonoBadge>
+                  ) : null}
                 </div>
               )}
               <NetworkMessageBody message={message} />
               {(message.peer_to || message.trace_id || message.reply_to) && !grouped ? (
-                <div className="flex flex-wrap gap-2">
-                  {message.peer_to ? (
-                    <MonoBadge uppercase={false} tone="default">
-                      to {message.peer_to}
-                    </MonoBadge>
-                  ) : null}
-                  {message.trace_id ? (
-                    <MonoBadge uppercase={false} tone="default">
-                      trace {message.trace_id}
-                    </MonoBadge>
-                  ) : null}
-                  {message.reply_to ? (
-                    <MonoBadge uppercase={false} tone="default">
-                      reply {message.reply_to}
-                    </MonoBadge>
-                  ) : null}
+                <div className="flex flex-wrap gap-1.5">
+                  {message.peer_to ? <MonoChip>to {message.peer_to}</MonoChip> : null}
+                  {message.trace_id ? <MonoChip>trace {message.trace_id}</MonoChip> : null}
+                  {message.reply_to ? <MonoChip>reply {message.reply_to}</MonoChip> : null}
                 </div>
               ) : null}
             </div>
@@ -753,81 +734,58 @@ export function NetworkWorkspaceShell({
             <div className="border-b border-[color:var(--color-divider)] px-5 py-3">
               <div
                 aria-label="Timeline kind filters"
-                className="flex flex-wrap items-center gap-2"
+                className="flex flex-wrap items-center gap-1.5"
                 data-testid="network-kind-filter-bar"
                 role="group"
               >
-                <button
-                  aria-pressed={activeKind === "all"}
-                  className={cn(
-                    "rounded-[var(--radius-chip)] border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
-                    activeKind === "all"
-                      ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]"
-                      : "border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-accent-dim)] hover:text-[color:var(--color-text-primary)]"
-                  )}
-                  onClick={() => onSelectKind("all")}
-                  type="button"
-                >
-                  All
-                </button>
+                <span className="mr-1 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
+                  Filter by kind
+                </span>
+                <WireChip active={activeKind === "all"} onClick={() => onSelectKind("all")}>
+                  all
+                </WireChip>
                 {NETWORK_KIND_FILTERS.map(kind => {
                   const count =
                     activeRoom?.kindCounts.find(metric => metric.kind === kind)?.count ?? 0;
 
                   return (
-                    <button
-                      aria-pressed={activeKind === kind}
-                      className={cn(
-                        "rounded-[var(--radius-chip)] border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
-                        activeKind === kind
-                          ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]"
-                          : "border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-accent-dim)] hover:text-[color:var(--color-text-primary)]"
-                      )}
+                    <WireChip
+                      active={activeKind === kind}
+                      dotColor={KIND_DOT_COLORS[kind.toLowerCase()]}
                       key={kind}
                       onClick={() => onSelectKind(kind)}
-                      type="button"
                     >
-                      {formatNetworkKindLabel(kind)}
+                      {formatNetworkKindLabel(kind).toLowerCase()}
                       {count > 0 ? ` ${count}` : ""}
-                    </button>
+                    </WireChip>
                   );
                 })}
-                <button
-                  aria-pressed={showPresence}
-                  className={cn(
-                    "rounded-[var(--radius-chip)] border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
-                    showPresence
-                      ? "border-[color:var(--color-success)] bg-[color:var(--color-success-tint)] text-[color:var(--color-success)]"
-                      : "border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-success)] hover:text-[color:var(--color-text-primary)]"
-                  )}
+                <WireChip
+                  active={showPresence}
+                  dotColor="var(--color-success)"
                   onClick={onTogglePresence}
-                  type="button"
                 >
-                  Presence
+                  presence
                   {(activeRoom?.presenceCount ?? 0) > 0 ? ` ${activeRoom?.presenceCount ?? 0}` : ""}
-                </button>
+                </WireChip>
               </div>
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto">
                 <div className="px-5 py-5" data-testid="network-room-intro">
-                  <div className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <MonoBadge tone="accent">
-                        {activeRoom?.roomType === "channel" ? "channel" : "direct"}
-                      </MonoBadge>
-                      {activeRoom?.purpose ? (
-                        <MonoBadge uppercase={false}>{activeRoom.purpose}</MonoBadge>
-                      ) : null}
+                  <WireCard className="w-full max-w-none p-5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <KindChip kind={activeRoom?.roomType === "channel" ? "channel" : "direct"} />
+                      {activeRoom?.purpose ? <MonoChip>{activeRoom.purpose}</MonoChip> : null}
                     </div>
                     <h2 className="mt-3 text-[16px] font-semibold text-[color:var(--color-text-primary)]">
                       {activeRoom?.introTitle ?? "Loading room"}
                     </h2>
-                    <p className="mt-2 max-w-3xl text-[14px] leading-6 text-[color:var(--color-text-secondary)]">
+                    <p className="mt-2 max-w-3xl text-[13.5px] leading-[1.55] text-[color:var(--color-text-secondary)]">
                       {activeRoom?.introBody ?? "Resolving room metadata and timeline context."}
                     </p>
-                  </div>
+                  </WireCard>
                 </div>
 
                 <NetworkMessageList
@@ -892,24 +850,17 @@ export function NetworkWorkspaceShell({
                 Room details
               </span>
             </div>
-            <div aria-label="Room detail tabs" className="mt-4 flex gap-2" role="tablist">
-              {(["about", "members", "wire"] as const).map(tab => (
-                <button
-                  aria-selected={detailsTab === tab}
-                  className={cn(
-                    "rounded-[var(--radius-chip)] border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
-                    detailsTab === tab
-                      ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)] text-[color:var(--color-accent-ink)]"
-                      : "border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-accent-dim)] hover:text-[color:var(--color-text-primary)]"
-                  )}
-                  key={tab}
-                  onClick={() => onSelectDetailsTab(tab)}
-                  role="tab"
-                  type="button"
-                >
-                  {tab}
-                </button>
-              ))}
+            <div className="mt-4">
+              <Pills<NetworkDetailsTab>
+                aria-label="Room detail tabs"
+                items={[
+                  { value: "about", label: "About" },
+                  { value: "members", label: "Members" },
+                  { value: "wire", label: "Wire" },
+                ]}
+                onChange={onSelectDetailsTab}
+                value={detailsTab}
+              />
             </div>
           </div>
 
@@ -934,65 +885,55 @@ export function NetworkWorkspaceShell({
                 </div>
                 <NetworkDetailFieldList fields={activeRoom.aboutFields} />
                 {activeRoom.capabilities.length > 0 ? (
-                  <div className="space-y-3">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+                  <div className="space-y-2">
+                    <SidebarSectionLabel className="px-0 pt-0 pb-0">
                       Capabilities
-                    </div>
-                    <div className="space-y-3">
+                    </SidebarSectionLabel>
+                    <div className="space-y-2">
                       {activeRoom.capabilities.map(capability => (
-                        <div
-                          className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
-                          key={capability.id}
-                        >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <MonoBadge uppercase={false}>{capability.id}</MonoBadge>
+                        <WireCard className="w-full max-w-none p-3.5" key={capability.id}>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <MonoChip>{capability.id}</MonoChip>
                             {capability.detail?.version ? (
-                              <MonoBadge uppercase={false} tone="info">
-                                {capability.detail.version}
-                              </MonoBadge>
+                              <MonoChip>{capability.detail.version}</MonoChip>
                             ) : null}
                           </div>
-                          <p className="mt-2 text-[13px] leading-6 text-[color:var(--color-text-secondary)]">
+                          <p className="mt-2 text-[12.5px] leading-5 text-[color:var(--color-text-secondary)]">
                             {capability.summary}
                           </p>
-                        </div>
+                        </WireCard>
                       ))}
                     </div>
                   </div>
                 ) : null}
               </div>
             ) : detailsTab === "members" ? (
-              <div className="space-y-3" data-testid="network-details-members">
+              <div className="space-y-2" data-testid="network-details-members">
                 {activeRoom.members.length === 0 ? (
                   <p className="text-[13px] leading-6 text-[color:var(--color-text-tertiary)]">
                     No visible members were returned for this room yet.
                   </p>
                 ) : (
                   activeRoom.members.map(member => (
-                    <div
-                      className="rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4"
-                      key={member.id}
-                    >
+                    <WireCard className="w-full max-w-none p-3.5" key={member.id}>
                       <div className="flex items-center gap-3">
                         <StatusDot tone={member.tone} />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
+                          <p className="truncate font-mono text-[12px] font-medium text-[color:var(--color-text-primary)]">
                             {member.title}
                           </p>
-                          <p className="truncate text-[12px] text-[color:var(--color-text-secondary)]">
+                          <p className="truncate text-[11.5px] text-[color:var(--color-text-secondary)]">
                             {member.subtitle}
                           </p>
                         </div>
-                        <MonoBadge tone={member.local ? "accent" : "default"}>
-                          {member.local ? "local" : "remote"}
-                        </MonoBadge>
+                        <MonoChip>{member.local ? "local" : "remote"}</MonoChip>
                       </div>
                       {member.lastSeen ? (
                         <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
                           seen {formatNetworkRelativeTime(member.lastSeen)}
                         </p>
                       ) : null}
-                    </div>
+                    </WireCard>
                   ))
                 )}
               </div>
@@ -1000,18 +941,17 @@ export function NetworkWorkspaceShell({
               <div className="space-y-5" data-testid="network-details-wire">
                 <NetworkDetailFieldList fields={activeRoom.wireFields} />
                 {activeRoom.kindCounts.length > 0 ? (
-                  <div className="space-y-3">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+                  <div className="space-y-2">
+                    <SidebarSectionLabel className="px-0 pt-0 pb-0">
                       Timeline Kinds
-                    </div>
-                    <div className="flex flex-wrap gap-2">
+                    </SidebarSectionLabel>
+                    <div className="flex flex-wrap gap-1.5">
                       {activeRoom.kindCounts.map(metric => (
-                        <MonoBadge
+                        <KindChip
                           key={metric.kind}
-                          tone={fieldToneToBadgeTone(getNetworkKindTone(metric.kind))}
-                        >
-                          {formatNetworkKindLabel(metric.kind)} {metric.count}
-                        </MonoBadge>
+                          kind={metric.kind}
+                          label={`${formatNetworkKindLabel(metric.kind)} ${metric.count}`}
+                        />
                       ))}
                     </div>
                   </div>

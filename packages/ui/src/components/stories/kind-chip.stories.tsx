@@ -10,7 +10,7 @@ const meta: Meta<typeof KindChip> = {
     docs: {
       description: {
         component:
-          "Protocol kind marker (`greet`, `whois`, `say`, `direct`, `capability`, `receipt`, `trace`). Lowercase mono, accent-tint background, 5px radius — DESIGN.md §4.",
+          "Protocol kind marker (`say`, `greet`, `direct`, `receipt`, `recipe`, `whois`, `trace`). Uppercase mono, transparent surface with neutral border + colored 7px wire-dot — mirrors `.intent-badge` + `.wire-dot` in `docs/design/web-inspiration/styles/app.css`.",
       },
     },
   },
@@ -20,7 +20,7 @@ const meta: Meta<typeof KindChip> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const KINDS = ["greet", "whois", "say", "direct", "capability", "receipt", "trace"] as const;
+const KINDS = ["say", "greet", "direct", "receipt", "recipe", "trace", "whois"] as const;
 
 export const Default: Story = {
   args: {

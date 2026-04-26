@@ -523,7 +523,7 @@ function InstallSection() {
     {
       id: "binary",
       label: "Binary",
-      command: "curl -fsSL https://get.agh.compozy.com | sh",
+      command: "curl -fsSL https://get.agh.network | sh",
       note: "Linux + macOS · prebuilt",
     },
   ];

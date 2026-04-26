@@ -11,6 +11,36 @@ import {
   networkStatusFixture,
 } from "./fixtures";
 
+function readRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function readRequiredString(record: Record<string, unknown> | null, key: string): string | null {
+  const value = record?.[key];
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function readOptionalString(
+  record: Record<string, unknown> | null,
+  key: string
+): string | undefined {
+  const value = record?.[key];
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  return value.trim() || undefined;
+}
+
 export const handlers: HttpHandler[] = [
   http.get("/api/network/status", () => HttpResponse.json({ network: networkStatusFixture })),
   http.get("/api/network/channels", () => HttpResponse.json(networkChannelsFixture)),
@@ -109,5 +139,33 @@ export const handlers: HttpHandler[] = [
       },
       { status: 201 }
     );
+  }),
+  http.post("/api/network/send", async ({ request }) => {
+    const body = readRecord(await request.json());
+    const sessionId = readRequiredString(body, "session_id");
+    const channel = readRequiredString(body, "channel");
+    const kind = readRequiredString(body, "kind");
+
+    if (!sessionId || !channel || !kind) {
+      return HttpResponse.json(
+        { error: "Session, channel, and kind are required." },
+        { status: 400 }
+      );
+    }
+
+    return HttpResponse.json({
+      message: {
+        id: readOptionalString(body, "id") ?? "msg_storybook_sent",
+        session_id: sessionId,
+        channel,
+        kind,
+        to: readOptionalString(body, "to"),
+        interaction_id: readOptionalString(body, "interaction_id"),
+        reply_to: readOptionalString(body, "reply_to"),
+        trace_id: readOptionalString(body, "trace_id"),
+        causation_id: readOptionalString(body, "causation_id"),
+        expires_at: typeof body?.expires_at === "number" ? body.expires_at : undefined,
+      },
+    });
   }),
 ];

@@ -73,6 +73,7 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		},
 		Extensions: src.Extensions,
 		Automation: src.Automation,
+		Autonomy:   src.Autonomy,
 		Hooks: aghconfig.HooksConfig{
 			Declarations: cloneHookDecls(src.Hooks.Declarations),
 		},

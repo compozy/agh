@@ -19,7 +19,7 @@ source_review_submitted_at: "2026-04-20T15:11:23Z"
 
 - Decision: `invalid`
 - Root cause analysis: directory-mode loading intentionally accepts only regular files. `loadCapabilityCatalogDirectory(...)` checks `info.Mode().IsRegular()` before selecting `*.toml` or `*.json` entries.
-- Why this is invalid: that behavior is already documented in [docs/agents/capabilities.md](/Users/pedronauck/dev/compozy/agh2/docs/agents/capabilities.md:135) as "Only regular files with the selected extension are loaded," and the existing regression test `TestLoadAgentCapabilitiesDirectoryModeLoadsSelectedRegularFilesOnly` codifies the same contract.
+- Why this is invalid: that behavior is already documented in [docs/rfcs/005_capability-catalogs-agent-directories.md](/Users/pedronauck/Dev/compozy/agh/docs/rfcs/005_capability-catalogs-agent-directories.md#L145) as "Only regular files with the selected extension are loaded," and the existing regression test `TestLoadAgentCapabilitiesDirectoryModeLoadsSelectedRegularFilesOnly` codifies the same contract.
 - Additional reasoning: following symlinks here would broaden the filesystem trust boundary for agent catalogs rather than fixing a documented bug. The current behavior is a deliberate fail-closed loader rule, not an accidental omission.
 
 ## Resolution

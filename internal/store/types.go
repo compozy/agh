@@ -604,6 +604,7 @@ type SessionMeta struct {
 	Name         string                  `json:"name,omitempty"`
 	AgentName    string                  `json:"agent_name"`
 	Provider     string                  `json:"provider,omitempty"`
+	Model        string                  `json:"model,omitempty"`
 	WorkspaceID  string                  `json:"workspace_id,omitempty"`
 	Channel      string                  `json:"channel,omitempty"`
 	SessionType  string                  `json:"session_type,omitempty"`

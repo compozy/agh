@@ -37,7 +37,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 - `.compozy/tasks/unified-capabilities/task_01.md` through `task_10.md`
 - `.compozy/tasks/unified-capabilities/adrs/adr-001.md` through `adr-003.md`
 - `docs/rfcs/003_agh-network-v0.md`
-- `docs/agents/capabilities.md`
+- `docs/rfcs/005_capability-catalogs-agent-directories.md`
 - `internal/api/contract/contract.go`
 - `web/src/systems/network/components/network-peer-detail-panel.tsx`
 - `web/src/hooks/routes/use-network-page.ts`

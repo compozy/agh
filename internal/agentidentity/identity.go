@@ -197,6 +197,16 @@ func validateResolveInputs(ctx context.Context, lookup SessionLookup, creds Cred
 func lookupSessionSnapshot(ctx context.Context, lookup SessionLookup, creds Credentials) (SessionSnapshot, error) {
 	snapshot, err := lookup(ctx, creds.SessionID)
 	if err != nil {
+		if errors.Is(err, ErrIdentityLookupUnavailable) ||
+			errors.Is(err, context.Canceled) ||
+			errors.Is(err, context.DeadlineExceeded) {
+			return SessionSnapshot{}, identityError(
+				ErrIdentityLookupUnavailable,
+				"identity_lookup_unavailable",
+				"agent identity cannot be validated",
+				"retry after the daemon is reachable",
+			)
+		}
 		return SessionSnapshot{}, identityError(
 			ErrIdentityStale,
 			"identity_stale",
@@ -274,6 +284,7 @@ func SessionSnapshotFromInfo(info *session.Info) SessionSnapshot {
 		Name:          info.Name,
 		AgentName:     info.AgentName,
 		Provider:      info.Provider,
+		Model:         info.Model,
 		WorkspaceID:   info.WorkspaceID,
 		WorkspacePath: info.Workspace,
 		Channel:       info.Channel,

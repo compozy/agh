@@ -17,7 +17,7 @@ The plan intentionally avoids generic smoke coverage. Every P0 and P1 case in th
 2. Prove `kind:"capability"` replaced `recipe` on the wire without regressing validation, delivery, or lifecycle semantics.
 3. Prove brief discovery, rich discovery, peer details, and daemon API payloads expose one coherent typed capability model.
 4. Prove the `web/` network surface renders unified capabilities from the typed backend contract without recipe-era assumptions.
-5. Prove `packages/site` protocol and runtime docs teach the same single-concept model documented in RFC 003 and `docs/agents/capabilities.md`.
+5. Prove `packages/site` protocol and runtime docs teach the same single-concept model documented in RFC 003 and `docs/rfcs/005_capability-catalogs-agent-directories.md`.
 6. Leave task_10 with stable artifact paths for screenshots, issues, and final verification reporting.
 
 ## Scope

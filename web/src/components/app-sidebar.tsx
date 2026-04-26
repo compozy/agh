@@ -26,6 +26,7 @@ import {
   Logo,
   type ConnectionStatus,
   Sidebar,
+  SidebarSectionLabel,
   StatusDot,
   type StatusDotTone,
 } from "@agh/ui";
@@ -116,6 +117,13 @@ const SESSION_STATE_TONE: Record<SessionState, { tone: StatusDotTone; pulse: boo
   stopped: { tone: "neutral", pulse: false },
 };
 
+const NAV_ROW_CLASS =
+  "relative flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-[13px] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]";
+const ACTIVE_NAV_ROW_CLASS =
+  "bg-[color:var(--color-surface)] font-medium text-[color:var(--color-text-primary)]";
+const ACTIVE_NAV_INDICATOR_CLASS =
+  "absolute -left-2 top-1.5 bottom-1.5 w-[2px] rounded-r-[2px] bg-[color:var(--color-accent)]";
+
 interface NavItemProps {
   to: string;
   icon: LucideIcon;
@@ -133,17 +141,13 @@ function NavItem({ to, icon: Icon, label, fuzzy }: NavItemProps) {
       to={to}
       data-testid={`nav-${testKey}`}
       data-active={isActive}
-      className={cn(
-        "relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]",
-        isActive &&
-          "bg-[color:var(--color-surface-elevated)] font-medium text-[color:var(--color-text-primary)]"
-      )}
+      className={cn(NAV_ROW_CLASS, isActive && ACTIVE_NAV_ROW_CLASS)}
     >
       {isActive && (
         <span
           aria-hidden="true"
           data-testid={`nav-active-${testKey}`}
-          className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          className={ACTIVE_NAV_INDICATOR_CLASS}
         />
       )}
       <Icon aria-hidden="true" className="size-3.5 shrink-0" />
@@ -169,15 +173,15 @@ function SidebarSessionItem({ session }: SidebarSessionItemProps) {
       data-testid={`session-row-${session.id}`}
       data-active={isActive}
       className={cn(
-        "relative flex items-center gap-2 rounded-md px-2 py-1 text-[12px] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]",
+        "relative flex items-center gap-2 rounded-[5px] px-2 py-1 text-[12px] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]",
         isActive &&
-          "bg-[color:var(--color-surface-elevated)] font-medium text-[color:var(--color-text-primary)]"
+          "bg-[color:var(--color-surface)] font-medium text-[color:var(--color-text-primary)]"
       )}
     >
       {isActive && (
         <span
           aria-hidden="true"
-          className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          className="absolute -left-3 top-1 bottom-1 w-[2px] rounded-r-[2px] bg-[color:var(--color-accent)]"
         />
       )}
       <StatusDot tone={tone} pulse={pulse} size="sm" />
@@ -444,15 +448,12 @@ function NavSlot({
 
 function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <span
+    <SidebarSectionLabel
       data-testid="sidebar-section-label"
-      className={cn(
-        "px-2 pt-2 pb-1 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-text-label)]",
-        className
-      )}
+      className={cn("px-2 pt-2 pb-1", className)}
     >
       {children}
-    </span>
+    </SidebarSectionLabel>
   );
 }
 
@@ -482,17 +483,13 @@ function FooterSlot({ connectionStatus, health }: FooterSlotProps) {
         to="/settings"
         data-testid="nav-settings"
         data-active={settingsActive}
-        className={cn(
-          "relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]",
-          settingsActive &&
-            "bg-[color:var(--color-surface-elevated)] font-medium text-[color:var(--color-text-primary)]"
-        )}
+        className={cn(NAV_ROW_CLASS, settingsActive && ACTIVE_NAV_ROW_CLASS)}
       >
         {settingsActive && (
           <span
             aria-hidden="true"
             data-testid="nav-active-settings"
-            className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+            className={ACTIVE_NAV_INDICATOR_CLASS}
           />
         )}
         <Settings aria-hidden="true" className="size-3.5 shrink-0" />

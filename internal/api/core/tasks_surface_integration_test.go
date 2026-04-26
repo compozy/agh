@@ -285,7 +285,17 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 			appendCall("publish", actor)
 			executionRequests["publish"] = req
 			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Publish", Status: taskpkg.TaskStatusReady, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
-			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{ID: "run-publish", TaskID: id, Status: taskpkg.TaskRunStatusQueued, Attempt: 1, Origin: actor.Origin, QueuedAt: now}}, nil
+			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{
+				ID:             "run-publish",
+				TaskID:         id,
+				Status:         taskpkg.TaskRunStatusQueued,
+				Attempt:        1,
+				Origin:         actor.Origin,
+				IdempotencyKey: req.IdempotencyKey,
+				NetworkChannel: req.NetworkChannel,
+				Metadata:       req.Metadata,
+				QueuedAt:       now,
+			}}, nil
 		},
 		StartTaskFn: func(
 			_ context.Context,
@@ -296,7 +306,17 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 			appendCall("start", actor)
 			executionRequests["start"] = req
 			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Start", Status: taskpkg.TaskStatusReady, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
-			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{ID: "run-start", TaskID: id, Status: taskpkg.TaskRunStatusQueued, Attempt: 1, Origin: actor.Origin, QueuedAt: now}}, nil
+			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{
+				ID:             "run-start",
+				TaskID:         id,
+				Status:         taskpkg.TaskRunStatusQueued,
+				Attempt:        1,
+				Origin:         actor.Origin,
+				IdempotencyKey: req.IdempotencyKey,
+				NetworkChannel: req.NetworkChannel,
+				Metadata:       req.Metadata,
+				QueuedAt:       now,
+			}}, nil
 		},
 		ApproveTaskFn: func(
 			_ context.Context,
@@ -307,7 +327,17 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 			appendCall("approve", actor)
 			executionRequests["approve"] = req
 			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Approve", Status: taskpkg.TaskStatusReady, ApprovalPolicy: taskpkg.ApprovalPolicyManual, ApprovalState: taskpkg.ApprovalStateApproved, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
-			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{ID: "run-approve", TaskID: id, Status: taskpkg.TaskRunStatusQueued, Attempt: 1, Origin: actor.Origin, QueuedAt: now}}, nil
+			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{
+				ID:             "run-approve",
+				TaskID:         id,
+				Status:         taskpkg.TaskRunStatusQueued,
+				Attempt:        1,
+				Origin:         actor.Origin,
+				IdempotencyKey: req.IdempotencyKey,
+				NetworkChannel: req.NetworkChannel,
+				Metadata:       req.Metadata,
+				QueuedAt:       now,
+			}}, nil
 		},
 		RejectTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
 			appendCall("reject", actor)
@@ -381,6 +411,41 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 			resp := performRequest(t, fixture.Engine, http.MethodPost, tc.path, tc.body)
 			if resp.Code != tc.want {
 				t.Fatalf("%s status = %d, want %d; body=%s", tc.path, resp.Code, tc.want, resp.Body.String())
+			}
+			switch tc.call {
+			case "publish", "start", "approve":
+				var response contract.TaskExecutionResponse
+				testutil.DecodeJSONResponse(t, resp, &response)
+				if response.Task.ID != "task-1" ||
+					response.Run.ID != "run-"+tc.call ||
+					response.Run.TaskID != "task-1" ||
+					response.Run.Status != taskpkg.TaskRunStatusQueued ||
+					response.Run.IdempotencyKey != tc.wantKey ||
+					response.Run.NetworkChannel != tc.wantChannel ||
+					string(response.Run.Metadata) != tc.wantMetadata {
+					t.Fatalf("%s response = %#v, want task/run execution payload", tc.path, response)
+				}
+			case "reject":
+				var response contract.TaskResponse
+				testutil.DecodeJSONResponse(t, resp, &response)
+				if response.Task.ID != "task-1" ||
+					response.Task.ApprovalState != taskpkg.ApprovalStateRejected {
+					t.Fatalf("%s response = %#v, want rejected task payload", tc.path, response)
+				}
+			case "read", "archive", "dismiss":
+				var response contract.TaskTriageStateResponse
+				testutil.DecodeJSONResponse(t, resp, &response)
+				if response.Triage.TaskID != "task-1" ||
+					response.Triage.Actor.Ref != "user-1" {
+					t.Fatalf("%s response = %#v, want actor triage payload", tc.path, response)
+				}
+				if (tc.call == "read" && !response.Triage.Read) ||
+					(tc.call == "archive" && !response.Triage.Archived) ||
+					(tc.call == "dismiss" && !response.Triage.Dismissed) {
+					t.Fatalf("%s triage response = %#v, want %s state", tc.path, response.Triage, tc.call)
+				}
+			default:
+				t.Fatalf("unhandled mutation case %q", tc.call)
 			}
 			if tc.wantKey == "" {
 				return

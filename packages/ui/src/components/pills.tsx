@@ -7,9 +7,9 @@ import { cn } from "../lib/utils";
 
 /**
  * Pill = static semantic tag rendered as a span.
- * Pills = segmented toggle group — follows the mock at `docs/design/web-inspiration/src/primitives.jsx`.
- * Both live in the same file because Pills renders pill-styled buttons, and keeping them
- * colocated avoids duplicating the variant table.
+ * Pills = segmented toggle group — mirrors `.pills` + `.pill` in
+ * `docs/design/web-inspiration/styles/app.css`. The segments live inside a
+ * contained track (panel surface, 1px divider border, 3px inner padding).
  */
 
 const pillBase =
@@ -60,17 +60,17 @@ function Pill({ className, variant, size, ...props }: PillProps) {
 }
 
 const pillToggleVariants = cva(
-  `${pillBase} cursor-pointer border bg-transparent text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50`,
+  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-mono uppercase font-semibold tracking-[0.08em] transition-colors duration-150 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)] focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
-        true: "border-[color:var(--color-accent)] bg-[color:var(--color-accent)] text-white hover:text-white",
+        true: "bg-[color:var(--color-surface-elevated)] text-[color:var(--color-text-primary)]",
         false:
-          "border-[color:var(--color-divider)] hover:border-[color:var(--color-text-label)] hover:bg-[color:var(--color-hover)]",
+          "bg-transparent text-[color:var(--color-text-tertiary)] hover:text-[color:var(--color-text-secondary)]",
       },
       size: {
-        sm: "h-[22px] rounded-[var(--radius-mono-badge)] px-2 text-[10px] font-semibold tracking-[0.08em]",
-        md: "h-8 rounded-[var(--radius-xl,20px)] px-3.5 text-[11px] font-semibold tracking-[0.12em]",
+        sm: "h-[20px] rounded-[5px] px-2 text-[10px]",
+        md: "h-[22px] rounded-[5px] px-2.5 text-[10px]",
       },
     },
     defaultVariants: {
@@ -111,7 +111,10 @@ function Pills<V extends string = string>({
     <div
       data-slot="pills"
       role="group"
-      className={cn("inline-flex flex-wrap items-center gap-1.5", className)}
+      className={cn(
+        "inline-flex items-center gap-[2px] rounded-[8px] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] p-[3px]",
+        className
+      )}
       {...props}
     >
       {items.map(item => {
@@ -136,12 +139,7 @@ function Pills<V extends string = string>({
             {typeof item.badge === "number" && item.badge > 0 ? (
               <span
                 data-slot="pills-badge"
-                className={cn(
-                  "inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold tabular-nums",
-                  isActive
-                    ? "bg-white/20 text-white"
-                    : "bg-[color:var(--color-warning)] text-[color:var(--color-accent-ink)]"
-                )}
+                className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-[7px] bg-[color:var(--color-accent)] px-1 font-mono text-[9px] font-bold tabular-nums text-[color:var(--color-accent-ink)]"
               >
                 {item.badge}
               </span>

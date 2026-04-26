@@ -44,4 +44,55 @@ describe("network mock contracts", () => {
 
     expect(payload.messages).toEqual(networkPeerMessagesFixture);
   });
+
+  it("handles Storybook send requests without falling through to the real daemon", async () => {
+    const response = await getResponse(
+      handlers,
+      new Request("http://localhost/api/network/send", {
+        body: JSON.stringify({
+          body: { text: "Ship the Storybook route." },
+          channel: "storybook",
+          kind: "say",
+          session_id: "sess-storybook",
+        }),
+        method: "POST",
+      }),
+      { baseUrl: "http://localhost" }
+    );
+
+    expect(response).not.toBeUndefined();
+    expect(response?.ok).toBe(true);
+
+    const payload = (await response?.json()) as {
+      message: { channel: string; id: string; kind: string; session_id: string };
+    };
+
+    expect(payload.message).toEqual({
+      channel: "storybook",
+      id: "msg_storybook_sent",
+      kind: "say",
+      session_id: "sess-storybook",
+    });
+  });
+
+  it("returns a validation response for malformed Storybook send requests", async () => {
+    const response = await getResponse(
+      handlers,
+      new Request("http://localhost/api/network/send", {
+        body: JSON.stringify({
+          channel: 123,
+          kind: "say",
+          session_id: "sess-storybook",
+        }),
+        method: "POST",
+      }),
+      { baseUrl: "http://localhost" }
+    );
+
+    expect(response).not.toBeUndefined();
+    expect(response?.status).toBe(400);
+
+    const payload = (await response?.json()) as { error: string };
+    expect(payload.error).toBe("Session, channel, and kind are required.");
+  });
 });

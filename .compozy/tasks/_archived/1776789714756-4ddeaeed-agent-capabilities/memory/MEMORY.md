@@ -3,7 +3,7 @@
 Keep only durable, cross-task context here. Do not duplicate facts that are obvious from the repository, PRD documents, or git history.
 
 ## Current State
-- Tasks 01-05 are implemented and verified. Capability catalogs now load during agent-directory discovery in `internal/config`, flow through the session-owned network join payload, project brief discovery into local `PeerCard` state, power explicit rich `whois` discovery through envelope `ext`, and now have a runtime-facing authoring guide in `docs/agents/capabilities.md`.
+- Tasks 01-05 are implemented and verified. Capability catalogs now load during agent-directory discovery in `internal/config`, flow through the session-owned network join payload, project brief discovery into local `PeerCard` state, power explicit rich `whois` discovery through envelope `ext`, and now have a runtime-facing authoring guide in `docs/rfcs/005_capability-catalogs-agent-directories.md`.
 
 ## Shared Decisions
 - Downstream runtime and network tasks should consume `AgentDef.Capabilities` rather than rereading capability files; task 01 also updated workspace/daemon/extension clone paths so the loaded catalog survives those hops.
@@ -22,4 +22,4 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - None currently.
 
 ## Handoffs
-- Task 06 should treat `docs/agents/capabilities.md` as the author-facing source for local layouts and validation rules, and `docs/rfcs/003_agh-network-v0.md` as the wire-facing source for brief and rich capability discovery keys.
+- Task 06 should treat `docs/rfcs/005_capability-catalogs-agent-directories.md` as the author-facing source for local layouts and validation rules, and `docs/rfcs/003_agh-network-v0.md` as the wire-facing source for brief and rich capability discovery keys.

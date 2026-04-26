@@ -53,7 +53,10 @@ func (e *FireLimitError) Unwrap() error {
 	return ErrFireLimitReached
 }
 
-const dispatcherSessionStopTimeout = 2 * time.Second
+// defaultDispatcherSessionStopTimeout must outlive the ACP driver's own
+// graceful stop budget, otherwise automation runs can be marked failed while
+// the session is still finishing a normal shutdown.
+const defaultDispatcherSessionStopTimeout = 10 * time.Second
 
 // DispatchKind identifies which activation path produced a dispatch request.
 type DispatchKind string
@@ -238,6 +241,7 @@ type Dispatcher struct {
 	sleep               SleepFunc
 	globalWorkspacePath string
 	maxConcurrent       int
+	sessionStopTimeout  time.Duration
 	hooks               HookDispatcher
 	taskActors          SessionTaskActorRecorder
 
@@ -255,12 +259,13 @@ func NewDispatcher(sessions SessionCreator, runs RunStore, opts ...DispatcherOpt
 	}
 
 	dispatcher := &Dispatcher{
-		sessions:      sessions,
-		runs:          runs,
-		logger:        slog.Default(),
-		now:           func() time.Time { return time.Now().UTC() },
-		sleep:         sleepWithContext,
-		maxConcurrent: DefaultMaxConcurrentJobs,
+		sessions:           sessions,
+		runs:               runs,
+		logger:             slog.Default(),
+		now:                func() time.Time { return time.Now().UTC() },
+		sleep:              sleepWithContext,
+		maxConcurrent:      DefaultMaxConcurrentJobs,
+		sessionStopTimeout: defaultDispatcherSessionStopTimeout,
 	}
 
 	for _, opt := range opts {
@@ -283,6 +288,9 @@ func NewDispatcher(sessions SessionCreator, runs RunStore, opts ...DispatcherOpt
 	}
 	if dispatcher.maxConcurrent <= 0 {
 		dispatcher.maxConcurrent = DefaultMaxConcurrentJobs
+	}
+	if dispatcher.sessionStopTimeout <= 0 {
+		dispatcher.sessionStopTimeout = defaultDispatcherSessionStopTimeout
 	}
 	dispatcher.gate = make(chan struct{}, dispatcher.maxConcurrent)
 
@@ -321,6 +329,13 @@ func WithDispatcherGlobalWorkspacePath(path string) DispatcherOption {
 func WithDispatcherMaxConcurrent(limit int) DispatcherOption {
 	return func(dispatcher *Dispatcher) {
 		dispatcher.maxConcurrent = limit
+	}
+}
+
+// WithDispatcherSessionStopTimeout overrides the automation session stop budget.
+func WithDispatcherSessionStopTimeout(timeout time.Duration) DispatcherOption {
+	return func(dispatcher *Dispatcher) {
+		dispatcher.sessionStopTimeout = timeout
 	}
 }
 
@@ -802,7 +817,7 @@ func (d *Dispatcher) stopAutomationSession(
 		return nil
 	}
 
-	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), dispatcherSessionStopTimeout)
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.sessionStopTimeout)
 	defer cancel()
 
 	cause, detail := dispatchStopCause(status, runErr)

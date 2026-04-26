@@ -6,7 +6,7 @@
 **Estimated Time:** 10 minutes
 **Created:** 2026-04-19
 **Last Updated:** 2026-04-19
-**Module:** `docs/agents/capabilities.md`, `docs/rfcs/003_agh-network-v0.md`
+**Module:** `docs/rfcs/005_capability-catalogs-agent-directories.md`, `docs/rfcs/003_agh-network-v0.md`
 **Traceability:** Task 05; RFC 003 capability discovery sections; TechSpec local layout and projection rules.
 **Execution Surfaces:** Documentation review, exact key-string comparison, example validation.
 **Durable Regression Anchors:** Runtime guide and RFC 003 text; package tests that assert `agh.capabilities_brief` survives payload conversion.
@@ -22,7 +22,7 @@ Verify the user-visible runtime guide and RFC text still describe the shipped la
 
 ### Test Steps
 
-1. Compare `docs/agents/capabilities.md` against the TechSpec and tasks 01-04.
+1. Compare `docs/rfcs/005_capability-catalogs-agent-directories.md` against the TechSpec and tasks 01-04.
    - **Expected:** The guide lists all four supported local layouts, invalid mixed layouts, required fields, optional fields, basename rules, and no-catalog behavior.
 2. Compare RFC 003 capability sections against the shipped wire behavior.
    - **Expected:** Keys and semantics exactly match `agh.capabilities_brief`, `agh.include`, `agh.capability_ids`, and `agh.capability_catalog`.
@@ -33,7 +33,7 @@ Verify the user-visible runtime guide and RFC text still describe the shipped la
 
 | Field | Value | Notes |
 | --- | --- | --- |
-| Runtime guide | `docs/agents/capabilities.md` | Local authoring source |
+| Runtime guide | `docs/rfcs/005_capability-catalogs-agent-directories.md` | Local authoring source |
 | RFC | `docs/rfcs/003_agh-network-v0.md` | Wire contract source |
 | Wire keys | `agh.capabilities_brief`, `agh.include`, `agh.capability_ids`, `agh.capability_catalog` | Exact-string match required |
 

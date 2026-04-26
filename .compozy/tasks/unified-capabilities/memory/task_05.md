@@ -4,13 +4,13 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 
 ## Objective Snapshot
 
-- Rewrite `docs/rfcs/003_agh-network-v0.md` and `docs/agents/capabilities.md` so the unified capability model is the only steady-state explanation of authoring, discovery, and transfer.
+- Rewrite `docs/rfcs/003_agh-network-v0.md` and `docs/rfcs/005_capability-catalogs-agent-directories.md` so the unified capability model is the only steady-state explanation of authoring, discovery, and transfer.
 
 ## Important Decisions
 
 - Treat ADR-001 through ADR-003 plus task_04’s implemented discovery/API contracts as the source of truth, then word the docs against the current code rather than older split-model prose.
 - Keep the runtime guide explicit about the wire/API boundary: wire discovery still uses `peer_card.capabilities`, `agh.capabilities_brief`, and `agh.capability_catalog`, while daemon consumers should use typed `peer_card.capabilities` and `capability_catalog` payloads instead of reading capability discovery blobs from API-visible `ext`.
-- Put the required end-to-end authored -> `greet` -> `whois` -> `kind:"capability"` flow in `docs/agents/capabilities.md`, and rewrite the RFC worked example so it no longer reintroduces a second artifact type.
+- Put the required end-to-end authored -> `greet` -> `whois` -> `kind:"capability"` flow in `docs/rfcs/005_capability-catalogs-agent-directories.md`, and rewrite the RFC worked example so it no longer reintroduces a second artifact type.
 
 ## Learnings
 
@@ -21,7 +21,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 ## Files / Surfaces
 
 - `docs/rfcs/003_agh-network-v0.md`
-- `docs/agents/capabilities.md`
+- `docs/rfcs/005_capability-catalogs-agent-directories.md`
 - `.compozy/tasks/unified-capabilities/task_05.md`
 - `.compozy/tasks/unified-capabilities/_tasks.md`
 

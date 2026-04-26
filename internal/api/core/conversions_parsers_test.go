@@ -319,6 +319,9 @@ func TestJobPayloadFromJobCopiesNestedOptionalFields(t *testing.T) {
 		if payload.Schedule == nil || payload.Schedule.Interval != "10m" {
 			t.Fatalf("schedule payload = %#v", payload.Schedule)
 		}
+		if payload.Schedule == &schedule {
+			t.Fatal("JobPayloadFromJob reused schedule input pointer")
+		}
 		if payload.Task == nil || payload.Task.Owner == nil || payload.Task.Owner.Ref != "triage" {
 			t.Fatalf("task payload = %#v", payload.Task)
 		}

@@ -19,7 +19,7 @@ The implementation keeps the strongest parts of the current branch unchanged: lo
 - rich capability discovery in explicit `whois`
 - transferable capability envelopes through `kind: "capability"`
 
-`docs/rfcs/003_agh-network-v0.md` must be rewritten so the protocol no longer speaks about `recipe` as a first-class artifact. `docs/agents/capabilities.md` remains the runtime-facing authoring guide, but it must be updated to document the unified schema and transfer semantics.
+`docs/rfcs/003_agh-network-v0.md` must be rewritten so the protocol no longer speaks about `recipe` as a first-class artifact. `docs/rfcs/005_capability-catalogs-agent-directories.md` remains the runtime-facing authoring guide, but it must be updated to document the unified schema and transfer semantics.
 
 Data flow:
 - Runtime loads `AGENT.md` and optional capability catalogs from the agent directory.
@@ -152,7 +152,7 @@ Internal integration points:
 - `internal/network/router.go`
 - `internal/network/lifecycle.go`
 - `docs/rfcs/003_agh-network-v0.md`
-- `docs/agents/capabilities.md`
+- `docs/rfcs/005_capability-catalogs-agent-directories.md`
 
 ## Impact Analysis
 

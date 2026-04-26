@@ -151,6 +151,7 @@ export {
 export { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./components/collapsible";
 export {
   Sidebar,
+  SidebarSectionLabel,
   SIDEBAR_PANEL_WIDTH_DEFAULT,
   SIDEBAR_RAIL_WIDTH,
   type SidebarProps,
@@ -184,7 +185,17 @@ export {
   type MonoBadgeProps,
   type MonoBadgeTone,
 } from "./components/mono-badge";
-export { KindChip, type KindChipProps } from "./components/kind-chip";
+export { KindChip, KIND_DOT_COLORS, type KindChipProps } from "./components/kind-chip";
+export { WireChip, type WireChipProps } from "./components/wire-chip";
+export {
+  WireCard,
+  WireCardHead,
+  WireCardBody,
+  WireCardFoot,
+  type WireCardProps,
+} from "./components/wire-card";
+export { MonoChip, type MonoChipProps } from "./components/mono-chip";
+export { TypingDots, type TypingDotsProps } from "./components/typing-dots";
 export { CodeBlock, type CodeBlockProps } from "./components/code-block";
 export {
   ChatMessageBubble,

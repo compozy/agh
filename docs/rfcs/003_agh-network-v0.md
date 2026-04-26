@@ -511,7 +511,7 @@ Recommended shape:
 - summaries SHOULD remain short enough for periodic `greet` traffic
 - summaries SHOULD be a single short sentence and SHOULD target `<= 160` UTF-8 characters in v0
 
-Local capability authoring, file layout, and validation are runtime concerns and are documented separately in `docs/agents/capabilities.md`.
+Local capability authoring, file layout, and validation are runtime concerns and are documented separately in `docs/rfcs/005_capability-catalogs-agent-directories.md`.
 
 ### 8.3 `whois`
 
@@ -624,7 +624,7 @@ Rules:
 - if a full rich catalog would exceed the envelope size limit, responders SHOULD omit `agh.capability_catalog` unless a narrower filtered request is provided
 - receivers MUST ignore unknown AGH extension keys per the core `ext` rules
 
-The local capability catalog model and validation rules are runtime concerns and are documented separately in `docs/agents/capabilities.md`.
+The local capability catalog model and validation rules are runtime concerns and are documented separately in `docs/rfcs/005_capability-catalogs-agent-directories.md`.
 
 ### 8.4 `say`
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/agentidentity"
 	"github.com/pedronauck/agh/internal/api/contract"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 )
@@ -66,6 +67,56 @@ func TestAgentContextReturnsSituationPayload(t *testing.T) {
 		!response.Context.Task.Available {
 		t.Fatalf("context = %#v, want validated situation payload", response.Context)
 	}
+}
+
+func TestAgentCoordinatorConfigRouteReturnsResolvedPayload(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return resolved workspace coordinator payload", func(t *testing.T) {
+		t.Parallel()
+
+		manager := activeAgentSessionManager(t)
+		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+		handlers.CoordinatorConfig = agentCoordinatorConfigResolverFunc(
+			func(_ context.Context, workspaceID string) (aghconfig.CoordinatorConfig, error) {
+				if workspaceID != "ws-1" {
+					t.Fatalf("ResolveCoordinatorConfig() workspaceID = %q, want ws-1", workspaceID)
+				}
+				return aghconfig.CoordinatorConfig{
+					Enabled:               true,
+					AgentName:             "coordinator",
+					Provider:              "codex",
+					Model:                 "gpt-4o",
+					DefaultTTL:            45 * time.Minute,
+					MaxChildren:           5,
+					MaxActivePerWorkspace: 1,
+				}, nil
+			},
+		)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performAgentKernelRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/agent/coordinator/config",
+			nil,
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		var response contract.AgentCoordinatorConfigResponse
+		decodeJSONResponse(t, recorder, &response)
+		if !response.Coordinator.Enabled ||
+			response.Coordinator.AgentName != "coordinator" ||
+			response.Coordinator.DefaultTTLSeconds != 2700 ||
+			response.Coordinator.Source != contract.CoordinatorConfigSourceWorkspace ||
+			response.Coordinator.WorkspaceID != "ws-1" {
+			t.Fatalf("coordinator = %#v, want workspace coordinator payload", response.Coordinator)
+		}
+	})
 }
 
 func TestAgentChannelSendUsesCallerIdentityAndRejectsRawClaimToken(t *testing.T) {
@@ -334,6 +385,15 @@ func (f agentContextServiceFunc) ContextForSession(
 	info *session.Info,
 ) (contract.AgentContextPayload, error) {
 	return f(ctx, info)
+}
+
+type agentCoordinatorConfigResolverFunc func(context.Context, string) (aghconfig.CoordinatorConfig, error)
+
+func (f agentCoordinatorConfigResolverFunc) ResolveCoordinatorConfig(
+	ctx context.Context,
+	workspaceID string,
+) (aghconfig.CoordinatorConfig, error) {
+	return f(ctx, workspaceID)
 }
 
 func newAgentChannelHandlers(t *testing.T, networkService stubNetworkService) *Handlers {

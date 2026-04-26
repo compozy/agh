@@ -96,6 +96,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "500": {
                         "content": {
                             "application/json": {
@@ -111,6 +127,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -291,6 +323,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "404": {
                         "content": {
                             "application/json": {
@@ -338,6 +386,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -469,6 +533,22 @@
                         },
                         "description": "OK"
                     },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid channel receive query"
+                    },
                     "401": {
                         "content": {
                             "application/json": {
@@ -484,6 +564,22 @@
                             }
                         },
                         "description": "Agent caller identity is missing"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
                     },
                     "404": {
                         "content": {
@@ -532,6 +628,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -720,6 +832,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "404": {
                         "content": {
                             "application/json": {
@@ -767,6 +895,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -1524,6 +1668,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "404": {
                         "content": {
                             "application/json": {
@@ -1555,6 +1715,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -1650,6 +1826,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "404": {
                         "content": {
                             "application/json": {
@@ -1681,6 +1873,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -2185,6 +2393,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "404": {
                         "content": {
                             "application/json": {
@@ -2216,6 +2440,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -2879,6 +3119,22 @@
                         },
                         "description": "Internal server error"
                     },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
+                    },
                     "default": {
                         "description": ""
                     }
@@ -3389,6 +3645,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "409": {
                         "content": {
                             "application/json": {
@@ -3436,6 +3708,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -3627,6 +3915,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "404": {
                         "content": {
                             "application/json": {
@@ -3690,6 +3994,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -3884,6 +4204,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "404": {
                         "content": {
                             "application/json": {
@@ -3947,6 +4283,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -4141,6 +4493,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "404": {
                         "content": {
                             "application/json": {
@@ -4204,6 +4572,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""
@@ -4397,6 +4781,22 @@
                         },
                         "description": "Agent caller identity is missing"
                     },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
                     "404": {
                         "content": {
                             "application/json": {
@@ -4460,6 +4860,22 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable - dependent service missing"
                     },
                     "default": {
                         "description": ""

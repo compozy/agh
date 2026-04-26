@@ -372,6 +372,7 @@ func (s *sessionStartSpec) newStartingSession(
 		Name:                     s.sessionName,
 		AgentName:                resolved.Name,
 		Provider:                 strings.TrimSpace(resolved.Provider),
+		Model:                    strings.TrimSpace(resolved.Model),
 		WorkspaceID:              s.workspace.ID,
 		Workspace:                s.workspace.RootDir,
 		Channel:                  s.channel,

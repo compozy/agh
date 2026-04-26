@@ -393,12 +393,13 @@ describe("AppSidebar", () => {
       );
     });
 
-    it("uses JetBrains mono 11px uppercase for section headers", () => {
+    it("uses JetBrains mono 9px uppercase for section headers", () => {
       renderSidebar(makeProps());
       const label = screen.getAllByTestId("sidebar-section-label")[0];
       expect(label.className).toContain("font-mono");
-      expect(label.className).toContain("text-[11px]");
+      expect(label.className).toContain("text-[9px]");
       expect(label.className).toContain("uppercase");
+      expect(label.className).toContain("tracking-[0.14em]");
     });
 
     it("renders the workspace navigation in the expected order", () => {
@@ -446,11 +447,11 @@ describe("AppSidebar", () => {
       ["triggers", "/triggers"],
       ["knowledge", "/knowledge"],
       ["skills", "/skills"],
-    ])("renders 3px accent bar on active %s nav", (testKey, path) => {
+    ])("renders 2px accent bar on active %s nav", (testKey, path) => {
       matchedRoute[path] = true;
       renderSidebar(makeProps());
       const indicator = screen.getByTestId(`nav-active-${testKey}`);
-      expect(indicator.className).toContain("w-[3px]");
+      expect(indicator.className).toContain("w-[2px]");
       expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
     });
 
@@ -458,7 +459,7 @@ describe("AppSidebar", () => {
       matchedRouteFuzzy["/tasks"] = true;
       renderSidebar(makeProps());
       const indicator = screen.getByTestId("nav-active-tasks");
-      expect(indicator.className).toContain("w-[3px]");
+      expect(indicator.className).toContain("w-[2px]");
       expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
     });
 
@@ -466,7 +467,7 @@ describe("AppSidebar", () => {
       matchedRouteFuzzy["/settings"] = true;
       renderSidebar(makeProps());
       const indicator = screen.getByTestId("nav-active-settings");
-      expect(indicator.className).toContain("w-[3px]");
+      expect(indicator.className).toContain("w-[2px]");
       expect(indicator.className).toContain("bg-[color:var(--color-accent)]");
     });
 

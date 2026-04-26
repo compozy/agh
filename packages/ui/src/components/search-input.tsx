@@ -17,8 +17,9 @@ export interface SearchInputProps extends Omit<
 }
 
 /**
- * Search field — matches `SearchInput` in `docs/design/web-inspiration/src/primitives.jsx`.
- * Standard 36px row, search glyph on the left, optional kbd hint on the right.
+ * Search field — mirrors `.search-input` in
+ * `docs/design/web-inspiration/styles/app.css`. Compact 28px row, panel-tone
+ * surface, soft tertiary focus border (no accent ring), bordered kbd hint.
  */
 function SearchInput({
   value,
@@ -37,14 +38,14 @@ function SearchInput({
       data-slot="search-input"
       data-disabled={disabled ? "true" : undefined}
       className={cn(
-        "flex h-9 min-w-0 items-center gap-2 rounded-lg border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 text-[13px] text-[color:var(--color-text-primary)] transition-colors focus-within:border-[color:var(--color-accent)] focus-within:ring-1 focus-within:ring-[color:var(--color-accent)]",
+        "flex h-[28px] min-w-0 items-center gap-2 rounded-[7px] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-2 text-[13px] text-[color:var(--color-text-primary)] transition-colors focus-within:border-[color:var(--color-text-tertiary)]",
         "data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-60",
         containerClassName
       )}
     >
       <SearchIcon
         aria-hidden="true"
-        className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]"
+        className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]"
       />
       <input
         type="search"
@@ -63,7 +64,7 @@ function SearchInput({
         <span
           data-slot="search-input-kbd"
           aria-hidden="true"
-          className="hidden items-center gap-1 font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)] sm:inline-flex"
+          className="hidden items-center rounded-[4px] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-panel)] px-1 py-px font-mono text-[9px] uppercase text-[color:var(--color-text-tertiary)] sm:inline-flex"
         >
           {kbd}
         </span>

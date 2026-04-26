@@ -6,7 +6,7 @@ AGH ships as three surfaces that must feel like one product:
 
 1. **AGH Runtime** — the local daemon, operator UI (`web/`) and CLI. Sessions, memory, skills, workspaces, automation, bridges, observability.
 2. **AGH Network** — `agh-network/v0`, the seven-kind wire protocol (`greet`, `whois`, `say`, `direct`, `recipe`, `receipt`, `trace`) over NATS + JSON.
-3. **packages/site** — the marketing landing + Fumadocs MDX docs at `agh.compozy.com` with two trees (`/runtime/*`, `/protocol/*`).
+3. **packages/site** — the marketing landing + Fumadocs MDX docs at `agh.network` with two trees (`/runtime/*`, `/protocol/*`).
 
 The canonical token source is [`packages/ui/src/tokens.css`](packages/ui/src/tokens.css). The canonical reference extraction and UI kits live in [`docs/design/design-system/`](docs/design/design-system/).
 

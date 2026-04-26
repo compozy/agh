@@ -796,6 +796,49 @@ func TestNewDispatcherRejectsMissingDependenciesAndGlobalWorkspacePath(t *testin
 	}
 }
 
+func TestNewDispatcherSessionStopTimeoutOption(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		opt  DispatcherOption
+		want time.Duration
+	}{
+		{
+			name: "Should use the default session stop timeout",
+			want: defaultDispatcherSessionStopTimeout,
+		},
+		{
+			name: "Should use the configured session stop timeout",
+			opt:  WithDispatcherSessionStopTimeout(30 * time.Second),
+			want: 30 * time.Second,
+		},
+		{
+			name: "Should fall back to default for invalid session stop timeout",
+			opt:  WithDispatcherSessionStopTimeout(0),
+			want: defaultDispatcherSessionStopTimeout,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			options := []DispatcherOption{WithDispatcherGlobalWorkspacePath(t.TempDir())}
+			if tc.opt != nil {
+				options = append(options, tc.opt)
+			}
+			dispatcher, err := NewDispatcher(newRecordingSessionCreator(), newMemoryRunStore(), options...)
+			if err != nil {
+				t.Fatalf("NewDispatcher() error = %v", err)
+			}
+			if dispatcher.sessionStopTimeout != tc.want {
+				t.Fatalf("sessionStopTimeout = %s, want %s", dispatcher.sessionStopTimeout, tc.want)
+			}
+		})
+	}
+}
+
 func TestDispatchRequestValidateRejectsInvalidShapes(t *testing.T) {
 	t.Parallel()
 
@@ -1218,6 +1261,9 @@ type sessionAttemptPlan struct {
 	promptErr     error
 	promptStarted chan struct{}
 	promptRelease chan struct{}
+	stopErr       error
+	stopStarted   chan struct{}
+	stopRelease   chan struct{}
 	events        []acp.AgentEvent
 }
 
@@ -1401,6 +1447,21 @@ func (c *recordingSessionCreator) StopWithCause(
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+
+	c.mu.Lock()
+	plan, ok := c.bySessionID[id]
+	c.mu.Unlock()
+	if !ok {
+		plan = sessionAttemptPlan{}
+	}
+
+	notify(plan.stopStarted)
+	if err := waitForRelease(ctx, plan.stopRelease); err != nil {
+		return err
+	}
+	if plan.stopErr != nil {
+		return plan.stopErr
 	}
 
 	c.mu.Lock()

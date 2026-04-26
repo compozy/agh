@@ -2,6 +2,7 @@ package observe
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -87,6 +88,145 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 	}
 	if events[0].Summary != "assistant replied with the requested diff" {
 		t.Fatalf("events[0].Summary = %q", events[0].Summary)
+	}
+}
+
+func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		sessionID  string
+		state      session.State
+		summary    string
+		setup      func(t *testing.T, h *harness, sess *session.Session)
+		wantCached bool
+	}{
+		{
+			name:      "Should recover session snapshot from live source",
+			sessionID: "sess-live-source",
+			state:     session.StateActive,
+			summary:   "live source event was observed",
+			setup: func(t *testing.T, h *harness, sess *session.Session) {
+				t.Helper()
+
+				if err := h.registry.RegisterSession(
+					testutil.Context(t),
+					sessionInfoFromSession(sess.Info()),
+				); err != nil {
+					t.Fatalf("RegisterSession(live source) error = %v", err)
+				}
+				h.observer.registry = listSessionsFailingRegistry{Registry: h.registry}
+				h.source.sessions = []*session.Info{sess.Info()}
+			},
+			wantCached: true,
+		},
+		{
+			name:      "Should recover session snapshot from registry",
+			sessionID: "sess-registry-source",
+			state:     session.StateActive,
+			summary:   "registry event was observed",
+			setup: func(t *testing.T, h *harness, sess *session.Session) {
+				t.Helper()
+
+				if err := h.registry.RegisterSession(
+					testutil.Context(t),
+					sessionInfoFromSession(sess.Info()),
+				); err != nil {
+					t.Fatalf("RegisterSession() error = %v", err)
+				}
+			},
+			wantCached: true,
+		},
+		{
+			name:      "Should not cache stopped sessions recovered from registry",
+			sessionID: "sess-stopped-registry-source",
+			state:     session.StateStopped,
+			summary:   "stopped registry event was observed",
+			setup: func(t *testing.T, h *harness, sess *session.Session) {
+				t.Helper()
+
+				if err := h.registry.RegisterSession(
+					testutil.Context(t),
+					sessionInfoFromSession(sess.Info()),
+				); err != nil {
+					t.Fatalf("RegisterSession(stopped) error = %v", err)
+				}
+			},
+			wantCached: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			sess := newSession(tc.sessionID, tc.state, h.workspace, h.now)
+			tc.setup(t, h, sess)
+
+			h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
+				Type:      "agent_message",
+				TurnID:    "turn-" + tc.sessionID,
+				Timestamp: h.now.Add(time.Minute),
+				Text:      tc.summary,
+			})
+
+			events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+			if err != nil {
+				t.Fatalf("QueryEvents() error = %v", err)
+			}
+			if got, want := len(events), 1; got != want {
+				t.Fatalf("len(events) = %d, want %d", got, want)
+			}
+			if events[0].AgentName != "coder" || events[0].Summary != tc.summary {
+				t.Fatalf("events[0] = %#v, want recovered event summary %q", events[0], tc.summary)
+			}
+
+			_, cached := h.observer.sessionSnapshot(sess.ID)
+			if cached != tc.wantCached {
+				t.Fatalf("sessionSnapshot(%q) cached = %v, want %v", sess.ID, cached, tc.wantCached)
+			}
+		})
+	}
+}
+
+func TestObserverSessionSnapshotRequiresContext(t *testing.T) {
+	t.Parallel()
+
+	nilContext := func() context.Context {
+		return nil
+	}
+	testCases := []struct {
+		name string
+		call func(observer *Observer)
+	}{
+		{
+			name: "Should panic when recovering a session snapshot with nil context",
+			call: func(observer *Observer) {
+				observer.recoverSessionSnapshot(nilContext(), "sess-nil-context")
+			},
+		},
+		{
+			name: "Should panic when building an observed session snapshot with nil context",
+			call: func(observer *Observer) {
+				observer.observedSessionSnapshot(nilContext(), "sess-nil-context", "coder", observerWorkspaceID)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			defer func() {
+				if recovered := recover(); recovered == nil {
+					t.Fatal("snapshot helper panic = nil, want non-nil")
+				}
+			}()
+			tc.call(h.observer)
+		})
 	}
 }
 
@@ -717,6 +857,17 @@ const observerWorkspaceID = "ws-observe-workspace"
 
 type stubSessionSource struct {
 	sessions []*session.Info
+}
+
+type listSessionsFailingRegistry struct {
+	Registry
+}
+
+func (r listSessionsFailingRegistry) ListSessions(
+	context.Context,
+	store.SessionListQuery,
+) ([]store.SessionInfo, error) {
+	return nil, errors.New("registry fallback disabled")
 }
 
 type observeBridgeSource struct {

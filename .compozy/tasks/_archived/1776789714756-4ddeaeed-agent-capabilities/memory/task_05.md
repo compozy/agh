@@ -4,7 +4,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 
 ## Objective Snapshot
 
-- Add a runtime-facing capability authoring guide under `docs/agents/capabilities.md` that documents supported layouts, invalid layouts, required and optional fields, no-catalog behavior, and the projection split between brief and rich discovery.
+- Add a runtime-facing capability authoring guide under `docs/rfcs/005_capability-catalogs-agent-directories.md` that documents supported layouts, invalid layouts, required and optional fields, no-catalog behavior, and the projection split between brief and rich discovery.
 
 ## Important Decisions
 
@@ -21,7 +21,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 
 ## Files / Surfaces
 
-- `docs/agents/capabilities.md`
+- `docs/rfcs/005_capability-catalogs-agent-directories.md`
 - `docs/rfcs/001_agent-md-with-skills-memory.md`
 - `docs/rfcs/003_agh-network-v0.md`
 - `internal/config/capabilities.go`

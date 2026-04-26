@@ -215,8 +215,40 @@ func TestAgentMeCoreHandlerEnrichesContextAndChannels(t *testing.T) {
 		len(response.Me.Capabilities) != 1 ||
 		len(response.Me.Channels) != 1 ||
 		len(response.Me.ActiveTaskLeases) != 1 ||
+		!response.Me.Coordinator.Enabled ||
+		response.Me.Coordinator.AgentName != "coordinator" ||
+		response.Me.Coordinator.WorkspaceID != "ws-1" ||
 		response.Me.Limits.MaxChildren != 2 {
 		t.Fatalf("agent me = %#v, want context and channel enrichment", response.Me)
+	}
+}
+
+func TestAgentCoordinatorConfigCoreHandlerReturnsResolvedWorkspaceConfig(t *testing.T) {
+	t.Parallel()
+
+	engine := newAgentCoreTestRouter(t, &agentCoreNetworkService{})
+	recorder := performAgentCoreRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/agent/coordinator/config",
+		nil,
+		agentCoreHeaders(),
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var response contract.AgentCoordinatorConfigResponse
+	decodeAgentCoreResponse(t, recorder, &response)
+	if !response.Coordinator.Enabled ||
+		response.Coordinator.AgentName != "coordinator" ||
+		response.Coordinator.DefaultTTLSeconds != 2700 ||
+		response.Coordinator.MaxChildren != 5 ||
+		response.Coordinator.MaxActivePerWorkspace != 1 ||
+		response.Coordinator.Source != contract.CoordinatorConfigSourceWorkspace ||
+		response.Coordinator.WorkspaceID != "ws-1" {
+		t.Fatalf("coordinator config = %#v, want resolved workspace config", response.Coordinator)
 	}
 }
 
@@ -324,6 +356,23 @@ func (f agentCoreContextService) ContextForSession(
 	return f(ctx, info)
 }
 
+type agentCoreCoordinatorConfigResolver struct{}
+
+func (agentCoreCoordinatorConfigResolver) ResolveCoordinatorConfig(
+	_ context.Context,
+	_ string,
+) (aghconfig.CoordinatorConfig, error) {
+	return aghconfig.CoordinatorConfig{
+		Enabled:               true,
+		AgentName:             "coordinator",
+		Provider:              "codex",
+		Model:                 "gpt-4o",
+		DefaultTTL:            45 * time.Minute,
+		MaxChildren:           5,
+		MaxActivePerWorkspace: 1,
+	}, nil
+}
+
 func newAgentCoreTestRouter(t *testing.T, networkService *agentCoreNetworkService) *gin.Engine {
 	t.Helper()
 
@@ -338,6 +387,7 @@ func newAgentCoreTestRouter(t *testing.T, networkService *agentCoreNetworkServic
 		Sessions:            agentCoreSessionManager(t),
 		Network:             networkService,
 		AgentContextService: agentCoreContextService(agentCoreContextPayload),
+		CoordinatorConfig:   agentCoreCoordinatorConfigResolver{},
 		Config:              cfg,
 		Logger:              slog.New(slog.NewTextHandler(io.Discard, nil)),
 		StreamDone:          make(chan struct{}),
@@ -351,6 +401,7 @@ func newAgentCoreTestRouter(t *testing.T, networkService *agentCoreNetworkServic
 	engine := gin.New()
 	engine.GET("/agent/me", handlers.AgentMe)
 	engine.GET("/agent/context", handlers.AgentContext)
+	engine.GET("/agent/coordinator/config", handlers.AgentCoordinatorConfig)
 	engine.GET("/agent/channels", handlers.AgentChannels)
 	engine.GET("/agent/channels/:channel/recv", handlers.AgentChannelRecv)
 	engine.POST("/agent/channels/:channel/send", handlers.AgentChannelSend)

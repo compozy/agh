@@ -430,3 +430,50 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 		t.Fatal("MatchesSpawn() = true, want false for spawn role mismatch")
 	}
 }
+
+func TestMatcherFieldAllowedForEvent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		event HookEvent
+		field string
+		want  bool
+	}{
+		{
+			name:  "Should allow workspace root for session post-create hook",
+			event: HookSessionPostCreate,
+			field: "workspace_root",
+			want:  true,
+		},
+		{
+			name:  "Should allow workspace id for task-run enqueued hook",
+			event: HookTaskRunEnqueued,
+			field: "workspace_id",
+			want:  true,
+		},
+		{
+			name:  "Should deny workspace root for task-run enqueued hook",
+			event: HookTaskRunEnqueued,
+			field: "workspace_root",
+			want:  false,
+		},
+		{
+			name:  "Should deny workspace id for message delta hook",
+			event: HookMessageDelta,
+			field: "workspace_id",
+			want:  false,
+		},
+		{name: "Should deny invalid event", event: HookEvent("bad.event"), field: "workspace_id", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := MatcherFieldAllowedForEvent(tt.event, tt.field); got != tt.want {
+				t.Fatalf("MatcherFieldAllowedForEvent(%q, %q) = %v, want %v", tt.event, tt.field, got, tt.want)
+			}
+		})
+	}
+}
