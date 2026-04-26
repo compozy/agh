@@ -9,7 +9,21 @@ import {
   appRouteParameters,
   createRouteStoryMeta,
 } from "@/storybook/route-story";
-import { networkStatusFixture } from "@/systems/network/mocks";
+import type { NetworkStatus } from "@/systems/network";
+
+const storybookNetworkStatus = {
+  channels: 2,
+  configured_default_channel: "storybook",
+  delivery_workers: 2,
+  effective_default_channel: "storybook",
+  effective_default_source: "workspace",
+  enabled: true,
+  local_peers: 1,
+  messages_sent: 24,
+  queued_messages: 1,
+  remote_peers: 2,
+  status: "running",
+} satisfies NetworkStatus;
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
@@ -85,7 +99,7 @@ export const Disabled: Story = {
         http.get("/api/network/status", () =>
           HttpResponse.json({
             network: {
-              ...networkStatusFixture,
+              ...storybookNetworkStatus,
               channels: 0,
               delivery_workers: 0,
               enabled: false,
@@ -113,7 +127,7 @@ export const Loading: Story = {
       network: [
         http.get("/api/network/status", async () => {
           await delay("infinite");
-          return HttpResponse.json({ network: networkStatusFixture });
+          return HttpResponse.json({ network: storybookNetworkStatus });
         }),
       ],
     }),

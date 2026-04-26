@@ -74,4 +74,25 @@ describe("network mock contracts", () => {
       session_id: "sess-storybook",
     });
   });
+
+  it("returns a validation response for malformed Storybook send requests", async () => {
+    const response = await getResponse(
+      handlers,
+      new Request("http://localhost/api/network/send", {
+        body: JSON.stringify({
+          channel: 123,
+          kind: "say",
+          session_id: "sess-storybook",
+        }),
+        method: "POST",
+      }),
+      { baseUrl: "http://localhost" }
+    );
+
+    expect(response).not.toBeUndefined();
+    expect(response?.status).toBe(400);
+
+    const payload = (await response?.json()) as { error: string };
+    expect(payload.error).toBe("Session, channel, and kind are required.");
+  });
 });

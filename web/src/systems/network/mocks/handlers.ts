@@ -11,6 +11,36 @@ import {
   networkStatusFixture,
 } from "./fixtures";
 
+function readRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function readRequiredString(record: Record<string, unknown> | null, key: string): string | null {
+  const value = record?.[key];
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function readOptionalString(
+  record: Record<string, unknown> | null,
+  key: string
+): string | undefined {
+  const value = record?.[key];
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  return value.trim() || undefined;
+}
+
 export const handlers: HttpHandler[] = [
   http.get("/api/network/status", () => HttpResponse.json({ network: networkStatusFixture })),
   http.get("/api/network/channels", () => HttpResponse.json(networkChannelsFixture)),
@@ -111,20 +141,12 @@ export const handlers: HttpHandler[] = [
     );
   }),
   http.post("/api/network/send", async ({ request }) => {
-    const body = (await request.json()) as {
-      causation_id?: string;
-      channel?: string;
-      expires_at?: number;
-      id?: string;
-      interaction_id?: string;
-      kind?: string;
-      reply_to?: string;
-      session_id?: string;
-      to?: string;
-      trace_id?: string;
-    };
+    const body = readRecord(await request.json());
+    const sessionId = readRequiredString(body, "session_id");
+    const channel = readRequiredString(body, "channel");
+    const kind = readRequiredString(body, "kind");
 
-    if (!body.session_id?.trim() || !body.channel?.trim() || !body.kind?.trim()) {
+    if (!sessionId || !channel || !kind) {
       return HttpResponse.json(
         { error: "Session, channel, and kind are required." },
         { status: 400 }
@@ -133,16 +155,16 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({
       message: {
-        id: body.id?.trim() || "msg_storybook_sent",
-        session_id: body.session_id.trim(),
-        channel: body.channel.trim(),
-        kind: body.kind.trim(),
-        to: body.to?.trim() || undefined,
-        interaction_id: body.interaction_id?.trim() || undefined,
-        reply_to: body.reply_to?.trim() || undefined,
-        trace_id: body.trace_id?.trim() || undefined,
-        causation_id: body.causation_id?.trim() || undefined,
-        expires_at: body.expires_at,
+        id: readOptionalString(body, "id") ?? "msg_storybook_sent",
+        session_id: sessionId,
+        channel,
+        kind,
+        to: readOptionalString(body, "to"),
+        interaction_id: readOptionalString(body, "interaction_id"),
+        reply_to: readOptionalString(body, "reply_to"),
+        trace_id: readOptionalString(body, "trace_id"),
+        causation_id: readOptionalString(body, "causation_id"),
+        expires_at: typeof body?.expires_at === "number" ? body.expires_at : undefined,
       },
     });
   }),

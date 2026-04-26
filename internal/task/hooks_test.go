@@ -170,14 +170,20 @@ func TestTaskRunObservationHooksDetachFromCallerCancellation(t *testing.T) {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
 	cancelEnqueue()
-	assertContextStillActive(enqueuedCtx, t, "enqueued")
+	t.Run("Should keep enqueued hook context active", func(t *testing.T) {
+		t.Parallel()
+		assertContextStillActive(enqueuedCtx, t, "enqueued")
+	})
 
 	claimCtx, cancelClaim := context.WithCancel(context.Background())
 	if _, err := manager.ClaimRun(claimCtx, run.ID, ClaimRun{}, actor); err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
 	cancelClaim()
-	assertContextStillActive(postClaimCtx, t, "post-claim")
+	t.Run("Should keep post-claim hook context active", func(t *testing.T) {
+		t.Parallel()
+		assertContextStillActive(postClaimCtx, t, "post-claim")
+	})
 }
 
 func TestTaskRunPreClaimHookUsesCallerCancellation(t *testing.T) {

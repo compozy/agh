@@ -77,14 +77,14 @@ interface NetworkWorkspaceShellProps {
 }
 
 const AVATAR_PALETTE: ReadonlyArray<readonly [string, string]> = [
-  ["#F4A261", "#2b1e14"],
-  ["#5BA6FF", "#0f1f38"],
-  ["#30D158", "#12281a"],
-  ["#BF5AF2", "#1c0f24"],
-  ["#FFD60A", "#2a2106"],
-  ["#4FD1C5", "#0d2624"],
-  ["#FF9F0A", "#2a1a05"],
-  ["#E5E5E7", "#1a1a1c"],
+  ["var(--color-accent-tint)", "var(--color-accent)"],
+  ["var(--color-info-tint)", "var(--color-info)"],
+  ["var(--color-success-tint)", "var(--color-success)"],
+  ["var(--color-warning-tint)", "var(--color-warning)"],
+  ["var(--color-danger-tint)", "var(--color-danger)"],
+  ["var(--color-neutral-tint)", "var(--color-text-label)"],
+  ["var(--color-surface-elevated)", "var(--color-text-primary)"],
+  ["var(--color-surface-panel)", "var(--color-text-secondary)"],
 ];
 
 function pickAvatarColors(seed: string): readonly [string, string] {
@@ -430,7 +430,7 @@ function NetworkMessageList({
         return (
           <article
             className={cn(
-              "group/msg flex gap-3.5 transition-colors hover:bg-white/[0.014]",
+              "group/msg flex gap-3.5 transition-colors hover:bg-[color:var(--color-hover)]",
               grouped ? "px-2 py-1" : "px-2 pt-3.5 pb-2"
             )}
             data-testid={`network-message-${message.message_id}`}

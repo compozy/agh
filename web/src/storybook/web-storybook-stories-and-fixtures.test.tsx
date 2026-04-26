@@ -20,7 +20,7 @@ describe("storybook story and fixture regressions", () => {
       import("@/systems/knowledge/components/stories/knowledge-detail-panel.stories"),
       import("@/systems/knowledge/components/stories/knowledge-list-panel.stories"),
       import("@/systems/network/components/stories/network-create-channel-dialog.stories"),
-      import("@/systems/network/components/stories/network-workspace-shell.stories"),
+      import("@/systems/network/storybook").then(module => module.networkWorkspaceShellStories),
       import("@/routes/_app/stories/-network.stories"),
       import("@/systems/automation/components/stories/automation-editor-dialog.stories"),
       import("@/systems/session/components/stories/copy-button.stories"),

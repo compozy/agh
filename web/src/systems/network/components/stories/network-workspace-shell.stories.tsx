@@ -55,7 +55,7 @@ type Story = StoryObj<typeof meta>;
 
 function requireFixture<T>(value: T | undefined, name: string): T {
   if (!value) {
-    throw new globalThis.Error(`Network Storybook fixture is missing: ${name}.`);
+    throw new Error(`Network Storybook fixture is missing: ${name}.`);
   }
   return value;
 }

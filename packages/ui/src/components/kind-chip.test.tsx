@@ -21,7 +21,7 @@ describe("KindChip", () => {
     const { container } = render(<KindChip kind="receipt" />);
     const dot = container.querySelector<HTMLElement>('[data-slot="kind-chip-dot"]');
     expect(dot).not.toBeNull();
-    expect(dot?.style.background).toBe(KIND_DOT_COLORS.receipt);
+    expect(dot).toHaveStyle({ background: KIND_DOT_COLORS.receipt });
   });
 
   it("Should omit the dot for unknown kinds (platforms, event ids)", () => {
