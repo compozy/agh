@@ -18,6 +18,7 @@ import (
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
@@ -500,24 +501,34 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
 
 	expectedHandlers := map[string]string{
-		"GET /api/observe/tasks/dashboard":       "TaskDashboard",
-		"GET /api/observe/tasks/inbox":           "TaskInbox",
-		"GET /api/task-runs/:id":                 "GetTaskRun",
-		"GET /api/tasks/:id/stream":              "StreamTask",
-		"GET /api/tasks/:id/timeline":            "TaskTimeline",
-		"GET /api/tasks/:id/tree":                "TaskTree",
-		"POST /api/agent/channels/reply":         "AgentChannelReply",
-		"POST /api/agent/tasks/:run_id/complete": "AgentTaskComplete",
-		"POST /api/agent/tasks/claim-next":       "AgentTaskClaimNext",
-		"DELETE /api/tasks/:id":                  "DeleteTask",
-		"POST /api/sessions/:id/stop":            "StopSession",
-		"POST /api/tasks/:id/approve":            "ApproveTask",
-		"POST /api/tasks/:id/publish":            "PublishTask",
-		"POST /api/tasks/:id/reject":             "RejectTask",
-		"POST /api/tasks/:id/start":              "StartTask",
-		"POST /api/tasks/:id/triage/archive":     "ArchiveTask",
-		"POST /api/tasks/:id/triage/dismiss":     "DismissTask",
-		"POST /api/tasks/:id/triage/read":        "MarkTaskRead",
+		"GET /api/observe/tasks/dashboard":        "TaskDashboard",
+		"GET /api/observe/tasks/inbox":            "TaskInbox",
+		"GET /api/task-runs/:id":                  "GetTaskRun",
+		"GET /api/tasks/:id/stream":               "StreamTask",
+		"GET /api/tasks/:id/timeline":             "TaskTimeline",
+		"GET /api/tasks/:id/tree":                 "TaskTree",
+		"GET /api/agent/channels":                 "AgentChannels",
+		"GET /api/agent/channels/:channel/recv":   "AgentChannelRecv",
+		"GET /api/agent/context":                  "AgentContext",
+		"GET /api/agent/coordinator/config":       "AgentCoordinatorConfig",
+		"GET /api/agent/me":                       "AgentMe",
+		"POST /api/agent/channels/:channel/send":  "AgentChannelSend",
+		"POST /api/agent/channels/reply":          "AgentChannelReply",
+		"POST /api/agent/tasks/:run_id/complete":  "AgentTaskComplete",
+		"POST /api/agent/tasks/:run_id/fail":      "AgentTaskFail",
+		"POST /api/agent/tasks/:run_id/heartbeat": "AgentTaskHeartbeat",
+		"POST /api/agent/tasks/:run_id/release":   "AgentTaskRelease",
+		"POST /api/agent/tasks/claim-next":        "AgentTaskClaimNext",
+		"POST /api/agent/spawn":                   "AgentSpawn",
+		"DELETE /api/tasks/:id":                   "DeleteTask",
+		"POST /api/sessions/:id/stop":             "StopSession",
+		"POST /api/tasks/:id/approve":             "ApproveTask",
+		"POST /api/tasks/:id/publish":             "PublishTask",
+		"POST /api/tasks/:id/reject":              "RejectTask",
+		"POST /api/tasks/:id/start":               "StartTask",
+		"POST /api/tasks/:id/triage/archive":      "ArchiveTask",
+		"POST /api/tasks/:id/triage/dismiss":      "DismissTask",
+		"POST /api/tasks/:id/triage/read":         "MarkTaskRead",
 	}
 
 	routes := engine.Routes()
@@ -537,6 +548,65 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		if !strings.Contains(matched.Handler, handlerName) {
 			t.Fatalf("route %q handler = %q, want substring %q", key, matched.Handler, handlerName)
 		}
+	}
+}
+
+func TestAgentChannelRecvRejectsInvalidPathAndQuery(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{
+			name: "Should reject malformed channel identifiers before reading inbox",
+			path: "/api/agent/channels/bad.channel/recv",
+		},
+		{
+			name: "Should reject malformed wait query values before reading inbox",
+			path: "/api/agent/channels/builders/recv?wait=maybe",
+		},
+		{
+			name: "Should reject malformed limit query values before reading inbox",
+			path: "/api/agent/channels/builders/recv?limit=abc",
+		},
+		{
+			name: "Should reject non-positive limit query values before reading inbox",
+			path: "/api/agent/channels/builders/recv?limit=0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handlers := newAgentChannelHandlers(t, stubNetworkService{
+				InboxFn: func(context.Context, string) ([]network.Envelope, error) {
+					t.Fatal("Inbox should not be called for invalid receive requests")
+					return nil, nil
+				},
+				WaitInboxFn: func(context.Context, string, string) ([]network.Envelope, error) {
+					t.Fatal("WaitInbox should not be called for invalid receive requests")
+					return nil, nil
+				},
+			})
+			recorder := performAgentKernelRequest(
+				t,
+				newTestRouter(t, handlers),
+				http.MethodGet,
+				tt.path,
+				nil,
+				agentKernelHeaders(),
+			)
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+			}
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if payload.Error == "" {
+				t.Fatalf("error payload = %#v, want validation error", payload)
+			}
+		})
 	}
 }
 func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {

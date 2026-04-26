@@ -2195,8 +2195,30 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -2300,6 +2322,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Coordination message not found */
       404: {
         headers: {
@@ -2324,6 +2357,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -2396,8 +2440,30 @@ export interface operations {
           };
         };
       };
+      /** @description Invalid channel receive query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Agent caller identity is missing */
       401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -2431,6 +2497,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -2536,6 +2613,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Coordination channel not found */
       404: {
         headers: {
@@ -2560,6 +2648,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -2846,6 +2945,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Caller session not found */
       404: {
         headers: {
@@ -2859,6 +2969,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -2922,6 +3043,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Workspace not found */
       404: {
         headers: {
@@ -2935,6 +3067,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -3128,6 +3271,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Caller session not found */
       404: {
         headers: {
@@ -3141,6 +3295,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -3374,6 +3539,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -3628,6 +3804,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Task-run claim conflict */
       409: {
         headers: {
@@ -3652,6 +3839,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -3762,6 +3960,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Task run not found */
       404: {
         headers: {
@@ -3797,6 +4006,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -3908,6 +4128,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Task run not found */
       404: {
         headers: {
@@ -3943,6 +4174,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -4054,6 +4296,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Task run not found */
       404: {
         headers: {
@@ -4089,6 +4342,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -4199,6 +4463,17 @@ export interface operations {
           };
         };
       };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Task run not found */
       404: {
         headers: {
@@ -4234,6 +4509,17 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };

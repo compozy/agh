@@ -51,6 +51,7 @@ type Info struct {
 	Name         string
 	AgentName    string
 	Provider     string
+	Model        string
 	WorkspaceID  string
 	Workspace    string
 	Channel      string
@@ -76,6 +77,7 @@ type Session struct {
 	Name         string
 	AgentName    string
 	Provider     string
+	Model        string
 	WorkspaceID  string
 	Workspace    string
 	Channel      string
@@ -121,6 +123,7 @@ func (s *Session) Info() *Info {
 		Name:         s.Name,
 		AgentName:    s.AgentName,
 		Provider:     s.Provider,
+		Model:        s.Model,
 		WorkspaceID:  s.WorkspaceID,
 		Workspace:    s.Workspace,
 		Channel:      s.Channel,
@@ -773,6 +776,7 @@ func (s *Session) Meta() store.SessionMeta {
 		Name:         s.Name,
 		AgentName:    s.AgentName,
 		Provider:     s.Provider,
+		Model:        s.Model,
 		WorkspaceID:  s.WorkspaceID,
 		Channel:      s.Channel,
 		SessionType:  string(normalizeSessionType(s.Type)),

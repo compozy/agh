@@ -1665,7 +1665,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 				},
 			},
 		} {
-			tt := tt
 			t.Run("Should reject stale "+tt.name+" after recovery", func(t *testing.T) {
 				_, _, err := executeRootCommand(t, agentDeps, tt.args...)
 				if err == nil {
