@@ -121,6 +121,9 @@ type DaemonClient interface {
 	CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error)
 	GetTask(ctx context.Context, id string) (TaskDetailRecord, error)
 	UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error)
+	PublishTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
+	StartTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
+	ApproveTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
 	CancelTask(ctx context.Context, id string, request CancelTaskRequest) (TaskRecord, error)
 	CreateChildTask(ctx context.Context, id string, request CreateTaskChildRequest) (TaskRecord, error)
 	AddTaskDependency(ctx context.Context, id string, request AddTaskDependencyRequest) (TaskDetailRecord, error)
@@ -362,6 +365,9 @@ type TaskDependencyRecord = contract.TaskDependencyPayload
 // TaskRunRecord is the shared task-run payload.
 type TaskRunRecord = contract.TaskRunPayload
 
+// TaskExecutionRecord is the shared task execution-boundary payload.
+type TaskExecutionRecord = contract.TaskExecutionResponse
+
 // AgentMeRecord is the shared agent caller identity payload.
 type AgentMeRecord = contract.AgentMePayload
 
@@ -433,6 +439,9 @@ type UpdateTaskRequest = contract.UpdateTaskRequest
 
 // CancelTaskRequest captures the shared task-cancel payload.
 type CancelTaskRequest = contract.CancelTaskRequest
+
+// TaskExecutionRequest captures the shared task publish/start/approval payload.
+type TaskExecutionRequest = contract.TaskExecutionRequest
 
 // AddTaskDependencyRequest captures the shared dependency-create payload.
 type AddTaskDependencyRequest = contract.AddTaskDependencyRequest
@@ -1435,6 +1444,30 @@ func (c *unixSocketClient) UpdateTask(ctx context.Context, id string, request Up
 	return response.Task, nil
 }
 
+func (c *unixSocketClient) PublishTask(
+	ctx context.Context,
+	id string,
+	request TaskExecutionRequest,
+) (TaskExecutionRecord, error) {
+	return c.taskExecutionAction(ctx, strings.TrimSpace(id), "publish", request)
+}
+
+func (c *unixSocketClient) StartTask(
+	ctx context.Context,
+	id string,
+	request TaskExecutionRequest,
+) (TaskExecutionRecord, error) {
+	return c.taskExecutionAction(ctx, strings.TrimSpace(id), "start", request)
+}
+
+func (c *unixSocketClient) ApproveTask(
+	ctx context.Context,
+	id string,
+	request TaskExecutionRequest,
+) (TaskExecutionRecord, error) {
+	return c.taskExecutionAction(ctx, strings.TrimSpace(id), "approve", request)
+}
+
 func (c *unixSocketClient) CancelTask(ctx context.Context, id string, request CancelTaskRequest) (TaskRecord, error) {
 	var response contract.TaskResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/cancel"
@@ -1775,6 +1808,20 @@ func (c *unixSocketClient) taskRunAction(
 		return TaskRunRecord{}, err
 	}
 	return response.Run, nil
+}
+
+func (c *unixSocketClient) taskExecutionAction(
+	ctx context.Context,
+	id string,
+	action string,
+	requestBody TaskExecutionRequest,
+) (TaskExecutionRecord, error) {
+	var response contract.TaskExecutionResponse
+	path := "/api/tasks/" + url.PathEscape(id) + "/" + strings.TrimSpace(action)
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, requestBody, &response); err != nil {
+		return TaskExecutionRecord{}, err
+	}
+	return response, nil
 }
 
 func (c *unixSocketClient) doJSON(

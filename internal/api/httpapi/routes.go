@@ -154,6 +154,7 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 	tasks.DELETE("/:id", handlers.DeleteTask)
 	tasks.PATCH("/:id", handlers.UpdateTask)
 	tasks.POST("/:id/publish", handlers.PublishTask)
+	tasks.POST("/:id/start", handlers.StartTask)
 	tasks.POST("/:id/cancel", handlers.CancelTask)
 	tasks.POST("/:id/children", handlers.CreateChildTask)
 	tasks.POST("/:id/dependencies", handlers.AddTaskDependency)

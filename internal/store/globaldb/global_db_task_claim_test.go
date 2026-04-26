@@ -657,6 +657,107 @@ func TestGlobalDBClaimNextRunReturnsWorkspaceNetworkChannelMetadata(t *testing.T
 	}
 }
 
+func TestGlobalDBReserveQueuedRunCreatesStableWorkspaceCoordinationChannel(t *testing.T) {
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"derived-run-channel",
+		filepath.Join(t.TempDir(), "derived-run-channel"),
+	)
+
+	taskRecord := taskRecordForTest("task-derived-channel")
+	taskRecord.Scope = taskpkg.ScopeWorkspace
+	taskRecord.WorkspaceID = workspaceID
+	taskRecord.Status = taskpkg.TaskStatusReady
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	origin := taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task start"}
+	queuedAt := time.Date(2026, 4, 26, 13, 0, 0, 0, time.UTC)
+
+	_, first, existing, err := globalDB.ReserveQueuedRun(
+		ctx,
+		taskRecord.ID,
+		"run-derived-channel",
+		"idem-derived-channel",
+		origin,
+		"",
+		nil,
+		queuedAt,
+	)
+	if err != nil {
+		t.Fatalf("ReserveQueuedRun(first) error = %v", err)
+	}
+	if existing {
+		t.Fatal("ReserveQueuedRun(first) existing = true, want false")
+	}
+	if got, want := first.CoordinationChannelID, "coord-run-derived-channel"; got != want {
+		t.Fatalf("first.CoordinationChannelID = %q, want %q", got, want)
+	}
+	channel, err := globalDB.GetNetworkChannel(ctx, first.CoordinationChannelID)
+	if err != nil {
+		t.Fatalf("GetNetworkChannel(derived) error = %v", err)
+	}
+	if got, want := channel.WorkspaceID, workspaceID; got != want {
+		t.Fatalf("channel.WorkspaceID = %q, want %q", got, want)
+	}
+	if got, want := channel.Purpose, "task_run_coordination"; got != want {
+		t.Fatalf("channel.Purpose = %q, want %q", got, want)
+	}
+
+	_, second, existing, err := globalDB.ReserveQueuedRun(
+		ctx,
+		taskRecord.ID,
+		"run-duplicate-ignored",
+		"idem-derived-channel",
+		origin,
+		"",
+		nil,
+		queuedAt.Add(time.Minute),
+	)
+	if err != nil {
+		t.Fatalf("ReserveQueuedRun(second) error = %v", err)
+	}
+	if !existing {
+		t.Fatal("ReserveQueuedRun(second) existing = false, want true")
+	}
+	if got, want := second.ID, first.ID; got != want {
+		t.Fatalf("second.ID = %q, want %q", got, want)
+	}
+	channels, err := globalDB.ListNetworkChannels(ctx, store.NetworkChannelQuery{WorkspaceID: workspaceID})
+	if err != nil {
+		t.Fatalf("ListNetworkChannels() error = %v", err)
+	}
+	if len(channels) != 1 {
+		t.Fatalf("len(ListNetworkChannels) = %d, want 1", len(channels))
+	}
+}
+
+func TestGlobalDBClaimNextRunSkipsBlockedTasks(t *testing.T) {
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	taskRecord := taskRecordForTest("task-blocked-claim")
+	taskRecord.Status = taskpkg.TaskStatusBlocked
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run := taskRunForTest("run-blocked-claim", taskRecord.ID)
+	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+
+	if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: "sess-blocked",
+		LeaseDuration:    time.Minute,
+		Now:              time.Date(2026, 4, 26, 13, 5, 0, 0, time.UTC),
+	}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+		t.Fatalf("ClaimNextRun(blocked) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+	}
+}
+
 func leasedRunForGlobalTest(
 	t *testing.T,
 	id string,

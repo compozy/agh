@@ -296,12 +296,16 @@ describe("task mutations", () => {
   });
 
   it("publishes a draft task", async () => {
-    mockJsonResponse({ task: taskFixture });
+    mockJsonResponse({ task: taskFixture, run: { ...runFixture, status: "queued" } });
 
     const result = await publishTask("task_001");
 
     expect(result).toEqual(taskFixture);
-    await expectFetchRequest({ method: "POST", path: "/api/tasks/task_001/publish" });
+    await expectFetchRequest({
+      body: {},
+      method: "POST",
+      path: "/api/tasks/task_001/publish",
+    });
   });
 
   it("cancels a task with default body", async () => {
@@ -314,12 +318,12 @@ describe("task mutations", () => {
   });
 
   it("approves and rejects approval-gated tasks", async () => {
-    mockJsonSequence({ task: taskFixture });
+    mockJsonSequence({ task: taskFixture, run: { ...runFixture, status: "queued" } });
 
     await approveTask("task_001");
     await rejectTask("task_001");
 
-    await expectFetchRequest({ method: "POST", path: "/api/tasks/task_001/approve" });
+    await expectFetchRequest({ body: {}, method: "POST", path: "/api/tasks/task_001/approve" });
     await expectFetchRequest({
       callIndex: 1,
       method: "POST",

@@ -498,18 +498,155 @@ func createdTaskStatus(spec CreateTask) Status {
 	return TaskStatusReady
 }
 
-// PublishTask transitions one durable draft into manager-owned runnable reconciliation.
-func (m *Service) PublishTask(ctx context.Context, id string, actor ActorContext) (*Task, error) {
+// PublishTask transitions one durable draft into manager-owned runnable reconciliation,
+// then enqueues the executable run for the explicit execution boundary.
+func (m *Service) PublishTask(
+	ctx context.Context,
+	id string,
+	req ExecutionRequest,
+	actor ActorContext,
+) (*Execution, error) {
+	return m.executeTaskBoundary(ctx, id, req, ExecutionActionPublish, actor)
+}
+
+// StartTask enqueues one executable run for an already-created task.
+func (m *Service) StartTask(
+	ctx context.Context,
+	id string,
+	req ExecutionRequest,
+	actor ActorContext,
+) (*Execution, error) {
+	return m.executeTaskBoundary(ctx, id, req, ExecutionActionStart, actor)
+}
+
+// ApproveTask records one approval decision for a manual-approval task that is
+// currently awaiting a decision, then enqueues the approved run.
+func (m *Service) ApproveTask(
+	ctx context.Context,
+	id string,
+	req ExecutionRequest,
+	actor ActorContext,
+) (*Execution, error) {
+	return m.executeTaskBoundary(ctx, id, req, ExecutionActionApproval, actor)
+}
+
+// RejectTask records one rejection decision for a manual-approval task that is
+// currently awaiting a decision and reconciles the resulting task status.
+func (m *Service) RejectTask(ctx context.Context, id string, actor ActorContext) (*Task, error) {
+	return m.transitionTaskApproval(ctx, id, ApprovalStateRejected, taskEventRejected, actor)
+}
+
+func (m *Service) executeTaskBoundary(
+	ctx context.Context,
+	id string,
+	req ExecutionRequest,
+	action ExecutionAction,
+	actor ActorContext,
+) (*Execution, error) {
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
-
 	trimmedID := strings.TrimSpace(id)
 	if trimmedID == "" {
 		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
 	}
+	normalizedReq, err := normalizeTaskExecutionRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.validateNetworkChannel("task_execution.network_channel", normalizedReq.NetworkChannel); err != nil {
+		return nil, err
+	}
+	idempotencyKey := taskExecutionIdempotencyKey(trimmedID, action, normalizedReq.IdempotencyKey)
+	if existing, ok, err := m.taskExecutionFromIdempotency(ctx, trimmedID, idempotencyKey, action, actor); err != nil {
+		return nil, err
+	} else if ok {
+		return existing, nil
+	}
 
-	record, err := m.store.GetTask(ctx, trimmedID)
+	switch action {
+	case ExecutionActionPublish:
+		if _, err := m.publishTaskIntent(ctx, trimmedID, actor); err != nil {
+			return nil, err
+		}
+	case ExecutionActionApproval:
+		if _, err := m.transitionTaskApproval(
+			ctx,
+			trimmedID,
+			ApprovalStateApproved,
+			taskEventApproved,
+			actor,
+		); err != nil {
+			return nil, err
+		}
+	case ExecutionActionStart:
+		taskRecord, err := m.store.GetTask(ctx, trimmedID)
+		if err != nil {
+			return nil, err
+		}
+		if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("%w: unsupported task execution action %q", ErrValidation, action)
+	}
+
+	run, err := m.EnqueueRun(ctx, EnqueueRun{
+		TaskID:         trimmedID,
+		IdempotencyKey: idempotencyKey,
+		NetworkChannel: normalizedReq.NetworkChannel,
+		Metadata:       normalizedReq.Metadata,
+	}, actor)
+	if err != nil {
+		return nil, err
+	}
+	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	return &Execution{
+		Task:   taskRecord,
+		Run:    *run,
+		Action: action,
+	}, nil
+}
+
+func (m *Service) taskExecutionFromIdempotency(
+	ctx context.Context,
+	taskID string,
+	idempotencyKey string,
+	action ExecutionAction,
+	actor ActorContext,
+) (*Execution, bool, error) {
+	run, err := m.store.GetTaskRunByIdempotencyKey(ctx, idempotencyKey, actor.Origin)
+	switch {
+	case errors.Is(err, ErrTaskRunIdempotencyNotFound):
+		return nil, false, nil
+	case err != nil:
+		return nil, false, err
+	}
+	if strings.TrimSpace(run.TaskID) != taskID {
+		return nil, false, fmt.Errorf(
+			"%w: idempotency key %q is already bound to task %q",
+			ErrValidation,
+			idempotencyKey,
+			run.TaskID,
+		)
+	}
+	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
+	if err != nil {
+		return nil, false, err
+	}
+	return &Execution{
+		Task:        taskRecord,
+		Run:         run,
+		Action:      action,
+		ExistingRun: true,
+	}, true, nil
+}
+
+func (m *Service) publishTaskIntent(ctx context.Context, id string, actor ActorContext) (*Task, error) {
+	record, err := m.store.GetTask(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -520,6 +657,12 @@ func (m *Service) PublishTask(ctx context.Context, id string, actor ActorContext
 			record.ID,
 			record.Status,
 		)
+	}
+
+	candidate := record
+	candidate.Status = TaskStatusPending
+	if err := m.ensureTaskExecutable(ctx, candidate); err != nil {
+		return nil, err
 	}
 
 	record.Status = TaskStatusPending
@@ -542,18 +685,6 @@ func (m *Service) PublishTask(ctx context.Context, id string, actor ActorContext
 	}
 
 	return &reconciled, nil
-}
-
-// ApproveTask records one approval decision for a manual-approval task that is
-// currently awaiting a decision and reconciles the resulting task status.
-func (m *Service) ApproveTask(ctx context.Context, id string, actor ActorContext) (*Task, error) {
-	return m.transitionTaskApproval(ctx, id, ApprovalStateApproved, taskEventApproved, actor)
-}
-
-// RejectTask records one rejection decision for a manual-approval task that is
-// currently awaiting a decision and reconciles the resulting task status.
-func (m *Service) RejectTask(ctx context.Context, id string, actor ActorContext) (*Task, error) {
-	return m.transitionTaskApproval(ctx, id, ApprovalStateRejected, taskEventRejected, actor)
 }
 
 func (m *Service) transitionTaskApproval(
@@ -1930,6 +2061,8 @@ func (m *Service) taskRunHookContext(run Run, taskRecord Task, actor ActorContex
 		SessionID:             strings.TrimSpace(run.SessionID),
 		ActorKind:             string(actor.Actor.Kind.Normalize()),
 		ActorRef:              strings.TrimSpace(actor.Actor.Ref),
+		OriginKind:            string(actor.Origin.Kind.Normalize()),
+		OriginRef:             strings.TrimSpace(actor.Origin.Ref),
 		TaskStatus:            string(taskRecord.Status.Normalize()),
 		RunStatus:             string(run.Status.Normalize()),
 		Attempt:               run.Attempt,
@@ -2147,6 +2280,24 @@ func normalizeCancelTask(req CancelTask) (CancelTask, error) {
 		return CancelTask{}, err
 	}
 	return normalized, nil
+}
+
+func normalizeTaskExecutionRequest(req ExecutionRequest) (ExecutionRequest, error) {
+	normalized := req
+	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
+	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
+	if err := ValidateMetadataSize(normalized.Metadata, "task_execution.metadata"); err != nil {
+		return ExecutionRequest{}, err
+	}
+	return normalized, nil
+}
+
+func taskExecutionIdempotencyKey(taskID string, action ExecutionAction, requested string) string {
+	if trimmed := strings.TrimSpace(requested); trimmed != "" {
+		return trimmed
+	}
+	return fmt.Sprintf("task.%s.%s", strings.TrimSpace(string(action)), strings.TrimSpace(taskID))
 }
 
 func normalizeEnqueueRunSpec(spec EnqueueRun) (EnqueueRun, error) {

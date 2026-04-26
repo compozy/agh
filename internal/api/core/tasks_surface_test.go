@@ -340,6 +340,7 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 	var inboxQuery observe.TaskInboxQuery
 	var inboxActor taskpkg.ActorIdentity
 	var approveActor taskpkg.ActorContext
+	var startActor taskpkg.ActorContext
 	var readActor taskpkg.ActorContext
 	var archiveActor taskpkg.ActorContext
 	var dismissActor taskpkg.ActorContext
@@ -347,9 +348,14 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 	var streamQuery taskpkg.StreamQuery
 
 	tasks := testutil.StubTaskManager{
-		PublishTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+		PublishTaskFn: func(
+			_ context.Context,
+			id string,
+			_ taskpkg.ExecutionRequest,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.Execution, error) {
 			publishActor = actor
-			return &taskpkg.Task{
+			taskRecord := taskpkg.Task{
 				ID:             id,
 				Identifier:     "TASK-1",
 				Scope:          taskpkg.ScopeWorkspace,
@@ -364,6 +370,51 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 				Origin:         actor.Origin,
 				CreatedAt:      now.Add(-time.Hour),
 				UpdatedAt:      now,
+			}
+			return &taskpkg.Execution{
+				Task: taskRecord,
+				Run: taskpkg.Run{
+					ID:                    "run-publish",
+					TaskID:                id,
+					Status:                taskpkg.TaskRunStatusQueued,
+					Attempt:               1,
+					Origin:                actor.Origin,
+					CoordinationChannelID: "coord-run-publish",
+					QueuedAt:              now,
+				},
+			}, nil
+		},
+		StartTaskFn: func(
+			_ context.Context,
+			id string,
+			_ taskpkg.ExecutionRequest,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.Execution, error) {
+			startActor = actor
+			taskRecord := taskpkg.Task{
+				ID:             id,
+				Scope:          taskpkg.ScopeWorkspace,
+				WorkspaceID:    "ws-alpha",
+				Title:          "Started task",
+				Status:         taskpkg.TaskStatusReady,
+				ApprovalPolicy: taskpkg.ApprovalPolicyNone,
+				ApprovalState:  taskpkg.ApprovalStateNotRequired,
+				CreatedBy:      actor.Actor,
+				Origin:         actor.Origin,
+				CreatedAt:      now.Add(-time.Hour),
+				UpdatedAt:      now,
+			}
+			return &taskpkg.Execution{
+				Task: taskRecord,
+				Run: taskpkg.Run{
+					ID:                    "run-start",
+					TaskID:                id,
+					Status:                taskpkg.TaskRunStatusQueued,
+					Attempt:               1,
+					Origin:                actor.Origin,
+					CoordinationChannelID: "coord-run-start",
+					QueuedAt:              now,
+				},
 			}, nil
 		},
 		RunDetailFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.RunDetailView, error) {
@@ -476,9 +527,14 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 				},
 			}, nil
 		},
-		ApproveTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+		ApproveTaskFn: func(
+			_ context.Context,
+			id string,
+			_ taskpkg.ExecutionRequest,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.Execution, error) {
 			approveActor = actor
-			return &taskpkg.Task{
+			taskRecord := taskpkg.Task{
 				ID:             id,
 				Scope:          taskpkg.ScopeWorkspace,
 				WorkspaceID:    "ws-alpha",
@@ -490,6 +546,18 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 				Origin:         actor.Origin,
 				CreatedAt:      now.Add(-time.Hour),
 				UpdatedAt:      now,
+			}
+			return &taskpkg.Execution{
+				Task: taskRecord,
+				Run: taskpkg.Run{
+					ID:                    "run-approve",
+					TaskID:                id,
+					Status:                taskpkg.TaskRunStatusQueued,
+					Attempt:               1,
+					Origin:                actor.Origin,
+					CoordinationChannelID: "coord-run-approve",
+					QueuedAt:              now,
+				},
 			}, nil
 		},
 		MarkTaskReadFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (taskpkg.TriageState, error) {
@@ -578,10 +646,27 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 				publishResp.Body.String(),
 			)
 		}
-		var publishPayload contract.TaskResponse
+		var publishPayload contract.TaskExecutionResponse
 		testutil.DecodeJSONResponse(t, publishResp, &publishPayload)
-		if publishPayload.Task.Status != taskpkg.TaskStatusReady || publishActor.Origin.Ref != "tasks.publish" {
+		if publishPayload.Task.Status != taskpkg.TaskStatusReady ||
+			publishPayload.Run.Status != taskpkg.TaskRunStatusQueued ||
+			publishActor.Origin.Ref != "tasks.publish" {
 			t.Fatalf("publish payload/actor = %#v / %#v", publishPayload, publishActor)
+		}
+
+		startResp := performRequest(t, fixture.Engine, http.MethodPost, "/tasks/task-1/start", nil)
+		if startResp.Code != http.StatusCreated {
+			t.Fatalf(
+				"start status = %d, want %d; body=%s",
+				startResp.Code,
+				http.StatusCreated,
+				startResp.Body.String(),
+			)
+		}
+		var startPayload contract.TaskExecutionResponse
+		testutil.DecodeJSONResponse(t, startResp, &startPayload)
+		if startPayload.Run.ID != "run-start" || startActor.Origin.Ref != "tasks.start" {
+			t.Fatalf("start payload/actor = %#v / %#v", startPayload, startActor)
 		}
 
 		runResp := performRequest(t, fixture.Engine, http.MethodGet, "/task-runs/run-1", nil)
@@ -674,16 +759,18 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		}
 
 		approveResp := performRequest(t, fixture.Engine, http.MethodPost, "/tasks/task-1/approve", nil)
-		if approveResp.Code != http.StatusOK {
+		if approveResp.Code != http.StatusCreated {
 			t.Fatalf(
 				"approve status = %d, want %d; body=%s",
 				approveResp.Code,
-				http.StatusOK,
+				http.StatusCreated,
 				approveResp.Body.String(),
 			)
 		}
-		if approveActor.Origin.Ref != "tasks.approve" {
-			t.Fatalf("approve actor = %#v", approveActor)
+		var approvePayload contract.TaskExecutionResponse
+		testutil.DecodeJSONResponse(t, approveResp, &approvePayload)
+		if approvePayload.Run.ID != "run-approve" || approveActor.Origin.Ref != "tasks.approve" {
+			t.Fatalf("approve payload/actor = %#v / %#v", approvePayload, approveActor)
 		}
 
 		readResp := performRequest(t, fixture.Engine, http.MethodPost, "/tasks/task-1/triage/read", nil)
@@ -770,10 +857,20 @@ func TestBaseHandlersExpandedTaskEndpointErrorPaths(t *testing.T) {
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		testutil.StubTaskManager{
-			PublishTaskFn: func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error) {
+			PublishTaskFn: func(
+				context.Context,
+				string,
+				taskpkg.ExecutionRequest,
+				taskpkg.ActorContext,
+			) (*taskpkg.Execution, error) {
 				return nil, taskpkg.ErrInvalidStatusTransition
 			},
-			ApproveTaskFn: func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error) {
+			ApproveTaskFn: func(
+				context.Context,
+				string,
+				taskpkg.ExecutionRequest,
+				taskpkg.ActorContext,
+			) (*taskpkg.Execution, error) {
 				return nil, taskpkg.ErrInvalidStatusTransition
 			},
 			RejectTaskFn: func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error) {

@@ -230,6 +230,109 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 	}
 }
 
+func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		args       []string
+		configure  func(*stubClient, *TaskExecutionRequest)
+		wantAction string
+	}{
+		{
+			name: "publish",
+			args: []string{
+				"task",
+				"publish",
+				"task-1",
+				"--idempotency-key",
+				"idem-publish",
+				"--channel",
+				"builders",
+				"-o",
+				"json",
+			},
+			wantAction: "publish",
+			configure: func(client *stubClient, request *TaskExecutionRequest) {
+				client.publishTaskFn = func(
+					_ context.Context,
+					_ string,
+					got TaskExecutionRequest,
+				) (TaskExecutionRecord, error) {
+					*request = got
+					return sampleTaskExecutionRecord(), nil
+				}
+			},
+		},
+		{
+			name: "start",
+			args: []string{
+				"task",
+				"start",
+				"task-1",
+				"--idempotency-key",
+				"idem-start",
+				"--channel",
+				"builders",
+				"-o",
+				"json",
+			},
+			wantAction: "start",
+			configure: func(client *stubClient, request *TaskExecutionRequest) {
+				client.startTaskFn = func(
+					_ context.Context,
+					_ string,
+					got TaskExecutionRequest,
+				) (TaskExecutionRecord, error) {
+					*request = got
+					return sampleTaskExecutionRecord(), nil
+				}
+			},
+		},
+		{
+			name: "approve",
+			args: []string{
+				"task",
+				"approve",
+				"task-1",
+				"--idempotency-key",
+				"idem-approve",
+				"--channel",
+				"builders",
+				"-o",
+				"json",
+			},
+			wantAction: "approve",
+			configure: func(client *stubClient, request *TaskExecutionRequest) {
+				client.approveTaskFn = func(
+					_ context.Context,
+					_ string,
+					got TaskExecutionRequest,
+				) (TaskExecutionRecord, error) {
+					*request = got
+					return sampleTaskExecutionRecord(), nil
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var request TaskExecutionRequest
+			client := &stubClient{}
+			tt.configure(client, &request)
+			if _, _, err := executeRootCommand(t, newTestDeps(t, client), tt.args...); err != nil {
+				t.Fatalf("task %s error = %v", tt.wantAction, err)
+			}
+			if request.IdempotencyKey != "idem-"+tt.wantAction || request.NetworkChannel != "builders" {
+				t.Fatalf("request = %#v, want idempotency key and channel for %s", request, tt.wantAction)
+			}
+		})
+	}
+}
+
 func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 	t.Parallel()
 
@@ -1118,7 +1221,7 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		!strings.Contains(detailToon, "task_dependencies[1]{task_id,depends_on_task_id,kind,created_at}:") ||
 		!strings.Contains(
 			detailToon,
-			"task_runs[1]{id,status,attempt,session_id,claimed_by,network_channel,queued_at,started_at,ended_at,error}:",
+			"task_runs[1]{id,status,attempt,session_id,claimed_by,network_channel,coordination_channel_id,queued_at,started_at,ended_at,error}:",
 		) ||
 		!strings.Contains(detailToon, "task_events[1]{id,event_type,run_id,actor,origin,timestamp}:") {
 		t.Fatalf("task detail toon output = %q, want child/dependency/run/event sections", detailToon)
@@ -1139,7 +1242,7 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 	}
 	if !strings.Contains(
 		runToon,
-		"task_runs[1]{id,status,attempt,session_id,claimed_by,network_channel,queued_at,started_at,ended_at,error}:",
+		"task_runs[1]{id,status,attempt,session_id,claimed_by,network_channel,coordination_channel_id,queued_at,started_at,ended_at,error}:",
 	) {
 		t.Fatalf("task run toon output = %q, want task run TOON array", runToon)
 	}
@@ -1271,6 +1374,13 @@ func sampleTaskRunRecord(status taskpkg.RunStatus) TaskRunRecord {
 	}
 
 	return record
+}
+
+func sampleTaskExecutionRecord() TaskExecutionRecord {
+	return TaskExecutionRecord{
+		Task: sampleTaskRecord(),
+		Run:  sampleTaskRunRecord(taskpkg.TaskRunStatusQueued),
+	}
 }
 
 func agentTaskClaimRecord(rawToken string) AgentTaskClaimRecord {

@@ -92,6 +92,47 @@ func TestTaskRunPreClaimHookDenialPreservesQueuedRun(t *testing.T) {
 	}
 }
 
+func TestTaskRunEnqueuedHookIncludesActorAndOrigin(t *testing.T) {
+	t.Parallel()
+
+	var got hookspkg.TaskRunEnqueuedPayload
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+		enqueued: func(
+			_ context.Context,
+			payload hookspkg.TaskRunEnqueuedPayload,
+		) (hookspkg.TaskRunEnqueuedPayload, error) {
+			got = payload
+			return payload, nil
+		},
+	}))
+	actor, err := DeriveHumanActorContext("operator-1", OriginKindCLI, "agh task start")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Hook context task",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	execution, err := manager.StartTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
+	if err != nil {
+		t.Fatalf("StartTask() error = %v", err)
+	}
+	if got.TaskID != taskRecord.ID || got.RunID != execution.Run.ID {
+		t.Fatalf("hook context ids = %#v, want task/run ids", got.TaskRunContext)
+	}
+	if got.ActorKind != string(ActorKindHuman) || got.ActorRef != "operator-1" {
+		t.Fatalf("hook actor context = %#v, want operator actor", got.TaskRunContext)
+	}
+	if got.OriginKind != string(OriginKindCLI) || got.OriginRef != "agh task start" {
+		t.Fatalf("hook origin context = %#v, want cli origin", got.TaskRunContext)
+	}
+}
+
 func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 	t.Parallel()
 

@@ -339,7 +339,7 @@ func TestErrorPayloadFallbacksAndExitCodes(t *testing.T) {
 	}
 
 	nilPayload := ErrorPayloadFor(nil)
-	if nilPayload.Code != "agent_error" || nilPayload.Message != "agent command failed" ||
+	if nilPayload.Code != "agent_error" || nilPayload.Message != agentCommandFailedMessage ||
 		nilPayload.ExitCode != ExitOK {
 		t.Fatalf("ErrorPayloadFor(nil) = %#v, want default successful payload", nilPayload)
 	}
@@ -353,7 +353,7 @@ func TestErrorPayloadFallbacksAndExitCodes(t *testing.T) {
 	}
 
 	emptyIdentityPayload := ErrorPayloadFor(&Error{Err: ErrIdentityRequired})
-	if emptyIdentityPayload.Message != "agent command failed" ||
+	if emptyIdentityPayload.Message != agentCommandFailedMessage ||
 		emptyIdentityPayload.Action != "inspect the daemon error and retry" ||
 		emptyIdentityPayload.ExitCode != ExitIdentityRequired {
 		t.Fatalf(

@@ -578,6 +578,13 @@ type EnqueueTaskRunRequest struct {
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
+// TaskExecutionRequest is the shared task publish/start/approval execution payload.
+type TaskExecutionRequest struct {
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	NetworkChannel string          `json:"network_channel,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+}
+
 // ClaimTaskRunRequest is the shared run-claim request payload.
 type ClaimTaskRunRequest struct {
 	IdempotencyKey string `json:"idempotency_key,omitempty"`

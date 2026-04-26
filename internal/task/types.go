@@ -432,6 +432,36 @@ type CancelTask struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 
+// ExecutionAction identifies the operator action that crossed the
+// create-versus-execute lifecycle boundary.
+type ExecutionAction string
+
+const (
+	// ExecutionActionStart records an explicit operator start request.
+	ExecutionActionStart ExecutionAction = "start"
+	// ExecutionActionPublish records a draft publish request that also starts execution.
+	ExecutionActionPublish ExecutionAction = "publish"
+	// ExecutionActionApproval records an approval request that also starts execution.
+	ExecutionActionApproval ExecutionAction = "approval"
+)
+
+// ExecutionRequest captures the mutable inputs accepted when an operator
+// publish, start, or approval action enqueues executable work.
+type ExecutionRequest struct {
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	NetworkChannel string          `json:"network_channel,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+}
+
+// Execution captures the task and run created or resolved at the explicit
+// execution boundary.
+type Execution struct {
+	Task        Task            `json:"task"`
+	Run         Run             `json:"run"`
+	Action      ExecutionAction `json:"action"`
+	ExistingRun bool            `json:"existing_run,omitempty"`
+}
+
 // AddDependency captures one dependency-edge creation request.
 type AddDependency struct {
 	TaskID          string         `json:"task_id"`

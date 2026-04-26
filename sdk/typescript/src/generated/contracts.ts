@@ -2849,6 +2849,8 @@ export interface TaskRunCompletedPayload {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;
@@ -2872,6 +2874,8 @@ export interface TaskRunContext {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;
@@ -2930,6 +2934,8 @@ export interface TaskRunEnqueuedPayload {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;
@@ -2958,6 +2964,8 @@ export interface TaskRunFailedPayload {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;
@@ -2987,6 +2995,8 @@ export interface TaskRunLeaseExpiredPayload {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;
@@ -3012,6 +3022,8 @@ export interface TaskRunLeaseExtendedPayload {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;
@@ -3037,6 +3049,8 @@ export interface TaskRunLeasePayload {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;
@@ -3062,6 +3076,8 @@ export interface TaskRunLeaseRecoveredPayload {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;
@@ -3091,6 +3107,8 @@ export interface TaskRunPostClaimPayload {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;
@@ -3120,6 +3138,8 @@ export interface TaskRunPreClaimPayload {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;
@@ -3144,6 +3164,8 @@ export interface TaskRunReleasedPayload {
   session_id?: string;
   actor_kind?: string;
   actor_ref?: string;
+  origin_kind?: string;
+  origin_ref?: string;
   task_status?: string;
   run_status?: string;
   attempt?: number;

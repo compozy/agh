@@ -196,6 +196,7 @@ export async function updateTask(
 export async function publishTask(id: string, signal?: AbortSignal): Promise<TaskRecord> {
   const { data, error, response } = await apiClient.POST("/api/tasks/{id}/publish", {
     params: { path: { id } },
+    body: {},
     signal,
   });
 
@@ -241,6 +242,7 @@ export async function cancelTask(
 export async function approveTask(id: string, signal?: AbortSignal): Promise<TaskRecord> {
   const { data, error, response } = await apiClient.POST("/api/tasks/{id}/approve", {
     params: { path: { id } },
+    body: {},
     signal,
   });
 

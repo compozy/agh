@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,6 +37,12 @@ type taskUpdateInput struct {
 	ClearOwner   bool
 }
 
+type taskExecutionInput struct {
+	IdempotencyKey string
+	NetworkRaw     string
+	MetadataRaw    string
+}
+
 func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "task",
@@ -49,6 +56,9 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskCreateCommand(deps))
 	cmd.AddCommand(newTaskGetCommand(deps))
 	cmd.AddCommand(newTaskUpdateCommand(deps))
+	cmd.AddCommand(newTaskPublishCommand(deps))
+	cmd.AddCommand(newTaskStartCommand(deps))
+	cmd.AddCommand(newTaskApproveCommand(deps))
 	cmd.AddCommand(newTaskCancelCommand(deps))
 	cmd.AddCommand(newTaskNextCommand(deps))
 	cmd.AddCommand(newTaskHeartbeatCommand(deps))
@@ -294,6 +304,90 @@ func buildTaskUpdateRequest(cmd *cobra.Command, input taskUpdateInput) (UpdateTa
 	}
 	if input.ClearOwner {
 		request.ClearOwner = true
+	}
+	return request, nil
+}
+
+func newTaskPublishCommand(deps commandDeps) *cobra.Command {
+	return newTaskExecutionCommand(
+		deps,
+		"publish <id>",
+		"Publish a draft task and enqueue its first run",
+		func(ctx context.Context, client DaemonClient, id string, request TaskExecutionRequest) (TaskExecutionRecord, error) {
+			return client.PublishTask(ctx, id, request)
+		},
+	)
+}
+
+func newTaskStartCommand(deps commandDeps) *cobra.Command {
+	return newTaskExecutionCommand(
+		deps,
+		"start <id>",
+		"Enqueue a run for an executable task",
+		func(ctx context.Context, client DaemonClient, id string, request TaskExecutionRequest) (TaskExecutionRecord, error) {
+			return client.StartTask(ctx, id, request)
+		},
+	)
+}
+
+func newTaskApproveCommand(deps commandDeps) *cobra.Command {
+	return newTaskExecutionCommand(
+		deps,
+		"approve <id>",
+		"Approve a task and enqueue its first run",
+		func(ctx context.Context, client DaemonClient, id string, request TaskExecutionRequest) (TaskExecutionRecord, error) {
+			return client.ApproveTask(ctx, id, request)
+		},
+	)
+}
+
+func newTaskExecutionCommand(
+	deps commandDeps,
+	use string,
+	short string,
+	execute func(context.Context, DaemonClient, string, TaskExecutionRequest) (TaskExecutionRecord, error),
+) *cobra.Command {
+	var input taskExecutionInput
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			request, err := buildTaskExecutionRequest(cmd, input)
+			if err != nil {
+				return err
+			}
+			execution, err := execute(cmd.Context(), client, args[0], request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskExecutionBundle(&execution))
+		},
+	}
+	cmd.Flags().StringVar(&input.IdempotencyKey, "idempotency-key", "", "Optional idempotency key")
+	cmd.Flags().StringVar(&input.NetworkRaw, "channel", "", "Optional run channel override")
+	cmd.Flags().StringVar(&input.MetadataRaw, "metadata", "", "Optional run metadata JSON")
+	return cmd
+}
+
+func buildTaskExecutionRequest(cmd *cobra.Command, input taskExecutionInput) (TaskExecutionRequest, error) {
+	if err := validateTaskChannelFlag(input.NetworkRaw); err != nil {
+		return TaskExecutionRequest{}, err
+	}
+	request := TaskExecutionRequest{
+		IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
+		NetworkChannel: strings.TrimSpace(input.NetworkRaw),
+	}
+	if cmd.Flags().Changed("metadata") {
+		metadata, err := parseJSONFlag("metadata", input.MetadataRaw)
+		if err != nil {
+			return TaskExecutionRequest{}, err
+		}
+		request.Metadata = metadata
 	}
 	return request, nil
 }
@@ -1394,6 +1488,34 @@ func taskBundle(item TaskRecord) outputBundle {
 	}
 }
 
+func taskExecutionBundle(item *TaskExecutionRecord) outputBundle {
+	return outputBundle{
+		jsonValue: *item,
+		human: func() (string, error) {
+			taskBlock, err := taskBundle(item.Task).human()
+			if err != nil {
+				return "", err
+			}
+			runBlock, err := taskRunBundle(item.Run).human()
+			if err != nil {
+				return "", err
+			}
+			return renderHumanBlocks(taskBlock, runBlock), nil
+		},
+		toon: func() (string, error) {
+			taskBlock, err := taskBundle(item.Task).toon()
+			if err != nil {
+				return "", err
+			}
+			runBlock, err := taskRunBundle(item.Run).toon()
+			if err != nil {
+				return "", err
+			}
+			return renderHumanBlocks(taskBlock, runBlock), nil
+		},
+	}
+}
+
 func taskSummaryListBundle(items []TaskSummaryRecord) outputBundle {
 	return listBundle(
 		items,
@@ -1485,6 +1607,7 @@ func renderTaskDetailHuman(detail *TaskDetailRecord) (string, error) {
 				"Session",
 				"Claimed By",
 				"Channel",
+				"Coordination Channel",
 				"Queued",
 				"Started",
 				"Ended",
@@ -1526,6 +1649,7 @@ func renderTaskDetailToon(detail *TaskDetailRecord) (string, error) {
 				"session_id",
 				"claimed_by",
 				"network_channel",
+				"coordination_channel_id",
 				"queued_at",
 				"started_at",
 				"ended_at",
@@ -1555,6 +1679,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				{Label: "Origin", Value: stringOrDash(formatTaskOrigin(item.Origin))},
 				{Label: "Idempotency Key", Value: stringOrDash(item.IdempotencyKey)},
 				{Label: "Channel", Value: stringOrDash(item.NetworkChannel)},
+				{Label: "Coordination Channel", Value: stringOrDash(item.CoordinationChannelID)},
 				{Label: "Queued", Value: stringOrDash(formatTime(item.QueuedAt))},
 				{Label: "Claimed", Value: stringOrDash(formatTimePtr(item.ClaimedAt))},
 				{Label: "Started", Value: stringOrDash(formatTimePtr(item.StartedAt))},
@@ -1574,6 +1699,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				"origin",
 				"idempotency_key",
 				"network_channel",
+				"coordination_channel_id",
 				"queued_at",
 				"claimed_at",
 				"started_at",
@@ -1590,6 +1716,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				formatTaskOrigin(item.Origin),
 				item.IdempotencyKey,
 				item.NetworkChannel,
+				item.CoordinationChannelID,
 				formatTime(item.QueuedAt),
 				formatTimePtr(item.ClaimedAt),
 				formatTimePtr(item.StartedAt),
@@ -1613,6 +1740,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 			"Session",
 			"Claimed By",
 			"Channel",
+			"Coordination Channel",
 			"Queued",
 			"Started",
 			"Ended",
@@ -1626,6 +1754,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 			"session_id",
 			"claimed_by",
 			"network_channel",
+			"coordination_channel_id",
 			"queued_at",
 			"started_at",
 			"ended_at",
@@ -1639,6 +1768,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 				stringOrDash(item.SessionID),
 				stringOrDash(formatTaskActorPtr(item.ClaimedBy)),
 				stringOrDash(item.NetworkChannel),
+				stringOrDash(item.CoordinationChannelID),
 				stringOrDash(formatTime(item.QueuedAt)),
 				stringOrDash(formatTimePtr(item.StartedAt)),
 				stringOrDash(formatTimePtr(item.EndedAt)),
@@ -1653,6 +1783,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 				item.SessionID,
 				formatTaskActorPtr(item.ClaimedBy),
 				item.NetworkChannel,
+				item.CoordinationChannelID,
 				formatTime(item.QueuedAt),
 				formatTimePtr(item.StartedAt),
 				formatTimePtr(item.EndedAt),
@@ -1730,6 +1861,7 @@ func taskRunRows(items []TaskRunRecord) [][]string {
 			stringOrDash(item.SessionID),
 			stringOrDash(formatTaskActorPtr(item.ClaimedBy)),
 			stringOrDash(item.NetworkChannel),
+			stringOrDash(item.CoordinationChannelID),
 			stringOrDash(formatTime(item.QueuedAt)),
 			stringOrDash(formatTimePtr(item.StartedAt)),
 			stringOrDash(formatTimePtr(item.EndedAt)),
@@ -1749,6 +1881,7 @@ func taskRunToonRows(items []TaskRunRecord) [][]string {
 			item.SessionID,
 			formatTaskActorPtr(item.ClaimedBy),
 			item.NetworkChannel,
+			item.CoordinationChannelID,
 			formatTime(item.QueuedAt),
 			formatTimePtr(item.StartedAt),
 			formatTimePtr(item.EndedAt),

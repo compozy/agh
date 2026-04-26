@@ -24,6 +24,7 @@ const (
 	taskActionGet              = "get"
 	taskActionDelete           = "delete"
 	taskActionPublish          = "publish"
+	taskActionStart            = "start"
 	taskActionUpdate           = "update"
 	taskActionCancel           = "cancel"
 	taskActionCreateChild      = "create_child"
@@ -294,19 +295,79 @@ func (h *BaseHandlers) PublishTask(c *gin.Context) {
 		return
 	}
 
+	var req contract.TaskExecutionRequest
+	if err := decodeOptionalJSON(c, &req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode publish task request: %w", h.transportName(), err)),
+		)
+		return
+	}
+
 	actor, err := h.taskActorContext(c, taskActionPublish)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
 
-	record, err := manager.PublishTask(c.Request.Context(), taskID, actor)
+	executionReq, err := taskExecutionRequestFromRequest(req)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
+	execution, err := manager.PublishTask(c.Request.Context(), taskID, executionReq, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, TaskExecutionResponseFromExecution(execution))
+}
+
+// StartTask explicitly enqueues one executable run for an existing task.
+func (h *BaseHandlers) StartTask(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	var req contract.TaskExecutionRequest
+	if err := decodeOptionalJSON(c, &req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode start task request: %w", h.transportName(), err)),
+		)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionStart)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	executionReq, err := taskExecutionRequestFromRequest(req)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	execution, err := manager.StartTask(c.Request.Context(), taskID, executionReq, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, TaskExecutionResponseFromExecution(execution))
 }
 
 // CancelTask requests cancellation for one task tree.
@@ -740,14 +801,46 @@ func (h *BaseHandlers) TaskInbox(c *gin.Context) {
 
 // ApproveTask records one approval decision for an approval-gated task.
 func (h *BaseHandlers) ApproveTask(c *gin.Context) {
-	h.mutateTaskApproval(c, taskActionApprove, func(
-		ctx context.Context,
-		manager TaskService,
-		taskID string,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Task, error) {
-		return manager.ApproveTask(ctx, taskID, actor)
-	})
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	var req contract.TaskExecutionRequest
+	if err := decodeOptionalJSON(c, &req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode approve task request: %w", h.transportName(), err)),
+		)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionApprove)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	executionReq, err := taskExecutionRequestFromRequest(req)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	execution, err := manager.ApproveTask(c.Request.Context(), taskID, executionReq, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, TaskExecutionResponseFromExecution(execution))
 }
 
 // RejectTask records one rejection decision for an approval-gated task.
@@ -1375,6 +1468,17 @@ func enqueueTaskRunFromRequest(taskID string, req contract.EnqueueTaskRunRequest
 	return spec, nil
 }
 
+func taskExecutionRequestFromRequest(req contract.TaskExecutionRequest) (taskpkg.ExecutionRequest, error) {
+	if err := validateTaskChannel("task_execution.network_channel", req.NetworkChannel); err != nil {
+		return taskpkg.ExecutionRequest{}, err
+	}
+	return taskpkg.ExecutionRequest{
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
+		Metadata:       append(json.RawMessage(nil), req.Metadata...),
+	}, nil
+}
+
 func claimTaskRunFromRequest(req contract.ClaimTaskRunRequest) (taskpkg.ClaimRun, error) {
 	claim := taskpkg.ClaimRun{IdempotencyKey: strings.TrimSpace(req.IdempotencyKey)}
 	if err := claim.Validate("claim_run"); err != nil {
@@ -1562,6 +1666,17 @@ func TaskRunPayloadsFromRuns(runs []taskpkg.Run) []contract.TaskRunPayload {
 		payloads = append(payloads, TaskRunPayloadFromRun(&run))
 	}
 	return payloads
+}
+
+// TaskExecutionResponseFromExecution converts one task execution-boundary result.
+func TaskExecutionResponseFromExecution(execution *taskpkg.Execution) contract.TaskExecutionResponse {
+	if execution == nil {
+		return contract.TaskExecutionResponse{}
+	}
+	return contract.TaskExecutionResponse{
+		Task: TaskPayloadFromTask(&execution.Task),
+		Run:  TaskRunPayloadFromRun(&execution.Run),
+	}
 }
 
 // TaskRunPayloadFromRun converts one task run into the shared payload.

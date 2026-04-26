@@ -705,6 +705,10 @@ func (s *inMemoryManagerStore) ClaimNextRun(_ context.Context, criteria ClaimCri
 		if !ok || run.Status.Normalize() != TaskRunStatusQueued {
 			continue
 		}
+		switch taskRecord.Status.Normalize() {
+		case TaskStatusDraft, TaskStatusBlocked, TaskStatusCanceled:
+			continue
+		}
 		if taskRecord.Scope.Normalize() != normalized.Scope {
 			continue
 		}
@@ -981,7 +985,7 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		Origin:                origin,
 		IdempotencyKey:        trimmedKey,
 		NetworkChannel:        networkChannel,
-		CoordinationChannelID: testCoordinationChannelIDForQueuedRun(taskRecord, networkChannel),
+		CoordinationChannelID: testCoordinationChannelIDForQueuedRun(taskRecord, networkChannel, runID),
 		Metadata:              normalizeRawJSON(metadata),
 		QueuedAt:              queuedAt.UTC(),
 	}
@@ -1001,11 +1005,14 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 	return taskRecord, run, false, nil
 }
 
-func testCoordinationChannelIDForQueuedRun(taskRecord Task, networkChannel string) string {
+func testCoordinationChannelIDForQueuedRun(taskRecord Task, networkChannel string, runID string) string {
 	if taskRecord.Scope.Normalize() != ScopeWorkspace {
 		return ""
 	}
-	return strings.TrimSpace(networkChannel)
+	if trimmed := strings.TrimSpace(networkChannel); trimmed != "" {
+		return trimmed
+	}
+	return "coord-" + strings.TrimSpace(runID)
 }
 
 func (s *inMemoryManagerStore) CreateTaskEvent(_ context.Context, event Event) error {
@@ -2136,6 +2143,72 @@ func TestManagerCreateTaskUsesTrustedActorContext(t *testing.T) {
 	}
 }
 
+func TestManagerCreateTaskRecordsIntentWithoutRuns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		actor func(t *testing.T) ActorContext
+		spec  CreateTask
+	}{
+		{
+			name: "user-created ready task",
+			actor: func(t *testing.T) ActorContext {
+				t.Helper()
+				return validActorContext()
+			},
+			spec: CreateTask{
+				Scope: ScopeGlobal,
+				Title: "User intent only",
+			},
+		},
+		{
+			name: "agent-created approval task",
+			actor: func(t *testing.T) ActorContext {
+				t.Helper()
+				actor, err := DeriveAgentSessionActorContext("sess-agent-create")
+				if err != nil {
+					t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+				}
+				return actor
+			},
+			spec: CreateTask{
+				Scope:          ScopeGlobal,
+				Title:          "Agent intent only",
+				ApprovalPolicy: ApprovalPolicyManual,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newInMemoryManagerStore()
+			manager := newTaskManagerForTest(t, store)
+			actor := tc.actor(t)
+
+			created, err := manager.CreateTask(context.Background(), tc.spec, actor)
+			if err != nil {
+				t.Fatalf("CreateTask() error = %v", err)
+			}
+			runs, err := store.ListTaskRuns(context.Background(), RunQuery{TaskID: created.ID})
+			if err != nil {
+				t.Fatalf("ListTaskRuns() error = %v", err)
+			}
+			if len(runs) != 0 {
+				t.Fatalf("len(runs) = %d, want 0", len(runs))
+			}
+			if got, want := created.CreatedBy, actor.Actor; got != want {
+				t.Fatalf("created.CreatedBy = %#v, want %#v", got, want)
+			}
+			if got, want := created.Origin, actor.Origin; got != want {
+				t.Fatalf("created.Origin = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
 func TestManagerCreateTaskAppliesSemanticDefaultsAndDraftStatus(t *testing.T) {
 	t.Parallel()
 
@@ -2196,12 +2269,18 @@ func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
 			t.Fatalf("EnqueueRun(draft) error = %v, want %v", err, ErrInvalidStatusTransition)
 		}
 
-		published, err := manager.PublishTask(context.Background(), draftTask.ID, actor)
+		published, err := manager.PublishTask(context.Background(), draftTask.ID, ExecutionRequest{}, actor)
 		if err != nil {
 			t.Fatalf("PublishTask() error = %v", err)
 		}
-		if got, want := published.Status, TaskStatusReady; got != want {
-			t.Fatalf("published.Status = %q, want %q", got, want)
+		if got, want := published.Task.Status, TaskStatusReady; got != want {
+			t.Fatalf("published.Task.Status = %q, want %q", got, want)
+		}
+		if got, want := published.Run.TaskID, draftTask.ID; got != want {
+			t.Fatalf("published.Run.TaskID = %q, want %q", got, want)
+		}
+		if got, want := published.Run.Status, TaskRunStatusQueued; got != want {
+			t.Fatalf("published.Run.Status = %q, want %q", got, want)
 		}
 
 		events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: draftTask.ID})
@@ -2213,7 +2292,7 @@ func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
 		}
 	})
 
-	t.Run("published draft remains blocked for unresolved dependencies", func(t *testing.T) {
+	t.Run("draft with unresolved dependencies cannot publish into execution", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -2246,12 +2325,16 @@ func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
 			t.Fatalf("target.Status before publish = %q, want %q", got, want)
 		}
 
-		published, err := manager.PublishTask(context.Background(), target.ID, actor)
-		if err != nil {
-			t.Fatalf("PublishTask() error = %v", err)
+		if _, err := manager.PublishTask(
+			context.Background(),
+			target.ID,
+			ExecutionRequest{},
+			actor,
+		); !errors.Is(err, ErrInvalidStatusTransition) {
+			t.Fatalf("PublishTask(blocked) error = %v, want %v", err, ErrInvalidStatusTransition)
 		}
-		if got, want := published.Status, TaskStatusBlocked; got != want {
-			t.Fatalf("published.Status = %q, want %q", got, want)
+		if got, want := store.tasks[target.ID].Status, TaskStatusDraft; got != want {
+			t.Fatalf("target.Status after failed publish = %q, want %q", got, want)
 		}
 	})
 }
@@ -2274,7 +2357,12 @@ func TestManagerPublishTaskRejectsNonDraftTasks(t *testing.T) {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 
-		if _, err := manager.PublishTask(context.Background(), taskRecord.ID, actor); !errors.Is(
+		if _, err := manager.PublishTask(
+			context.Background(),
+			taskRecord.ID,
+			ExecutionRequest{},
+			actor,
+		); !errors.Is(
 			err,
 			ErrInvalidStatusTransition,
 		) {
@@ -2298,16 +2386,116 @@ func TestManagerPublishTaskRejectsNonDraftTasks(t *testing.T) {
 			t.Fatalf("CreateTask(draft) error = %v", err)
 		}
 
-		if _, err := manager.PublishTask(context.Background(), draftTask.ID, actor); err != nil {
+		first, err := manager.PublishTask(context.Background(), draftTask.ID, ExecutionRequest{}, actor)
+		if err != nil {
 			t.Fatalf("PublishTask(first) error = %v", err)
 		}
-		if _, err := manager.PublishTask(context.Background(), draftTask.ID, actor); !errors.Is(
-			err,
-			ErrInvalidStatusTransition,
-		) {
-			t.Fatalf("PublishTask(second) error = %v, want %v", err, ErrInvalidStatusTransition)
+		second, err := manager.PublishTask(context.Background(), draftTask.ID, ExecutionRequest{}, actor)
+		if err != nil {
+			t.Fatalf("PublishTask(second) error = %v", err)
+		}
+		if !second.ExistingRun {
+			t.Fatalf("PublishTask(second).ExistingRun = false, want true")
+		}
+		if got, want := second.Run.ID, first.Run.ID; got != want {
+			t.Fatalf("PublishTask(second).Run.ID = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestManagerExecutionBoundaryStartPublishApprovalIdempotency(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		prepare func(t *testing.T, manager *Service, actor ActorContext) string
+		execute func(*Service, context.Context, string, ExecutionRequest, ActorContext) (*Execution, error)
+	}{
+		{
+			name: "start",
+			prepare: func(t *testing.T, manager *Service, actor ActorContext) string {
+				t.Helper()
+				taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+					Scope: ScopeGlobal,
+					Title: "Start boundary",
+				}, actor)
+				if err != nil {
+					t.Fatalf("CreateTask() error = %v", err)
+				}
+				return taskRecord.ID
+			},
+			execute: (*Service).StartTask,
+		},
+		{
+			name: "publish",
+			prepare: func(t *testing.T, manager *Service, actor ActorContext) string {
+				t.Helper()
+				taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+					Scope: ScopeGlobal,
+					Title: "Publish boundary",
+					Draft: true,
+				}, actor)
+				if err != nil {
+					t.Fatalf("CreateTask() error = %v", err)
+				}
+				return taskRecord.ID
+			},
+			execute: (*Service).PublishTask,
+		},
+		{
+			name: "approval",
+			prepare: func(t *testing.T, manager *Service, actor ActorContext) string {
+				t.Helper()
+				taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+					Scope:          ScopeGlobal,
+					Title:          "Approval boundary",
+					ApprovalPolicy: ApprovalPolicyManual,
+				}, actor)
+				if err != nil {
+					t.Fatalf("CreateTask() error = %v", err)
+				}
+				return taskRecord.ID
+			},
+			execute: (*Service).ApproveTask,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newInMemoryManagerStore()
+			manager := newTaskManagerForTest(t, store)
+			actor := validActorContext()
+			taskID := tc.prepare(t, manager, actor)
+
+			first, err := tc.execute(manager, context.Background(), taskID, ExecutionRequest{}, actor)
+			if err != nil {
+				t.Fatalf("%s first execution error = %v", tc.name, err)
+			}
+			second, err := tc.execute(manager, context.Background(), taskID, ExecutionRequest{}, actor)
+			if err != nil {
+				t.Fatalf("%s second execution error = %v", tc.name, err)
+			}
+			if !second.ExistingRun {
+				t.Fatalf("%s second execution ExistingRun = false, want true", tc.name)
+			}
+			if got, want := second.Run.ID, first.Run.ID; got != want {
+				t.Fatalf("%s second run = %q, want %q", tc.name, got, want)
+			}
+
+			runs, err := store.ListTaskRuns(context.Background(), RunQuery{TaskID: taskID})
+			if err != nil {
+				t.Fatalf("ListTaskRuns() error = %v", err)
+			}
+			if len(runs) != 1 {
+				t.Fatalf("len(runs) = %d, want 1", len(runs))
+			}
+			if got, want := runs[0].Status, TaskRunStatusQueued; got != want {
+				t.Fatalf("runs[0].Status = %q, want %q", got, want)
+			}
+		})
+	}
 }
 
 func TestManagerCreateTaskEnforcesScopeAuthority(t *testing.T) {
@@ -2544,31 +2732,29 @@ func TestManagerApprovalGateBlocksExecutionUntilApproved(t *testing.T) {
 		t.Fatalf("taskRecord.Status = %q, want %q", got, want)
 	}
 
-	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	runsBeforeApproval, err := store.ListTaskRuns(context.Background(), RunQuery{TaskID: taskRecord.ID})
 	if err != nil {
-		t.Fatalf("EnqueueRun() error = %v", err)
+		t.Fatalf("ListTaskRuns(before approval) error = %v", err)
 	}
-	if _, err := manager.ClaimRun(
-		context.Background(),
-		run.ID,
-		ClaimRun{},
-		actor,
-	); !errors.Is(err, ErrInvalidStatusTransition) {
-		t.Fatalf("ClaimRun(blocked) error = %v, want %v", err, ErrInvalidStatusTransition)
+	if len(runsBeforeApproval) != 0 {
+		t.Fatalf("runs before approval = %d, want 0", len(runsBeforeApproval))
 	}
 
-	approved, err := manager.ApproveTask(context.Background(), taskRecord.ID, actor)
+	approved, err := manager.ApproveTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
 	if err != nil {
 		t.Fatalf("ApproveTask() error = %v", err)
 	}
-	if got, want := approved.ApprovalState, ApprovalStateApproved; got != want {
-		t.Fatalf("approved.ApprovalState = %q, want %q", got, want)
+	if got, want := approved.Task.ApprovalState, ApprovalStateApproved; got != want {
+		t.Fatalf("approved.Task.ApprovalState = %q, want %q", got, want)
 	}
-	if got, want := approved.Status, TaskStatusReady; got != want {
-		t.Fatalf("approved.Status = %q, want %q", got, want)
+	if got, want := approved.Task.Status, TaskStatusReady; got != want {
+		t.Fatalf("approved.Task.Status = %q, want %q", got, want)
+	}
+	if got, want := approved.Run.Status, TaskRunStatusQueued; got != want {
+		t.Fatalf("approved.Run.Status = %q, want %q", got, want)
 	}
 
-	claimed, err := manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+	claimed, err := manager.ClaimRun(context.Background(), approved.Run.ID, ClaimRun{}, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(approved) error = %v", err)
 	}

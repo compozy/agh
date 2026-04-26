@@ -242,10 +242,26 @@ type StubTaskManager struct {
 	) (*taskpkg.Task, error)
 	DeleteTaskFn  func(context.Context, string, taskpkg.ActorContext) error
 	UpdateTaskFn  func(context.Context, string, taskpkg.Patch, taskpkg.ActorContext) (*taskpkg.Task, error)
-	PublishTaskFn func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
-	ApproveTaskFn func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
-	RejectTaskFn  func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
-	CancelTaskFn  func(
+	PublishTaskFn func(
+		context.Context,
+		string,
+		taskpkg.ExecutionRequest,
+		taskpkg.ActorContext,
+	) (*taskpkg.Execution, error)
+	StartTaskFn func(
+		context.Context,
+		string,
+		taskpkg.ExecutionRequest,
+		taskpkg.ActorContext,
+	) (*taskpkg.Execution, error)
+	ApproveTaskFn func(
+		context.Context,
+		string,
+		taskpkg.ExecutionRequest,
+		taskpkg.ActorContext,
+	) (*taskpkg.Execution, error)
+	RejectTaskFn func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
+	CancelTaskFn func(
 		context.Context,
 		string,
 		taskpkg.CancelTask,
@@ -582,10 +598,23 @@ func (s StubTaskManager) UpdateTask(
 func (s StubTaskManager) PublishTask(
 	ctx context.Context,
 	id string,
+	req taskpkg.ExecutionRequest,
 	actor taskpkg.ActorContext,
-) (*taskpkg.Task, error) {
+) (*taskpkg.Execution, error) {
 	if s.PublishTaskFn != nil {
-		return s.PublishTaskFn(ctx, id, actor)
+		return s.PublishTaskFn(ctx, id, req, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) StartTask(
+	ctx context.Context,
+	id string,
+	req taskpkg.ExecutionRequest,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Execution, error) {
+	if s.StartTaskFn != nil {
+		return s.StartTaskFn(ctx, id, req, actor)
 	}
 	return nil, taskpkg.ErrTaskNotFound
 }
@@ -593,10 +622,11 @@ func (s StubTaskManager) PublishTask(
 func (s StubTaskManager) ApproveTask(
 	ctx context.Context,
 	id string,
+	req taskpkg.ExecutionRequest,
 	actor taskpkg.ActorContext,
-) (*taskpkg.Task, error) {
+) (*taskpkg.Execution, error) {
 	if s.ApproveTaskFn != nil {
-		return s.ApproveTaskFn(ctx, id, actor)
+		return s.ApproveTaskFn(ctx, id, req, actor)
 	}
 	return nil, taskpkg.ErrTaskNotFound
 }

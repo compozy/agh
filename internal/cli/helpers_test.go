@@ -88,6 +88,9 @@ type stubClient struct {
 	createTaskFn              func(context.Context, CreateTaskRequest) (TaskRecord, error)
 	getTaskFn                 func(context.Context, string) (TaskDetailRecord, error)
 	updateTaskFn              func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
+	publishTaskFn             func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
+	startTaskFn               func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
+	approveTaskFn             func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
 	cancelTaskFn              func(context.Context, string, CancelTaskRequest) (TaskRecord, error)
 	createChildTaskFn         func(context.Context, string, CreateTaskChildRequest) (TaskRecord, error)
 	addTaskDependencyFn       func(context.Context, string, AddTaskDependencyRequest) (TaskDetailRecord, error)
@@ -743,6 +746,39 @@ func (s *stubClient) UpdateTask(
 		return s.updateTaskFn(ctx, id, request)
 	}
 	return TaskRecord{}, errors.New("unexpected UpdateTask call")
+}
+
+func (s *stubClient) PublishTask(
+	ctx context.Context,
+	id string,
+	request TaskExecutionRequest,
+) (TaskExecutionRecord, error) {
+	if s.publishTaskFn != nil {
+		return s.publishTaskFn(ctx, id, request)
+	}
+	return TaskExecutionRecord{}, errors.New("unexpected PublishTask call")
+}
+
+func (s *stubClient) StartTask(
+	ctx context.Context,
+	id string,
+	request TaskExecutionRequest,
+) (TaskExecutionRecord, error) {
+	if s.startTaskFn != nil {
+		return s.startTaskFn(ctx, id, request)
+	}
+	return TaskExecutionRecord{}, errors.New("unexpected StartTask call")
+}
+
+func (s *stubClient) ApproveTask(
+	ctx context.Context,
+	id string,
+	request TaskExecutionRequest,
+) (TaskExecutionRecord, error) {
+	if s.approveTaskFn != nil {
+		return s.approveTaskFn(ctx, id, request)
+	}
+	return TaskExecutionRecord{}, errors.New("unexpected ApproveTask call")
 }
 
 func (s *stubClient) CancelTask(

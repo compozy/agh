@@ -206,6 +206,7 @@ func newHandlerFixtureWithAutomationAndTasks(
 	engine.DELETE("/tasks/:id", handlers.DeleteTask)
 	engine.PATCH("/tasks/:id", handlers.UpdateTask)
 	engine.POST("/tasks/:id/publish", handlers.PublishTask)
+	engine.POST("/tasks/:id/start", handlers.StartTask)
 	engine.POST("/tasks/:id/cancel", handlers.CancelTask)
 	engine.POST("/tasks/:id/children", handlers.CreateChildTask)
 	engine.POST("/tasks/:id/dependencies", handlers.AddTaskDependency)

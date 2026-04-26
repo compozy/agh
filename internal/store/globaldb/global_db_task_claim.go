@@ -369,6 +369,7 @@ func (g *GlobalDB) selectClaimableRunID(
 ) (string, error) {
 	where := []string{
 		"tr.status = ?",
+		"t.status NOT IN (?, ?, ?)",
 		taskPriorityValueSQL + " >= ?",
 		`NOT EXISTS (
 			SELECT 1
@@ -376,7 +377,13 @@ func (g *GlobalDB) selectClaimableRunID(
 			 WHERE req.run_id = tr.id` + missingCapabilityPredicate(criteria.RequiredCapabilities) + `
 		)`,
 	}
-	args := []any{string(taskpkg.TaskRunStatusQueued), criteria.PriorityMin}
+	args := []any{
+		string(taskpkg.TaskRunStatusQueued),
+		string(taskpkg.TaskStatusDraft),
+		string(taskpkg.TaskStatusBlocked),
+		string(taskpkg.TaskStatusCanceled),
+		criteria.PriorityMin,
+	}
 	args = append(args, missingCapabilityArgs(criteria.RequiredCapabilities)...)
 	if criteria.Scope == taskpkg.ScopeWorkspace {
 		where = append(where, "t.scope = ?", "t.workspace_id = ?")

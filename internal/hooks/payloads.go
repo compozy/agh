@@ -730,6 +730,8 @@ type TaskRunContext struct {
 	SessionID             string    `json:"session_id,omitempty"`
 	ActorKind             string    `json:"actor_kind,omitempty"`
 	ActorRef              string    `json:"actor_ref,omitempty"`
+	OriginKind            string    `json:"origin_kind,omitempty"`
+	OriginRef             string    `json:"origin_ref,omitempty"`
 	TaskStatus            string    `json:"task_status,omitempty"`
 	RunStatus             string    `json:"run_status,omitempty"`
 	Attempt               int       `json:"attempt,omitempty"`

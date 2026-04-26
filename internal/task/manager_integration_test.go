@@ -312,12 +312,11 @@ func TestTaskManagerPublishTaskReconcilesDraftLifecycleIntegration(t *testing.T)
 		t.Fatalf("EnqueueRun(draft) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
 	}
 
-	published, err := manager.PublishTask(ctx, target.ID, actor)
-	if err != nil {
-		t.Fatalf("PublishTask() error = %v", err)
-	}
-	if got, want := published.Status, taskpkg.TaskStatusBlocked; got != want {
-		t.Fatalf("published.Status = %q, want %q", got, want)
+	if _, err := manager.PublishTask(ctx, target.ID, taskpkg.ExecutionRequest{}, actor); !errors.Is(
+		err,
+		taskpkg.ErrInvalidStatusTransition,
+	) {
+		t.Fatalf("PublishTask(blocked) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
 	}
 
 	blockerRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: blocker.ID}, actor)
@@ -342,8 +341,19 @@ func TestTaskManagerPublishTaskReconcilesDraftLifecycleIntegration(t *testing.T)
 	if err != nil {
 		t.Fatalf("GetTask(target) error = %v", err)
 	}
-	if got, want := reloadedTarget.Status, taskpkg.TaskStatusReady; got != want {
+	if got, want := reloadedTarget.Status, taskpkg.TaskStatusDraft; got != want {
 		t.Fatalf("reloadedTarget.Status = %q, want %q", got, want)
+	}
+
+	published, err := manager.PublishTask(ctx, target.ID, taskpkg.ExecutionRequest{}, actor)
+	if err != nil {
+		t.Fatalf("PublishTask(unblocked) error = %v", err)
+	}
+	if got, want := published.Task.Status, taskpkg.TaskStatusReady; got != want {
+		t.Fatalf("published.Task.Status = %q, want %q", got, want)
+	}
+	if got, want := published.Run.Status, taskpkg.TaskRunStatusQueued; got != want {
+		t.Fatalf("published.Run.Status = %q, want %q", got, want)
 	}
 
 	events, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: target.ID})
@@ -397,12 +407,11 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 	}, actor); err != nil {
 		t.Fatalf("AddDependency() error = %v", err)
 	}
-	published, err := firstManager.PublishTask(ctx, target.ID, actor)
-	if err != nil {
-		t.Fatalf("PublishTask() error = %v", err)
-	}
-	if got, want := published.Status, taskpkg.TaskStatusBlocked; got != want {
-		t.Fatalf("published.Status = %q, want %q", got, want)
+	if _, err := firstManager.PublishTask(ctx, target.ID, taskpkg.ExecutionRequest{}, actor); !errors.Is(
+		err,
+		taskpkg.ErrInvalidStatusTransition,
+	) {
+		t.Fatalf("PublishTask(blocked) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
 	}
 
 	blockerRun, err := firstManager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: blocker.ID}, actor)
@@ -421,6 +430,17 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 		Value: json.RawMessage(`{"ok":true}`),
 	}, actor); err != nil {
 		t.Fatalf("CompleteRun(blocker) error = %v", err)
+	}
+
+	published, err := firstManager.PublishTask(ctx, target.ID, taskpkg.ExecutionRequest{}, actor)
+	if err != nil {
+		t.Fatalf("PublishTask(unblocked) error = %v", err)
+	}
+	if got, want := published.Task.Status, taskpkg.TaskStatusReady; got != want {
+		t.Fatalf("published.Task.Status = %q, want %q", got, want)
+	}
+	if got, want := published.Run.Status, taskpkg.TaskRunStatusQueued; got != want {
+		t.Fatalf("published.Run.Status = %q, want %q", got, want)
 	}
 
 	if err := first.Close(ctx); err != nil {
@@ -577,34 +597,35 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 		t.Fatalf("taskRecord.Status = %q, want %q", got, want)
 	}
 
-	run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
+	runsBeforeApproval, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
 	if err != nil {
-		t.Fatalf("EnqueueRun() error = %v", err)
+		t.Fatalf("ListTaskRuns(before approval) error = %v", err)
 	}
-	if _, err := manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor); !errors.Is(
-		err,
-		taskpkg.ErrInvalidStatusTransition,
-	) {
-		t.Fatalf("ClaimRun(blocked) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+	if len(runsBeforeApproval) != 0 {
+		t.Fatalf("runs before approval = %d, want 0", len(runsBeforeApproval))
 	}
 
-	approved, err := manager.ApproveTask(ctx, taskRecord.ID, actor)
+	approved, err := manager.ApproveTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{}, actor)
 	if err != nil {
 		t.Fatalf("ApproveTask() error = %v", err)
 	}
-	if got, want := approved.ApprovalState, taskpkg.ApprovalStateApproved; got != want {
-		t.Fatalf("approved.ApprovalState = %q, want %q", got, want)
+	if got, want := approved.Task.ApprovalState, taskpkg.ApprovalStateApproved; got != want {
+		t.Fatalf("approved.Task.ApprovalState = %q, want %q", got, want)
+	}
+	if got, want := approved.Run.Status, taskpkg.TaskRunStatusQueued; got != want {
+		t.Fatalf("approved.Run.Status = %q, want %q", got, want)
 	}
 
-	run, err = manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
+	run := approved.Run
+	claimedRun, err := manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(approved) error = %v", err)
 	}
-	run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
+	startedRun, err := manager.StartRun(ctx, claimedRun.ID, taskpkg.StartRun{}, actor)
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
 	}
-	if _, err := manager.FailRun(ctx, run.ID, taskpkg.RunFailure{
+	if _, err := manager.FailRun(ctx, startedRun.ID, taskpkg.RunFailure{
 		Error: "approval path failed",
 	}, actor); err != nil {
 		t.Fatalf("FailRun() error = %v", err)
@@ -634,6 +655,142 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 	}
 	if !containsEventType(events, "task.approved") {
 		t.Fatalf("event types = %#v, want task.approved", sortedEventTypes(events))
+	}
+}
+
+func TestTaskManagerStartBoundaryCreatesChannelAndClaimableRunIntegration(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openTaskManagerGlobalDB(t)
+	workspaceID := registerTaskManagerWorkspace(t, db, "start-boundary", filepath.Join(t.TempDir(), "workspace"))
+	manager := newTaskManagerIntegration(t, db)
+
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task start")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: workspaceID,
+		Title:       "Manual start boundary",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	runsBefore, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskRuns(before start) error = %v", err)
+	}
+	if len(runsBefore) != 0 {
+		t.Fatalf("runs before start = %d, want 0", len(runsBefore))
+	}
+	channelsBefore, err := db.ListNetworkChannels(ctx, store.NetworkChannelQuery{WorkspaceID: workspaceID})
+	if err != nil {
+		t.Fatalf("ListNetworkChannels(before start) error = %v", err)
+	}
+	if len(channelsBefore) != 0 {
+		t.Fatalf("channels before start = %d, want 0", len(channelsBefore))
+	}
+
+	execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{}, actor)
+	if err != nil {
+		t.Fatalf("StartTask() error = %v", err)
+	}
+	if execution.Run.CoordinationChannelID == "" {
+		t.Fatal("StartTask().Run.CoordinationChannelID = empty, want derived channel")
+	}
+	channelsAfter, err := db.ListNetworkChannels(ctx, store.NetworkChannelQuery{WorkspaceID: workspaceID})
+	if err != nil {
+		t.Fatalf("ListNetworkChannels(after start) error = %v", err)
+	}
+	if len(channelsAfter) != 1 || channelsAfter[0].Channel != execution.Run.CoordinationChannelID {
+		t.Fatalf("channels after start = %#v, want one derived channel %q", channelsAfter, execution.Run.CoordinationChannelID)
+	}
+
+	claimActor, err := taskpkg.DeriveAgentSessionActorContext("sess-worker")
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+	}
+	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      workspaceID,
+		ClaimerSessionID: "sess-worker",
+		LeaseDuration:    time.Minute,
+	}, claimActor)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	if got, want := claim.Run.ID, execution.Run.ID; got != want {
+		t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", got, want)
+	}
+	if claim.CoordinationChannel == nil || claim.CoordinationChannel.ID != execution.Run.CoordinationChannelID {
+		t.Fatalf("ClaimNextRun().CoordinationChannel = %#v, want %q", claim.CoordinationChannel, execution.Run.CoordinationChannelID)
+	}
+}
+
+func TestTaskManagerAgentCreatedTaskApprovesThenClaimsIntegration(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openTaskManagerGlobalDB(t)
+	workspaceID := registerTaskManagerWorkspace(t, db, "approval-boundary", filepath.Join(t.TempDir(), "workspace"))
+	manager := newTaskManagerIntegration(t, db)
+
+	agentActor, err := taskpkg.DeriveAgentSessionActorContext("sess-author")
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext(author) error = %v", err)
+	}
+	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    workspaceID,
+		Title:          "Agent approval boundary",
+		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+	}, agentActor)
+	if err != nil {
+		t.Fatalf("CreateTask(agent) error = %v", err)
+	}
+	if got, want := taskRecord.CreatedBy.Kind, taskpkg.ActorKindAgentSession; got != want {
+		t.Fatalf("task.CreatedBy.Kind = %q, want %q", got, want)
+	}
+	runsBefore, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskRuns(before approval) error = %v", err)
+	}
+	if len(runsBefore) != 0 {
+		t.Fatalf("runs before approval = %d, want 0", len(runsBefore))
+	}
+
+	operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task approve")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	execution, err := manager.ApproveTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{}, operator)
+	if err != nil {
+		t.Fatalf("ApproveTask() error = %v", err)
+	}
+	if got, want := execution.Task.ApprovalState, taskpkg.ApprovalStateApproved; got != want {
+		t.Fatalf("execution.Task.ApprovalState = %q, want %q", got, want)
+	}
+	if execution.Run.CoordinationChannelID == "" {
+		t.Fatal("ApproveTask().Run.CoordinationChannelID = empty, want derived channel")
+	}
+
+	worker, err := taskpkg.DeriveAgentSessionActorContext("sess-worker")
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext(worker) error = %v", err)
+	}
+	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      workspaceID,
+		ClaimerSessionID: "sess-worker",
+		LeaseDuration:    time.Minute,
+	}, worker)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	if got, want := claim.Run.ID, execution.Run.ID; got != want {
+		t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", got, want)
 	}
 }
 

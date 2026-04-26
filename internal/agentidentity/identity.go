@@ -29,6 +29,8 @@ const (
 )
 
 const (
+	agentCommandFailedMessage = "agent command failed"
+
 	// ExitOK reports successful agent command execution.
 	ExitOK = 0
 	// ExitIdentityRequired reports missing caller identity input.
@@ -293,7 +295,7 @@ func ErrorPayloadFor(err error) ErrorPayload {
 		payload.Action = strings.TrimSpace(identityErr.Action)
 	}
 	if payload.Message == "" {
-		payload.Message = "agent command failed"
+		payload.Message = agentCommandFailedMessage
 	}
 	if payload.Action == "" {
 		payload.Action = "inspect the daemon error and retry"

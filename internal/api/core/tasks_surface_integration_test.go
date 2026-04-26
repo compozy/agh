@@ -266,8 +266,8 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 17, 14, 30, 0, 0, time.UTC)
-	calls := make([]string, 0, 6)
-	origins := make([]string, 0, 6)
+	calls := make([]string, 0, 7)
+	origins := make([]string, 0, 7)
 
 	appendCall := func(name string, actor taskpkg.ActorContext) {
 		calls = append(calls, name)
@@ -275,13 +275,35 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 	}
 
 	tasks := testutil.StubTaskManager{
-		PublishTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+		PublishTaskFn: func(
+			_ context.Context,
+			id string,
+			_ taskpkg.ExecutionRequest,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.Execution, error) {
 			appendCall("publish", actor)
-			return &taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Publish", Status: taskpkg.TaskStatusReady, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}, nil
+			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Publish", Status: taskpkg.TaskStatusReady, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
+			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{ID: "run-publish", TaskID: id, Status: taskpkg.TaskRunStatusQueued, Attempt: 1, Origin: actor.Origin, QueuedAt: now}}, nil
 		},
-		ApproveTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+		StartTaskFn: func(
+			_ context.Context,
+			id string,
+			_ taskpkg.ExecutionRequest,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.Execution, error) {
+			appendCall("start", actor)
+			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Start", Status: taskpkg.TaskStatusReady, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
+			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{ID: "run-start", TaskID: id, Status: taskpkg.TaskRunStatusQueued, Attempt: 1, Origin: actor.Origin, QueuedAt: now}}, nil
+		},
+		ApproveTaskFn: func(
+			_ context.Context,
+			id string,
+			_ taskpkg.ExecutionRequest,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.Execution, error) {
 			appendCall("approve", actor)
-			return &taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Approve", Status: taskpkg.TaskStatusReady, ApprovalPolicy: taskpkg.ApprovalPolicyManual, ApprovalState: taskpkg.ApprovalStateApproved, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}, nil
+			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Approve", Status: taskpkg.TaskStatusReady, ApprovalPolicy: taskpkg.ApprovalPolicyManual, ApprovalState: taskpkg.ApprovalStateApproved, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
+			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{ID: "run-approve", TaskID: id, Status: taskpkg.TaskRunStatusQueued, Attempt: 1, Origin: actor.Origin, QueuedAt: now}}, nil
 		},
 		RejectTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
 			appendCall("reject", actor)
@@ -306,25 +328,30 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}
 
-	for _, path := range []string{
-		"/tasks/task-1/publish",
-		"/tasks/task-1/approve",
-		"/tasks/task-1/reject",
-		"/tasks/task-1/triage/read",
-		"/tasks/task-1/triage/archive",
-		"/tasks/task-1/triage/dismiss",
+	for _, tc := range []struct {
+		path string
+		want int
+	}{
+		{path: "/tasks/task-1/publish", want: http.StatusOK},
+		{path: "/tasks/task-1/start", want: http.StatusCreated},
+		{path: "/tasks/task-1/approve", want: http.StatusCreated},
+		{path: "/tasks/task-1/reject", want: http.StatusOK},
+		{path: "/tasks/task-1/triage/read", want: http.StatusOK},
+		{path: "/tasks/task-1/triage/archive", want: http.StatusOK},
+		{path: "/tasks/task-1/triage/dismiss", want: http.StatusOK},
 	} {
-		resp := performRequest(t, fixture.Engine, http.MethodPost, path, nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("%s status = %d, want %d; body=%s", path, resp.Code, http.StatusOK, resp.Body.String())
+		resp := performRequest(t, fixture.Engine, http.MethodPost, tc.path, nil)
+		if resp.Code != tc.want {
+			t.Fatalf("%s status = %d, want %d; body=%s", tc.path, resp.Code, tc.want, resp.Body.String())
 		}
 	}
 
-	if want := []string{"publish", "approve", "reject", "read", "archive", "dismiss"}; !reflect.DeepEqual(calls, want) {
+	if want := []string{"publish", "start", "approve", "reject", "read", "archive", "dismiss"}; !reflect.DeepEqual(calls, want) {
 		t.Fatalf("mutation calls = %#v, want %#v", calls, want)
 	}
 	if want := []string{
 		"tasks.publish",
+		"tasks.start",
 		"tasks.approve",
 		"tasks.reject",
 		"tasks.triage_read",

@@ -68,6 +68,23 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	if len(listed.Sessions) != 1 || listed.Sessions[0].ID != created.Session.ID {
 		t.Fatalf("listed sessions = %#v", listed.Sessions)
 	}
+	tasksAfterManualSession, err := runtime.registry.ListTasks(context.Background(), taskpkg.Query{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListTasks(after manual session) error = %v", err)
+	}
+	if len(tasksAfterManualSession) != 0 {
+		t.Fatalf("tasks after manual session = %#v, want none", tasksAfterManualSession)
+	}
+	runsAfterManualSession, err := runtime.registry.ListTaskRunsByStatus(
+		context.Background(),
+		[]taskpkg.RunStatus{taskpkg.TaskRunStatusQueued, taskpkg.TaskRunStatusClaimed, taskpkg.TaskRunStatusStarting, taskpkg.TaskRunStatusRunning},
+	)
+	if err != nil {
+		t.Fatalf("ListTaskRunsByStatus(after manual session) error = %v", err)
+	}
+	if len(runsAfterManualSession) != 0 {
+		t.Fatalf("open task runs after manual session = %#v, want none", runsAfterManualSession)
+	}
 
 	promptResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/sessions/"+created.Session.ID+"/prompt", []byte(`{"message":"hello"}`), nil)
 	if promptResp.StatusCode != http.StatusOK {
@@ -1192,19 +1209,29 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("draft status = %q, want %q", draft.Status, taskpkg.TaskStatusDraft)
 	}
 
-	publishResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+draft.ID+"/publish", nil, nil)
+	publishResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		"http://unix/api/tasks/"+draft.ID+"/publish",
+		[]byte(`{"idempotency_key":"publish-live-1","network_channel":"builders"}`),
+		nil,
+	)
 	if publishResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(publishResp.Body)
 		_ = publishResp.Body.Close()
 		t.Fatalf("publish task status = %d, want %d; body=%s", publishResp.StatusCode, http.StatusOK, string(body))
 	}
-	var published contract.TaskResponse
+	var published contract.TaskExecutionResponse
 	decodeHTTPJSON(t, publishResp, &published)
 	if published.Task.Status != taskpkg.TaskStatusReady {
 		t.Fatalf("published status = %q, want %q", published.Task.Status, taskpkg.TaskStatusReady)
 	}
+	if published.Run.Status != taskpkg.TaskRunStatusQueued {
+		t.Fatalf("published run status = %q, want %q", published.Run.Status, taskpkg.TaskRunStatusQueued)
+	}
 
-	run := enqueueIntegrationTaskRun(t, runtime, draft.ID, `{"idempotency_key":"enqueue-live-1","network_channel":"builders"}`)
+	run := published.Run
 	claimIntegrationTaskRun(t, runtime, run.ID, `{"idempotency_key":"claim-live-1"}`)
 
 	startResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/task-runs/"+run.ID+"/start", []byte(`{"idempotency_key":"start-live-1"}`), nil)
@@ -1357,24 +1384,31 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 	}
 
 	approveResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+approvalTask.ID+"/approve", nil, nil)
-	if approveResp.StatusCode != http.StatusOK {
+	if approveResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(approveResp.Body)
 		_ = approveResp.Body.Close()
-		t.Fatalf("approve status = %d, want %d; body=%s", approveResp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf("approve status = %d, want %d; body=%s", approveResp.StatusCode, http.StatusCreated, string(body))
 	}
-	var approved contract.TaskResponse
+	var approved contract.TaskExecutionResponse
 	decodeHTTPJSON(t, approveResp, &approved)
 	if approved.Task.ApprovalState != taskpkg.ApprovalStateApproved {
 		t.Fatalf("approved approval_state = %q, want %q", approved.Task.ApprovalState, taskpkg.ApprovalStateApproved)
 	}
+	if approved.Run.Status != taskpkg.TaskRunStatusQueued {
+		t.Fatalf("approved run status = %q, want %q", approved.Run.Status, taskpkg.TaskRunStatusQueued)
+	}
 
 	approveAgainResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+approvalTask.ID+"/approve", nil, nil)
-	if approveAgainResp.StatusCode != http.StatusConflict {
+	if approveAgainResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(approveAgainResp.Body)
 		_ = approveAgainResp.Body.Close()
-		t.Fatalf("approve again status = %d, want %d; body=%s", approveAgainResp.StatusCode, http.StatusConflict, string(body))
+		t.Fatalf("approve again status = %d, want %d; body=%s", approveAgainResp.StatusCode, http.StatusCreated, string(body))
 	}
-	_ = approveAgainResp.Body.Close()
+	var approvedAgain contract.TaskExecutionResponse
+	decodeHTTPJSON(t, approveAgainResp, &approvedAgain)
+	if approvedAgain.Run.ID != approved.Run.ID {
+		t.Fatalf("approve again run id = %q, want %q", approvedAgain.Run.ID, approved.Run.ID)
+	}
 
 	rejectResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+rejectTask.ID+"/reject", nil, nil)
 	if rejectResp.StatusCode != http.StatusOK {

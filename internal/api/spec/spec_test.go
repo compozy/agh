@@ -361,6 +361,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/tasks/{id}", method: "GET"},
 					{path: "/api/tasks/{id}", method: "PATCH"},
 					{path: "/api/tasks/{id}/publish", method: "POST"},
+					{path: "/api/tasks/{id}/start", method: "POST"},
 					{path: "/api/tasks/{id}/cancel", method: "POST"},
 					{path: "/api/tasks/{id}/children", method: "POST"},
 					{path: "/api/tasks/{id}/dependencies", method: "POST"},
@@ -732,8 +733,21 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				publishTask := operationFor(t, doc, "/api/tasks/{id}/publish", "POST")
 				assertParameter(t, publishTask, "id", openapi3.ParameterInPath, true)
+				publishTaskSchema := jsonRequestSchema(t, publishTask)
+				assertNotRequired(t, publishTaskSchema, "idempotency_key", "network_channel", "metadata")
+				publishTaskResponse := jsonResponseSchema(t, publishTask, 200)
+				assertRequired(t, publishTaskResponse, "task", "run")
 				assertResponseStatus(t, publishTask, 409)
 				assertResponseStatus(t, publishTask, 422)
+
+				startTask := operationFor(t, doc, "/api/tasks/{id}/start", "POST")
+				assertParameter(t, startTask, "id", openapi3.ParameterInPath, true)
+				startTaskSchema := jsonRequestSchema(t, startTask)
+				assertNotRequired(t, startTaskSchema, "idempotency_key", "network_channel", "metadata")
+				startTaskResponse := jsonResponseSchema(t, startTask, 201)
+				assertRequired(t, startTaskResponse, "task", "run")
+				assertResponseStatus(t, startTask, 409)
+				assertResponseStatus(t, startTask, 422)
 			},
 		},
 		{
@@ -781,6 +795,10 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertNotRequired(t, treePayload, "descendants")
 
 				approve := operationFor(t, doc, "/api/tasks/{id}/approve", "POST")
+				approveSchema := jsonRequestSchema(t, approve)
+				assertNotRequired(t, approveSchema, "idempotency_key", "network_channel", "metadata")
+				approveResponse := jsonResponseSchema(t, approve, 201)
+				assertRequired(t, approveResponse, "task", "run")
 				assertResponseStatus(t, approve, 409)
 				assertResponseStatus(t, approve, 422)
 

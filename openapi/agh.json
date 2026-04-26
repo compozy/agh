@@ -34858,12 +34858,214 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "idempotency_key": {
+                                        "type": "string"
+                                    },
+                                    "metadata": {},
+                                    "network_channel": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
                 "responses": {
-                    "200": {
+                    "201": {
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "run": {
+                                            "properties": {
+                                                "attempt": {
+                                                    "type": "integer"
+                                                },
+                                                "claim_token_hash": {
+                                                    "type": "string"
+                                                },
+                                                "claimed_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "claimed_by": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "kind": {
+                                                            "enum": [
+                                                                "human",
+                                                                "agent_session",
+                                                                "automation",
+                                                                "extension",
+                                                                "network_peer",
+                                                                "daemon"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "ref": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind", "ref"],
+                                                    "type": "object"
+                                                },
+                                                "coordination_channel": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "allowed_message_kinds": {
+                                                            "items": {
+                                                                "enum": [
+                                                                    "status",
+                                                                    "request",
+                                                                    "reply",
+                                                                    "blocker",
+                                                                    "handoff",
+                                                                    "result",
+                                                                    "review_request"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "channel": {
+                                                            "type": "string"
+                                                        },
+                                                        "display_name": {
+                                                            "type": "string"
+                                                        },
+                                                        "id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_activity_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "purpose": {
+                                                            "type": "string"
+                                                        },
+                                                        "run_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "task_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "workflow_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "workspace_id": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "allowed_message_kinds",
+                                                        "display_name",
+                                                        "id"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "coordination_channel_id": {
+                                                    "type": "string"
+                                                },
+                                                "ended_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "error": {
+                                                    "type": "string"
+                                                },
+                                                "heartbeat_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "idempotency_key": {
+                                                    "type": "string"
+                                                },
+                                                "lease_until": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "metadata": {},
+                                                "network_channel": {
+                                                    "type": "string"
+                                                },
+                                                "origin": {
+                                                    "properties": {
+                                                        "kind": {
+                                                            "enum": [
+                                                                "cli",
+                                                                "web",
+                                                                "uds",
+                                                                "http",
+                                                                "automation",
+                                                                "extension",
+                                                                "network",
+                                                                "agent_session",
+                                                                "daemon"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "ref": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind", "ref"],
+                                                    "type": "object"
+                                                },
+                                                "queued_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "result": {},
+                                                "session_id": {
+                                                    "type": "string"
+                                                },
+                                                "started_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "enum": [
+                                                        "queued",
+                                                        "claimed",
+                                                        "starting",
+                                                        "running",
+                                                        "completed",
+                                                        "failed",
+                                                        "canceled"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "task_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "attempt",
+                                                "id",
+                                                "origin",
+                                                "queued_at",
+                                                "status",
+                                                "task_id"
+                                            ],
+                                            "type": "object"
+                                        },
                                         "task": {
                                             "properties": {
                                                 "approval_policy": {
@@ -35019,12 +35221,12 @@
                                             "type": "object"
                                         }
                                     },
-                                    "required": ["task"],
+                                    "required": ["run", "task"],
                                     "type": "object"
                                 }
                             }
                         },
-                        "description": "OK"
+                        "description": "Created"
                     },
                     "404": {
                         "content": {
@@ -35110,7 +35312,7 @@
                         "description": ""
                     }
                 },
-                "summary": "Approve one approval-gated task",
+                "summary": "Approve one approval-gated task and enqueue executable work",
                 "tags": ["tasks"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -38847,12 +39049,214 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "idempotency_key": {
+                                        "type": "string"
+                                    },
+                                    "metadata": {},
+                                    "network_channel": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
                 "responses": {
                     "200": {
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "run": {
+                                            "properties": {
+                                                "attempt": {
+                                                    "type": "integer"
+                                                },
+                                                "claim_token_hash": {
+                                                    "type": "string"
+                                                },
+                                                "claimed_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "claimed_by": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "kind": {
+                                                            "enum": [
+                                                                "human",
+                                                                "agent_session",
+                                                                "automation",
+                                                                "extension",
+                                                                "network_peer",
+                                                                "daemon"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "ref": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind", "ref"],
+                                                    "type": "object"
+                                                },
+                                                "coordination_channel": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "allowed_message_kinds": {
+                                                            "items": {
+                                                                "enum": [
+                                                                    "status",
+                                                                    "request",
+                                                                    "reply",
+                                                                    "blocker",
+                                                                    "handoff",
+                                                                    "result",
+                                                                    "review_request"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "channel": {
+                                                            "type": "string"
+                                                        },
+                                                        "display_name": {
+                                                            "type": "string"
+                                                        },
+                                                        "id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_activity_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "purpose": {
+                                                            "type": "string"
+                                                        },
+                                                        "run_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "task_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "workflow_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "workspace_id": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "allowed_message_kinds",
+                                                        "display_name",
+                                                        "id"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "coordination_channel_id": {
+                                                    "type": "string"
+                                                },
+                                                "ended_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "error": {
+                                                    "type": "string"
+                                                },
+                                                "heartbeat_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "idempotency_key": {
+                                                    "type": "string"
+                                                },
+                                                "lease_until": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "metadata": {},
+                                                "network_channel": {
+                                                    "type": "string"
+                                                },
+                                                "origin": {
+                                                    "properties": {
+                                                        "kind": {
+                                                            "enum": [
+                                                                "cli",
+                                                                "web",
+                                                                "uds",
+                                                                "http",
+                                                                "automation",
+                                                                "extension",
+                                                                "network",
+                                                                "agent_session",
+                                                                "daemon"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "ref": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind", "ref"],
+                                                    "type": "object"
+                                                },
+                                                "queued_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "result": {},
+                                                "session_id": {
+                                                    "type": "string"
+                                                },
+                                                "started_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "enum": [
+                                                        "queued",
+                                                        "claimed",
+                                                        "starting",
+                                                        "running",
+                                                        "completed",
+                                                        "failed",
+                                                        "canceled"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "task_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "attempt",
+                                                "id",
+                                                "origin",
+                                                "queued_at",
+                                                "status",
+                                                "task_id"
+                                            ],
+                                            "type": "object"
+                                        },
                                         "task": {
                                             "properties": {
                                                 "approval_policy": {
@@ -39008,7 +39412,7 @@
                                             "type": "object"
                                         }
                                     },
-                                    "required": ["task"],
+                                    "required": ["run", "task"],
                                     "type": "object"
                                 }
                             }
@@ -39099,7 +39503,7 @@
                         "description": ""
                     }
                 },
-                "summary": "Publish one draft task",
+                "summary": "Publish one draft task and enqueue executable work",
                 "tags": ["tasks"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -40008,6 +40412,479 @@
                     }
                 },
                 "summary": "Enqueue one task run",
+                "tags": ["tasks"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/tasks/{id}/start": {
+            "post": {
+                "operationId": "startTask",
+                "parameters": [
+                    {
+                        "description": "Task id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "idempotency_key": {
+                                        "type": "string"
+                                    },
+                                    "metadata": {},
+                                    "network_channel": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "run": {
+                                            "properties": {
+                                                "attempt": {
+                                                    "type": "integer"
+                                                },
+                                                "claim_token_hash": {
+                                                    "type": "string"
+                                                },
+                                                "claimed_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "claimed_by": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "kind": {
+                                                            "enum": [
+                                                                "human",
+                                                                "agent_session",
+                                                                "automation",
+                                                                "extension",
+                                                                "network_peer",
+                                                                "daemon"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "ref": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind", "ref"],
+                                                    "type": "object"
+                                                },
+                                                "coordination_channel": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "allowed_message_kinds": {
+                                                            "items": {
+                                                                "enum": [
+                                                                    "status",
+                                                                    "request",
+                                                                    "reply",
+                                                                    "blocker",
+                                                                    "handoff",
+                                                                    "result",
+                                                                    "review_request"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "channel": {
+                                                            "type": "string"
+                                                        },
+                                                        "display_name": {
+                                                            "type": "string"
+                                                        },
+                                                        "id": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_activity_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "purpose": {
+                                                            "type": "string"
+                                                        },
+                                                        "run_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "task_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "workflow_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "workspace_id": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "allowed_message_kinds",
+                                                        "display_name",
+                                                        "id"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "coordination_channel_id": {
+                                                    "type": "string"
+                                                },
+                                                "ended_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "error": {
+                                                    "type": "string"
+                                                },
+                                                "heartbeat_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "idempotency_key": {
+                                                    "type": "string"
+                                                },
+                                                "lease_until": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "metadata": {},
+                                                "network_channel": {
+                                                    "type": "string"
+                                                },
+                                                "origin": {
+                                                    "properties": {
+                                                        "kind": {
+                                                            "enum": [
+                                                                "cli",
+                                                                "web",
+                                                                "uds",
+                                                                "http",
+                                                                "automation",
+                                                                "extension",
+                                                                "network",
+                                                                "agent_session",
+                                                                "daemon"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "ref": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind", "ref"],
+                                                    "type": "object"
+                                                },
+                                                "queued_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "result": {},
+                                                "session_id": {
+                                                    "type": "string"
+                                                },
+                                                "started_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "enum": [
+                                                        "queued",
+                                                        "claimed",
+                                                        "starting",
+                                                        "running",
+                                                        "completed",
+                                                        "failed",
+                                                        "canceled"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "task_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "attempt",
+                                                "id",
+                                                "origin",
+                                                "queued_at",
+                                                "status",
+                                                "task_id"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "task": {
+                                            "properties": {
+                                                "approval_policy": {
+                                                    "enum": ["none", "manual"],
+                                                    "type": "string"
+                                                },
+                                                "approval_state": {
+                                                    "enum": [
+                                                        "not_required",
+                                                        "pending",
+                                                        "approved",
+                                                        "rejected"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "closed_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "created_by": {
+                                                    "properties": {
+                                                        "kind": {
+                                                            "enum": [
+                                                                "human",
+                                                                "agent_session",
+                                                                "automation",
+                                                                "extension",
+                                                                "network_peer",
+                                                                "daemon"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "ref": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind", "ref"],
+                                                    "type": "object"
+                                                },
+                                                "description": {
+                                                    "type": "string"
+                                                },
+                                                "draft": {
+                                                    "type": "boolean"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "identifier": {
+                                                    "type": "string"
+                                                },
+                                                "max_attempts": {
+                                                    "type": "integer"
+                                                },
+                                                "metadata": {},
+                                                "network_channel": {
+                                                    "type": "string"
+                                                },
+                                                "origin": {
+                                                    "properties": {
+                                                        "kind": {
+                                                            "enum": [
+                                                                "cli",
+                                                                "web",
+                                                                "uds",
+                                                                "http",
+                                                                "automation",
+                                                                "extension",
+                                                                "network",
+                                                                "agent_session",
+                                                                "daemon"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "ref": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind", "ref"],
+                                                    "type": "object"
+                                                },
+                                                "owner": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "kind": {
+                                                            "enum": [
+                                                                "human",
+                                                                "agent_session",
+                                                                "automation",
+                                                                "extension",
+                                                                "network_peer",
+                                                                "pool"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "ref": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["kind", "ref"],
+                                                    "type": "object"
+                                                },
+                                                "parent_task_id": {
+                                                    "type": "string"
+                                                },
+                                                "priority": {
+                                                    "enum": ["low", "medium", "high", "urgent"],
+                                                    "type": "string"
+                                                },
+                                                "scope": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "enum": [
+                                                        "draft",
+                                                        "pending",
+                                                        "blocked",
+                                                        "ready",
+                                                        "in_progress",
+                                                        "completed",
+                                                        "failed",
+                                                        "canceled"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "created_at",
+                                                "created_by",
+                                                "id",
+                                                "origin",
+                                                "scope",
+                                                "status",
+                                                "title",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["run", "task"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Task not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Task start conflict"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid task start request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Task service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Start one task by enqueueing executable work",
                 "tags": ["tasks"],
                 "x-agh-transports": ["http", "uds"]
             }

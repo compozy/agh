@@ -129,6 +129,12 @@ type TaskResponse struct {
 	Task TaskPayload `json:"task"`
 }
 
+// TaskExecutionResponse wraps one explicit task execution-boundary result.
+type TaskExecutionResponse struct {
+	Task TaskPayload    `json:"task"`
+	Run  TaskRunPayload `json:"run"`
+}
+
 // TaskDetailResponse wraps one shared expanded task payload.
 type TaskDetailResponse struct {
 	Task TaskDetailPayload `json:"task"`

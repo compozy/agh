@@ -1797,7 +1797,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Approve one approval-gated task */
+    /** Approve one approval-gated task and enqueue executable work */
     post: operations["approveTask"];
     delete?: never;
     options?: never;
@@ -1882,7 +1882,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Publish one draft task */
+    /** Publish one draft task and enqueue executable work */
     post: operations["publishTask"];
     delete?: never;
     options?: never;
@@ -1919,6 +1919,23 @@ export interface paths {
     put?: never;
     /** Enqueue one task run */
     post: operations["enqueueTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/start": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start one task by enqueueing executable work */
+    post: operations["startTask"];
     delete?: never;
     options?: never;
     head?: never;
@@ -19316,15 +19333,104 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          idempotency_key?: string;
+          metadata?: unknown;
+          network_channel?: string;
+        };
+      };
+    };
     responses: {
-      /** @description OK */
-      200: {
+      /** @description Created */
+      201: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           "application/json": {
+            run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
             task: {
               /** @enum {string} */
               approval_policy?: "none" | "manual";
@@ -21176,7 +21282,16 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          idempotency_key?: string;
+          metadata?: unknown;
+          network_channel?: string;
+        };
+      };
+    };
     responses: {
       /** @description OK */
       200: {
@@ -21185,6 +21300,86 @@ export interface operations {
         };
         content: {
           "application/json": {
+            run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
             task: {
               /** @enum {string} */
               approval_policy?: "none" | "manual";
@@ -21782,6 +21977,252 @@ export interface operations {
         };
       };
       /** @description Invalid task-run enqueue request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  startTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          idempotency_key?: string;
+          metadata?: unknown;
+          network_channel?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
+            task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              description?: string;
+              draft?: boolean;
+              id: string;
+              identifier?: string;
+              max_attempts?: number;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "canceled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task start conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task start request */
       422: {
         headers: {
           [name: string]: unknown;
