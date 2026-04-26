@@ -18,7 +18,7 @@
 | 08 | ClaimNextRun And Lease Fencing Service | pending | critical | task_07 |
 | 09 | Agent Task Lease API And CLI Verbs | pending | high | task_05, task_08 |
 | 10 | Operator Start Publish Approval Execution Boundary | pending | high | task_08 |
-| 11 | Mechanical Scheduler Sweep Notify | pending | high | task_03, task_04, task_08, task_09, task_10 |
+| 11 | Mechanical Scheduler Sweep Notify | completed | high | task_03, task_04, task_08, task_09, task_10 |
 | 12 | Session Lineage And Spawn Metadata | pending | high | task_01, task_02, task_03, task_05 |
 | 13 | Safe Spawn API CLI And Reaper | pending | critical | task_12 |
 | 14 | Coordinator Bootstrap And Restricted Orchestration | pending | critical | task_04, task_09, task_10, task_11, task_13 |

@@ -61,6 +61,7 @@ type bootState struct {
 	workspaceResolver   *workspacepkg.Resolver
 	sessions            SessionManager
 	tasks               *taskRuntime
+	scheduler           *schedulerRuntime
 	network             networkRuntime
 	observer            Observer
 	lifecycleObservers  *sessionLifecycleFanout
@@ -158,6 +159,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return err
 	}
 	if err := d.bootTasks(ctx, state); err != nil {
+		return err
+	}
+	if err := d.bootScheduler(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootNetwork(ctx, state, cleanup); err != nil {
@@ -1501,6 +1505,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.situationContext = state.situationContext
 	d.sessions = state.sessions
 	d.tasks = state.tasks
+	d.scheduler = state.scheduler
 	d.network = state.network
 	d.hooks = state.hooks
 	d.extensions = state.currentExtensionRuntime()

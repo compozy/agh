@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Mechanical Scheduler Sweep Notify
 type: backend
 complexity: high
@@ -35,12 +35,12 @@ Add the daemon-owned mechanical scheduler that wakes idle agents, sweeps expired
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Add scheduler package or daemon-owned component with context, ticker/clock, and shutdown ownership.
-- [ ] 11.2 Implement pending-work scan, idle-session eligibility, and wake notification behavior.
-- [ ] 11.3 Implement expired-lease sweep through task service recovery APIs.
-- [ ] 11.4 Wire boot rebuild ordering in daemon startup before agent claim loops begin.
-- [ ] 11.5 Add metrics/logging for no-match, wake, sweep, and recovery outcomes without new hook families.
-- [ ] 11.6 Add deterministic lifecycle, recovery, and shutdown tests.
+- [x] 11.1 Add scheduler package or daemon-owned component with context, ticker/clock, and shutdown ownership.
+- [x] 11.2 Implement pending-work scan, idle-session eligibility, and wake notification behavior.
+- [x] 11.3 Implement expired-lease sweep through task service recovery APIs.
+- [x] 11.4 Wire boot rebuild ordering in daemon startup before agent claim loops begin.
+- [x] 11.5 Add metrics/logging for no-match, wake, sweep, and recovery outcomes without new hook families.
+- [x] 11.6 Add deterministic lifecycle, recovery, and shutdown tests.
 
 ## Implementation Details
 The scheduler is a mechanical safety layer. It should wake agents or coordinator sessions, not decide task decomposition. Keep responsibilities narrow enough that task_14 can add coordinator semantics on top without changing scheduler ownership.
@@ -77,17 +77,17 @@ Use test clocks or injected tick channels. Shutdown tests must prove goroutines 
 
 ## Tests
 - Unit tests:
-  - [ ] Scheduler selects only eligible idle sessions for pending work and skips busy sessions with active leases.
-  - [ ] Scheduler logs/metrics no-match cases without mutating task ownership.
-  - [ ] Expired lease sweep calls the task service recovery path and never writes task state directly.
-  - [ ] Boot rebuild derives state from durable task/session stores and ignores stale ephemeral entries.
-  - [ ] Shutdown cancels loops and waits for goroutines without leaks.
+  - [x] Scheduler selects only eligible idle sessions for pending work and skips busy sessions with active leases.
+  - [x] Scheduler logs/metrics no-match cases without mutating task ownership.
+  - [x] Expired lease sweep calls the task service recovery path and never writes task state directly.
+  - [x] Boot rebuild derives state from durable task/session stores and ignores stale ephemeral entries.
+  - [x] Shutdown cancels loops and waits for goroutines without leaks.
 - Integration tests:
-  - [ ] A pending run wakes an idle eligible session, and the session claims it through `ClaimNextRun`.
-  - [ ] An expired lease is recovered and becomes claimable after daemon restart.
-  - [ ] Scheduler does not claim work when no session is eligible.
-  - [ ] Manual operator-started task runs are swept/woken the same way as agent-created runs.
-  - [ ] No `scheduler.*` hook events are emitted in MVP.
+  - [x] A pending run wakes an idle eligible session, and the session claims it through `ClaimNextRun`.
+  - [x] An expired lease is recovered and becomes claimable after daemon restart.
+  - [x] Scheduler does not claim work when no session is eligible.
+  - [x] Manual operator-started task runs are swept/woken the same way as agent-created runs.
+  - [x] No `scheduler.*` hook events are emitted in MVP.
 - Test coverage target: >=80%.
 - All tests must pass.
 
