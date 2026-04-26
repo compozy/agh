@@ -1,14 +1,21 @@
 import { Link } from "@tanstack/react-router";
-import { ListChecks } from "lucide-react";
+import { ListChecks, Radio } from "lucide-react";
 
 import { Button, MonoBadge, PageHeader, Pill, StatusDot } from "@agh/ui";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
+  runCoordinationChannelLabel,
+  runIsCoordinated,
   taskApprovalStateLabel,
+  taskHandoffActionCopy,
   taskHasApprovalPending,
   taskIsDraft,
+  taskLifecyclePhase,
+  taskLifecyclePhaseDescription,
+  taskLifecyclePhaseLabel,
+  taskLifecyclePhaseTone,
   taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
@@ -55,6 +62,16 @@ export function TasksDetailHeader({
   const canCancel =
     record.status === "ready" || record.status === "in_progress" || record.status === "blocked";
   const signal = taskStatusSignal(record.status);
+  const activeRun = detail.summary?.active_run ?? null;
+  const lifecyclePhase = taskLifecyclePhase({
+    status: record.status,
+    approval_state: record.approval_state,
+    draft: record.draft,
+    active_run: activeRun,
+  });
+  const publishCopy = taskHandoffActionCopy("publish");
+  const startCopy = taskHandoffActionCopy("start");
+  const channelLabel = runIsCoordinated(activeRun) ? runCoordinationChannelLabel(activeRun) : null;
 
   return (
     <header
@@ -79,6 +96,25 @@ export function TasksDetailHeader({
             >
               {taskStatusLabel(record.status)}
             </Pill>
+            <Pill
+              data-testid="tasks-detail-lifecycle"
+              title={taskLifecyclePhaseDescription(lifecyclePhase)}
+              variant={pillVariantFromTone(taskLifecyclePhaseTone(lifecyclePhase))}
+            >
+              {taskLifecyclePhaseLabel(lifecyclePhase)}
+            </Pill>
+            {channelLabel ? (
+              <Pill
+                data-testid="tasks-detail-coordination"
+                title="Coordination channel is bound to the active run. Channel messages support coordination only — task ownership stays in the task service."
+                variant={pillVariantFromTone("violet")}
+              >
+                <span className="inline-flex items-center gap-1">
+                  <Radio className="size-3" aria-hidden="true" />
+                  Channel: {channelLabel}
+                </span>
+              </Pill>
+            ) : null}
           </span>
         }
         meta={
@@ -121,9 +157,10 @@ export function TasksDetailHeader({
                 disabled={isPublishPending}
                 onClick={onPublish}
                 size="sm"
+                title={publishCopy.tooltip}
                 type="button"
               >
-                Publish
+                {publishCopy.label}
               </Button>
             ) : null}
             {!isDraft && onEnqueueRun ? (
@@ -132,9 +169,10 @@ export function TasksDetailHeader({
                 disabled={isEnqueuePending}
                 onClick={onEnqueueRun}
                 size="sm"
+                title={startCopy.tooltip}
                 type="button"
               >
-                Enqueue Run
+                {startCopy.label}
               </Button>
             ) : null}
           </div>
@@ -179,6 +217,13 @@ export function TasksDetailHeader({
         </span>
         <span>· Updated {formatRelativeTime(record.updated_at)}</span>
       </div>
+
+      <p
+        className="px-4 pb-3 text-[12px] text-[color:var(--color-text-tertiary)]"
+        data-testid="tasks-detail-lifecycle-hint"
+      >
+        {taskLifecyclePhaseDescription(lifecyclePhase)}
+      </p>
     </header>
   );
 }

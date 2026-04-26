@@ -1,10 +1,15 @@
 import { Link } from "@tanstack/react-router";
+import { Radio } from "lucide-react";
 
 import { Metric, MonoBadge, Pill, Section, StatusDot } from "@agh/ui";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
+  runCoordinationChannelLabel,
+  runIsCoordinated,
+  taskLifecyclePhase,
+  taskLifecyclePhaseDescription,
   taskOwnerLabel,
   taskRunStatusTone,
   taskStatusSignal,
@@ -30,6 +35,15 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
   const runs = detail.runs ?? [];
   const description = record.description?.trim() ?? "";
   const activeSignal = activeRun ? taskStatusSignal(activeRun.status) : null;
+  const activeChannelLabel = runIsCoordinated(activeRun)
+    ? runCoordinationChannelLabel(activeRun)
+    : null;
+  const lifecyclePhase = taskLifecyclePhase({
+    status: record.status,
+    approval_state: record.approval_state,
+    draft: record.draft,
+    active_run: activeRun,
+  });
 
   return (
     <section className="flex w-full flex-col gap-6 px-6 py-5" data-testid="tasks-detail-overview">
@@ -69,12 +83,24 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
           }
         >
           <div className="flex flex-col gap-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-4 py-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <StatusDot tone={activeSignal.tone} pulse={activeSignal.pulse} />
               <MonoBadge>{activeRun.id}</MonoBadge>
               <Pill variant={pillVariantFromTone(taskRunStatusTone(activeRun.status))}>
                 {activeRun.status}
               </Pill>
+              {activeChannelLabel ? (
+                <Pill
+                  data-testid="tasks-detail-active-run-channel"
+                  title="Coordination channel is bound to the active run. Channel messages support coordination only — claim, heartbeat, and terminal status stay in the task service."
+                  variant={pillVariantFromTone("violet")}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <Radio className="size-3" aria-hidden="true" />
+                    Channel: {activeChannelLabel}
+                  </span>
+                </Pill>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-3 text-[13px] text-[color:var(--color-text-secondary)]">
               <span>
@@ -91,7 +117,16 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
             </div>
           </div>
         </Section>
-      ) : null}
+      ) : (
+        <Section data-testid="tasks-detail-active-run-empty" label="Execution">
+          <p
+            className="text-[13px] text-[color:var(--color-text-secondary)]"
+            data-testid="tasks-detail-active-run-empty-hint"
+          >
+            {taskLifecyclePhaseDescription(lifecyclePhase)}
+          </p>
+        </Section>
+      )}
 
       <Section data-testid="tasks-detail-description" label="Description">
         {description ? (

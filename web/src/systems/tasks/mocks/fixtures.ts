@@ -755,3 +755,105 @@ export function buildCreatedTaskFixture(body?: Partial<CreateTaskRequest>): Task
     }
   );
 }
+
+/**
+ * Saved-intent fixture: a user-created task that has not been published or
+ * started yet. Renders as `saved_intent` in the lifecycle pill, no active run,
+ * and no coordination channel binding.
+ */
+export const savedIntentTaskFixture: TaskListItem = buildTaskFixture({
+  id: "task_saved_intent",
+  identifier: "TASK-SAVED",
+  title: "Draft a follow-up summary",
+  status: "draft",
+  draft: true,
+  active_run: null,
+  child_count: 0,
+  dependency_count: 0,
+  priority: "medium",
+  owner: { kind: "human", ref: "pedro@" },
+  origin: { kind: "web", ref: "op" },
+});
+
+/**
+ * Agent-created approval-pending fixture: agent drafted the work and the
+ * operator must approve before any run is enqueued.
+ */
+export const awaitingApprovalTaskFixture: TaskListItem = buildTaskFixture({
+  id: "task_awaiting_approval",
+  identifier: "TASK-APPROVE",
+  title: "Approve coordinator-suggested cleanup",
+  status: "blocked",
+  draft: false,
+  active_run: null,
+  approval_policy: "manual",
+  approval_state: "pending",
+  child_count: 0,
+  dependency_count: 0,
+  priority: "high",
+  owner: { kind: "human", ref: "release-manager" },
+  origin: { kind: "agent_session", ref: "Coder" },
+  created_by: { kind: "agent_session", ref: "Coder" },
+});
+
+/**
+ * Queued-with-coordination fixture: a coordinator-handoff run was enqueued and
+ * is bound to a stable coordination channel, but no worker has claimed it yet.
+ */
+export const queuedCoordinatedTaskFixture: TaskListItem = buildTaskFixture({
+  id: "task_queued_coordinated",
+  identifier: "TASK-QUEUED",
+  title: "Refactor coordinator-routed enqueue",
+  status: "in_progress",
+  active_run: buildTaskRunFixture({
+    id: "run_queued_coordinated",
+    task_id: "task_queued_coordinated",
+    attempt: 1,
+    max_attempts: 3,
+    status: "queued",
+    queued_at: "2026-04-17T09:55:00Z",
+    started_at: null,
+    session_id: undefined,
+    claim_token_hash: "sha256:queued-coordinated",
+    coordination_channel_id: "coord-task-queued",
+    coordination_channel: {
+      id: "coord-task-queued",
+      display_name: "TASK-QUEUED coordination",
+      workspace_id: STORYBOOK_WORKSPACE_ID,
+      task_id: "task_queued_coordinated",
+      run_id: "run_queued_coordinated",
+      allowed_message_kinds: [
+        "status",
+        "request",
+        "reply",
+        "blocker",
+        "handoff",
+        "result",
+        "review_request",
+      ],
+    },
+  }),
+  child_count: 0,
+  dependency_count: 0,
+  priority: "high",
+});
+
+/**
+ * Coordinator-enabled workspace fixture: indicates that a coordinator is
+ * configured + active for the workspace. Consumed by Storybook variations and
+ * any future coordinator-aware UI affordances. Channel availability is the
+ * UI-visible signal — it never implies channel messages own task status.
+ */
+export interface CoordinatorEnabledWorkspaceFixture {
+  workspaceId: string;
+  coordinatorEnabled: boolean;
+  coordinatorAgentName: string;
+  defaultChannelDisplayName: string;
+}
+
+export const coordinatorEnabledWorkspaceFixture: CoordinatorEnabledWorkspaceFixture = {
+  workspaceId: STORYBOOK_WORKSPACE_ID,
+  coordinatorEnabled: true,
+  coordinatorAgentName: "coordinator",
+  defaultChannelDisplayName: "Workspace coordination",
+};

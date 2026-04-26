@@ -1,5 +1,6 @@
 export { handlers } from "./handlers";
 export {
+  awaitingApprovalTaskFixture,
   buildCreatedTaskFixture,
   buildDashboardFixture,
   buildDetailFixture,
@@ -13,6 +14,9 @@ export {
   buildTaskRunFixture,
   buildTaskTimelineItemFixture,
   buildTaskTreeFixture,
+  coordinatorEnabledWorkspaceFixture,
+  queuedCoordinatedTaskFixture,
+  savedIntentTaskFixture,
   TASK_FIXTURES,
   taskDashboardFixture,
   taskDetailFixture,
@@ -22,3 +26,4 @@ export {
   taskTreeFixture,
   taskTriageStateFixture,
 } from "./fixtures";
+export type { CoordinatorEnabledWorkspaceFixture } from "./fixtures";

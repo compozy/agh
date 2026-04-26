@@ -323,5 +323,30 @@ describe("tasks operator selectors", () => {
     expect(selectors.multiAgentDisconnected).toBe(
       `locator:${tasksOperatorTestIds.multiAgentDisconnected}`
     );
+    expect(selectors.detailLifecycle).toBe(`locator:${tasksOperatorTestIds.detailLifecycle}`);
+    expect(selectors.detailLifecycleHint).toBe(
+      `locator:${tasksOperatorTestIds.detailLifecycleHint}`
+    );
+    expect(selectors.detailCoordination).toBe(`locator:${tasksOperatorTestIds.detailCoordination}`);
+    expect(selectors.detailEnqueue).toBe(`locator:${tasksOperatorTestIds.detailEnqueue}`);
+    expect(selectors.detailRunsEmpty).toBe(`locator:${tasksOperatorTestIds.detailRunsEmpty}`);
+    expect(selectors.detailRunsChannel("run_browser_01")).toBe(
+      "locator:tasks-detail-runs-channel-run_browser_01"
+    );
+    expect(selectors.detailActiveRunChannel).toBe(
+      `locator:${tasksOperatorTestIds.detailActiveRunChannel}`
+    );
+    expect(selectors.detailActiveRunEmpty).toBe(
+      `locator:${tasksOperatorTestIds.detailActiveRunEmpty}`
+    );
+    expect(selectors.detailActiveRunEmptyHint).toBe(
+      `locator:${tasksOperatorTestIds.detailActiveRunEmptyHint}`
+    );
+    expect(selectors.detailPreviewLifecycle).toBe(
+      `locator:${tasksOperatorTestIds.detailPreviewLifecycle}`
+    );
+    expect(selectors.detailPreviewCoordination).toBe(
+      `locator:${tasksOperatorTestIds.detailPreviewCoordination}`
+    );
   });
 });

@@ -10,9 +10,12 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { TasksDetailHeader } from "./tasks-detail-header";
-import type { TaskDetailView } from "../types";
+import type { TaskDetailView, TaskListItem } from "../types";
 
-function buildDetail(overrides: Partial<TaskDetailView["task"]> = {}): TaskDetailView {
+function buildDetail(
+  overrides: Partial<TaskDetailView["task"]> = {},
+  summaryOverrides: Partial<TaskDetailView["summary"]> = {}
+): TaskDetailView {
   const task = {
     id: "task_001",
     identifier: "TASK-42",
@@ -28,7 +31,13 @@ function buildDetail(overrides: Partial<TaskDetailView["task"]> = {}): TaskDetai
     ...overrides,
   } as TaskDetailView["task"];
 
-  return { task, summary: task as unknown as TaskDetailView["summary"] } as TaskDetailView;
+  return {
+    task,
+    summary: {
+      ...(task as unknown as TaskDetailView["summary"]),
+      ...summaryOverrides,
+    } as TaskDetailView["summary"],
+  } as TaskDetailView;
 }
 
 describe("TasksDetailHeader", () => {
@@ -108,5 +117,63 @@ describe("TasksDetailHeader", () => {
     expect(screen.getByTestId("tasks-detail-delete")).toBeDisabled();
     expect(screen.getByTestId("tasks-detail-cancel")).toBeDisabled();
     expect(screen.getByTestId("tasks-detail-enqueue")).toBeDisabled();
+  });
+
+  it("renders the saved-intent lifecycle pill and hint for draft tasks without implying autonomy", () => {
+    render(
+      <TasksDetailHeader
+        detail={buildDetail({ status: "draft", draft: true })}
+        onPublish={() => {}}
+      />
+    );
+
+    expect(screen.getByTestId("tasks-detail-lifecycle")).toHaveTextContent("Saved intent");
+    expect(screen.getByTestId("tasks-detail-lifecycle-hint")).toHaveTextContent(/saved intent/i);
+    expect(screen.getByTestId("tasks-detail-publish")).toHaveTextContent("Publish");
+    expect(screen.getByTestId("tasks-detail-publish")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/coordinator handoff/i)
+    );
+    expect(screen.queryByTestId("tasks-detail-coordination")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-enqueue")).not.toBeInTheDocument();
+  });
+
+  it("labels the start-run button as the coordinator handoff boundary", () => {
+    render(<TasksDetailHeader detail={buildDetail({ status: "ready" })} onEnqueueRun={() => {}} />);
+
+    const button = screen.getByTestId("tasks-detail-enqueue");
+    expect(button).toHaveTextContent("Start run");
+    expect(button).toHaveAttribute("title", expect.stringMatching(/coordinator handoff/i));
+    expect(screen.getByTestId("tasks-detail-lifecycle")).toHaveTextContent("Ready to start");
+    expect(screen.getByTestId("tasks-detail-lifecycle-hint")).toHaveTextContent(
+      /start enqueues a coordinator-handoff run/i
+    );
+  });
+
+  it("surfaces the coordination channel chip when the active run is bound to a channel", () => {
+    const activeRun = {
+      id: "run_42",
+      task_id: "task_001",
+      attempt: 1,
+      status: "queued",
+      queued_at: "2026-04-11T09:30:00Z",
+      coordination_channel_id: "coord-task-001",
+      coordination_channel: {
+        id: "coord-task-001",
+        display_name: "TASK-42 coordination",
+      },
+    } as TaskListItem["active_run"];
+    const detail = buildDetail({ status: "in_progress" }, { active_run: activeRun });
+
+    render(<TasksDetailHeader detail={detail} onEnqueueRun={() => {}} />);
+
+    expect(screen.getByTestId("tasks-detail-coordination")).toHaveTextContent(
+      "Channel: TASK-42 coordination"
+    );
+    expect(screen.getByTestId("tasks-detail-coordination")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/channel messages support coordination only/i)
+    );
+    expect(screen.getByTestId("tasks-detail-lifecycle")).toHaveTextContent("Coordinator handoff");
   });
 });

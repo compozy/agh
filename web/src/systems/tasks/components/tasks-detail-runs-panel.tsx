@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ChevronRight, Inbox, Loader2 } from "lucide-react";
+import { AlertCircle, ChevronRight, Inbox, Loader2, Radio } from "lucide-react";
 
 import {
   Empty,
@@ -16,7 +16,13 @@ import {
 } from "@agh/ui";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 
-import { formatRelativeTime, taskRunStatusTone, taskStatusSignal } from "../lib/task-formatters";
+import {
+  formatRelativeTime,
+  runCoordinationChannelLabel,
+  runIsCoordinated,
+  taskRunStatusTone,
+  taskStatusSignal,
+} from "../lib/task-formatters";
 import type { TaskRun } from "../types";
 
 export interface TasksDetailRunsPanelProps {
@@ -58,8 +64,8 @@ export function TasksDetailRunsPanel({
     return (
       <Empty
         icon={Inbox}
-        title="No runs yet"
-        description="Enqueue a run to execute this task."
+        title="Saved intent only — no runs yet"
+        description="Publish, start, or approve this task to enqueue an executable run for the coordinator. Manual workers may also claim it."
         data-testid="tasks-detail-runs-empty"
       />
     );
@@ -85,6 +91,7 @@ export function TasksDetailRunsPanel({
         <TableBody>
           {runs.map(run => {
             const signal = taskStatusSignal(run.status);
+            const channelLabel = runIsCoordinated(run) ? runCoordinationChannelLabel(run) : null;
             return (
               <TableRow data-testid={`tasks-detail-runs-item-${run.id}`} key={run.id}>
                 <TableCell className="w-8 pl-4">
@@ -92,11 +99,23 @@ export function TasksDetailRunsPanel({
                 </TableCell>
                 <TableCell className="max-w-[360px]">
                   <div className="flex min-w-0 flex-col gap-1">
-                    <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <MonoBadge>{run.id}</MonoBadge>
                       <Pill variant={pillVariantFromTone(taskRunStatusTone(run.status))}>
                         {run.status}
                       </Pill>
+                      {channelLabel ? (
+                        <Pill
+                          data-testid={`tasks-detail-runs-channel-${run.id}`}
+                          title="Coordination channel is bound to this run. Channel messages support coordination only — claim, heartbeat, and terminal status stay in the task service."
+                          variant={pillVariantFromTone("violet")}
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            <Radio className="size-3" aria-hidden="true" />
+                            Channel: {channelLabel}
+                          </span>
+                        </Pill>
+                      ) : null}
                       {run.session_id ? (
                         <span className="font-mono text-[11px] text-[color:var(--color-text-secondary)]">
                           session {run.session_id}

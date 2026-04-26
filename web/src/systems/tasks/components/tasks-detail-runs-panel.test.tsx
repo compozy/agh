@@ -61,4 +61,48 @@ describe("TasksDetailRunsPanel", () => {
     expect(screen.getByTestId("tasks-detail-runs-error-run_002")).toHaveTextContent("rate-limited");
     expect(screen.getByTestId("tasks-detail-runs-link-run_001")).toBeInTheDocument();
   });
+
+  it("empty state reads as saved intent and points at coordinator handoff actions", () => {
+    render(<TasksDetailRunsPanel runs={[]} taskId="task_001" />);
+    const empty = screen.getByTestId("tasks-detail-runs-empty");
+
+    expect(empty).toHaveTextContent(/saved intent only/i);
+    expect(empty).toHaveTextContent(/publish, start, or approve/i);
+    expect(empty).toHaveTextContent(/coordinator/i);
+    expect(empty).toHaveTextContent(/manual workers may also claim it/i);
+  });
+
+  it("renders the coordination channel chip on coordinated runs", () => {
+    render(
+      <TasksDetailRunsPanel
+        runs={[
+          buildRun({
+            coordination_channel_id: "coord-task-001",
+            coordination_channel: {
+              id: "coord-task-001",
+              display_name: "TASK-1 coordination",
+              workspace_id: "ws_storybook",
+              task_id: "task_001",
+              run_id: "run_001",
+              allowed_message_kinds: ["status", "request", "reply"],
+            },
+          } as Partial<TaskRun>),
+        ]}
+        taskId="task_001"
+      />
+    );
+
+    const chip = screen.getByTestId("tasks-detail-runs-channel-run_001");
+    expect(chip).toHaveTextContent("Channel: TASK-1 coordination");
+    expect(chip).toHaveAttribute(
+      "title",
+      expect.stringMatching(/channel messages support coordination only/i)
+    );
+  });
+
+  it("does not render the channel chip when the run has no coordination binding", () => {
+    render(<TasksDetailRunsPanel runs={[buildRun()]} taskId="task_001" />);
+
+    expect(screen.queryByTestId("tasks-detail-runs-channel-run_001")).not.toBeInTheDocument();
+  });
 });

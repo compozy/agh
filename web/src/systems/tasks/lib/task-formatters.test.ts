@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { TaskListItem } from "../types";
+import type { TaskListItem, TaskRun } from "../types";
 import {
   countTasksByStatus,
   formatAttemptLabel,
@@ -8,12 +8,20 @@ import {
   formatPercent,
   formatRelativeTime,
   matchesTaskQuery,
+  runCoordinationChannelLabel,
+  runIsCoordinated,
   taskApprovalStateLabel,
+  taskHandoffActionCopy,
+  taskHandoffActionKey,
   taskHasApprovalPending,
   taskInboxLaneLabel,
   taskIsBlocked,
   taskIsDraft,
   taskLaneTone,
+  taskLifecyclePhase,
+  taskLifecyclePhaseDescription,
+  taskLifecyclePhaseLabel,
+  taskLifecyclePhaseTone,
   taskOwnerKindLabel,
   taskOwnerLabel,
   taskPriorityLabel,
@@ -181,3 +189,143 @@ describe("task predicates and counts", () => {
     expect(counts.draft).toBe(0);
   });
 });
+
+describe("task lifecycle phases — manual-first signaling", () => {
+  it("treats draft tasks without runs as saved intent, not executable", () => {
+    const phase = taskLifecyclePhase(makeTask({ status: "draft", draft: true, active_run: null }));
+    expect(phase).toBe("saved_intent");
+    expect(taskLifecyclePhaseLabel(phase)).toBe("Saved intent");
+    expect(taskLifecyclePhaseDescription(phase)).toMatch(/saved intent/i);
+    expect(taskLifecyclePhaseDescription(phase)).toMatch(/coordinator/i);
+  });
+
+  it("treats ready tasks without runs as ready_to_start, not running", () => {
+    const phase = taskLifecyclePhase(makeTask({ status: "ready", active_run: null }));
+    expect(phase).toBe("ready_to_start");
+    expect(taskLifecyclePhaseDescription(phase)).toMatch(/start enqueues/i);
+  });
+
+  it("uses the active run to tell queued from running", () => {
+    const queued = taskLifecyclePhase(
+      makeTask({
+        status: "in_progress",
+        active_run: makeRun("queued"),
+      } as Partial<TaskListItem>)
+    );
+    const running = taskLifecyclePhase(
+      makeTask({
+        status: "in_progress",
+        active_run: makeRun("running"),
+      } as Partial<TaskListItem>)
+    );
+
+    expect(queued).toBe("queued");
+    expect(running).toBe("running");
+    expect(taskLifecyclePhaseLabel(queued)).toBe("Coordinator handoff");
+    expect(taskLifecyclePhaseLabel(running)).toBe("Running");
+  });
+
+  it("treats agent-created approval-pending tasks as awaiting approval", () => {
+    const phase = taskLifecyclePhase(
+      makeTask({
+        status: "blocked",
+        approval_policy: "manual",
+        approval_state: "pending",
+        active_run: null,
+      })
+    );
+
+    expect(phase).toBe("awaiting_approval");
+    expect(taskLifecyclePhaseDescription(phase)).toMatch(/approving enqueues/i);
+  });
+
+  it("falls back to terminal phases without inferring activity from status", () => {
+    expect(taskLifecyclePhase(makeTask({ status: "completed", active_run: null }))).toBe(
+      "completed"
+    );
+    expect(taskLifecyclePhase(makeTask({ status: "failed", active_run: null }))).toBe("failed");
+    expect(taskLifecyclePhase(makeTask({ status: "canceled", active_run: null }))).toBe("canceled");
+    expect(taskLifecyclePhase(makeTask({ status: "blocked", active_run: null }))).toBe("blocked");
+  });
+
+  it("phase tones never mark saved intent or ready as activity", () => {
+    expect(taskLifecyclePhaseTone("saved_intent")).toBe("neutral");
+    expect(taskLifecyclePhaseTone("ready_to_start")).toBe("neutral");
+    expect(taskLifecyclePhaseTone("queued")).toBe("amber");
+    expect(taskLifecyclePhaseTone("running")).toBe("accent");
+    expect(taskLifecyclePhaseTone("awaiting_approval")).toBe("violet");
+  });
+});
+
+describe("task handoff actions — boundary semantics", () => {
+  it("draft tasks resolve to publish", () => {
+    const action = taskHandoffActionKey(makeTask({ status: "draft", draft: true }));
+    expect(action).toBe("publish");
+    expect(taskHandoffActionCopy(action).label).toBe("Publish");
+    expect(taskHandoffActionCopy(action).tooltip).toMatch(/coordinator handoff/i);
+  });
+
+  it("approval-pending tasks resolve to approve, never start", () => {
+    const action = taskHandoffActionKey(
+      makeTask({ approval_policy: "manual", approval_state: "pending", status: "blocked" })
+    );
+    expect(action).toBe("approve");
+    expect(taskHandoffActionCopy(action).tooltip).toMatch(/coordinator handoff/i);
+  });
+
+  it("ready tasks resolve to start with coordinator handoff tooltip", () => {
+    const action = taskHandoffActionKey(makeTask({ status: "ready", active_run: null }));
+    expect(action).toBe("start");
+    expect(taskHandoffActionCopy(action).label).toBe("Start run");
+    expect(taskHandoffActionCopy(action).tooltip).toMatch(/coordinator handoff/i);
+  });
+
+  it("failed tasks expose retry as the executable action", () => {
+    expect(taskHandoffActionKey(makeTask({ status: "failed" }))).toBe("retry");
+  });
+
+  it("never returns publish/start for terminal completed tasks", () => {
+    expect(taskHandoffActionKey(makeTask({ status: "completed" }))).toBe("edit");
+    expect(taskHandoffActionKey(makeTask({ status: "canceled" }))).toBe("edit");
+  });
+});
+
+describe("coordination channel signal", () => {
+  it("recognises runs with coordination_channel_id as coordinated", () => {
+    const run = {
+      coordination_channel_id: "coord-task-001",
+    } as TaskRun;
+
+    expect(runIsCoordinated(run)).toBe(true);
+    expect(runCoordinationChannelLabel(run)).toBe("coord-task-001");
+  });
+
+  it("prefers the embedded display name when available", () => {
+    const run = {
+      coordination_channel_id: "coord-task-001",
+      coordination_channel: {
+        id: "coord-task-001",
+        display_name: "TASK-1 coordination",
+      },
+    } as unknown as TaskRun;
+
+    expect(runIsCoordinated(run)).toBe(true);
+    expect(runCoordinationChannelLabel(run)).toBe("TASK-1 coordination");
+  });
+
+  it("ignores runs without channel binding", () => {
+    expect(runIsCoordinated(null)).toBe(false);
+    expect(runIsCoordinated({} as TaskRun)).toBe(false);
+    expect(runCoordinationChannelLabel(null)).toBe("");
+  });
+});
+
+function makeRun(status: TaskRun["status"]): TaskListItem["active_run"] {
+  return {
+    id: "run_test",
+    task_id: "task_test",
+    attempt: 1,
+    status,
+    queued_at: "2026-04-17T09:58:00Z",
+  } as TaskListItem["active_run"];
+}

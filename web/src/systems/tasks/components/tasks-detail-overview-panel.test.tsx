@@ -101,4 +101,45 @@ describe("TasksDetailOverviewPanel", () => {
       "No description provided."
     );
   });
+
+  it("surfaces the coordination channel chip on coordinated active runs", () => {
+    const detail = buildDetail();
+    detail.summary!.active_run = {
+      ...detail.summary!.active_run!,
+      coordination_channel_id: "coord-task-001",
+      coordination_channel: {
+        id: "coord-task-001",
+        display_name: "TASK-42 coordination",
+        workspace_id: "ws_storybook",
+        task_id: detail.task.id,
+        run_id: detail.summary!.active_run!.id,
+        allowed_message_kinds: ["status", "request"],
+      },
+    } as TaskDetailView["summary"]["active_run"];
+
+    render(<TasksDetailOverviewPanel detail={detail} />);
+
+    expect(screen.getByTestId("tasks-detail-active-run-channel")).toHaveTextContent(
+      "Channel: TASK-42 coordination"
+    );
+    expect(screen.getByTestId("tasks-detail-active-run-channel")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/channel messages support coordination only/i)
+    );
+  });
+
+  it("renders an empty execution section with saved-intent hint when there is no active run", () => {
+    const detail = buildDetail();
+    detail.task.status = "draft";
+    detail.task.draft = true;
+    detail.summary!.active_run = null;
+
+    render(<TasksDetailOverviewPanel detail={detail} />);
+
+    expect(screen.queryByTestId("tasks-detail-active-run")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-detail-active-run-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-detail-active-run-empty-hint")).toHaveTextContent(
+      /saved intent/i
+    );
+  });
 });

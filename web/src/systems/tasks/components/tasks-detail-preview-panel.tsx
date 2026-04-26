@@ -1,14 +1,21 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Radio } from "lucide-react";
 
 import { Button, CodeBlock, Metric, MonoBadge, Pill, Section, StatusDot } from "@agh/ui";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
+  runCoordinationChannelLabel,
+  runIsCoordinated,
   taskApprovalStateLabel,
+  taskHandoffActionCopy,
   taskHasApprovalPending,
   taskIsDraft,
+  taskLifecyclePhase,
+  taskLifecyclePhaseDescription,
+  taskLifecyclePhaseLabel,
+  taskLifecyclePhaseTone,
   taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
@@ -101,7 +108,10 @@ export function TasksDetailPreviewPanel({
     );
   }
 
-  const record = (detail?.task ?? task) as PreviewRecord & { description?: string | null };
+  const record = (detail?.task ?? task) as PreviewRecord & {
+    description?: string | null;
+    draft?: boolean;
+  };
   const childCount = detail?.children?.length ?? task.child_count ?? 0;
   const dependencyReferences = detail?.dependency_references ?? detail?.dependencies ?? [];
   const dependencyCount = dependencyReferences.length || (task.dependency_count ?? 0);
@@ -120,6 +130,17 @@ export function TasksDetailPreviewPanel({
   });
   const canCancel =
     record.status === "ready" || record.status === "in_progress" || record.status === "blocked";
+  const activeRun =
+    detail?.summary?.active_run ?? (task.active_run as TaskListItem["active_run"] | null);
+  const lifecyclePhase = taskLifecyclePhase({
+    status: record.status,
+    approval_state: record.approval_state,
+    draft: record.draft,
+    active_run: activeRun ?? null,
+  });
+  const channelLabel = runIsCoordinated(activeRun) ? runCoordinationChannelLabel(activeRun) : null;
+  const publishCopy = taskHandoffActionCopy("publish");
+  const startCopy = taskHandoffActionCopy("start");
 
   return (
     <section
@@ -142,6 +163,13 @@ export function TasksDetailPreviewPanel({
             <Pill variant={pillVariantFromTone(taskStatusTone(record.status))}>
               {taskStatusLabel(record.status)}
             </Pill>
+            <Pill
+              data-testid="tasks-detail-preview-lifecycle"
+              title={taskLifecyclePhaseDescription(lifecyclePhase)}
+              variant={pillVariantFromTone(taskLifecyclePhaseTone(lifecyclePhase))}
+            >
+              {taskLifecyclePhaseLabel(lifecyclePhase)}
+            </Pill>
             {record.priority ? (
               <Pill variant={pillVariantFromTone(taskPriorityTone(record.priority))}>
                 {taskPriorityLabel(record.priority)}
@@ -149,6 +177,18 @@ export function TasksDetailPreviewPanel({
             ) : null}
             {taskHasApprovalPending(record) ? (
               <Pill variant="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
+            ) : null}
+            {channelLabel ? (
+              <Pill
+                data-testid="tasks-detail-preview-coordination"
+                title="Coordination channel is bound to the active run. Channel messages support coordination only — task ownership stays in the task service."
+                variant={pillVariantFromTone("violet")}
+              >
+                <span className="inline-flex items-center gap-1">
+                  <Radio className="size-3" aria-hidden="true" />
+                  Channel: {channelLabel}
+                </span>
+              </Pill>
             ) : null}
             <span>Owner {ownerLabel}</span>
             <span>· Scope {record.scope}</span>
@@ -186,9 +226,10 @@ export function TasksDetailPreviewPanel({
               disabled={isPublishPending}
               onClick={() => onPublishTask(record.id)}
               size="sm"
+              title={publishCopy.tooltip}
               type="button"
             >
-              Publish
+              {publishCopy.label}
             </Button>
           ) : null}
           {!isDraft && onEnqueueRun ? (
@@ -196,10 +237,11 @@ export function TasksDetailPreviewPanel({
               data-testid="tasks-detail-preview-enqueue"
               onClick={() => onEnqueueRun(record.id)}
               size="sm"
+              title={startCopy.tooltip}
               type="button"
               variant="outline"
             >
-              Enqueue run
+              {startCopy.label}
             </Button>
           ) : null}
           {canCancel && onCancelTask ? (
@@ -215,6 +257,13 @@ export function TasksDetailPreviewPanel({
           ) : null}
         </div>
       </header>
+
+      <p
+        className="text-[12px] text-[color:var(--color-text-tertiary)]"
+        data-testid="tasks-detail-preview-lifecycle-hint"
+      >
+        {taskLifecyclePhaseDescription(lifecyclePhase)}
+      </p>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Metric
