@@ -95,6 +95,72 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			},
 		},
 		{
+			name: "coordinator startup session resolves coordinator policy",
+			input: HarnessResolutionInput{
+				Surface: ResolutionSurfaceStartup,
+				Session: HarnessSessionInput{
+					Type:    session.SessionTypeCoordinator,
+					Channel: "coord-run-1",
+				},
+				Turn: HarnessTurnRequest{
+					Source: session.TurnSourceUser,
+				},
+			},
+			wantSections: []HarnessPromptSection{
+				HarnessPromptSectionMemory,
+				HarnessPromptSectionSkills,
+				HarnessPromptSectionNetwork,
+			},
+			wantAugmenters: nil,
+			wantReentry:    ReentryModeNone,
+			wantDetached:   DetachedRunModeNone,
+			wantLabel:      "coordinator.channel.user",
+			wantTags: map[string]string{
+				"harness.surface":          "startup",
+				"harness.session_type":     "coordinator",
+				"harness.session_class":    "coordinator",
+				"harness.turn_origin":      "user",
+				"harness.channel_bound":    "true",
+				"harness.diagnostic_label": "coordinator.channel.user",
+			},
+		},
+		{
+			name: "spawned worker network turn resolves spawned policy",
+			input: HarnessResolutionInput{
+				Surface: ResolutionSurfaceTurn,
+				Session: HarnessSessionInput{
+					Type:    session.SessionTypeSpawned,
+					Channel: "builders",
+				},
+				Turn: HarnessTurnRequest{
+					Source: session.TurnSourceNetwork,
+					PromptMeta: acp.PromptMeta{
+						Network: &acp.PromptNetworkMeta{
+							Channel: "builders",
+							From:    "coordinator.sess",
+						},
+					},
+				},
+			},
+			wantSections: []HarnessPromptSection{
+				HarnessPromptSectionMemory,
+				HarnessPromptSectionSkills,
+				HarnessPromptSectionNetwork,
+			},
+			wantAugmenters: nil,
+			wantReentry:    ReentryModeNone,
+			wantDetached:   DetachedRunModeNone,
+			wantLabel:      "spawned.channel.network",
+			wantTags: map[string]string{
+				"harness.surface":          "turn",
+				"harness.session_type":     "spawned",
+				"harness.session_class":    "spawned",
+				"harness.turn_origin":      "network",
+				"harness.channel_bound":    "true",
+				"harness.diagnostic_label": "spawned.channel.network",
+			},
+		},
+		{
 			name: "system session plus synthetic turn requires metadata and resolves reentry policy",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
@@ -345,6 +411,49 @@ func TestSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testi
 	}
 	if !slices.Equal(gotNames, wantNames[:2]) {
 		t.Fatalf("selected names without channel = %#v, want %#v", gotNames, wantNames[:2])
+	}
+}
+
+func TestSectionSelectorAcceptsCoordinatorStartupSession(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		MemoryPromptSectionEnabled: true,
+		SkillsPromptSectionEnabled: true,
+	})
+	selector := NewSectionSelector(resolver, nil)
+	descriptors := defaultStartupPromptSectionDescriptors(
+		promptSectionProviderFunc(
+			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "memory", nil },
+		),
+		promptSectionProviderFunc(
+			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "skills", nil },
+		),
+		nil,
+	)
+
+	selected, resolved, err := selector.Select(session.StartupPromptContext{
+		SessionType: session.SessionTypeCoordinator,
+		Channel:     "coord-run-1",
+	}, descriptors)
+	if err != nil {
+		t.Fatalf("Select(coordinator) error = %v", err)
+	}
+
+	if resolved.Session.SessionClass != SessionClassCoordinator {
+		t.Fatalf("SessionClass = %q, want %q", resolved.Session.SessionClass, SessionClassCoordinator)
+	}
+	wantNames := []string{
+		string(HarnessPromptSectionMemory),
+		string(HarnessPromptSectionSkills),
+		string(HarnessPromptSectionNetwork),
+	}
+	gotNames := make([]string, 0, len(selected))
+	for _, descriptor := range selected {
+		gotNames = append(gotNames, descriptor.Name)
+	}
+	if !slices.Equal(gotNames, wantNames) {
+		t.Fatalf("selected section names = %#v, want %#v", gotNames, wantNames)
 	}
 }
 

@@ -1088,6 +1088,70 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 	}
 }
 
+func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openTaskManagerGlobalDB(t)
+	manager := newTaskManagerIntegration(t, db)
+	operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task run")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	agent, err := taskpkg.DeriveAgentSessionActorContext("sess-stale-boot")
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+	}
+	daemon, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+
+	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Boot recovery integration",
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, operator)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: "sess-stale-boot",
+		LeaseDuration:    time.Hour,
+		Now:              time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC),
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	if claim.Run.ID != run.ID || claim.Run.SessionID != "sess-stale-boot" {
+		t.Fatalf("claim.Run = %#v, want run %q bound to sess-stale-boot", claim.Run, run.ID)
+	}
+
+	recovered, err := manager.RecoverRunOnBoot(ctx, run.ID, taskpkg.RunBootRecovery{
+		Action:       taskpkg.RunBootRecoveryRequeue,
+		Reason:       "orphaned_on_boot",
+		SessionState: "stopped",
+	}, daemon)
+	if err != nil {
+		t.Fatalf("RecoverRunOnBoot(requeue) error = %v", err)
+	}
+	if recovered.Status != taskpkg.TaskRunStatusQueued || recovered.SessionID != "" || recovered.ClaimedBy != nil {
+		t.Fatalf("recovered = %#v, want queued run with released session binding", recovered)
+	}
+
+	stored, err := db.GetTaskRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(recovered) error = %v", err)
+	}
+	if stored.Status != taskpkg.TaskRunStatusQueued || stored.SessionID != "" || stored.ClaimedBy != nil {
+		t.Fatalf("stored = %#v, want queued run with released session binding", stored)
+	}
+}
+
 func TestTaskManagerCancelTaskTreePersistsCancellationAudit(t *testing.T) {
 	t.Parallel()
 

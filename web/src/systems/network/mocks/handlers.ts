@@ -110,4 +110,40 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
+  http.post("/api/network/send", async ({ request }) => {
+    const body = (await request.json()) as {
+      causation_id?: string;
+      channel?: string;
+      expires_at?: number;
+      id?: string;
+      interaction_id?: string;
+      kind?: string;
+      reply_to?: string;
+      session_id?: string;
+      to?: string;
+      trace_id?: string;
+    };
+
+    if (!body.session_id?.trim() || !body.channel?.trim() || !body.kind?.trim()) {
+      return HttpResponse.json(
+        { error: "Session, channel, and kind are required." },
+        { status: 400 }
+      );
+    }
+
+    return HttpResponse.json({
+      message: {
+        id: body.id?.trim() || "msg_storybook_sent",
+        session_id: body.session_id.trim(),
+        channel: body.channel.trim(),
+        kind: body.kind.trim(),
+        to: body.to?.trim() || undefined,
+        interaction_id: body.interaction_id?.trim() || undefined,
+        reply_to: body.reply_to?.trim() || undefined,
+        trace_id: body.trace_id?.trim() || undefined,
+        causation_id: body.causation_id?.trim() || undefined,
+        expires_at: body.expires_at,
+      },
+    });
+  }),
 ];

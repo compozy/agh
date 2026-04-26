@@ -396,8 +396,11 @@ func (g *GlobalDB) UpdateTaskRun(ctx context.Context, run taskpkg.Run) error {
 		if err != nil {
 			return err
 		}
-		if strings.TrimSpace(current.SessionID) != "" &&
-			strings.TrimSpace(normalized.SessionID) != strings.TrimSpace(current.SessionID) {
+		currentSessionID := strings.TrimSpace(current.SessionID)
+		nextSessionID := strings.TrimSpace(normalized.SessionID)
+		if currentSessionID != "" &&
+			nextSessionID != currentSessionID &&
+			(nextSessionID != "" || normalized.Status.Normalize() != taskpkg.TaskRunStatusQueued) {
 			return taskpkg.ErrSessionAlreadyBound
 		}
 		if normalized.QueuedAt.IsZero() {

@@ -517,14 +517,14 @@ describe("network route", () => {
     );
 
     const kindFilters = screen.getByRole("group", { name: "Timeline kind filters" });
-    expect(within(kindFilters).getByRole("button", { name: "All" })).toHaveAttribute(
+    expect(within(kindFilters).getByRole("button", { name: "all" })).toHaveAttribute(
       "aria-pressed",
       "true"
     );
 
-    const detailsTabs = screen.getByRole("tablist", { name: "Room detail tabs" });
-    expect(within(detailsTabs).getByRole("tab", { name: "about" })).toHaveAttribute(
-      "aria-selected",
+    const detailsTabs = screen.getByRole("group", { name: "Room detail tabs" });
+    expect(within(detailsTabs).getByRole("button", { name: "About" })).toHaveAttribute(
+      "aria-pressed",
       "true"
     );
   });

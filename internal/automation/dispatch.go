@@ -53,7 +53,10 @@ func (e *FireLimitError) Unwrap() error {
 	return ErrFireLimitReached
 }
 
-const dispatcherSessionStopTimeout = 2 * time.Second
+// Session teardown must outlive the ACP driver's own graceful stop budget,
+// otherwise automation runs can be marked failed while the session is still
+// finishing a normal shutdown.
+const dispatcherSessionStopTimeout = 10 * time.Second
 
 // DispatchKind identifies which activation path produced a dispatch request.
 type DispatchKind string

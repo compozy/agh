@@ -20,7 +20,7 @@ func (m *Service) dispatchTaskRunLeaseExtended(
 		},
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
-	_, err := m.taskHooks.DispatchTaskRunLeaseExtended(ctx, payload)
+	_, err := m.taskHooks.DispatchTaskRunLeaseExtended(taskRunObservationHookContext(ctx), payload)
 	return err
 }
 
@@ -47,7 +47,7 @@ func (m *Service) dispatchTaskRunLeaseExpired(
 		PreviousSessionID: strings.TrimSpace(recovery.PreviousSessionID),
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
 	}
-	_, err := m.taskHooks.DispatchTaskRunLeaseExpired(ctx, payload)
+	_, err := m.taskHooks.DispatchTaskRunLeaseExpired(taskRunObservationHookContext(ctx), payload)
 	return err
 }
 
@@ -72,7 +72,7 @@ func (m *Service) dispatchTaskRunLeaseRecoveredFromExpiration(
 		RecoveryAction:    string(RunBootRecoveryRequeue),
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
 	}
-	_, err := m.taskHooks.DispatchTaskRunLeaseRecovered(ctx, payload)
+	_, err := m.taskHooks.DispatchTaskRunLeaseRecovered(taskRunObservationHookContext(ctx), payload)
 	return err
 }
 
@@ -96,7 +96,7 @@ func (m *Service) dispatchTaskRunReleased(
 		PreviousSessionID: strings.TrimSpace(previous.SessionID),
 		RecoveryReason:    strings.TrimSpace(reason),
 	}
-	_, err := m.taskHooks.DispatchTaskRunReleased(ctx, payload)
+	_, err := m.taskHooks.DispatchTaskRunReleased(taskRunObservationHookContext(ctx), payload)
 	return err
 }
 
@@ -113,7 +113,7 @@ func (m *Service) dispatchTaskRunCompleted(
 		},
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
-	_, err := m.taskHooks.DispatchTaskRunCompleted(ctx, payload)
+	_, err := m.taskHooks.DispatchTaskRunCompleted(taskRunObservationHookContext(ctx), payload)
 	return err
 }
 
@@ -130,6 +130,6 @@ func (m *Service) dispatchTaskRunFailed(
 		},
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
-	_, err := m.taskHooks.DispatchTaskRunFailed(ctx, payload)
+	_, err := m.taskHooks.DispatchTaskRunFailed(taskRunObservationHookContext(ctx), payload)
 	return err
 }

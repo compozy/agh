@@ -142,6 +142,16 @@ func ValidateMatcherForEvent(event HookEvent, matcher HookMatcher) error {
 	return fmt.Errorf("hooks: matcher fields [%s] are not valid for event %q", strings.Join(invalid, ", "), event)
 }
 
+// MatcherFieldAllowedForEvent reports whether a matcher field is valid for the event family.
+func MatcherFieldAllowedForEvent(event HookEvent, field string) bool {
+	if err := event.Validate(); err != nil {
+		return false
+	}
+	allowed := allowedMatcherFieldsByFamily[event.Family()]
+	_, ok := allowed[strings.TrimSpace(field)]
+	return ok
+}
+
 // MatchesSession matches session-family hooks.
 func (m HookMatcher) MatchesSession(payload SessionContext) bool {
 	return m.matchSessionContext(payload, true)

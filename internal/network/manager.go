@@ -897,6 +897,9 @@ func (m *Manager) controlMessageReceivers(result RouteResult) []string {
 		locals := m.peers.LocalPeers(envelope.Channel)
 		receivers := make([]string, 0, len(locals))
 		for _, local := range locals {
+			if isEnvelopeSender(local, envelope) {
+				continue
+			}
 			receivers = append(receivers, local.SessionID)
 		}
 		return receivers

@@ -1218,6 +1218,9 @@ type sessionAttemptPlan struct {
 	promptErr     error
 	promptStarted chan struct{}
 	promptRelease chan struct{}
+	stopErr       error
+	stopStarted   chan struct{}
+	stopRelease   chan struct{}
 	events        []acp.AgentEvent
 }
 
@@ -1401,6 +1404,21 @@ func (c *recordingSessionCreator) StopWithCause(
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+
+	c.mu.Lock()
+	plan, ok := c.bySessionID[id]
+	c.mu.Unlock()
+	if !ok {
+		plan = sessionAttemptPlan{}
+	}
+
+	notify(plan.stopStarted)
+	if err := waitForRelease(ctx, plan.stopRelease); err != nil {
+		return err
+	}
+	if plan.stopErr != nil {
+		return plan.stopErr
 	}
 
 	c.mu.Lock()

@@ -104,6 +104,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/agent/channels",
 		"GET /api/agent/channels/:channel/recv",
 		"GET /api/agent/context",
+		"GET /api/agent/coordinator/config",
 		"GET /api/agent/me",
 		"GET /api/automation/jobs",
 		"GET /api/automation/jobs/:id",

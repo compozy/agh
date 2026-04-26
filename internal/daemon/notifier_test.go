@@ -404,24 +404,114 @@ func TestHooksBridgeHelperCloningAndTimestamp(t *testing.T) {
 		t.Fatal("original matcher ToolReadOnly was mutated")
 	}
 
-	resolved := workspaceResolvedForTest("ws-1", "/tmp/ws-1")
-	scoped := scopeWorkspaceHookDecls([]hookspkg.HookDecl{original}, &resolved)
-	if len(scoped) != 1 {
-		t.Fatalf("len(scoped) = %d, want 1", len(scoped))
-	}
-	if scoped[0].Matcher.WorkspaceID != resolved.ID {
-		t.Fatalf("scoped WorkspaceID = %q, want %q", scoped[0].Matcher.WorkspaceID, resolved.ID)
-	}
-	if scoped[0].Matcher.WorkspaceRoot != resolved.RootDir {
-		t.Fatalf("scoped WorkspaceRoot = %q, want %q", scoped[0].Matcher.WorkspaceRoot, resolved.RootDir)
-	}
-	if original.Matcher.WorkspaceID != "" || original.Matcher.WorkspaceRoot != "" {
-		t.Fatalf("original matcher workspace fields were mutated: %#v", original.Matcher)
-	}
-
 	if got := cloneStringMap(nil); got != nil {
 		t.Fatalf("cloneStringMap(nil) = %#v, want nil", got)
 	}
+}
+
+func TestScopeWorkspaceHookDeclsOnlyInjectsSupportedMatcherFields(t *testing.T) {
+	t.Parallel()
+
+	resolved := workspaceResolvedForTest("ws-1", "/tmp/ws-1")
+	decls := []hookspkg.HookDecl{
+		{
+			Name:  "session",
+			Event: hookspkg.HookSessionPostCreate,
+		},
+		{
+			Name:  "task-run",
+			Event: hookspkg.HookTaskRunEnqueued,
+		},
+		{
+			Name:  "message",
+			Event: hookspkg.HookMessageDelta,
+		},
+	}
+
+	scoped := scopeWorkspaceHookDecls(decls, &resolved)
+	if len(scoped) != len(decls) {
+		t.Fatalf("len(scoped) = %d, want %d", len(scoped), len(decls))
+	}
+
+	if scoped[0].Matcher.WorkspaceID != resolved.ID {
+		t.Fatalf("session WorkspaceID = %q, want %q", scoped[0].Matcher.WorkspaceID, resolved.ID)
+	}
+	if scoped[0].Matcher.WorkspaceRoot != resolved.RootDir {
+		t.Fatalf("session WorkspaceRoot = %q, want %q", scoped[0].Matcher.WorkspaceRoot, resolved.RootDir)
+	}
+	if err := hookspkg.ValidateMatcherForEvent(scoped[0].Event, scoped[0].Matcher); err != nil {
+		t.Fatalf("session matcher validation error = %v", err)
+	}
+
+	if scoped[1].Matcher.WorkspaceID != resolved.ID {
+		t.Fatalf("task-run WorkspaceID = %q, want %q", scoped[1].Matcher.WorkspaceID, resolved.ID)
+	}
+	if scoped[1].Matcher.WorkspaceRoot != "" {
+		t.Fatalf(
+			"task-run WorkspaceRoot = %q, want empty because task-run hooks do not support it",
+			scoped[1].Matcher.WorkspaceRoot,
+		)
+	}
+	if err := hookspkg.ValidateMatcherForEvent(scoped[1].Event, scoped[1].Matcher); err != nil {
+		t.Fatalf("task-run matcher validation error = %v", err)
+	}
+
+	if scoped[2].Matcher.WorkspaceID != "" || scoped[2].Matcher.WorkspaceRoot != "" {
+		t.Fatalf("message matcher workspace fields = %#v, want no unsupported workspace scoping", scoped[2].Matcher)
+	}
+	if err := hookspkg.ValidateMatcherForEvent(scoped[2].Event, scoped[2].Matcher); err != nil {
+		t.Fatalf("message matcher validation error = %v", err)
+	}
+
+	for idx, decl := range decls {
+		if decl.Matcher.WorkspaceID != "" || decl.Matcher.WorkspaceRoot != "" {
+			t.Fatalf("decls[%d] matcher workspace fields were mutated: %#v", idx, decl.Matcher)
+		}
+	}
+}
+
+func TestScopeWorkspaceHookDeclsInjectsWorkspaceWorkingDirWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inherit the workspace root as working directory for relative hooks", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := workspaceResolvedForTest("ws-1", "/tmp/ws-1")
+		decls := []hookspkg.HookDecl{
+			{
+				Name:  "task-run",
+				Event: hookspkg.HookTaskRunEnqueued,
+			},
+			{
+				Name:  "message",
+				Event: hookspkg.HookMessageDelta,
+			},
+		}
+
+		scoped := scopeWorkspaceHookDecls(decls, &resolved)
+		if got, want := scoped[0].WorkingDir, resolved.RootDir; got != want {
+			t.Fatalf("task-run WorkingDir = %q, want %q", got, want)
+		}
+		if got, want := scoped[1].WorkingDir, resolved.RootDir; got != want {
+			t.Fatalf("message WorkingDir = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve an explicit working directory", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := workspaceResolvedForTest("ws-1", "/tmp/ws-1")
+		decls := []hookspkg.HookDecl{{
+			Name:       "explicit",
+			Event:      hookspkg.HookTaskRunEnqueued,
+			WorkingDir: "/tmp/keep-me",
+		}}
+
+		scoped := scopeWorkspaceHookDecls(decls, &resolved)
+		if got, want := scoped[0].WorkingDir, "/tmp/keep-me"; got != want {
+			t.Fatalf("explicit WorkingDir = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {

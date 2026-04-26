@@ -20,13 +20,15 @@ describe("storybook story and fixture regressions", () => {
       import("@/systems/knowledge/components/stories/knowledge-detail-panel.stories"),
       import("@/systems/knowledge/components/stories/knowledge-list-panel.stories"),
       import("@/systems/network/components/stories/network-create-channel-dialog.stories"),
+      import("@/systems/network/components/stories/network-workspace-shell.stories"),
+      import("@/routes/_app/stories/-network.stories"),
       import("@/systems/automation/components/stories/automation-editor-dialog.stories"),
       import("@/systems/session/components/stories/copy-button.stories"),
       import("@/systems/session/components/tool-renderers/stories/read-content.stories"),
       import("@/systems/session/components/tool-renderers/stories/search-content.stories"),
     ]);
 
-    expect(modules).toHaveLength(7);
+    expect(modules).toHaveLength(9);
 
     for (const module of modules) {
       expect(module.default).toBeDefined();
@@ -53,6 +55,11 @@ describe("storybook story and fixture regressions", () => {
         "utf8"
       ),
       readFile(
+        fromWeb("src/systems/network/components/stories/network-workspace-shell.stories.tsx"),
+        "utf8"
+      ),
+      readFile(fromWeb("src/routes/_app/stories/-network.stories.tsx"), "utf8"),
+      readFile(
         fromWeb("src/systems/automation/components/stories/automation-editor-dialog.stories.tsx"),
         "utf8"
       ),
@@ -75,6 +82,8 @@ describe("storybook story and fixture regressions", () => {
       knowledgeListStory,
       stylesSource,
       networkCreateDialogStory,
+      networkWorkspaceShellStory,
+      networkRouteStory,
       automationEditorDialogStory,
       copyButtonStory,
       readContentStory,
@@ -103,6 +112,10 @@ describe("storybook story and fixture regressions", () => {
     expect(networkCreateDialogStory).toContain(
       'purpose: "Coordinate release handoffs and deploy verification.",'
     );
+    expect(networkWorkspaceShellStory).toContain("NetworkWorkspaceShell");
+    expect(networkWorkspaceShellStory).toContain("networkChannelMessagesFixture");
+    expect(networkRouteStory).toContain('"routes/app/network"');
+    expect(networkRouteStory).toContain("storybookMswParameters");
     expect(automationEditorDialogStory).toContain(
       'import { AutomationEditorDialog } from "@/systems/automation/components/automation-editor-dialog";'
     );

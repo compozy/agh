@@ -32,6 +32,10 @@ const (
 	SessionClassDream SessionClass = "dream"
 	// SessionClassSystem identifies daemon-owned system sessions.
 	SessionClassSystem SessionClass = "system"
+	// SessionClassCoordinator identifies daemon-owned workspace coordinator sessions.
+	SessionClassCoordinator SessionClass = "coordinator"
+	// SessionClassSpawned identifies bounded child worker sessions.
+	SessionClassSpawned SessionClass = "spawned"
 )
 
 // HarnessPromptSection identifies a startup prompt section managed by harness policy.
@@ -311,6 +315,10 @@ func normalizeHarnessSessionType(sessionType session.Type) session.Type {
 		return session.SessionTypeDream
 	case session.SessionTypeSystem:
 		return session.SessionTypeSystem
+	case session.SessionTypeCoordinator:
+		return session.SessionTypeCoordinator
+	case session.SessionTypeSpawned:
+		return session.SessionTypeSpawned
 	default:
 		return ""
 	}
@@ -324,6 +332,10 @@ func harnessSessionClassForType(sessionType session.Type) (SessionClass, error) 
 		return SessionClassDream, nil
 	case session.SessionTypeSystem:
 		return SessionClassSystem, nil
+	case session.SessionTypeCoordinator:
+		return SessionClassCoordinator, nil
+	case session.SessionTypeSpawned:
+		return SessionClassSpawned, nil
 	default:
 		return "", fmt.Errorf("daemon: unsupported harness session type %q", sessionType)
 	}

@@ -53,6 +53,11 @@ describe("MonoBadge", () => {
       background: "bg-[color:var(--color-neutral-tint)]",
       text: "text-[color:var(--color-text-label)]",
     },
+    {
+      tone: "solid-accent",
+      background: "bg-[color:var(--color-accent)]",
+      text: "text-[color:var(--color-accent-ink)]",
+    },
   ])("Should apply the $tone tint tokens", ({ tone, background, text }) => {
     const { container } = render(<MonoBadge tone={tone}>token</MonoBadge>);
     const badge = container.querySelector<HTMLElement>('[data-slot="mono-badge"]');

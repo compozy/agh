@@ -133,6 +133,96 @@ func TestTaskRunEnqueuedHookIncludesActorAndOrigin(t *testing.T) {
 	}
 }
 
+func TestTaskRunObservationHooksDetachFromCallerCancellation(t *testing.T) {
+	t.Parallel()
+
+	var enqueuedCtx context.Context
+	var postClaimCtx context.Context
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+		enqueued: func(
+			ctx context.Context,
+			payload hookspkg.TaskRunEnqueuedPayload,
+		) (hookspkg.TaskRunEnqueuedPayload, error) {
+			enqueuedCtx = ctx
+			return payload, nil
+		},
+		postClaim: func(
+			ctx context.Context,
+			payload hookspkg.TaskRunPostClaimPayload,
+		) (hookspkg.TaskRunPostClaimPayload, error) {
+			postClaimCtx = ctx
+			return payload, nil
+		},
+	}))
+	actor := validActorContext()
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Observation hook context task",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	enqueueCtx, cancelEnqueue := context.WithCancel(context.Background())
+	run, err := manager.EnqueueRun(enqueueCtx, EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	cancelEnqueue()
+	assertContextStillActive(enqueuedCtx, t, "enqueued")
+
+	claimCtx, cancelClaim := context.WithCancel(context.Background())
+	if _, err := manager.ClaimRun(claimCtx, run.ID, ClaimRun{}, actor); err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+	cancelClaim()
+	assertContextStillActive(postClaimCtx, t, "post-claim")
+}
+
+func TestTaskRunPreClaimHookUsesCallerCancellation(t *testing.T) {
+	t.Parallel()
+
+	var preClaimCtx context.Context
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+		preClaim: func(
+			ctx context.Context,
+			payload hookspkg.TaskRunPreClaimPayload,
+		) (hookspkg.TaskRunPreClaimPayload, error) {
+			preClaimCtx = ctx
+			return payload, nil
+		},
+	}))
+	actor := validActorContext()
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Pre-claim hook context task",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+
+	claimCtx, cancelClaim := context.WithCancel(context.Background())
+	if _, err := manager.ClaimRun(claimCtx, run.ID, ClaimRun{}, actor); err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+	cancelClaim()
+
+	if preClaimCtx == nil {
+		t.Fatal("pre-claim hook context was not captured")
+	}
+	select {
+	case <-preClaimCtx.Done():
+	default:
+		t.Fatal("pre-claim hook context was not canceled with caller context")
+	}
+}
+
 func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 	t.Parallel()
 
@@ -302,6 +392,18 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		if events[idx] != want[idx] {
 			t.Fatalf("events[%d] = %q, want %q (events=%#v)", idx, events[idx], want[idx], events)
 		}
+	}
+}
+
+func assertContextStillActive(ctx context.Context, t *testing.T, label string) {
+	t.Helper()
+	if ctx == nil {
+		t.Fatalf("%s hook context was not captured", label)
+	}
+	select {
+	case <-ctx.Done():
+		t.Fatalf("%s hook context canceled after caller returned: %v", label, ctx.Err())
+	default:
 	}
 }
 

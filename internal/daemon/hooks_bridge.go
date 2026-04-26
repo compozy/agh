@@ -1424,8 +1424,15 @@ func scopeWorkspaceHookDecls(
 	for _, decl := range decls {
 		cloned := cloneDaemonHookDecl(decl)
 		if resolved != nil {
-			cloned.Matcher.WorkspaceID = strings.TrimSpace(resolved.ID)
-			cloned.Matcher.WorkspaceRoot = strings.TrimSpace(resolved.RootDir)
+			if strings.TrimSpace(cloned.WorkingDir) == "" {
+				cloned.WorkingDir = strings.TrimSpace(resolved.RootDir)
+			}
+			if hookspkg.MatcherFieldAllowedForEvent(cloned.Event, "workspace_id") {
+				cloned.Matcher.WorkspaceID = strings.TrimSpace(resolved.ID)
+			}
+			if hookspkg.MatcherFieldAllowedForEvent(cloned.Event, "workspace_root") {
+				cloned.Matcher.WorkspaceRoot = strings.TrimSpace(resolved.RootDir)
+			}
 		}
 		scoped = append(scoped, cloned)
 	}

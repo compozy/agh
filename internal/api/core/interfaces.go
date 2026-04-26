@@ -111,6 +111,11 @@ type AgentContextService interface {
 	ContextForSession(ctx context.Context, info *session.Info) (contract.AgentContextPayload, error)
 }
 
+// CoordinatorConfigResolver resolves safe coordinator policy for agent-facing reads.
+type CoordinatorConfigResolver interface {
+	ResolveCoordinatorConfig(ctx context.Context, workspaceID string) (aghconfig.CoordinatorConfig, error)
+}
+
 // NetworkStore exposes persisted network audit, channel metadata CRUD, and timeline queries to the API layer.
 type NetworkStore interface {
 	ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)

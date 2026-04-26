@@ -190,13 +190,16 @@ func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 		if err := manager.JoinChannel(ctx, testJoinRequest("sess-a", "coder.sess-a", "builders")); err != nil {
 			t.Fatalf("JoinChannel() error = %v", err)
 		}
+		if err := manager.JoinChannel(ctx, testJoinRequest("sess-b", "reviewer.sess-b", "builders")); err != nil {
+			t.Fatalf("JoinChannel(second peer) error = %v", err)
+		}
 
 		status, err := manager.Status(ctx)
 		if err != nil {
 			t.Fatalf("Status(joined) error = %v", err)
 		}
-		if status.LocalPeers != 1 || status.Channels != 1 {
-			t.Fatalf("Status(joined) = %#v, want 1 local peer and 1 channel", status)
+		if status.LocalPeers != 2 || status.Channels != 1 {
+			t.Fatalf("Status(joined) = %#v, want 2 local peers and 1 channel", status)
 		}
 
 		id, err := manager.Send(ctx, SendRequest{
@@ -214,7 +217,7 @@ func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 
 		prompter.waitForCalls(t, 1)
 		call := prompter.call(0)
-		if got, want := call.sessionID, "sess-a"; got != want {
+		if got, want := call.sessionID, "sess-b"; got != want {
 			t.Fatalf("prompt session id = %q, want %q", got, want)
 		}
 		if !strings.Contains(call.message, "hello builders") {
@@ -402,8 +405,14 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 			}
 		})
 
+		if err := manager.JoinChannel(
+			ctx,
+			testJoinRequest("sess-sender", "coder.sess-sender", "builders"),
+		); err != nil {
+			t.Fatalf("JoinChannel(sender) error = %v", err)
+		}
 		if err := manager.JoinChannel(ctx, testJoinRequest("sess-busy", "reviewer.sess-busy", "builders")); err != nil {
-			t.Fatalf("JoinChannel() error = %v", err)
+			t.Fatalf("JoinChannel(busy) error = %v", err)
 		}
 
 		return ctx, manager, prompter
@@ -415,7 +424,7 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 		ctx, manager, prompter := newBusyManagerHarness(t)
 		prompter.setPrompting("sess-busy", true)
 		if _, err := manager.Send(ctx, SendRequest{
-			SessionID: "sess-busy",
+			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "queued while busy"}),
@@ -586,13 +595,19 @@ func TestManagerAuditsBusyQueueOverflowAsRejected(t *testing.T) {
 			}
 		})
 
+		if err := manager.JoinChannel(
+			ctx,
+			testJoinRequest("sess-sender", "coder.sess-sender", "builders"),
+		); err != nil {
+			t.Fatalf("JoinChannel(sender) error = %v", err)
+		}
 		if err := manager.JoinChannel(ctx, testJoinRequest("sess-busy", "reviewer.sess-busy", "builders")); err != nil {
-			t.Fatalf("JoinChannel() error = %v", err)
+			t.Fatalf("JoinChannel(busy) error = %v", err)
 		}
 		prompter.setPrompting("sess-busy", true)
 
 		firstID, err := manager.Send(ctx, SendRequest{
-			SessionID: "sess-busy",
+			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "overflow first"}),
@@ -601,7 +616,7 @@ func TestManagerAuditsBusyQueueOverflowAsRejected(t *testing.T) {
 			t.Fatalf("Send(first) error = %v", err)
 		}
 		secondID, err := manager.Send(ctx, SendRequest{
-			SessionID: "sess-busy",
+			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "overflow second"}),
@@ -733,6 +748,9 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 	if err := manager.JoinChannel(ctx, testJoinRequest("sess-a", "reviewer.sess-a", "builders")); err != nil {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
+	if err := manager.JoinChannel(ctx, testJoinRequest("sess-b", "patcher.sess-b", "builders")); err != nil {
+		t.Fatalf("JoinChannel(second peer) error = %v", err)
+	}
 
 	_, err = manager.Send(ctx, SendRequest{
 		SessionID:     "sess-a",
@@ -760,8 +778,8 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status() error = %v", err)
 	}
-	if status.MessagesSent != 2 || status.MessagesReceived != 2 || status.MessagesDelivered != 1 {
-		t.Fatalf("status message counts = %#v, want sent=2 received=2 delivered=1", status)
+	if status.MessagesSent != 3 || status.MessagesReceived != 2 || status.MessagesDelivered != 1 {
+		t.Fatalf("status message counts = %#v, want sent=3 received=2 delivered=1", status)
 	}
 	if status.WorkflowTaggedEvents != 3 || status.HandoffTaggedEvents != 3 {
 		t.Fatalf("status tagged counts = %#v, want workflow=3 handoff=3", status)
@@ -770,8 +788,8 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 	for _, metric := range status.KindMetrics {
 		metricsByKind[metric.Kind] = metric
 	}
-	if greet := metricsByKind[KindGreet]; greet.Sent != 1 || greet.Received != 1 || greet.Delivered != 0 {
-		t.Fatalf("greet kind metrics = %#v, want sent=1 received=1 delivered=0", greet)
+	if greet := metricsByKind[KindGreet]; greet.Sent != 2 || greet.Received != 1 || greet.Delivered != 0 {
+		t.Fatalf("greet kind metrics = %#v, want sent=2 received=1 delivered=0", greet)
 	}
 	if say := metricsByKind[KindSay]; say.Sent != 1 || say.Received != 1 || say.Delivered != 1 {
 		t.Fatalf("say kind metrics = %#v, want sent=1 received=1 delivered=1", say)
@@ -920,12 +938,15 @@ func TestManagerShutdownTracksInterruptedInFlightMessages(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
+	if err := manager.JoinChannel(ctx, testJoinRequest("sess-sender", "coder.sess-sender", "builders")); err != nil {
+		t.Fatalf("JoinChannel(sender) error = %v", err)
+	}
 	if err := manager.JoinChannel(ctx, testJoinRequest("sess-stop", "reviewer.sess-stop", "builders")); err != nil {
-		t.Fatalf("JoinChannel() error = %v", err)
+		t.Fatalf("JoinChannel(stop target) error = %v", err)
 	}
 
 	if _, err := manager.Send(ctx, SendRequest{
-		SessionID: "sess-stop",
+		SessionID: "sess-sender",
 		Channel:   "builders",
 		Kind:      KindSay,
 		Body:      mustRawJSON(t, map[string]any{"text": "hello before shutdown"}),

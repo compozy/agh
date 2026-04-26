@@ -90,6 +90,64 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 	}
 }
 
+func TestOnAgentEventRecoversSessionSnapshotFromLiveSource(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	sess := newSession("sess-live-source", session.StateActive, h.workspace, h.now)
+	info := sess.Info()
+	if err := h.registry.RegisterSession(testutil.Context(t), sessionInfoFromSession(info)); err != nil {
+		t.Fatalf("RegisterSession() error = %v", err)
+	}
+	h.source.sessions = []*session.Info{info}
+
+	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
+		Type:      "agent_message",
+		TurnID:    "turn-live-source",
+		Timestamp: h.now.Add(time.Minute),
+		Text:      "live source event was observed",
+	})
+
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+	if err != nil {
+		t.Fatalf("QueryEvents() error = %v", err)
+	}
+	if got, want := len(events), 1; got != want {
+		t.Fatalf("len(events) = %d, want %d", got, want)
+	}
+	if events[0].AgentName != "coder" || events[0].Summary != "live source event was observed" {
+		t.Fatalf("events[0] = %#v, want recovered live source event", events[0])
+	}
+}
+
+func TestOnAgentEventRecoversSessionSnapshotFromRegistry(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	sess := newSession("sess-registry-source", session.StateActive, h.workspace, h.now)
+	if err := h.registry.RegisterSession(testutil.Context(t), sessionInfoFromSession(sess.Info())); err != nil {
+		t.Fatalf("RegisterSession() error = %v", err)
+	}
+
+	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
+		Type:      "agent_message",
+		TurnID:    "turn-registry-source",
+		Timestamp: h.now.Add(time.Minute),
+		Text:      "registry event was observed",
+	})
+
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+	if err != nil {
+		t.Fatalf("QueryEvents() error = %v", err)
+	}
+	if got, want := len(events), 1; got != want {
+		t.Fatalf("len(events) = %d, want %d", got, want)
+	}
+	if events[0].AgentName != "coder" || events[0].Summary != "registry event was observed" {
+		t.Fatalf("events[0] = %#v, want recovered registry event", events[0])
+	}
+}
+
 func TestSweepRetentionModes(t *testing.T) {
 	t.Parallel()
 

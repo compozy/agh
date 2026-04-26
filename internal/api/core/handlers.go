@@ -46,6 +46,7 @@ type BaseHandlerConfig struct {
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
 	AgentContextService          AgentContextService
+	CoordinatorConfig            CoordinatorConfigResolver
 	SkillsRegistry               SkillsRegistry
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
@@ -81,6 +82,7 @@ type BaseHandlers struct {
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
 	AgentContextService          AgentContextService
+	CoordinatorConfig            CoordinatorConfigResolver
 	SkillsRegistry               SkillsRegistry
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
@@ -156,6 +158,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Workspaces:                   cfg.Workspaces,
 		AgentCatalog:                 cfg.AgentCatalog,
 		AgentContextService:          cfg.AgentContextService,
+		CoordinatorConfig:            cfg.CoordinatorConfig,
 		SkillsRegistry:               cfg.SkillsRegistry,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
 		MemoryStore:                  cfg.MemoryStore,

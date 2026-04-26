@@ -119,3 +119,10 @@ func defaultTaskRunHooks(hooks RunHookDispatcher) RunHookDispatcher {
 	}
 	return noopTaskRunHooks{}
 }
+
+func taskRunObservationHookContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return context.WithoutCancel(ctx)
+}

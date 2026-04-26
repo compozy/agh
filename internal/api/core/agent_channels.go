@@ -320,6 +320,9 @@ func (h *BaseHandlers) enrichAgentMePayload(
 	if h == nil {
 		return
 	}
+	if coordinatorPayload, err := h.agentCoordinatorConfigPayload(ctx, caller.Session.WorkspaceID); err == nil {
+		payload.Coordinator = coordinatorPayload
+	}
 	service, err := h.networkServiceRequired()
 	if err != nil {
 		if callerChannel := strings.TrimSpace(

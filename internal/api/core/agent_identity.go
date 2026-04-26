@@ -11,9 +11,15 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 )
 
-const agentActionMe = "agent.me"
+const (
+	agentActionMe                = "agent.me"
+	agentActionCoordinatorConfig = "agent.coordinator.config"
+)
 
-var errAgentIdentityUnavailable = errors.New("api: session service is not configured")
+var (
+	errAgentIdentityUnavailable = errors.New("api: session service is not configured")
+	errCoordinatorConfigMissing = errors.New("api: coordinator config service is not configured")
+)
 
 // StatusForAgentIdentityError maps agent identity failures to transport statuses.
 func StatusForAgentIdentityError(err error) int {
@@ -43,6 +49,20 @@ func (h *BaseHandlers) AgentMe(c *gin.Context) {
 	payload := agentMePayloadFromCaller(caller)
 	h.enrichAgentMePayload(c.Request.Context(), caller, &payload)
 	c.JSON(http.StatusOK, contract.AgentMeResponse{Me: contract.NormalizeAgentMePayload(payload)})
+}
+
+// AgentCoordinatorConfig returns the resolved coordinator policy for the caller workspace.
+func (h *BaseHandlers) AgentCoordinatorConfig(c *gin.Context) {
+	caller, ok := h.requireAgentCaller(c, agentActionCoordinatorConfig)
+	if !ok {
+		return
+	}
+	payload, err := h.agentCoordinatorConfigPayload(c.Request.Context(), caller.Session.WorkspaceID)
+	if err != nil {
+		h.respondError(c, statusForCoordinatorConfigError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.AgentCoordinatorConfigResponse{Coordinator: payload})
 }
 
 func (h *BaseHandlers) requireAgentCaller(
@@ -123,4 +143,30 @@ func agentMePayloadFromCaller(caller agentidentity.Caller) contract.AgentMePaylo
 		},
 	}
 	return contract.NormalizeAgentMePayload(payload)
+}
+
+func (h *BaseHandlers) agentCoordinatorConfigPayload(
+	ctx context.Context,
+	workspaceID string,
+) (contract.CoordinatorConfigPayload, error) {
+	if h == nil || h.CoordinatorConfig == nil {
+		return contract.CoordinatorConfigPayload{}, errCoordinatorConfigMissing
+	}
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
+	cfg, err := h.CoordinatorConfig.ResolveCoordinatorConfig(ctx, trimmedWorkspaceID)
+	if err != nil {
+		return contract.CoordinatorConfigPayload{}, err
+	}
+	source := contract.CoordinatorConfigSourceGlobal
+	if trimmedWorkspaceID != "" {
+		source = contract.CoordinatorConfigSourceWorkspace
+	}
+	return CoordinatorConfigPayloadFromConfig(cfg, source, trimmedWorkspaceID), nil
+}
+
+func statusForCoordinatorConfigError(err error) int {
+	if errors.Is(err, errCoordinatorConfigMissing) {
+		return http.StatusServiceUnavailable
+	}
+	return http.StatusInternalServerError
 }

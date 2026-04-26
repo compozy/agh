@@ -138,8 +138,11 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 	if err != nil {
 		t.Fatalf("Receive(broadcast) error = %v", err)
 	}
-	if got, want := len(broadcastResult.Deliveries), 2; got != want {
+	if got, want := len(broadcastResult.Deliveries), 1; got != want {
 		t.Fatalf("len(broadcast deliveries) = %d, want %d", got, want)
+	}
+	if got, want := broadcastResult.Deliveries[0].SessionID, "sess-b"; got != want {
+		t.Fatalf("broadcast delivery session = %q, want %q", got, want)
 	}
 
 	directInbound, err := router.Receive(context.Background(), transport.Message(1).payload)
@@ -151,6 +154,60 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 	}
 	if got, want := directInbound.Deliveries[0].SessionID, "sess-b"; got != want {
 		t.Fatalf("direct delivery session = %q, want %q", got, want)
+	}
+}
+
+func TestRouterDoesNotDeliverLocalEchoesToSender(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+	sender := mustPeerCard(t, "coordinator.sess-a")
+	if _, err := registry.RegisterLocal("sess-a", "marketing", sender, now); err != nil {
+		t.Fatalf("RegisterLocal(sender) error = %v", err)
+	}
+
+	transport := &spyRouterTransport{}
+	router, err := NewRouter(registry, transport, DefaultMaxReplayAge, WithRouterClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewRouter() error = %v", err)
+	}
+
+	if _, err := router.Send(context.Background(), SendRequest{
+		SessionID: "sess-a",
+		Channel:   "marketing",
+		Kind:      KindSay,
+		Body:      mustRawJSON(t, SayBody{Text: "local status"}),
+	}); err != nil {
+		t.Fatalf("Send(say self echo) error = %v", err)
+	}
+	broadcastResult, err := router.Receive(context.Background(), transport.Message(0).payload)
+	if err != nil {
+		t.Fatalf("Receive(say self echo) error = %v", err)
+	}
+	if got := len(broadcastResult.Deliveries); got != 0 {
+		t.Fatalf("len(self broadcast deliveries) = %d, want 0", got)
+	}
+
+	if _, err := router.Send(context.Background(), SendRequest{
+		SessionID:     "sess-a",
+		Channel:       "marketing",
+		Kind:          KindDirect,
+		To:            stringPtr(sender.PeerID),
+		InteractionID: stringPtr("int-self"),
+		Body:          mustRawJSON(t, DirectBody{Text: "self-directed loop"}),
+	}); err != nil {
+		t.Fatalf("Send(direct self echo) error = %v", err)
+	}
+	directResult, err := router.Receive(context.Background(), transport.Message(1).payload)
+	if err != nil {
+		t.Fatalf("Receive(direct self echo) error = %v", err)
+	}
+	if got := len(directResult.Deliveries); got != 0 {
+		t.Fatalf("len(self direct deliveries) = %d, want 0", got)
 	}
 }
 

@@ -858,6 +858,17 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 				Timeout: time.Minute,
 			},
 		},
+		Autonomy: aghconfig.AutonomyConfig{
+			Coordinator: aghconfig.CoordinatorConfig{
+				Enabled:               true,
+				AgentName:             "coordinator",
+				Provider:              "codex",
+				Model:                 "gpt-4o",
+				DefaultTTL:            45 * time.Minute,
+				MaxChildren:           5,
+				MaxActivePerWorkspace: 1,
+			},
+		},
 		Providers: map[string]aghconfig.ProviderConfig{
 			"claude": {
 				Command:      "claude",
@@ -904,6 +915,12 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 
 	if got, want := original.Session.Limits.Timeout, time.Minute; got != want {
 		t.Fatalf("original Session.Limits.Timeout = %s, want %s", got, want)
+	}
+	if got, want := cloned.Autonomy.Coordinator.DefaultTTL, 45*time.Minute; got != want {
+		t.Fatalf("cloned Autonomy.Coordinator.DefaultTTL = %s, want %s", got, want)
+	}
+	if !cloned.Autonomy.Coordinator.Enabled {
+		t.Fatal("cloned Autonomy.Coordinator.Enabled = false, want true")
 	}
 	provider := original.Providers["claude"]
 	if provider.Command != "claude" || provider.MCPServers[0].Env["TOKEN"] != "one" {

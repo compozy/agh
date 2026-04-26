@@ -44,4 +44,34 @@ describe("network mock contracts", () => {
 
     expect(payload.messages).toEqual(networkPeerMessagesFixture);
   });
+
+  it("handles Storybook send requests without falling through to the real daemon", async () => {
+    const response = await getResponse(
+      handlers,
+      new Request("http://localhost/api/network/send", {
+        body: JSON.stringify({
+          body: { text: "Ship the Storybook route." },
+          channel: "storybook",
+          kind: "say",
+          session_id: "sess-storybook",
+        }),
+        method: "POST",
+      }),
+      { baseUrl: "http://localhost" }
+    );
+
+    expect(response).not.toBeUndefined();
+    expect(response?.ok).toBe(true);
+
+    const payload = (await response?.json()) as {
+      message: { channel: string; id: string; kind: string; session_id: string };
+    };
+
+    expect(payload.message).toEqual({
+      channel: "storybook",
+      id: "msg_storybook_sent",
+      kind: "say",
+      session_id: "sess-storybook",
+    });
+  });
 });

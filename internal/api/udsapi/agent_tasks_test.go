@@ -101,9 +101,10 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 	if seenCriteria.WorkspaceID != "ws-1" ||
 		seenCriteria.ClaimerSessionID != "sess-agent" ||
 		seenCriteria.AgentName != "coder" ||
+		seenCriteria.CoordinationChannelID != "builders" ||
 		seenCriteria.PriorityMin != 2 ||
 		seenCriteria.LeaseDuration != 120*time.Second {
-		t.Fatalf("criteria = %#v, want caller workspace/session/agent and flags", seenCriteria)
+		t.Fatalf("criteria = %#v, want caller workspace/session/agent/channel and flags", seenCriteria)
 	}
 	if !containsString(seenCriteria.RequiredCapabilities, "manual") ||
 		!containsString(seenCriteria.RequiredCapabilities, "go") {

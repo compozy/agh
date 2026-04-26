@@ -910,6 +910,7 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
 				udsapi.WithAgentCatalog(deps.AgentCatalog),
 				udsapi.WithAgentContext(deps.AgentContext),
+				udsapi.WithCoordinatorConfig(deps.CoordinatorConfig),
 				udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 				udsapi.WithMemoryStore(deps.MemoryStore),
 				udsapi.WithDreamTrigger(deps.DreamTrigger),

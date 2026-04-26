@@ -50,32 +50,33 @@ type ExtensionService interface {
 type Server struct {
 	mu sync.Mutex
 
-	homePaths       aghconfig.HomePaths
-	config          aghconfig.Config
-	socketPath      string
-	logger          *slog.Logger
-	startedAt       time.Time
-	now             func() time.Time
-	pollInterval    time.Duration
-	sessions        core.SessionManager
-	tasks           core.TaskService
-	network         core.NetworkService
-	networkStore    core.NetworkStore
-	observer        core.Observer
-	resources       core.ResourceService
-	automation      core.AutomationManager
-	bridges         core.BridgeService
-	bundles         core.BundleService
-	settings        core.SettingsService
-	settingsRestart core.SettingsRestartController
-	workspaces      core.WorkspaceService
-	agentCatalog    core.AgentCatalog
-	agentContext    core.AgentContextService
-	skillsRegistry  core.SkillsRegistry
-	memoryStore     *memory.Store
-	dreamTrigger    core.DreamTrigger
-	agentLoader     core.AgentLoader
-	extensions      ExtensionService
+	homePaths         aghconfig.HomePaths
+	config            aghconfig.Config
+	socketPath        string
+	logger            *slog.Logger
+	startedAt         time.Time
+	now               func() time.Time
+	pollInterval      time.Duration
+	sessions          core.SessionManager
+	tasks             core.TaskService
+	network           core.NetworkService
+	networkStore      core.NetworkStore
+	observer          core.Observer
+	resources         core.ResourceService
+	automation        core.AutomationManager
+	bridges           core.BridgeService
+	bundles           core.BundleService
+	settings          core.SettingsService
+	settingsRestart   core.SettingsRestartController
+	workspaces        core.WorkspaceService
+	agentCatalog      core.AgentCatalog
+	agentContext      core.AgentContextService
+	coordinatorConfig core.CoordinatorConfigResolver
+	skillsRegistry    core.SkillsRegistry
+	memoryStore       *memory.Store
+	dreamTrigger      core.DreamTrigger
+	agentLoader       core.AgentLoader
+	extensions        ExtensionService
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -88,31 +89,32 @@ type Server struct {
 }
 
 type handlerConfig struct {
-	sessions        core.SessionManager
-	tasks           core.TaskService
-	network         core.NetworkService
-	networkStore    core.NetworkStore
-	observer        core.Observer
-	resources       core.ResourceService
-	automation      core.AutomationManager
-	bridges         core.BridgeService
-	bundles         core.BundleService
-	settings        core.SettingsService
-	settingsRestart core.SettingsRestartController
-	workspaces      core.WorkspaceService
-	agentCatalog    core.AgentCatalog
-	agentContext    core.AgentContextService
-	skillsRegistry  core.SkillsRegistry
-	memoryStore     *memory.Store
-	dreamTrigger    core.DreamTrigger
-	homePaths       aghconfig.HomePaths
-	config          aghconfig.Config
-	logger          *slog.Logger
-	startedAt       time.Time
-	now             func() time.Time
-	pollInterval    time.Duration
-	agentLoader     core.AgentLoader
-	extensions      ExtensionService
+	sessions          core.SessionManager
+	tasks             core.TaskService
+	network           core.NetworkService
+	networkStore      core.NetworkStore
+	observer          core.Observer
+	resources         core.ResourceService
+	automation        core.AutomationManager
+	bridges           core.BridgeService
+	bundles           core.BundleService
+	settings          core.SettingsService
+	settingsRestart   core.SettingsRestartController
+	workspaces        core.WorkspaceService
+	agentCatalog      core.AgentCatalog
+	agentContext      core.AgentContextService
+	coordinatorConfig core.CoordinatorConfigResolver
+	skillsRegistry    core.SkillsRegistry
+	memoryStore       *memory.Store
+	dreamTrigger      core.DreamTrigger
+	homePaths         aghconfig.HomePaths
+	config            aghconfig.Config
+	logger            *slog.Logger
+	startedAt         time.Time
+	now               func() time.Time
+	pollInterval      time.Duration
+	agentLoader       core.AgentLoader
+	extensions        ExtensionService
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
@@ -285,6 +287,13 @@ func WithAgentContext(service core.AgentContextService) Option {
 	}
 }
 
+// WithCoordinatorConfig injects the resolved coordinator policy reader.
+func WithCoordinatorConfig(resolver core.CoordinatorConfigResolver) Option {
+	return func(server *Server) {
+		server.coordinatorConfig = resolver
+	}
+}
+
 // WithDreamTrigger injects the dream-consolidation trigger surfaced by the daemon.
 func WithDreamTrigger(trigger core.DreamTrigger) Option {
 	return func(server *Server) {
@@ -421,31 +430,32 @@ func (s *Server) ensureEngine() {
 
 func (s *Server) handlerConfig() *handlerConfig {
 	return &handlerConfig{
-		sessions:        s.sessions,
-		tasks:           s.tasks,
-		network:         s.network,
-		networkStore:    s.networkStore,
-		observer:        s.observer,
-		resources:       s.resources,
-		automation:      s.automation,
-		bridges:         s.bridges,
-		bundles:         s.bundles,
-		settings:        s.settings,
-		settingsRestart: s.settingsRestart,
-		workspaces:      s.workspaces,
-		agentCatalog:    s.agentCatalog,
-		agentContext:    s.agentContext,
-		skillsRegistry:  s.skillsRegistry,
-		memoryStore:     s.memoryStore,
-		dreamTrigger:    s.dreamTrigger,
-		homePaths:       s.homePaths,
-		config:          s.config,
-		logger:          s.logger,
-		startedAt:       s.startedAt,
-		now:             s.now,
-		pollInterval:    s.pollInterval,
-		agentLoader:     s.agentLoader,
-		extensions:      s.extensions,
+		sessions:          s.sessions,
+		tasks:             s.tasks,
+		network:           s.network,
+		networkStore:      s.networkStore,
+		observer:          s.observer,
+		resources:         s.resources,
+		automation:        s.automation,
+		bridges:           s.bridges,
+		bundles:           s.bundles,
+		settings:          s.settings,
+		settingsRestart:   s.settingsRestart,
+		workspaces:        s.workspaces,
+		agentCatalog:      s.agentCatalog,
+		agentContext:      s.agentContext,
+		coordinatorConfig: s.coordinatorConfig,
+		skillsRegistry:    s.skillsRegistry,
+		memoryStore:       s.memoryStore,
+		dreamTrigger:      s.dreamTrigger,
+		homePaths:         s.homePaths,
+		config:            s.config,
+		logger:            s.logger,
+		startedAt:         s.startedAt,
+		now:               s.now,
+		pollInterval:      s.pollInterval,
+		agentLoader:       s.agentLoader,
+		extensions:        s.extensions,
 	}
 }
 
@@ -663,6 +673,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Workspaces:                   cfg.workspaces,
 			AgentCatalog:                 cfg.agentCatalog,
 			AgentContextService:          cfg.agentContext,
+			CoordinatorConfig:            cfg.coordinatorConfig,
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,
 			DreamTrigger:                 cfg.dreamTrigger,

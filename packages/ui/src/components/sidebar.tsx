@@ -173,7 +173,7 @@ function Sidebar({
         animate={{ width: panelVisible ? panelWidth : 0 }}
         transition={{ duration, ease: SIDEBAR_MOTION_EASE }}
         className={cn(
-          "flex min-h-0 flex-col overflow-hidden bg-[color:var(--color-surface)]",
+          "flex min-h-0 flex-col overflow-hidden bg-[color:var(--color-canvas-deep)]",
           panelVisible ? "visible pointer-events-auto" : "pointer-events-none invisible",
           narrow && "absolute inset-y-0 left-[44px] z-50 border-r border-border"
         )}
@@ -202,4 +202,22 @@ function Sidebar({
   );
 }
 
-export { Sidebar, SIDEBAR_RAIL_WIDTH, SIDEBAR_PANEL_WIDTH_DEFAULT };
+/**
+ * Canonical uppercase section heading used inside sidebar/panel columns —
+ * mirrors `.sidebar-section-label` in
+ * `docs/design/web-inspiration/styles/app.css`.
+ */
+function SidebarSectionLabel({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      {...props}
+      data-slot="sidebar-section-label"
+      className={cn(
+        "px-3 pt-3 pb-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-label)]",
+        className
+      )}
+    />
+  );
+}
+
+export { Sidebar, SidebarSectionLabel, SIDEBAR_RAIL_WIDTH, SIDEBAR_PANEL_WIDTH_DEFAULT };
