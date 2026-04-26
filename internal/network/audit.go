@@ -68,25 +68,59 @@ type FileAuditWriter struct {
 	store        AuditStore
 	messageStore MessageStore
 	now          func() time.Time
+	presence     auditPresenceWindow
 
-	mu sync.Mutex
+	fileMu sync.Mutex
+}
+
+type AuditWriterOption func(*FileAuditWriter)
+
+type auditPresenceWindow struct {
+	duration time.Duration
+	lastSeen map[string]time.Time
+	mu       sync.Mutex
+}
+
+// WithAuditWriterPresenceWindow suppresses repeated greet heartbeats from the
+// operator timeline while leaving the raw audit trail untouched.
+func WithAuditWriterPresenceWindow(window time.Duration) AuditWriterOption {
+	return func(writer *FileAuditWriter) {
+		if writer == nil {
+			return
+		}
+		if window <= 0 {
+			writer.presence.duration = 0
+			writer.presence.lastSeen = nil
+			return
+		}
+		writer.presence.duration = window
+		if writer.presence.lastSeen == nil {
+			writer.presence.lastSeen = make(map[string]time.Time)
+		}
+	}
 }
 
 // NewAuditWriter constructs the dual-path network audit writer.
-func NewAuditWriter(path string, auditStore AuditStore) (*FileAuditWriter, error) {
+func NewAuditWriter(path string, auditStore AuditStore, opts ...AuditWriterOption) (*FileAuditWriter, error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" && auditStore == nil {
 		return nil, errors.New("network: audit sink is required")
 	}
 
-	return &FileAuditWriter{
+	writer := &FileAuditWriter{
 		path:  cleanPath,
 		store: auditStore,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
 		messageStore: messageStoreFromAuditStore(auditStore),
-	}, nil
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(writer)
+		}
+	}
+	return writer, nil
 }
 
 func messageStoreFromAuditStore(auditStore AuditStore) MessageStore {
@@ -206,10 +240,48 @@ func (w *FileAuditWriter) record(
 		return recordErr
 	}
 	if ok {
-		recordErr = errors.Join(recordErr, w.messageStore.WriteNetworkMessage(ctx, messageEntry))
+		if w.shouldWriteTimelineMessage(messageEntry) {
+			recordErr = errors.Join(recordErr, w.messageStore.WriteNetworkMessage(ctx, messageEntry))
+		}
 	}
 
 	return recordErr
+}
+
+func (w *FileAuditWriter) shouldWriteTimelineMessage(entry store.NetworkMessageEntry) bool {
+	if strings.TrimSpace(entry.Kind) != string(KindGreet) {
+		return true
+	}
+	if w == nil || w.presence.duration <= 0 {
+		return true
+	}
+
+	key := strings.Join([]string{
+		strings.TrimSpace(entry.Direction),
+		strings.TrimSpace(entry.Channel),
+		strings.TrimSpace(entry.PeerFrom),
+		strings.TrimSpace(entry.PeerTo),
+	}, "\x00")
+
+	at := entry.Timestamp.UTC()
+	w.presence.mu.Lock()
+	defer w.presence.mu.Unlock()
+
+	if w.presence.lastSeen == nil {
+		w.presence.lastSeen = make(map[string]time.Time)
+	}
+	cutoff := at.Add(-w.presence.duration)
+	for existingKey, seenAt := range w.presence.lastSeen {
+		if seenAt.Before(cutoff) {
+			delete(w.presence.lastSeen, existingKey)
+		}
+	}
+	lastSeen, ok := w.presence.lastSeen[key]
+	w.presence.lastSeen[key] = at
+	if !ok {
+		return true
+	}
+	return at.Sub(lastSeen) > w.presence.duration
 }
 
 // NormalizeAuditEntry derives a consistent audit row from envelope metadata.
@@ -346,8 +418,8 @@ func trimmedPointerValue(value *string) string {
 }
 
 func (w *FileAuditWriter) appendFile(entry store.NetworkAuditEntry) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+	w.fileMu.Lock()
+	defer w.fileMu.Unlock()
 
 	if err := os.MkdirAll(filepath.Dir(w.path), 0o755); err != nil {
 		return fmt.Errorf("network: create audit log directory: %w", err)

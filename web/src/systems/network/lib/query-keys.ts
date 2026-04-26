@@ -6,6 +6,10 @@ function normalizeLimit(value?: number | null) {
   return value ?? 0;
 }
 
+function normalizeBool(value?: boolean | null) {
+  return value === true ? 1 : 0;
+}
+
 export const networkKeys = {
   all: ["network"] as const,
   status: () => [...networkKeys.all, "status"] as const,
@@ -17,13 +21,19 @@ export const networkKeys = {
   channelMessagesRoot: () => [...networkKeys.channelsRoot(), "messages"] as const,
   channelMessages: (
     channel: string,
-    query?: { after?: string | null; before?: string | null; limit?: number | null }
+    query?: {
+      after?: string | null;
+      before?: string | null;
+      include_presence?: boolean | null;
+      limit?: number | null;
+    }
   ) =>
     [
       ...networkKeys.channelMessagesRoot(),
       normalizeText(channel),
       normalizeText(query?.before),
       normalizeText(query?.after),
+      normalizeBool(query?.include_presence),
       normalizeLimit(query?.limit),
     ] as const,
   peersRoot: () => [...networkKeys.all, "peers"] as const,
@@ -33,13 +43,19 @@ export const networkKeys = {
   peerMessagesRoot: () => [...networkKeys.peersRoot(), "messages"] as const,
   peerMessages: (
     peerId: string,
-    query?: { after?: string | null; before?: string | null; limit?: number | null }
+    query?: {
+      after?: string | null;
+      before?: string | null;
+      include_presence?: boolean | null;
+      limit?: number | null;
+    }
   ) =>
     [
       ...networkKeys.peerMessagesRoot(),
       normalizeText(peerId),
       normalizeText(query?.before),
       normalizeText(query?.after),
+      normalizeBool(query?.include_presence),
       normalizeLimit(query?.limit),
     ] as const,
 };

@@ -9,9 +9,12 @@ import type { MemoryHeader } from "@/systems/knowledge/types";
 // Mock state
 // ---------------------------------------------------------------------------
 
-let mockMemories: MemoryHeader[] = [];
-let mockMemoriesLoading = false;
-let mockMemoriesError: Error | null = null;
+let mockGlobalMemories: MemoryHeader[] = [];
+let mockWorkspaceMemories: MemoryHeader[] = [];
+let mockGlobalMemoriesLoading = false;
+let mockWorkspaceMemoriesLoading = false;
+let mockGlobalMemoriesError: Error | null = null;
+let mockWorkspaceMemoriesError: Error | null = null;
 
 let mockMemoryContent: string | undefined;
 let mockMemoryContentLoading = false;
@@ -65,10 +68,10 @@ vi.mock("@/systems/knowledge", async () => {
   const actual = await vi.importActual("@/systems/knowledge");
   return {
     ...actual,
-    useMemories: () => ({
-      data: mockMemories,
-      isLoading: mockMemoriesLoading,
-      error: mockMemoriesError,
+    useMemories: (scope?: string) => ({
+      data: scope === "workspace" ? mockWorkspaceMemories : mockGlobalMemories,
+      isLoading: scope === "workspace" ? mockWorkspaceMemoriesLoading : mockGlobalMemoriesLoading,
+      error: scope === "workspace" ? mockWorkspaceMemoriesError : mockGlobalMemoriesError,
     }),
     useMemory: () => ({
       data: mockMemoryContent,
@@ -143,8 +146,6 @@ const WORKSPACE_MEMORIES: MemoryHeader[] = [
   }),
 ];
 
-const ALL_MEMORIES = [...GLOBAL_MEMORIES, ...WORKSPACE_MEMORIES];
-
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
@@ -166,9 +167,12 @@ function renderPage() {
 
 describe("KnowledgePage", () => {
   beforeEach(() => {
-    mockMemories = ALL_MEMORIES;
-    mockMemoriesLoading = false;
-    mockMemoriesError = null;
+    mockGlobalMemories = GLOBAL_MEMORIES;
+    mockWorkspaceMemories = WORKSPACE_MEMORIES;
+    mockGlobalMemoriesLoading = false;
+    mockWorkspaceMemoriesLoading = false;
+    mockGlobalMemoriesError = null;
+    mockWorkspaceMemoriesError = null;
     mockMemoryContent = undefined;
     mockMemoryContentLoading = false;
     mockMemoryContentError = null;
@@ -229,13 +233,17 @@ describe("KnowledgePage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByTestId("memory-item-workspace/project_sprint.md"));
+    await user.click(screen.getByTestId("memory-item-workspace:workspace/project_sprint.md"));
     await user.type(screen.getByLabelText("Search knowledge"), "user");
 
     expect(
-      within(screen.getByTestId("memory-item-user_role.md")).getByTestId("memory-active-indicator")
+      within(screen.getByTestId("memory-item-global:user_role.md")).getByTestId(
+        "memory-active-indicator"
+      )
     ).toBeInTheDocument();
-    expect(screen.queryByTestId("memory-item-workspace/project_sprint.md")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("memory-item-workspace:workspace/project_sprint.md")
+    ).not.toBeInTheDocument();
   });
 
   // -----------------------------------------------------------------------
@@ -267,15 +275,15 @@ describe("KnowledgePage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByTestId("memory-item-feedback_testing.md"));
+    await user.click(screen.getByTestId("memory-item-global:feedback_testing.md"));
 
-    const item = screen.getByTestId("memory-item-feedback_testing.md");
+    const item = screen.getByTestId("memory-item-global:feedback_testing.md");
     expect(within(item).getByTestId("memory-active-indicator")).toBeInTheDocument();
   });
 
   it("auto-selects first memory when no selection is made", () => {
     renderPage();
-    const item = screen.getByTestId("memory-item-project_migration.md");
+    const item = screen.getByTestId("memory-item-global:project_migration.md");
     expect(within(item).getByTestId("memory-active-indicator")).toBeInTheDocument();
   });
 
@@ -290,7 +298,8 @@ describe("KnowledgePage", () => {
   // -----------------------------------------------------------------------
 
   it("detail panel shows type + scope MonoBadges for the selected memory", () => {
-    mockMemories = [makeMemory({ type: "user", name: "User Role" })];
+    mockGlobalMemories = [makeMemory({ type: "user", name: "User Role" })];
+    mockWorkspaceMemories = [];
     mockMemoryContent = "content";
     renderPage();
 
@@ -327,14 +336,14 @@ describe("KnowledgePage", () => {
     mockMemoryContent = "content";
     renderPage();
 
-    await user.click(screen.getByTestId("memory-item-user_role.md"));
+    await user.click(screen.getByTestId("memory-item-global:user_role.md"));
     await user.click(screen.getByTestId("delete-memory-btn"));
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
 
     expect(mockDeleteMutateAsync).toHaveBeenCalledWith({
       filename: "user_role.md",
       scope: "global",
-      workspace: "ws_test",
+      workspace: undefined,
     });
   });
 
@@ -358,13 +367,13 @@ describe("KnowledgePage", () => {
     mockMemoryContent = "content";
     renderPage();
 
-    await user.click(screen.getByTestId("memory-item-user_role.md"));
+    await user.click(screen.getByTestId("memory-item-global:user_role.md"));
     await user.click(screen.getByTestId("delete-memory-btn"));
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
 
     expect(await screen.findByTestId("knowledge-delete-error")).toHaveTextContent("Delete failed");
 
-    await user.click(screen.getByTestId("memory-item-project_migration.md"));
+    await user.click(screen.getByTestId("memory-item-global:project_migration.md"));
 
     expect(screen.queryByTestId("knowledge-delete-error")).not.toBeInTheDocument();
   });
@@ -382,7 +391,8 @@ describe("KnowledgePage", () => {
   // -----------------------------------------------------------------------
 
   it("metadata rows cover type, scope, agent, and modified", () => {
-    mockMemories = [
+    mockGlobalMemories = [];
+    mockWorkspaceMemories = [
       makeMemory({
         filename: "workspace/ref_api.md",
         name: "API Reference",
@@ -401,7 +411,8 @@ describe("KnowledgePage", () => {
   });
 
   it("metadata Modified row falls back to the original string for invalid dates", () => {
-    mockMemories = [makeMemory({ mod_time: "not-a-date" })];
+    mockGlobalMemories = [makeMemory({ mod_time: "not-a-date" })];
+    mockWorkspaceMemories = [];
     mockMemoryContent = "content";
     renderPage();
 
@@ -449,8 +460,8 @@ describe("KnowledgePage", () => {
     const searchInput = screen.getByTestId("knowledge-search-input");
     await user.type(searchInput, "api reference");
 
-    expect(screen.getByTestId("memory-item-workspace/ref_api.md")).toBeInTheDocument();
-    expect(screen.queryByTestId("memory-item-user_role.md")).not.toBeInTheDocument();
+    expect(screen.getByTestId("memory-item-workspace:workspace/ref_api.md")).toBeInTheDocument();
+    expect(screen.queryByTestId("memory-item-global:user_role.md")).not.toBeInTheDocument();
   });
 
   it("search with no results shows the empty fallback", async () => {
@@ -468,16 +479,20 @@ describe("KnowledgePage", () => {
   // -----------------------------------------------------------------------
 
   it("loading state shows spinner", () => {
-    mockMemoriesLoading = true;
-    mockMemories = [];
+    mockGlobalMemoriesLoading = true;
+    mockWorkspaceMemoriesLoading = true;
+    mockGlobalMemories = [];
+    mockWorkspaceMemories = [];
     renderPage();
 
     expect(screen.getByTestId("knowledge-loading")).toBeInTheDocument();
   });
 
   it("error state shows the Empty error card", () => {
-    mockMemoriesError = new Error("Network failure");
-    mockMemories = [];
+    mockGlobalMemoriesError = new Error("Network failure");
+    mockWorkspaceMemoriesError = new Error("Network failure");
+    mockGlobalMemories = [];
+    mockWorkspaceMemories = [];
     renderPage();
 
     expect(screen.getByTestId("knowledge-error")).toBeInTheDocument();
@@ -485,7 +500,8 @@ describe("KnowledgePage", () => {
   });
 
   it("empty memories list renders an Empty fallback inside the list panel", () => {
-    mockMemories = [];
+    mockGlobalMemories = [];
+    mockWorkspaceMemories = [];
     renderPage();
 
     expect(screen.getByTestId("knowledge-list-empty")).toBeInTheDocument();
@@ -509,7 +525,8 @@ describe("KnowledgePage", () => {
   });
 
   it("detail panel shows Empty state when no memories exist", () => {
-    mockMemories = [];
+    mockGlobalMemories = [];
+    mockWorkspaceMemories = [];
     renderPage();
     const empty = screen.getByTestId("knowledge-detail-empty");
     expect(empty).toBeInTheDocument();
@@ -529,7 +546,7 @@ describe("KnowledgePage", () => {
 
     expect(screen.getByTestId("knowledge-list-panel")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("memory-item-workspace/ref_api.md"));
+    await user.click(screen.getByTestId("memory-item-workspace:workspace/ref_api.md"));
     expect(screen.getByTestId("content-preview")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("delete-memory-btn"));

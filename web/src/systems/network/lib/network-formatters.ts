@@ -22,12 +22,21 @@ const timeFormatter = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 });
 
-export const NETWORK_KIND_FILTERS: Exclude<NetworkKindFilter, "all">[] = [
+const NETWORK_SUPPORTED_KINDS: Exclude<NetworkKindFilter, "all">[] = [
   "say",
   "direct",
   "receipt",
   "capability",
   "greet",
+  "whois",
+  "trace",
+];
+
+export const NETWORK_KIND_FILTERS: Exclude<NetworkKindFilter, "all">[] = [
+  "say",
+  "direct",
+  "receipt",
+  "capability",
   "whois",
   "trace",
 ];
@@ -103,6 +112,23 @@ export function formatChannelMemberCount(
 ): string {
   const count = channel?.peer_count ?? channel?.session_count ?? 0;
   return `${formatNetworkNumber(count)} ${count === 1 ? "member" : "members"}`;
+}
+
+export function formatHistoricalParticipantCount(value?: number | null): string {
+  const count = value ?? 0;
+  return `${formatNetworkNumber(count)} ${count === 1 ? "participant" : "participants"}`;
+}
+
+export function isPresenceOnlyChannel(
+  channel?: Pick<NetworkChannelSummary, "message_count" | "presence_count"> | null
+): boolean {
+  return (channel?.message_count ?? 0) === 0 && (channel?.presence_count ?? 0) > 0;
+}
+
+export function isHistoricalChannel(
+  channel?: Pick<NetworkChannelSummary, "peer_count" | "historical_participant_count"> | null
+): boolean {
+  return (channel?.peer_count ?? 0) === 0 && (channel?.historical_participant_count ?? 0) > 0;
 }
 
 export function formatNetworkClockTime(value?: string | null): string {
@@ -331,7 +357,7 @@ export function getNetworkKindTone(kind: string): NetworkSignalTone {
 }
 
 export function toNetworkKindFilter(kind: string): Exclude<NetworkKindFilter, "all"> | null {
-  if (NETWORK_KIND_FILTERS.includes(kind as Exclude<NetworkKindFilter, "all">)) {
+  if (NETWORK_SUPPORTED_KINDS.includes(kind as Exclude<NetworkKindFilter, "all">)) {
     return kind as Exclude<NetworkKindFilter, "all">;
   }
 
@@ -361,6 +387,61 @@ export function getNetworkMessagePrimaryText(message: NetworkTimelineMessage): s
   }
 
   return `(${formatNetworkKindLabel(message.kind)})`;
+}
+
+export function summarizeChannelPreview(
+  channel: Pick<
+    NetworkChannelSummary,
+    "last_message_preview" | "purpose" | "message_count" | "presence_count"
+  >
+): string {
+  if (channel.last_message_preview?.trim()) {
+    return channel.last_message_preview.trim();
+  }
+  if (isPresenceOnlyChannel(channel)) {
+    return "Presence only";
+  }
+  return channel.purpose?.trim() || "No conversation yet";
+}
+
+export function summarizeChannelMeta(
+  channel: Pick<
+    NetworkChannelSummary,
+    "last_activity_at" | "last_presence_at" | "message_count" | "presence_count"
+  >
+): string {
+  if (channel.last_activity_at) {
+    return formatNetworkRelativeTime(channel.last_activity_at);
+  }
+  if (channel.last_presence_at) {
+    return `presence ${formatNetworkRelativeTime(channel.last_presence_at)}`;
+  }
+  return (channel.message_count ?? 0) > 0 || (channel.presence_count ?? 0) > 0
+    ? "materialized"
+    : "idle";
+}
+
+export function summarizeChannelSubtitle(
+  channel: Pick<
+    NetworkChannelSummary,
+    | "peer_count"
+    | "session_count"
+    | "message_count"
+    | "presence_count"
+    | "historical_participant_count"
+  >
+): string {
+  if (isPresenceOnlyChannel(channel)) {
+    const participantLabel =
+      (channel.peer_count ?? 0) > 0
+        ? formatChannelMemberCount(channel)
+        : formatHistoricalParticipantCount(channel.historical_participant_count);
+    return `${participantLabel} · ${formatNetworkNumber(channel.presence_count ?? 0)} presence`;
+  }
+  if (isHistoricalChannel(channel)) {
+    return `${formatHistoricalParticipantCount(channel.historical_participant_count)} · historical`;
+  }
+  return `${formatChannelMemberCount(channel)} · ${channel.message_count ?? 0} msgs`;
 }
 
 export function getMessageAuthorInitial(

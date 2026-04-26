@@ -56,6 +56,7 @@ describe("network query options", () => {
       "storybook",
       "",
       "",
+      0,
       120,
     ]);
 
@@ -100,6 +101,7 @@ describe("network query options", () => {
       "peer_storybook_remote",
       "",
       "cursor_123",
+      0,
       120,
     ]);
 
@@ -108,6 +110,34 @@ describe("network query options", () => {
     expect(mocks.listNetworkPeerMessages).toHaveBeenCalledWith(
       "peer_storybook_remote",
       { after: "cursor_123", limit: 120 },
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("keeps presence toggles isolated in both the query key and fetch payload", async () => {
+    const hiddenPresence = networkChannelMessagesOptions("storybook", { limit: 20 });
+    const shownPresence = networkChannelMessagesOptions("storybook", {
+      include_presence: true,
+      limit: 20,
+    });
+
+    expect(hiddenPresence.queryKey).not.toEqual(shownPresence.queryKey);
+    expect(shownPresence.queryKey).toEqual([
+      "network",
+      "channels",
+      "messages",
+      "storybook",
+      "",
+      "",
+      1,
+      20,
+    ]);
+
+    await requireQueryFn(shownPresence.queryFn)(makeQueryContext(shownPresence.queryKey));
+
+    expect(mocks.listNetworkChannelMessages).toHaveBeenCalledWith(
+      "storybook",
+      { include_presence: true, limit: 20 },
       expect.any(AbortSignal)
     );
   });

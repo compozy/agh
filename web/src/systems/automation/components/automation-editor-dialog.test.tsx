@@ -1,9 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AutomationEditorDialog } from "./automation-editor-dialog";
 import { createAutomationJobDraft, createAutomationTriggerDraft } from "../lib/automation-drafts";
+import { createAutomationDialogHandle } from "../lib/dialog-handle";
 import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../types";
 
 function JobEditorHarness({
@@ -60,6 +62,42 @@ function TriggerEditorHarness({
   );
 }
 
+function DetachedTriggerHarness() {
+  const [handle] = useState(() => createAutomationDialogHandle());
+  const [editor, setEditor] = useState<{
+    draft: CreateAutomationJobRequest;
+    isPending: boolean;
+    kind: "jobs";
+    mode: "create";
+    onCancel: () => void;
+    onChange: (draft: CreateAutomationJobRequest) => void;
+    onSubmit: () => void;
+  } | null>(null);
+
+  return (
+    <>
+      <button
+        data-testid="open-detached-editor"
+        onClick={() =>
+          setEditor({
+            draft: createAutomationJobDraft("ws_test"),
+            isPending: false,
+            kind: "jobs",
+            mode: "create",
+            onCancel: () => setEditor(null),
+            onChange: draft => setEditor(current => (current ? { ...current, draft } : current)),
+            onSubmit: () => undefined,
+          })
+        }
+        type="button"
+      >
+        Open
+      </button>
+      <AutomationEditorDialog activeWorkspaceId="ws_test" editor={editor} handle={handle} />
+    </>
+  );
+}
+
 describe("AutomationEditorDialog", () => {
   it("renders the create-job dialog header and keeps submit disabled until every required field is valid", () => {
     const onCancel = vi.fn();
@@ -101,6 +139,18 @@ describe("AutomationEditorDialog", () => {
 
     expect(screen.getByText("Edit trigger")).toBeInTheDocument();
     expect(screen.getByTestId("automation-trigger-form")).toBeInTheDocument();
+  });
+
+  it("opens and stays open when editor state is driven by a detached trigger button", async () => {
+    const user = userEvent.setup();
+
+    render(<DetachedTriggerHarness />);
+
+    await user.click(screen.getByTestId("open-detached-editor"));
+
+    expect(screen.getByTestId("automation-editor-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
+    expect(screen.getByText("Create job")).toBeInTheDocument();
   });
 
   it("invokes onCancel when the underlying dialog signals close", () => {

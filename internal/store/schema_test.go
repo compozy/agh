@@ -61,6 +61,104 @@ func TestRunMigrationsAppliesOrderedMigrationsOnce(t *testing.T) {
 	}
 }
 
+func TestRunMigrationsUsesIndependentMigrationTables(t *testing.T) {
+	t.Run("Should use independent migration tables for namespaced schemas", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openMigrationTestDB(t, "namespaced.db")
+		defaultMigrations := []Migration{{
+			Version:    1,
+			Name:       "create_default_table",
+			Statements: []string{`CREATE TABLE default_owned (id TEXT PRIMARY KEY);`},
+		}}
+		memoryMigrations := []Migration{{
+			Version:    1,
+			Name:       "create_memory_table",
+			Statements: []string{`CREATE TABLE memory_owned (id TEXT PRIMARY KEY);`},
+		}}
+
+		if err := RunMigrations(ctx, db, defaultMigrations); err != nil {
+			t.Fatalf("RunMigrations(default) error = %v", err)
+		}
+		if err := RunMigrations(
+			ctx,
+			db,
+			memoryMigrations,
+			WithMigrationsTable("memory_schema_migrations"),
+		); err != nil {
+			t.Fatalf("RunMigrations(memory) error = %v", err)
+		}
+		if err := RunMigrations(ctx, db, defaultMigrations); err != nil {
+			t.Fatalf("RunMigrations(default repeat) error = %v", err)
+		}
+		if err := RunMigrations(
+			ctx,
+			db,
+			memoryMigrations,
+			WithMigrationsTable("memory_schema_migrations"),
+		); err != nil {
+			t.Fatalf("RunMigrations(memory repeat) error = %v", err)
+		}
+
+		defaultRecords, err := AppliedMigrations(ctx, db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(default) error = %v", err)
+		}
+		if got, want := len(defaultRecords), 1; got != want {
+			t.Fatalf("len(defaultRecords) = %d, want %d", got, want)
+		}
+		if defaultRecords[0].Name != "create_default_table" {
+			t.Fatalf("defaultRecords[0].Name = %q, want create_default_table", defaultRecords[0].Name)
+		}
+
+		memoryRecords, err := appliedMigrations(ctx, db, "memory_schema_migrations")
+		if err != nil {
+			t.Fatalf("appliedMigrations(memory) error = %v", err)
+		}
+		if got, want := len(memoryRecords), 1; got != want {
+			t.Fatalf("len(memoryRecords) = %d, want %d", got, want)
+		}
+		if memoryRecords[0].Name != "create_memory_table" {
+			t.Fatalf("memoryRecords[0].Name = %q, want create_memory_table", memoryRecords[0].Name)
+		}
+	})
+}
+
+func TestRunMigrationsRejectsInvalidMigrationTableNames(t *testing.T) {
+	t.Run("Should reject invalid migration table names", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openMigrationTestDB(t, "invalid-table.db")
+		migrations := []Migration{{
+			Version:    1,
+			Name:       "create_valid",
+			Statements: []string{`CREATE TABLE valid_table_name (id TEXT PRIMARY KEY);`},
+		}}
+
+		tests := []struct {
+			name  string
+			table string
+		}{
+			{name: "empty", table: " "},
+			{name: "starts with digit", table: "1_schema_migrations"},
+			{name: "contains dash", table: "memory-schema-migrations"},
+			{name: "contains quote", table: `memory"schema`},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				err := RunMigrations(ctx, db, migrations, WithMigrationsTable(tt.table))
+				if err == nil || !strings.Contains(err.Error(), "migration table name") {
+					t.Fatalf("RunMigrations() error = %v, want migration table name validation", err)
+				}
+			})
+		}
+	})
+}
+
 func TestRunMigrationsFailedMigrationRollsBackAndDoesNotRecord(t *testing.T) {
 	t.Parallel()
 

@@ -1,18 +1,20 @@
 import {
   compareKnowledgeScope,
-  deriveScopeFromFilename,
   knowledgeScopeLabel,
-  type KnowledgeScope,
+  resolveKnowledgeScope,
 } from "@/systems/knowledge/lib/knowledge-formatters";
-import type { MemoryHeader } from "@/systems/knowledge/types";
+import type { KnowledgeMemoryItem, KnowledgeScope } from "@/systems/knowledge/types";
 
 export interface KnowledgeMemoryGroup {
   scope: KnowledgeScope;
   label: string;
-  memories: MemoryHeader[];
+  memories: KnowledgeMemoryItem[];
 }
 
-export function filterKnowledgeMemories(memories: MemoryHeader[], query: string): MemoryHeader[] {
+export function filterKnowledgeMemories(
+  memories: KnowledgeMemoryItem[],
+  query: string
+): KnowledgeMemoryItem[] {
   const normalized = query.trim().toLowerCase();
   if (normalized === "") {
     return memories;
@@ -27,11 +29,13 @@ export function filterKnowledgeMemories(memories: MemoryHeader[], query: string)
   });
 }
 
-export function groupKnowledgeMemoriesByScope(memories: MemoryHeader[]): KnowledgeMemoryGroup[] {
-  const buckets = new Map<KnowledgeScope, MemoryHeader[]>();
+export function groupKnowledgeMemoriesByScope(
+  memories: KnowledgeMemoryItem[]
+): KnowledgeMemoryGroup[] {
+  const buckets = new Map<KnowledgeScope, KnowledgeMemoryItem[]>();
 
   for (const memory of memories) {
-    const scope = deriveScopeFromFilename(memory.filename);
+    const scope = resolveKnowledgeScope(memory);
     const list = buckets.get(scope);
     if (list) {
       list.push(memory);
@@ -50,6 +54,6 @@ export function groupKnowledgeMemoriesByScope(memories: MemoryHeader[]): Knowled
     }));
 }
 
-export function sortKnowledgeMemories(memories: MemoryHeader[]): MemoryHeader[] {
+export function sortKnowledgeMemories(memories: KnowledgeMemoryItem[]): KnowledgeMemoryItem[] {
   return groupKnowledgeMemoriesByScope(memories).flatMap(group => group.memories);
 }

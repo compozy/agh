@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   automationJobToDraft,
   automationTriggerToDraft,
+  createAutomationDialogHandle,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
   filterAutomationJobs,
@@ -138,6 +139,7 @@ function useAutomationJobsPage() {
   const page = useAutomationPageBase();
   const [editor, setEditor] = useState<JobEditorState | null>(null);
   const [queuedRun, setQueuedRun] = useState<{ jobId: string; run: AutomationRun } | null>(null);
+  const editorHandle = useMemo(() => createAutomationDialogHandle(), []);
 
   const jobsQuery = useAutomationJobs(page.listFilters);
   const jobs = jobsQuery.data ?? [];
@@ -337,6 +339,7 @@ function useAutomationJobsPage() {
 
   const editorDialogProps = {
     activeWorkspaceId: page.activeWorkspaceId,
+    handle: editorHandle,
     editor: editor
       ? {
           ...editor,
@@ -368,6 +371,7 @@ function useAutomationJobsPage() {
 function useAutomationTriggersPage() {
   const page = useAutomationPageBase();
   const [editor, setEditor] = useState<TriggerEditorState | null>(null);
+  const editorHandle = useMemo(() => createAutomationDialogHandle(), []);
 
   const triggersQuery = useAutomationTriggers(page.listFilters);
   const triggers = triggersQuery.data ?? [];
@@ -535,6 +539,7 @@ function useAutomationTriggersPage() {
 
   const editorDialogProps = {
     activeWorkspaceId: page.activeWorkspaceId,
+    handle: editorHandle,
     editor: editor
       ? {
           ...editor,

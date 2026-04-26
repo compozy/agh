@@ -24,6 +24,7 @@ const (
 	maxSearchLimit             = 50
 	defaultHistoryLimit        = 25
 	maxHistoryLimit            = 100
+	catalogMigrationsTable     = "memory_schema_migrations"
 	maxOperationSummaryBytes   = 2048
 	catalogStateKeyLastReindex = "last_reindex_at"
 	catalogStateKeyScopePrefix = "scope_synced::"
@@ -154,7 +155,12 @@ func (c *catalog) ensureDB(ctx context.Context) (*sql.DB, error) {
 	}
 
 	db, err := storepkg.OpenSQLiteDatabase(ctx, c.path, func(ctx context.Context, db *sql.DB) error {
-		return storepkg.RunMigrations(ctx, db, catalogSchemaMigrations)
+		return storepkg.RunMigrations(
+			ctx,
+			db,
+			catalogSchemaMigrations,
+			storepkg.WithMigrationsTable(catalogMigrationsTable),
+		)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("memory: open catalog database %q: %w", c.path, err)

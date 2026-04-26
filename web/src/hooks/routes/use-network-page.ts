@@ -14,16 +14,22 @@ import {
   createNetworkChannelDraft,
   filterNetworkMessagesByKind,
   formatChannelMemberCount,
+  formatHistoricalParticipantCount,
   formatNetworkDateTime,
   formatNetworkRelativeTime,
   getNetworkRoomKey,
   getPeerDisplayName,
   getPeerPresenceTone,
+  isHistoricalChannel,
+  isPresenceOnlyChannel,
   matchesChannelSearch,
   matchesPeerSearch,
   sortAgentsForNetwork,
   sortNetworkChannels,
   sortNetworkPeers,
+  summarizeChannelMeta,
+  summarizeChannelPreview,
+  summarizeChannelSubtitle,
   toNetworkKindFilter,
   useCreateNetworkChannel,
   useNetworkChannel,
@@ -61,6 +67,7 @@ interface NetworkRouteSearch {
   details?: "closed";
   kind?: NetworkKindFilter;
   peer?: string;
+  presence?: "shown";
 }
 
 function normalizeSearchValue(value: unknown): string | undefined {
@@ -155,26 +162,12 @@ function makeUnreadCount(
   return safeDate(lastActivityAt) > safeDate(readMarkers[roomKey]) ? 1 : 0;
 }
 
-function summarizeChannelMeta(channel: NetworkChannelSummary) {
-  if (channel.last_activity_at) {
-    return formatNetworkRelativeTime(channel.last_activity_at);
-  }
-
-  return channel.message_count && channel.message_count > 0 ? "materialized" : "idle";
-}
-
 function summarizePeerMeta(peer: NetworkPeerSummary) {
   if (peer.last_seen) {
     return formatNetworkRelativeTime(peer.last_seen);
   }
 
   return peer.local ? "local" : "offline";
-}
-
-function summarizeChannelPreview(channel: NetworkChannelSummary) {
-  return (
-    channel.last_message_preview?.trim() || channel.purpose?.trim() || "No timeline events yet"
-  );
 }
 
 function summarizePeerPreview(peer: NetworkPeerSummary) {
@@ -197,9 +190,9 @@ function makeChannelRoomItem(
     meta: summarizeChannelMeta(channel),
     preview: summarizeChannelPreview(channel),
     roomType: "channel",
-    subtitle: `${formatChannelMemberCount(channel)} · ${channel.message_count ?? 0} msgs`,
+    subtitle: summarizeChannelSubtitle(channel),
     title: channel.channel,
-    tone: channel.message_count && channel.message_count > 0 ? "accent" : "neutral",
+    tone: (channel.message_count ?? 0) > 0 ? "accent" : "neutral",
     unreadCount: makeUnreadCount(key, channel.last_activity_at, readMarkers, selectedRoomKey),
   };
 }
@@ -281,6 +274,9 @@ function summarizeChannelWireFields(
   detail: NetworkChannel | undefined,
   lastActivityAt: string | null
 ): NetworkRoomField[] {
+  const historicalParticipants =
+    detail?.historical_participant_count ?? room.historical_participant_count ?? 0;
+
   return [
     {
       label: "Workspace",
@@ -305,8 +301,28 @@ function summarizeChannelWireFields(
       } remote`,
     },
     {
+      label: "Presence",
+      mono: true,
+      value: String(detail?.presence_count ?? room.presence_count ?? 0),
+    },
+    {
+      label: "History",
+      mono: true,
+      value:
+        historicalParticipants > 0
+          ? formatHistoricalParticipantCount(historicalParticipants)
+          : "No historical participants",
+    },
+    {
       label: "Last Activity",
       value: lastActivityAt ? formatNetworkDateTime(lastActivityAt) : "Unavailable",
+    },
+    {
+      label: "Last Presence",
+      value:
+        (detail?.last_presence_at ?? room.last_presence_at)
+          ? formatNetworkDateTime(detail?.last_presence_at ?? room.last_presence_at ?? null)
+          : "Unavailable",
     },
   ];
 }
@@ -343,14 +359,32 @@ function makeChannelActiveRoom({
     room.last_activity_at ??
     rawMessages[rawMessages.length - 1]?.timestamp ??
     null;
+  const lastPresenceAt = detail?.last_presence_at ?? room.last_presence_at ?? null;
   const purpose = detail?.purpose?.trim() || room.purpose?.trim() || null;
   const members = sortNetworkPeers(detail?.peers ?? []).map(makeMemberFromPeer);
+  const presenceOnly = isPresenceOnlyChannel(detail ?? room);
+  const historical = isHistoricalChannel(detail ?? room);
+  const memberSummary =
+    (detail?.peer_count ?? room.peer_count ?? 0)
+      ? formatChannelMemberCount(detail ?? room)
+      : formatHistoricalParticipantCount(
+          detail?.historical_participant_count ?? room.historical_participant_count
+        );
+  const subtitle = presenceOnly
+    ? `${memberSummary} · presence only`
+    : historical
+      ? `${memberSummary} · historical`
+      : (purpose ?? `${formatChannelMemberCount(detail ?? room)} active`);
 
   return {
     aboutFields: [
       {
         label: "Purpose",
-        value: purpose ?? "No purpose has been recorded for this room yet.",
+        value:
+          purpose ??
+          (presenceOnly
+            ? "This room currently only has presence history. Conversation has not started yet."
+            : "No purpose has been recorded for this room yet."),
       },
       {
         label: "Created",
@@ -366,11 +400,15 @@ function makeChannelActiveRoom({
         ? "Broadcasts send through the first local session in this channel."
         : "This channel has no local session available for composing yet.",
     composePlaceholder: `Send a broadcast to #${room.channel}`,
-    description: purpose ?? `Coordination room for #${room.channel}.`,
+    description: presenceOnly
+      ? `Presence history for #${room.channel}.`
+      : (purpose ?? `Coordination room for #${room.channel}.`),
     id: room.channel,
     introBody:
       purpose ??
-      "Materialize this room with a short operator note so other agents know how to use it.",
+      (presenceOnly
+        ? "Presence episodes are hidden from the default timeline. Use the Presence toggle to inspect channel heartbeat history."
+        : "Materialize this room with a short operator note so other agents know how to use it."),
     introTitle: `Welcome to #${room.channel}`,
     isStarred,
     key: getNetworkRoomKey("channel", room.channel),
@@ -385,14 +423,16 @@ function makeChannelActiveRoom({
         .map(metric => ({ kind: metric.kind, count: metric.count })) ??
       summarizeKindCounts(rawMessages),
     lastActivityAt,
+    lastPresenceAt,
     memberCount: detail?.peer_count ?? room.peer_count ?? members.length,
     members,
     messageCount: detail?.message_count ?? room.message_count ?? rawMessages.length,
     messages: filteredMessages,
+    presenceCount: detail?.presence_count ?? room.presence_count ?? 0,
     preview: summarizeChannelPreview(room),
     purpose,
     roomType: "channel",
-    subtitle: purpose ?? `${formatChannelMemberCount(room)} active`,
+    subtitle,
     title: room.channel,
     wireFields: summarizeChannelWireFields(room, detail, lastActivityAt),
   };
@@ -404,12 +444,14 @@ function makePeerActiveRoom({
   filteredMessages,
   rawMessages,
   room,
+  showPresence,
 }: {
   channelPeers: NetworkPeerSummary[];
   detail: NetworkPeerDetail | undefined;
   filteredMessages: NetworkTimelineMessage[];
   rawMessages: NetworkTimelineMessage[];
   room: NetworkPeerSummary;
+  showPresence: boolean;
 }): NetworkActiveRoom {
   const lastActivityAt =
     rawMessages[rawMessages.length - 1]?.timestamp ?? detail?.last_seen ?? room.last_seen ?? null;
@@ -446,10 +488,18 @@ function makePeerActiveRoom({
     key: getNetworkRoomKey("peer", room.peer_id),
     kindCounts: summarizeKindCounts(rawMessages),
     lastActivityAt,
+    lastPresenceAt: detail?.last_seen ?? room.last_seen ?? null,
     memberCount: channelPeers.length,
     members: sortNetworkPeers(channelPeers).map(makeMemberFromPeer),
     messageCount: rawMessages.length,
     messages: filteredMessages,
+    presenceCount: showPresence
+      ? rawMessages.reduce(
+          (count, message) =>
+            message.kind === "greet" ? count + (message.presence_count ?? 1) : count,
+          0
+        )
+      : 0,
     preview: summarizePeerPreview(room),
     purpose: null,
     roomType: "peer",
@@ -473,6 +523,7 @@ function validateNetworkSearch(search: Record<string, unknown>): NetworkRouteSea
     details: search.details === "closed" ? "closed" : undefined,
     kind: normalizedKind === "all" ? undefined : normalizedKind,
     peer: channel ? undefined : peer,
+    presence: search.presence === "shown" ? "shown" : undefined,
   };
 }
 
@@ -543,6 +594,7 @@ function useNetworkPage(search: NetworkRouteSearch = {}) {
         : null;
   const activeKind = search.kind ?? "all";
   const isDetailsOpen = search.details !== "closed";
+  const showPresence = search.presence === "shown";
 
   const starredChannelRooms = useMemo(
     () =>
@@ -637,14 +689,14 @@ function useNetworkPage(search: NetworkRouteSearch = {}) {
   const channelMessagesQuery = useNetworkChannelMessages(activeChannelSummary?.channel ?? "", {
     enabled:
       isNetworkEnabled && activeRoomItem?.roomType === "channel" && Boolean(activeChannelSummary),
-    query: { limit: TIMELINE_LIMIT },
+    query: { include_presence: showPresence, limit: TIMELINE_LIMIT },
   });
   const peerDetailQuery = useNetworkPeer(activePeerSummary?.peer_id ?? "", {
     enabled: isNetworkEnabled && activeRoomItem?.roomType === "peer" && Boolean(activePeerSummary),
   });
   const peerMessagesQuery = useNetworkPeerMessages(activePeerSummary?.peer_id ?? "", {
     enabled: isNetworkEnabled && activeRoomItem?.roomType === "peer" && Boolean(activePeerSummary),
-    query: { limit: TIMELINE_LIMIT },
+    query: { include_presence: showPresence, limit: TIMELINE_LIMIT },
   });
 
   const rawMessages = useMemo(() => {
@@ -678,6 +730,7 @@ function useNetworkPage(search: NetworkRouteSearch = {}) {
         filteredMessages,
         rawMessages,
         room: activePeerSummary,
+        showPresence,
       });
     }
 
@@ -691,6 +744,7 @@ function useNetworkPage(search: NetworkRouteSearch = {}) {
     filteredMessages,
     peerDetailQuery.data,
     rawMessages,
+    showPresence,
     starredChannels,
   ]);
 
@@ -755,6 +809,13 @@ function useNetworkPage(search: NetworkRouteSearch = {}) {
     },
     [updateSearch]
   );
+
+  const handleTogglePresence = useCallback(() => {
+    updateSearch(current => ({
+      ...current,
+      presence: current.presence === "shown" ? undefined : "shown",
+    }));
+  }, [updateSearch]);
 
   const handleOpenCreateDialog = () => {
     setCreateDraft(createNetworkChannelDraft());
@@ -888,6 +949,7 @@ function useNetworkPage(search: NetworkRouteSearch = {}) {
     handleSelectRoom,
     handleSetKind,
     handleToggleDetails,
+    handleTogglePresence,
     handleToggleStarChannel,
     isComposePending: sendMessageMutation.isPending,
     isCreateDialogOpen,
@@ -908,6 +970,7 @@ function useNetworkPage(search: NetworkRouteSearch = {}) {
     setDetailsTab,
     setSidebarQuery,
     sidebarQuery,
+    showPresence,
     sortedAgents,
     starredChannelRooms,
     workspaceName: activeWorkspace?.name ?? null,

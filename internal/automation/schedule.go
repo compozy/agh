@@ -615,6 +615,7 @@ func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error
 	}
 
 	var reservedRun *Run
+	var postClaimState SchedulerState
 	if s.store != nil {
 		result, err := s.store.ClaimScheduledRun(persistenceContext(ctx), claim)
 		if err != nil {
@@ -624,7 +625,8 @@ func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error
 			}
 			return fmt.Errorf("automation: claim scheduled job %q: %w", job.ID, err)
 		}
-		s.updateRegistrationState(job.ID, result.State)
+		postClaimState = result.State
+		s.updateRegistrationState(job.ID, postClaimState)
 		reservedRun = &result.Run
 	} else {
 		state := registration.state
@@ -635,24 +637,24 @@ func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error
 		state.ScheduleHash = claim.ScheduleHash
 		state.CatchUpPolicy = SchedulerCatchUpPolicySkipMissed
 		state.UpdatedAt = claimedAt
-		s.updateRegistrationState(job.ID, state)
+		postClaimState = state
+		s.updateRegistrationState(job.ID, postClaimState)
 	}
 
-	s.logger.Info(
-		"automation.scheduler.job_fired",
-		"job_id", job.ID,
-		"job_name", job.Name,
-		"agent", job.AgentName,
-		"schedule_mode", job.Schedule.Mode,
-		"fire_id", fireID,
-		"scheduled_at", scheduledAt.Format(time.RFC3339Nano),
-	)
+	s.logScheduledFire(job, fireID, scheduledAt)
 
 	run, err := s.dispatcher.Dispatch(ctx, DispatchRequest{
 		Kind:        DispatchKindSchedule,
 		Job:         &job,
 		ReservedRun: reservedRun,
 	})
+	var fireLimitErr *FireLimitError
+	if errors.As(err, &fireLimitErr) {
+		if adjustErr := s.deferAfterFireLimit(ctx, job.ID, postClaimState, fireLimitErr); adjustErr != nil {
+			return errors.Join(err, adjustErr)
+		}
+		return nil
+	}
 	if err != nil && s.store != nil {
 		runID := strings.TrimSpace(claim.RunID)
 		if run != nil && strings.TrimSpace(run.ID) != "" {
@@ -663,6 +665,54 @@ func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error
 		}
 	}
 	return err
+}
+
+func (s *Scheduler) logScheduledFire(job Job, fireID string, scheduledAt time.Time) {
+	s.logger.Info(
+		"automation.scheduler.job_fired",
+		"job_id", job.ID,
+		"job_name", job.Name,
+		"agent", job.AgentName,
+		"schedule_mode", job.Schedule.Mode,
+		"fire_id", fireID,
+		"scheduled_at", scheduledAt.Format(time.RFC3339Nano),
+	)
+}
+
+func (s *Scheduler) deferAfterFireLimit(
+	ctx context.Context,
+	jobID string,
+	state SchedulerState,
+	fireLimitErr *FireLimitError,
+) error {
+	if fireLimitErr == nil || fireLimitErr.RetryAt.IsZero() {
+		return nil
+	}
+
+	target := fireLimitErr.RetryAt.In(s.location)
+	if state.NextRunAt != nil && state.NextRunAt.After(target) {
+		target = *state.NextRunAt
+	}
+	state.NextRunAt = timePointer(target)
+	state.UpdatedAt = s.now()
+
+	if s.store != nil {
+		saved, err := s.store.SaveSchedulerState(persistenceContext(ctx), state)
+		if err != nil {
+			return fmt.Errorf("automation: defer scheduler after fire limit for job %q: %w", jobID, err)
+		}
+		state = saved
+	}
+	s.updateRegistrationState(jobID, state)
+	s.logger.Info(
+		"automation.scheduler.fire_limit_deferred",
+		"job_id", jobID,
+		"retry_at", target.Format(time.RFC3339Nano),
+		"fires", fireLimitErr.Count,
+		"limit", fireLimitErr.Limit,
+		"window", fireLimitErr.Window.String(),
+	)
+	return nil
 }
 
 func (s *Scheduler) updateRegistrationState(jobID string, state SchedulerState) {

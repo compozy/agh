@@ -20,6 +20,8 @@ let mockAgents: Array<{ name: string; provider: string; prompt: string }> = [
   { name: "claude-agent", provider: "claude", prompt: "help" },
   { name: "codex-agent", provider: "codex", prompt: "code" },
 ];
+let mockAgentsLoading = false;
+let mockAgentsError = false;
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
@@ -47,8 +49,8 @@ vi.mock("@/systems/daemon", () => ({
 vi.mock("@/systems/agent", () => ({
   useAgents: () => ({
     data: mockAgents,
-    isLoading: false,
-    isError: false,
+    isLoading: mockAgentsLoading,
+    isError: mockAgentsError,
   }),
 }));
 
@@ -118,6 +120,8 @@ describe("useAppLayout", () => {
       { name: "claude-agent", provider: "claude", prompt: "help" },
       { name: "codex-agent", provider: "codex", prompt: "code" },
     ];
+    mockAgentsLoading = false;
+    mockAgentsError = false;
     mockNavigate.mockReset();
     mockMutateAsync.mockReset();
     mockToastError.mockReset();
@@ -133,6 +137,7 @@ describe("useAppLayout", () => {
           created_at: "2026-04-20T10:00:00Z",
           updated_at: "2026-04-20T10:00:00Z",
         },
+        agents: undefined,
         providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
       },
       isLoading: false,
@@ -170,6 +175,89 @@ describe("useAppLayout", () => {
 
     expect(result.current.sessionCreate.selectedAgentName).toBe("codex-agent");
     expect(result.current.sessionCreate.selectedProvider).toBe("codex");
+  });
+
+  it("uses workspace-scoped agents when the active workspace detail provides them", () => {
+    mockWorkspaceQuery.mockReturnValue({
+      data: {
+        workspace: {
+          id: "ws_alpha",
+          root_dir: "/workspace/alpha",
+          add_dirs: [],
+          name: "alpha",
+          created_at: "2026-04-20T10:00:00Z",
+          updated_at: "2026-04-20T10:00:00Z",
+        },
+        agents: [{ name: "workspace-review", provider: "gemini", prompt: "review" }],
+        providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useAppLayout());
+
+    expect(result.current.agents?.map(agent => agent.name)).toEqual(["workspace-review"]);
+
+    act(() => {
+      result.current.handleNewSession("workspace-review");
+    });
+
+    expect(result.current.sessionCreate.selectedAgentName).toBe("workspace-review");
+    expect(result.current.sessionCreate.selectedProvider).toBe("gemini");
+  });
+
+  it("ignores global agent loading when workspace-scoped agents are already present", () => {
+    mockAgentsLoading = true;
+    mockWorkspaceQuery.mockReturnValue({
+      data: {
+        workspace: {
+          id: "ws_alpha",
+          root_dir: "/workspace/alpha",
+          add_dirs: [],
+          name: "alpha",
+          created_at: "2026-04-20T10:00:00Z",
+          updated_at: "2026-04-20T10:00:00Z",
+        },
+        agents: [{ name: "workspace-review", provider: "gemini", prompt: "review" }],
+        providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useAppLayout());
+
+    expect(result.current.agentsLoading).toBe(false);
+    expect(result.current.agents?.map(agent => agent.name)).toEqual(["workspace-review"]);
+  });
+
+  it("ignores global agent errors when workspace-scoped agents are already present", () => {
+    mockAgentsError = true;
+    mockWorkspaceQuery.mockReturnValue({
+      data: {
+        workspace: {
+          id: "ws_alpha",
+          root_dir: "/workspace/alpha",
+          add_dirs: [],
+          name: "alpha",
+          created_at: "2026-04-20T10:00:00Z",
+          updated_at: "2026-04-20T10:00:00Z",
+        },
+        agents: [{ name: "workspace-review", provider: "gemini", prompt: "review" }],
+        providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useAppLayout());
+
+    expect(result.current.agentsError).toBe(false);
+    expect(result.current.agents?.map(agent => agent.name)).toEqual(["workspace-review"]);
   });
 
   it("submits the dialog with agent name, workspace, and selected provider", async () => {

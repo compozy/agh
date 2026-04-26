@@ -4,24 +4,24 @@ import { useState } from "react";
 import { Button, CodeBlock, Empty, MonoBadge, Section, StatusDot } from "@agh/ui";
 
 import {
-  deriveScopeFromFilename,
   formatKnowledgeDateTime,
   formatKnowledgeRelativeTime,
   knowledgeScopeLabel,
   memoryScopeTone,
   memoryTypeTone,
+  resolveKnowledgeScope,
 } from "@/systems/knowledge/lib/knowledge-formatters";
-import type { MemoryHeader } from "@/systems/knowledge/types";
+import type { KnowledgeMemoryItem } from "@/systems/knowledge/types";
 
 import { KnowledgeDeleteDialog } from "./knowledge-delete-dialog";
 
 interface KnowledgeDetailPanelProps {
-  memory: MemoryHeader | undefined;
+  memory: KnowledgeMemoryItem | undefined;
   content: string | undefined;
   scope?: string;
   isLoading: boolean;
   error: Error | null;
-  onDelete: (filename: string) => Promise<void>;
+  onDelete: (memory: KnowledgeMemoryItem) => Promise<void>;
   isDeletePending: boolean;
   deleteError?: string | null;
 }
@@ -90,7 +90,7 @@ function KnowledgeDetailPanel({
     );
   }
 
-  const resolvedScope = scope ?? deriveScopeFromFilename(memory.filename);
+  const resolvedScope = scope ?? resolveKnowledgeScope(memory);
   const scopeForTone = resolvedScope === "workspace" ? "workspace" : "global";
   const scopeTone = memoryScopeTone(scopeForTone);
   const typeTone = memoryTypeTone(memory.type);
@@ -106,7 +106,7 @@ function KnowledgeDetailPanel({
 
   const handleConfirmDelete = async () => {
     try {
-      await onDelete(memory.filename);
+      await onDelete(memory);
       setConfirmOpen(false);
     } catch {
       // Error state is surfaced through `deleteError` and the dialog stays open.

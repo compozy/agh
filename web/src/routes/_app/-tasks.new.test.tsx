@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let searchParams: { template?: string } = {};
 const navigateMock = vi.fn();
 const createMutateAsync = vi.fn();
+const createChildMutateAsync = vi.fn();
 const enqueueMutateAsync = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
@@ -31,6 +32,10 @@ vi.mock("@/systems/tasks", () => ({
   useCreateTask: () => ({
     isPending: false,
     mutateAsync: createMutateAsync,
+  }),
+  useCreateChildTask: () => ({
+    isPending: false,
+    mutateAsync: createChildMutateAsync,
   }),
   useEnqueueTaskRun: () => ({
     isPending: false,
@@ -60,6 +65,24 @@ vi.mock("@/systems/tasks/components/task-editor-surface", () => ({
       >
         submit
       </button>
+      <button
+        data-testid="task-editor-submit-child-trigger"
+        onClick={() =>
+          void (
+            props.onSubmit as (draft: Record<string, unknown>, asDraft: boolean) => Promise<unknown>
+          )(
+            {
+              ...(props.draft as Record<string, unknown>),
+              title: "Child task contract",
+              parentTaskId: " task_parent_001 ",
+            },
+            false
+          )
+        }
+        type="button"
+      >
+        submit child
+      </button>
     </div>
   ),
 }));
@@ -78,8 +101,10 @@ describe("TaskCreateRoute", () => {
     searchParams = {};
     navigateMock.mockReset();
     createMutateAsync.mockReset();
+    createChildMutateAsync.mockReset();
     enqueueMutateAsync.mockReset();
     createMutateAsync.mockResolvedValue({ id: "task_created" });
+    createChildMutateAsync.mockResolvedValue({ id: "task_child_created" });
     enqueueMutateAsync.mockResolvedValue({ id: "run_001" });
   });
 
@@ -108,6 +133,28 @@ describe("TaskCreateRoute", () => {
     expect(navigateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         params: { id: "task_created" },
+        to: "/tasks/$id",
+      })
+    );
+  });
+
+  it("creates a child task through the child endpoint when a parent task id is provided", async () => {
+    render(<TaskCreateRoute />);
+    fireEvent.click(screen.getByTestId("task-editor-submit-child-trigger"));
+
+    await waitFor(() =>
+      expect(createChildMutateAsync).toHaveBeenCalledWith({
+        parentId: "task_parent_001",
+        data: expect.objectContaining({
+          title: "Child task contract",
+          workspace: "ws_alpha",
+        }),
+      })
+    );
+    expect(createMutateAsync).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: { id: "task_child_created" },
         to: "/tasks/$id",
       })
     );

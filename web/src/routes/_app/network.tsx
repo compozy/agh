@@ -90,9 +90,11 @@ function NetworkPage() {
         onSelectRoom={page.handleSelectRoom}
         onSidebarQueryChange={page.setSidebarQuery}
         onToggleDetails={page.handleToggleDetails}
+        onTogglePresence={page.handleTogglePresence}
         onToggleStarChannel={page.handleToggleStarChannel}
         roomError={page.roomError}
         selectedRoomKey={page.selectedRoomKey}
+        showPresence={page.showPresence}
         sidebarQuery={page.sidebarQuery}
         starredChannelRooms={page.starredChannelRooms}
         status={page.networkStatus}

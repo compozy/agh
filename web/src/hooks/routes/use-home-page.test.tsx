@@ -52,7 +52,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace-store", () => ({
 import { fetchAgents } from "@/systems/agent/adapters/agent-api";
 import { fetchHealth } from "@/systems/daemon/adapters/daemon-api";
 import { fetchSessions } from "@/systems/session/adapters/session-api";
-import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
+import { fetchWorkspace, fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 
 import { formatUptimeSeconds, useHomePage } from "./use-home-page";
 
@@ -124,6 +124,11 @@ const AGENTS_FIXTURE: AgentPayload[] = [
   { name: "beta", provider: "codex", prompt: "" },
 ];
 
+const WORKSPACE_AGENTS_FIXTURE: AgentPayload[] = [
+  ...AGENTS_FIXTURE,
+  { name: "gamma", provider: "codex", prompt: "" },
+];
+
 const SESSIONS_FIXTURE: SessionPayload[] = [
   {
     id: "sess_1",
@@ -174,6 +179,13 @@ describe("useHomePage", () => {
     vi.clearAllMocks();
     vi.mocked(fetchHealth).mockResolvedValue(HEALTH_FIXTURE);
     vi.mocked(fetchWorkspaces).mockResolvedValue(WORKSPACES_FIXTURE);
+    vi.mocked(fetchWorkspace).mockResolvedValue({
+      workspace: WORKSPACES_FIXTURE[0],
+      sessions: SESSIONS_FIXTURE,
+      agents: WORKSPACE_AGENTS_FIXTURE,
+      skills: [],
+      providers: [],
+    });
     vi.mocked(fetchAgents).mockResolvedValue(AGENTS_FIXTURE);
     vi.mocked(fetchSessions).mockResolvedValue(SESSIONS_FIXTURE);
   });
@@ -201,10 +213,10 @@ describe("useHomePage", () => {
     const metricsByKey = Object.fromEntries(
       result.current.metrics.map(metric => [metric.key, metric] as const)
     );
-    expect(metricsByKey["active-sessions"].value).toBe("3");
+    expect(metricsByKey["active-sessions"].value).toBe("2");
     expect(metricsByKey["active-sessions"].detail).toBe("in main");
     expect(metricsByKey.workspaces.value).toBe("2");
-    expect(metricsByKey.agents.value).toBe("2");
+    expect(metricsByKey.agents.value).toBe("3");
     expect(metricsByKey.uptime.value).toBe("1h 15m");
   });
 

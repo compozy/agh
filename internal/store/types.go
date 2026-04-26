@@ -556,6 +556,7 @@ type NetworkMessageQuery struct {
 	BeforeMessageID string
 	AfterMessageID  string
 	DirectedOnly    bool
+	IncludePresence bool
 	Since           time.Time
 	Limit           int
 }

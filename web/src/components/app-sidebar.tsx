@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import {
   Book,
@@ -226,9 +228,31 @@ function AgentItem({
   showPendingSessionRow,
 }: AgentItemProps) {
   const count = sessions?.length ?? 0;
+  const shouldAutoOpen = count > 0 || showPendingSessionRow;
+  const [openOverride, setOpenOverride] = useState<{
+    baseline: boolean;
+    value: boolean;
+  } | null>(null);
+  const open =
+    openOverride !== null && openOverride.baseline === shouldAutoOpen
+      ? openOverride.value
+      : shouldAutoOpen;
 
   return (
-    <Collapsible defaultOpen={count > 0 || showPendingSessionRow} className="group/agent">
+    <Collapsible
+      open={open}
+      onOpenChange={nextOpen => {
+        setOpenOverride(
+          nextOpen === shouldAutoOpen
+            ? null
+            : {
+                baseline: shouldAutoOpen,
+                value: nextOpen,
+              }
+        );
+      }}
+      className="group/agent"
+    >
       <div className="relative flex items-center">
         <CollapsibleTrigger
           data-testid={`agent-trigger-${agent.name}`}

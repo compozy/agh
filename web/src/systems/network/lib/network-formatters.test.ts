@@ -5,6 +5,10 @@ import {
   buildPeerCapabilityViews,
   formatNetworkKindLabel,
   hasCapabilityDetail,
+  isHistoricalChannel,
+  isPresenceOnlyChannel,
+  summarizeChannelPreview,
+  summarizeChannelSubtitle,
 } from "./network-formatters";
 
 describe("buildPeerCapabilityViews", () => {
@@ -106,5 +110,34 @@ describe("formatNetworkKindLabel", () => {
 
   it("Should preserve unknown kind strings as-is", () => {
     expect(formatNetworkKindLabel("custom-signal")).toBe("custom-signal");
+  });
+});
+
+describe("presence-aware channel summaries", () => {
+  it("Should mark presence-only rooms without pretending they have conversation", () => {
+    const channel = {
+      historical_participant_count: 2,
+      message_count: 0,
+      peer_count: 0,
+      presence_count: 24,
+      session_count: 0,
+    };
+
+    expect(isPresenceOnlyChannel(channel)).toBe(true);
+    expect(summarizeChannelPreview(channel)).toBe("Presence only");
+    expect(summarizeChannelSubtitle(channel)).toBe("2 participants · 24 presence");
+  });
+
+  it("Should label historical rooms once runtime peers are gone", () => {
+    const channel = {
+      historical_participant_count: 3,
+      message_count: 4,
+      peer_count: 0,
+      presence_count: 0,
+      session_count: 0,
+    };
+
+    expect(isHistoricalChannel(channel)).toBe(true);
+    expect(summarizeChannelSubtitle(channel)).toBe("3 participants · historical");
   });
 });

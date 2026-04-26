@@ -149,6 +149,55 @@ func TestPostCreateHookFiresAfterSessionActive(t *testing.T) {
 	}
 }
 
+func TestPostCreateAsyncHookSurvivesRequestCancellation(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	observedErr := make(chan error, 1)
+	hooks := newNativeHookDispatcher(t,
+		[]hookspkg.HookDecl{{
+			Name:         "observe-post-create-after-request",
+			Event:        hookspkg.HookSessionPostCreate,
+			Mode:         hookspkg.HookModeAsync,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		}},
+		map[string]hookspkg.Executor{
+			"observe-post-create-after-request": hookspkg.NewTypedNativeExecutor(
+				func(ctx context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePatch, error) {
+					<-release
+					observedErr <- ctx.Err()
+					return hookspkg.SessionPostCreatePatch{}, nil
+				},
+			),
+		},
+	)
+
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
+	requestCtx, cancelRequest := context.WithCancel(testutil.Context(t))
+	session, err := h.manager.Create(requestCtx, CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	cancelRequest()
+	close(release)
+
+	select {
+	case err := <-observedErr:
+		if err != nil {
+			t.Fatalf("async post-create context error = %v, want nil after request cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for async session.post_create hook")
+	}
+}
+
 func TestResumeUsesPatchedPreResumePayloadAndFiresPostResume(t *testing.T) {
 	t.Parallel()
 
@@ -194,6 +243,26 @@ func TestResumeUsesPatchedPreResumePayloadAndFiresPostResume(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for session.post_resume hook")
+	}
+}
+
+func TestFallbackLifecycleContextUsesManagerLifecycleContext(t *testing.T) {
+	t.Parallel()
+
+	type contextKey string
+
+	lifecycleKey := contextKey("lifecycle")
+	requestKey := contextKey("request")
+	lifecycleCtx := context.WithValue(context.Background(), lifecycleKey, "manager")
+	manager := &Manager{lifecycleCtx: lifecycleCtx}
+
+	if got := manager.fallbackLifecycleContext().Value(lifecycleKey); got != "manager" {
+		t.Fatalf("fallbackLifecycleContext() lifecycle value = %#v, want manager fallback", got)
+	}
+
+	requestCtx := context.WithValue(context.Background(), requestKey, "request")
+	if got := manager.hookLifecycleContext(requestCtx).Value(requestKey); got != "request" {
+		t.Fatalf("hookLifecycleContext(requestCtx) request value = %#v, want original request context", got)
 	}
 }
 

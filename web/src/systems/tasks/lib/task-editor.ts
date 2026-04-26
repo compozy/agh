@@ -2,6 +2,7 @@ import type { UpdateTaskRequest } from "../types";
 import type { TaskTemplateId } from "./task-templates";
 import { applyTemplateToCreatePayload, getTaskTemplate } from "./task-templates";
 import type {
+  CreateChildTaskRequest,
   CreateTaskRequest,
   TaskOwnerKind,
   TaskPriority,
@@ -114,6 +115,33 @@ export function buildCreateTaskRequest(
   const { owner } = resolveOwnerInput(draft);
 
   const basePayload: CreateTaskRequest = {
+    title: draft.title.trim(),
+    description: draft.description.trim() || undefined,
+    scope: draft.scope,
+    workspace: draft.scope === "workspace" ? (options.activeWorkspaceId ?? undefined) : undefined,
+    priority: draft.priority,
+    max_attempts: draft.maxAttempts ?? undefined,
+    draft: options.asDraft || options.templateId === "recurring",
+    owner,
+    approval_policy: draft.approvalPolicy === "manual" ? "manual" : undefined,
+    network_channel: draft.networkChannel.trim() || undefined,
+    identifier: draft.identifier.trim() || undefined,
+  };
+
+  return applyTemplateToCreatePayload(basePayload, options.templateId);
+}
+
+export function buildCreateChildTaskRequest(
+  draft: TaskEditorDraft,
+  options: {
+    activeWorkspaceId?: string | null;
+    templateId: TaskTemplateId;
+    asDraft: boolean;
+  }
+): CreateChildTaskRequest {
+  const { owner } = resolveOwnerInput(draft);
+
+  const basePayload: CreateChildTaskRequest = {
     title: draft.title.trim(),
     description: draft.description.trim() || undefined,
     scope: draft.scope,

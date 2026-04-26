@@ -1,7 +1,10 @@
+import { useEffect } from "react";
+
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@agh/ui";
 
 import { AutomationJobForm } from "./automation-job-form";
 import { AutomationTriggerForm } from "./automation-trigger-form";
+import type { AutomationDialogHandle } from "../lib/dialog-handle";
 import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../types";
 
 type AutomationDialogEditorState =
@@ -27,6 +30,7 @@ type AutomationDialogEditorState =
 interface AutomationEditorDialogProps {
   activeWorkspaceId?: string | null;
   editor: AutomationDialogEditorState | null;
+  handle?: AutomationDialogHandle;
 }
 
 function jobDialogCopy(mode: "create" | "edit") {
@@ -43,26 +47,49 @@ function triggerDialogCopy(mode: "create" | "edit") {
   };
 }
 
-export function AutomationEditorDialog({ activeWorkspaceId, editor }: AutomationEditorDialogProps) {
-  const isOpen = editor !== null;
+export function AutomationEditorDialog({
+  activeWorkspaceId,
+  editor,
+  handle,
+}: AutomationEditorDialogProps) {
+  const isControlled = handle === undefined;
+  const isEditorOpen = editor !== null;
   const copy = editor
     ? editor.kind === "jobs"
       ? jobDialogCopy(editor.mode)
       : triggerDialogCopy(editor.mode)
     : { title: "", description: "" };
 
+  useEffect(() => {
+    if (!handle) {
+      return;
+    }
+
+    if (isEditorOpen) {
+      if (!handle.isOpen) {
+        handle.open(null);
+      }
+      return;
+    }
+
+    if (handle.isOpen) {
+      handle.close();
+    }
+  }, [handle, isEditorOpen]);
+
   return (
     <Dialog
+      handle={handle}
+      open={isControlled ? isEditorOpen : undefined}
       onOpenChange={open => {
         if (!open) editor?.onCancel();
       }}
-      open={isOpen}
     >
-      <DialogContent
-        className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-[44rem]"
-        data-testid="automation-editor-dialog"
-      >
-        {editor ? (
+      {editor ? (
+        <DialogContent
+          className="gap-0 p-0 text-[color:var(--color-text-primary)] sm:max-w-[44rem]"
+          data-testid="automation-editor-dialog"
+        >
           <>
             <DialogHeader className="border-b border-[color:var(--color-divider)] px-5 py-4">
               <DialogTitle>{copy.title}</DialogTitle>
@@ -91,8 +118,8 @@ export function AutomationEditorDialog({ activeWorkspaceId, editor }: Automation
               />
             )}
           </>
-        ) : null}
-      </DialogContent>
+        </DialogContent>
+      ) : null}
     </Dialog>
   );
 }

@@ -91,7 +91,7 @@ describe("KnowledgeDetailPanel", () => {
     expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it("calls onDelete with the selected filename when confirm is clicked", async () => {
+  it("calls onDelete with the selected memory when confirm is clicked", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn().mockResolvedValue(undefined);
     renderDetail({ onDelete });
@@ -99,7 +99,7 @@ describe("KnowledgeDetailPanel", () => {
     await user.click(screen.getByTestId("delete-memory-btn"));
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
 
-    expect(onDelete).toHaveBeenCalledWith("global/user-role.md");
+    expect(onDelete).toHaveBeenCalledWith(MEMORY);
   });
 
   it("does not call onDelete when cancel is clicked", async () => {

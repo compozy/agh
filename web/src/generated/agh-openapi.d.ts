@@ -6807,12 +6807,16 @@ export interface operations {
               /** Format: date-time */
               created_at?: string | null;
               created_by?: string;
+              historical_participant_count?: number;
               /** Format: date-time */
               last_activity_at?: string | null;
               last_message_preview?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
               local_peer_count?: number;
               message_count?: number;
               peer_count: number;
+              presence_count?: number;
               purpose?: string;
               remote_peer_count?: number;
               session_count?: number;
@@ -6882,6 +6886,7 @@ export interface operations {
               /** Format: date-time */
               created_at?: string | null;
               created_by?: string;
+              historical_participant_count?: number;
               kind_counts?: {
                 count: number;
                 kind: string;
@@ -6889,6 +6894,8 @@ export interface operations {
               /** Format: date-time */
               last_activity_at?: string | null;
               last_message_preview?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
               local_peer_count?: number;
               message_count?: number;
               peer_count: number;
@@ -6919,6 +6926,7 @@ export interface operations {
                 peer_id: string;
                 session_id?: string | null;
               }[];
+              presence_count?: number;
               purpose?: string;
               remote_peer_count?: number;
               session_count?: number;
@@ -7071,6 +7079,7 @@ export interface operations {
               /** Format: date-time */
               created_at?: string | null;
               created_by?: string;
+              historical_participant_count?: number;
               kind_counts?: {
                 count: number;
                 kind: string;
@@ -7078,6 +7087,8 @@ export interface operations {
               /** Format: date-time */
               last_activity_at?: string | null;
               last_message_preview?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
               local_peer_count?: number;
               message_count?: number;
               peer_count: number;
@@ -7108,6 +7119,7 @@ export interface operations {
                 peer_id: string;
                 session_id?: string | null;
               }[];
+              presence_count?: number;
               purpose?: string;
               remote_peer_count?: number;
               session_count?: number;
@@ -7243,6 +7255,8 @@ export interface operations {
         before?: string;
         /** @description Return messages after the specified message id */
         after?: string;
+        /** @description Include coalesced presence episodes in the timeline */
+        include_presence?: boolean;
         /** @description Maximum number of timeline messages to return */
         limit?: number;
       };
@@ -7275,6 +7289,11 @@ export interface operations {
               message_id: string;
               peer_from: string;
               peer_to?: string;
+              presence_count?: number;
+              /** Format: date-time */
+              presence_last_seen_at?: string | null;
+              /** Format: date-time */
+              presence_started_at?: string | null;
               preview_text?: string;
               reply_to?: string;
               session_id?: string;
@@ -7647,6 +7666,8 @@ export interface operations {
         before?: string;
         /** @description Return messages after the specified message id */
         after?: string;
+        /** @description Include coalesced presence episodes in the timeline */
+        include_presence?: boolean;
         /** @description Maximum number of timeline messages to return */
         limit?: number;
       };
@@ -7679,6 +7700,11 @@ export interface operations {
               message_id: string;
               peer_from: string;
               peer_to?: string;
+              presence_count?: number;
+              /** Format: date-time */
+              presence_last_seen_at?: string | null;
+              /** Format: date-time */
+              presence_started_at?: string | null;
               preview_text?: string;
               reply_to?: string;
               session_id?: string;

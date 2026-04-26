@@ -949,6 +949,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("peer_id", "Network peer id"),
 			queryParam("before", "Return messages before the specified message id", false),
 			queryParam("after", "Return messages after the specified message id", false),
+			boolQueryParam("include_presence", "Include coalesced presence episodes in the timeline"),
 			intQueryParam("limit", "Maximum number of timeline messages to return"),
 		},
 		Responses: []ResponseSpec{
@@ -1017,6 +1018,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("channel", "Network channel"),
 			queryParam("before", "Return messages before the specified message id", false),
 			queryParam("after", "Return messages after the specified message id", false),
+			boolQueryParam("include_presence", "Include coalesced presence episodes in the timeline"),
 			intQueryParam("limit", "Maximum number of timeline messages to return"),
 		},
 		Responses: []ResponseSpec{
@@ -1194,7 +1196,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			enumQueryParam("family", "Hook event family", hookEventFamilyValues()),
-			boolQueryParam("sync_only", "Only return sync-eligible events", false),
+			boolQueryParam("sync_only", "Only return sync-eligible events"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.HookEventsResponse{}},
@@ -1547,7 +1549,7 @@ var operationRegistry = []OperationSpec{
 			queryParam("workspace", "Filter by workspace path, name, or ID", false),
 			enumQueryParam("status", "Filter by task status", taskStatusValues()),
 			enumQueryParam("priority", "Filter by task priority", taskPriorityValues()),
-			boolQueryParam("include_drafts", "Include draft tasks in list results", false),
+			boolQueryParam("include_drafts", "Include draft tasks in list results"),
 			enumQueryParam("approval_state", "Filter by task approval state", taskApprovalStateValues()),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
@@ -2106,7 +2108,7 @@ var operationRegistry = []OperationSpec{
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
 			enumQueryParam("lane", "Filter by inbox lane", taskInboxLaneValues()),
-			boolQueryParam("unread", "Return only unread inbox items", false),
+			boolQueryParam("unread", "Return only unread inbox items"),
 			queryParam("query", "Filter by task title or identifier", false),
 			intQueryParam("limit", "Maximum number of inbox items to return"),
 		},
@@ -3169,12 +3171,12 @@ func enumQueryParam(name string, description string, values []string) ParameterS
 	}
 }
 
-func boolQueryParam(name string, description string, required bool) ParameterSpec {
+func boolQueryParam(name string, description string) ParameterSpec {
 	return ParameterSpec{
 		Name:        name,
 		In:          openapi3.ParameterInQuery,
 		Description: description,
-		Required:    required,
+		Required:    false,
 		Kind:        "boolean",
 	}
 }

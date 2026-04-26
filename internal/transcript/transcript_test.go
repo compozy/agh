@@ -676,54 +676,56 @@ func TestMarshalAgentEventBuildsCanonicalPayload(t *testing.T) {
 	}
 }
 
-func TestMarshalAgentEventPreservesRawToolResultShape(t *testing.T) {
-	t.Parallel()
+func TestMarshalAgentEventExtractsToolResultShapeWithoutPersistingRaw(t *testing.T) {
+	t.Run("Should extract structured tool result fields without persisting raw payloads", func(t *testing.T) {
+		t.Parallel()
 
-	payload, err := MarshalAgentEvent(acp.AgentEvent{
-		Type: acp.EventTypeToolResult,
-		Raw: json.RawMessage(`{
-			"sessionUpdate":"tool_call_update",
-			"status":"failed",
-			"rawOutput":{"stderr":"boom"},
-			"content":[{"type":"content","content":{"type":"text","text":"boom"}}],
-			"_meta":{"claudeCode":{"toolName":"Bash"}},
-			"rawInput":{"command":"pwd"}
-		}`),
-		Title: "tool result",
+		payload, err := MarshalAgentEvent(acp.AgentEvent{
+			Type: acp.EventTypeToolResult,
+			Raw: json.RawMessage(`{
+				"sessionUpdate":"tool_call_update",
+				"status":"failed",
+				"rawOutput":{"stderr":"boom"},
+				"content":[{"type":"content","content":{"type":"text","text":"boom"}}],
+				"_meta":{"claudeCode":{"toolName":"Bash"}},
+				"rawInput":{"command":"pwd"}
+			}`),
+			Title: "tool result",
+		})
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent(raw) error = %v", err)
+		}
+
+		var decoded struct {
+			Schema     string          `json:"schema"`
+			ToolName   string          `json:"tool_name"`
+			ToolInput  json.RawMessage `json:"tool_input"`
+			ToolError  bool            `json:"tool_error"`
+			ToolResult ToolResult      `json:"tool_result"`
+			Raw        json.RawMessage `json:"raw"`
+		}
+		if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(raw payload) error = %v", err)
+		}
+		if decoded.Schema != CanonicalSchema {
+			t.Fatalf("Schema = %q, want %q", decoded.Schema, CanonicalSchema)
+		}
+		if decoded.ToolName != "Bash" {
+			t.Fatalf("ToolName = %q, want %q", decoded.ToolName, "Bash")
+		}
+		if got := string(decoded.ToolInput); got != `{"command":"pwd"}` {
+			t.Fatalf("ToolInput = %s, want command payload", got)
+		}
+		if !decoded.ToolError {
+			t.Fatal("ToolError = false, want true")
+		}
+		if decoded.ToolResult.Stderr != "boom" || decoded.ToolResult.Error != "boom" {
+			t.Fatalf("ToolResult = %#v, want stderr/error boom", decoded.ToolResult)
+		}
+		if len(decoded.Raw) != 0 {
+			t.Fatalf("Raw = %s, want empty persisted raw payload", string(decoded.Raw))
+		}
 	})
-	if err != nil {
-		t.Fatalf("MarshalAgentEvent(raw) error = %v", err)
-	}
-
-	var decoded struct {
-		Schema     string          `json:"schema"`
-		ToolName   string          `json:"tool_name"`
-		ToolInput  json.RawMessage `json:"tool_input"`
-		ToolError  bool            `json:"tool_error"`
-		ToolResult ToolResult      `json:"tool_result"`
-		Raw        json.RawMessage `json:"raw"`
-	}
-	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(raw payload) error = %v", err)
-	}
-	if decoded.Schema != CanonicalSchema {
-		t.Fatalf("Schema = %q, want %q", decoded.Schema, CanonicalSchema)
-	}
-	if decoded.ToolName != "Bash" {
-		t.Fatalf("ToolName = %q, want %q", decoded.ToolName, "Bash")
-	}
-	if got := string(decoded.ToolInput); got != `{"command":"pwd"}` {
-		t.Fatalf("ToolInput = %s, want command payload", got)
-	}
-	if !decoded.ToolError {
-		t.Fatal("ToolError = false, want true")
-	}
-	if decoded.ToolResult.Stderr != "boom" || decoded.ToolResult.Error != "boom" {
-		t.Fatalf("ToolResult = %#v, want stderr/error boom", decoded.ToolResult)
-	}
-	if len(decoded.Raw) == 0 {
-		t.Fatal("Raw = empty, want preserved nested raw payload")
-	}
 }
 
 func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
@@ -751,46 +753,48 @@ func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 	})
 }
 
-func TestUnmarshalAgentEventRoundTrip(t *testing.T) {
-	t.Parallel()
+func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *testing.T) {
+	t.Run("Should round-trip structured fields without restoring canonical raw payloads", func(t *testing.T) {
+		t.Parallel()
 
-	payload, err := MarshalAgentEvent(acp.AgentEvent{
-		Type:      acp.EventTypeAgentMessage,
-		SessionID: "acp-1",
-		TurnID:    "turn-1",
-		RequestID: "req-1",
-		Timestamp: time.Date(2026, 4, 11, 2, 0, 0, 0, time.UTC),
-		Text:      "hello",
-		Title:     "assistant",
-		Error:     "",
-		Raw:       json.RawMessage(`{"chunk":1}`),
+		payload, err := MarshalAgentEvent(acp.AgentEvent{
+			Type:      acp.EventTypeAgentMessage,
+			SessionID: "acp-1",
+			TurnID:    "turn-1",
+			RequestID: "req-1",
+			Timestamp: time.Date(2026, 4, 11, 2, 0, 0, 0, time.UTC),
+			Text:      "hello",
+			Title:     "assistant",
+			Error:     "",
+			Raw:       json.RawMessage(`{"chunk":1}`),
+		})
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+
+		event, err := UnmarshalAgentEvent(payload)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		if got, want := event.Type, acp.EventTypeAgentMessage; got != want {
+			t.Fatalf("Type = %q, want %q", got, want)
+		}
+		if got, want := event.SessionID, "acp-1"; got != want {
+			t.Fatalf("SessionID = %q, want %q", got, want)
+		}
+		if got, want := event.TurnID, "turn-1"; got != want {
+			t.Fatalf("TurnID = %q, want %q", got, want)
+		}
+		if got, want := event.RequestID, "req-1"; got != want {
+			t.Fatalf("RequestID = %q, want %q", got, want)
+		}
+		if got, want := event.Text, "hello"; got != want {
+			t.Fatalf("Text = %q, want %q", got, want)
+		}
+		if len(event.Raw) != 0 {
+			t.Fatalf("Raw = %s, want empty canonical raw payload", string(event.Raw))
+		}
 	})
-	if err != nil {
-		t.Fatalf("MarshalAgentEvent() error = %v", err)
-	}
-
-	event, err := UnmarshalAgentEvent(payload)
-	if err != nil {
-		t.Fatalf("UnmarshalAgentEvent() error = %v", err)
-	}
-	if got, want := event.Type, acp.EventTypeAgentMessage; got != want {
-		t.Fatalf("Type = %q, want %q", got, want)
-	}
-	if got, want := event.SessionID, "acp-1"; got != want {
-		t.Fatalf("SessionID = %q, want %q", got, want)
-	}
-	if got, want := event.TurnID, "turn-1"; got != want {
-		t.Fatalf("TurnID = %q, want %q", got, want)
-	}
-	if got, want := event.RequestID, "req-1"; got != want {
-		t.Fatalf("RequestID = %q, want %q", got, want)
-	}
-	if got, want := event.Text, "hello"; got != want {
-		t.Fatalf("Text = %q, want %q", got, want)
-	}
-	if got, want := string(event.Raw), `{"chunk":1}`; got != want {
-		t.Fatalf("Raw = %s, want %s", got, want)
-	}
 }
 
 func mustMarshalCanonical(

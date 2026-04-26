@@ -489,18 +489,21 @@ type NetworkPeerPayload struct {
 
 // NetworkChannelPayload is the shared JSON representation of one active channel.
 type NetworkChannelPayload struct {
-	Channel            string     `json:"channel"`
-	WorkspaceID        string     `json:"workspace_id,omitempty"`
-	Purpose            string     `json:"purpose,omitempty"`
-	CreatedBy          string     `json:"created_by,omitempty"`
-	CreatedAt          *time.Time `json:"created_at,omitempty"`
-	PeerCount          int        `json:"peer_count"`
-	LocalPeerCount     int        `json:"local_peer_count,omitempty"`
-	RemotePeerCount    int        `json:"remote_peer_count,omitempty"`
-	SessionCount       int        `json:"session_count,omitempty"`
-	MessageCount       int        `json:"message_count,omitempty"`
-	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
-	LastMessagePreview string     `json:"last_message_preview,omitempty"`
+	Channel                    string     `json:"channel"`
+	WorkspaceID                string     `json:"workspace_id,omitempty"`
+	Purpose                    string     `json:"purpose,omitempty"`
+	CreatedBy                  string     `json:"created_by,omitempty"`
+	CreatedAt                  *time.Time `json:"created_at,omitempty"`
+	PeerCount                  int        `json:"peer_count"`
+	LocalPeerCount             int        `json:"local_peer_count,omitempty"`
+	RemotePeerCount            int        `json:"remote_peer_count,omitempty"`
+	SessionCount               int        `json:"session_count,omitempty"`
+	MessageCount               int        `json:"message_count,omitempty"`
+	PresenceCount              int        `json:"presence_count,omitempty"`
+	HistoricalParticipantCount int        `json:"historical_participant_count,omitempty"`
+	LastActivityAt             *time.Time `json:"last_activity_at,omitempty"`
+	LastPresenceAt             *time.Time `json:"last_presence_at,omitempty"`
+	LastMessagePreview         string     `json:"last_message_preview,omitempty"`
 }
 
 // NetworkEnvelopePayload is the shared JSON representation of one surfaced
@@ -525,21 +528,24 @@ type NetworkEnvelopePayload struct {
 
 // NetworkChannelDetailPayload is the shared channel detail payload used by the network UI.
 type NetworkChannelDetailPayload struct {
-	Channel            string                           `json:"channel"`
-	WorkspaceID        string                           `json:"workspace_id,omitempty"`
-	Purpose            string                           `json:"purpose,omitempty"`
-	CreatedBy          string                           `json:"created_by,omitempty"`
-	CreatedAt          *time.Time                       `json:"created_at,omitempty"`
-	PeerCount          int                              `json:"peer_count"`
-	LocalPeerCount     int                              `json:"local_peer_count,omitempty"`
-	RemotePeerCount    int                              `json:"remote_peer_count,omitempty"`
-	SessionCount       int                              `json:"session_count,omitempty"`
-	MessageCount       int                              `json:"message_count,omitempty"`
-	LastActivityAt     *time.Time                       `json:"last_activity_at,omitempty"`
-	LastMessagePreview string                           `json:"last_message_preview,omitempty"`
-	KindCounts         []NetworkChannelKindCountPayload `json:"kind_counts,omitempty"`
-	Sessions           []SessionPayload                 `json:"sessions,omitempty"`
-	Peers              []NetworkPeerPayload             `json:"peers,omitempty"`
+	Channel                    string                           `json:"channel"`
+	WorkspaceID                string                           `json:"workspace_id,omitempty"`
+	Purpose                    string                           `json:"purpose,omitempty"`
+	CreatedBy                  string                           `json:"created_by,omitempty"`
+	CreatedAt                  *time.Time                       `json:"created_at,omitempty"`
+	PeerCount                  int                              `json:"peer_count"`
+	LocalPeerCount             int                              `json:"local_peer_count,omitempty"`
+	RemotePeerCount            int                              `json:"remote_peer_count,omitempty"`
+	SessionCount               int                              `json:"session_count,omitempty"`
+	MessageCount               int                              `json:"message_count,omitempty"`
+	PresenceCount              int                              `json:"presence_count,omitempty"`
+	HistoricalParticipantCount int                              `json:"historical_participant_count,omitempty"`
+	LastActivityAt             *time.Time                       `json:"last_activity_at,omitempty"`
+	LastPresenceAt             *time.Time                       `json:"last_presence_at,omitempty"`
+	LastMessagePreview         string                           `json:"last_message_preview,omitempty"`
+	KindCounts                 []NetworkChannelKindCountPayload `json:"kind_counts,omitempty"`
+	Sessions                   []SessionPayload                 `json:"sessions,omitempty"`
+	Peers                      []NetworkPeerPayload             `json:"peers,omitempty"`
 }
 
 // NetworkChannelKindCountPayload reports one channel-level kind count.
@@ -550,24 +556,27 @@ type NetworkChannelKindCountPayload struct {
 
 // NetworkChannelMessagePayload is the shared network room timeline payload.
 type NetworkChannelMessagePayload struct {
-	MessageID     string          `json:"message_id"`
-	Channel       string          `json:"channel"`
-	Kind          string          `json:"kind"`
-	Direction     string          `json:"direction"`
-	PeerFrom      string          `json:"peer_from"`
-	PeerTo        string          `json:"peer_to,omitempty"`
-	DisplayName   string          `json:"display_name,omitempty"`
-	SessionID     string          `json:"session_id,omitempty"`
-	Local         bool            `json:"local,omitempty"`
-	InteractionID string          `json:"interaction_id,omitempty"`
-	ReplyTo       string          `json:"reply_to,omitempty"`
-	TraceID       string          `json:"trace_id,omitempty"`
-	CausationID   string          `json:"causation_id,omitempty"`
-	Intent        string          `json:"intent,omitempty"`
-	Text          string          `json:"text,omitempty"`
-	PreviewText   string          `json:"preview_text,omitempty"`
-	Body          json.RawMessage `json:"body"`
-	Timestamp     time.Time       `json:"timestamp"`
+	MessageID          string          `json:"message_id"`
+	Channel            string          `json:"channel"`
+	Kind               string          `json:"kind"`
+	Direction          string          `json:"direction"`
+	PeerFrom           string          `json:"peer_from"`
+	PeerTo             string          `json:"peer_to,omitempty"`
+	DisplayName        string          `json:"display_name,omitempty"`
+	SessionID          string          `json:"session_id,omitempty"`
+	Local              bool            `json:"local,omitempty"`
+	InteractionID      string          `json:"interaction_id,omitempty"`
+	ReplyTo            string          `json:"reply_to,omitempty"`
+	TraceID            string          `json:"trace_id,omitempty"`
+	CausationID        string          `json:"causation_id,omitempty"`
+	Intent             string          `json:"intent,omitempty"`
+	Text               string          `json:"text,omitempty"`
+	PreviewText        string          `json:"preview_text,omitempty"`
+	PresenceCount      int             `json:"presence_count,omitempty"`
+	PresenceStartedAt  *time.Time      `json:"presence_started_at,omitempty"`
+	PresenceLastSeenAt *time.Time      `json:"presence_last_seen_at,omitempty"`
+	Body               json.RawMessage `json:"body"`
+	Timestamp          time.Time       `json:"timestamp"`
 }
 
 // NetworkPeerMetricsPayload is the shared peer-level counter payload.

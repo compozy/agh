@@ -62,6 +62,8 @@ export {
   normalizeAutomationRetry,
   retryDraftForStrategy,
 } from "./lib/automation-drafts";
+export type { AutomationDialogHandle } from "./lib/dialog-handle";
+export { createAutomationDialogHandle } from "./lib/dialog-handle";
 export {
   automationSourceLabel,
   automationScopeLabel,

@@ -82,9 +82,9 @@ function KnowledgePage() {
           <KnowledgeListPanel
             memories={page.memories}
             onSearchChange={page.setSearchQuery}
-            onSelectMemory={page.setSelectedFilename}
+            onSelectMemory={page.setSelectedMemoryKey}
             searchQuery={page.searchQuery}
-            selectedFilename={page.effectiveSelectedFilename}
+            selectedMemoryKey={page.effectiveSelectedMemoryKey}
           />
         }
       />

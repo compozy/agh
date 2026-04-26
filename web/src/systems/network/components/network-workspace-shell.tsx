@@ -52,10 +52,12 @@ interface NetworkWorkspaceShellProps {
   onSelectKind: (kind: NetworkKindFilter) => void;
   onSelectRoom: (room: NetworkRoomListItem) => void;
   onToggleDetails: () => void;
+  onTogglePresence: () => void;
   onToggleStarChannel: (channel: string) => void;
   roomError: Error | null;
   selectedRoomKey: string | null;
   sidebarQuery: string;
+  showPresence: boolean;
   status: NetworkStatus;
   onSidebarQueryChange: (value: string) => void;
   starredChannelRooms: NetworkRoomListItem[];
@@ -130,7 +132,7 @@ function isGroupedWithPrevious(
   return currentAt - previousAt <= 5 * 60_000;
 }
 
-function NetworkRoomKindPill({ kind }: { kind: string }) {
+function NetworkRoomKindPill({ kind, labelOverride }: { kind: string; labelOverride?: string }) {
   const tone = getNetworkKindTone(kind);
 
   return (
@@ -140,7 +142,7 @@ function NetworkRoomKindPill({ kind }: { kind: string }) {
         toneClasses[tone]
       )}
     >
-      {formatNetworkKindLabel(kind)}
+      {labelOverride ?? formatNetworkKindLabel(kind)}
     </span>
   );
 }
@@ -318,16 +320,29 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
       return (
         <div className="space-y-3 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <MonoBadge tone="success">greet</MonoBadge>
+            <MonoBadge tone="success">
+              {message.presence_count && message.presence_count > 1 ? "presence" : "greet"}
+            </MonoBadge>
             {readString(peerCard, "display_name") ? (
               <span className="text-[13px] font-medium text-[color:var(--color-text-primary)]">
                 {readString(peerCard, "display_name")}
               </span>
             ) : null}
+            {message.presence_count && message.presence_count > 1 ? (
+              <MonoBadge uppercase={false} tone="success">
+                {message.presence_count} heartbeats
+              </MonoBadge>
+            ) : null}
           </div>
           <p className="text-[13px] leading-6 text-[color:var(--color-text-secondary)]">
             {readString(body, "summary") ?? getNetworkMessagePrimaryText(message)}
           </p>
+          {message.presence_started_at && message.presence_last_seen_at ? (
+            <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
+              {formatNetworkDateTime(message.presence_started_at)} to{" "}
+              {formatNetworkDateTime(message.presence_last_seen_at)}
+            </p>
+          ) : null}
           {readStringList(peerCard, "capabilities").length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {readStringList(peerCard, "capabilities").map(capabilityName => (
@@ -447,7 +462,14 @@ function NetworkMessageList({
                   <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
                     {formatNetworkRelativeTime(message.timestamp)}
                   </span>
-                  <NetworkRoomKindPill kind={message.kind} />
+                  <NetworkRoomKindPill
+                    kind={message.kind}
+                    labelOverride={
+                      message.kind === "greet" && (message.presence_count ?? 0) > 0
+                        ? "presence"
+                        : undefined
+                    }
+                  />
                   <MonoBadge tone={message.direction === "sent" ? "accent" : "default"}>
                     {message.direction}
                   </MonoBadge>
@@ -531,10 +553,12 @@ export function NetworkWorkspaceShell({
   onSelectRoom,
   onSidebarQueryChange,
   onToggleDetails,
+  onTogglePresence,
   onToggleStarChannel,
   roomError,
   selectedRoomKey,
   sidebarQuery,
+  showPresence,
   starredChannelRooms,
   status,
 }: NetworkWorkspaceShellProps) {
@@ -768,6 +792,20 @@ export function NetworkWorkspaceShell({
                     </button>
                   );
                 })}
+                <button
+                  aria-pressed={showPresence}
+                  className={cn(
+                    "rounded-[var(--radius-chip)] border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
+                    showPresence
+                      ? "border-[color:var(--color-success)] bg-[color:var(--color-success-tint)] text-[color:var(--color-success)]"
+                      : "border-[color:var(--color-divider)] text-[color:var(--color-text-secondary)] hover:border-[color:var(--color-success)] hover:text-[color:var(--color-text-primary)]"
+                  )}
+                  onClick={onTogglePresence}
+                  type="button"
+                >
+                  Presence
+                  {(activeRoom?.presenceCount ?? 0) > 0 ? ` ${activeRoom?.presenceCount ?? 0}` : ""}
+                </button>
               </div>
             </div>
 
