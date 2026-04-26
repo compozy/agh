@@ -232,6 +232,7 @@ type Config struct {
 	Automation    AutomationConfig              `toml:"automation"`
 	Hooks         HooksConfig                   `toml:"hooks"`
 	Network       NetworkConfig                 `toml:"network"`
+	Autonomy      AutonomyConfig                `toml:"autonomy"`
 }
 
 type loadOptions struct {
@@ -451,6 +452,9 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			MaxReplayAge:   300,
 			MaxQueueDepth:  100,
 		},
+		Autonomy: AutonomyConfig{
+			Coordinator: DefaultCoordinatorConfig(),
+		},
 	}
 }
 
@@ -529,6 +533,9 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 	}
 	if err := c.Network.Validate(); err != nil {
 		return fmt.Errorf("validate network config: %w", err)
+	}
+	if err := c.Autonomy.Validate(c); err != nil {
+		return fmt.Errorf("validate autonomy config: %w", err)
 	}
 	return nil
 }

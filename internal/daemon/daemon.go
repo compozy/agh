@@ -118,6 +118,7 @@ type RuntimeDeps struct {
 	WorkspaceResolver workspacepkg.RuntimeResolver
 	WorkspaceService  core.WorkspaceService
 	AgentCatalog      core.AgentCatalog
+	CoordinatorConfig CoordinatorConfigResolver
 	SkillsRegistry    core.SkillsRegistry
 	DreamTrigger      DreamTrigger
 	Settings          core.SettingsService

@@ -31,6 +31,7 @@ type configOverlay struct {
 	Automation    automationOverlay             `toml:"automation"`
 	Hooks         hooksOverlay                  `toml:"hooks"`
 	Network       networkOverlay                `toml:"network"`
+	Autonomy      autonomyOverlay               `toml:"autonomy"`
 }
 
 type daemonOverlay struct {
@@ -178,6 +179,20 @@ type networkOverlay struct {
 	MaxQueueDepth  *int    `toml:"max_queue_depth"`
 }
 
+type autonomyOverlay struct {
+	Coordinator coordinatorOverlay `toml:"coordinator"`
+}
+
+type coordinatorOverlay struct {
+	Enabled               *bool          `toml:"enabled"`
+	AgentName             *string        `toml:"agent_name"`
+	Provider              *string        `toml:"provider"`
+	Model                 *string        `toml:"model"`
+	DefaultTTL            *time.Duration `toml:"default_ttl"`
+	MaxChildren           *int           `toml:"max_children"`
+	MaxActivePerWorkspace *int           `toml:"max_active_per_workspace"`
+}
+
 type marketplaceOverlay struct {
 	Registry *string `toml:"registry"`
 	BaseURL  *string `toml:"base_url"`
@@ -276,6 +291,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 		return err
 	}
 	o.Network.Apply(&dst.Network)
+	o.Autonomy.Apply(&dst.Autonomy)
 	return o.Hooks.Apply(&dst.Hooks)
 }
 
@@ -557,6 +573,34 @@ func (o networkOverlay) Apply(dst *NetworkConfig) {
 	}
 	if o.MaxQueueDepth != nil {
 		dst.MaxQueueDepth = *o.MaxQueueDepth
+	}
+}
+
+func (o autonomyOverlay) Apply(dst *AutonomyConfig) {
+	o.Coordinator.Apply(&dst.Coordinator)
+}
+
+func (o coordinatorOverlay) Apply(dst *CoordinatorConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = *o.Enabled
+	}
+	if o.AgentName != nil {
+		dst.AgentName = *o.AgentName
+	}
+	if o.Provider != nil {
+		dst.Provider = *o.Provider
+	}
+	if o.Model != nil {
+		dst.Model = *o.Model
+	}
+	if o.DefaultTTL != nil {
+		dst.DefaultTTL = *o.DefaultTTL
+	}
+	if o.MaxChildren != nil {
+		dst.MaxChildren = *o.MaxChildren
+	}
+	if o.MaxActivePerWorkspace != nil {
+		dst.MaxActivePerWorkspace = *o.MaxActivePerWorkspace
 	}
 }
 

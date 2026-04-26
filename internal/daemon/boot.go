@@ -608,9 +608,14 @@ func (d *Daemon) runtimeDeps(state *bootState, sessions SessionManager) RuntimeD
 		WorkspaceResolver: state.workspaceResolver,
 		WorkspaceService:  state.workspaceResolver,
 		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
-		SkillsRegistry:    skillsRegistryAPI(state.skillsRegistry),
-		DreamTrigger:      dreamTriggerFromRuntime(state.dreamRuntime),
-		StartedAt:         state.startedAt,
+		CoordinatorConfig: newCoordinatorConfigResolver(
+			&state.cfg,
+			state.workspaceResolver,
+			agentCatalogDependency(state.agentCatalog),
+		),
+		SkillsRegistry: skillsRegistryAPI(state.skillsRegistry),
+		DreamTrigger:   dreamTriggerFromRuntime(state.dreamRuntime),
+		StartedAt:      state.startedAt,
 	}
 }
 
