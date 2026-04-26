@@ -24,7 +24,7 @@ Rewrite the core repository docs so the unified capability model becomes the can
 
 <requirements>
 - MUST rewrite `docs/rfcs/003_agh-network-v0.md` so `capability` is the only surviving authored and transferred artifact
-- MUST update `docs/agents/capabilities.md` so local authoring, digesting, requirements, and transfer semantics reflect the unified model
+- MUST update `docs/rfcs/005_capability-catalogs-agent-directories.md` so local authoring, digesting, requirements, and transfer semantics reflect the unified model
 - MUST describe the discovery split clearly: brief in `greet`, rich in `whois`, transfer in `kind:"capability"`
 - MUST remove or explicitly supersede protocol/runtime language that still presents `recipe` as a first-class concept
 - MUST keep terminology aligned with the accepted ADRs and the backend/API behavior finalized in task_04
@@ -43,7 +43,7 @@ See TechSpec "System Architecture", "Technical Considerations", and "Architectur
 
 ### Relevant Files
 - `docs/rfcs/003_agh-network-v0.md` - canonical protocol RFC that still needs the split model removed
-- `docs/agents/capabilities.md` - runtime/operator-facing guide for capability authoring and behavior
+- `docs/rfcs/005_capability-catalogs-agent-directories.md` - runtime/operator-facing guide for capability authoring and behavior
 - `.compozy/tasks/unified-capabilities/_techspec.md` - approved technical source for the new steady-state design
 - `.compozy/tasks/unified-capabilities/adrs/adr-001.md` - concept unification decision
 - `.compozy/tasks/unified-capabilities/adrs/adr-002.md` - authoring and schema decision

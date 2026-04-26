@@ -123,7 +123,7 @@ Each agent is a self-contained directory:
       debug_patterns.md
 ```
 
-In AGH, self-contained agent directories may also include optional runtime sidecars that travel with the agent, such as `mcp.json` and a capability catalog (`capabilities.toml`, `capabilities.json`, or `capabilities/`). The runtime authoring rules for capability catalogs live in [docs/agents/capabilities.md](../agents/capabilities.md).
+In AGH, self-contained agent directories may also include optional runtime sidecars that travel with the agent, such as `mcp.json` and a capability catalog (`capabilities.toml`, `capabilities.json`, or `capabilities/`). The runtime authoring rules for capability catalogs live in [RFC 005](005_capability-catalogs-agent-directories.md).
 
 Agent directories can live in:
 

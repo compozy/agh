@@ -13,7 +13,7 @@ Repo-wide rules (Critical Rules, Workflow, Build, Commits, Skill Dispatch, Memor
 - **`daemon/` is the sole composition root** — the only package that imports all others. Reconciliation logic running at boot belongs to composition root and is not "legacy support".
 - **No package imports `daemon/`, `api/`, or `cli/`** — dependencies flow downward only.
 - **Interfaces defined where consumed** (Go-style) — `session/` defines `AgentDriver`, `acp/` implements it.
-- **Direct function calls through interfaces** — no event bus, no NATS, no reflection-based routing.
+- **Direct function calls through interfaces** — no event bus, no reflection-based routing, no NATS as inter-package coordination. NATS is permitted **only** inside `internal/network` as the embedded wire transport for the AGH Network protocol; daemon packages communicate via interfaces and the Notifier pattern, never by publishing to subjects.
 - **Notifier pattern for fan-out** — typed interface for observability and SSE, not a generic bus.
 - **No back-pointers between packages** — inject callbacks or interfaces.
 - **Functional options for constructors** — `NewManager(opts ...Option)`.
@@ -50,22 +50,6 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 - Cover with a coverage matrix test that fails if any required lifecycle path doesn't emit its canonical event.
 - Append-only event store (`runtime.db`) is the canonical operational ledger; session DBs are projections, not authority.
 - Live broadcasters publish only after durable append; reconnect/replay uses `after_seq`.
-
-## Autonomy Contracts
-
-These are load-bearing rules from the autonomous-mode ADRs (`.compozy/tasks/autonomous/adrs/adr-001..012`) and `_techspec.md`. Internalize them before touching the kernel.
-
-- **`task_runs` is the single durable work queue.** Do not introduce a parallel queue or actor table. Add new ownership/state via columns + side tables on `task_runs`.
-- **`task.Service.ClaimNextRun` is the canonical claim primitive.** Lease invariants: exactly one active claim token per non-terminal run; heartbeat/complete/fail/release compare run owner + claim token; stale/late after recovery fails explicitly; sweep + heartbeat serialize via SQLite tx; boot recovery before scheduler accepts wake/claim traffic; lease extension bounded by config; one active lease per session in MVP. Use `BEGIN IMMEDIATE`; CAS predicates for sweep.
-- **Capability matching = durable exact-match rows** in `task_run_required_capabilities` / `task_run_preferred_capabilities`, NOT JSON metadata.
-- **Manual operator paths and autonomous paths converge on the same primitives.** User-created, automation-created, coordinator-created, and agent-spawned tasks all use the same task/run model and the same claim-token/lease/heartbeat/complete/fail/release rules. Task creation alone NEVER enqueues claimable work or starts the coordinator. Publish/start/approval is the run-enqueue boundary.
-- **Coordinator auto-spawn** triggers ONLY when: workspace has no healthy active coordinator AND a coordinated run is enqueued by publish/start/approval AND run has stable `coordination_channel_id` AND auto-start enabled AND spawn caps allow. Conservative defaults (auto-start disabled, max-children 5, max-active-per-workspace 1).
-- **Coordinator-agent owns semantic orchestration; mechanical scheduler owns operational safety** (idle registry, capability-aware wakeups, lease sweep, recovery, backpressure). The scheduler does NOT call `ClaimNextRun` directly in MVP.
-- **Safe spawn defaults**: max-depth 1, max-children 5, mandatory TTL on every spawned session; children auto-stop with parent. Permission narrowing compares concrete atoms only (tools, skills, MCP server IDs, workspace path grants, network channels, env profile grants); subset-only; unknown child atoms count as widening and reject. Daemon NEVER silently narrows.
-- **Hook taxonomy** (MVP allowlist): `coordinator.{pre_spawn,spawned,decision,stopped,failed}`, `task.run.{enqueued,pre_claim,post_claim,lease_extended,lease_expired,lease_recovered,released}`, `spawn.{pre_create,created,parent_stopped,ttl_expired,reaped}`, plus `tool.*`, `permission.*`, `session.*`. Scheduler wake/no-match/recovery stay internal metrics. No `workflow.*` umbrella in MVP.
-- **Coordination channels.** Every workspace-scoped coordinated run has ONE durable `coordination_channel_id` on `task_runs`. Bind always, speak when useful — heartbeats/lease transitions never mirror as chat. Network message kinds limited to `status` / `request` / `reply` / `blocker` / `handoff` / `result` / `review_request` in MVP. Channels are NEVER an ownership/status authority.
-- **Generated contracts and docs co-ship.** Any change to `internal/api/contract` co-ships in the same PR with: regen of `openapi/agh.json` and `web/src/generated/agh-openapi.d.ts`, updates to `web/src/systems/*/types.ts` consumers, Storybook/MSW fixtures, and passes `make codegen-check`, `make web-typecheck`, AND `make web-test`.
-- **Agent-facing CLI is identity-inferred.** Caller identity flows from `AGH_SESSION_ID` / `AGH_AGENT` through `internal/agentidentity`. Operator endpoints MUST NOT infer agent identity from environment variables. Stable `-o json` and `-o jsonl` are compatibility contracts; no command aliases (no `done`, no `pass`).
 
 ## Security Invariants
 
@@ -135,6 +119,13 @@ These are load-bearing rules from the autonomous-mode ADRs (`.compozy/tasks/auto
 | `internal/version`              | Build metadata                                                                |
 | `internal/workref`              | Work reference helpers                                                        |
 | `internal/workspace`            | Workspace resolver and entity management                                      |
+
+## Memory & Skills Runtime (RFC-backed)
+
+- **Five-layer skill/memory/agent precedence**: Bundled → Marketplace → User → Additional → Workspace, with agent-local overriding all. Higher precedence wins on collision; an audit trail logs every shadow.
+- **Memory taxonomy**: `user | feedback | project | reference` types; scopes `agent | workspace | global`. Default write scope declared per agent in `memory.scope`.
+- **Memory consolidation gates**: Time → Sessions → Lock cascade ordered by computational cost. Default gates: 24h, 5 touched sessions, file-lock. Never replace gates with naive heuristics.
+- **Lifecycle hooks** (`on_session_created`, `on_session_stopped`) execute in hierarchy precedence then alphabetical order; configurable timeout (default 5s); fail-open semantics (errors logged, never block); JSON over stdin.
 
 ## Forensic Bug Fixes
 

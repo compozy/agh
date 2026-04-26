@@ -81,13 +81,13 @@ SCENARIO EVIDENCE
   - `bunx vitest run packages/ui/src/components/dialog.test.tsx`
   - `bun run --cwd web test:e2e:daemon-served:raw e2e/network.spec.ts`
 - `TC-REG-001` protocol docs consistency:
-  - `rg -n "\\brecipe(s)?\\b" packages/site/content/protocol packages/site/content/runtime/core/agents docs/agents/capabilities.md docs/rfcs/003_agh-network-v0.md`
+  - `rg -n "\\brecipe(s)?\\b" packages/site/content/protocol packages/site/content/runtime/core/agents docs/rfcs/005_capability-catalogs-agent-directories.md docs/rfcs/003_agh-network-v0.md`
   - `packages/site/content/protocol/meta.json` confirms there is no `recipes` page in steady-state nav
   - `make site-build`
 - `TC-REG-002` runtime docs consistency:
   - `packages/site/content/runtime/core/agents/meta.json`
   - `packages/site/content/runtime/core/agents/capabilities.mdx` keeps `recipe` only as a negated historical reference
-  - `docs/agents/capabilities.md`
+  - `docs/rfcs/005_capability-catalogs-agent-directories.md`
   - `make site-build`
 
 ADDITIONAL GATE REPAIRS OUTSIDE THE FEATURE REGRESSION LIST

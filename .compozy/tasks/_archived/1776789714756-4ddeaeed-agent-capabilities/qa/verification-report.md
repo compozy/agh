@@ -25,7 +25,7 @@ ADDITIONAL EVIDENCE
 - API payload visibility evidence:
   - `go test ./internal/api/core -count=1 -v -run 'TestNetworkConversionHelpersPreserveMetadata'`
 - Documentation consistency evidence:
-  - `rg -n 'capabilities\\.toml|capabilities\\.json|capabilities/|agh\\.capabilities_brief|agh\\.include|agh\\.capability_ids|agh\\.capability_catalog|peer_card\\.ext' docs/agents/capabilities.md docs/rfcs/003_agh-network-v0.md internal/network internal/api/core internal/config`
+  - `rg -n 'capabilities\\.toml|capabilities\\.json|capabilities/|agh\\.capabilities_brief|agh\\.include|agh\\.capability_ids|agh\\.capability_catalog|peer_card\\.ext' docs/rfcs/005_capability-catalogs-agent-directories.md docs/rfcs/003_agh-network-v0.md internal/network internal/api/core internal/config`
 - Post-gate rerun after final `make verify`:
   - `go test ./internal/config -count=1 -v -run 'TestLoadAgentDefFileLoadsCapabilityCatalogAndMCPSidecar|TestLoadWorkspaceAgentDefsLoadsAgentsWithoutCapabilityCatalog'`
   - `go test -tags integration ./internal/session ./internal/network -count=1 -v -run 'TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAndStop|TestManagerIntegrationCapabilityAwareJoinKeepsMissingCatalogProjectionEmpty|TestManagerJoinPublishesProjectedCapabilityBriefInInitialAndReconnectGreets|TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog|TestDirectedWhoisRichDiscoveryFilteringRefreshesRemotePresence'`

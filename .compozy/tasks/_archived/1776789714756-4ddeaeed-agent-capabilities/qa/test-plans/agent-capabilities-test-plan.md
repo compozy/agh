@@ -35,7 +35,7 @@ Key risks:
 - Session-to-network join plumbing for capability-aware local peer registration.
 - Brief discovery through `greet`, peer registry/listing, and API payload conversion.
 - Explicit rich `whois` discovery for full-catalog, filtered-catalog, no-catalog, unknown-ID, and oversized-response scenarios.
-- Documentation consistency across `docs/agents/capabilities.md`, RFC 003, and the shipped runtime behavior from tasks 01-05.
+- Documentation consistency across `docs/rfcs/005_capability-catalogs-agent-directories.md`, RFC 003, and the shipped runtime behavior from tasks 01-05.
 
 ### Out of Scope
 
@@ -65,7 +65,7 @@ Key risks:
 | Session/runtime join | Join payload or manager evidence proving capability-aware local peer registration on create/resume, including deterministic empty slices for no-catalog peers. |
 | Router-level envelopes | Captured `greet` and `whois` request/response behavior showing brief metadata, explicit rich discovery, filtering, no-catalog/unknown-ID empty catalogs, and oversized-response rejection. |
 | API payload visibility | `internal/api/core` payloads or equivalent handler evidence showing the same brief metadata visible after runtime/router flows. |
-| Documentation consistency | Fresh comparison against `docs/agents/capabilities.md` and RFC 003 so user-visible layout rules and wire keys match implementation exactly. |
+| Documentation consistency | Fresh comparison against `docs/rfcs/005_capability-catalogs-agent-directories.md` and RFC 003 so user-visible layout rules and wire keys match implementation exactly. |
 
 ## Environment Requirements
 

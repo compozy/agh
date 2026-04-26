@@ -1,5 +1,3 @@
-# CLAUDE.md
-
 ## Project Overview
 
 AGH is an Agent Operating System — a Go single-binary daemon that manages AI agent sessions via ACP (Agent Client Protocol). It spawns ACP-compatible agents (Claude Code, Codex, Gemini CLI, etc.) as subprocesses, communicates via JSON-RPC over stdio, persists events in SQLite, and exposes interfaces via HTTP/SSE (web UI) and UDS (CLI). A Fumadocs site at `agh.network` documents the runtime and the AGH Network protocol.
@@ -10,9 +8,13 @@ AGH is an Agent Operating System — a Go single-binary daemon that manages AI a
 
 ## Greenfield Alpha — Zero Legacy Tolerance
 
-No production users exist. Never sacrifice code quality for backward compatibility. Never write migration, compat, or defensive code for old state — delete the old thing instead of working around it.
-
-**Hard cuts, not bridges.** Renames sweep code, storage, APIs, CLI, extensions, specs, RFCs, AND `.compozy/tasks/*` artifacts in the same change. No aliases, no dual fields, no schema fallback paths. Every breaking-change techspec MUST explicitly name its delete targets.
+- **No production users exist.**
+- Never sacrifice code quality for backward compatibility.
+- Never write migration, compatibility, or defensive code for old state — delete obsolete code instead of working around it.
+- **Hard cuts, not bridges:**
+  - Renames must update code, storage, APIs, CLI, extensions, specs, RFCs, and `.compozy/tasks/*` artifacts all in a single change.
+  - Do not create aliases, dual fields, or schema fallback paths.
+- Every breaking-change techspec **MUST** explicitly list its delete targets.
 
 ## Critical Rules
 
@@ -23,8 +25,10 @@ No production users exist. Never sacrifice code quality for backward compatibili
 - **Never use web search tools for local project code** — use Grep/Glob instead. Web search is only for external docs.
 - **Never run destructive git commands** (`git restore`, `git checkout`, `git reset`, `git clean`, `git rm`) **without explicit user permission**. If the worktree contains unexpected edits, read and work around them.
 - <critical>NEVER ignore errors with `_` in production code or in tests — every error must be handled or have a written justification.</critical>
-- <critical>NEVER COMMITS `ai-docs/`, `.tmp/`, or `.compozy/tasks/*/memory/` TO THE REPO. They are local tracking artifacts.</critical>
+- <critical>NEVER COMMITS `ai-docs/` or `.tmp/` TO THE REPO. They are local tracking artifacts.</critical>
 - **Subagents are read-only.** Use them for analysis, exploration, and parallel research. The author of every code change is the agent paired with the user. Subagent output is treated as evidence, not as committed work.
+- **ALWAYS CHECK** the `internal/CLAUDE.md` when doing Go-related stuff
+- **ALWAYS CHECK** the `web/CLAUDE.md` when doing things related to the web package
 
 ## Workflow Rules
 
@@ -55,43 +59,42 @@ These govern how features move from idea to ship. Internalize them before openin
 
 Activate skills **before** writing code. Match task domain → activate all required skills:
 
-| Domain                       | Required Skills                                                                          | Conditional Skills                     |
-| ---------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------- |
-| Go / Runtime                 | `agh-code-guidelines` + `golang-pro`                                                     | `context7`                             |
-| Config / Logging             | `agh-code-guidelines` + `golang-pro`                                                     |                                        |
-| TUI / CLI Bubbletea          | `bubbletea` + `agh-code-guidelines` + `golang-pro`                                       |                                        |
-| Bug fix                      | `systematic-debugging` + `no-workarounds`                                                | `testing-anti-patterns`                |
-| Writing Go tests             | `agh-test-conventions` + `testing-anti-patterns` + `golang-pro`                          | `vitest` (only for test tooling docs)  |
-| Cleanup / failure paths      | `agh-cleanup-failure-paths` + `agh-code-guidelines` + `golang-pro`                       | `deadlock-finder-and-fixer`            |
-| Schema / migration changes   | `agh-schema-migration` + `golang-pro`                                                    |                                        |
-| Contract / OpenAPI changes   | `agh-contract-codegen-coship`                                                            |                                        |
-| Task completion              | `cy-final-verify`                                                                        |                                        |
-| Lessons learned              | `lesson-learned`                                                                         |                                        |
-| Architecture audit           | `architectural-analysis`                                                                 | `refactoring-analysis` + `ubs`         |
-| Concurrency / races          | `deadlock-finder-and-fixer` + `golang-pro`                                               | `systematic-debugging`                 |
-| Performance / hot paths      | `extreme-software-optimization` + `golang-pro`                                           |                                        |
-| Security review              | `security-review`                                                                        | `ubs`                                  |
-| Creative / new features      | `brainstorming`                                                                          | `cy-idea-factory`                      |
-| Council debate (high-impact) | `council`                                                                                | `brainstorming`                        |
-| PRD creation                 | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                      |
-| TechSpec creation            | `cy-spec-preflight` + `cy-create-techspec` + `cy-spec-peer-review`                       | `cy-research-competitors`              |
-| Task generation              | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                        |
-| Competitor research          | `cy-research-competitors`                                                                | `context7` + `find-docs`               |
-| Execute a PRD task           | `cy-execute-task`                                                                        | `cy-workflow-memory`                   |
-| Review round / fixes         | `cy-review-round` + `cy-fix-reviews`                                                     | `fix-coderabbit-review`                |
-| Release / scenario QA        | `real-scenario-qa` (delegates to `qa-execution` + `qa-report`)                           | `agh-worktree-isolation`               |
-| Git rebase / conflicts       | `git-rebase`                                                                             |                                        |
-| External docs lookup         | `context7` + `find-docs`                                                                 | `exa-web-search-free`                  |
-| Diagrams (spec / ADR)        | `mermaid-diagrams`                                                                       | `architecture-diagram`                 |
-| Documentation (internal)     | `documentation-writer`                                                                   | `crafting-effective-readmes`           |
-| Skill / agent-md authoring   | `skill-best-practices` + `agent-md-refactor`                                             |                                        |
-| UI / Design (any surface)    | `agh-design` + `design-taste-frontend` + `minimalist-ui`                                 | `frontend-design` + `interface-design` |
+| Domain                                | Required Skills                                                                          | Conditional Skills                     |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------- |
+| Go / Runtime                          | `agh-code-guidelines` + `golang-pro`                                                     | `context7`                             |
+| Config / Logging                      | `agh-code-guidelines` + `golang-pro`                                                     |                                        |
+| TUI / CLI Bubbletea                   | `bubbletea` + `agh-code-guidelines` + `golang-pro`                                       |                                        |
+| Bug fix                               | `systematic-debugging` + `no-workarounds`                                                | `testing-anti-patterns`                |
+| Writing Go tests                      | `agh-test-conventions` + `testing-anti-patterns` + `golang-pro`                          | `vitest` (only for test tooling docs)  |
+| Cleanup / failure paths               | `agh-cleanup-failure-paths` + `agh-code-guidelines` + `golang-pro`                       | `deadlock-finder-and-fixer`            |
+| Schema / migration changes            | `agh-schema-migration` + `golang-pro`                                                    |                                        |
+| Contract / OpenAPI changes            | `agh-contract-codegen-coship`                                                            |                                        |
+| Task completion                       | `cy-final-verify`                                                                        |                                        |
+| Lessons learned                       | `lesson-learned`                                                                         |                                        |
+| Architecture audit                    | `architectural-analysis`                                                                 | `refactoring-analysis` + `ubs`         |
+| Concurrency / races                   | `deadlock-finder-and-fixer` + `golang-pro`                                               | `systematic-debugging`                 |
+| AGH Network (`internal/network` only) | `nats` + `agh-code-guidelines` + `golang-pro`                                            | `deadlock-finder-and-fixer`            |
+| Performance / hot paths               | `extreme-software-optimization` + `golang-pro`                                           |                                        |
+| Security review                       | `security-review`                                                                        | `ubs`                                  |
+| Creative / new features               | `brainstorming`                                                                          | `cy-idea-factory`                      |
+| Council debate (high-impact)          | `council`                                                                                | `brainstorming`                        |
+| PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                      |
+| TechSpec creation                     | `cy-spec-preflight` + `cy-create-techspec` + `cy-spec-peer-review`                       | `cy-research-competitors`              |
+| Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                        |
+| Competitor research                   | `cy-research-competitors`                                                                | `context7` + `find-docs`               |
+| Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                   |
+| Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     | `fix-coderabbit-review`                |
+| Release / scenario QA                 | `real-scenario-qa` (delegates to `qa-execution` + `qa-report`)                           | `agh-worktree-isolation`               |
+| Git rebase / conflicts                | `git-rebase`                                                                             |                                        |
+| External docs lookup                  | `context7` + `find-docs`                                                                 | `exa-web-search-free`                  |
+| Diagrams (spec / ADR)                 | `architecture-diagram`                                                                   | `mermaid-diagrams`                     |
+| Documentation (internal)              | `documentation-writer`                                                                   | `crafting-effective-readmes`           |
+| Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                        |
+| UI / Design (any surface)             | `agh-design` + `design-taste-frontend` + `minimalist-ui`                                 | `frontend-design` + `interface-design` |
 
 Web-specific skill dispatch is in `web/CLAUDE.md` and `web/AGENTS.md`. Site-specific dispatch is in `packages/site/CLAUDE.md`.
 
 Every domain change requires its skill — no skipping "because it's a small change". Activate multiple skills when code touches multiple domains.
-
-`nats` skill is installed but architecturally forbidden in AGH (see Architecture Principles). Do not activate it.
 
 ## Build Commands
 
@@ -127,11 +130,17 @@ make cli-docs            # Regenerate CLI reference from cobra JSON export
 
 Web (`web/`) commands are documented in `web/CLAUDE.md`.
 
-## Commit style: <type>: <description>
+## Commit style
 
-Allowed prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `build:`. **NO `chore:`, `style:`, or `ci:`.** Tooling and CI changes use `build:`. PR-merged commits include `(#NN)` suffix.
-
-**One commit per remediation batch.** `cy-fix-reviews` rounds produce exactly one local commit per round. Run `make verify` BEFORE and AFTER the commit. Never `git commit --amend` after pre-commit hook failures — fix and create a new commit.
+- ALWAYS USE: `<type>: <description>`
+- Allowed commit prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `build:`
+- **Do NOT use**: `chore:`, `style:`, or `ci:`.
+- Use `build:` for tooling and CI changes.
+- For PR-merged commits, append a `(#NN)` suffix.
+- **Create exactly one commit per remediation batch.**
+- Each `cy-fix-reviews` round must produce one local commit.
+- Always run `make verify` **before and after** committing.
+- If a pre-commit hook fails, do **not** use `git commit --amend`. Instead, fix the issue and create a new commit.
 
 ## Code Search Hierarchy
 
@@ -139,47 +148,72 @@ Allowed prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `build:`. **NO
 2. **`context7` / `find-docs` skills** — for external library documentation.
 3. **`exa-web-search-free`** — for web research, news, external code examples when the local docs tools are insufficient.
 
-## Old Project Reference
-
-The `.old_project/` directory contains the previous AGH implementation (78K+ LOC). **Reference only** — do not modify, do not import, do not include in builds. Exclude from code search results.
-
 ## Surface Map
 
 Repo layout. Each surface owns its instructions:
 
-| Path             | Stack                                                                   | Instructions              |
-| ---------------- | ----------------------------------------------------------------------- | ------------------------- |
-| `cmd/agh`        | Go binary entry point                                                   | `internal/CLAUDE.md`      |
-| `internal/`      | Go runtime daemon (ACP, SQLite, autonomy kernel, HTTP/UDS, network)     | `internal/CLAUDE.md`      |
-| `web/`           | React 19 SPA (Vite, TanStack, Tailwind, shadcn)                         | `web/CLAUDE.md`           |
-| `packages/site`  | Fumadocs documentation site (Bun)                                       | `packages/site/CLAUDE.md` |
-| `packages/ui`    | Shared UI primitives (`@agh/ui`) consumed by `web/` and `packages/site` | `web/CLAUDE.md`           |
+| Path            | Stack                                                                   | Instructions              |
+| --------------- | ----------------------------------------------------------------------- | ------------------------- |
+| `cmd/agh`       | Go binary entry point                                                   | `internal/CLAUDE.md`      |
+| `internal/`     | Go runtime daemon (ACP, SQLite, autonomy kernel, HTTP/UDS, network)     | `internal/CLAUDE.md`      |
+| `web/`          | React 19 SPA (Vite, TanStack, Tailwind, shadcn)                         | `web/CLAUDE.md`           |
+| `packages/site` | Fumadocs documentation site (Bun)                                       | `packages/site/CLAUDE.md` |
+| `packages/ui`   | Shared UI primitives (`@agh/ui`) consumed by `web/` and `packages/site` | `web/CLAUDE.md`           |
 
 Backend architecture, autonomy contracts, security invariants, package layout, and `internal/`-specific debugging now live in **`internal/CLAUDE.md`**. Open it before touching any Go code under `cmd/` or `internal/`.
 
 ## Coding Style
 
-Detailed Go style and concurrency rules live in the `agh-code-guidelines` skill (`.agents/skills/agh-code-guidelines/`). Activate it before writing or editing any production `*.go` file under `cmd/` or `internal/`. Top-level invariants restated in Critical Rules: no `_`-discarded errors, `make verify` must pass, `make lint` zero tolerance.
+- **Skill**: `agh-code-guidelines` (`.agents/skills/agh-code-guidelines/`).
+- **When**: before writing or editing any production `*.go` file under `cmd/` or `internal/`.
+- **Covers**: error wrapping (`%w`), `errors.Is`/`As` only, `slog` logging, `context.Context` discipline, compile-time interface assertions, no hardcoded config, CLI flag presence detection, comments policy, generic concurrency patterns.
+- **Top-level invariants restated in Critical Rules**: no `_`-discarded errors, `make verify` must pass, `make lint` zero tolerance.
 
 ## Testing
 
-Detailed Go test conventions (`Should ...` subtests, `t.Parallel`, table-driven layout, status-code+body assertions, `-race`/`CGO_ENABLED`, integration/E2E build tags, runtime-contract co-ship, 80% coverage floor, commit gate semantics) live in the `agh-test-conventions` skill (`.agents/skills/agh-test-conventions/`). Activate it before writing or editing any `*_test.go` file.
+- **Skill**: `agh-test-conventions` (`.agents/skills/agh-test-conventions/`).
+- **When**: before writing or editing any `*_test.go` file.
+- **Covers**:
+  - `t.Run("Should ...")` subtests, `t.Parallel` default (with `t.Setenv` opt-out), table-driven layout.
+  - Status-code + body assertions (status-code-only is insufficient).
+  - `-race` / `CGO_ENABLED=1` discipline; Linux-Race CI parity for race-sensitive packages.
+  - Integration / E2E build tags (`//go:build integration`, `make test-integration`, `make test-e2e-runtime`, `make test-e2e-web`).
+  - Runtime-contract co-ship (E2E mock + matchers ship with contract changes).
+  - 80% coverage floor per package.
+  - Commit-gate semantics (`make verify` blocks; test failures are production bugs).
 
 ### Schema Migrations
 
-Schema migrations are mandatory for any SQLite column, index, or constraint change — `EnsureSchema`-style boot reconciliation is forbidden for column changes. Detailed authoring patterns (numbered registry, transactional wrap, `-wal`/`-shm` companion handling, `ORDER BY 0` pitfall, fresh-DB + reopen-after-restart tests) live in the `agh-schema-migration` skill.
+- **Skill**: `agh-schema-migration`.
+- **When**: any SQLite column, index, or constraint change.
+- **Mandatory**: numbered migration in the registry — `EnsureSchema`-style boot reconciliation is forbidden for column changes.
+- **Covers**: numbered registry, transactional wrap (`BEGIN IMMEDIATE`), `-wal` / `-shm` companion handling on recovery, `ORDER BY 0` pitfall, fresh-DB + reopen-after-restart tests.
 
-## Memory & Skills (RFC-backed)
+## Vocabulary & Product Strategy
 
-These rules come from RFC 001 (`.../agh-rfcs-local/001-agent-md-with-skills-memory.md`) and RFC 002 (`.../agh-rfcs-local/002-skills-system-final.md`):
+Repo-wide rules backed by RFC 001 / RFC 002. Runtime implementation details (precedence layers, memory taxonomy, consolidation gates, lifecycle hooks) live in `internal/CLAUDE.md`.
 
-- **Five-layer skill/memory/agent precedence**: Bundled → Marketplace → User → Additional → Workspace, with agent-local overriding all. Higher precedence wins on collision; an audit trail logs every shadow.
-- **Memory taxonomy**: `user | feedback | project | reference` types; scopes `agent | workspace | global`. Default write scope declared per agent in `memory.scope`.
-- **Memory consolidation gates**: Time → Sessions → Lock cascade ordered by computational cost. Default gates: 24h, 5 touched sessions, file-lock. Never replace gates with naive heuristics.
-- **Lifecycle hooks** (`on_session_created`, `on_session_stopped`) execute in hierarchy precedence then alphabetical order; configurable timeout (default 5s); fail-open semantics (errors logged, never block); JSON over stdin.
-- **Format extension default**: when integrating with an external spec (AgentSkills, AGENTS.md, MCP, A2A), extend via a namespaced metadata field (`metadata.agh.*` or `agh.*`) — never fork the format.
 - **Capability vs Recipe**: reusable agent artifacts are called `capability`, NOT `recipe`/`workflow`/`procedure`/`playbook`. Capabilities are interpretive, not deterministic; they are not workflow programs in disguise.
+- **Format extension default**: when integrating with an external spec (AgentSkills, AGENTS.md, MCP, A2A), extend via a namespaced metadata field (`metadata.agh.*` or `agh.*`) — never fork the format.
 - **Runtime moat statement**: AGH competes on runtime, SDK, observability, DX, and integration depth — NOT the wire protocol. The AGH Network protocol must remain implementable outside AGH. Any feature requiring AGH to interoperate is a design smell.
+
+## Memory & Lessons Learned
+
+`docs/_memory/` is the project's institutional memory — durable engineering knowledge distilled from real incidents, ADR forensics, and standing engineering posture. Treat it as authoritative when CLAUDE.md is silent or ambiguous.
+
+- **Standing directives** — `docs/_memory/standing_directives.md`. Perpetually-active engineering posture (SD-001..SD-011): long-running session supervision, greenfield-delete, BR-PT/EN, multi-LLM pipeline, real-scenario QA, forensic-first bug fixes, truthful UI, composition-root discipline, detached lifetime, extensible-and-agent-manageable design. Read before opening a TechSpec, defending an architecture pivot, or whenever someone proposes a compat shim.
+- **Spec authoring playbook** — `docs/_memory/spec-authoring-playbook.md`. Mandatory preflight for `cy-create-prd` / `cy-create-techspec` / `cy-create-tasks`, with phase-by-phase MUST / MUST-NOT and evidence references. The `cy-spec-preflight` skill enforces this — always read before producing any `_idea.md` / `_prd.md` / `_techspec.md` / `_tasks.md`.
+- **Lessons learned** — `docs/_memory/lessons/` (`L-001..L-013`, plus `README.md` index). One file per durable lesson with confirmed root cause + fix + evidence (ADR, commit, review issue, or QA bug). Scan the index whenever you hit a class of issue: concurrency / API, testing discipline, autonomy architecture, persistence, spec authoring.
+- **Glossary** — `docs/_memory/glossary.md`. Canonical vocabulary (`capability` vs `recipe`, `AGENT.md` vs `AGENTS.md`, Peer Card vs Agent Card, autonomy primitives). Authoritative when older RFCs / ledgers conflict. Read when naming anything new, reviewing a rename PR, or when a term feels overloaded.
+- **Cross-source synthesis** — `docs/_memory/_synthesis.md`. Cross-referenced findings from 8 forensic analyses, ranked by source count — the evidence corpus behind every rule in CLAUDE.md and the standing directives. Read when challenging or evolving a rule.
+- **Forensic analyses** — `docs/_memory/analysis/analysis_*.md`. Per-source raw analyses (codex sessions / plans / ledger, compozy tasks, qmd collections, local / global runs, existing surfaces) feeding `_synthesis.md`. Read when synthesis cites a finding and you need the underlying evidence.
+
+**Authoring rules:**
+
+- New lesson → numbered file `L-NNN-kebab-title.md` + update `lessons/README.md`. One lesson per file. Cite specific evidence (file path, commit, review issue, ledger entry). Activate the `lesson-learned` skill.
+- Don't duplicate CLAUDE.md or `standing_directives.md` rules in lessons — lessons explain **why** a rule exists; rules go in their respective files.
+- Don't add speculative warnings — only confirmed incidents with evidence.
+- New standing directive → next `SD-NNN` block in `standing_directives.md` with Posture / Required behavior / Source / Triggers re-evaluation when.
 
 ## CI / Release
 
@@ -190,11 +224,7 @@ These rules come from RFC 001 (`.../agh-rfcs-local/001-agent-md-with-skills-memo
 ## Cross-References
 
 - **Backend rules**: `internal/CLAUDE.md` (Go architecture, autonomy contracts, security invariants, package layout, forensic bug-fix patterns).
-- **Web rules**: `web/CLAUDE.md`. **Site rules**: `packages/site/CLAUDE.md`.
-- **Spec authoring playbook** (mandatory preflight for `cy-create-prd`/`cy-create-techspec`/`cy-create-tasks`): `docs/_memory/spec-authoring-playbook.md`.
-- **Standing directives** (perpetual posture): `docs/_memory/standing_directives.md`.
-- **Lessons learned** (durable engineering insights with evidence): `docs/_memory/lessons/` — see `README.md` for the index.
-- **Glossary** (canonical vocabulary — `capability` vs `recipe`, AGENT.md vs AGENTS.md, Peer Card vs Agent Card, autonomy primitives): `docs/_memory/glossary.md`.
-- **Cross-source synthesis** (evidence trail behind every rule above): `docs/_memory/_synthesis.md` and `docs/_memory/analysis/analysis_*.md`.
-- **Active TechSpec**: `.compozy/tasks/autonomous/_techspec.md`. **ADRs**: `.compozy/tasks/autonomous/adrs/`.
+- **Web rules**: `web/CLAUDE.md`.
+- **Site rules**: `packages/site/CLAUDE.md`.
+- **Institutional memory**: `docs/_memory/` — see the **Memory & Lessons Learned** section above for the per-surface map.
 - **Authoritative design tokens**: `DESIGN.md` (repo root).

@@ -47,7 +47,7 @@ See TechSpec "Data Models", "Projection rules", and "Technical Considerations", 
 - `docs/rfcs/003_agh-network-v0.md` - wire-level brief and rich capability discovery contract
 
 ### Dependent Files
-- `docs/agents/capabilities.md` - proposed runtime-facing authoring guide for local capability catalogs
+- `docs/rfcs/005_capability-catalogs-agent-directories.md` - proposed runtime-facing authoring guide for local capability catalogs
 - `docs/rfcs/001_agent-md-with-skills-memory.md` - may need small clarifications or cross-links about capability sidecars as part of a self-contained agent directory
 - `.compozy/tasks/agent-capabilities/task_01.md` - loader and validation rules documented here must stay consistent with the implementation task
 - `.compozy/tasks/agent-capabilities/task_04.md` - rich discovery docs must match the explicit `whois` behavior defined there
@@ -58,7 +58,7 @@ See TechSpec "Data Models", "Projection rules", and "Technical Considerations", 
 - [ADR-003: Soft Outcome-Oriented Capability Model](adrs/adr-003.md) - document the required/optional capability fields and semantics
 
 ## Deliverables
-- Runtime-facing capability authoring guide under `docs/agents/capabilities.md`
+- Runtime-facing capability authoring guide under `docs/rfcs/005_capability-catalogs-agent-directories.md`
 - Valid and invalid local catalog examples aligned with the shipped loader behavior
 - Cross-links or clarifications in existing RFC docs where needed to keep runtime and network boundaries explicit
 - Documentation review checklist proving field names, examples, and wire keys match the implementation **(REQUIRED)**

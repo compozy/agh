@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that the runtime-facing documentation in `packages/site/content/runtime/core/agents/` stays aligned with `docs/agents/capabilities.md`: current layouts remain supported, `version` is optional, `digest` is runtime-computed, `requirements` reference `capability.id`, and no page teaches `recipe` as a separate authored/runtime concept.
+Verify that the runtime-facing documentation in `packages/site/content/runtime/core/agents/` stays aligned with `docs/rfcs/005_capability-catalogs-agent-directories.md`: current layouts remain supported, `version` is optional, `digest` is runtime-computed, `requirements` reference `capability.id`, and no page teaches `recipe` as a separate authored/runtime concept.
 
 ---
 
@@ -27,7 +27,7 @@ Verify that the runtime-facing documentation in `packages/site/content/runtime/c
 | Field | Value | Notes |
 | --- | --- | --- |
 | Runtime pages | `capabilities.mdx`, `definitions.mdx`, `meta.json` | Primary review set |
-| Repo guide | `docs/agents/capabilities.md` | Runtime documentation source of truth |
+| Repo guide | `docs/rfcs/005_capability-catalogs-agent-directories.md` | Runtime documentation source of truth |
 | Related runtime pages | `agent-md.mdx`, overview pages if needed | Used to confirm no drift in surrounding narrative |
 
 ---
@@ -40,7 +40,7 @@ Verify that the runtime-facing documentation in `packages/site/content/runtime/c
 2. Review `packages/site/content/runtime/core/agents/definitions.mdx` and related metadata.
    - **Expected:** Agent-definition docs describe the capability sidecar as the unified discovery/transfer artifact and do not imply a separate recipe concept.
 
-3. Cross-check the runtime site wording against `docs/agents/capabilities.md`.
+3. Cross-check the runtime site wording against `docs/rfcs/005_capability-catalogs-agent-directories.md`.
    - **Expected:** The site and repo guide agree on no-catalog behavior, typed API guidance, discovery roles, and transfer semantics.
 
 4. Spot-check surrounding runtime pages only where they reference capability behavior.
@@ -67,7 +67,7 @@ Verify that the runtime-facing documentation in `packages/site/content/runtime/c
 - Tasks: `task_08`, `task_05`
 - TechSpec: `System Architecture`, `Data Models`, `Technical Considerations`
 - ADRs: `ADR-001`, `ADR-002`
-- Primary surfaces: `packages/site/content/runtime/core/agents/*`, `docs/agents/capabilities.md`
+- Primary surfaces: `packages/site/content/runtime/core/agents/*`, `docs/rfcs/005_capability-catalogs-agent-directories.md`
 
 ---
 
