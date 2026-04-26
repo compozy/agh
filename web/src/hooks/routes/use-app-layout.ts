@@ -74,7 +74,6 @@ function useAppLayout() {
     handleNewSession,
     isCreatingSession: sessionCreate.isSubmitting,
     pendingSessionAgentName: sessionCreate.pendingAgentName,
-    pendingSessionWorkspaceId: sessionCreate.pendingWorkspaceId,
     sessionCreate,
     openWorkspaceSetup,
   };

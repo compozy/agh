@@ -34,7 +34,7 @@ const {
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: (_path: string) => (opts: { component: () => ReactNode }) => ({
     component: opts.component,
-    useParams: () => ({ id: "sess_123" }),
+    useParams: () => ({ name: "claude-agent", id: "sess_123" }),
   }),
   useNavigate: () => mockNavigate,
 }));
@@ -85,7 +85,7 @@ vi.mock("@assistant-ui/react", () => ({
   ) => selector({ thread: { messages: [], isRunning: false } }),
 }));
 
-import { Route } from "./session.$id";
+import { Route } from "./agents.$name.sessions.$id";
 
 const SessionPage = (Route as unknown as { component: () => ReactNode }).component;
 
@@ -104,7 +104,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   };
 }
 
-describe("Session route — resume failure UX", () => {
+describe("Nested agent session route — resume failure UX", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
     mockResume.mutate.mockReset();

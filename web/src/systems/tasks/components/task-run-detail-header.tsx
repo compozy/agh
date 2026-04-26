@@ -94,12 +94,12 @@ export function TaskRunDetailHeader({
             {elapsed ? (
               <MonoBadge data-testid="task-run-detail-duration">{elapsed}</MonoBadge>
             ) : null}
-            {session?.session_id ? (
+            {session?.session_id && session.agent_name ? (
               <Link
                 className="inline-flex items-center gap-1 rounded-md border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:border-[color:var(--color-accent)]"
                 data-testid="task-run-detail-open-session"
-                params={{ id: session.session_id }}
-                to="/session/$id"
+                params={{ name: session.agent_name, id: session.session_id }}
+                to="/agents/$name/sessions/$id"
               >
                 Open session
                 <ArrowUpRight className="size-3" />

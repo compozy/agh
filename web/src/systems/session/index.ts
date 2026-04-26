@@ -75,6 +75,11 @@ export {
   type SessionCreateDialogDraft,
   type SessionCreateDialogState,
 } from "./hooks/use-session-create-dialog";
+export {
+  SessionCreateProvider,
+  type SessionCreateContextValue,
+} from "./contexts/session-create-context";
+export { useSessionCreate } from "./hooks/use-session-create";
 
 // Components
 export {

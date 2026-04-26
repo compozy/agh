@@ -14,7 +14,7 @@ import { Button, Empty, buttonVariants } from "@agh/ui";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { useAppLayout } from "@/hooks/routes/use-app-layout";
-import { SessionCreateDialog } from "@/systems/session";
+import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app")({
@@ -31,7 +31,14 @@ function AppLayout() {
   }
 
   return (
-    <>
+    <SessionCreateProvider
+      value={{
+        openForAgent: page.handleNewSession,
+        isCreating: page.isCreatingSession,
+        pendingAgentName: page.pendingSessionAgentName,
+        hasActiveWorkspace: page.activeWorkspace !== undefined,
+      }}
+    >
       <AppSidebar
         collapsed={page.collapsed}
         onCollapseChange={page.setCollapsed}
@@ -46,10 +53,6 @@ function AppLayout() {
         agentsLoading={page.agentsLoading}
         agentsError={page.agentsError}
         sessions={page.sessions}
-        onNewSession={page.handleNewSession}
-        isCreatingSession={page.isCreatingSession}
-        pendingSessionAgentName={page.pendingSessionAgentName}
-        pendingSessionWorkspaceId={page.pendingSessionWorkspaceId}
       />
       <main
         data-testid="app-content"
@@ -78,7 +81,7 @@ function AppLayout() {
         submitError={page.sessionCreate.submitError}
         workspace={page.sessionCreate.workspace}
       />
-    </>
+    </SessionCreateProvider>
   );
 }
 

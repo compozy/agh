@@ -72,12 +72,12 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
               </IdentityRow>
             ) : null}
             <IdentityRow label="Session">
-              {session?.session_id ? (
+              {session?.session_id && session.agent_name ? (
                 <Link
                   className="font-mono text-[12px] text-[color:var(--color-accent)] hover:underline"
                   data-testid="task-run-detail-session-link"
-                  params={{ id: session.session_id }}
-                  to="/session/$id"
+                  params={{ name: session.agent_name, id: session.session_id }}
+                  to="/agents/$name/sessions/$id"
                 >
                   {session.session_id}
                 </Link>

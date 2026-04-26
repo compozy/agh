@@ -79,8 +79,6 @@ const meta: Meta<typeof AppSidebarHarness> = {
     agentsLoading: false,
     agentsError: false,
     sessions: sessionFixtures,
-    onNewSession: () => undefined,
-    isCreatingSession: false,
   },
 };
 

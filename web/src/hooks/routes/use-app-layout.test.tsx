@@ -9,7 +9,7 @@ const {
   mockUseCreateSessionPending,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
-  mockMutateAsync: vi.fn<(input: unknown) => Promise<{ id: string }>>(),
+  mockMutateAsync: vi.fn<(input: unknown) => Promise<{ id: string; agent_name: string }>>(),
   mockToastError: vi.fn(),
   mockWorkspaceQuery: vi.fn(),
   mockUseCreateSessionPending: { current: false as boolean },
@@ -261,7 +261,7 @@ describe("useAppLayout", () => {
   });
 
   it("submits the dialog with agent name, workspace, and selected provider", async () => {
-    mockMutateAsync.mockResolvedValue({ id: "sess-new" });
+    mockMutateAsync.mockResolvedValue({ id: "sess-new", agent_name: "claude-agent" });
     mockNavigate.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAppLayout());
@@ -284,8 +284,8 @@ describe("useAppLayout", () => {
       provider: "gemini",
     });
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/session/$id",
-      params: { id: "sess-new" },
+      to: "/agents/$name/sessions/$id",
+      params: { name: "claude-agent", id: "sess-new" },
     });
     expect(result.current.sessionCreate.open).toBe(false);
   });

@@ -120,6 +120,7 @@ vi.mock("@/systems/session", () => ({
   }),
   SessionCreateDialog: ({ open }: { open: boolean }) =>
     open ? <div data-testid="session-create-dialog" /> : null,
+  SessionCreateProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("@/systems/workspace", () => ({

@@ -34,8 +34,10 @@ import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/g
 import { Route as AppSettingsEnvironmentsRouteImport } from './routes/_app/settings/environments'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
+import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
 import { Route as AppTasksIdEditRouteImport } from './routes/_app/tasks.$id.edit'
 import { Route as AppTasksIdRunsRunIdRouteImport } from './routes/_app/tasks.$id.runs.$runId'
+import { Route as AppAgentsNameSessionsIdRouteImport } from './routes/_app/agents.$name.sessions.$id'
 
 const DesignSystemRoute = DesignSystemRouteImport.update({
   id: '/design-system',
@@ -163,6 +165,11 @@ const AppSessionIdRoute = AppSessionIdRouteImport.update({
   path: '/session/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAgentsNameRoute = AppAgentsNameRouteImport.update({
+  id: '/agents/$name',
+  path: '/agents/$name',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTasksIdEditRoute = AppTasksIdEditRouteImport.update({
   id: '/edit',
   path: '/edit',
@@ -172,6 +179,11 @@ const AppTasksIdRunsRunIdRoute = AppTasksIdRunsRunIdRouteImport.update({
   id: '/runs/$runId',
   path: '/runs/$runId',
   getParentRoute: () => AppTasksIdRoute,
+} as any)
+const AppAgentsNameSessionsIdRoute = AppAgentsNameSessionsIdRouteImport.update({
+  id: '/sessions/$id',
+  path: '/sessions/$id',
+  getParentRoute: () => AppAgentsNameRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -185,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/skills': typeof AppSkillsRoute
   '/tasks': typeof AppTasksRouteWithChildren
   '/triggers': typeof AppTriggersRoute
+  '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/environments': typeof AppSettingsEnvironmentsRoute
@@ -200,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/tasks/new': typeof AppTasksNewRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
+  '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
   '/tasks/$id/runs/$runId': typeof AppTasksIdRunsRunIdRoute
 }
 export interface FileRoutesByTo {
@@ -212,6 +226,7 @@ export interface FileRoutesByTo {
   '/tasks': typeof AppTasksRouteWithChildren
   '/triggers': typeof AppTriggersRoute
   '/': typeof AppIndexRoute
+  '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/environments': typeof AppSettingsEnvironmentsRoute
@@ -227,6 +242,7 @@ export interface FileRoutesByTo {
   '/tasks/new': typeof AppTasksNewRoute
   '/settings': typeof AppSettingsIndexRoute
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
+  '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
   '/tasks/$id/runs/$runId': typeof AppTasksIdRunsRunIdRoute
 }
 export interface FileRoutesById {
@@ -242,6 +258,7 @@ export interface FileRoutesById {
   '/_app/tasks': typeof AppTasksRouteWithChildren
   '/_app/triggers': typeof AppTriggersRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/_app/session/$id': typeof AppSessionIdRoute
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
   '/_app/settings/environments': typeof AppSettingsEnvironmentsRoute
@@ -257,6 +274,7 @@ export interface FileRoutesById {
   '/_app/tasks/new': typeof AppTasksNewRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/tasks/$id/edit': typeof AppTasksIdEditRoute
+  '/_app/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
   '/_app/tasks/$id/runs/$runId': typeof AppTasksIdRunsRunIdRoute
 }
 export interface FileRouteTypes {
@@ -272,6 +290,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/triggers'
+    | '/agents/$name'
     | '/session/$id'
     | '/settings/automation'
     | '/settings/environments'
@@ -287,6 +306,7 @@ export interface FileRouteTypes {
     | '/tasks/new'
     | '/settings/'
     | '/tasks/$id/edit'
+    | '/agents/$name/sessions/$id'
     | '/tasks/$id/runs/$runId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -299,6 +319,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/triggers'
     | '/'
+    | '/agents/$name'
     | '/session/$id'
     | '/settings/automation'
     | '/settings/environments'
@@ -314,6 +335,7 @@ export interface FileRouteTypes {
     | '/tasks/new'
     | '/settings'
     | '/tasks/$id/edit'
+    | '/agents/$name/sessions/$id'
     | '/tasks/$id/runs/$runId'
   id:
     | '__root__'
@@ -328,6 +350,7 @@ export interface FileRouteTypes {
     | '/_app/tasks'
     | '/_app/triggers'
     | '/_app/'
+    | '/_app/agents/$name'
     | '/_app/session/$id'
     | '/_app/settings/automation'
     | '/_app/settings/environments'
@@ -343,6 +366,7 @@ export interface FileRouteTypes {
     | '/_app/tasks/new'
     | '/_app/settings/'
     | '/_app/tasks/$id/edit'
+    | '/_app/agents/$name/sessions/$id'
     | '/_app/tasks/$id/runs/$runId'
   fileRoutesById: FileRoutesById
 }
@@ -528,6 +552,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSessionIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/agents/$name': {
+      id: '/_app/agents/$name'
+      path: '/agents/$name'
+      fullPath: '/agents/$name'
+      preLoaderRoute: typeof AppAgentsNameRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tasks/$id/edit': {
       id: '/_app/tasks/$id/edit'
       path: '/edit'
@@ -541,6 +572,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/tasks/$id/runs/$runId'
       preLoaderRoute: typeof AppTasksIdRunsRunIdRouteImport
       parentRoute: typeof AppTasksIdRoute
+    }
+    '/_app/agents/$name/sessions/$id': {
+      id: '/_app/agents/$name/sessions/$id'
+      path: '/sessions/$id'
+      fullPath: '/agents/$name/sessions/$id'
+      preLoaderRoute: typeof AppAgentsNameSessionsIdRouteImport
+      parentRoute: typeof AppAgentsNameRoute
     }
   }
 }
@@ -605,6 +643,18 @@ const AppTasksRouteWithChildren = AppTasksRoute._addFileChildren(
   AppTasksRouteChildren,
 )
 
+interface AppAgentsNameRouteChildren {
+  AppAgentsNameSessionsIdRoute: typeof AppAgentsNameSessionsIdRoute
+}
+
+const AppAgentsNameRouteChildren: AppAgentsNameRouteChildren = {
+  AppAgentsNameSessionsIdRoute: AppAgentsNameSessionsIdRoute,
+}
+
+const AppAgentsNameRouteWithChildren = AppAgentsNameRoute._addFileChildren(
+  AppAgentsNameRouteChildren,
+)
+
 interface AppRouteChildren {
   AppBridgesRoute: typeof AppBridgesRoute
   AppJobsRoute: typeof AppJobsRoute
@@ -615,6 +665,7 @@ interface AppRouteChildren {
   AppTasksRoute: typeof AppTasksRouteWithChildren
   AppTriggersRoute: typeof AppTriggersRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppAgentsNameRoute: typeof AppAgentsNameRouteWithChildren
   AppSessionIdRoute: typeof AppSessionIdRoute
 }
 
@@ -628,6 +679,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTasksRoute: AppTasksRouteWithChildren,
   AppTriggersRoute: AppTriggersRoute,
   AppIndexRoute: AppIndexRoute,
+  AppAgentsNameRoute: AppAgentsNameRouteWithChildren,
   AppSessionIdRoute: AppSessionIdRoute,
 }
 
