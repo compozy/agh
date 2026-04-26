@@ -395,6 +395,169 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldRegisterAgentAutonomyOperationsAndSchemas",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				operations := []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/agent/me", method: "GET"},
+					{path: "/api/agent/context", method: "GET"},
+					{path: "/api/agent/channels", method: "GET"},
+					{path: "/api/agent/channels/{channel}/recv", method: "GET"},
+					{path: "/api/agent/channels/{channel}/send", method: "POST"},
+					{path: "/api/agent/channels/reply", method: "POST"},
+					{path: "/api/agent/tasks/claim-next", method: "POST"},
+					{path: "/api/agent/tasks/{run_id}/heartbeat", method: "POST"},
+					{path: "/api/agent/tasks/{run_id}/complete", method: "POST"},
+					{path: "/api/agent/tasks/{run_id}/fail", method: "POST"},
+					{path: "/api/agent/tasks/{run_id}/release", method: "POST"},
+					{path: "/api/agent/spawn", method: "POST"},
+					{path: "/api/agent/coordinator/config", method: "GET"},
+				}
+				for _, operation := range operations {
+					t.Run(operation.method+" "+operation.path, func(t *testing.T) {
+						t.Parallel()
+						spec := operationFor(t, doc, operation.path, operation.method)
+						assertTagsContain(t, spec, "agent")
+					})
+				}
+
+				contextOperation := operationFor(t, doc, "/api/agent/context", "GET")
+				contextSchema := jsonResponseSchema(t, contextOperation, 200)
+				assertRequired(t, contextSchema, "context")
+				contextPayload := propertySchema(t, contextSchema, "context")
+				assertRequired(
+					t,
+					contextPayload,
+					"self",
+					"workspace",
+					"session",
+					"task",
+					"coordination_channel",
+					"inbox_summary",
+					"peer_roster",
+					"capabilities",
+					"limits",
+					"provenance",
+				)
+
+				channelContext := propertySchema(t, contextPayload, "coordination_channel")
+				assertRequired(t, channelContext, "available")
+				assertNotRequired(t, channelContext, "channel")
+				channelSchema := propertySchema(t, channelContext, "channel")
+				assertRequired(t, channelSchema, "id", "display_name", "allowed_message_kinds")
+				kindsSchema := propertySchema(t, channelSchema, "allowed_message_kinds")
+				if kindsSchema.Items == nil || kindsSchema.Items.Value == nil {
+					t.Fatal("allowed_message_kinds should define item schema")
+				}
+				assertEnumValues(
+					t,
+					kindsSchema.Items.Value,
+					"status",
+					"request",
+					"reply",
+					"blocker",
+					"handoff",
+					"result",
+					"review_request",
+				)
+
+				claimOperation := operationFor(t, doc, "/api/agent/tasks/claim-next", "POST")
+				assertTagsContain(t, claimOperation, "tasks")
+				claimRequest := jsonRequestSchema(t, claimOperation)
+				assertNotRequired(
+					t,
+					claimRequest,
+					"workspace_id",
+					"required_capabilities",
+					"priority_min",
+					"lease_seconds",
+					"wait",
+				)
+				claimResponse := jsonResponseSchema(t, claimOperation, 200)
+				claimPayload := propertySchema(t, claimResponse, "claim")
+				assertRequired(t, claimPayload, "task", "run", "lease", "claim_token")
+				leaseSchema := propertySchema(t, claimPayload, "lease")
+				assertRequired(t, leaseSchema, "task_id", "run_id", "status")
+				assertNotRequired(t, leaseSchema, "claim_token_hash", "coordination_channel")
+
+				heartbeatOperation := operationFor(t, doc, "/api/agent/tasks/{run_id}/heartbeat", "POST")
+				assertParameter(t, heartbeatOperation, "run_id", openapi3.ParameterInPath, true)
+				heartbeatSchema := jsonRequestSchema(t, heartbeatOperation)
+				assertRequired(t, heartbeatSchema, "claim_token")
+				assertNotRequired(t, heartbeatSchema, "lease_seconds")
+
+				sendOperation := operationFor(t, doc, "/api/agent/channels/{channel}/send", "POST")
+				assertParameter(t, sendOperation, "channel", openapi3.ParameterInPath, true)
+				sendSchema := jsonRequestSchema(t, sendOperation)
+				assertRequired(t, sendSchema, "body", "metadata")
+				metadataSchema := propertySchema(t, sendSchema, "metadata")
+				assertRequired(
+					t,
+					metadataSchema,
+					"task_id",
+					"run_id",
+					"coordination_channel_id",
+					"message_kind",
+					"correlation_id",
+				)
+				assertEnumValues(
+					t,
+					propertySchema(t, metadataSchema, "message_kind"),
+					"status",
+					"request",
+					"reply",
+					"blocker",
+					"handoff",
+					"result",
+					"review_request",
+				)
+				if _, exists := metadataSchema.Properties["claim_token"]; exists {
+					t.Fatalf("coordination metadata schema exposes raw claim_token")
+				}
+
+				spawnOperation := operationFor(t, doc, "/api/agent/spawn", "POST")
+				spawnSchema := jsonRequestSchema(t, spawnOperation)
+				assertRequired(
+					t,
+					spawnSchema,
+					"agent_name",
+					"spawn_role",
+					"ttl_seconds",
+					"auto_stop_on_parent",
+					"permissions",
+				)
+				spawnResponse := jsonResponseSchema(t, spawnOperation, 201)
+				lineageSchema := propertySchema(t, propertySchema(t, spawnResponse, "spawn"), "lineage")
+				assertRequired(
+					t,
+					lineageSchema,
+					"spawn_depth",
+					"auto_stop_on_parent",
+					"spawn_budget",
+					"permission_policy",
+				)
+
+				configOperation := operationFor(t, doc, "/api/agent/coordinator/config", "GET")
+				configResponse := jsonResponseSchema(t, configOperation, 200)
+				configSchema := propertySchema(t, configResponse, "coordinator")
+				assertRequired(
+					t,
+					configSchema,
+					"enabled",
+					"agent_name",
+					"default_ttl_seconds",
+					"max_children",
+					"max_active_per_workspace",
+					"source",
+				)
+				assertEnumValues(t, propertySchema(t, configSchema, "source"), "workspace", "global", "default")
+			},
+		},
+		{
 			name: "ShouldDescribeTaskSchemasAndEnums",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

@@ -18,6 +18,27 @@ export const sessionFixtures: SessionPayload[] = [
     workspace_path: "/workspaces/agh2",
     state: "active",
     channel: "storybook",
+    lineage: {
+      parent_session_id: "sess-coordinator",
+      root_session_id: "sess-coordinator",
+      spawn_depth: 1,
+      spawn_role: "worker",
+      ttl_expires_at: "2026-04-17T20:00:00Z",
+      auto_stop_on_parent: true,
+      spawn_budget: {
+        max_children: 5,
+        max_depth: 1,
+        ttl_seconds: 7200,
+      },
+      permission_policy: {
+        tools: ["bash", "read"],
+        skills: ["golang-pro"],
+        mcp_servers: [],
+        workspace_paths: ["/workspaces/agh2"],
+        network_channels: ["coord-task-001"],
+        environment_profiles: [],
+      },
+    },
     created_at: "2026-04-17T16:00:00Z",
     updated_at: "2026-04-17T18:10:00Z",
     acp_caps: {

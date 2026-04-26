@@ -33,6 +33,8 @@ export function buildTaskRunFixture(overrides: Partial<TaskActiveRun> = {}): Tas
     started_at: "2026-04-17T09:59:00Z",
     session_id: "sess-storybook",
     claimed_by: { kind: "agent_session", ref: "Coder" },
+    claim_token_hash: "sha256:storybook-run",
+    coordination_channel_id: "coord-task-001",
     ...overrides,
   } as TaskActiveRun;
 }
@@ -48,6 +50,24 @@ export function buildTaskRunRecordFixture(overrides: Partial<TaskRun> = {}): Tas
     session_id: "sess-storybook",
     claimed_by: { kind: "agent_session", ref: "Coder" },
     origin: { kind: "cli", ref: "op" },
+    claim_token_hash: "sha256:storybook-run",
+    coordination_channel_id: "coord-task-001",
+    coordination_channel: {
+      id: "coord-task-001",
+      display_name: "TASK-1 coordination",
+      workspace_id: STORYBOOK_WORKSPACE_ID,
+      task_id: "task_001",
+      run_id: "run_001",
+      allowed_message_kinds: [
+        "status",
+        "request",
+        "reply",
+        "blocker",
+        "handoff",
+        "result",
+        "review_request",
+      ],
+    },
     ...overrides,
   } as TaskRun;
 }

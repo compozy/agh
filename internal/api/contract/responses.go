@@ -44,6 +44,51 @@ type AgentResponse struct {
 	Agent AgentPayload `json:"agent"`
 }
 
+// AgentMeResponse wraps the resolved caller payload.
+type AgentMeResponse struct {
+	Me AgentMePayload `json:"me"`
+}
+
+// AgentContextResponse wraps the bounded caller situation payload.
+type AgentContextResponse struct {
+	Context AgentContextPayload `json:"context"`
+}
+
+// AgentChannelsResponse wraps discoverable coordination channels for the caller.
+type AgentChannelsResponse struct {
+	Channels []CoordinationChannelPayload `json:"channels"`
+}
+
+// AgentChannelMessagesResponse wraps channel inbox messages.
+type AgentChannelMessagesResponse struct {
+	Messages []AgentChannelMessagePayload `json:"messages"`
+}
+
+// AgentChannelMessageResponse wraps one sent channel message.
+type AgentChannelMessageResponse struct {
+	Message AgentChannelMessagePayload `json:"message"`
+}
+
+// AgentTaskClaimResponse wraps the synchronous task claim response.
+type AgentTaskClaimResponse struct {
+	Claim AgentTaskClaimPayload `json:"claim"`
+}
+
+// AgentTaskLeaseResponse wraps a safe task-run lease projection.
+type AgentTaskLeaseResponse struct {
+	Lease TaskRunLeaseSummaryPayload `json:"lease"`
+}
+
+// AgentSpawnResponse wraps a safe spawn result.
+type AgentSpawnResponse struct {
+	Spawn AgentSpawnPayload `json:"spawn"`
+}
+
+// AgentCoordinatorConfigResponse wraps coordinator config read state.
+type AgentCoordinatorConfigResponse struct {
+	Coordinator CoordinatorConfigPayload `json:"coordinator"`
+}
+
 // JobsResponse wraps the shared automation job list payload.
 type JobsResponse struct {
 	Jobs []JobPayload `json:"jobs"`

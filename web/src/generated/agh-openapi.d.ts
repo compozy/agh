@@ -4,6 +4,227 @@
  */
 
 export interface paths {
+  "/api/agent/channels": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List coordination channels visible to the calling agent */
+    get: operations["listAgentChannels"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/channels/reply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reply to one delivered coordination channel message */
+    post: operations["replyAgentChannelMessage"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/channels/{channel}/recv": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Receive task-bound coordination channel messages */
+    get: operations["receiveAgentChannelMessages"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/channels/{channel}/send": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Send one task-bound coordination channel message */
+    post: operations["sendAgentChannelMessage"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/context": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Return the bounded calling-agent situation context */
+    get: operations["getAgentContext"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/coordinator/config": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read resolved coordinator config for the calling agent workspace */
+    get: operations["getAgentCoordinatorConfig"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Resolve the calling agent session */
+    get: operations["getAgentMe"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/spawn": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Spawn a narrowed child session for the calling agent */
+    post: operations["spawnAgentSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/tasks/claim-next": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Atomically claim the next matching task run for the calling agent */
+    post: operations["claimNextAgentTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/tasks/{run_id}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Complete a claimed task run for the calling agent */
+    post: operations["completeAgentTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/tasks/{run_id}/fail": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Fail a claimed task run for the calling agent */
+    post: operations["failAgentTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/tasks/{run_id}/heartbeat": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Extend a claimed task-run lease for the calling agent */
+    post: operations["heartbeatAgentTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/tasks/{run_id}/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Release a claimed task run for the calling agent */
+    post: operations["releaseAgentTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents": {
     parameters: {
       query?: never;
@@ -1906,6 +2127,2113 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  listAgentChannels: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channels: {
+              allowed_message_kinds: (
+                | "status"
+                | "request"
+                | "reply"
+                | "blocker"
+                | "handoff"
+                | "result"
+                | "review_request"
+              )[];
+              channel?: string;
+              display_name: string;
+              id: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              purpose?: string;
+              run_id?: string;
+              task_id?: string;
+              workflow_id?: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  replyAgentChannelMessage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          body: unknown;
+          idempotency_key?: string;
+          metadata: {
+            coordination_channel_id: string;
+            correlation_id: string;
+            ext?: {
+              [key: string]: unknown;
+            };
+            /** @enum {string} */
+            message_kind:
+              | "status"
+              | "request"
+              | "reply"
+              | "blocker"
+              | "handoff"
+              | "result"
+              | "review_request";
+            run_id: string;
+            task_id: string;
+            workflow_id?: string;
+          };
+          reply_to_message_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            message: {
+              body: unknown;
+              channel_id: string;
+              from_session_id: string;
+              message_id: string;
+              metadata: {
+                coordination_channel_id: string;
+                correlation_id: string;
+                ext?: {
+                  [key: string]: unknown;
+                };
+                /** @enum {string} */
+                message_kind:
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request";
+                run_id: string;
+                task_id: string;
+                workflow_id?: string;
+              };
+              /** Format: date-time */
+              timestamp: string;
+              to_session_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Coordination message not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid channel reply request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  receiveAgentChannelMessages: {
+    parameters: {
+      query?: {
+        /** @description Wait for the next message when no messages are immediately available */
+        wait?: boolean;
+        /** @description Maximum number of messages to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Coordination channel id */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            messages: {
+              body: unknown;
+              channel_id: string;
+              from_session_id: string;
+              message_id: string;
+              metadata: {
+                coordination_channel_id: string;
+                correlation_id: string;
+                ext?: {
+                  [key: string]: unknown;
+                };
+                /** @enum {string} */
+                message_kind:
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request";
+                run_id: string;
+                task_id: string;
+                workflow_id?: string;
+              };
+              /** Format: date-time */
+              timestamp: string;
+              to_session_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Coordination channel not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid channel receive request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  sendAgentChannelMessage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Coordination channel id */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          body: unknown;
+          idempotency_key?: string;
+          metadata: {
+            coordination_channel_id: string;
+            correlation_id: string;
+            ext?: {
+              [key: string]: unknown;
+            };
+            /** @enum {string} */
+            message_kind:
+              | "status"
+              | "request"
+              | "reply"
+              | "blocker"
+              | "handoff"
+              | "result"
+              | "review_request";
+            run_id: string;
+            task_id: string;
+            workflow_id?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description Accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            message: {
+              body: unknown;
+              channel_id: string;
+              from_session_id: string;
+              message_id: string;
+              metadata: {
+                coordination_channel_id: string;
+                correlation_id: string;
+                ext?: {
+                  [key: string]: unknown;
+                };
+                /** @enum {string} */
+                message_kind:
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request";
+                run_id: string;
+                task_id: string;
+                workflow_id?: string;
+              };
+              /** Format: date-time */
+              timestamp: string;
+              to_session_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Coordination channel not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid channel send request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getAgentContext: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            context: {
+              capabilities: {
+                capabilities: {
+                  id: string;
+                  source?: string;
+                  summary?: string;
+                }[];
+                section: {
+                  limit: number;
+                  returned: number;
+                  truncated: boolean;
+                };
+              };
+              coordination_channel: {
+                available: boolean;
+                channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+              };
+              inbox_summary: {
+                items: {
+                  channel_id: string;
+                  /** @enum {string} */
+                  kind:
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request";
+                  message_id: string;
+                  metadata: {
+                    coordination_channel_id: string;
+                    correlation_id: string;
+                    ext?: {
+                      [key: string]: unknown;
+                    };
+                    /** @enum {string} */
+                    message_kind:
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request";
+                    run_id: string;
+                    task_id: string;
+                    workflow_id?: string;
+                  };
+                  preview?: string;
+                  /** Format: date-time */
+                  timestamp: string;
+                }[];
+                section: {
+                  limit: number;
+                  returned: number;
+                  truncated: boolean;
+                };
+                unread_count: number;
+              };
+              limits: {
+                context_section_limit: number;
+                max_active_task_leases: number;
+                max_children: number;
+                max_spawn_depth: number;
+              };
+              peer_roster: {
+                peers: {
+                  capabilities: string[];
+                  channel_id?: string;
+                  display_name?: string;
+                  peer_id: string;
+                  session_id?: string;
+                }[];
+                section: {
+                  limit: number;
+                  returned: number;
+                  truncated: boolean;
+                };
+              };
+              provenance: {
+                /** Format: date-time */
+                generated_at: string;
+                source: string;
+              };
+              self: {
+                agent_name: string;
+                model?: string;
+                provider: string;
+                session_id: string;
+              };
+              session: {
+                channel?: string;
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                lineage?: {
+                  auto_stop_on_parent: boolean;
+                  parent_session_id?: string;
+                  permission_policy: {
+                    environment_profiles: string[];
+                    mcp_servers: string[];
+                    network_channels: string[];
+                    skills: string[];
+                    tools: string[];
+                    workspace_paths: string[];
+                  };
+                  root_session_id?: string;
+                  spawn_budget: {
+                    max_active_per_workspace?: number;
+                    max_children: number;
+                    max_depth: number;
+                    /** Format: int64 */
+                    ttl_seconds: number;
+                  };
+                  spawn_depth: number;
+                  spawn_role?: string;
+                  /** Format: date-time */
+                  ttl_expires_at?: string | null;
+                } | null;
+                name?: string;
+                /** @enum {string} */
+                state: "starting" | "active" | "stopping" | "stopped";
+                type?: string;
+                /** Format: date-time */
+                updated_at: string;
+              };
+              task: {
+                available: boolean;
+                lease?: {
+                  claim_token_hash?: string;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
+                  /** Format: date-time */
+                  lease_until?: string | null;
+                  run_id: string;
+                  session_id?: string;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                task?: {
+                  id: string;
+                  identifier?: string;
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  /** @enum {string} */
+                  priority?: "low" | "medium" | "high" | "urgent";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  /** @enum {string} */
+                  status:
+                    | "draft"
+                    | "pending"
+                    | "blocked"
+                    | "ready"
+                    | "in_progress"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  title: string;
+                  workspace_id?: string;
+                } | null;
+              };
+              workspace: {
+                id?: string;
+                name?: string;
+                root_dir?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Caller session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getAgentCoordinatorConfig: {
+    parameters: {
+      query?: {
+        /** @description Workspace id or path */
+        workspace?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            coordinator: {
+              agent_name: string;
+              /** Format: int64 */
+              default_ttl_seconds: number;
+              enabled: boolean;
+              max_active_per_workspace: number;
+              max_children: number;
+              model?: string;
+              provider?: string;
+              /** @enum {string} */
+              source: "workspace" | "global" | "default";
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getAgentMe: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            me: {
+              active_task_leases: {
+                claim_token_hash?: string;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
+                /** Format: date-time */
+                lease_until?: string | null;
+                run_id: string;
+                session_id?: string;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              }[];
+              capabilities: {
+                id: string;
+                source?: string;
+                summary?: string;
+              }[];
+              channels: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              }[];
+              coordinator: {
+                agent_name: string;
+                /** Format: int64 */
+                default_ttl_seconds: number;
+                enabled: boolean;
+                max_active_per_workspace: number;
+                max_children: number;
+                model?: string;
+                provider?: string;
+                /** @enum {string} */
+                source: "workspace" | "global" | "default";
+                workspace_id?: string;
+              };
+              limits: {
+                context_section_limit: number;
+                max_active_task_leases: number;
+                max_children: number;
+                max_spawn_depth: number;
+              };
+              self: {
+                agent_name: string;
+                model?: string;
+                provider: string;
+                session_id: string;
+              };
+              session: {
+                channel?: string;
+                /** Format: date-time */
+                created_at: string;
+                id: string;
+                lineage?: {
+                  auto_stop_on_parent: boolean;
+                  parent_session_id?: string;
+                  permission_policy: {
+                    environment_profiles: string[];
+                    mcp_servers: string[];
+                    network_channels: string[];
+                    skills: string[];
+                    tools: string[];
+                    workspace_paths: string[];
+                  };
+                  root_session_id?: string;
+                  spawn_budget: {
+                    max_active_per_workspace?: number;
+                    max_children: number;
+                    max_depth: number;
+                    /** Format: int64 */
+                    ttl_seconds: number;
+                  };
+                  spawn_depth: number;
+                  spawn_role?: string;
+                  /** Format: date-time */
+                  ttl_expires_at?: string | null;
+                } | null;
+                name?: string;
+                /** @enum {string} */
+                state: "starting" | "active" | "stopping" | "stopped";
+                type?: string;
+                /** Format: date-time */
+                updated_at: string;
+              };
+              workspace: {
+                id?: string;
+                name?: string;
+                root_dir?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Caller session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  spawnAgentSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name: string;
+          auto_stop_on_parent: boolean;
+          idempotency_key?: string;
+          model?: string;
+          name?: string;
+          permissions: {
+            environment_profiles: string[];
+            mcp_servers: string[];
+            network_channels: string[];
+            skills: string[];
+            tools: string[];
+            workspace_paths: string[];
+          };
+          prompt_overlay?: string;
+          provider?: string;
+          spawn_role: string;
+          /** Format: int64 */
+          ttl_seconds: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            spawn: {
+              lineage: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  environment_profiles: string[];
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              };
+              permissions: {
+                environment_profiles: string[];
+                mcp_servers: string[];
+                network_channels: string[];
+                skills: string[];
+                tools: string[];
+                workspace_paths: string[];
+              };
+              session: {
+                acp_caps?: {
+                  supported_models?: string[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                activity?: {
+                  current_tool?: string;
+                  /** Format: int64 */
+                  elapsed_seconds: number;
+                  /** Format: int64 */
+                  idle_seconds: number;
+                  iteration_current: number;
+                  iteration_max: number;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_activity_detail?: string;
+                  last_activity_kind?: string;
+                  /** Format: date-time */
+                  last_progress_at?: string | null;
+                  tool_call_id?: string;
+                  turn_id?: string;
+                  turn_source?: string;
+                  /** Format: date-time */
+                  turn_started_at?: string | null;
+                } | null;
+                agent_name: string;
+                channel?: string;
+                /** Format: date-time */
+                created_at: string;
+                environment?: {
+                  backend?: string;
+                  environment_id?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  state?: string;
+                } | null;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
+                } | null;
+                id: string;
+                lineage?: {
+                  auto_stop_on_parent: boolean;
+                  parent_session_id?: string;
+                  permission_policy: {
+                    environment_profiles: string[];
+                    mcp_servers: string[];
+                    network_channels: string[];
+                    skills: string[];
+                    tools: string[];
+                    workspace_paths: string[];
+                  };
+                  root_session_id?: string;
+                  spawn_budget: {
+                    max_active_per_workspace?: number;
+                    max_children: number;
+                    max_depth: number;
+                    /** Format: int64 */
+                    ttl_seconds: number;
+                  };
+                  spawn_depth: number;
+                  spawn_role?: string;
+                  /** Format: date-time */
+                  ttl_expires_at?: string | null;
+                } | null;
+                name?: string;
+                provider: string;
+                /** @enum {string} */
+                state: "starting" | "active" | "stopping" | "stopped";
+                stop_detail?: string;
+                /** @enum {string} */
+                stop_reason?:
+                  | "completed"
+                  | "user_canceled"
+                  | "max_iterations"
+                  | "loop_detected"
+                  | "timeout"
+                  | "budget_exceeded"
+                  | "error"
+                  | "agent_crashed"
+                  | "hook_stopped"
+                  | "shutdown";
+                type?: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+                workspace_path?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Spawn permission denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Spawn limit conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid spawn request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  claimNextAgentTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          idempotency_key?: string;
+          /** Format: int64 */
+          lease_seconds?: number;
+          priority_min?: number;
+          required_capabilities?: string[];
+          wait?: boolean;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            claim: {
+              claim_token: string;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              lease: {
+                claim_token_hash?: string;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
+                /** Format: date-time */
+                lease_until?: string | null;
+                run_id: string;
+                session_id?: string;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              };
+              run: {
+                attempt: number;
+                claim_token_hash?: string;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
+                id: string;
+                idempotency_key?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
+                metadata?: unknown;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                /** Format: date-time */
+                queued_at: string;
+                result?: unknown;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              };
+              task: {
+                id: string;
+                identifier?: string;
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                title: string;
+                workspace_id?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description No matching task run is currently claimable */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run claim conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid claim criteria */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  completeAgentTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          claim_token: string;
+          result?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            lease: {
+              claim_token_hash?: string;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              /** Format: date-time */
+              lease_until?: string | null;
+              run_id: string;
+              session_id?: string;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run completion conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid completion request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  failAgentTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          claim_token: string;
+          error: string;
+          metadata?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            lease: {
+              claim_token_hash?: string;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              /** Format: date-time */
+              lease_until?: string | null;
+              run_id: string;
+              session_id?: string;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run failure conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid failure request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  heartbeatAgentTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          claim_token: string;
+          /** Format: int64 */
+          lease_seconds?: number;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            lease: {
+              claim_token_hash?: string;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              /** Format: date-time */
+              lease_until?: string | null;
+              run_id: string;
+              session_id?: string;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run lease conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid heartbeat request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  releaseAgentTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          claim_token: string;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            lease: {
+              claim_token_hash?: string;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              /** Format: date-time */
+              lease_until?: string | null;
+              run_id: string;
+              session_id?: string;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run release conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid release request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   listAgents: {
     parameters: {
       query?: never;
@@ -6976,6 +9304,30 @@ export interface operations {
                   summary?: string;
                 } | null;
                 id: string;
+                lineage?: {
+                  auto_stop_on_parent: boolean;
+                  parent_session_id?: string;
+                  permission_policy: {
+                    environment_profiles: string[];
+                    mcp_servers: string[];
+                    network_channels: string[];
+                    skills: string[];
+                    tools: string[];
+                    workspace_paths: string[];
+                  };
+                  root_session_id?: string;
+                  spawn_budget: {
+                    max_active_per_workspace?: number;
+                    max_children: number;
+                    max_depth: number;
+                    /** Format: int64 */
+                    ttl_seconds: number;
+                  };
+                  spawn_depth: number;
+                  spawn_role?: string;
+                  /** Format: date-time */
+                  ttl_expires_at?: string | null;
+                } | null;
                 name?: string;
                 provider: string;
                 /** @enum {string} */
@@ -6993,6 +9345,7 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                type?: string;
                 /** Format: date-time */
                 updated_at: string;
                 workspace_id?: string;
@@ -7169,6 +9522,30 @@ export interface operations {
                   summary?: string;
                 } | null;
                 id: string;
+                lineage?: {
+                  auto_stop_on_parent: boolean;
+                  parent_session_id?: string;
+                  permission_policy: {
+                    environment_profiles: string[];
+                    mcp_servers: string[];
+                    network_channels: string[];
+                    skills: string[];
+                    tools: string[];
+                    workspace_paths: string[];
+                  };
+                  root_session_id?: string;
+                  spawn_budget: {
+                    max_active_per_workspace?: number;
+                    max_children: number;
+                    max_depth: number;
+                    /** Format: int64 */
+                    ttl_seconds: number;
+                  };
+                  spawn_depth: number;
+                  spawn_role?: string;
+                  /** Format: date-time */
+                  ttl_expires_at?: string | null;
+                } | null;
                 name?: string;
                 provider: string;
                 /** @enum {string} */
@@ -7186,6 +9563,7 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                type?: string;
                 /** Format: date-time */
                 updated_at: string;
                 workspace_id?: string;
@@ -8564,6 +10942,7 @@ export interface operations {
                   latest_activity_at: string;
                   run?: {
                     attempt: number;
+                    claim_token_hash?: string;
                     /** Format: date-time */
                     claimed_at?: string | null;
                     claimed_by?: {
@@ -8577,10 +10956,36 @@ export interface operations {
                         | "daemon";
                       ref: string;
                     } | null;
+                    coordination_channel?: {
+                      allowed_message_kinds: (
+                        | "status"
+                        | "request"
+                        | "reply"
+                        | "blocker"
+                        | "handoff"
+                        | "result"
+                        | "review_request"
+                      )[];
+                      channel?: string;
+                      display_name: string;
+                      id: string;
+                      /** Format: date-time */
+                      last_activity_at?: string | null;
+                      purpose?: string;
+                      run_id?: string;
+                      task_id?: string;
+                      workflow_id?: string;
+                      workspace_id?: string;
+                    } | null;
+                    coordination_channel_id?: string;
                     /** Format: date-time */
                     ended_at?: string | null;
                     error?: string;
+                    /** Format: date-time */
+                    heartbeat_at?: string | null;
                     id: string;
+                    /** Format: date-time */
+                    lease_until?: string | null;
                     max_attempts: number;
                     /** Format: date-time */
                     queued_at: string;
@@ -9354,6 +11759,30 @@ export interface operations {
                 summary?: string;
               } | null;
               id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  environment_profiles: string[];
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
               name?: string;
               provider: string;
               /** @enum {string} */
@@ -9371,6 +11800,7 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              type?: string;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -9483,6 +11913,30 @@ export interface operations {
                 summary?: string;
               } | null;
               id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  environment_profiles: string[];
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
               name?: string;
               provider: string;
               /** @enum {string} */
@@ -9500,6 +11954,7 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              type?: string;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -9625,6 +12080,30 @@ export interface operations {
                 summary?: string;
               } | null;
               id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  environment_profiles: string[];
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
               name?: string;
               provider: string;
               /** @enum {string} */
@@ -9642,6 +12121,7 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              type?: string;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -10086,6 +12566,30 @@ export interface operations {
                 summary?: string;
               } | null;
               id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  environment_profiles: string[];
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
               name?: string;
               provider: string;
               /** @enum {string} */
@@ -10103,6 +12607,7 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              type?: string;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -14042,6 +16547,7 @@ export interface operations {
             run: {
               run: {
                 attempt: number;
+                claim_token_hash?: string;
                 /** Format: date-time */
                 claimed_at?: string | null;
                 claimed_by?: {
@@ -14055,11 +16561,37 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
                 id: string;
                 idempotency_key?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
                 metadata?: unknown;
                 network_channel?: string;
                 origin: {
@@ -14238,6 +16770,7 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              claim_token_hash?: string;
               /** Format: date-time */
               claimed_at?: string | null;
               claimed_by?: {
@@ -14251,11 +16784,37 @@ export interface operations {
                   | "daemon";
                 ref: string;
               } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
               id: string;
               idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -14384,6 +16943,7 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              claim_token_hash?: string;
               /** Format: date-time */
               claimed_at?: string | null;
               claimed_by?: {
@@ -14397,11 +16957,37 @@ export interface operations {
                   | "daemon";
                 ref: string;
               } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
               id: string;
               idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -14529,6 +17115,7 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              claim_token_hash?: string;
               /** Format: date-time */
               claimed_at?: string | null;
               claimed_by?: {
@@ -14542,11 +17129,37 @@ export interface operations {
                   | "daemon";
                 ref: string;
               } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
               id: string;
               idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -14674,6 +17287,7 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              claim_token_hash?: string;
               /** Format: date-time */
               claimed_at?: string | null;
               claimed_by?: {
@@ -14687,11 +17301,37 @@ export interface operations {
                   | "daemon";
                 ref: string;
               } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
               id: string;
               idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -14820,6 +17460,7 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              claim_token_hash?: string;
               /** Format: date-time */
               claimed_at?: string | null;
               claimed_by?: {
@@ -14833,11 +17474,37 @@ export interface operations {
                   | "daemon";
                 ref: string;
               } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
               id: string;
               idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -14965,6 +17632,7 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              claim_token_hash?: string;
               /** Format: date-time */
               claimed_at?: string | null;
               claimed_by?: {
@@ -14978,11 +17646,37 @@ export interface operations {
                   | "daemon";
                 ref: string;
               } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
               id: string;
               idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -15140,6 +17834,7 @@ export interface operations {
             tasks: {
               active_run?: {
                 attempt: number;
+                claim_token_hash?: string;
                 /** Format: date-time */
                 claimed_at?: string | null;
                 claimed_by?: {
@@ -15153,10 +17848,36 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
                 id: string;
+                /** Format: date-time */
+                lease_until?: string | null;
                 max_attempts: number;
                 /** Format: date-time */
                 queued_at: string;
@@ -15555,6 +18276,7 @@ export interface operations {
               children?: {
                 active_run?: {
                   attempt: number;
+                  claim_token_hash?: string;
                   /** Format: date-time */
                   claimed_at?: string | null;
                   claimed_by?: {
@@ -15568,10 +18290,36 @@ export interface operations {
                       | "daemon";
                     ref: string;
                   } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
                   id: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
                   max_attempts: number;
                   /** Format: date-time */
                   queued_at: string;
@@ -15784,6 +18532,7 @@ export interface operations {
               }[];
               runs?: {
                 attempt: number;
+                claim_token_hash?: string;
                 /** Format: date-time */
                 claimed_at?: string | null;
                 claimed_by?: {
@@ -15797,11 +18546,37 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
                 id: string;
                 idempotency_key?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
                 metadata?: unknown;
                 network_channel?: string;
                 origin: {
@@ -15838,6 +18613,7 @@ export interface operations {
               summary: {
                 active_run?: {
                   attempt: number;
+                  claim_token_hash?: string;
                   /** Format: date-time */
                   claimed_at?: string | null;
                   claimed_by?: {
@@ -15851,10 +18627,36 @@ export interface operations {
                       | "daemon";
                     ref: string;
                   } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
                   id: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
                   max_attempts: number;
                   /** Format: date-time */
                   queued_at: string;
@@ -16909,6 +19711,7 @@ export interface operations {
               children?: {
                 active_run?: {
                   attempt: number;
+                  claim_token_hash?: string;
                   /** Format: date-time */
                   claimed_at?: string | null;
                   claimed_by?: {
@@ -16922,10 +19725,36 @@ export interface operations {
                       | "daemon";
                     ref: string;
                   } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
                   id: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
                   max_attempts: number;
                   /** Format: date-time */
                   queued_at: string;
@@ -17138,6 +19967,7 @@ export interface operations {
               }[];
               runs?: {
                 attempt: number;
+                claim_token_hash?: string;
                 /** Format: date-time */
                 claimed_at?: string | null;
                 claimed_by?: {
@@ -17151,11 +19981,37 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
                 id: string;
                 idempotency_key?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
                 metadata?: unknown;
                 network_channel?: string;
                 origin: {
@@ -17192,6 +20048,7 @@ export interface operations {
               summary: {
                 active_run?: {
                   attempt: number;
+                  claim_token_hash?: string;
                   /** Format: date-time */
                   claimed_at?: string | null;
                   claimed_by?: {
@@ -17205,10 +20062,36 @@ export interface operations {
                       | "daemon";
                     ref: string;
                   } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
                   id: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
                   max_attempts: number;
                   /** Format: date-time */
                   queued_at: string;
@@ -17502,6 +20385,7 @@ export interface operations {
               children?: {
                 active_run?: {
                   attempt: number;
+                  claim_token_hash?: string;
                   /** Format: date-time */
                   claimed_at?: string | null;
                   claimed_by?: {
@@ -17515,10 +20399,36 @@ export interface operations {
                       | "daemon";
                     ref: string;
                   } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
                   id: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
                   max_attempts: number;
                   /** Format: date-time */
                   queued_at: string;
@@ -17731,6 +20641,7 @@ export interface operations {
               }[];
               runs?: {
                 attempt: number;
+                claim_token_hash?: string;
                 /** Format: date-time */
                 claimed_at?: string | null;
                 claimed_by?: {
@@ -17744,11 +20655,37 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
                 id: string;
                 idempotency_key?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
                 metadata?: unknown;
                 network_channel?: string;
                 origin: {
@@ -17785,6 +20722,7 @@ export interface operations {
               summary: {
                 active_run?: {
                   attempt: number;
+                  claim_token_hash?: string;
                   /** Format: date-time */
                   claimed_at?: string | null;
                   claimed_by?: {
@@ -17798,10 +20736,36 @@ export interface operations {
                       | "daemon";
                     ref: string;
                   } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
                   id: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
                   max_attempts: number;
                   /** Format: date-time */
                   queued_at: string;
@@ -18408,6 +21372,7 @@ export interface operations {
           "application/json": {
             runs: {
               attempt: number;
+              claim_token_hash?: string;
               /** Format: date-time */
               claimed_at?: string | null;
               claimed_by?: {
@@ -18421,11 +21386,37 @@ export interface operations {
                   | "daemon";
                 ref: string;
               } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
               id: string;
               idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -18544,6 +21535,7 @@ export interface operations {
           "application/json": {
             run: {
               attempt: number;
+              claim_token_hash?: string;
               /** Format: date-time */
               claimed_at?: string | null;
               claimed_by?: {
@@ -18557,11 +21549,37 @@ export interface operations {
                   | "daemon";
                 ref: string;
               } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
               id: string;
               idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
               metadata?: unknown;
               network_channel?: string;
               origin: {
@@ -18716,6 +21734,7 @@ export interface operations {
               payload?: unknown;
               run?: {
                 attempt: number;
+                claim_token_hash?: string;
                 /** Format: date-time */
                 claimed_at?: string | null;
                 claimed_by?: {
@@ -18729,10 +21748,36 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
                 id: string;
+                /** Format: date-time */
+                lease_until?: string | null;
                 max_attempts: number;
                 /** Format: date-time */
                 queued_at: string;
@@ -18897,6 +21942,7 @@ export interface operations {
               payload?: unknown;
               run?: {
                 attempt: number;
+                claim_token_hash?: string;
                 /** Format: date-time */
                 claimed_at?: string | null;
                 claimed_by?: {
@@ -18910,10 +21956,36 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
                 id: string;
+                /** Format: date-time */
+                lease_until?: string | null;
                 max_attempts: number;
                 /** Format: date-time */
                 queued_at: string;
@@ -19045,6 +22117,7 @@ export interface operations {
               descendants?: {
                 active_run?: {
                   attempt: number;
+                  claim_token_hash?: string;
                   /** Format: date-time */
                   claimed_at?: string | null;
                   claimed_by?: {
@@ -19058,10 +22131,36 @@ export interface operations {
                       | "daemon";
                     ref: string;
                   } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
                   id: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
                   max_attempts: number;
                   /** Format: date-time */
                   queued_at: string;
@@ -19119,6 +22218,7 @@ export interface operations {
               root: {
                 active_run?: {
                   attempt: number;
+                  claim_token_hash?: string;
                   /** Format: date-time */
                   claimed_at?: string | null;
                   claimed_by?: {
@@ -19132,10 +22232,36 @@ export interface operations {
                       | "daemon";
                     ref: string;
                   } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
                   id: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
                   max_attempts: number;
                   /** Format: date-time */
                   queued_at: string;
@@ -20087,6 +23213,30 @@ export interface operations {
                 summary?: string;
               } | null;
               id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  environment_profiles: string[];
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
               name?: string;
               provider: string;
               /** @enum {string} */
@@ -20104,6 +23254,7 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              type?: string;
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;

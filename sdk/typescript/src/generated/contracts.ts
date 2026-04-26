@@ -2287,6 +2287,21 @@ export interface TaskDependencyReferencePayload {
   depends_on: TaskReferencePayload;
 }
 
+export type CoordinationMessageKind = string;
+
+export interface CoordinationChannelPayload {
+  id: string;
+  channel?: string;
+  display_name: string;
+  purpose?: string;
+  workspace_id?: string;
+  task_id?: string;
+  run_id?: string;
+  workflow_id?: string;
+  allowed_message_kinds: CoordinationMessageKind[];
+  last_activity_at?: ISODateTime;
+}
+
 export interface TaskRunSummaryPayload {
   id: string;
   task_id: string;
@@ -2295,6 +2310,11 @@ export interface TaskRunSummaryPayload {
   max_attempts: number;
   session_id?: string;
   claimed_by?: ActorIdentity;
+  claim_token_hash?: string;
+  lease_until?: ISODateTime;
+  heartbeat_at?: ISODateTime;
+  coordination_channel_id?: string;
+  coordination_channel?: CoordinationChannelPayload;
   queued_at: ISODateTime;
   claimed_at?: ISODateTime;
   started_at?: ISODateTime;
@@ -2346,6 +2366,11 @@ export interface TaskRun {
   origin: Origin;
   idempotency_key?: string;
   network_channel?: string;
+  claim_token_hash?: string;
+  lease_until?: ISODateTime;
+  heartbeat_at?: ISODateTime;
+  coordination_channel_id?: string;
+  coordination_channel?: CoordinationChannelPayload;
   queued_at: ISODateTime;
   claimed_at?: ISODateTime;
   started_at?: ISODateTime;

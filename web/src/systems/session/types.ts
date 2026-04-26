@@ -8,6 +8,14 @@ export type SessionResponse = OperationResponse<"getSession", 200>;
 export type ACPCaps = NonNullable<SessionPayload["acp_caps"]>;
 export type SessionState = SessionPayload["state"];
 export type SessionFailurePayload = NonNullable<SessionPayload["failure"]>;
+export type SessionLineagePayload = NonNullable<SessionPayload["lineage"]>;
+export type AgentMePayload = OperationResponse<"getAgentMe", 200>["me"];
+export type AgentContextPayload = OperationResponse<"getAgentContext", 200>["context"];
+export type AgentSpawnPayload = OperationResponse<"spawnAgentSession", 201>["spawn"];
+export type CoordinatorConfigPayload = OperationResponse<
+  "getAgentCoordinatorConfig",
+  200
+>["coordinator"];
 
 export type SessionEventsResponse = OperationResponse<"listSessionEvents", 200>;
 export type SessionEventPayload = SessionEventsResponse["events"][number];

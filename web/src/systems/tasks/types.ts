@@ -7,6 +7,7 @@ export type TaskRecord = TaskDetailView["task"];
 export type TaskChildSummary = NonNullable<TaskDetailView["children"]>[number];
 export type TaskRun = OperationResponse<"listTaskRuns", 200>["runs"][number];
 export type TaskRunDetailView = OperationResponse<"getTaskRun", 200>["run"];
+export type TaskRunLeaseSummary = OperationResponse<"claimNextAgentTask", 200>["claim"]["lease"];
 export type TaskTimelineItem = OperationResponse<"getTaskTimeline", 200>["timeline"][number];
 export type TaskTreeView = OperationResponse<"getTaskTree", 200>["tree"];
 export type TaskTreeNode = TaskTreeView["root"];
@@ -16,6 +17,15 @@ export type TaskInboxGroup = NonNullable<TaskInboxView["groups"]>[number];
 export type TaskInboxItem = NonNullable<TaskInboxGroup["items"]>[number];
 export type TaskTriageState = OperationResponse<"markTaskRead", 200>["triage"];
 export type TaskStreamPayload = OperationResponse<"streamTask", 200>;
+export type AgentTaskClaim = OperationResponse<"claimNextAgentTask", 200>["claim"];
+export type AgentCoordinationChannel = OperationResponse<
+  "listAgentChannels",
+  200
+>["channels"][number];
+export type AgentChannelMessage = OperationResponse<
+  "receiveAgentChannelMessages",
+  200
+>["messages"][number];
 
 export type TaskListFilter = OperationQuery<"listTasks">;
 export type TaskDashboardFilter = OperationQuery<"getTaskDashboard">;

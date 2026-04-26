@@ -36,6 +36,7 @@ type SessionPayload struct {
 	WorkspaceID   string        `json:"workspace_id,omitempty"`
 	WorkspacePath string        `json:"workspace_path,omitempty"`
 	Channel       string        `json:"channel,omitempty"`
+	Type          session.Type  `json:"type,omitempty"`
 	State         session.State `json:"state"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
@@ -46,6 +47,7 @@ type SessionPayload struct {
 	ACPCaps      *ACPCapsPayload            `json:"acp_caps,omitempty"`
 	Activity     *RuntimeActivityPayload    `json:"activity,omitempty"`
 	Environment  *SessionEnvironmentPayload `json:"environment,omitempty"`
+	Lineage      *SessionLineagePayload     `json:"lineage,omitempty"`
 	CreatedAt    time.Time                  `json:"created_at"`
 	UpdatedAt    time.Time                  `json:"updated_at"`
 }
