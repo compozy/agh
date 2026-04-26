@@ -251,11 +251,18 @@ AGH records why a session exists:
 | `user`   | Normal interactive work created by a person or client. |
 | `dream`  | Background memory consolidation work.                  |
 | `system` | Internal AGH-managed work.                             |
+| `coordinator` | Managed autonomy coordinator for workspace-scoped coordinated task runs. |
+| `spawned` | Child session created by an agent through safe spawn. |
 
 Dream sessions are special for permissions: they always start with `approve-all`.
+
+Coordinator sessions are root lineage rows. They are created only after executable coordinated work
+is enqueued, not when a task is merely created. Spawned sessions record parent, root, depth, role,
+TTL, and permission metadata so AGH can reap children when their TTL expires or their parent stops.
 
 ## Next steps
 
 - Use [Resume and Replay](/runtime/core/sessions/resume) when you need to continue a stopped session.
 - Use [Event Streaming](/runtime/core/sessions/events) when you need the exact stored and streamed session record.
+- Use [Runtime Autonomy](/runtime/core/autonomy) for coordinator, task lease, and safe-spawn behavior.
 - Use [Permissions](/runtime/core/sessions/permissions) when you need to control or approve agent actions.

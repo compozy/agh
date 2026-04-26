@@ -16,7 +16,7 @@ Inspect configured and executed hooks
 ### Options inherited from parent commands
 
 ```
-  -o, --output string   Output format: human, json, or toon (default "human")
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
 
 ## Output Formats
@@ -25,13 +25,15 @@ Every AGH command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
+
 
 ## Subcommands
 
-| Command                                                 | Description                                             |
-| ------------------------------------------------------- | ------------------------------------------------------- |
-| [agh hooks events](/runtime/cli-reference/hooks/events) | List supported hook events                              |
-| [agh hooks info](/runtime/cli-reference/hooks/info)     | Show detailed information for one or more hooks by name |
-| [agh hooks list](/runtime/cli-reference/hooks/list)     | List resolved hooks in pipeline order                   |
-| [agh hooks runs](/runtime/cli-reference/hooks/runs)     | Show persisted hook execution history                   |
+| Command | Description |
+| ------- | ----------- |
+| [agh hooks events](/runtime/cli-reference/hooks/events) | List supported hook events |
+| [agh hooks info](/runtime/cli-reference/hooks/info) | Show detailed information for one or more hooks by name |
+| [agh hooks list](/runtime/cli-reference/hooks/list) | List resolved hooks in pipeline order |
+| [agh hooks runs](/runtime/cli-reference/hooks/runs) | Show persisted hook execution history |

@@ -474,6 +474,7 @@ func renderOutputFormatsSection(body string) string {
 	b.WriteString("Every AGH command supports `-o, --output`:\n\n")
 	b.WriteString("- `human` for interactive terminal use\n")
 	b.WriteString("- `json` for scripts and other machine-readable consumers\n")
+	b.WriteString("- `jsonl` for wait or streaming commands that emit one JSON record per line\n")
 	b.WriteString("- `toon` for compact agent-readable summaries\n")
 
 	if usage := extractUsageLine(body); usage != "" {

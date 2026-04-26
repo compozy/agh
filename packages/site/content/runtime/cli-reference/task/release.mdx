@@ -1,0 +1,51 @@
+---
+title: "agh task release"
+description: "Release a claimed task run for the current agent session"
+---
+
+## agh task release
+
+Release a claimed task run for the current agent session
+
+```
+agh task release <run-id> [flags]
+```
+
+### Examples
+
+```
+  # Release a claim without completing the run
+  agh task release run-123 --claim-token "$CLAIM_TOKEN"
+
+  # Include a structured reason for observability
+  agh task release run-123 --claim-token "$CLAIM_TOKEN" --reason handoff
+```
+
+### Options
+
+```
+      --claim-token string   Raw claim token returned by agh task next
+  -h, --help                 help for release
+      --reason string        Optional release reason
+```
+
+### Options inherited from parent commands
+
+```
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task release <run-id> -o json
+```

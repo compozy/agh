@@ -180,6 +180,21 @@ Stopping is cooperative first:
 Failed startup uses the same cleanup path. If initialize, `session/new`, or `session/load` fails
 after the process was launched, AGH stops the process before returning the startup error.
 
+## Agent-Initiated Safe Spawn
+
+An active agent can request a child session through `agh spawn`. This is separate from normal
+session creation: AGH validates the caller identity, requires a positive TTL, keeps the child inside
+the parent's workspace and coordination channel, denies coordinator-role children, and only permits
+permission subsets of the parent session.
+
+Safe-spawn children are recorded as `spawned` sessions with parent/root lineage, depth, role, TTL,
+and permission metadata. In the MVP, max depth is `1` and the default max children per parent is
+`5`. Parent-stop and TTL expiry cleanup release active task-run leases through the task service
+before stopping the child session.
+
+Use [Safe Spawn](/runtime/core/autonomy/safe-spawn) for command flags, constraints, and lifecycle
+hooks.
+
 ## Edge cases
 
 | Case                                           | Behavior                                                                                     |
@@ -200,3 +215,4 @@ after the process was launched, AGH stops the process before returning the start
 - [Agent Definitions](/runtime/core/agents/definitions) shows how the launch inputs are declared.
 - [Providers](/runtime/core/agents/providers) lists the built-in provider commands.
 - [Session Lifecycle](/runtime/core/sessions/lifecycle) explains how the spawned process is wrapped by a durable AGH session.
+- [Safe Spawn](/runtime/core/autonomy/safe-spawn) covers agent-initiated child sessions.

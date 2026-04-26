@@ -24,7 +24,7 @@ agh automation jobs [flags]
 ### Options inherited from parent commands
 
 ```
-  -o, --output string   Output format: human, json, or toon (default "human")
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
 
 ## Output Formats
@@ -33,6 +33,7 @@ Every AGH command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
 
 Example:
@@ -41,17 +42,13 @@ Example:
 agh automation jobs -o json
 ```
 
-Job payloads include scheduler diagnostics when the job is registered with the durable scheduler:
-`next_run`, `scheduler.next_run_at`, `scheduler.last_scheduled_at`, `scheduler.last_fire_id`,
-`scheduler.catch_up_policy`, and `scheduler.misfire_count`.
-
 ## Subcommands
 
-| Command                                                                       | Description                             |
-| ----------------------------------------------------------------------------- | --------------------------------------- |
-| [agh automation jobs create](/runtime/cli-reference/automation/jobs/create)   | Create an automation job                |
-| [agh automation jobs delete](/runtime/cli-reference/automation/jobs/delete)   | Delete an automation job                |
-| [agh automation jobs get](/runtime/cli-reference/automation/jobs/get)         | Show one automation job                 |
+| Command | Description |
+| ------- | ----------- |
+| [agh automation jobs create](/runtime/cli-reference/automation/jobs/create) | Create an automation job |
+| [agh automation jobs delete](/runtime/cli-reference/automation/jobs/delete) | Delete an automation job |
+| [agh automation jobs get](/runtime/cli-reference/automation/jobs/get) | Show one automation job |
 | [agh automation jobs history](/runtime/cli-reference/automation/jobs/history) | Show run history for one automation job |
-| [agh automation jobs trigger](/runtime/cli-reference/automation/jobs/trigger) | Force an immediate automation job run   |
-| [agh automation jobs update](/runtime/cli-reference/automation/jobs/update)   | Update an automation job                |
+| [agh automation jobs trigger](/runtime/cli-reference/automation/jobs/trigger) | Force an immediate automation job run |
+| [agh automation jobs update](/runtime/cli-reference/automation/jobs/update) | Update an automation job |

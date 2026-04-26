@@ -16,7 +16,7 @@ Manage persistent cross-session memories
 ### Options inherited from parent commands
 
 ```
-  -o, --output string   Output format: human, json, or toon (default "human")
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
 
 ## Output Formats
@@ -25,18 +25,20 @@ Every AGH command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
+
 
 ## Subcommands
 
-| Command                                                             | Description                               |
-| ------------------------------------------------------------------- | ----------------------------------------- |
-| [agh memory consolidate](/runtime/cli-reference/memory/consolidate) | Trigger manual memory consolidation       |
-| [agh memory delete](/runtime/cli-reference/memory/delete)           | Delete a persistent memory file           |
-| [agh memory health](/runtime/cli-reference/memory/health)           | Show memory health                        |
-| [agh memory history](/runtime/cli-reference/memory/history)         | Show memory operation history             |
-| [agh memory list](/runtime/cli-reference/memory/list)               | List persistent memories                  |
-| [agh memory read](/runtime/cli-reference/memory/read)               | Read a persistent memory file             |
-| [agh memory reindex](/runtime/cli-reference/memory/reindex)         | Rebuild the derived memory search catalog |
-| [agh memory search](/runtime/cli-reference/memory/search)           | Search durable memory                     |
-| [agh memory write](/runtime/cli-reference/memory/write)             | Write or update a persistent memory file  |
+| Command | Description |
+| ------- | ----------- |
+| [agh memory consolidate](/runtime/cli-reference/memory/consolidate) | Trigger manual memory consolidation |
+| [agh memory delete](/runtime/cli-reference/memory/delete) | Delete a persistent memory file |
+| [agh memory health](/runtime/cli-reference/memory/health) | Show memory health |
+| [agh memory history](/runtime/cli-reference/memory/history) | Show memory operation history |
+| [agh memory list](/runtime/cli-reference/memory/list) | List persistent memories |
+| [agh memory read](/runtime/cli-reference/memory/read) | Read a persistent memory file |
+| [agh memory reindex](/runtime/cli-reference/memory/reindex) | Rebuild the derived memory search catalog |
+| [agh memory search](/runtime/cli-reference/memory/search) | Search durable memory |
+| [agh memory write](/runtime/cli-reference/memory/write) | Write or update a persistent memory file |

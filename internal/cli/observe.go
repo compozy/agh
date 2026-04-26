@@ -75,6 +75,36 @@ func newObserveHealthCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "health",
 		Short: "Show observability health",
+		Long: `Show observability health.
+
+The JSON payload includes storage and retention health under health.persistence and
+health.retention. Persistence reports global and session database byte counts plus
+the current storage status. Retention reports whether the sweep is enabled, the
+configured retention window, last sweep status, last sweep/cutoff timestamps, and
+deleted row counts for event summaries, token stats, and permission logs.
+
+The payload also includes active runtime supervision state in health.activities when
+sessions have an active prompt turn. Each activity row reports the session ID, turn ID,
+last activity age, current tool when known, stall state, and whether the session is
+healthy, warning, or stalled.
+
+Lifecycle failure diagnostics are summarized under health.failures. Downstream ACP
+command probes are exposed under health.agent_probes. Automation health includes
+durable scheduler diagnostics under health.automation.scheduled_jobs.`,
+		Example: `  # Show observability health
+  agh observe health
+
+  # Watch long-running session activity
+  agh observe health -o json | jq '.health.activities[] | {session_id, status, current_tool, idle_seconds}'
+
+  # Check retention and lifecycle failure state
+  agh observe health -o json | jq '.health.retention | {enabled, retention_days, last_sweep_status, last_cutoff_at}'
+  agh observe health -o json | jq '.health.failures | {status, total, by_kind, recent}'
+
+  # Check downstream ACP provider probes and durable scheduler cursors
+  agh observe health -o json | jq '.health.agent_probes[] | {agent_name, provider, status, error}'
+  agh observe health -o json \
+    | jq '.health.automation.scheduled_jobs[] | {job_id, next_run_at, last_fire_id, catch_up_policy, misfire_count}'`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

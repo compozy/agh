@@ -1,4 +1,22 @@
 {
     "title": "Task",
-    "pages": ["index", "cancel", "create", "get", "list", "update", "child", "dependency", "run"]
+    "pages": [
+        "index",
+        "approve",
+        "cancel",
+        "complete",
+        "create",
+        "fail",
+        "get",
+        "heartbeat",
+        "list",
+        "next",
+        "publish",
+        "release",
+        "start",
+        "update",
+        "child",
+        "dependency",
+        "run"
+    ]
 }

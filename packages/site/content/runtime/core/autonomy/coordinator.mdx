@@ -1,0 +1,97 @@
+---
+title: Coordinator Handoff
+description: When AGH starts the workspace coordinator, how coordinator config resolves, and how operators keep manual control.
+---
+
+The coordinator is a managed AGH session that performs semantic orchestration for executable,
+workspace-scoped runs. It can decompose work, create follow-up tasks, request safe worker spawn, and
+synthesize results, but it does not own task-run state. Claim, heartbeat, completion, failure, and
+release stay in the task service.
+
+## Trigger boundary
+
+The daemon considers coordinator bootstrap only when all of these are true:
+
+- A publish, start, approval, UI start, automation approval, or equivalent API enqueues a task run.
+- The run is workspace-scoped and coordinated.
+- The enqueue path creates or resolves a stable `coordination_channel_id` for the run.
+- The resolved coordinator config has `enabled = true`.
+- The workspace has no healthy active coordinator session.
+- Spawn caps, TTL, and permission policy allow a coordinator root session.
+
+Task creation alone does not start a coordinator. Manual session creation alone does not start a
+coordinator. Global-scope runs do not auto-spawn a coordinator in the MVP.
+
+## Configuration
+
+Coordinator settings live under `[autonomy.coordinator]` in global or workspace `config.toml`:
+
+```toml
+[autonomy.coordinator]
+enabled = true
+agent_name = "coordinator"
+provider = "codex"
+model = "gpt-5.4"
+default_ttl = "2h"
+max_children = 5
+max_active_per_workspace = 1
+```
+
+| Field | Default | Meaning |
+| ----- | ------- | ------- |
+| `enabled` | `false` | Enables spawn-on-run-enqueue coordinator bootstrap. |
+| `agent_name` | `coordinator` | Agent definition name used for the coordinator session. |
+| `provider` | unset | Optional provider override. Empty means fall through to the coordinator agent or global default provider. |
+| `model` | unset | Optional model override. Empty means fall through to the coordinator agent or provider default model. |
+| `default_ttl` | `2h` | Coordinator session TTL. Accepted range is `1m` through `24h`. |
+| `max_children` | `5` | Maximum child sessions the coordinator may spawn. The MVP hard cap is `5`. |
+| `max_active_per_workspace` | `1` | Must remain `1` in the MVP so each workspace has one active coordinator. |
+
+## Precedence
+
+Resolved coordinator policy uses this order:
+
+1. Workspace override from `<workspace>/.agh/config.toml`.
+2. Global `$AGH_HOME/config.toml`.
+3. Bundled/default coordinator agent definition and provider defaults.
+
+Workspace config can disable coordinator bootstrap for one workspace even when the global config
+enables it. Provider and model resolution follows the same rule: workspace values win, then global
+values, then the coordinator agent definition, then provider defaults when a provider supplies a
+default model.
+
+## Coordinator session behavior
+
+The coordinator is a root session with session type `coordinator`, its own TTL, and a restricted
+orchestration surface. It is idempotent per workspace: multiple run-enqueue events do not create
+multiple healthy coordinators for the same workspace. A coordinator cannot spawn another
+coordinator.
+
+When executable work remains after a coordinator stops or crashes, daemon recovery may start a new
+coordinator for that workspace if the same trigger conditions still hold. This recovery is still
+bounded by coordinator config and safe spawn policy.
+
+## Operator control
+
+Manual control stays explicit:
+
+```bash
+# Store durable intent only. No run is claimable yet.
+agh task create --scope workspace --workspace checkout-api --title "Audit auth flow"
+
+# Explicitly enqueue execution and allow coordinator handoff.
+agh task start task-123 --channel coord-run-123
+
+# Start a manual session for direct inspection without starting task execution.
+agh session new --agent reviewer --workspace checkout-api
+```
+
+The first command creates a task. The second command is the execution boundary. The third command
+creates a manual session but does not enqueue work by itself.
+
+## Related pages
+
+- [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) explains the claim and lease authority the coordinator must use.
+- [Coordination Channels](/runtime/core/autonomy/coordination-channels) explains the channel bound at run enqueue.
+- [config.toml](/runtime/core/configuration/config-toml) lists every coordinator config field.
+- [Session Lifecycle](/runtime/core/sessions/lifecycle) lists the `coordinator` session type.

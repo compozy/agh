@@ -20,7 +20,7 @@ agh automation runs get <id> [flags]
 ### Options inherited from parent commands
 
 ```
-  -o, --output string   Output format: human, json, or toon (default "human")
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
 
 ## Output Formats
@@ -29,6 +29,7 @@ Every AGH command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
 
 Example:
@@ -36,8 +37,3 @@ Example:
 ```bash
 agh automation runs get <id> -o json
 ```
-
-For scheduler-created runs, inspect `fire_id` and `scheduled_at` to identify the claimed scheduled
-fire. If the scheduler advanced the cursor but delivery failed, `delivery_error` and
-`delivery_error_at` contain the delivery diagnostic while the normal run `error` field remains
-reserved for execution lifecycle failures.

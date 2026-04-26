@@ -1,0 +1,5 @@
+{
+    "title": "Autonomy",
+    "icon": "Activity",
+    "pages": ["index", "coordinator", "task-runs-and-leases", "coordination-channels", "safe-spawn"]
+}

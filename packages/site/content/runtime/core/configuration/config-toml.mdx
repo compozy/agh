@@ -46,6 +46,7 @@ will fail config loading as an unknown key.
 | `[automation]`                | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                   |
 | `[[automation.jobs]]`         | Scheduled automation jobs.                                                      | empty list                                                                        |
 | `[[automation.triggers]]`     | Event-driven automation triggers.                                               | empty list                                                                        |
+| `[autonomy.coordinator]`      | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 active per workspace    |
 | `[[hooks.declarations]]`      | Config-defined runtime hooks.                                                   | empty list                                                                        |
 | `[network]`                   | Experimental AGH network runtime.                                               | enabled, channel `default`                                                        |
 
@@ -217,6 +218,19 @@ enabled = true
 [automation.triggers.filter]
 kind = "session.stopped"
 data.stop_reason = "error"
+
+[autonomy.coordinator]
+# Disabled by default. When enabled, a workspace-scoped coordinated task run may start
+# one coordinator session for that workspace after publish, start, approval, or an
+# equivalent execution boundary enqueues the run.
+enabled = false
+agent_name = "coordinator"
+# Optional provider/model overrides. Empty values fall through to agent/provider defaults.
+provider = ""
+model = ""
+default_ttl = "2h"
+max_children = 5
+max_active_per_workspace = 1
 
 [[hooks.declarations]]
 name = "record-session-start"
@@ -483,6 +497,36 @@ Triggers are appended by overlays; they do not replace earlier triggers with the
 | `fire_limit`         | object     | `[automation].default_fire_limit`                                  | `max` positive, `window` positive Go duration.                                                     | Per-trigger fire limit.                             |
 | `endpoint_slug`      | string     | empty                                                              | Required when `event = "webhook"`; empty otherwise.                                                | Webhook endpoint slug.                              |
 | `webhook_secret_env` | string     | empty                                                              | Required when `event = "webhook"` and must name a non-empty environment variable; empty otherwise. | Environment variable that holds the webhook secret. |
+
+## `[autonomy.coordinator]`
+
+Coordinator config controls whether AGH may start a workspace coordinator when executable task-run
+work is enqueued. Task creation is not executable work. Creating or saving a task does not enqueue a
+run, create a coordination channel, or spawn a coordinator. Publish, start, approval, and equivalent
+run-enqueue APIs are the execution boundary.
+
+Coordinator launch only applies to workspace-scoped coordinated runs with a stable
+`coordination_channel_id`. Global runs and intent-only tasks do not start coordinators in the MVP.
+
+| Field                      | Type     | Default       | Valid values                                                      | Description                                                                      |
+| -------------------------- | -------- | ------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `enabled`                  | boolean  | `false`       | `true` or `false`                                                 | Allows coordinator bootstrap after a coordinated workspace run is enqueued.       |
+| `agent_name`               | string   | `coordinator` | Non-empty when enabled.                                           | Agent definition used for managed coordinator sessions.                           |
+| `provider`                 | string   | empty         | Empty or a configured provider key.                               | Optional provider override for the coordinator agent.                             |
+| `model`                    | string   | empty         | Empty or provider-supported model string.                         | Optional model override. If set, `provider` or provider default resolution must exist. |
+| `default_ttl`              | duration | `2h`          | `1m` through `24h`.                                               | Lifetime assigned to managed coordinator sessions.                                |
+| `max_children`             | integer  | `5`           | `0` through `5`.                                                  | Maximum safe-spawn children a coordinator may hold at once.                       |
+| `max_active_per_workspace` | integer  | `1`           | Must be `1` in the MVP.                                           | Enforces one active managed coordinator per workspace.                            |
+
+Provider and model resolution is intentionally narrow. The daemon applies:
+
+1. Workspace `.agh/config.toml` override for the resolved workspace.
+2. Global `$AGH_HOME/config.toml`.
+3. The bundled/default coordinator agent definition and provider defaults.
+
+Safe-spawn limits still apply after a coordinator starts. Coordinator children inherit the workspace
+and coordination channel, must use a positive TTL, and can only narrow the coordinator's permission
+set.
 
 ## `[[hooks.declarations]]`
 

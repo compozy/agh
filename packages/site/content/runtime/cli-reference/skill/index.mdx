@@ -16,7 +16,7 @@ Manage local AgentSkills
 ### Options inherited from parent commands
 
 ```
-  -o, --output string   Output format: human, json, or toon (default "human")
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
 
 ## Output Formats
@@ -25,17 +25,19 @@ Every AGH command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
+
 
 ## Subcommands
 
-| Command                                                   | Description                                         |
-| --------------------------------------------------------- | --------------------------------------------------- |
-| [agh skill create](/runtime/cli-reference/skill/create)   | Scaffold a new workspace skill                      |
-| [agh skill info](/runtime/cli-reference/skill/info)       | Show detailed metadata for one skill                |
-| [agh skill install](/runtime/cli-reference/skill/install) | Install a marketplace skill                         |
-| [agh skill list](/runtime/cli-reference/skill/list)       | List locally available skills                       |
-| [agh skill remove](/runtime/cli-reference/skill/remove)   | Remove an installed marketplace skill               |
-| [agh skill search](/runtime/cli-reference/skill/search)   | Search marketplace skills                           |
-| [agh skill update](/runtime/cli-reference/skill/update)   | Check for or install updates for marketplace skills |
-| [agh skill view](/runtime/cli-reference/skill/view)       | Read a skill or one of its resource files           |
+| Command | Description |
+| ------- | ----------- |
+| [agh skill create](/runtime/cli-reference/skill/create) | Scaffold a new workspace skill |
+| [agh skill info](/runtime/cli-reference/skill/info) | Show detailed metadata for one skill |
+| [agh skill install](/runtime/cli-reference/skill/install) | Install a marketplace skill |
+| [agh skill list](/runtime/cli-reference/skill/list) | List locally available skills |
+| [agh skill remove](/runtime/cli-reference/skill/remove) | Remove an installed marketplace skill |
+| [agh skill search](/runtime/cli-reference/skill/search) | Search marketplace skills |
+| [agh skill update](/runtime/cli-reference/skill/update) | Check for or install updates for marketplace skills |
+| [agh skill view](/runtime/cli-reference/skill/view) | Read a skill or one of its resource files |

@@ -31,7 +31,19 @@ func newSpawnCommand(deps commandDeps) *cobra.Command {
 		Use:   "spawn",
 		Short: "Spawn a bounded child agent session",
 		Args:  cobra.NoArgs,
-		RunE:  runSpawnCommand(deps, flags),
+		Example: `  # Spawn a worker child with a required TTL
+  agh spawn --agent reviewer --ttl-seconds 1800
+
+  # Spawn with a role, prompt overlay, and narrowed permission atoms
+  agh spawn \
+    --agent reviewer \
+    --role reviewer \
+    --ttl-seconds 1800 \
+    --prompt-overlay "Review only the implementation diff." \
+    --tool read \
+    --skill code-review \
+    --channel coord-run-123`,
+		RunE: runSpawnCommand(deps, flags),
 	}
 	registerSpawnFlags(cmd, flags)
 	return cmd

@@ -70,6 +70,21 @@ The channel detail payload can include:
 
 This keeps the UI honest: an empty name alone is not treated as active coordination.
 
+## Task-run coordination channels
+
+Autonomy uses network channels as conversation spaces for coordinated task runs. When publish,
+start, approval, or an equivalent run-enqueue API creates a workspace-scoped coordinated run, AGH
+binds that run to a stable `coordination_channel_id`. Task creation alone does not create a
+coordination channel.
+
+The channel is a mailbox for status, requests, blockers, handoffs, results, and reviews. It is not
+task ownership or task status authority. A coordinator or child agent still has to claim work with
+`agh task next`, keep the lease alive with `agh task heartbeat`, and finish through
+`agh task complete`, `agh task fail`, or `agh task release`.
+
+See [Task-Run Coordination Channels](/runtime/core/autonomy/coordination-channels) for the
+message kinds and metadata fields.
+
 ## Inspecting presence
 
 Use the CLI when you need a quick operator view:

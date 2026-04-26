@@ -20,14 +20,8 @@ agh extension status <name> [flags]
 ### Options inherited from parent commands
 
 ```
-  -o, --output string   Output format: human, json, or toon (default "human")
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
-
-## Environment Diagnostics
-
-Extension manifests may declare `requires_env`. Status output reports those names and the
-`missing_env` subset that is unset or empty for the current AGH process environment. AGH never prints
-the environment values.
 
 ## Output Formats
 
@@ -35,6 +29,7 @@ Every AGH command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
 
 Example:

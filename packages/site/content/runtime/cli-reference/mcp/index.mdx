@@ -16,7 +16,7 @@ Manage MCP integrations
 ### Options inherited from parent commands
 
 ```
-  -o, --output string   Output format: human, json, or toon (default "human")
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
 
 ## Output Formats
@@ -25,10 +25,12 @@ Every AGH command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
+
 
 ## Subcommands
 
-| Command                                         | Description                     |
-| ----------------------------------------------- | ------------------------------- |
+| Command | Description |
+| ------- | ----------- |
 | [agh mcp auth](/runtime/cli-reference/mcp/auth) | Authenticate remote MCP servers |

@@ -2,6 +2,8 @@ import type { MetadataRoute } from "next";
 import { protocolDocs, runtimeDocs } from "@/lib/source";
 import { absoluteUrl, canonicalPath } from "@/lib/site-config";
 
+export const dynamic = "force-static";
+
 function pageEntry(path: string): MetadataRoute.Sitemap[number] {
   return {
     url: absoluteUrl(canonicalPath(path)),

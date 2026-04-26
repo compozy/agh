@@ -18,6 +18,11 @@ func newMeCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "me",
 		Short: "Inspect the current AGH-managed agent session",
+		Example: `  # Show the current managed session identity
+  agh me
+
+  # Print machine-readable caller state
+  agh me -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -42,6 +47,11 @@ func newMeContextCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "context",
 		Short: "Inspect the bounded situation context for the current agent session",
+		Example: `  # Show the bounded situation context injected for this session
+  agh me context
+
+  # Read the context payload as JSON
+  agh me context -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -65,6 +75,11 @@ func newChannelCommand(deps commandDeps) *cobra.Command {
 		Use:     "ch",
 		Aliases: []string{"channel"},
 		Short:   "Use agent-facing coordination channels",
+		Example: `  # List channels visible to this session
+  agh ch list
+
+  # Wait for task-run coordination messages
+  agh ch recv coord-run-123 --wait -o jsonl`,
 	}
 	cmd.AddCommand(newChannelListCommand(deps))
 	cmd.AddCommand(newChannelRecvCommand(deps))
@@ -77,6 +92,11 @@ func newChannelListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List coordination channels visible to the current agent session",
+		Example: `  # List coordination channels visible to this session
+  agh ch list
+
+  # Print channel discovery metadata as JSON
+  agh ch list -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -103,6 +123,11 @@ func newChannelRecvCommand(deps commandDeps) *cobra.Command {
 		Use:   "recv <channel>",
 		Short: "Receive queued coordination messages for a channel",
 		Args:  cobra.ExactArgs(1),
+		Example: `  # Receive currently queued messages
+  agh ch recv coord-run-123
+
+  # Wait for messages and stream each record as JSONL
+  agh ch recv coord-run-123 --wait --limit 10 -o jsonl`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -136,6 +161,21 @@ func newChannelSendCommand(deps commandDeps) *cobra.Command {
 		Use:   "send <channel>",
 		Short: "Send one task-run coordination message",
 		Args:  cobra.ExactArgs(1),
+		Example: `  # Send a non-authoritative status message for a run
+  agh ch send coord-run-123 \
+    --task-id task-123 \
+    --run-id run-123 \
+    --kind status \
+    --correlation-id run-123 \
+    --body '{"status":"investigating"}'
+
+  # Report a blocker in the same task-bound channel
+  agh ch send coord-run-123 \
+    --task-id task-123 \
+    --run-id run-123 \
+    --kind blocker \
+    --correlation-id run-123 \
+    --body '{"blocked_by":"missing credentials"}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			channel := strings.TrimSpace(args[0])
 			body, err := parseNetworkJSONValue("--body", bodyRaw)
@@ -189,6 +229,17 @@ func newChannelReplyCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "reply",
 		Short: "Reply to a received coordination message",
+		Example: `  # Reply to one received coordination message
+  agh ch reply --to-message msg-123 --body '{"answer":"ready for review"}'
+
+  # Add explicit correlation metadata when replying from outside an inherited delivery
+  agh ch reply \
+    --to-message msg-123 \
+    --task-id task-123 \
+    --run-id run-123 \
+    --coordination-channel-id coord-run-123 \
+    --correlation-id run-123 \
+    --body '{"answer":"ready for review"}'`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			body, err := parseNetworkJSONValue("--body", bodyRaw)
 			if err != nil {

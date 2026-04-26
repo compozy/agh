@@ -16,7 +16,7 @@ Inspect AGH agent definitions
 ### Options inherited from parent commands
 
 ```
-  -o, --output string   Output format: human, json, or toon (default "human")
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
 
 ## Output Formats
@@ -25,11 +25,13 @@ Every AGH command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
+
 
 ## Subcommands
 
-| Command                                             | Description                      |
-| --------------------------------------------------- | -------------------------------- |
-| [agh agent info](/runtime/cli-reference/agent/info) | Show one agent definition        |
+| Command | Description |
+| ------- | ----------- |
+| [agh agent info](/runtime/cli-reference/agent/info) | Show one agent definition |
 | [agh agent list](/runtime/cli-reference/agent/list) | List installed agent definitions |

@@ -34,7 +34,7 @@ agh memory history [flags]
 ### Options inherited from parent commands
 
 ```
-  -o, --output string   Output format: human, json, or toon (default "human")
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
 
 ## Output Formats
@@ -43,14 +43,11 @@ Every AGH command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
 
 Example:
 
 ```bash
-agh memory history --scope workspace --operation memory.write -o json
+agh memory history -o json
 ```
-
-Operation history is bounded and redacted before it is returned. Use it for audit and debugging
-signals such as recent writes, deletes, searches, and reindex operations; do not treat it as a
-runtime prompt context feed.

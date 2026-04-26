@@ -7,8 +7,46 @@ description: "Show observability health"
 
 Show observability health
 
+### Synopsis
+
+Show observability health.
+
+The JSON payload includes storage and retention health under health.persistence and
+health.retention. Persistence reports global and session database byte counts plus
+the current storage status. Retention reports whether the sweep is enabled, the
+configured retention window, last sweep status, last sweep/cutoff timestamps, and
+deleted row counts for event summaries, token stats, and permission logs.
+
+The payload also includes active runtime supervision state in health.activities when
+sessions have an active prompt turn. Each activity row reports the session ID, turn ID,
+last activity age, current tool when known, stall state, and whether the session is
+healthy, warning, or stalled.
+
+Lifecycle failure diagnostics are summarized under health.failures. Downstream ACP
+command probes are exposed under health.agent_probes. Automation health includes
+durable scheduler diagnostics under health.automation.scheduled_jobs.
+
 ```
 agh observe health [flags]
+```
+
+### Examples
+
+```
+  # Show observability health
+  agh observe health
+
+  # Watch long-running session activity
+  agh observe health -o json | jq '.health.activities[] | {session_id, status, current_tool, idle_seconds}'
+
+  # Check retention and lifecycle failure state
+  agh observe health -o json | jq '.health.retention | {enabled, retention_days, last_sweep_status, last_cutoff_at}'
+  agh observe health -o json | jq '.health.failures | {status, total, by_kind, recent}'
+
+  # Check downstream ACP provider probes and durable scheduler cursors
+  agh observe health -o json | jq '.health.agent_probes[] | {agent_name, provider, status, error}'
+  agh observe health -o json \
+    | jq '.health.automation.scheduled_jobs[] | {job_id, next_run_at, last_fire_id, catch_up_policy, misfire_count}'
 ```
 
 ### Options
@@ -20,7 +58,7 @@ agh observe health [flags]
 ### Options inherited from parent commands
 
 ```
-  -o, --output string   Output format: human, json, or toon (default "human")
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
 
 ## Output Formats
@@ -29,61 +67,11 @@ Every AGH command supports `-o, --output`:
 
 - `human` for interactive terminal use
 - `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
 
 Example:
 
 ```bash
 agh observe health -o json
-```
-
-The JSON payload includes storage and retention health under `health.persistence` and
-`health.retention`. Persistence reports the global and session database byte counts plus the
-current storage status. Retention reports whether the sweep is enabled, the configured retention
-window, last sweep status, last sweep/cutoff timestamps, and deleted row counts for event
-summaries, token stats, and permission logs.
-
-The payload also includes active runtime supervision state in `health.activities` when sessions
-have an active prompt turn. Each activity row reports the session ID, turn ID, last activity age,
-current tool when known, stall state, and whether the session is healthy, warning, or stalled.
-
-Lifecycle failure diagnostics are summarized under `health.failures`. This includes the total count,
-a `by_kind` map keyed by stable failure kind, and a bounded `recent` list with session ID, provider,
-redacted summary, and crash bundle path when one exists. Downstream ACP command probes are exposed
-under `health.agent_probes`; each probe reports the configured agent/provider, redacted command,
-resolved executable when found, status, error, check time, and duration.
-
-Automation health includes durable scheduler diagnostics under `health.automation.scheduled_jobs`.
-Each row reports the job ID, registered state, next cursor, last scheduled fire, last fire ID,
-catch-up policy, misfire counters, and update timestamp. Use it to verify restart reconciliation or
-to distinguish scheduler cursor state from run delivery failures.
-
-Use this when watching long-running sessions from automation:
-
-```bash
-agh observe health -o json | jq '.health.activities[] | {session_id, status, current_tool, idle_seconds}'
-```
-
-Check retention status from automation:
-
-```bash
-agh observe health -o json | jq '.health.retention | {enabled, retention_days, last_sweep_status, last_cutoff_at}'
-```
-
-Check recent lifecycle failures:
-
-```bash
-agh observe health -o json | jq '.health.failures | {status, total, by_kind, recent}'
-```
-
-Check downstream ACP provider availability:
-
-```bash
-agh observe health -o json | jq '.health.agent_probes[] | {agent_name, provider, status, error}'
-```
-
-Check durable automation scheduler cursors:
-
-```bash
-agh observe health -o json | jq '.health.automation.scheduled_jobs[] | {job_id, next_run_at, last_fire_id, catch_up_policy, misfire_count}'
 ```

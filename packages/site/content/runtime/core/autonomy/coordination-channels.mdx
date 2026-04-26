@@ -1,0 +1,102 @@
+---
+title: Coordination Channels
+description: How coordinated task runs use network channels for conversation without making channels the task ownership authority.
+---
+
+Every workspace-scoped task run enqueued for coordinated execution has one durable coordination
+channel association. The task service records `coordination_channel_id` on the run at the enqueue
+boundary. Task creation alone does not create claimable work and does not require a coordination
+channel.
+
+The rule is: bind always, speak when useful. A simple one-session run may have little channel
+traffic, but the bound channel gives the coordinator, workers, and operators a deterministic place
+to exchange operational context.
+
+## Channels are conversation, not ownership
+
+| Use `agh ch` for | Use `agh task` for |
+| ---------------- | ------------------ |
+| status updates | claiming a run |
+| requests and replies | extending a lease |
+| blockers | completing a run |
+| handoffs | failing a run |
+| review requests | releasing a run |
+| result exchange for synthesis context | terminal task-run state |
+
+Channel messages never own task status. A `status` or `result` message can describe progress, but it
+does not change run ownership or terminal state. Terminal state changes only through token-fenced
+task APIs.
+
+## Message kinds
+
+The MVP accepts these coordination message kinds:
+
+| Kind | Use |
+| ---- | --- |
+| `status` | Non-authoritative progress or current state. |
+| `request` | Ask another participant for information or action. |
+| `reply` | Answer a received coordination message. |
+| `blocker` | Report a blocking condition that needs attention. |
+| `handoff` | Transfer context between coordinator, worker, reviewer, or operator. |
+| `result` | Share output or synthesis context before or after terminal task APIs. |
+| `review_request` | Ask another participant to inspect work. |
+
+## Correlation metadata
+
+Task-bound channel messages carry typed metadata:
+
+| Field | Required | Meaning |
+| ----- | -------- | ------- |
+| `task_id` | yes | Task the conversation belongs to. |
+| `run_id` | yes | Task run the message is correlated with. |
+| `workflow_id` | no | Workflow correlation when present. Workflow is metadata in the MVP, not a first-class workflow store. |
+| `coordination_channel_id` | yes | Stable channel binding recorded on the run. |
+| `message_kind` | yes | One of the MVP message kinds. |
+| `correlation_id` | yes | Message-level correlation, commonly the run ID or a request ID. |
+
+Raw `claim_token` fields are rejected in coordination metadata and must not appear in channel
+message bodies, extension metadata, logs, read models, or memory summaries.
+
+## Sending messages
+
+```bash
+agh ch send coord-run-123 \
+  --task-id task-123 \
+  --run-id run-123 \
+  --kind status \
+  --correlation-id run-123 \
+  --body '{"status":"investigating"}'
+```
+
+`--coordination-channel-id` defaults to the channel argument for `agh ch send`. Use it explicitly
+when the runtime channel name and stored channel ID differ.
+
+To wait for messages:
+
+```bash
+agh ch recv coord-run-123 --wait --limit 10 -o jsonl
+```
+
+To reply to a received message:
+
+```bash
+agh ch reply --to-message msg-123 --body '{"answer":"ready for review"}'
+```
+
+When the reply is based on a delivered inbox message, AGH can inherit the message correlation from
+that delivery. When replying outside that context, pass `--task-id`, `--run-id`,
+`--coordination-channel-id`, and `--correlation-id` explicitly.
+
+## Where agents discover the channel
+
+Agents see the active task-run channel in:
+
+- the `coordination_channel` field returned by `agh task next -o json`
+- the active task/channel sections in `agh me context -o json`
+- `agh ch list`, which lists channels visible to the current managed session
+
+## Related pages
+
+- [Network Channels and Peers](/runtime/core/network/channels-and-peers) explains the underlying channel and peer model.
+- [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) explains the task-service ownership boundary.
+- [Protocol Message Kinds](/protocol/message-kinds) explains AGH Network protocol kinds outside the task-run coordination metadata.
