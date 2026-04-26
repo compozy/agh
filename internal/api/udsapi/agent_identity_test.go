@@ -142,9 +142,34 @@ func TestAgentMeReturnsValidatedCallerIdentity(t *testing.T) {
 		t.Fatalf("response.Me.Self = %#v, want validated caller", response.Me.Self)
 	}
 	if response.Me.Session.State != session.StateActive || response.Me.Workspace.ID != "ws-1" {
-		encoded, _ := json.Marshal(response.Me)
+		encoded, err := json.Marshal(response.Me)
+		if err != nil {
+			t.Fatalf("json.Marshal(AgentMePayload) error = %v", err)
+		}
 		t.Fatalf("response.Me = %s, want active session in workspace ws-1", encoded)
 	}
+}
+
+func TestAgentMeReportsUnavailableWhenSessionServiceMissing(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return service unavailable when session service is missing", func(t *testing.T) {
+		t.Parallel()
+
+		engine := newTestRouter(t, newTestHandlers(t, nil, stubObserver{}, newTestHomePaths(t)))
+		recorder := performAgentMeRequest(t, engine, map[string]string{
+			agentidentity.HeaderSessionID: "sess-1",
+			agentidentity.HeaderAgent:     "coder",
+		})
+		if recorder.Code != http.StatusServiceUnavailable {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusServiceUnavailable,
+				recorder.Body.String(),
+			)
+		}
+	})
 }
 
 func performAgentMeRequest(t *testing.T, engine http.Handler, headers map[string]string) *httptest.ResponseRecorder {

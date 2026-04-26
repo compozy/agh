@@ -1564,7 +1564,15 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("approvals group items = %#v, want approval and reject tasks", approvalsGroup.Items)
 	}
 
-	approveResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/"+approvalTask.ID+"/approve"), nil, nil)
+	approveBody := []byte(`{"idempotency_key":"approve-approval-task"}`)
+	approveResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+approvalTask.ID+"/approve"),
+		approveBody,
+		nil,
+	)
 	if approveResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(approveResp.Body)
 		_ = approveResp.Body.Close()
@@ -1579,7 +1587,14 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("approved run status = %q, want %q", approved.Run.Status, taskpkg.TaskRunStatusQueued)
 	}
 
-	approveAgainResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/"+approvalTask.ID+"/approve"), nil, nil)
+	approveAgainResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+approvalTask.ID+"/approve"),
+		approveBody,
+		nil,
+	)
 	if approveAgainResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(approveAgainResp.Body)
 		_ = approveAgainResp.Body.Close()

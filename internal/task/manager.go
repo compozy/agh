@@ -2287,7 +2287,7 @@ func normalizeTaskExecutionRequest(req ExecutionRequest) (ExecutionRequest, erro
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
-	if err := ValidateMetadataSize(normalized.Metadata, "task_execution.metadata"); err != nil {
+	if err := normalized.Validate("task_execution"); err != nil {
 		return ExecutionRequest{}, err
 	}
 	return normalized, nil

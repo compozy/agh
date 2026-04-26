@@ -795,6 +795,12 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertNotRequired(t, treePayload, "descendants")
 
 				approve := operationFor(t, doc, "/api/tasks/{id}/approve", "POST")
+				if approve.RequestBody == nil || approve.RequestBody.Value == nil {
+					t.Fatal("approve task missing optional request body schema")
+				}
+				if approve.RequestBody.Value.Required {
+					t.Fatal("approve task request body is required, want optional")
+				}
 				approveSchema := jsonRequestSchema(t, approve)
 				assertNotRequired(t, approveSchema, "idempotency_key", "network_channel", "metadata")
 				approveResponse := jsonResponseSchema(t, approve, 201)

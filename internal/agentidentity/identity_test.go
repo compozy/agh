@@ -231,12 +231,12 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 	}{
 		{
 			name:    "nil context",
-			wantErr: ErrIdentityStale,
+			wantErr: ErrIdentityLookupUnavailable,
 		},
 		{
 			name:    "nil lookup",
 			ctx:     context.Background(),
-			wantErr: ErrIdentityStale,
+			wantErr: ErrIdentityLookupUnavailable,
 		},
 		{
 			name: "empty returned session id",
@@ -334,31 +334,72 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 func TestErrorPayloadFallbacksAndExitCodes(t *testing.T) {
 	t.Parallel()
 
-	if got := ExitCodeForError(nil); got != ExitOK {
-		t.Fatalf("ExitCodeForError(nil) = %d, want %d", got, ExitOK)
+	tests := []struct {
+		name       string
+		err        error
+		wantCode   string
+		wantMsg    string
+		wantAction string
+		wantExit   int
+	}{
+		{
+			name:       "Should return ok defaults for nil error",
+			wantCode:   "agent_error",
+			wantMsg:    agentCommandFailedMessage,
+			wantAction: "inspect the daemon error and retry",
+			wantExit:   ExitOK,
+		},
+		{
+			name:       "Should return generic unavailable payload for ordinary errors",
+			err:        errors.New("daemon unavailable"),
+			wantCode:   "agent_error",
+			wantMsg:    "daemon unavailable",
+			wantAction: "inspect the daemon error and retry",
+			wantExit:   ExitUnavailable,
+		},
+		{
+			name:       "Should preserve identity exit code with fallback text",
+			err:        &Error{Err: ErrIdentityRequired},
+			wantCode:   "agent_error",
+			wantMsg:    agentCommandFailedMessage,
+			wantAction: "inspect the daemon error and retry",
+			wantExit:   ExitIdentityRequired,
+		},
+		{
+			name: "Should map lookup unavailable identity errors to unavailable exit",
+			err: identityError(
+				ErrIdentityLookupUnavailable,
+				"identity_lookup_unavailable",
+				"agent identity cannot be validated",
+				"retry after the daemon is reachable",
+			),
+			wantCode:   "identity_lookup_unavailable",
+			wantMsg:    "agent identity cannot be validated",
+			wantAction: "retry after the daemon is reachable",
+			wantExit:   ExitUnavailable,
+		},
 	}
 
-	nilPayload := ErrorPayloadFor(nil)
-	if nilPayload.Code != "agent_error" || nilPayload.Message != agentCommandFailedMessage ||
-		nilPayload.ExitCode != ExitOK {
-		t.Fatalf("ErrorPayloadFor(nil) = %#v, want default successful payload", nilPayload)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	genericPayload := ErrorPayloadFor(errors.New("daemon unavailable"))
-	if genericPayload.Code != "agent_error" ||
-		genericPayload.Message != "daemon unavailable" ||
-		genericPayload.Action != "inspect the daemon error and retry" ||
-		genericPayload.ExitCode != ExitUnavailable {
-		t.Fatalf("ErrorPayloadFor(generic) = %#v, want fallback agent error payload", genericPayload)
-	}
-
-	emptyIdentityPayload := ErrorPayloadFor(&Error{Err: ErrIdentityRequired})
-	if emptyIdentityPayload.Message != agentCommandFailedMessage ||
-		emptyIdentityPayload.Action != "inspect the daemon error and retry" ||
-		emptyIdentityPayload.ExitCode != ExitIdentityRequired {
-		t.Fatalf(
-			"ErrorPayloadFor(empty identity error) = %#v, want fallback text with identity exit code",
-			emptyIdentityPayload,
-		)
+			if got := ExitCodeForError(tt.err); got != tt.wantExit {
+				t.Fatalf("ExitCodeForError() = %d, want %d", got, tt.wantExit)
+			}
+			payload := ErrorPayloadFor(tt.err)
+			if payload.Code != tt.wantCode ||
+				payload.Message != tt.wantMsg ||
+				payload.Action != tt.wantAction ||
+				payload.ExitCode != tt.wantExit {
+				t.Fatalf("ErrorPayloadFor() = %#v, want code=%q message=%q action=%q exit=%d",
+					payload,
+					tt.wantCode,
+					tt.wantMsg,
+					tt.wantAction,
+					tt.wantExit,
+				)
+			}
+		})
 	}
 }

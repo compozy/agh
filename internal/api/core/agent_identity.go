@@ -13,11 +13,16 @@ import (
 
 const agentActionMe = "agent.me"
 
+var errAgentIdentityUnavailable = errors.New("api: session service is not configured")
+
 // StatusForAgentIdentityError maps agent identity failures to transport statuses.
 func StatusForAgentIdentityError(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
+	case errors.Is(err, errAgentIdentityUnavailable),
+		errors.Is(err, agentidentity.ErrIdentityLookupUnavailable):
+		return http.StatusServiceUnavailable
 	case errors.Is(err, agentidentity.ErrIdentityUnauthorized):
 		return http.StatusForbidden
 	case errors.Is(err, agentidentity.ErrIdentityRequired),
@@ -62,7 +67,7 @@ func (h *BaseHandlers) resolveAgentCaller(
 	action string,
 ) (agentidentity.Caller, error) {
 	if h == nil || h.Sessions == nil {
-		return agentidentity.Caller{}, errors.New("api: session service is not configured")
+		return agentidentity.Caller{}, errAgentIdentityUnavailable
 	}
 	return agentidentity.Resolve(ctx, agentidentity.ResolveOptions{
 		Credentials: credentials,

@@ -134,7 +134,9 @@ type OperationSpec struct {
 	Transports  []Transport
 	Parameters  []ParameterSpec
 	RequestBody any
-	Responses   []ResponseSpec
+	// RequestBodyOptional keeps a request body schema documented while allowing empty requests.
+	RequestBodyOptional bool
+	Responses           []ResponseSpec
 }
 
 // Document builds the canonical OpenAPI specification document.
@@ -2241,7 +2243,8 @@ var operationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("id", "Task id"),
 		},
-		RequestBody: contract.TaskExecutionRequest{},
+		RequestBody:         contract.TaskExecutionRequest{},
+		RequestBodyOptional: true,
 		Responses: []ResponseSpec{
 			{Status: 201, Description: "Created", Body: contract.TaskExecutionResponse{}},
 			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
@@ -3091,7 +3094,7 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 				WithContent(openapi3.NewContentWithJSONSchemaRef(schemaRef)).
 				WithDescription("JSON request body"),
 		}
-		operation.RequestBody.Value.Required = true
+		operation.RequestBody.Value.Required = !spec.RequestBodyOptional
 	}
 
 	for _, response := range spec.Responses {

@@ -305,62 +305,78 @@ func TestTaskHandlerInfrastructureHelpers(t *testing.T) {
 }
 
 func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T) {
+	t.Run("Should not expose raw claim tokens and should expose lease state", func(t *testing.T) {
+		t.Parallel()
+
+		claimedAt := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
+		run := taskpkg.Run{
+			ID:                    "run-lease",
+			TaskID:                "task-lease",
+			Status:                taskpkg.TaskRunStatusRunning,
+			Attempt:               1,
+			ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
+			SessionID:             "sess-lease",
+			Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+			ClaimToken:            "raw-secret-token",
+			ClaimTokenHash:        "sha256:" + strings.Repeat("c", 64),
+			LeaseUntil:            claimedAt.Add(15 * time.Minute),
+			HeartbeatAt:           claimedAt.Add(time.Minute),
+			CoordinationChannelID: "coord-lease",
+			QueuedAt:              claimedAt.Add(-time.Minute),
+			ClaimedAt:             claimedAt,
+			StartedAt:             claimedAt.Add(time.Minute),
+			Metadata: json.RawMessage(
+				`{"keep":"metadata","claim_token":"raw-secret-token","nested":{"claim_token":"nested-secret"}}`,
+			),
+			Result: json.RawMessage(`[{"ok":true},{"claim_token":"result-secret"}]`),
+		}
+
+		payload := TaskRunPayloadFromRun(&run)
+		if payload.ClaimTokenHash != run.ClaimTokenHash {
+			t.Fatalf("ClaimTokenHash = %q, want %q", payload.ClaimTokenHash, run.ClaimTokenHash)
+		}
+		if payload.LeaseUntil == nil || !payload.LeaseUntil.Equal(run.LeaseUntil) {
+			t.Fatalf("LeaseUntil = %v, want %v", payload.LeaseUntil, run.LeaseUntil)
+		}
+		if payload.HeartbeatAt == nil || !payload.HeartbeatAt.Equal(run.HeartbeatAt) {
+			t.Fatalf("HeartbeatAt = %v, want %v", payload.HeartbeatAt, run.HeartbeatAt)
+		}
+		if payload.CoordinationChannelID != run.CoordinationChannelID {
+			t.Fatalf("CoordinationChannelID = %q, want %q", payload.CoordinationChannelID, run.CoordinationChannelID)
+		}
+
+		content, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("Marshal(TaskRunPayload) error = %v", err)
+		}
+		encoded := string(content)
+		if strings.Contains(encoded, `"claim_token"`) {
+			t.Fatalf("TaskRunPayload JSON exposed raw claim_token field: %s", encoded)
+		}
+		for _, rawValue := range []string{"raw-secret-token", "nested-secret", "result-secret"} {
+			if strings.Contains(encoded, rawValue) {
+				t.Fatalf("TaskRunPayload JSON exposed raw token value %q: %s", rawValue, encoded)
+			}
+		}
+		if !strings.Contains(encoded, `"claim_token_hash"`) || !strings.Contains(encoded, run.ClaimTokenHash) {
+			t.Fatalf("TaskRunPayload JSON = %s, want claim_token_hash", encoded)
+		}
+		if !strings.Contains(encoded, `"keep":"metadata"`) {
+			t.Fatalf("TaskRunPayload JSON = %s, want non-sensitive metadata preserved", encoded)
+		}
+	})
+}
+
+func TestTaskExecutionRequestFromRequestValidatesDomainRequest(t *testing.T) {
 	t.Parallel()
 
-	claimedAt := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
-	run := taskpkg.Run{
-		ID:                    "run-lease",
-		TaskID:                "task-lease",
-		Status:                taskpkg.TaskRunStatusRunning,
-		Attempt:               1,
-		ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
-		SessionID:             "sess-lease",
-		Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-		ClaimToken:            "raw-secret-token",
-		ClaimTokenHash:        "sha256:" + strings.Repeat("c", 64),
-		LeaseUntil:            claimedAt.Add(15 * time.Minute),
-		HeartbeatAt:           claimedAt.Add(time.Minute),
-		CoordinationChannelID: "coord-lease",
-		QueuedAt:              claimedAt.Add(-time.Minute),
-		ClaimedAt:             claimedAt,
-		StartedAt:             claimedAt.Add(time.Minute),
-		Metadata: json.RawMessage(
-			`{"keep":"metadata","claim_token":"raw-secret-token","nested":{"claim_token":"nested-secret"}}`,
-		),
-		Result: json.RawMessage(`[{"ok":true},{"claim_token":"result-secret"}]`),
-	}
+	t.Run("Should reject oversized execution metadata", func(t *testing.T) {
+		t.Parallel()
 
-	payload := TaskRunPayloadFromRun(&run)
-	if payload.ClaimTokenHash != run.ClaimTokenHash {
-		t.Fatalf("ClaimTokenHash = %q, want %q", payload.ClaimTokenHash, run.ClaimTokenHash)
-	}
-	if payload.LeaseUntil == nil || !payload.LeaseUntil.Equal(run.LeaseUntil) {
-		t.Fatalf("LeaseUntil = %v, want %v", payload.LeaseUntil, run.LeaseUntil)
-	}
-	if payload.HeartbeatAt == nil || !payload.HeartbeatAt.Equal(run.HeartbeatAt) {
-		t.Fatalf("HeartbeatAt = %v, want %v", payload.HeartbeatAt, run.HeartbeatAt)
-	}
-	if payload.CoordinationChannelID != run.CoordinationChannelID {
-		t.Fatalf("CoordinationChannelID = %q, want %q", payload.CoordinationChannelID, run.CoordinationChannelID)
-	}
-
-	content, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("Marshal(TaskRunPayload) error = %v", err)
-	}
-	encoded := string(content)
-	if strings.Contains(encoded, `"claim_token"`) {
-		t.Fatalf("TaskRunPayload JSON exposed raw claim_token field: %s", encoded)
-	}
-	for _, rawValue := range []string{"raw-secret-token", "nested-secret", "result-secret"} {
-		if strings.Contains(encoded, rawValue) {
-			t.Fatalf("TaskRunPayload JSON exposed raw token value %q: %s", rawValue, encoded)
+		oversizedMetadata := json.RawMessage(`"` + strings.Repeat("x", taskpkg.MaxMetadataBytes) + `"`)
+		_, err := taskExecutionRequestFromRequest(contract.TaskExecutionRequest{Metadata: oversizedMetadata})
+		if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
+			t.Fatalf("taskExecutionRequestFromRequest() error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
 		}
-	}
-	if !strings.Contains(encoded, `"claim_token_hash"`) || !strings.Contains(encoded, run.ClaimTokenHash) {
-		t.Fatalf("TaskRunPayload JSON = %s, want claim_token_hash", encoded)
-	}
-	if !strings.Contains(encoded, `"keep":"metadata"`) {
-		t.Fatalf("TaskRunPayload JSON = %s, want non-sensitive metadata preserved", encoded)
-	}
+	})
 }

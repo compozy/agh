@@ -187,49 +187,95 @@ func TestAgentChannelsListsCallerVisibleChannels(t *testing.T) {
 	}
 }
 
-func TestAgentChannelRecvWaitUsesNetworkWaitInbox(t *testing.T) {
+func TestAgentChannelRecvUsesInboxMode(t *testing.T) {
 	t.Parallel()
 
-	var seenSession string
-	var seenChannel string
-	handlers := newAgentChannelHandlers(t, stubNetworkService{
-		WaitInboxFn: func(_ context.Context, sessionID string, channel string) ([]network.Envelope, error) {
-			seenSession = sessionID
-			seenChannel = channel
-			return []network.Envelope{
-				agentChannelEnvelope(t, "msg-other", "other", contract.CoordinationMessageStatus),
-				agentChannelEnvelope(t, "msg-builders", "builders", contract.CoordinationMessageResult),
-			}, nil
-		},
-		InboxFn: func(context.Context, string) ([]network.Envelope, error) {
-			t.Fatal("Inbox should not be called for wait receive")
-			return nil, nil
-		},
+	t.Run("Should use WaitInbox when wait is true", func(t *testing.T) {
+		t.Parallel()
+
+		var seenSession string
+		var seenChannel string
+		handlers := newAgentChannelHandlers(t, stubNetworkService{
+			WaitInboxFn: func(_ context.Context, sessionID string, channel string) ([]network.Envelope, error) {
+				seenSession = sessionID
+				seenChannel = channel
+				return []network.Envelope{
+					agentChannelEnvelope(t, "msg-other", "other", contract.CoordinationMessageStatus),
+					agentChannelEnvelope(t, "msg-builders", "builders", contract.CoordinationMessageResult),
+				}, nil
+			},
+			InboxFn: func(context.Context, string) ([]network.Envelope, error) {
+				t.Fatal("Inbox should not be called for wait receive")
+				return nil, nil
+			},
+		})
+		engine := newTestRouter(t, handlers)
+
+		recorder := performAgentKernelRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/agent/channels/builders/recv?wait=true&limit=1",
+			nil,
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if seenSession != "sess-agent" || seenChannel != "builders" {
+			t.Fatalf("WaitInbox() args = %q/%q, want caller session builders", seenSession, seenChannel)
+		}
+
+		var response contract.AgentChannelMessagesResponse
+		decodeJSONResponse(t, recorder, &response)
+		if len(response.Messages) != 1 ||
+			response.Messages[0].MessageID != "msg-builders" ||
+			response.Messages[0].Metadata.MessageKind != contract.CoordinationMessageResult {
+			t.Fatalf("messages = %#v, want one builders result message", response.Messages)
+		}
 	})
-	engine := newTestRouter(t, handlers)
 
-	recorder := performAgentKernelRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/api/agent/channels/builders/recv?wait=true&limit=1",
-		nil,
-		agentKernelHeaders(),
-	)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
-	if seenSession != "sess-agent" || seenChannel != "builders" {
-		t.Fatalf("WaitInbox() args = %q/%q, want caller session builders", seenSession, seenChannel)
-	}
+	t.Run("Should use Inbox when wait is false and ignore non-coordination extensions", func(t *testing.T) {
+		t.Parallel()
 
-	var response contract.AgentChannelMessagesResponse
-	decodeJSONResponse(t, recorder, &response)
-	if len(response.Messages) != 1 ||
-		response.Messages[0].MessageID != "msg-builders" ||
-		response.Messages[0].Metadata.MessageKind != contract.CoordinationMessageResult {
-		t.Fatalf("messages = %#v, want one builders result message", response.Messages)
-	}
+		var seenSession string
+		handlers := newAgentChannelHandlers(t, stubNetworkService{
+			InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
+				seenSession = sessionID
+				return []network.Envelope{
+					agentChannelEnvelope(t, "msg-other", "other", contract.CoordinationMessageStatus),
+					agentChannelEnvelopeWithExt("msg-false-metadata", "builders", misleadingCoordinationExt()),
+					agentChannelEnvelope(t, "msg-builders", "builders", contract.CoordinationMessageResult),
+				}, nil
+			},
+			WaitInboxFn: func(context.Context, string, string) ([]network.Envelope, error) {
+				t.Fatal("WaitInbox should not be called for non-wait receive")
+				return nil, nil
+			},
+		})
+		engine := newTestRouter(t, handlers)
+
+		recorder := performAgentKernelRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/agent/channels/builders/recv",
+			nil,
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if seenSession != "sess-agent" {
+			t.Fatalf("Inbox() session = %q, want sess-agent", seenSession)
+		}
+
+		var response contract.AgentChannelMessagesResponse
+		decodeJSONResponse(t, recorder, &response)
+		if len(response.Messages) != 1 || response.Messages[0].MessageID != "msg-builders" {
+			t.Fatalf("messages = %#v, want only explicit coordination metadata message", response.Messages)
+		}
+	})
 }
 
 func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
@@ -360,6 +406,16 @@ func agentChannelEnvelope(
 ) network.Envelope {
 	t.Helper()
 
+	return agentChannelEnvelopeWithExt(messageID, channel, network.ExtensionMap{
+		"coordination": mustCoordinationMetadata(t, kind),
+	})
+}
+
+func agentChannelEnvelopeWithExt(
+	messageID string,
+	channel string,
+	ext network.ExtensionMap,
+) network.Envelope {
 	return network.Envelope{
 		Protocol: network.ProtocolV0,
 		ID:       messageID,
@@ -368,9 +424,18 @@ func agentChannelEnvelope(
 		From:     "coder.sess-peer",
 		TS:       time.Date(2026, 4, 26, 10, 1, 0, 0, time.UTC).Unix(),
 		Body:     json.RawMessage(`{"text":"coordination"}`),
-		Ext: network.ExtensionMap{
-			"coordination": mustCoordinationMetadata(t, kind),
-		},
+		Ext:      ext,
+	}
+}
+
+func misleadingCoordinationExt() network.ExtensionMap {
+	return network.ExtensionMap{
+		"task_id":                 json.RawMessage(`"task-1"`),
+		"run_id":                  json.RawMessage(`"run-1"`),
+		"workflow_id":             json.RawMessage(`"wf-1"`),
+		"coordination_channel_id": json.RawMessage(`"builders"`),
+		"message_kind":            json.RawMessage(`"result"`),
+		"correlation_id":          json.RawMessage(`"run-1"`),
 	}
 }
 

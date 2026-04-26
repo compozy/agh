@@ -739,6 +739,14 @@ func (r EnqueueRun) Validate(path string) error {
 	return nil
 }
 
+// Validate reports whether the task execution request is internally consistent.
+func (r ExecutionRequest) Validate(path string) error {
+	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Validate reports whether the claim-run request is internally consistent.
 func (r ClaimRun) Validate(path string) error {
 	if strings.TrimSpace(path) == "" {

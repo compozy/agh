@@ -1472,11 +1472,15 @@ func taskExecutionRequestFromRequest(req contract.TaskExecutionRequest) (taskpkg
 	if err := validateTaskChannel("task_execution.network_channel", req.NetworkChannel); err != nil {
 		return taskpkg.ExecutionRequest{}, err
 	}
-	return taskpkg.ExecutionRequest{
+	spec := taskpkg.ExecutionRequest{
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
 		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
 		Metadata:       append(json.RawMessage(nil), req.Metadata...),
-	}, nil
+	}
+	if err := spec.Validate("task_execution"); err != nil {
+		return taskpkg.ExecutionRequest{}, err
+	}
+	return spec, nil
 }
 
 func claimTaskRunFromRequest(req contract.ClaimTaskRunRequest) (taskpkg.ClaimRun, error) {

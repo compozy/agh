@@ -19334,7 +19334,7 @@ export interface operations {
       cookie?: never;
     };
     /** @description JSON request body */
-    requestBody: {
+    requestBody?: {
       content: {
         "application/json": {
           idempotency_key?: string;

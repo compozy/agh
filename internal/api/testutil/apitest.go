@@ -1028,7 +1028,7 @@ func (s StubNetworkService) WaitInbox(
 	if s.WaitInboxFn != nil {
 		return s.WaitInboxFn(ctx, sessionID, channel)
 	}
-	return s.Inbox(ctx, sessionID)
+	return nil, errors.New("stub network service WaitInbox not implemented")
 }
 
 func (s StubNetworkStore) ListNetworkAudit(

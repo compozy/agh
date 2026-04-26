@@ -268,6 +268,7 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 	now := time.Date(2026, 4, 17, 14, 30, 0, 0, time.UTC)
 	calls := make([]string, 0, 7)
 	origins := make([]string, 0, 7)
+	executionRequests := make(map[string]taskpkg.ExecutionRequest, 3)
 
 	appendCall := func(name string, actor taskpkg.ActorContext) {
 		calls = append(calls, name)
@@ -278,30 +279,33 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		PublishTaskFn: func(
 			_ context.Context,
 			id string,
-			_ taskpkg.ExecutionRequest,
+			req taskpkg.ExecutionRequest,
 			actor taskpkg.ActorContext,
 		) (*taskpkg.Execution, error) {
 			appendCall("publish", actor)
+			executionRequests["publish"] = req
 			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Publish", Status: taskpkg.TaskStatusReady, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
 			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{ID: "run-publish", TaskID: id, Status: taskpkg.TaskRunStatusQueued, Attempt: 1, Origin: actor.Origin, QueuedAt: now}}, nil
 		},
 		StartTaskFn: func(
 			_ context.Context,
 			id string,
-			_ taskpkg.ExecutionRequest,
+			req taskpkg.ExecutionRequest,
 			actor taskpkg.ActorContext,
 		) (*taskpkg.Execution, error) {
 			appendCall("start", actor)
+			executionRequests["start"] = req
 			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Start", Status: taskpkg.TaskStatusReady, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
 			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{ID: "run-start", TaskID: id, Status: taskpkg.TaskRunStatusQueued, Attempt: 1, Origin: actor.Origin, QueuedAt: now}}, nil
 		},
 		ApproveTaskFn: func(
 			_ context.Context,
 			id string,
-			_ taskpkg.ExecutionRequest,
+			req taskpkg.ExecutionRequest,
 			actor taskpkg.ActorContext,
 		) (*taskpkg.Execution, error) {
 			appendCall("approve", actor)
+			executionRequests["approve"] = req
 			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Approve", Status: taskpkg.TaskStatusReady, ApprovalPolicy: taskpkg.ApprovalPolicyManual, ApprovalState: taskpkg.ApprovalStateApproved, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
 			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{ID: "run-approve", TaskID: id, Status: taskpkg.TaskRunStatusQueued, Attempt: 1, Origin: actor.Origin, QueuedAt: now}}, nil
 		},
@@ -329,21 +333,74 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		path string
-		want int
+		name         string
+		call         string
+		path         string
+		body         []byte
+		want         int
+		wantKey      string
+		wantChannel  string
+		wantMetadata string
 	}{
-		{path: "/tasks/task-1/publish", want: http.StatusOK},
-		{path: "/tasks/task-1/start", want: http.StatusCreated},
-		{path: "/tasks/task-1/approve", want: http.StatusCreated},
-		{path: "/tasks/task-1/reject", want: http.StatusOK},
-		{path: "/tasks/task-1/triage/read", want: http.StatusOK},
-		{path: "/tasks/task-1/triage/archive", want: http.StatusOK},
-		{path: "/tasks/task-1/triage/dismiss", want: http.StatusOK},
+		{
+			name:         "Should return 200 for task publish and forward execution request",
+			call:         "publish",
+			path:         "/tasks/task-1/publish",
+			body:         []byte(`{"idempotency_key":"publish-1","network_channel":"builders","metadata":{"action":"publish"}}`),
+			want:         http.StatusOK,
+			wantKey:      "publish-1",
+			wantChannel:  "builders",
+			wantMetadata: `{"action":"publish"}`,
+		},
+		{
+			name:         "Should return 201 for task start and forward execution request",
+			call:         "start",
+			path:         "/tasks/task-1/start",
+			body:         []byte(`{"idempotency_key":"start-1","network_channel":"builders","metadata":{"action":"start"}}`),
+			want:         http.StatusCreated,
+			wantKey:      "start-1",
+			wantChannel:  "builders",
+			wantMetadata: `{"action":"start"}`,
+		},
+		{
+			name:         "Should return 201 for task approve and forward execution request",
+			call:         "approve",
+			path:         "/tasks/task-1/approve",
+			body:         []byte(`{"idempotency_key":"approve-1","network_channel":"builders","metadata":{"action":"approve"}}`),
+			want:         http.StatusCreated,
+			wantKey:      "approve-1",
+			wantChannel:  "builders",
+			wantMetadata: `{"action":"approve"}`,
+		},
+		{name: "Should return 200 for task reject", call: "reject", path: "/tasks/task-1/reject", want: http.StatusOK},
+		{name: "Should return 200 for task triage read", call: "read", path: "/tasks/task-1/triage/read", want: http.StatusOK},
+		{name: "Should return 200 for task triage archive", call: "archive", path: "/tasks/task-1/triage/archive", want: http.StatusOK},
+		{name: "Should return 200 for task triage dismiss", call: "dismiss", path: "/tasks/task-1/triage/dismiss", want: http.StatusOK},
 	} {
-		resp := performRequest(t, fixture.Engine, http.MethodPost, tc.path, nil)
-		if resp.Code != tc.want {
-			t.Fatalf("%s status = %d, want %d; body=%s", tc.path, resp.Code, tc.want, resp.Body.String())
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			resp := performRequest(t, fixture.Engine, http.MethodPost, tc.path, tc.body)
+			if resp.Code != tc.want {
+				t.Fatalf("%s status = %d, want %d; body=%s", tc.path, resp.Code, tc.want, resp.Body.String())
+			}
+			if tc.wantKey == "" {
+				return
+			}
+			got, ok := executionRequests[tc.call]
+			if !ok {
+				t.Fatalf("%s request was not recorded", tc.call)
+			}
+			if got.IdempotencyKey != tc.wantKey ||
+				got.NetworkChannel != tc.wantChannel ||
+				string(got.Metadata) != tc.wantMetadata {
+				t.Fatalf("%s request = %#v, want key=%q channel=%q metadata=%s",
+					tc.call,
+					got,
+					tc.wantKey,
+					tc.wantChannel,
+					tc.wantMetadata,
+				)
+			}
+		})
 	}
 
 	if want := []string{"publish", "start", "approve", "reject", "read", "archive", "dismiss"}; !reflect.DeepEqual(calls, want) {

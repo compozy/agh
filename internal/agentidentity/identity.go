@@ -53,6 +53,8 @@ var (
 	ErrIdentityMismatch = errors.New("agent identity mismatch")
 	// ErrIdentityUnauthorized reports a validated identity that is not allowed for the requested scope.
 	ErrIdentityUnauthorized = errors.New("agent identity unauthorized")
+	// ErrIdentityLookupUnavailable reports validation infrastructure that is not available.
+	ErrIdentityLookupUnavailable = errors.New("agent identity lookup unavailable")
 )
 
 // Credentials carries untrusted caller identity hints from env or transport headers.
@@ -159,7 +161,7 @@ func Resolve(ctx context.Context, opts ResolveOptions) (Caller, error) {
 func validateResolveInputs(ctx context.Context, lookup SessionLookup, creds Credentials) error {
 	if ctx == nil {
 		return identityError(
-			ErrIdentityStale,
+			ErrIdentityLookupUnavailable,
 			"identity_lookup_unavailable",
 			"agent identity cannot be validated",
 			"retry after the daemon is reachable",
@@ -183,7 +185,7 @@ func validateResolveInputs(ctx context.Context, lookup SessionLookup, creds Cred
 	}
 	if lookup == nil {
 		return identityError(
-			ErrIdentityStale,
+			ErrIdentityLookupUnavailable,
 			"identity_lookup_unavailable",
 			"agent identity cannot be validated",
 			"retry after the daemon is reachable",
@@ -297,6 +299,9 @@ func ErrorPayloadFor(err error) ErrorPayload {
 		payload.Message = strings.TrimSpace(identityErr.Message)
 		payload.Action = strings.TrimSpace(identityErr.Action)
 	}
+	if payload.Code == "" {
+		payload.Code = "agent_error"
+	}
 	if payload.Message == "" {
 		payload.Message = agentCommandFailedMessage
 	}
@@ -331,6 +336,8 @@ func ExitCodeForError(err error) int {
 		return ExitOK
 	case errors.Is(err, ErrIdentityRequired):
 		return ExitIdentityRequired
+	case errors.Is(err, ErrIdentityLookupUnavailable):
+		return ExitUnavailable
 	case errors.Is(err, ErrIdentityMismatch), errors.Is(err, ErrIdentityStale):
 		return ExitIdentityInvalid
 	case errors.Is(err, ErrIdentityUnauthorized):

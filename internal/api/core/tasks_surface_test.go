@@ -865,6 +865,14 @@ func TestBaseHandlersExpandedTaskEndpointErrorPaths(t *testing.T) {
 			) (*taskpkg.Execution, error) {
 				return nil, taskpkg.ErrInvalidStatusTransition
 			},
+			StartTaskFn: func(
+				context.Context,
+				string,
+				taskpkg.ExecutionRequest,
+				taskpkg.ActorContext,
+			) (*taskpkg.Execution, error) {
+				return nil, taskpkg.ErrInvalidStatusTransition
+			},
 			ApproveTaskFn: func(
 				context.Context,
 				string,
@@ -905,6 +913,15 @@ func TestBaseHandlersExpandedTaskEndpointErrorPaths(t *testing.T) {
 		nil,
 	); resp.Code != http.StatusConflict {
 		t.Fatalf("publish conflict status = %d, want %d; body=%s", resp.Code, http.StatusConflict, resp.Body.String())
+	}
+	if resp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/tasks/task-1/start",
+		nil,
+	); resp.Code != http.StatusConflict {
+		t.Fatalf("start conflict status = %d, want %d; body=%s", resp.Code, http.StatusConflict, resp.Body.String())
 	}
 	if resp := performRequest(
 		t,

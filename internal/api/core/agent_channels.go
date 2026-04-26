@@ -413,9 +413,6 @@ func mergeCoordinationChannels(
 		merged = append(merged, channel)
 	}
 	sortCoordinationChannels(merged)
-	if merged == nil {
-		return []contract.CoordinationChannelPayload{}
-	}
 	return merged
 }
 
@@ -478,7 +475,7 @@ func agentChannelInbox(
 		if err != nil {
 			return nil, err
 		}
-		return filterAgentChannelEnvelopes(envelopes, channel), nil
+		return envelopes, nil
 	}
 	envelopes, err := service.WaitInbox(
 		ctx,
@@ -488,7 +485,7 @@ func agentChannelInbox(
 	if err != nil {
 		return nil, err
 	}
-	return filterAgentChannelEnvelopes(envelopes, channel), nil
+	return envelopes, nil
 }
 
 func (h *BaseHandlers) resolveAgentReplySource(
@@ -703,9 +700,6 @@ func agentChannelMessagesFromEnvelopes(
 	if limit > 0 && len(messages) > limit {
 		return messages[:limit]
 	}
-	if messages == nil {
-		return []contract.AgentChannelMessagePayload{}
-	}
 	return messages
 }
 
@@ -745,15 +739,6 @@ func coordinationMetadataFromEnvelope(
 ) (contract.CoordinationMessageMetadataPayload, bool) {
 	for _, key := range []string{agentCoordinationExtKey, "coordination_metadata", "agh_coordination", "metadata"} {
 		if raw, ok := envelope.Ext[key]; ok {
-			var metadata contract.CoordinationMessageMetadataPayload
-			if err := json.Unmarshal(raw, &metadata); err == nil {
-				return metadata, true
-			}
-		}
-	}
-	if len(envelope.Ext) > 0 {
-		raw, err := json.Marshal(envelope.Ext)
-		if err == nil {
 			var metadata contract.CoordinationMessageMetadataPayload
 			if err := json.Unmarshal(raw, &metadata); err == nil {
 				return metadata, true

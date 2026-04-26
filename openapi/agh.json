@@ -34875,8 +34875,7 @@
                             }
                         }
                     },
-                    "description": "JSON request body",
-                    "required": true
+                    "description": "JSON request body"
                 },
                 "responses": {
                     "201": {
