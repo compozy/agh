@@ -61,6 +61,7 @@ type bootState struct {
 	workspaceResolver   *workspacepkg.Resolver
 	sessions            SessionManager
 	tasks               *taskRuntime
+	spawnReaper         *spawnReaper
 	scheduler           *schedulerRuntime
 	network             networkRuntime
 	observer            Observer
@@ -159,6 +160,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return err
 	}
 	if err := d.bootTasks(ctx, state); err != nil {
+		return err
+	}
+	if err := d.bootSpawnReaper(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootScheduler(ctx, state, cleanup); err != nil {
@@ -528,6 +532,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 			Agent:        state.notifier,
 			Conversation: state.notifier,
 			Compaction:   state.notifier,
+			Spawn:        state.notifier,
 		},
 		PromptAssembler:      state.promptAssembler,
 		StartupPromptOverlay: state.startupOverlay,
@@ -1505,6 +1510,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.situationContext = state.situationContext
 	d.sessions = state.sessions
 	d.tasks = state.tasks
+	d.spawnReaper = state.spawnReaper
 	d.scheduler = state.scheduler
 	d.network = state.network
 	d.hooks = state.hooks

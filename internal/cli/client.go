@@ -138,6 +138,11 @@ type DaemonClient interface {
 	CancelTaskRun(ctx context.Context, id string, request CancelTaskRunRequest) (TaskRunRecord, error)
 	AgentMe(ctx context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error)
 	AgentContext(ctx context.Context, credentials agentidentity.Credentials) (AgentContextRecord, error)
+	AgentSpawn(
+		ctx context.Context,
+		request AgentSpawnRequest,
+		credentials agentidentity.Credentials,
+	) (AgentSpawnRecord, error)
 	AgentChannels(ctx context.Context, credentials agentidentity.Credentials) ([]AgentChannelRecord, error)
 	AgentChannelRecv(
 		ctx context.Context,
@@ -373,6 +378,15 @@ type AgentMeRecord = contract.AgentMePayload
 
 // AgentContextRecord is the shared bounded agent situation payload.
 type AgentContextRecord = contract.AgentContextPayload
+
+// AgentSpawnRequest captures one bounded child-session spawn request.
+type AgentSpawnRequest = contract.AgentSpawnRequest
+
+// AgentSpawnRecord is the stable child-session spawn response projection.
+type AgentSpawnRecord = contract.AgentSpawnPayload
+
+// SpawnPermissionPolicyRecord captures concrete spawn permission atoms.
+type SpawnPermissionPolicyRecord = contract.SpawnPermissionPolicyPayload
 
 // AgentChannelRecord is one discoverable coordination channel payload.
 type AgentChannelRecord = contract.CoordinationChannelPayload
@@ -1614,6 +1628,26 @@ func (c *unixSocketClient) AgentContext(
 		return AgentContextRecord{}, err
 	}
 	return response.Context, nil
+}
+
+func (c *unixSocketClient) AgentSpawn(
+	ctx context.Context,
+	request AgentSpawnRequest,
+	credentials agentidentity.Credentials,
+) (AgentSpawnRecord, error) {
+	var response contract.AgentSpawnResponse
+	if err := c.doAgentJSON(
+		ctx,
+		http.MethodPost,
+		"/api/agent/spawn",
+		nil,
+		request,
+		credentials,
+		&response,
+	); err != nil {
+		return AgentSpawnRecord{}, err
+	}
+	return response.Spawn, nil
 }
 
 func (c *unixSocketClient) AgentChannels(

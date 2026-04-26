@@ -107,6 +107,125 @@ func TestMeContextCommandJSONKeepsStableSectionOrder(t *testing.T) {
 	})
 }
 
+func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
+	t.Parallel()
+
+	var gotRequest AgentSpawnRequest
+	client := &stubClient{}
+	deps := newAgentCommandTestDeps(t, client)
+	client.agentSpawnFn = func(
+		_ context.Context,
+		request AgentSpawnRequest,
+		credentials agentidentity.Credentials,
+	) (AgentSpawnRecord, error) {
+		assertAgentCredentials(t, credentials)
+		gotRequest = request
+		ttl := fixedTestNow.Add(2 * time.Minute)
+		return AgentSpawnRecord{
+			Session: SessionRecord{
+				ID:            "sess-child",
+				Name:          request.Name,
+				AgentName:     request.AgentName,
+				Provider:      request.Provider,
+				WorkspaceID:   "ws-1",
+				WorkspacePath: "/workspace/project",
+				Channel:       "builders",
+				Type:          session.SessionTypeSpawned,
+				State:         session.StateActive,
+				CreatedAt:     fixedTestNow,
+				UpdatedAt:     fixedTestNow,
+			},
+			Lineage: contract.SessionLineagePayload{
+				ParentSessionID:  "sess-agent",
+				RootSessionID:    "sess-agent",
+				SpawnDepth:       1,
+				SpawnRole:        request.SpawnRole,
+				TTLExpiresAt:     &ttl,
+				AutoStopOnParent: request.AutoStopOnParent,
+				SpawnBudget: contract.SpawnBudgetPayload{
+					MaxChildren: 5,
+					MaxDepth:    1,
+					TTLSeconds:  request.TTLSeconds,
+				},
+				PermissionPolicy: request.Permissions,
+			},
+			Permissions: request.Permissions,
+		}, nil
+	}
+
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"spawn",
+		"--agent",
+		"coder",
+		"--provider",
+		"codex",
+		"--model",
+		"gpt-test",
+		"--name",
+		"child",
+		"--prompt-overlay",
+		"focus",
+		"--role",
+		"worker",
+		"--ttl-seconds",
+		"120",
+		"--tool",
+		"read",
+		"--skill",
+		"go",
+		"--mcp-server",
+		"filesystem",
+		"--workspace-path",
+		"/workspace/project",
+		"--channel",
+		"builders",
+		"--environment-profile",
+		"default",
+		"--idempotency-key",
+		"spawn-1",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("agh spawn error = %v", err)
+	}
+	if gotRequest.AgentName != "coder" ||
+		gotRequest.Provider != "codex" ||
+		gotRequest.Model != "gpt-test" ||
+		gotRequest.Name != "child" ||
+		gotRequest.PromptOverlay != "focus" ||
+		gotRequest.SpawnRole != "worker" ||
+		gotRequest.TTLSeconds != 120 ||
+		!gotRequest.AutoStopOnParent ||
+		gotRequest.IdempotencyKey != "spawn-1" {
+		t.Fatalf("spawn request = %#v, want parsed bounded spawn request", gotRequest)
+	}
+	if len(gotRequest.Permissions.Tools) != 1 ||
+		gotRequest.Permissions.Tools[0] != "read" ||
+		len(gotRequest.Permissions.Skills) != 1 ||
+		gotRequest.Permissions.Skills[0] != "go" ||
+		len(gotRequest.Permissions.MCPServers) != 1 ||
+		gotRequest.Permissions.MCPServers[0] != "filesystem" ||
+		len(gotRequest.Permissions.WorkspacePaths) != 1 ||
+		gotRequest.Permissions.WorkspacePaths[0] != "/workspace/project" ||
+		len(gotRequest.Permissions.NetworkChannels) != 1 ||
+		gotRequest.Permissions.NetworkChannels[0] != "builders" ||
+		len(gotRequest.Permissions.EnvironmentProfiles) != 1 ||
+		gotRequest.Permissions.EnvironmentProfiles[0] != "default" {
+		t.Fatalf("spawn permissions = %#v, want all repeatable atom flags", gotRequest.Permissions)
+	}
+
+	var output AgentSpawnRecord
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatalf("json.Unmarshal(spawn output) error = %v", err)
+	}
+	if output.Session.ID != "sess-child" || output.Lineage.ParentSessionID != "sess-agent" {
+		t.Fatalf("spawn output = %#v, want child session with parent lineage", output)
+	}
+}
+
 func TestChannelSendRejectsMissingInputsAndInvalidIdentity(t *testing.T) {
 	t.Parallel()
 

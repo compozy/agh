@@ -121,6 +121,24 @@ type ExpiredLeaseRecoveryResult struct {
 	Reason                 string    `json:"reason,omitempty"`
 }
 
+// SessionLeaseRelease captures a daemon-owned structural release for all active
+// leases bound to one runtime session.
+type SessionLeaseRelease struct {
+	SessionID string    `json:"session_id"`
+	Reason    string    `json:"reason,omitempty"`
+	Now       time.Time `json:"now"`
+}
+
+// SessionLeaseReleaseResult records one structurally released session lease.
+type SessionLeaseReleaseResult struct {
+	Run                    Run       `json:"run"`
+	PreviousRunStatus      RunStatus `json:"previous_run_status"`
+	PreviousSessionID      string    `json:"previous_session_id,omitempty"`
+	PreviousLeaseUntil     time.Time `json:"previous_lease_until"`
+	PreviousClaimTokenHash string    `json:"previous_claim_token_hash,omitempty"`
+	Reason                 string    `json:"reason,omitempty"`
+}
+
 // NewClaimToken generates one raw bearer token for a successful claim response.
 func NewClaimToken() (string, error) {
 	random := make([]byte, claimTokenRandomBytes)
@@ -277,6 +295,29 @@ func (r LeaseRelease) Normalize(defaultNow time.Time) (LeaseRelease, error) {
 // Validate reports whether the release request is internally consistent.
 func (r LeaseRelease) Validate(path string) error {
 	return validateLeaseRunToken(r.RunID, r.ClaimToken, path)
+}
+
+// Normalize returns a validated structural session lease release request.
+func (r SessionLeaseRelease) Normalize(defaultNow time.Time) (SessionLeaseRelease, error) {
+	normalized := r
+	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
+	normalized.Reason = strings.TrimSpace(normalized.Reason)
+	normalized.Now = normalizeLeaseNow(normalized.Now, defaultNow)
+	if err := normalized.Validate("session_lease_release"); err != nil {
+		return SessionLeaseRelease{}, err
+	}
+	return normalized, nil
+}
+
+// Validate reports whether the structural session lease release is internally consistent.
+func (r SessionLeaseRelease) Validate(path string) error {
+	if strings.TrimSpace(r.SessionID) == "" {
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "session_id"))
+	}
+	if r.Now.IsZero() {
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "now"))
+	}
+	return nil
 }
 
 // Normalize returns a validated completion request with default time applied.

@@ -371,3 +371,91 @@ func TestManagerClaimNextRunRequiresWriteAuthority(t *testing.T) {
 		t.Fatalf("ClaimNextRun(read-only actor) error = %v, want %v", err, ErrPermissionDenied)
 	}
 }
+
+func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	operator := validActorContext()
+	agent := validActorContext()
+	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-child"}
+	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "coder"}
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Structurally released task",
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-child",
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	if claim.Run.ID != run.ID || claim.Run.ClaimTokenHash == "" {
+		t.Fatalf("claim = %#v, want active lease for %q", claim, run.ID)
+	}
+
+	results, err := manager.ReleaseSessionRunLeases(context.Background(), SessionLeaseRelease{
+		SessionID: "sess-child",
+		Reason:    "ttl_expired",
+		Now:       now.Add(30 * time.Second),
+	}, operator)
+	if err != nil {
+		t.Fatalf("ReleaseSessionRunLeases() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(results))
+	}
+	result := results[0]
+	if result.PreviousRunStatus != TaskRunStatusClaimed ||
+		result.PreviousSessionID != "sess-child" ||
+		result.PreviousClaimTokenHash == "" ||
+		result.Reason != "ttl_expired" {
+		t.Fatalf("release result = %#v, want previous active lease metadata", result)
+	}
+	persisted, err := store.GetTaskRun(context.Background(), run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	if persisted.Status != TaskRunStatusQueued ||
+		persisted.SessionID != "" ||
+		persisted.ClaimedBy != nil ||
+		persisted.ClaimTokenHash != "" ||
+		!persisted.LeaseUntil.IsZero() ||
+		!persisted.HeartbeatAt.IsZero() {
+		t.Fatalf("persisted run after structural release = %#v, want queued and unleased", persisted)
+	}
+	if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+		RunID:         run.ID,
+		ClaimToken:    claim.ClaimToken,
+		LeaseDuration: time.Minute,
+		Now:           now.Add(40 * time.Second),
+	}, agent); !errors.Is(err, ErrInvalidClaimToken) {
+		t.Fatalf("HeartbeatRunLease(after structural release) error = %v, want %v", err, ErrInvalidClaimToken)
+	}
+
+	events, err := store.ListTaskEvents(context.Background(), EventQuery{
+		TaskID:    taskRecord.ID,
+		RunID:     run.ID,
+		EventType: taskEventRunReleased,
+	})
+	if err != nil {
+		t.Fatalf("ListTaskEvents(released) error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("release events = %#v, want one task.run_released event", events)
+	}
+}

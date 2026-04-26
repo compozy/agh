@@ -208,6 +208,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/bundles/preview",
 		"POST /api/agent/channels/:channel/send",
 		"POST /api/agent/channels/reply",
+		"POST /api/agent/spawn",
 		"POST /api/agent/tasks/:run_id/complete",
 		"POST /api/agent/tasks/:run_id/fail",
 		"POST /api/agent/tasks/:run_id/heartbeat",

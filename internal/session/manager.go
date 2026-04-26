@@ -44,6 +44,7 @@ type CreateOpts struct {
 	Workspace     string
 	WorkspacePath string
 	Channel       string
+	PromptOverlay string
 	Type          Type
 	Lineage       *store.SessionLineage
 }
@@ -63,6 +64,7 @@ type Manager struct {
 	sessions   map[string]*Session
 	pending    map[string]struct{}
 	finalizing map[string]chan struct{}
+	spawnMu    sync.Mutex
 
 	syntheticMu          sync.Mutex
 	syntheticQueues      map[string][]queuedSyntheticPrompt

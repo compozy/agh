@@ -331,6 +331,7 @@ type Daemon struct {
 	situationContext     *situation.Service
 	sessions             SessionManager
 	tasks                *taskRuntime
+	spawnReaper          *spawnReaper
 	scheduler            *schedulerRuntime
 	network              networkRuntime
 	hooks                hookRuntime
@@ -354,6 +355,7 @@ type Daemon struct {
 
 type shutdownTargets struct {
 	scheduler         *schedulerRuntime
+	spawnReaper       *spawnReaper
 	tasks             *taskRuntime
 	sessions          SessionManager
 	network           networkRuntime
@@ -1022,6 +1024,7 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 
 	targets := shutdownTargets{
 		scheduler:         d.scheduler,
+		spawnReaper:       d.spawnReaper,
 		tasks:             d.tasks,
 		sessions:          d.sessions,
 		network:           d.network,
@@ -1051,6 +1054,7 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 func (d *Daemon) resetRuntimeStateLocked() {
 	d.sessions = nil
 	d.tasks = nil
+	d.spawnReaper = nil
 	d.scheduler = nil
 	d.hooks = nil
 	d.extensions = nil
@@ -1104,6 +1108,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	}
 	if targets.scheduler != nil {
 		appendWrappedError(errs, "daemon: shutdown scheduler", targets.scheduler.stopLoop(ctx))
+	}
+	if targets.spawnReaper != nil {
+		appendWrappedError(errs, "daemon: shutdown spawn reaper", targets.spawnReaper.shutdown(ctx))
 	}
 	if err := d.stopSessions(ctx, targets.sessions); err != nil {
 		*errs = append(*errs, err)

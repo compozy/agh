@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
@@ -126,6 +127,60 @@ func (m *Service) ReleaseRunLease(
 		return nil, err
 	}
 	return &run, nil
+}
+
+// ReleaseSessionRunLeases structurally releases every active task-run lease
+// bound to one session without requiring the raw claim token. This is reserved
+// for daemon-owned runtime cleanup paths such as safe-spawn reaping.
+func (m *Service) ReleaseSessionRunLeases(
+	ctx context.Context,
+	release SessionLeaseRelease,
+	actor ActorContext,
+) ([]SessionLeaseReleaseResult, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return nil, err
+	}
+	normalized, err := release.Normalize(m.now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	runs, err := m.activeSessionRunLeases(ctx, normalized.SessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]SessionLeaseReleaseResult, 0, len(runs))
+	for _, previous := range runs {
+		run := requeueSessionRunLease(previous)
+		if err := m.store.UpdateTaskRun(ctx, run); err != nil {
+			return nil, err
+		}
+		reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID)
+		if err != nil {
+			return nil, err
+		}
+		if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunReleased, actor, releasedRunPayload{
+			PreviousStatus: previous.Status,
+			Status:         run.Status,
+			TaskStatus:     reconciledTask.Status,
+			Reason:         normalized.Reason,
+			SessionID:      previous.SessionID,
+		}); err != nil {
+			return nil, err
+		}
+		if err := m.dispatchTaskRunReleased(ctx, run, reconciledTask, actor, previous, normalized.Reason); err != nil {
+			return nil, err
+		}
+		results = append(results, SessionLeaseReleaseResult{
+			Run:                    run,
+			PreviousRunStatus:      previous.Status,
+			PreviousSessionID:      previous.SessionID,
+			PreviousLeaseUntil:     previous.LeaseUntil,
+			PreviousClaimTokenHash: previous.ClaimTokenHash,
+			Reason:                 normalized.Reason,
+		})
+	}
+	return results, nil
 }
 
 // CompleteRunLease marks one active task-run lease complete after token verification.
@@ -261,6 +316,44 @@ func (m *Service) RecoverExpiredRunLeases(
 		}
 	}
 	return results, nil
+}
+
+func (m *Service) activeSessionRunLeases(ctx context.Context, sessionID string) ([]Run, error) {
+	statuses := []RunStatus{TaskRunStatusClaimed, TaskRunStatusStarting, TaskRunStatusRunning}
+	runs := make([]Run, 0, len(statuses))
+	for _, status := range statuses {
+		matches, err := m.store.ListTaskRuns(ctx, RunQuery{
+			SessionID: sessionID,
+			Status:    status,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, run := range matches {
+			if strings.TrimSpace(run.SessionID) != strings.TrimSpace(sessionID) ||
+				strings.TrimSpace(run.ClaimTokenHash) == "" {
+				continue
+			}
+			runs = append(runs, run)
+		}
+	}
+	return runs, nil
+}
+
+func requeueSessionRunLease(run Run) Run {
+	run.Status = TaskRunStatusQueued
+	run.ClaimedBy = nil
+	run.ClaimedAt = time.Time{}
+	run.SessionID = ""
+	run.ClaimToken = ""
+	run.ClaimTokenHash = ""
+	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
+	run.StartedAt = time.Time{}
+	run.EndedAt = time.Time{}
+	run.Error = ""
+	run.Result = nil
+	return run
 }
 
 func (m *Service) normalizeClaimCriteriaForActor(

@@ -105,6 +105,7 @@ type stubClient struct {
 	cancelTaskRunFn           func(context.Context, string, CancelTaskRunRequest) (TaskRunRecord, error)
 	agentMeFn                 func(context.Context, agentidentity.Credentials) (AgentMeRecord, error)
 	agentContextFn            func(context.Context, agentidentity.Credentials) (AgentContextRecord, error)
+	agentSpawnFn              func(context.Context, AgentSpawnRequest, agentidentity.Credentials) (AgentSpawnRecord, error)
 	agentChannelsFn           func(context.Context, agentidentity.Credentials) ([]AgentChannelRecord, error)
 	agentChannelRecvFn        func(context.Context, string, AgentChannelRecvQuery, agentidentity.Credentials) ([]AgentChannelMessageRecord, error)
 	agentChannelSendFn        func(context.Context, string, AgentChannelSendRequest, agentidentity.Credentials) (AgentChannelMessageRecord, error)
@@ -928,6 +929,17 @@ func (s *stubClient) AgentContext(
 		return s.agentContextFn(ctx, credentials)
 	}
 	return AgentContextRecord{}, errors.New("unexpected AgentContext call")
+}
+
+func (s *stubClient) AgentSpawn(
+	ctx context.Context,
+	request AgentSpawnRequest,
+	credentials agentidentity.Credentials,
+) (AgentSpawnRecord, error) {
+	if s.agentSpawnFn != nil {
+		return s.agentSpawnFn(ctx, request, credentials)
+	}
+	return AgentSpawnRecord{}, errors.New("unexpected AgentSpawn call")
 }
 
 func (s *stubClient) AgentChannels(

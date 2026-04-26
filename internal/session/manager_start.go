@@ -27,6 +27,7 @@ type sessionStartSpec struct {
 	provider               string
 	workspace              workspacepkg.ResolvedWorkspace
 	channel                string
+	promptOverlay          string
 	sessionType            Type
 	lineage                *store.SessionLineage
 	postEvent              hookspkg.HookEvent
@@ -91,6 +92,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		provider:          strings.TrimSpace(opts.Provider),
 		workspace:         resolvedWorkspace,
 		channel:           strings.TrimSpace(opts.Channel),
+		promptOverlay:     strings.TrimSpace(opts.PromptOverlay),
 		sessionType:       normalizeSessionType(opts.Type),
 		lineage:           lineage,
 		postEvent:         hookspkg.HookSessionPostCreate,
@@ -305,6 +307,13 @@ func (m *Manager) prepareSessionStartRuntime(
 		}
 	}
 	agentDef.Prompt = startupPrompt
+	if overlay := strings.TrimSpace(spec.promptOverlay); overlay != "" {
+		if strings.TrimSpace(agentDef.Prompt) == "" {
+			agentDef.Prompt = overlay
+		} else {
+			agentDef.Prompt = strings.TrimSpace(agentDef.Prompt) + "\n\n" + overlay
+		}
+	}
 
 	resolved, err := spec.workspace.Config.ResolveSessionAgent(agentDef, spec.provider)
 	if err != nil {

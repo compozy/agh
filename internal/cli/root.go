@@ -96,6 +96,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newDaemonCommand(deps))
 	cmd.AddCommand(newNetworkCommand(deps))
 	cmd.AddCommand(newMeCommand(deps))
+	cmd.AddCommand(newSpawnCommand(deps))
 	cmd.AddCommand(newChannelCommand(deps))
 	cmd.AddCommand(newSessionCommand(deps))
 	cmd.AddCommand(newBridgeCommand(deps))

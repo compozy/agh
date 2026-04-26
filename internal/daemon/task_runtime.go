@@ -298,6 +298,50 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	return nil
 }
 
+func (d *Daemon) bootSpawnReaper(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	if state == nil || state.sessions == nil || state.tasks == nil || state.tasks.manager == nil {
+		return nil
+	}
+	logger := state.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	reaper, err := newSpawnReaper(
+		ctx,
+		state.sessions,
+		state.tasks.manager,
+		state.notifier,
+		logger.With("component", "spawn_reaper"),
+		d.now,
+		defaultSpawnReaperInterval,
+	)
+	if err != nil {
+		return err
+	}
+	report, err := reaper.Sweep(ctx)
+	if err != nil {
+		return err
+	}
+	if report.Reaped > 0 {
+		logger.Info(
+			"daemon: spawn reaper boot sweep complete",
+			"reaped", report.Reaped,
+			"released_leases", report.ReleasedLeases,
+			"ttl_expired", report.TTLExpired,
+			"parent_stopped", report.ParentStopped,
+			"orphaned", report.Orphaned,
+		)
+	}
+	reaper.start()
+	state.spawnReaper = reaper
+	if cleanup != nil {
+		cleanup.add(func(cleanupCtx context.Context) error {
+			return reaper.shutdown(cleanupCtx)
+		})
+	}
+	return nil
+}
+
 func taskManagerOptions(
 	store taskStore,
 	bridge taskpkg.SessionExecutor,

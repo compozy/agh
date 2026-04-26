@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -943,6 +944,13 @@ func TestMessageDeltaAsyncHooksDoNotBlockPromptStreaming(t *testing.T) {
 
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHook := func() {
+		releaseOnce.Do(func() {
+			close(release)
+		})
+	}
+	t.Cleanup(releaseHook)
 
 	hooks := hookspkg.NewHooks(
 		hookspkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
@@ -1024,7 +1032,7 @@ func TestMessageDeltaAsyncHooksDoNotBlockPromptStreaming(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for async message.delta hook to start")
 	}
-	close(release)
+	releaseHook()
 }
 
 func TestContextCompactionDispatchesHooksAndUsesPatchedParams(t *testing.T) {

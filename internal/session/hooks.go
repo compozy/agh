@@ -93,6 +93,24 @@ type CompactionHooks interface {
 	) (hookspkg.ContextPostCompactPayload, error)
 }
 
+// SpawnHooks groups safe child-session spawn hook dispatch.
+type SpawnHooks interface {
+	DispatchSpawnPreCreate(context.Context, hookspkg.SpawnPreCreatePayload) (hookspkg.SpawnPreCreatePayload, error)
+	DispatchSpawnCreated(context.Context, hookspkg.SpawnCreatedPayload) (hookspkg.SpawnCreatedPayload, error)
+	DispatchSpawnParentStopped(
+		context.Context,
+		hookspkg.SpawnParentStoppedPayload,
+	) (hookspkg.SpawnParentStoppedPayload, error)
+	DispatchSpawnTTLExpired(
+		context.Context,
+		hookspkg.SpawnTTLExpiredPayload,
+	) (hookspkg.SpawnTTLExpiredPayload, error)
+	DispatchSpawnReaped(
+		context.Context,
+		hookspkg.SpawnReapedPayload,
+	) (hookspkg.SpawnReapedPayload, error)
+}
+
 // HookSet collects the grouped session hook domains. Nil groups are treated as
 // no-op implementations so callers only provide the domains they exercise.
 type HookSet struct {
@@ -103,6 +121,7 @@ type HookSet struct {
 	Agent        AgentHooks
 	Conversation ConversationHooks
 	Compaction   CompactionHooks
+	Spawn        SpawnHooks
 }
 
 var _ LifecycleHooks = noopSessionLifecycleHooks{}
@@ -112,6 +131,7 @@ var _ EventHooks = noopEventHooks{}
 var _ AgentHooks = noopAgentHooks{}
 var _ ConversationHooks = noopConversationHooks{}
 var _ CompactionHooks = noopCompactionHooks{}
+var _ SpawnHooks = noopSpawnHooks{}
 
 func (h HookSet) session() LifecycleHooks {
 	if h.Session != nil {
@@ -172,6 +192,13 @@ func (h HookSet) compaction() CompactionHooks {
 		return h.Compaction
 	}
 	return noopCompactionHooks{}
+}
+
+func (h HookSet) spawn() SpawnHooks {
+	if h.Spawn != nil {
+		return h.Spawn
+	}
+	return noopSpawnHooks{}
 }
 
 type noopSessionLifecycleHooks struct{}
@@ -367,5 +394,42 @@ func (noopCompactionHooks) DispatchContextPostCompact(
 	_ context.Context,
 	payload hookspkg.ContextPostCompactPayload,
 ) (hookspkg.ContextPostCompactPayload, error) {
+	return payload, nil
+}
+
+type noopSpawnHooks struct{}
+
+func (noopSpawnHooks) DispatchSpawnPreCreate(
+	_ context.Context,
+	payload hookspkg.SpawnPreCreatePayload,
+) (hookspkg.SpawnPreCreatePayload, error) {
+	return payload, nil
+}
+
+func (noopSpawnHooks) DispatchSpawnCreated(
+	_ context.Context,
+	payload hookspkg.SpawnCreatedPayload,
+) (hookspkg.SpawnCreatedPayload, error) {
+	return payload, nil
+}
+
+func (noopSpawnHooks) DispatchSpawnParentStopped(
+	_ context.Context,
+	payload hookspkg.SpawnParentStoppedPayload,
+) (hookspkg.SpawnParentStoppedPayload, error) {
+	return payload, nil
+}
+
+func (noopSpawnHooks) DispatchSpawnTTLExpired(
+	_ context.Context,
+	payload hookspkg.SpawnTTLExpiredPayload,
+) (hookspkg.SpawnTTLExpiredPayload, error) {
+	return payload, nil
+}
+
+func (noopSpawnHooks) DispatchSpawnReaped(
+	_ context.Context,
+	payload hookspkg.SpawnReapedPayload,
+) (hookspkg.SpawnReapedPayload, error) {
 	return payload, nil
 }

@@ -91,6 +91,7 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 	{
 		agent.GET("/me", handlers.AgentMe)
 		agent.GET("/context", handlers.AgentContext)
+		agent.POST("/spawn", handlers.AgentSpawn)
 		agent.GET("/channels", handlers.AgentChannels)
 		agent.GET("/channels/:channel/recv", handlers.AgentChannelRecv)
 		agent.POST("/channels/:channel/send", handlers.AgentChannelSend)
