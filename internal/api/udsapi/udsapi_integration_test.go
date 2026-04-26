@@ -1383,7 +1383,15 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("approvals group items = %#v, want approval and reject tasks", approvalsGroup.Items)
 	}
 
-	approveResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+approvalTask.ID+"/approve", nil, nil)
+	approveBody := []byte(`{"idempotency_key":"approve-uds-approval-task"}`)
+	approveResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		"http://unix/api/tasks/"+approvalTask.ID+"/approve",
+		approveBody,
+		nil,
+	)
 	if approveResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(approveResp.Body)
 		_ = approveResp.Body.Close()
@@ -1398,7 +1406,14 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("approved run status = %q, want %q", approved.Run.Status, taskpkg.TaskRunStatusQueued)
 	}
 
-	approveAgainResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks/"+approvalTask.ID+"/approve", nil, nil)
+	approveAgainResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		"http://unix/api/tasks/"+approvalTask.ID+"/approve",
+		approveBody,
+		nil,
+	)
 	if approveAgainResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(approveAgainResp.Body)
 		_ = approveAgainResp.Body.Close()

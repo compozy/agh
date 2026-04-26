@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/pedronauck/agh/internal/agentidentity"
@@ -42,7 +43,7 @@ func agentSessionLookup(client DaemonClient) agentidentity.SessionLookup {
 	return func(ctx context.Context, sessionID string) (agentidentity.SessionSnapshot, error) {
 		record, err := client.GetSession(ctx, sessionID)
 		if err != nil {
-			return agentidentity.SessionSnapshot{}, err
+			return agentidentity.SessionSnapshot{}, fmt.Errorf("cli: lookup agent session %q: %w", sessionID, err)
 		}
 		return agentidentity.SessionSnapshot{
 			ID:            record.ID,

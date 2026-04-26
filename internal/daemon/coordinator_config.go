@@ -25,6 +25,8 @@ type defaultCoordinatorConfigResolver struct {
 	agents            coordinatorAgentResolver
 }
 
+var _ CoordinatorConfigResolver = (*defaultCoordinatorConfigResolver)(nil)
+
 func newCoordinatorConfigResolver(
 	cfg *aghconfig.Config,
 	workspaceResolver workspacepkg.RuntimeResolver,

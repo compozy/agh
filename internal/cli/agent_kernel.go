@@ -175,9 +175,10 @@ func newChannelSendCommand(deps commandDeps) *cobra.Command {
     --run-id run-123 \
     --kind blocker \
     --correlation-id run-123 \
-    --body '{"blocked_by":"missing credentials"}'`,
+		--body '{"blocked_by":"missing credentials"}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			channel := strings.TrimSpace(args[0])
+			flags.kindExplicit = cmd.Flags().Changed("kind")
 			body, err := parseNetworkJSONValue("--body", bodyRaw)
 			if err != nil {
 				return err
@@ -241,6 +242,11 @@ func newChannelReplyCommand(deps commandDeps) *cobra.Command {
     --correlation-id run-123 \
     --body '{"answer":"ready for review"}'`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			flags.kindExplicit = cmd.Flags().Changed("kind")
+			if flags.kindExplicit &&
+				contract.CoordinationMessageKind(strings.TrimSpace(flags.kind)) != contract.CoordinationMessageReply {
+				return errors.New("cli: --kind must be reply for `agh ch reply`")
+			}
 			body, err := parseNetworkJSONValue("--body", bodyRaw)
 			if err != nil {
 				return err
@@ -293,6 +299,7 @@ type coordinationMetadataFlags struct {
 	workflowID            string
 	coordinationChannelID string
 	kind                  string
+	kindExplicit          bool
 	correlationID         string
 	extRaw                string
 }
@@ -318,13 +325,16 @@ func (f coordinationMetadataFlags) metadata(
 		return contract.CoordinationMessageMetadataPayload{}, err
 	}
 
+	kindOverride := f.kindExplicit &&
+		contract.CoordinationMessageKind(strings.TrimSpace(f.kind)) != defaultKind
 	if !required &&
 		strings.TrimSpace(f.taskID) == "" &&
 		strings.TrimSpace(f.runID) == "" &&
 		strings.TrimSpace(f.workflowID) == "" &&
 		strings.TrimSpace(f.coordinationChannelID) == "" &&
 		strings.TrimSpace(f.correlationID) == "" &&
-		len(metadataExt) == 0 {
+		len(metadataExt) == 0 &&
+		!kindOverride {
 		return contract.CoordinationMessageMetadataPayload{}, nil
 	}
 

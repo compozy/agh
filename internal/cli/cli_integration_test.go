@@ -1398,265 +1398,285 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		t.Fatalf("enqueued = %#v, want queued", enqueued)
 	}
 
-	nextOut := mustExecuteRoot(t, agentDeps, "task", "next", "-o", "json")
 	var next AgentTaskNextRecord
-	if err := json.Unmarshal([]byte(nextOut), &next); err != nil {
-		t.Fatalf("json.Unmarshal(task next) error = %v", err)
-	}
-	if !next.Claimed ||
-		next.Claim == nil ||
-		next.Claim.ClaimToken == "" ||
-		next.Claim.Run.ID != enqueued.ID ||
-		next.Claim.CoordinationChannel == nil ||
-		next.Claim.CoordinationChannel.ID == "" {
-		t.Fatalf("next = %#v, want claimed run with raw token and coordination channel", next)
-	}
-	if strings.Count(nextOut, next.Claim.ClaimToken) != 1 {
-		t.Fatalf("task next output leaked token outside claim_token once: %s", nextOut)
-	}
-	token := next.Claim.ClaimToken
-	channelID := next.Claim.CoordinationChannel.ID
-	channelName := firstCLIValue(next.Claim.CoordinationChannel.Channel, channelID)
+	var token string
+	var channelID string
+	var channelName string
 
-	if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-		t.Fatalf("daemon stop before reconnect error = %v", err)
-	}
-	if err := h.runner.waitForExit(); err != nil {
-		t.Fatalf("waitForExit(before reconnect) error = %v", err)
-	}
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	resumeOut := mustExecuteRoot(t, h.deps, "session", "resume", worker.ID, "-o", "json")
-	var resumed SessionRecord
-	if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
-		t.Fatalf("json.Unmarshal(session resume) error = %v", err)
-	}
-	if resumed.State != session.StateActive {
-		t.Fatalf("resumed = %#v, want active worker after reconnect", resumed)
-	}
+	t.Run("Should claim the next task with coordination channel", func(t *testing.T) {
+		nextOut := mustExecuteRoot(t, agentDeps, "task", "next", "-o", "json")
+		if err := json.Unmarshal([]byte(nextOut), &next); err != nil {
+			t.Fatalf("json.Unmarshal(task next) error = %v", err)
+		}
+		if !next.Claimed ||
+			next.Claim == nil ||
+			next.Claim.ClaimToken == "" ||
+			next.Claim.Run.ID != enqueued.ID ||
+			next.Claim.CoordinationChannel == nil ||
+			next.Claim.CoordinationChannel.ID == "" {
+			t.Fatalf("next = %#v, want claimed run with raw token and coordination channel", next)
+		}
+		if strings.Count(nextOut, next.Claim.ClaimToken) != 1 {
+			t.Fatalf("task next output leaked token outside claim_token once: %s", nextOut)
+		}
+		token = next.Claim.ClaimToken
+		channelID = next.Claim.CoordinationChannel.ID
+		channelName = firstCLIValue(next.Claim.CoordinationChannel.Channel, channelID)
+	})
 
-	heartbeatOut := mustExecuteRoot(
-		t,
-		agentDeps,
-		"task",
-		"heartbeat",
-		enqueued.ID,
-		"--claim-token",
-		token,
-		"--lease-seconds",
-		"60",
-		"-o",
-		"json",
-	)
-	if strings.Contains(heartbeatOut, token) {
-		t.Fatalf("heartbeat output leaked raw token: %s", heartbeatOut)
-	}
-	var heartbeat AgentTaskLeaseRecord
-	if err := json.Unmarshal([]byte(heartbeatOut), &heartbeat); err != nil {
-		t.Fatalf("json.Unmarshal(task heartbeat) error = %v", err)
-	}
-	if heartbeat.RunID != enqueued.ID || heartbeat.Status != taskpkg.TaskRunStatusClaimed || heartbeat.LeaseUntil == nil {
-		t.Fatalf("heartbeat = %#v, want renewed claimed lease", heartbeat)
-	}
+	t.Run("Should reconnect and renew the claimed lease", func(t *testing.T) {
+		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
+			t.Fatalf("daemon stop before reconnect error = %v", err)
+		}
+		if err := h.runner.waitForExit(); err != nil {
+			t.Fatalf("waitForExit(before reconnect) error = %v", err)
+		}
+		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+		resumeOut := mustExecuteRoot(t, h.deps, "session", "resume", worker.ID, "-o", "json")
+		var resumed SessionRecord
+		if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
+			t.Fatalf("json.Unmarshal(session resume) error = %v", err)
+		}
+		if resumed.State != session.StateActive {
+			t.Fatalf("resumed = %#v, want active worker after reconnect", resumed)
+		}
 
-	messageOut := mustExecuteRoot(
-		t,
-		agentDeps,
-		"ch",
-		"send",
-		channelName,
-		"--body",
-		`{"text":"working"}`,
-		"--task-id",
-		created.ID,
-		"--run-id",
-		enqueued.ID,
-		"--coordination-channel-id",
-		channelID,
-		"--kind",
-		"status",
-		"-o",
-		"json",
-	)
-	var message AgentChannelMessageRecord
-	if err := json.Unmarshal([]byte(messageOut), &message); err != nil {
-		t.Fatalf("json.Unmarshal(ch send) error = %v", err)
-	}
-	if message.Metadata.CoordinationChannelID != channelID ||
-		message.Metadata.RunID != enqueued.ID ||
-		message.Metadata.MessageKind != contract.CoordinationMessageStatus {
-		t.Fatalf("message = %#v, want status coordination metadata", message)
-	}
+		heartbeatOut := mustExecuteRoot(
+			t,
+			agentDeps,
+			"task",
+			"heartbeat",
+			enqueued.ID,
+			"--claim-token",
+			token,
+			"--lease-seconds",
+			"60",
+			"-o",
+			"json",
+		)
+		if strings.Contains(heartbeatOut, token) {
+			t.Fatalf("heartbeat output leaked raw token: %s", heartbeatOut)
+		}
+		var heartbeat AgentTaskLeaseRecord
+		if err := json.Unmarshal([]byte(heartbeatOut), &heartbeat); err != nil {
+			t.Fatalf("json.Unmarshal(task heartbeat) error = %v", err)
+		}
+		if heartbeat.RunID != enqueued.ID || heartbeat.Status != taskpkg.TaskRunStatusClaimed || heartbeat.LeaseUntil == nil {
+			t.Fatalf("heartbeat = %#v, want renewed claimed lease", heartbeat)
+		}
+	})
 
-	completeOut := mustExecuteRoot(
-		t,
-		agentDeps,
-		"task",
-		"complete",
-		enqueued.ID,
-		"--claim-token",
-		token,
-		"--result",
-		`{"ok":true}`,
-		"-o",
-		"json",
-	)
-	if strings.Contains(completeOut, token) {
-		t.Fatalf("complete output leaked raw token: %s", completeOut)
-	}
-	var completed AgentTaskLeaseRecord
-	if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
-		t.Fatalf("json.Unmarshal(task complete) error = %v", err)
-	}
-	if completed.Status != taskpkg.TaskRunStatusCompleted || completed.RunID != enqueued.ID {
-		t.Fatalf("completed = %#v, want completed leased run", completed)
-	}
+	t.Run("Should send coordination status metadata", func(t *testing.T) {
+		messageOut := mustExecuteRoot(
+			t,
+			agentDeps,
+			"ch",
+			"send",
+			channelName,
+			"--body",
+			`{"text":"working"}`,
+			"--task-id",
+			created.ID,
+			"--run-id",
+			enqueued.ID,
+			"--coordination-channel-id",
+			channelID,
+			"--kind",
+			"status",
+			"-o",
+			"json",
+		)
+		var message AgentChannelMessageRecord
+		if err := json.Unmarshal([]byte(messageOut), &message); err != nil {
+			t.Fatalf("json.Unmarshal(ch send) error = %v", err)
+		}
+		if message.Metadata.CoordinationChannelID != channelID ||
+			message.Metadata.RunID != enqueued.ID ||
+			message.Metadata.MessageKind != contract.CoordinationMessageStatus {
+			t.Fatalf("message = %#v, want status coordination metadata", message)
+		}
+	})
 
-	_, _, err := executeRootCommand(
-		t,
-		agentDeps,
-		"task",
-		"complete",
-		enqueued.ID,
-		"--claim-token",
-		token,
-		"--result",
-		`{"ok":true}`,
-		"-o",
-		"json",
-	)
-	if err == nil {
-		t.Fatal("second task complete error = nil, want stale token/lifecycle rejection")
-	}
-	if strings.Contains(err.Error(), token) {
-		t.Fatalf("second complete error leaked raw token: %v", err)
-	}
+	t.Run("Should complete the claimed task and reject token reuse", func(t *testing.T) {
+		completeOut := mustExecuteRoot(
+			t,
+			agentDeps,
+			"task",
+			"complete",
+			enqueued.ID,
+			"--claim-token",
+			token,
+			"--result",
+			`{"ok":true}`,
+			"-o",
+			"json",
+		)
+		if strings.Contains(completeOut, token) {
+			t.Fatalf("complete output leaked raw token: %s", completeOut)
+		}
+		var completed AgentTaskLeaseRecord
+		if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
+			t.Fatalf("json.Unmarshal(task complete) error = %v", err)
+		}
+		if completed.Status != taskpkg.TaskRunStatusCompleted || completed.RunID != enqueued.ID {
+			t.Fatalf("completed = %#v, want completed leased run", completed)
+		}
 
-	noWorkOut := mustExecuteRoot(t, agentDeps, "task", "next", "-o", "json")
-	var noWork AgentTaskNextRecord
-	if err := json.Unmarshal([]byte(noWorkOut), &noWork); err != nil {
-		t.Fatalf("json.Unmarshal(task next no-work) error = %v", err)
-	}
-	if noWork.Claimed || noWork.Claim != nil {
-		t.Fatalf("noWork = %#v, want structured no-work result", noWork)
-	}
+		_, _, err := executeRootCommand(
+			t,
+			agentDeps,
+			"task",
+			"complete",
+			enqueued.ID,
+			"--claim-token",
+			token,
+			"--result",
+			`{"ok":true}`,
+			"-o",
+			"json",
+		)
+		if err == nil {
+			t.Fatal("second task complete error = nil, want stale token/lifecycle rejection")
+		}
+		if strings.Contains(err.Error(), token) {
+			t.Fatalf("second complete error leaked raw token: %v", err)
+		}
+	})
 
-	staleCreateOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"task",
-		"create",
-		"--scope",
-		"workspace",
-		"--workspace",
-		"alpha",
-		"--channel",
-		"builders",
-		"--title",
-		"Agent stale lease task",
-		"-o",
-		"json",
-	)
-	var staleTask TaskRecord
-	if err := json.Unmarshal([]byte(staleCreateOut), &staleTask); err != nil {
-		t.Fatalf("json.Unmarshal(stale task create) error = %v", err)
-	}
-	staleEnqueueOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"task",
-		"run",
-		"enqueue",
-		staleTask.ID,
-		"--idempotency-key",
-		"idem-agent-stale-lease",
-		"--channel",
-		"builders",
-		"-o",
-		"json",
-	)
-	var staleRun TaskRunRecord
-	if err := json.Unmarshal([]byte(staleEnqueueOut), &staleRun); err != nil {
-		t.Fatalf("json.Unmarshal(stale run enqueue) error = %v", err)
-	}
-	staleNextOut := mustExecuteRoot(
-		t,
-		agentDeps,
-		"task",
-		"next",
-		"--lease-seconds",
-		"1",
-		"-o",
-		"json",
-	)
-	var staleNext AgentTaskNextRecord
-	if err := json.Unmarshal([]byte(staleNextOut), &staleNext); err != nil {
-		t.Fatalf("json.Unmarshal(stale task next) error = %v", err)
-	}
-	if !staleNext.Claimed || staleNext.Claim == nil || staleNext.Claim.Run.ID != staleRun.ID {
-		t.Fatalf("staleNext = %#v, want claimed stale-test run", staleNext)
-	}
-	staleToken := staleNext.Claim.ClaimToken
-	time.Sleep(1500 * time.Millisecond)
+	t.Run("Should return structured no-work result", func(t *testing.T) {
+		noWorkOut := mustExecuteRoot(t, agentDeps, "task", "next", "-o", "json")
+		var noWork AgentTaskNextRecord
+		if err := json.Unmarshal([]byte(noWorkOut), &noWork); err != nil {
+			t.Fatalf("json.Unmarshal(task next no-work) error = %v", err)
+		}
+		if noWork.Claimed || noWork.Claim != nil {
+			t.Fatalf("noWork = %#v, want structured no-work result", noWork)
+		}
+	})
 
-	if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-		t.Fatalf("daemon stop before lease recovery error = %v", err)
-	}
-	if err := h.runner.waitForExit(); err != nil {
-		t.Fatalf("waitForExit(before lease recovery) error = %v", err)
-	}
-	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	recoveredResumeOut := mustExecuteRoot(t, h.deps, "session", "resume", worker.ID, "-o", "json")
-	var recoveredWorker SessionRecord
-	if err := json.Unmarshal([]byte(recoveredResumeOut), &recoveredWorker); err != nil {
-		t.Fatalf("json.Unmarshal(recovered session resume) error = %v", err)
-	}
-	if recoveredWorker.State != session.StateActive {
-		t.Fatalf("recovered worker = %#v, want active worker after recovery boot", recoveredWorker)
-	}
+	t.Run("Should recover stale lease and reject stale token", func(t *testing.T) {
+		staleCreateOut := mustExecuteRoot(
+			t,
+			h.deps,
+			"task",
+			"create",
+			"--scope",
+			"workspace",
+			"--workspace",
+			"alpha",
+			"--channel",
+			"builders",
+			"--title",
+			"Agent stale lease task",
+			"-o",
+			"json",
+		)
+		var staleTask TaskRecord
+		if err := json.Unmarshal([]byte(staleCreateOut), &staleTask); err != nil {
+			t.Fatalf("json.Unmarshal(stale task create) error = %v", err)
+		}
+		staleEnqueueOut := mustExecuteRoot(
+			t,
+			h.deps,
+			"task",
+			"run",
+			"enqueue",
+			staleTask.ID,
+			"--idempotency-key",
+			"idem-agent-stale-lease",
+			"--channel",
+			"builders",
+			"-o",
+			"json",
+		)
+		var staleRun TaskRunRecord
+		if err := json.Unmarshal([]byte(staleEnqueueOut), &staleRun); err != nil {
+			t.Fatalf("json.Unmarshal(stale run enqueue) error = %v", err)
+		}
+		staleNextOut := mustExecuteRoot(
+			t,
+			agentDeps,
+			"task",
+			"next",
+			"--lease-seconds",
+			"1",
+			"-o",
+			"json",
+		)
+		var staleNext AgentTaskNextRecord
+		if err := json.Unmarshal([]byte(staleNextOut), &staleNext); err != nil {
+			t.Fatalf("json.Unmarshal(stale task next) error = %v", err)
+		}
+		if !staleNext.Claimed || staleNext.Claim == nil || staleNext.Claim.Run.ID != staleRun.ID {
+			t.Fatalf("staleNext = %#v, want claimed stale-test run", staleNext)
+		}
+		staleToken := staleNext.Claim.ClaimToken
+		if staleNext.Claim.Lease.LeaseUntil == nil {
+			t.Fatal("staleNext.Claim.Lease.LeaseUntil = nil, want bounded lease expiry")
+		}
+		waitUntilLeaseExpires(t, *staleNext.Claim.Lease.LeaseUntil, 3*time.Second)
 
-	for _, tt := range []struct {
-		name string
-		args []string
-	}{
-		{
-			name: "release",
-			args: []string{
-				"task",
-				"release",
-				staleRun.ID,
-				"--claim-token",
-				staleToken,
-				"--reason",
-				"stale holder",
-				"-o",
-				"json",
+		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
+			t.Fatalf("daemon stop before lease recovery error = %v", err)
+		}
+		if err := h.runner.waitForExit(); err != nil {
+			t.Fatalf("waitForExit(before lease recovery) error = %v", err)
+		}
+		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+		recoveredResumeOut := mustExecuteRoot(t, h.deps, "session", "resume", worker.ID, "-o", "json")
+		var recoveredWorker SessionRecord
+		if err := json.Unmarshal([]byte(recoveredResumeOut), &recoveredWorker); err != nil {
+			t.Fatalf("json.Unmarshal(recovered session resume) error = %v", err)
+		}
+		if recoveredWorker.State != session.StateActive {
+			t.Fatalf("recovered worker = %#v, want active worker after recovery boot", recoveredWorker)
+		}
+
+		for _, tt := range []struct {
+			name string
+			args []string
+		}{
+			{
+				name: "release",
+				args: []string{
+					"task",
+					"release",
+					staleRun.ID,
+					"--claim-token",
+					staleToken,
+					"--reason",
+					"stale holder",
+					"-o",
+					"json",
+				},
 			},
-		},
-		{
-			name: "fail",
-			args: []string{
-				"task",
-				"fail",
-				staleRun.ID,
-				"--claim-token",
-				staleToken,
-				"--error",
-				"stale holder",
-				"-o",
-				"json",
+			{
+				name: "fail",
+				args: []string{
+					"task",
+					"fail",
+					staleRun.ID,
+					"--claim-token",
+					staleToken,
+					"--error",
+					"stale holder",
+					"-o",
+					"json",
+				},
 			},
-		},
-	} {
-		t.Run("recovered lease rejects stale "+tt.name, func(t *testing.T) {
-			_, _, err := executeRootCommand(t, agentDeps, tt.args...)
-			if err == nil {
-				t.Fatalf("task %s after recovery error = nil, want stale token rejection", tt.name)
-			}
-			if strings.Contains(err.Error(), staleToken) {
-				t.Fatalf("task %s after recovery leaked stale token: %v", tt.name, err)
-			}
-		})
-	}
+		} {
+			tt := tt
+			t.Run("Should reject stale "+tt.name+" after recovery", func(t *testing.T) {
+				_, _, err := executeRootCommand(t, agentDeps, tt.args...)
+				if err == nil {
+					t.Fatalf("task %s after recovery error = nil, want stale token rejection", tt.name)
+				}
+				if strings.Contains(err.Error(), staleToken) {
+					t.Fatalf("task %s after recovery leaked stale token: %v", tt.name, err)
+				}
+			})
+		}
+	})
 }
 
 type integrationHarness struct {
@@ -2507,4 +2527,24 @@ func waitForCondition(t *testing.T, timeout time.Duration, fn func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("timed out waiting for condition")
+}
+
+func waitUntilLeaseExpires(t *testing.T, leaseUntil time.Time, timeout time.Duration) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if time.Now().After(leaseUntil) {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for lease expiry at %s", leaseUntil.Format(time.RFC3339Nano))
+		case <-ticker.C:
+		}
+	}
 }

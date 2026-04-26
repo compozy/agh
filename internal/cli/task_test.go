@@ -650,6 +650,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 			"--capability",
 			"go",
 			"--capability",
+			"   ",
+			"--capability",
 			"typescript",
 			"--priority-min",
 			"3",

@@ -1364,7 +1364,14 @@ func trimAgentTaskCapabilities(values []string) []string {
 	}
 	trimmed := make([]string, 0, len(values))
 	for _, value := range values {
-		trimmed = append(trimmed, strings.TrimSpace(value))
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		trimmed = append(trimmed, value)
+	}
+	if len(trimmed) == 0 {
+		return nil
 	}
 	return trimmed
 }

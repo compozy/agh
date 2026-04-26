@@ -28,6 +28,8 @@ type providerResolver interface {
 	ResolveProvider(name string) (ProviderConfig, error)
 }
 
+var _ providerResolver = (*Config)(nil)
+
 // AutonomyConfig controls opt-in autonomy features.
 type AutonomyConfig struct {
 	Coordinator CoordinatorConfig `toml:"coordinator"`

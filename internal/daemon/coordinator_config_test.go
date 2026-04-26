@@ -77,7 +77,7 @@ func TestCoordinatorConfigResolverPrefersWorkspaceConfig(t *testing.T) {
 	global.Autonomy.Coordinator.DefaultTTL = 2 * time.Hour
 	global.Autonomy.Coordinator.MaxChildren = 5
 
-	workspaceCfg := global
+	workspaceCfg := defaultCoordinatorResolverConfig(t)
 	workspaceCfg.Autonomy.Coordinator.Enabled = false
 	workspaceCfg.Autonomy.Coordinator.AgentName = "workspace-coordinator"
 	workspaceCfg.Autonomy.Coordinator.Provider = "codex"

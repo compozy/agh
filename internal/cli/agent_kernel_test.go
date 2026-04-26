@@ -528,6 +528,18 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 		"ch", "reply",
 		"--to-message", "msg-source",
 		"--body", `{"text":"ack"}`,
+		"--kind", "status",
+	)
+	if err == nil || !strings.Contains(err.Error(), "--kind must be reply") {
+		t.Fatalf("agh ch reply --kind status error = %v, want reply-kind validation", err)
+	}
+
+	_, _, err = executeRootCommand(
+		t,
+		deps,
+		"ch", "reply",
+		"--to-message", "msg-source",
+		"--body", `{"text":"ack"}`,
 		"--task-id", "task-1",
 		"--run-id", "run-1",
 		"--coordination-channel-id", "builders",
