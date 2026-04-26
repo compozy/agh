@@ -158,7 +158,7 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 	})
 }
 
-func TestNetworkChannelAggregateKeepsLatestMessagePreviewWhenMetadataIsNewer(t *testing.T) {
+func TestNetworkChannelAggregateKeepsConversationActivitySeparateFromMetadata(t *testing.T) {
 	t.Parallel()
 
 	recordedAt := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
@@ -179,8 +179,8 @@ func TestNetworkChannelAggregateKeepsLatestMessagePreviewWhenMetadataIsNewer(t *
 	if aggregate == nil {
 		t.Fatal("aggregate = nil, want builders aggregate")
 	}
-	if aggregate.lastActivityAt == nil || !aggregate.lastActivityAt.Equal(metadataAt) {
-		t.Fatalf("aggregate.lastActivityAt = %#v, want %s", aggregate.lastActivityAt, metadataAt)
+	if aggregate.lastActivityAt == nil || !aggregate.lastActivityAt.Equal(recordedAt) {
+		t.Fatalf("aggregate.lastActivityAt = %#v, want %s", aggregate.lastActivityAt, recordedAt)
 	}
 	if aggregate.lastMessageAt == nil || !aggregate.lastMessageAt.Equal(recordedAt) {
 		t.Fatalf("aggregate.lastMessageAt = %#v, want %s", aggregate.lastMessageAt, recordedAt)

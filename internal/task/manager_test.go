@@ -724,6 +724,13 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 	if err != nil {
 		return Task{}, Run{}, false, err
 	}
+	if hasOpenRun(existingRuns) {
+		return Task{}, Run{}, false, fmtTestError(
+			"%w: task %q has open run; finish or cancel it before enqueueing another run",
+			ErrInvalidStatusTransition,
+			taskRecord.ID,
+		)
+	}
 	nextAttempt := nextRunAttempt(existingRuns)
 	maxAttempts := normalizeTaskMaxAttemptsOrDefault(taskRecord.MaxAttempts)
 	if nextAttempt > maxAttempts {
@@ -2535,6 +2542,101 @@ func TestManagerAttemptExhaustionBlocksFurtherRetries(t *testing.T) {
 	}
 }
 
+func TestManagerEnqueueRunRejectsConcurrentOpenRun(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		openRun  func(context.Context, *testing.T, *Service, Run, ActorContext) Run
+		wantOpen RunStatus
+	}{
+		{
+			name: "queued",
+			openRun: func(_ context.Context, _ *testing.T, _ *Service, run Run, _ ActorContext) Run {
+				return run
+			},
+			wantOpen: TaskRunStatusQueued,
+		},
+		{
+			name: "running",
+			openRun: func(ctx context.Context, t *testing.T, manager *Service, run Run, actor ActorContext) Run {
+				t.Helper()
+				claimed, err := manager.ClaimRun(ctx, run.ID, ClaimRun{}, actor)
+				if err != nil {
+					t.Fatalf("ClaimRun() error = %v", err)
+				}
+				running, err := manager.StartRun(ctx, claimed.ID, StartRun{}, actor)
+				if err != nil {
+					t.Fatalf("StartRun() error = %v", err)
+				}
+				return *running
+			},
+			wantOpen: TaskRunStatusRunning,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			store := newInMemoryManagerStore()
+			manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(testSessionExecutor{}))
+			actor := validActorContext()
+
+			taskRecord, err := manager.CreateTask(ctx, CreateTask{
+				Scope: ScopeGlobal,
+				Title: "Concurrent run guard",
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateTask() error = %v", err)
+			}
+
+			firstRun, err := manager.EnqueueRun(ctx, EnqueueRun{
+				TaskID:         taskRecord.ID,
+				IdempotencyKey: "same-logical-run",
+			}, actor)
+			if err != nil {
+				t.Fatalf("EnqueueRun(first) error = %v", err)
+			}
+			openRun := tt.openRun(ctx, t, manager, *firstRun, actor)
+			if got := openRun.Status.Normalize(); got != tt.wantOpen {
+				t.Fatalf("openRun.Status = %q, want %q", got, tt.wantOpen)
+			}
+
+			duplicate, err := manager.EnqueueRun(ctx, EnqueueRun{
+				TaskID:         taskRecord.ID,
+				IdempotencyKey: "same-logical-run",
+			}, actor)
+			if err != nil {
+				t.Fatalf("EnqueueRun(idempotent duplicate) error = %v", err)
+			}
+			if got, want := duplicate.ID, firstRun.ID; got != want {
+				t.Fatalf("EnqueueRun(idempotent duplicate).ID = %q, want %q", got, want)
+			}
+
+			secondRun, err := manager.EnqueueRun(ctx, EnqueueRun{
+				TaskID:         taskRecord.ID,
+				IdempotencyKey: "new-logical-run",
+			}, actor)
+			if secondRun != nil {
+				t.Fatalf("EnqueueRun(second) run = %#v, want nil", secondRun)
+			}
+			if !errors.Is(err, ErrInvalidStatusTransition) {
+				t.Fatalf("EnqueueRun(second) error = %v, want %v", err, ErrInvalidStatusTransition)
+			}
+
+			runs, err := store.ListTaskRuns(ctx, RunQuery{TaskID: taskRecord.ID})
+			if err != nil {
+				t.Fatalf("ListTaskRuns() error = %v", err)
+			}
+			if got, want := len(runs), 1; got != want {
+				t.Fatalf("len(ListTaskRuns()) = %d, want %d", got, want)
+			}
+		})
+	}
+}
+
 func TestManagerEnqueueRunRejectsDraftTask(t *testing.T) {
 	t.Parallel()
 
@@ -4213,7 +4315,14 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 			t.Fatalf("AttachRunSession(runOne) error = %v", err)
 		}
 
-		runTwo, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		taskRecordTwo, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Second task sharing session",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(taskRecordTwo) error = %v", err)
+		}
+		runTwo, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecordTwo.ID}, actor)
 		if err != nil {
 			t.Fatalf("EnqueueRun(runTwo) error = %v", err)
 		}

@@ -1,6 +1,8 @@
 // Types
 export type {
   KnowledgeFilter,
+  KnowledgeMemoryItem,
+  KnowledgeScope,
   MemoryConsolidateResponse,
   MemoryHeader,
   MemoryMutationResponse,
@@ -42,5 +44,4 @@ export {
   knowledgeScopeShortLabel,
   memoryScopeTone,
   memoryTypeTone,
-  type KnowledgeScope,
 } from "./lib/knowledge-formatters";

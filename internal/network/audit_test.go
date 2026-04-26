@@ -331,6 +331,88 @@ func TestAuditWriterRecordsCapabilityTransfersAsCapabilityAudits(t *testing.T) {
 	})
 }
 
+func TestAuditWriterCoalescesRepeatedGreetHeartbeatsInTimeline(t *testing.T) {
+	t.Parallel()
+
+	recordedAt := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
+	storeSink := &recordingAuditStore{}
+	writer, err := NewAuditWriter(
+		"",
+		storeSink,
+		WithAuditWriterPresenceWindow(60*time.Second),
+	)
+	if err != nil {
+		t.Fatalf("NewAuditWriter() error = %v", err)
+	}
+	callTimes := []time.Time{
+		recordedAt,
+		recordedAt.Add(30 * time.Second),
+		recordedAt.Add(2 * time.Minute),
+	}
+	callIndex := 0
+	writer.now = func() time.Time {
+		value := callTimes[callIndex]
+		callIndex++
+		return value
+	}
+
+	first := testGreetAuditEnvelope(t, recordedAt, "msg_greet_01", "")
+	second := testGreetAuditEnvelope(t, recordedAt.Add(30*time.Second), "msg_greet_02", "")
+	third := testGreetAuditEnvelope(t, recordedAt.Add(2*time.Minute), "msg_greet_03", "")
+
+	if err := writer.RecordSent(context.Background(), "sess-audit", first); err != nil {
+		t.Fatalf("RecordSent(first greet) error = %v", err)
+	}
+	if err := writer.RecordSent(context.Background(), "sess-audit", second); err != nil {
+		t.Fatalf("RecordSent(second greet) error = %v", err)
+	}
+	if err := writer.RecordSent(context.Background(), "sess-audit", third); err != nil {
+		t.Fatalf("RecordSent(third greet) error = %v", err)
+	}
+
+	if got, want := len(storeSink.entries), 3; got != want {
+		t.Fatalf("len(store audit entries) = %d, want %d", got, want)
+	}
+	if got, want := len(storeSink.messages), 2; got != want {
+		t.Fatalf("len(store timeline messages) = %d, want %d", got, want)
+	}
+	if got, want := storeSink.messages[0].MessageID, "msg_greet_01"; got != want {
+		t.Fatalf("messages[0].MessageID = %q, want %q", got, want)
+	}
+	if got, want := storeSink.messages[1].MessageID, "msg_greet_03"; got != want {
+		t.Fatalf("messages[1].MessageID = %q, want %q", got, want)
+	}
+}
+
+func TestAuditWriterFallsBackToDeterministicGreetSummaries(t *testing.T) {
+	t.Parallel()
+
+	recordedAt := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
+	storeSink := &recordingAuditStore{}
+	writer, err := NewAuditWriter("", storeSink)
+	if err != nil {
+		t.Fatalf("NewAuditWriter() error = %v", err)
+	}
+
+	if err := writer.RecordSent(
+		context.Background(),
+		"sess-audit",
+		testGreetAuditEnvelope(t, recordedAt, "msg_greet_summary", ""),
+	); err != nil {
+		t.Fatalf("RecordSent(greet) error = %v", err)
+	}
+
+	if got, want := len(storeSink.messages), 1; got != want {
+		t.Fatalf("len(store timeline messages) = %d, want %d", got, want)
+	}
+	if got := storeSink.messages[0].PreviewText; got == "" {
+		t.Fatal("messages[0].PreviewText = empty, want fallback greet summary")
+	}
+	if got, want := storeSink.messages[0].PreviewText, "Reviewer ready for Review pull requests +1 more"; got != want {
+		t.Fatalf("messages[0].PreviewText = %q, want %q", got, want)
+	}
+}
+
 func TestAuditWriterSkipsTimelineWriteWhenAuditStoreFails(t *testing.T) {
 	t.Parallel()
 
@@ -596,6 +678,37 @@ func testCapabilityAuditEnvelope(t *testing.T) Envelope {
 			Version:          "1.0.0",
 			ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
 			Requirements:     []string{"workspace-write"},
+		}),
+	}
+}
+
+func testGreetAuditEnvelope(t *testing.T, recordedAt time.Time, messageID string, summary string) Envelope {
+	t.Helper()
+
+	displayName := "Reviewer"
+	return Envelope{
+		Protocol: ProtocolV0,
+		ID:       messageID,
+		Kind:     KindGreet,
+		Channel:  "builders",
+		From:     "reviewer.sess-audit",
+		TS:       recordedAt.Unix(),
+		Body: mustRawJSON(t, GreetBody{
+			PeerCard: PeerCard{
+				PeerID:              "reviewer.sess-audit",
+				DisplayName:         &displayName,
+				ProfilesSupported:   []string{ProtocolV0},
+				Capabilities:        []string{"review-pr", "draft-spec"},
+				ArtifactsSupported:  []string{string(KindCapability)},
+				TrustModesSupported: []string{},
+				Ext: ExtensionMap{
+					capabilityBriefExtKey: mustRawJSON(t, []capabilityBrief{
+						{ID: "review-pr", Summary: "Review pull requests"},
+						{ID: "draft-spec", Summary: "Draft technical specs"},
+					}),
+				},
+			},
+			Summary: summary,
 		}),
 	}
 }

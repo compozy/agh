@@ -1,8 +1,6 @@
 import type { MonoBadgeTone } from "@agh/ui";
 
-import type { MemoryScope, MemoryType } from "@/systems/knowledge/types";
-
-export type KnowledgeScope = Exclude<MemoryScope, undefined>;
+import type { KnowledgeMemoryItem, KnowledgeScope, MemoryType } from "@/systems/knowledge/types";
 
 const SCOPE_ORDER: Record<KnowledgeScope, number> = {
   global: 0,
@@ -14,6 +12,16 @@ export function deriveScopeFromFilename(filename: string): KnowledgeScope {
     return "workspace";
   }
   return "global";
+}
+
+export function resolveKnowledgeScope(memory: Pick<KnowledgeMemoryItem, "filename" | "scope">) {
+  return memory.scope ?? deriveScopeFromFilename(memory.filename);
+}
+
+export function knowledgeMemoryKey(
+  memory: Pick<KnowledgeMemoryItem, "filename" | "scope" | "key">
+) {
+  return memory.key ?? `${resolveKnowledgeScope(memory)}:${memory.filename}`;
 }
 
 export function compareKnowledgeScope(left: KnowledgeScope, right: KnowledgeScope): number {

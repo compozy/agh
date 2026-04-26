@@ -4,7 +4,7 @@ import { useSidebarStore } from "@/hooks/use-sidebar-store";
 import { useAgents } from "@/systems/agent";
 import { useDaemonHealth } from "@/systems/daemon";
 import { useSessionCreateDialog, useSessions } from "@/systems/session";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
 
 function useAppLayout() {
   const collapsed = useSidebarStore(state => state.collapsed);
@@ -20,12 +20,16 @@ function useAppLayout() {
     isError: workspacesError,
   } = useActiveWorkspace();
   const { data: agents, isLoading: agentsLoading, isError: agentsError } = useAgents();
+  const activeWorkspaceDetail = useWorkspace(activeWorkspaceId ?? "", {
+    enabled: activeWorkspaceId !== null,
+  });
+  const workspaceAgents = activeWorkspaceDetail.data?.agents ?? agents;
   const [isWorkspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
   const { data: sessions } = useSessions(activeWorkspaceId, {
     enabled: activeWorkspaceId !== null,
   });
   const sessionCreate = useSessionCreateDialog({
-    agents,
+    agents: workspaceAgents,
     activeWorkspace,
   });
 
@@ -52,9 +56,13 @@ function useAppLayout() {
     setActiveWorkspaceId,
     areWorkspacesLoading,
     workspacesError,
-    agents,
-    agentsLoading,
-    agentsError,
+    agents: workspaceAgents,
+    agentsLoading: agentsLoading || (activeWorkspaceId !== null && activeWorkspaceDetail.isLoading),
+    agentsError:
+      agentsError ||
+      (activeWorkspaceId !== null &&
+        activeWorkspaceDetail.isError &&
+        workspaceAgents === undefined),
     isWorkspaceSetupOpen,
     setWorkspaceSetupOpen,
     sessions,

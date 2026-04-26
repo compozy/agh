@@ -53,6 +53,7 @@ type NetworkPeerCapability struct {
 type NetworkPeerJoin struct {
 	SessionID    string
 	PeerID       string
+	DisplayName  string
 	Channel      string
 	Capabilities []NetworkPeerCapability
 }

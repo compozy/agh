@@ -18,6 +18,9 @@ import (
 const (
 	defaultWriteBufferSize = 256
 	defaultDrainTimeout    = 5 * time.Second
+	canonicalEventSchema   = "agh.session.event.v1"
+	sessionVacuumMinBytes  = 4 << 20
+	sessionVacuumMinRatio  = 4
 )
 
 var sessionSchemaStatements = []string{
@@ -72,6 +75,12 @@ var sessionSchemaMigrations = []store.Migration{
 		Version:    1,
 		Name:       "create_session_schema",
 		Statements: sessionSchemaStatements,
+	},
+	{
+		Version:  2,
+		Name:     "strip_canonical_event_raw_payloads",
+		Up:       stripCanonicalEventRawPayloads,
+		Checksum: "2026-04-25-strip-canonical-event-raw-payloads",
 	},
 }
 
@@ -745,8 +754,85 @@ type rowScanner interface {
 
 func openSessionSQLite(ctx context.Context, path string) (*sql.DB, error) {
 	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		return store.RunMigrations(ctx, db, sessionSchemaMigrations)
+		if err := store.RunMigrations(ctx, db, sessionSchemaMigrations); err != nil {
+			return err
+		}
+		return vacuumSessionSQLite(ctx, db)
 	})
+}
+
+func stripCanonicalEventRawPayloads(ctx context.Context, tx *sql.Tx) error {
+	if ctx == nil {
+		return errors.New("store: session raw-strip migration context is required")
+	}
+	if tx == nil {
+		return errors.New("store: session raw-strip migration transaction is required")
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		`UPDATE events
+		 SET content = json_remove(content, '$.raw')
+		 WHERE json_valid(content) = 1
+		   AND json_extract(content, '$.schema') = ?
+		   AND json_type(content, '$.raw') IS NOT NULL`,
+		canonicalEventSchema,
+	); err != nil {
+		return fmt.Errorf("store: strip canonical session event raw payloads: %w", err)
+	}
+	return nil
+}
+
+type sqlitePageStats struct {
+	pageCount     int64
+	pageSize      int64
+	freelistCount int64
+}
+
+func vacuumSessionSQLite(ctx context.Context, db *sql.DB) error {
+	stats, err := loadSQLitePageStats(ctx, db)
+	if err != nil {
+		return err
+	}
+	if !shouldVacuumSessionSQLite(stats) {
+		return nil
+	}
+	if _, err := db.ExecContext(ctx, "VACUUM"); err != nil {
+		return fmt.Errorf("store: vacuum session sqlite database: %w", err)
+	}
+	return nil
+}
+
+func loadSQLitePageStats(ctx context.Context, db *sql.DB) (sqlitePageStats, error) {
+	if ctx == nil {
+		return sqlitePageStats{}, errors.New("store: sqlite page stats context is required")
+	}
+	if db == nil {
+		return sqlitePageStats{}, errors.New("store: sqlite page stats database is required")
+	}
+
+	var stats sqlitePageStats
+	if err := db.QueryRowContext(ctx, "PRAGMA page_count").Scan(&stats.pageCount); err != nil {
+		return sqlitePageStats{}, fmt.Errorf("store: query sqlite page_count: %w", err)
+	}
+	if err := db.QueryRowContext(ctx, "PRAGMA page_size").Scan(&stats.pageSize); err != nil {
+		return sqlitePageStats{}, fmt.Errorf("store: query sqlite page_size: %w", err)
+	}
+	if err := db.QueryRowContext(ctx, "PRAGMA freelist_count").Scan(&stats.freelistCount); err != nil {
+		return sqlitePageStats{}, fmt.Errorf("store: query sqlite freelist_count: %w", err)
+	}
+	return stats, nil
+}
+
+func shouldVacuumSessionSQLite(stats sqlitePageStats) bool {
+	if stats.pageCount <= 0 || stats.pageSize <= 0 || stats.freelistCount <= 0 {
+		return false
+	}
+	freeBytes := stats.freelistCount * stats.pageSize
+	if freeBytes < sessionVacuumMinBytes {
+		return false
+	}
+	return stats.freelistCount*sessionVacuumMinRatio >= stats.pageCount
 }
 
 func rawJSONText(raw json.RawMessage) string {

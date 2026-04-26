@@ -1018,7 +1018,7 @@ func shouldReuseInboundInteraction(envelope Envelope) bool {
 func previewForBody(body Body) string {
 	switch value := body.(type) {
 	case GreetBody:
-		return strings.TrimSpace(value.Summary)
+		return ResolveGreetSummary(value.PeerCard, value.Summary)
 	case WhoisBody:
 		if value.Type == WhoisTypeRequest {
 			return strings.TrimSpace(value.Query)
@@ -1046,6 +1046,16 @@ func previewForBody(body Body) string {
 	default:
 		return ""
 	}
+}
+
+// PreviewTextForRawBody derives operator-facing preview text from one raw
+// persisted message body. Invalid bodies return an empty preview.
+func PreviewTextForRawBody(kind Kind, raw json.RawMessage) string {
+	body, err := DecodeBody(kind, raw)
+	if err != nil {
+		return ""
+	}
+	return previewForBody(body)
 }
 
 func writeXMLAttr(builder *strings.Builder, key string, value string) {

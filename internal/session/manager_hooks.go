@@ -192,7 +192,7 @@ func (m *Manager) dispatchSessionLifecycleObservation(ctx context.Context, sessi
 	if m == nil || session == nil {
 		return
 	}
-	ctx = hookDispatchContext(ctx, session)
+	ctx = postLifecycleHookContext(ctx, session)
 
 	payload := hookSessionLifecyclePayload(session, event, m.now())
 	var err error
@@ -210,6 +210,15 @@ func (m *Manager) dispatchSessionLifecycleObservation(ctx context.Context, sessi
 	if err != nil {
 		m.warnHookDispatch(ctx, session, event, err)
 	}
+}
+
+func postLifecycleHookContext(ctx context.Context, session *Session) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	} else {
+		ctx = context.WithoutCancel(ctx)
+	}
+	return hookDispatchContext(ctx, session)
 }
 
 func (m *Manager) dispatchInputPreSubmit(

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { useCreateTask, useEnqueueTaskRun } from "@/systems/tasks";
+import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "@/systems/tasks";
 import {
+  buildCreateChildTaskRequest,
   buildCreateTaskRequest,
   createTaskEditorDraft,
   type TaskEditorDraft,
@@ -19,6 +20,7 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
   const navigate = useNavigate({ from: "/tasks/new" });
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
   const createMutation = useCreateTask();
+  const createChildMutation = useCreateChildTask();
   const enqueueMutation = useEnqueueTaskRun();
 
   const templateId = search.template ?? DEFAULT_TASK_TEMPLATE_ID;
@@ -56,16 +58,28 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
         return null;
       }
 
-      const payload = buildCreateTaskRequest(nextDraft, {
-        activeWorkspaceId,
-        asDraft,
-        templateId,
-      });
+      const parentTaskId = nextDraft.parentTaskId.trim();
+      const isChildTask = parentTaskId.length > 0;
 
       try {
-        const created = await createMutation.mutateAsync(payload);
+        const created = isChildTask
+          ? await createChildMutation.mutateAsync({
+              parentId: parentTaskId,
+              data: buildCreateChildTaskRequest(nextDraft, {
+                activeWorkspaceId,
+                asDraft,
+                templateId,
+              }),
+            })
+          : await createMutation.mutateAsync(
+              buildCreateTaskRequest(nextDraft, {
+                activeWorkspaceId,
+                asDraft,
+                templateId,
+              })
+            );
         const wantsImmediateRun =
-          !payload.draft && getTaskTemplate(templateId).preview.enqueueOnSubmit;
+          !created.draft && getTaskTemplate(templateId).preview.enqueueOnSubmit;
         if (wantsImmediateRun && created.id) {
           try {
             await enqueueMutation.mutateAsync({ id: created.id });
@@ -77,7 +91,7 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
         }
 
         toast.success(
-          payload.draft ? `Saved draft "${trimmedTitle}".` : `Created task "${trimmedTitle}".`
+          created.draft ? `Saved draft "${trimmedTitle}".` : `Created task "${trimmedTitle}".`
         );
 
         if (created.id) {
@@ -90,14 +104,15 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
         return null;
       }
     },
-    [activeWorkspaceId, createMutation, enqueueMutation, navigate, templateId]
+    [activeWorkspaceId, createChildMutation, createMutation, enqueueMutation, navigate, templateId]
   );
 
   return {
     draft,
     handleSubmit,
     handleTemplateChange,
-    isSubmitting: createMutation.isPending || enqueueMutation.isPending,
+    isSubmitting:
+      createMutation.isPending || createChildMutation.isPending || enqueueMutation.isPending,
     setDraft,
     template: getTaskTemplate(templateId),
     templateId,

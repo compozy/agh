@@ -9639,12 +9639,20 @@
                                                     "created_by": {
                                                         "type": "string"
                                                     },
+                                                    "historical_participant_count": {
+                                                        "type": "integer"
+                                                    },
                                                     "last_activity_at": {
                                                         "format": "date-time",
                                                         "nullable": true,
                                                         "type": "string"
                                                     },
                                                     "last_message_preview": {
+                                                        "type": "string"
+                                                    },
+                                                    "last_presence_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
                                                         "type": "string"
                                                     },
                                                     "local_peer_count": {
@@ -9654,6 +9662,9 @@
                                                         "type": "integer"
                                                     },
                                                     "peer_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "presence_count": {
                                                         "type": "integer"
                                                     },
                                                     "purpose": {
@@ -9772,6 +9783,9 @@
                                                 "created_by": {
                                                     "type": "string"
                                                 },
+                                                "historical_participant_count": {
+                                                    "type": "integer"
+                                                },
                                                 "kind_counts": {
                                                     "items": {
                                                         "properties": {
@@ -9793,6 +9807,11 @@
                                                     "type": "string"
                                                 },
                                                 "last_message_preview": {
+                                                    "type": "string"
+                                                },
+                                                "last_presence_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
                                                     "type": "string"
                                                 },
                                                 "local_peer_count": {
@@ -9907,6 +9926,9 @@
                                                         "type": "object"
                                                     },
                                                     "type": "array"
+                                                },
+                                                "presence_count": {
+                                                    "type": "integer"
                                                 },
                                                 "purpose": {
                                                     "type": "string"
@@ -10237,6 +10259,9 @@
                                                 "created_by": {
                                                     "type": "string"
                                                 },
+                                                "historical_participant_count": {
+                                                    "type": "integer"
+                                                },
                                                 "kind_counts": {
                                                     "items": {
                                                         "properties": {
@@ -10258,6 +10283,11 @@
                                                     "type": "string"
                                                 },
                                                 "last_message_preview": {
+                                                    "type": "string"
+                                                },
+                                                "last_presence_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
                                                     "type": "string"
                                                 },
                                                 "local_peer_count": {
@@ -10372,6 +10402,9 @@
                                                         "type": "object"
                                                     },
                                                     "type": "array"
+                                                },
+                                                "presence_count": {
+                                                    "type": "integer"
                                                 },
                                                 "purpose": {
                                                     "type": "string"
@@ -10699,6 +10732,14 @@
                         }
                     },
                     {
+                        "description": "Include coalesced presence episodes in the timeline",
+                        "in": "query",
+                        "name": "include_presence",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
                         "description": "Maximum number of timeline messages to return",
                         "in": "query",
                         "name": "limit",
@@ -10749,6 +10790,19 @@
                                                         "type": "string"
                                                     },
                                                     "peer_to": {
+                                                        "type": "string"
+                                                    },
+                                                    "presence_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "presence_last_seen_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "presence_started_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
                                                         "type": "string"
                                                     },
                                                     "preview_text": {
@@ -11521,6 +11575,14 @@
                         }
                     },
                     {
+                        "description": "Include coalesced presence episodes in the timeline",
+                        "in": "query",
+                        "name": "include_presence",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
                         "description": "Maximum number of timeline messages to return",
                         "in": "query",
                         "name": "limit",
@@ -11571,6 +11633,19 @@
                                                         "type": "string"
                                                     },
                                                     "peer_to": {
+                                                        "type": "string"
+                                                    },
+                                                    "presence_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "presence_last_seen_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "presence_started_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
                                                         "type": "string"
                                                     },
                                                     "preview_text": {

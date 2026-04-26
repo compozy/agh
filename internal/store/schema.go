@@ -14,6 +14,24 @@ import (
 
 const schemaMigrationsTable = "schema_migrations"
 
+type migrationConfig struct {
+	table string
+}
+
+// MigrationOption customizes migration execution.
+type MigrationOption func(*migrationConfig)
+
+// WithMigrationsTable stores migration records in a subsystem-specific table.
+// Use this when independent migration streams share one SQLite database file.
+func WithMigrationsTable(name string) MigrationOption {
+	return func(cfg *migrationConfig) {
+		if cfg == nil {
+			return
+		}
+		cfg.table = name
+	}
+}
+
 // Migration describes one ordered SQLite schema change.
 type Migration struct {
 	Version    int
@@ -42,22 +60,26 @@ func EnsureSchema(ctx context.Context, db *sql.DB, statements []string) error {
 }
 
 // RunMigrations applies pending migrations once in deterministic version order.
-func RunMigrations(ctx context.Context, db *sql.DB, migrations []Migration) error {
+func RunMigrations(ctx context.Context, db *sql.DB, migrations []Migration, opts ...MigrationOption) error {
 	if ctx == nil {
 		return errors.New("store: migrate schema context is required")
 	}
 	if db == nil {
 		return errors.New("store: migrate schema database is required")
 	}
+	cfg, err := newMigrationConfig(opts...)
+	if err != nil {
+		return err
+	}
 	ordered, err := normalizeMigrations(migrations)
 	if err != nil {
 		return err
 	}
-	if err := ensureSchemaMigrationsTable(ctx, db); err != nil {
+	if err := ensureSchemaMigrationsTable(ctx, db, cfg.table); err != nil {
 		return err
 	}
 
-	applied, err := appliedMigrationRecords(ctx, db)
+	applied, err := appliedMigrationRecords(ctx, db, cfg.table)
 	if err != nil {
 		return err
 	}
@@ -79,7 +101,7 @@ func RunMigrations(ctx context.Context, db *sql.DB, migrations []Migration) erro
 			}
 			continue
 		}
-		if err := applyMigration(ctx, db, migration, checksum); err != nil {
+		if err := applyMigration(ctx, db, cfg.table, migration, checksum); err != nil {
 			return err
 		}
 	}
@@ -88,52 +110,43 @@ func RunMigrations(ctx context.Context, db *sql.DB, migrations []Migration) erro
 
 // AppliedMigrations returns applied migration records ordered by version.
 func AppliedMigrations(ctx context.Context, db *sql.DB) ([]MigrationRecord, error) {
-	if ctx == nil {
-		return nil, errors.New("store: list schema migrations context is required")
-	}
-	if db == nil {
-		return nil, errors.New("store: list schema migrations database is required")
-	}
-	exists, err := schemaMigrationsTableExists(ctx, db)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, nil
-	}
+	return appliedMigrations(ctx, db, schemaMigrationsTable)
+}
 
-	rows, err := db.QueryContext(ctx, `
-		SELECT version, name, checksum, applied_at
-		FROM schema_migrations
-		ORDER BY version ASC
-	`)
+func newMigrationConfig(opts ...MigrationOption) (migrationConfig, error) {
+	cfg := migrationConfig{table: schemaMigrationsTable}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	table, err := normalizeMigrationTableName(cfg.table)
 	if err != nil {
-		return nil, fmt.Errorf("store: query schema migrations: %w", err)
+		return migrationConfig{}, err
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
+	cfg.table = table
+	return cfg, nil
+}
 
-	records := make([]MigrationRecord, 0)
-	for rows.Next() {
-		var (
-			record       MigrationRecord
-			appliedAtRaw string
-		)
-		if err := rows.Scan(&record.Version, &record.Name, &record.Checksum, &appliedAtRaw); err != nil {
-			return nil, fmt.Errorf("store: scan schema migration: %w", err)
-		}
-		appliedAt, err := ParseTimestamp(appliedAtRaw)
-		if err != nil {
-			return nil, fmt.Errorf("store: parse schema migration timestamp: %w", err)
-		}
-		record.AppliedAt = appliedAt
-		records = append(records, record)
+func normalizeMigrationTableName(name string) (string, error) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "", errors.New("store: migration table name is required")
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate schema migrations: %w", err)
+	for idx, r := range trimmed {
+		valid := r == '_' ||
+			(r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(idx > 0 && r >= '0' && r <= '9')
+		if !valid {
+			return "", fmt.Errorf("store: invalid migration table name %q", trimmed)
+		}
 	}
-	return records, nil
+	return trimmed, nil
+}
+
+func quoteIdentifier(name string) string {
+	return `"` + name + `"`
 }
 
 func normalizeMigrations(migrations []Migration) ([]Migration, error) {
@@ -180,25 +193,27 @@ func normalizeMigrations(migrations []Migration) ([]Migration, error) {
 	return ordered, nil
 }
 
-func ensureSchemaMigrationsTable(ctx context.Context, db *sql.DB) (err error) {
+func ensureSchemaMigrationsTable(ctx context.Context, db *sql.DB, table string) (err error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("store: begin schema migrations bootstrap: %w", err)
 	}
 	defer rollbackMigrationTx(&err, tx, "schema migrations bootstrap")
 
-	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+	quotedTable := quoteIdentifier(table)
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 		version    INTEGER PRIMARY KEY,
 		name       TEXT NOT NULL,
 		checksum   TEXT NOT NULL,
 		applied_at TEXT NOT NULL
-	);`); err != nil {
+	);`, quotedTable)); err != nil {
 		return fmt.Errorf("store: create schema_migrations table: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_schema_migrations_name
-		ON schema_migrations(name);
-	`); err != nil {
+	indexName := quoteIdentifier("idx_" + table + "_name")
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		CREATE UNIQUE INDEX IF NOT EXISTS %s
+		ON %s(name);
+	`, indexName, quotedTable)); err != nil {
 		return fmt.Errorf("store: create schema_migrations name index: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -207,8 +222,8 @@ func ensureSchemaMigrationsTable(ctx context.Context, db *sql.DB) (err error) {
 	return nil
 }
 
-func appliedMigrationRecords(ctx context.Context, db *sql.DB) (map[int]MigrationRecord, error) {
-	records, err := AppliedMigrations(ctx, db)
+func appliedMigrationRecords(ctx context.Context, db *sql.DB, table string) (map[int]MigrationRecord, error) {
+	records, err := appliedMigrations(ctx, db, table)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +234,7 @@ func appliedMigrationRecords(ctx context.Context, db *sql.DB) (map[int]Migration
 	return applied, nil
 }
 
-func applyMigration(ctx context.Context, db *sql.DB, migration Migration, checksum string) (err error) {
+func applyMigration(ctx context.Context, db *sql.DB, table string, migration Migration, checksum string) (err error) {
 	name := strings.TrimSpace(migration.Name)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -244,7 +259,7 @@ func applyMigration(ctx context.Context, db *sql.DB, migration Migration, checks
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)`,
+		fmt.Sprintf(`INSERT INTO %s (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)`, quoteIdentifier(table)),
 		migration.Version,
 		name,
 		checksum,
@@ -301,12 +316,68 @@ func migrationChecksum(migration Migration) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func schemaMigrationsTableExists(ctx context.Context, db *sql.DB) (bool, error) {
+func appliedMigrations(ctx context.Context, db *sql.DB, table string) ([]MigrationRecord, error) {
+	if ctx == nil {
+		return nil, errors.New("store: list schema migrations context is required")
+	}
+	if db == nil {
+		return nil, errors.New("store: list schema migrations database is required")
+	}
+	normalizedTable, err := normalizeMigrationTableName(table)
+	if err != nil {
+		return nil, err
+	}
+	exists, err := migrationTableExists(ctx, db, normalizedTable)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
+	}
+
+	rows, err := db.QueryContext(
+		ctx,
+		fmt.Sprintf(`
+		SELECT version, name, checksum, applied_at
+		FROM %s
+		ORDER BY version ASC
+	`, quoteIdentifier(normalizedTable)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: query schema migrations: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	records := make([]MigrationRecord, 0)
+	for rows.Next() {
+		var (
+			record     MigrationRecord
+			appliedRaw string
+		)
+		if err := rows.Scan(&record.Version, &record.Name, &record.Checksum, &appliedRaw); err != nil {
+			return nil, fmt.Errorf("store: scan schema migration: %w", err)
+		}
+		appliedAt, err := ParseTimestamp(appliedRaw)
+		if err != nil {
+			return nil, fmt.Errorf("store: parse schema migration timestamp: %w", err)
+		}
+		record.AppliedAt = appliedAt
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate schema migrations: %w", err)
+	}
+	return records, nil
+}
+
+func migrationTableExists(ctx context.Context, db *sql.DB, table string) (bool, error) {
 	var count int
 	if err := db.QueryRowContext(
 		ctx,
 		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
-		schemaMigrationsTable,
+		table,
 	).Scan(&count); err != nil {
 		return false, fmt.Errorf("store: query schema_migrations table: %w", err)
 	}

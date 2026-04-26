@@ -726,6 +726,14 @@ func (g *GlobalDB) reserveQueuedRunWithExecutor(
 		return taskRecord, runRecord, true, nil
 	}
 
+	existingRuns, err := g.listTaskRunsWithExecutor(ctx, exec, taskpkg.RunQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+	if err := validateNoOpenRunForQueuedRunReservation(taskRecord, existingRuns); err != nil {
+		return taskpkg.Task{}, taskpkg.Run{}, false, err
+	}
+
 	runRecord, err = g.createQueuedRunWithExecutor(ctx, exec, taskRecord, input)
 	if err != nil {
 		return taskpkg.Task{}, taskpkg.Run{}, false, err
@@ -1320,6 +1328,30 @@ func validateTaskForQueuedRunReservation(taskRecord taskpkg.Task) error {
 		return fmt.Errorf("%w: task %q is canceled", taskpkg.ErrInvalidStatusTransition, taskRecord.ID)
 	default:
 		return nil
+	}
+}
+
+func validateNoOpenRunForQueuedRunReservation(taskRecord taskpkg.Task, runs []taskpkg.Run) error {
+	for _, run := range runs {
+		if isTerminalStoredRunStatus(run.Status) {
+			continue
+		}
+		return fmt.Errorf(
+			"%w: task %q has open run %q; finish or cancel it before enqueueing another run",
+			taskpkg.ErrInvalidStatusTransition,
+			taskRecord.ID,
+			run.ID,
+		)
+	}
+	return nil
+}
+
+func isTerminalStoredRunStatus(status taskpkg.RunStatus) bool {
+	switch status.Normalize() {
+	case taskpkg.TaskRunStatusCompleted, taskpkg.TaskRunStatusFailed, taskpkg.TaskRunStatusCanceled:
+		return true
+	default:
+		return false
 	}
 }
 

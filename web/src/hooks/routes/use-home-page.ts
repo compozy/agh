@@ -5,8 +5,8 @@ import type { ConnectionStatus, StatusDotTone } from "@agh/ui";
 import { useAgents } from "@/systems/agent";
 import { useDaemonHealth } from "@/systems/daemon";
 import type { HealthPayload } from "@/systems/daemon";
-import { useSessions } from "@/systems/session";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useSessions, type SessionPayload } from "@/systems/session";
+import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
 
 export type DaemonStatusKey = "healthy" | "degraded" | "disconnected" | "unknown";
 
@@ -40,6 +40,11 @@ const SECOND = 1;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+const ACTIVE_SESSION_STATES = new Set<SessionPayload["state"]>(["active", "starting", "stopping"]);
+
+function isActiveSession(session: SessionPayload): boolean {
+  return ACTIVE_SESSION_STATES.has(session.state);
+}
 
 function formatUptimeSeconds(seconds: number | null | undefined): string {
   if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) {
@@ -130,6 +135,13 @@ function useHomePage(): HomePageView {
   } = useActiveWorkspace();
   const { data: agents, isLoading: agentsLoading, error: agentsError } = useAgents();
   const {
+    data: workspaceDetail,
+    isLoading: isWorkspaceDetailLoading,
+    error: workspaceDetailError,
+  } = useWorkspace(activeWorkspaceId ?? "", {
+    enabled: activeWorkspaceId !== null,
+  });
+  const {
     data: sessions,
     isLoading: areSessionsLoading,
     isError: sessionsError,
@@ -163,12 +175,13 @@ function useHomePage(): HomePageView {
     return {
       key: "active-sessions",
       label: "Active Sessions",
-      value: String(sessions?.length ?? 0),
+      value: String(sessions?.filter(isActiveSession).length ?? 0),
       detail: activeWorkspace ? `in ${activeWorkspace.name}` : undefined,
     };
   }, [activeWorkspace, activeWorkspaceId, health?.active_sessions, sessions, sessionsError]);
 
-  const agentsCount = agents?.length ?? 0;
+  const activeWorkspaceAgents = workspaceDetail?.agents ?? agents;
+  const agentsCount = activeWorkspaceAgents?.length ?? 0;
   const workspacesCount = workspaces.length;
   const uptimeLabel = formatUptimeSeconds(health?.uptime_seconds);
 
@@ -198,9 +211,16 @@ function useHomePage(): HomePageView {
     isHealthInitialLoading ||
     areWorkspacesLoading ||
     agentsLoading ||
+    (activeWorkspaceId !== null && isWorkspaceDetailLoading) ||
     (activeWorkspaceId !== null && areSessionsLoading);
 
-  const fatalError = workspacesError ? workspacesErrorObject : agentsError ? agentsError : null;
+  const fatalError = workspacesError
+    ? workspacesErrorObject
+    : workspaceDetailError
+      ? workspaceDetailError
+      : agentsError
+        ? agentsError
+        : null;
   const errorMessage = fatalError instanceof Error ? fatalError.message : null;
 
   return {

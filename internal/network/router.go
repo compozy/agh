@@ -183,7 +183,7 @@ func (r *Router) PublishGreet(ctx context.Context, sessionID string, summary str
 
 	body, err := json.Marshal(GreetBody{
 		PeerCard: clonePeerCard(local.PeerCard),
-		Summary:  strings.TrimSpace(summary),
+		Summary:  ResolveGreetSummary(local.PeerCard, summary),
 	})
 	if err != nil {
 		return SendResult{}, fmt.Errorf("network: marshal greet body: %w", err)

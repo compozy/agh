@@ -133,6 +133,7 @@ describe("useAppLayout", () => {
           created_at: "2026-04-20T10:00:00Z",
           updated_at: "2026-04-20T10:00:00Z",
         },
+        agents: undefined,
         providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
       },
       isLoading: false,
@@ -170,6 +171,37 @@ describe("useAppLayout", () => {
 
     expect(result.current.sessionCreate.selectedAgentName).toBe("codex-agent");
     expect(result.current.sessionCreate.selectedProvider).toBe("codex");
+  });
+
+  it("uses workspace-scoped agents when the active workspace detail provides them", () => {
+    mockWorkspaceQuery.mockReturnValue({
+      data: {
+        workspace: {
+          id: "ws_alpha",
+          root_dir: "/workspace/alpha",
+          add_dirs: [],
+          name: "alpha",
+          created_at: "2026-04-20T10:00:00Z",
+          updated_at: "2026-04-20T10:00:00Z",
+        },
+        agents: [{ name: "workspace-review", provider: "gemini", prompt: "review" }],
+        providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useAppLayout());
+
+    expect(result.current.agents?.map(agent => agent.name)).toEqual(["workspace-review"]);
+
+    act(() => {
+      result.current.handleNewSession("workspace-review");
+    });
+
+    expect(result.current.sessionCreate.selectedAgentName).toBe("workspace-review");
+    expect(result.current.sessionCreate.selectedProvider).toBe("gemini");
   });
 
   it("submits the dialog with agent name, workspace, and selected provider", async () => {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 	storepkg "github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/store/globaldb"
 )
 
 type testMemoryMeta struct {
@@ -1324,6 +1325,44 @@ func TestStoreOperationHistoryIsolatesWorkspaceDefaults(t *testing.T) {
 }
 
 func TestStoreOperationHistoryMigratesLegacyCatalogSchema(t *testing.T) {
+	t.Run("Should use independent catalog migrations in shared global database", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		global, err := globaldb.OpenGlobalDB(ctx, catalogPath)
+		if err != nil {
+			t.Fatalf("globaldb.OpenGlobalDB() error = %v", err)
+		}
+		if err := global.Close(ctx); err != nil {
+			t.Fatalf("global.Close() error = %v", err)
+		}
+
+		store := NewStore(
+			filepath.Join(baseDir, "global-memory"),
+			WithCatalogDatabasePath(catalogPath),
+		)
+		stats, err := store.HealthStats(ctx, nil)
+		if err != nil {
+			t.Fatalf("Store.HealthStats(shared global database) error = %v", err)
+		}
+		if stats.IndexedFiles != 0 || stats.OrphanedFiles != 0 {
+			t.Fatalf("HealthStats() = %#v, want empty healthy catalog", stats)
+		}
+
+		var catalogMigrationCount int
+		if err := store.catalog.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM memory_schema_migrations WHERE name = 'initial_memory_catalog_schema'`,
+		).Scan(&catalogMigrationCount); err != nil {
+			t.Fatalf("query memory_schema_migrations error = %v", err)
+		}
+		if catalogMigrationCount != 1 {
+			t.Fatalf("memory_schema_migrations count = %d, want 1", catalogMigrationCount)
+		}
+	})
+
 	t.Run("Should migrate legacy operation log columns before history queries", func(t *testing.T) {
 		t.Parallel()
 

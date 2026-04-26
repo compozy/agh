@@ -5,18 +5,19 @@ import { Empty, MonoBadge, SearchInput } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import {
-  deriveScopeFromFilename,
   formatKnowledgeRelativeTime,
+  knowledgeMemoryKey,
   memoryScopeTone,
+  resolveKnowledgeScope,
   memoryTypeTone,
 } from "../lib/knowledge-formatters";
 import { filterKnowledgeMemories, groupKnowledgeMemoriesByScope } from "../lib/knowledge-list";
-import type { MemoryHeader } from "../types";
+import type { KnowledgeMemoryItem } from "../types";
 
 interface KnowledgeListPanelProps {
-  memories: MemoryHeader[];
-  selectedFilename: string | null;
-  onSelectMemory: (filename: string) => void;
+  memories: KnowledgeMemoryItem[];
+  selectedMemoryKey: string | null;
+  onSelectMemory: (memoryKey: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   isLoading?: boolean;
@@ -24,13 +25,13 @@ interface KnowledgeListPanelProps {
 }
 
 interface KnowledgeListItemProps {
-  memory: MemoryHeader;
+  memory: KnowledgeMemoryItem;
   isSelected: boolean;
   onSelect: () => void;
 }
 
 function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemProps) {
-  const scope = deriveScopeFromFilename(memory.filename);
+  const scope = resolveKnowledgeScope(memory);
   return (
     <button
       aria-pressed={isSelected}
@@ -40,7 +41,7 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
         isSelected && "bg-[color:var(--color-surface)]"
       )}
       data-state={isSelected ? "selected" : undefined}
-      data-testid={`memory-item-${memory.filename}`}
+      data-testid={`memory-item-${memory.key ?? memory.filename}`}
       onClick={onSelect}
       type="button"
     >
@@ -78,7 +79,7 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
 
 function KnowledgeListPanel({
   memories,
-  selectedFilename,
+  selectedMemoryKey,
   onSelectMemory,
   searchQuery,
   onSearchChange,
@@ -158,10 +159,10 @@ function KnowledgeListPanel({
                 </div>
                 {group.memories.map(memory => (
                   <KnowledgeListItem
-                    isSelected={memory.filename === selectedFilename}
-                    key={memory.filename}
+                    isSelected={knowledgeMemoryKey(memory) === selectedMemoryKey}
+                    key={knowledgeMemoryKey(memory)}
                     memory={memory}
-                    onSelect={() => onSelectMemory(memory.filename)}
+                    onSelect={() => onSelectMemory(knowledgeMemoryKey(memory))}
                   />
                 ))}
               </div>

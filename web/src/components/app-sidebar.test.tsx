@@ -294,6 +294,51 @@ describe("AppSidebar", () => {
 
       expect(screen.queryByTestId("pending-session-row-claude-agent")).not.toBeInTheDocument();
     });
+
+    it("opens an agent group when sessions arrive after the initial render without Base UI warnings", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const agent = { name: "coder", provider: "claude", prompt: "code" };
+      const initialProps = makeProps({
+        agents: [agent],
+        sessions: [],
+      });
+      const { rerender } = render(
+        <UIProvider reducedMotion="always">
+          <AppSidebar {...initialProps} />
+        </UIProvider>
+      );
+
+      rerender(
+        <UIProvider reducedMotion="always">
+          <AppSidebar
+            {...makeProps({
+              agents: [agent],
+              sessions: [
+                {
+                  id: "sess_new",
+                  name: "New session",
+                  agent_name: "coder",
+                  provider: "claude",
+                  workspace_id: "ws_alpha",
+                  workspace_path: "/workspace/alpha",
+                  state: "active",
+                  updated_at: "2026-04-06T11:00:00Z",
+                  created_at: "2026-04-06T11:00:00Z",
+                },
+              ],
+            })}
+          />
+        </UIProvider>
+      );
+
+      expect(screen.getByRole("link", { name: "New session" })).toBeInTheDocument();
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
   });
 
   describe("Nav — Workspace section", () => {

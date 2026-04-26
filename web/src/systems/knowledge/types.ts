@@ -6,6 +6,12 @@ export type MemoryMutationResponse = OperationResponse<"writeMemory", 200>;
 export type MemoryConsolidateResponse = OperationResponse<"consolidateMemory", 200>;
 export type MemoryScope = NonNullable<OperationQuery<"listMemory">>["scope"];
 export type MemoryType = MemoryHeader["type"];
+export type KnowledgeScope = Exclude<MemoryScope, undefined>;
+
+export interface KnowledgeMemoryItem extends MemoryHeader {
+  scope?: KnowledgeScope;
+  key?: string;
+}
 
 export type KnowledgeFilter = {
   scope?: MemoryScope;

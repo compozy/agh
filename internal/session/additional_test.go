@@ -663,8 +663,8 @@ func TestMarshalAgentEvent(t *testing.T) {
 	if rawDecoded["tool_name"] != "Bash" {
 		t.Fatalf("rawDecoded[tool_name] = %v, want %q", rawDecoded["tool_name"], "Bash")
 	}
-	if _, ok := rawDecoded["raw"]; !ok {
-		t.Fatalf("rawDecoded missing nested raw payload: %#v", rawDecoded)
+	if _, ok := rawDecoded["raw"]; ok {
+		t.Fatalf("rawDecoded unexpectedly retained nested raw payload: %#v", rawDecoded)
 	}
 }
 

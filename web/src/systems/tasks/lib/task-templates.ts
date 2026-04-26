@@ -1,4 +1,4 @@
-import type { CreateTaskRequest, TaskPriority } from "../types";
+import type { CreateChildTaskRequest, CreateTaskRequest, TaskPriority } from "../types";
 
 export type TaskTemplateId =
   | "one_shot"
@@ -122,10 +122,20 @@ export function getTaskTemplate(id: TaskTemplateId): TaskTemplate {
   return TEMPLATE_BY_ID[id] ?? ONE_SHOT_TEMPLATE;
 }
 
+type TemplateAwareTaskCreationPayload = CreateTaskRequest | CreateChildTaskRequest;
+
 export function applyTemplateToCreatePayload(
   base: CreateTaskRequest,
   templateId: TaskTemplateId
-): CreateTaskRequest {
+): CreateTaskRequest;
+export function applyTemplateToCreatePayload(
+  base: CreateChildTaskRequest,
+  templateId: TaskTemplateId
+): CreateChildTaskRequest;
+export function applyTemplateToCreatePayload(
+  base: TemplateAwareTaskCreationPayload,
+  templateId: TaskTemplateId
+): TemplateAwareTaskCreationPayload {
   const template = getTaskTemplate(templateId);
   return {
     ...base,

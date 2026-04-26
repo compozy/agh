@@ -275,7 +275,11 @@ func (m *Manager) initAuditor(auditPath string, auditStore AuditStore) error {
 		return nil
 	}
 
-	auditor, err := NewAuditWriter(auditPath, auditStore)
+	auditor, err := NewAuditWriter(
+		auditPath,
+		auditStore,
+		WithAuditWriterPresenceWindow(2*m.config.GreetIntervalDuration()),
+	)
 	if err != nil {
 		return err
 	}
@@ -362,6 +366,7 @@ func (m *Manager) JoinChannel(ctx context.Context, join sessionpkg.NetworkPeerJo
 type joinChannelRequest struct {
 	sessionID    string
 	peerID       string
+	displayName  string
 	channel      string
 	capabilities []sessionpkg.NetworkPeerCapability
 }
@@ -387,6 +392,7 @@ func normalizeJoinChannelRequest(
 	request := joinChannelRequest{
 		sessionID:    strings.TrimSpace(join.SessionID),
 		peerID:       strings.TrimSpace(join.PeerID),
+		displayName:  strings.TrimSpace(join.DisplayName),
 		channel:      strings.TrimSpace(join.Channel),
 		capabilities: cloneJoinCapabilities(join.Capabilities),
 	}
@@ -440,6 +446,9 @@ func localPeerCardFromJoinRequest(request joinChannelRequest) (PeerCard, error) 
 	card, err := DefaultPeerCard(request.peerID)
 	if err != nil {
 		return PeerCard{}, err
+	}
+	if displayName := strings.TrimSpace(request.displayName); displayName != "" {
+		card.DisplayName = &displayName
 	}
 	if err := applyCapabilityBriefProjection(&card, request.capabilities); err != nil {
 		return PeerCard{}, err

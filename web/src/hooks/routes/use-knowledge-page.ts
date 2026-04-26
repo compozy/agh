@@ -1,102 +1,146 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useDeleteMemory, useMemories, useMemory } from "@/systems/knowledge";
+import { knowledgeMemoryKey } from "@/systems/knowledge/lib/knowledge-formatters";
 import {
   filterKnowledgeMemories,
   sortKnowledgeMemories,
 } from "@/systems/knowledge/lib/knowledge-list";
-import type { MemoryScope } from "@/systems/knowledge/types";
+import type { KnowledgeMemoryItem, KnowledgeScope } from "@/systems/knowledge/types";
 import { useActiveWorkspace } from "@/systems/workspace";
-import { deriveScopeFromFilename } from "@/systems/knowledge/lib/knowledge-formatters";
 
 type Tab = "all" | "global" | "workspace";
 
+function decorateKnowledgeMemories(
+  memories: KnowledgeMemoryItem[] | undefined,
+  scope: KnowledgeScope
+): KnowledgeMemoryItem[] {
+  return (memories ?? []).map(memory => ({
+    ...memory,
+    scope,
+    key: `${scope}:${memory.filename}`,
+  }));
+}
+
 function useKnowledgePage() {
   const [activeTab, setActiveTab] = useState<Tab>("all");
-  const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
+  const [selectedMemoryKey, setSelectedMemoryKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [deleteTargetFilename, setDeleteTargetFilename] = useState<string | null>(null);
+  const [deleteTargetKey, setDeleteTargetKey] = useState<string | null>(null);
 
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const scopeFilter = activeTab === "all" ? undefined : activeTab;
+  const { activeWorkspace } = useActiveWorkspace();
+  const activeWorkspacePath = activeWorkspace?.root_dir ?? null;
 
-  const {
-    data: memories,
-    isLoading,
-    error,
-  } = useMemories(scopeFilter, activeWorkspaceId || undefined);
+  const globalMemoriesQuery = useMemories("global");
+  const workspaceMemoriesQuery = useMemories("workspace", activeWorkspacePath ?? undefined, {
+    enabled: Boolean(activeWorkspacePath),
+  });
   const {
     error: deleteMutationError,
     isPending: isDeletePending,
     mutateAsync: deleteMemory,
     reset: resetDeleteMutation,
   } = useDeleteMemory();
-  const visibleMemories = useMemo(() => {
-    return sortKnowledgeMemories(filterKnowledgeMemories(memories ?? [], searchQuery));
-  }, [memories, searchQuery]);
 
-  const effectiveSelectedFilename = useMemo(() => {
-    if (selectedFilename && visibleMemories.some(memory => memory.filename === selectedFilename)) {
-      return selectedFilename;
+  const relevantMemories = useMemo(() => {
+    const globalMemories = decorateKnowledgeMemories(globalMemoriesQuery.data, "global");
+    const workspaceMemories = decorateKnowledgeMemories(workspaceMemoriesQuery.data, "workspace");
+
+    if (activeTab === "global") {
+      return globalMemories;
+    }
+    if (activeTab === "workspace") {
+      return workspaceMemories;
+    }
+    return [...globalMemories, ...workspaceMemories];
+  }, [activeTab, globalMemoriesQuery.data, workspaceMemoriesQuery.data]);
+
+  const visibleMemories = useMemo(() => {
+    return sortKnowledgeMemories(filterKnowledgeMemories(relevantMemories, searchQuery));
+  }, [relevantMemories, searchQuery]);
+
+  const effectiveSelectedMemoryKey = useMemo(() => {
+    if (
+      selectedMemoryKey &&
+      visibleMemories.some(memory => knowledgeMemoryKey(memory) === selectedMemoryKey)
+    ) {
+      return selectedMemoryKey;
     }
 
-    return visibleMemories[0]?.filename ?? null;
-  }, [selectedFilename, visibleMemories]);
+    return visibleMemories[0] ? knowledgeMemoryKey(visibleMemories[0]) : null;
+  }, [selectedMemoryKey, visibleMemories]);
 
   const selectedMemory = useMemo(
-    () => visibleMemories.find(memory => memory.filename === effectiveSelectedFilename),
-    [visibleMemories, effectiveSelectedFilename]
+    () => visibleMemories.find(memory => knowledgeMemoryKey(memory) === effectiveSelectedMemoryKey),
+    [effectiveSelectedMemoryKey, visibleMemories]
   );
 
-  const selectedScope = selectedMemory
-    ? (deriveScopeFromFilename(selectedMemory.filename) as Exclude<MemoryScope, undefined>)
-    : undefined;
+  const selectedScope = selectedMemory?.scope;
+  const selectedWorkspace =
+    selectedScope === "workspace" ? (activeWorkspacePath ?? undefined) : undefined;
   const {
     data: selectedContent,
     isLoading: isContentLoading,
     error: contentError,
-  } = useMemory(selectedScope, effectiveSelectedFilename ?? "", activeWorkspaceId || undefined);
+  } = useMemory(selectedScope, selectedMemory?.filename ?? "", selectedWorkspace);
+
+  const isLoading =
+    activeTab === "global"
+      ? globalMemoriesQuery.isLoading
+      : activeTab === "workspace"
+        ? workspaceMemoriesQuery.isLoading
+        : globalMemoriesQuery.isLoading || workspaceMemoriesQuery.isLoading;
+
+  const error =
+    activeTab === "global"
+      ? (globalMemoriesQuery.error ?? null)
+      : activeTab === "workspace"
+        ? (workspaceMemoriesQuery.error ?? null)
+        : (globalMemoriesQuery.error ?? workspaceMemoriesQuery.error ?? null);
 
   useEffect(() => {
-    if (!deleteTargetFilename || isDeletePending) {
+    if (!deleteTargetKey || isDeletePending) {
       return;
     }
 
-    if (selectedMemory?.filename === deleteTargetFilename) {
+    if (selectedMemory && knowledgeMemoryKey(selectedMemory) === deleteTargetKey) {
       return;
     }
 
     resetDeleteMutation();
-    setDeleteTargetFilename(null);
-  }, [deleteTargetFilename, isDeletePending, resetDeleteMutation, selectedMemory?.filename]);
+    setDeleteTargetKey(null);
+  }, [deleteTargetKey, isDeletePending, resetDeleteMutation, selectedMemory]);
 
-  const handleDelete = async (filename: string) => {
-    const scope =
-      selectedMemory?.filename === filename ? selectedScope : deriveScopeFromFilename(filename);
+  const handleDelete = async (memory: KnowledgeMemoryItem) => {
+    const scope = memory.scope;
     if (!scope) {
       return;
     }
 
-    setDeleteTargetFilename(filename);
+    const memoryKey = knowledgeMemoryKey(memory);
+    setDeleteTargetKey(memoryKey);
     resetDeleteMutation();
     await deleteMemory({
       scope,
-      filename,
-      workspace: activeWorkspaceId || undefined,
+      filename: memory.filename,
+      workspace: scope === "workspace" ? (activeWorkspacePath ?? undefined) : undefined,
     });
-    setDeleteTargetFilename(null);
+    setDeleteTargetKey(null);
   };
 
   return {
     activeTab,
     contentError,
-    effectiveSelectedFilename,
+    effectiveSelectedMemoryKey,
     error,
     handleDelete,
-    isContentLoading: isContentLoading && effectiveSelectedFilename !== null,
+    isContentLoading: isContentLoading && effectiveSelectedMemoryKey !== null,
     isDeletePending,
     deleteError:
-      deleteTargetFilename === selectedMemory?.filename && deleteMutationError
+      deleteTargetKey !== null &&
+      selectedMemory &&
+      deleteTargetKey === knowledgeMemoryKey(selectedMemory) &&
+      deleteMutationError
         ? deleteMutationError instanceof Error
           ? deleteMutationError.message
           : "Failed to delete knowledge entry"
@@ -110,7 +154,7 @@ function useKnowledgePage() {
     selectedScope,
     setActiveTab,
     setSearchQuery,
-    setSelectedFilename,
+    setSelectedMemoryKey,
   };
 }
 

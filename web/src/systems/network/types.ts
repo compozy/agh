@@ -110,10 +110,12 @@ export interface NetworkActiveRoom {
   key: string;
   kindCounts: NetworkRoomKindMetric[];
   lastActivityAt: string | null;
+  lastPresenceAt: string | null;
   memberCount: number;
   members: NetworkRoomMember[];
   messageCount: number;
   messages: NetworkTimelineMessage[];
+  presenceCount: number;
   preview: string;
   purpose: string | null;
   roomType: NetworkRoomType;

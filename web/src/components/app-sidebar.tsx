@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import {
   Book,
@@ -226,9 +228,17 @@ function AgentItem({
   showPendingSessionRow,
 }: AgentItemProps) {
   const count = sessions?.length ?? 0;
+  const shouldAutoOpen = count > 0 || showPendingSessionRow;
+  const [open, setOpen] = useState(shouldAutoOpen);
+
+  useEffect(() => {
+    if (shouldAutoOpen) {
+      setOpen(true);
+    }
+  }, [shouldAutoOpen]);
 
   return (
-    <Collapsible defaultOpen={count > 0 || showPendingSessionRow} className="group/agent">
+    <Collapsible open={open} onOpenChange={setOpen} className="group/agent">
       <div className="relative flex items-center">
         <CollapsibleTrigger
           data-testid={`agent-trigger-${agent.name}`}

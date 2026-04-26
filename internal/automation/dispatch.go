@@ -24,6 +24,35 @@ var (
 	ErrFireLimitReached = errors.New("automation: fire limit reached")
 )
 
+// FireLimitError carries the next eligible retry instant for fire-limit backoff.
+type FireLimitError struct {
+	Count   int64
+	Limit   int
+	Window  time.Duration
+	RetryAt time.Time
+}
+
+func (e *FireLimitError) Error() string {
+	if e == nil {
+		return ErrFireLimitReached.Error()
+	}
+	message := fmt.Sprintf(
+		"%s: fires=%d limit=%d window=%s",
+		ErrFireLimitReached,
+		e.Count,
+		e.Limit,
+		e.Window,
+	)
+	if !e.RetryAt.IsZero() {
+		message += " retry_at=" + e.RetryAt.UTC().Format(time.RFC3339Nano)
+	}
+	return message
+}
+
+func (e *FireLimitError) Unwrap() error {
+	return ErrFireLimitReached
+}
+
 const dispatcherSessionStopTimeout = 2 * time.Second
 
 // DispatchKind identifies which activation path produced a dispatch request.
@@ -147,6 +176,7 @@ type RunStore interface {
 	CreateRun(ctx context.Context, run Run) (Run, error)
 	UpdateRun(ctx context.Context, run Run) (Run, error)
 	CountRuns(ctx context.Context, query RunQuery) (int64, error)
+	ListRuns(ctx context.Context, query RunQuery) ([]Run, error)
 }
 
 // TaskService exposes the minimal task-domain surface used by task-backed
@@ -445,38 +475,11 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 		return d.reserveExistingRun(ctx, req, attempt)
 	}
 
-	fireLimit := req.fireLimitConfig()
-	window, err := time.ParseDuration(fireLimit.Window)
-	if err != nil {
-		return nil, fmt.Errorf("automation: parse fire-limit window: %w", err)
-	}
-
 	now := d.now()
-	query := RunQuery{
-		Since: now.Add(-window),
-		Until: now,
-	}
-	if req.Job != nil {
-		query.JobID = req.Job.ID
-	} else {
-		query.TriggerID = req.Trigger.ID
-	}
-
-	d.fireLimitMu.Lock()
-	defer d.fireLimitMu.Unlock()
-
-	count, err := d.runs.CountRuns(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("automation: evaluate fire limit: %w", err)
-	}
-	if count >= int64(fireLimit.Max) {
-		return nil, fmt.Errorf(
-			"%w: fires=%d limit=%d window=%s",
-			ErrFireLimitReached,
-			count,
-			fireLimit.Max,
-			window.String(),
-		)
+	if fireLimitErr, err := d.evaluateFireLimit(ctx, req, "", now); err != nil {
+		return nil, err
+	} else if fireLimitErr != nil {
+		return nil, fireLimitErr
 	}
 
 	run := Run{
@@ -515,17 +518,40 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 		return nil, errors.New("automation: reserved run trigger_id does not match dispatch trigger")
 	}
 
+	now := d.now()
+	fireLimitErr, err := d.evaluateFireLimit(ctx, req, reserved.ID, now)
+	if err != nil {
+		return reserved, err
+	}
+	if fireLimitErr != nil {
+		return d.finishRun(ctx, reserved, fireLimitRunStatus(req.Kind), fireLimitErr)
+	}
+	return reserved, nil
+}
+
+func fireLimitRunStatus(kind DispatchKind) RunStatus {
+	if kind == DispatchKindSchedule {
+		return RunCancelled
+	}
+	return RunFailed
+}
+
+func (d *Dispatcher) evaluateFireLimit(
+	ctx context.Context,
+	req DispatchRequest,
+	excludeID string,
+	now time.Time,
+) (*FireLimitError, error) {
 	fireLimit := req.fireLimitConfig()
 	window, err := time.ParseDuration(fireLimit.Window)
 	if err != nil {
-		return reserved, fmt.Errorf("automation: parse fire-limit window: %w", err)
+		return nil, fmt.Errorf("automation: parse fire-limit window: %w", err)
 	}
 
-	now := d.now()
 	query := RunQuery{
 		Since:     now.Add(-window),
 		Until:     now,
-		ExcludeID: reserved.ID,
+		ExcludeID: strings.TrimSpace(excludeID),
 	}
 	if req.Job != nil {
 		query.JobID = req.Job.ID
@@ -536,21 +562,38 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 	d.fireLimitMu.Lock()
 	defer d.fireLimitMu.Unlock()
 
-	count, err := d.runs.CountRuns(ctx, query)
+	runs, err := d.runs.ListRuns(ctx, query)
 	if err != nil {
-		return reserved, fmt.Errorf("automation: evaluate fire limit: %w", err)
+		return nil, fmt.Errorf("automation: evaluate fire limit: %w", err)
 	}
-	if count >= int64(fireLimit.Max) {
-		fireLimitErr := fmt.Errorf(
-			"%w: fires=%d limit=%d window=%s",
-			ErrFireLimitReached,
-			count,
-			fireLimit.Max,
-			window.String(),
-		)
-		return d.finishRun(ctx, reserved, RunFailed, fireLimitErr)
+	count := int64(len(runs))
+	if count < int64(fireLimit.Max) {
+		return nil, nil
 	}
-	return reserved, nil
+
+	var retryAt time.Time
+	for _, run := range runs {
+		if run.StartedAt == nil || run.StartedAt.IsZero() {
+			continue
+		}
+		candidate := run.StartedAt.Add(window)
+		if retryAt.IsZero() || candidate.Before(retryAt) {
+			retryAt = candidate
+		}
+	}
+	if retryAt.IsZero() {
+		retryAt = now
+	}
+	if retryAt.Before(now) {
+		retryAt = now
+	}
+
+	return &FireLimitError{
+		Count:   count,
+		Limit:   fireLimit.Max,
+		Window:  window,
+		RetryAt: retryAt,
+	}, nil
 }
 
 func (d *Dispatcher) dispatchTaskBackedAttempt(

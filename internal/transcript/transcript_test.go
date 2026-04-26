@@ -676,7 +676,7 @@ func TestMarshalAgentEventBuildsCanonicalPayload(t *testing.T) {
 	}
 }
 
-func TestMarshalAgentEventPreservesRawToolResultShape(t *testing.T) {
+func TestMarshalAgentEventExtractsToolResultShapeWithoutPersistingRaw(t *testing.T) {
 	t.Parallel()
 
 	payload, err := MarshalAgentEvent(acp.AgentEvent{
@@ -721,8 +721,8 @@ func TestMarshalAgentEventPreservesRawToolResultShape(t *testing.T) {
 	if decoded.ToolResult.Stderr != "boom" || decoded.ToolResult.Error != "boom" {
 		t.Fatalf("ToolResult = %#v, want stderr/error boom", decoded.ToolResult)
 	}
-	if len(decoded.Raw) == 0 {
-		t.Fatal("Raw = empty, want preserved nested raw payload")
+	if len(decoded.Raw) != 0 {
+		t.Fatalf("Raw = %s, want empty persisted raw payload", string(decoded.Raw))
 	}
 }
 
@@ -751,7 +751,7 @@ func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 	})
 }
 
-func TestUnmarshalAgentEventRoundTrip(t *testing.T) {
+func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *testing.T) {
 	t.Parallel()
 
 	payload, err := MarshalAgentEvent(acp.AgentEvent{
@@ -788,8 +788,8 @@ func TestUnmarshalAgentEventRoundTrip(t *testing.T) {
 	if got, want := event.Text, "hello"; got != want {
 		t.Fatalf("Text = %q, want %q", got, want)
 	}
-	if got, want := string(event.Raw), `{"chunk":1}`; got != want {
-		t.Fatalf("Raw = %s, want %s", got, want)
+	if len(event.Raw) != 0 {
+		t.Fatalf("Raw = %s, want empty canonical raw payload", string(event.Raw))
 	}
 }
 

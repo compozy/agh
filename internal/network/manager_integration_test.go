@@ -73,7 +73,13 @@ func TestManagerJoinPublishesProjectedCapabilityBriefInInitialAndReconnectGreets
 	}
 	if err := manager.JoinChannel(
 		ctx,
-		testJoinRequest("sess-capable", "reviewer.sess-capable", "builders", capabilities...),
+		sessionpkg.NetworkPeerJoin{
+			SessionID:    "sess-capable",
+			PeerID:       "reviewer.sess-capable",
+			DisplayName:  "Reviewer",
+			Channel:      "builders",
+			Capabilities: append([]sessionpkg.NetworkPeerCapability(nil), capabilities...),
+		},
 	); err != nil {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
@@ -93,6 +99,12 @@ func TestManagerJoinPublishesProjectedCapabilityBriefInInitialAndReconnectGreets
 				t.Fatalf("%s DecodeBody() error = %v", label, err)
 			}
 			body := decoded.(GreetBody)
+			if body.PeerCard.DisplayName == nil || *body.PeerCard.DisplayName != "Reviewer" {
+				t.Fatalf("%s greet display name = %#v, want Reviewer", label, body.PeerCard.DisplayName)
+			}
+			if got, want := body.Summary, "Reviewer ready for Review pull requests +1 more"; got != want {
+				t.Fatalf("%s greet summary = %q, want %q", label, got, want)
+			}
 			if got, want := body.PeerCard.Capabilities, []string{"review-pr", "draft-spec"}; !slices.Equal(got, want) {
 				t.Fatalf("%s greet capabilities = %#v, want %#v", label, got, want)
 			}

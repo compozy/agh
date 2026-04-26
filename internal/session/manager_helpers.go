@@ -147,7 +147,13 @@ func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session, capabil
 
 	return lifecycle.JoinChannel(
 		ctx,
-		newNetworkPeerJoin(info.ID, networkPeerID(info.AgentName, info.ID), info.Channel, capabilities),
+		newNetworkPeerJoin(
+			info.ID,
+			networkPeerID(info.AgentName, info.ID),
+			firstNonEmpty(strings.TrimSpace(info.Name), strings.TrimSpace(info.AgentName)),
+			info.Channel,
+			capabilities,
+		),
 	)
 }
 

@@ -3,28 +3,32 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { MemoryHeader } from "../types";
+import type { KnowledgeMemoryItem } from "../types";
 
 import { KnowledgeListPanel } from "./knowledge-list-panel";
 
-const GLOBAL: MemoryHeader = {
-  filename: "global/user-role.md",
+const GLOBAL: KnowledgeMemoryItem = {
+  filename: "user-role.md",
+  key: "global:user-role.md",
   mod_time: "2026-04-09T10:00:00Z",
   name: "User Role",
+  scope: "global",
   type: "user",
   description: "Guidance that shapes the assistant's tone and ownership.",
 };
 
-const WORKSPACE: MemoryHeader = {
-  filename: "workspace/project-context.md",
+const WORKSPACE: KnowledgeMemoryItem = {
+  filename: "project-context.md",
+  key: "workspace:project-context.md",
   mod_time: "2026-04-09T08:00:00Z",
   name: "Project Context",
+  scope: "workspace",
   type: "project",
   description: "Workspace-local notes about rollout.",
   agent_name: "codex-agent",
 };
 
-const ALL: MemoryHeader[] = [GLOBAL, WORKSPACE];
+const ALL: KnowledgeMemoryItem[] = [GLOBAL, WORKSPACE];
 
 function renderPanel(props: Partial<React.ComponentProps<typeof KnowledgeListPanel>> = {}) {
   const merged: React.ComponentProps<typeof KnowledgeListPanel> = {
@@ -32,7 +36,7 @@ function renderPanel(props: Partial<React.ComponentProps<typeof KnowledgeListPan
     onSearchChange: vi.fn(),
     onSelectMemory: vi.fn(),
     searchQuery: "",
-    selectedFilename: null,
+    selectedMemoryKey: null,
     ...props,
   };
   return render(
@@ -66,21 +70,21 @@ describe("KnowledgeListPanel", () => {
 
   it("filters rows by name (case-insensitive)", () => {
     renderPanel({ searchQuery: "project" });
-    expect(screen.getByTestId("memory-item-workspace/project-context.md")).toBeInTheDocument();
-    expect(screen.queryByTestId("memory-item-global/user-role.md")).not.toBeInTheDocument();
+    expect(screen.getByTestId("memory-item-workspace:project-context.md")).toBeInTheDocument();
+    expect(screen.queryByTestId("memory-item-global:user-role.md")).not.toBeInTheDocument();
   });
 
   it("filters rows by description (case-insensitive)", () => {
     renderPanel({ searchQuery: "rollout" });
-    expect(screen.getByTestId("memory-item-workspace/project-context.md")).toBeInTheDocument();
-    expect(screen.queryByTestId("memory-item-global/user-role.md")).not.toBeInTheDocument();
+    expect(screen.getByTestId("memory-item-workspace:project-context.md")).toBeInTheDocument();
+    expect(screen.queryByTestId("memory-item-global:user-role.md")).not.toBeInTheDocument();
   });
 
   it("filters rows by type", () => {
     renderPanel({ searchQuery: "USER" });
-    expect(screen.getByTestId("memory-item-global/user-role.md")).toBeInTheDocument();
+    expect(screen.getByTestId("memory-item-global:user-role.md")).toBeInTheDocument();
     expect(
-      screen.queryByTestId("memory-item-workspace/project-context.md")
+      screen.queryByTestId("memory-item-workspace:project-context.md")
     ).not.toBeInTheDocument();
   });
 
@@ -127,15 +131,15 @@ describe("KnowledgeListPanel", () => {
     const user = userEvent.setup();
     const onSelectMemory = vi.fn();
     renderPanel({ onSelectMemory });
-    await user.click(screen.getByTestId("memory-item-workspace/project-context.md"));
-    expect(onSelectMemory).toHaveBeenCalledWith("workspace/project-context.md");
+    await user.click(screen.getByTestId("memory-item-workspace:project-context.md"));
+    expect(onSelectMemory).toHaveBeenCalledWith("workspace:project-context.md");
   });
 
   it("renders the 3px accent indicator on the selected row only", () => {
-    renderPanel({ selectedFilename: "workspace/project-context.md" });
-    const selected = screen.getByTestId("memory-item-workspace/project-context.md");
+    renderPanel({ selectedMemoryKey: "workspace:project-context.md" });
+    const selected = screen.getByTestId("memory-item-workspace:project-context.md");
     expect(within(selected).getByTestId("memory-active-indicator")).toBeInTheDocument();
-    const unselected = screen.getByTestId("memory-item-global/user-role.md");
+    const unselected = screen.getByTestId("memory-item-global:user-role.md");
     expect(within(unselected).queryByTestId("memory-active-indicator")).not.toBeInTheDocument();
   });
 });

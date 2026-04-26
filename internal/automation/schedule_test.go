@@ -180,6 +180,57 @@ func TestSchedulerAdvancesDurableCursorBeforeDispatch(t *testing.T) {
 	dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
 }
 
+func TestSchedulerDefersNextRunAfterFireLimit(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+	scheduledAt := baseTime.Add(time.Minute)
+	retryAt := baseTime.Add(47 * time.Minute)
+	fakeClock := clockwork.NewFakeClockAt(baseTime)
+	store := newMemorySchedulerStore()
+	dispatcher := newStubScheduleDispatcher()
+	dispatcher.dispatchResult = &FireLimitError{
+		Count:   12,
+		Limit:   12,
+		Window:  time.Hour,
+		RetryAt: retryAt,
+	}
+	scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(fakeClock), WithSchedulerStore(store))
+
+	job := testJob(AutomationScopeGlobal, "fire-limit-deferral", "")
+	job.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1m"}
+	if _, err := scheduler.Register(context.Background(), job); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if err := scheduler.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	waitForTimers(t, fakeClock, 1)
+	fakeClock.Advance(time.Minute)
+	dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
+	dispatcher.waitForCompletionCount(t, 1, 2*time.Second)
+
+	state, err := store.GetSchedulerState(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("GetSchedulerState() error = %v", err)
+	}
+	if state.NextRunAt == nil || !state.NextRunAt.Equal(retryAt) {
+		t.Fatalf("state.NextRunAt = %v, want %s", state.NextRunAt, retryAt.Format(time.RFC3339))
+	}
+	if got := store.deliveryErrorForRun(scheduledRunID(job.ID, scheduledAt)); got != "" {
+		t.Fatalf("deliveryErrorForRun() = %q, want empty", got)
+	}
+
+	runtimeState, err := scheduler.State(job.ID)
+	if err != nil {
+		t.Fatalf("State() error = %v", err)
+	}
+	if runtimeState.NextRun == nil || !runtimeState.NextRun.Equal(retryAt) {
+		t.Fatalf("State().NextRun = %v, want %s", runtimeState.NextRun, retryAt.Format(time.RFC3339))
+	}
+}
+
 func TestSchedulerReconcilesMissedRunsWithSkipPolicy(t *testing.T) {
 	t.Parallel()
 
