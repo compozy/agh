@@ -246,6 +246,12 @@ func TestNormalizeSessionTypeDefaultsToUser(t *testing.T) {
 	if got := normalizeSessionType(" dream "); got != SessionTypeDream {
 		t.Fatalf("normalizeSessionType(\" dream \") = %q, want %q", got, SessionTypeDream)
 	}
+	if got := normalizeSessionType(" coordinator "); got != SessionTypeCoordinator {
+		t.Fatalf("normalizeSessionType(\" coordinator \") = %q, want %q", got, SessionTypeCoordinator)
+	}
+	if got := normalizeSessionType(" spawned "); got != SessionTypeSpawned {
+		t.Fatalf("normalizeSessionType(\" spawned \") = %q, want %q", got, SessionTypeSpawned)
+	}
 	if got := normalizeSessionType("unknown"); got != SessionTypeUser {
 		t.Fatalf("normalizeSessionType(\"unknown\") = %q, want %q", got, SessionTypeUser)
 	}

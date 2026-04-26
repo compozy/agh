@@ -76,6 +76,8 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 	}
 
 	sqlQuery := `SELECT id, name, agent_name, provider, workspace_id, channel, session_type,
+		parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
+		auto_stop_on_parent, spawn_budget_json, permission_policy_json,
 		state, acp_session_id, stop_reason, stop_detail,
 		failure_kind, failure_summary, crash_bundle_path,
 		subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
@@ -88,6 +90,10 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 	where, args := store.BuildClauses(
 		store.StringClause("state", query.State),
 		store.StringClause("agent_name", query.AgentName),
+		store.StringClause("session_type", query.SessionType),
+		store.StringClause("parent_session_id", query.ParentSessionID),
+		store.StringClause("root_session_id", query.RootSessionID),
+		store.StringClause("spawn_role", query.SpawnRole),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY updated_at DESC, created_at DESC, id DESC"
@@ -192,7 +198,7 @@ func (g *GlobalDB) ReconcileSessions(
 }
 
 func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, session store.SessionInfo) error {
-	activityJSON, err := sessionLivenessActivityJSON(session.Liveness)
+	record, err := newSessionCatalogRecord(session)
 	if err != nil {
 		return err
 	}
@@ -200,20 +206,35 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		ctx,
 		`INSERT INTO sessions (
 			id, name, agent_name, provider, workspace_id, session_type, channel, state,
+			parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
+			auto_stop_on_parent, spawn_budget_json, permission_policy_json,
 			acp_session_id, stop_reason, stop_detail, failure_kind, failure_summary, crash_bundle_path,
 			subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason, activity_json,
-			environment_id, environment_backend, environment_profile, environment_instance_id,
-			environment_state, environment_provider_state_json,
-			environment_last_sync_at, environment_last_sync_error, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			name = excluded.name,
-			agent_name = excluded.agent_name,
-			provider = excluded.provider,
+				environment_id, environment_backend, environment_profile, environment_instance_id,
+				environment_state, environment_provider_state_json,
+				environment_last_sync_at, environment_last_sync_error, created_at, updated_at
+			) VALUES (
+				?, ?, ?, ?, ?, ?, ?, ?,
+				?, ?, ?, ?, ?, ?, ?, ?,
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+			)
+			ON CONFLICT(id) DO UPDATE SET
+				name = excluded.name,
+				agent_name = excluded.agent_name,
+				provider = excluded.provider,
 			workspace_id = excluded.workspace_id,
 			session_type = excluded.session_type,
 			channel = excluded.channel,
 			state = excluded.state,
+			parent_session_id = excluded.parent_session_id,
+			root_session_id = excluded.root_session_id,
+			spawn_depth = excluded.spawn_depth,
+			spawn_role = excluded.spawn_role,
+			ttl_expires_at = excluded.ttl_expires_at,
+			auto_stop_on_parent = excluded.auto_stop_on_parent,
+			spawn_budget_json = excluded.spawn_budget_json,
+			permission_policy_json = excluded.permission_policy_json,
 			acp_session_id = excluded.acp_session_id,
 			stop_reason = excluded.stop_reason,
 			stop_detail = excluded.stop_detail,
@@ -232,9 +253,52 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			environment_instance_id = excluded.environment_instance_id,
 			environment_state = excluded.environment_state,
 			environment_provider_state_json = excluded.environment_provider_state_json,
-			environment_last_sync_at = excluded.environment_last_sync_at,
-			environment_last_sync_error = excluded.environment_last_sync_error,
-			updated_at = excluded.updated_at`,
+				environment_last_sync_at = excluded.environment_last_sync_at,
+				environment_last_sync_error = excluded.environment_last_sync_error,
+				updated_at = excluded.updated_at`,
+		record.args()...,
+	)
+	return err
+}
+
+type sessionCatalogRecord struct {
+	session              store.SessionInfo
+	lineage              *store.SessionLineage
+	spawnBudgetJSON      string
+	permissionPolicyJSON string
+	activityJSON         string
+}
+
+func newSessionCatalogRecord(session store.SessionInfo) (sessionCatalogRecord, error) {
+	lineage := store.NormalizeSessionLineage(session.ID, session.Lineage)
+	if err := store.ValidateSessionLineage(session.ID, lineage); err != nil {
+		return sessionCatalogRecord{}, err
+	}
+	spawnBudgetJSON, err := store.EncodeSessionSpawnBudget(lineage.SpawnBudget)
+	if err != nil {
+		return sessionCatalogRecord{}, err
+	}
+	permissionPolicyJSON, err := store.EncodeSessionPermissionPolicy(lineage.PermissionPolicy)
+	if err != nil {
+		return sessionCatalogRecord{}, err
+	}
+	activityJSON, err := sessionLivenessActivityJSON(session.Liveness)
+	if err != nil {
+		return sessionCatalogRecord{}, err
+	}
+	return sessionCatalogRecord{
+		session:              session,
+		lineage:              lineage,
+		spawnBudgetJSON:      spawnBudgetJSON,
+		permissionPolicyJSON: permissionPolicyJSON,
+		activityJSON:         activityJSON,
+	}, nil
+}
+
+func (record sessionCatalogRecord) args() []any {
+	session := record.session
+	lineage := record.lineage
+	return []any{
 		session.ID,
 		store.NullableString(session.Name),
 		session.AgentName,
@@ -243,6 +307,14 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		store.NormalizeSessionType(session.SessionType),
 		strings.TrimSpace(session.Channel),
 		session.State,
+		store.NullableString(lineage.ParentSessionID),
+		store.NullableString(lineage.RootSessionID),
+		lineage.SpawnDepth,
+		store.NullableString(lineage.SpawnRole),
+		sessionLineageTTLExpiresAt(lineage),
+		lineage.AutoStopOnParent,
+		record.spawnBudgetJSON,
+		record.permissionPolicyJSON,
 		store.NullableStringPointer(session.ACPSessionID),
 		store.NullableString(string(session.StopReason)),
 		store.NullableString(session.StopDetail),
@@ -254,7 +326,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		sessionLivenessLastUpdateAt(session.Liveness),
 		sessionLivenessStallState(session.Liveness),
 		sessionLivenessStallReason(session.Liveness),
-		activityJSON,
+		record.activityJSON,
 		sessionEnvironmentID(session.Environment),
 		sessionEnvironmentBackend(session.Environment),
 		sessionEnvironmentProfile(session.Environment),
@@ -265,8 +337,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 		sessionEnvironmentLastSyncError(session.Environment),
 		store.FormatTimestamp(session.CreatedAt),
 		store.FormatTimestamp(session.UpdatedAt),
-	)
-	return err
+	}
 }
 
 func (g *GlobalDB) loadSessionIDs(ctx context.Context, tx *sql.Tx) (map[string]struct{}, error) {
@@ -313,6 +384,13 @@ func sessionCrashBundlePath(failure *store.SessionFailure) string {
 		return ""
 	}
 	return failure.Normalize().CrashBundlePath
+}
+
+func sessionLineageTTLExpiresAt(lineage *store.SessionLineage) any {
+	if lineage == nil || lineage.TTLExpiresAt == nil || lineage.TTLExpiresAt.IsZero() {
+		return nil
+	}
+	return store.FormatTimestamp(lineage.TTLExpiresAt.UTC())
 }
 
 type sqlExecutor interface {
@@ -399,6 +477,14 @@ type sessionInfoRow struct {
 	name                 sql.NullString
 	channel              string
 	sessionType          string
+	parentSessionID      sql.NullString
+	rootSessionID        sql.NullString
+	spawnDepth           int
+	spawnRole            sql.NullString
+	ttlExpiresAt         sql.NullString
+	autoStopOnParent     bool
+	spawnBudgetJSON      string
+	permissionPolicyJSON string
 	acpSessionID         sql.NullString
 	stopReason           sql.NullString
 	stopDetail           sql.NullString
@@ -436,6 +522,21 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	session.Provider = strings.TrimSpace(row.session.Provider)
 	session.Channel = strings.TrimSpace(row.channel)
 	session.SessionType = store.NormalizeSessionType(row.sessionType)
+	lineage, err := scanSessionLineage(
+		session.ID,
+		row.parentSessionID,
+		row.rootSessionID,
+		row.spawnDepth,
+		row.spawnRole,
+		row.ttlExpiresAt,
+		row.autoStopOnParent,
+		row.spawnBudgetJSON,
+		row.permissionPolicyJSON,
+	)
+	if err != nil {
+		return store.SessionInfo{}, err
+	}
+	session.Lineage = lineage
 	session.ACPSessionID = store.NullString(row.acpSessionID)
 	if reason := store.NullString(row.stopReason); reason != nil {
 		session.StopReason = store.StopReason(*reason)
@@ -443,6 +544,13 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	if detail := store.NullString(row.stopDetail); detail != nil {
 		session.StopDetail = *detail
 	}
+	if err := populateSessionScanParts(&session, &row); err != nil {
+		return store.SessionInfo{}, err
+	}
+	return session, nil
+}
+
+func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) error {
 	failure := store.SessionFailure{
 		Summary:         strings.TrimSpace(row.failureSummary),
 		CrashBundlePath: strings.TrimSpace(row.crashBundlePath),
@@ -452,7 +560,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	}
 	if !failure.IsZero() {
 		if err := failure.Validate(); err != nil {
-			return store.SessionInfo{}, err
+			return err
 		}
 		session.Failure = &failure
 	}
@@ -465,7 +573,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		row.activityJSON,
 	)
 	if err != nil {
-		return store.SessionInfo{}, err
+		return err
 	}
 	session.Liveness = liveness
 	environment, err := scanSessionEnvironment(
@@ -479,18 +587,17 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		row.envLastSyncError,
 	)
 	if err != nil {
-		return store.SessionInfo{}, err
+		return err
 	}
 	session.Environment = environment
 
 	createdAt, updatedAt, err := parseSessionInfoTimestamps(row.createdAtRaw, row.updatedAtRaw)
 	if err != nil {
-		return store.SessionInfo{}, err
+		return err
 	}
 	session.CreatedAt = createdAt
 	session.UpdatedAt = updatedAt
-
-	return session, nil
+	return nil
 }
 
 func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
@@ -503,6 +610,14 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.session.WorkspaceID,
 		&row.channel,
 		&row.sessionType,
+		&row.parentSessionID,
+		&row.rootSessionID,
+		&row.spawnDepth,
+		&row.spawnRole,
+		&row.ttlExpiresAt,
+		&row.autoStopOnParent,
+		&row.spawnBudgetJSON,
+		&row.permissionPolicyJSON,
 		&row.session.State,
 		&row.acpSessionID,
 		&row.stopReason,
@@ -576,6 +691,55 @@ func scanSessionEnvironment(
 	}
 	meta.LastSyncError = strings.TrimSpace(lastSyncError)
 	return meta, nil
+}
+
+func scanSessionLineage(
+	sessionID string,
+	parentSessionID sql.NullString,
+	rootSessionID sql.NullString,
+	spawnDepth int,
+	spawnRole sql.NullString,
+	ttlExpiresAt sql.NullString,
+	autoStopOnParent bool,
+	spawnBudgetJSON string,
+	permissionPolicyJSON string,
+) (*store.SessionLineage, error) {
+	budget, err := store.DecodeSessionSpawnBudget(spawnBudgetJSON)
+	if err != nil {
+		return nil, err
+	}
+	policy, err := store.DecodeSessionPermissionPolicy(permissionPolicyJSON)
+	if err != nil {
+		return nil, err
+	}
+	lineage := &store.SessionLineage{
+		ParentSessionID:  sessionNullString(parentSessionID),
+		RootSessionID:    sessionNullString(rootSessionID),
+		SpawnDepth:       spawnDepth,
+		SpawnRole:        sessionNullString(spawnRole),
+		AutoStopOnParent: autoStopOnParent,
+		SpawnBudget:      budget,
+		PermissionPolicy: policy,
+	}
+	if ttlExpiresAt.Valid && strings.TrimSpace(ttlExpiresAt.String) != "" {
+		parsed, parseErr := store.ParseTimestamp(ttlExpiresAt.String)
+		if parseErr != nil {
+			return nil, fmt.Errorf("store: parse session ttl expires at: %w", parseErr)
+		}
+		lineage.TTLExpiresAt = &parsed
+	}
+	normalized := store.NormalizeSessionLineage(sessionID, lineage)
+	if err := store.ValidateSessionLineage(sessionID, normalized); err != nil {
+		return nil, err
+	}
+	return normalized, nil
+}
+
+func sessionNullString(value sql.NullString) string {
+	if !value.Valid {
+		return ""
+	}
+	return strings.TrimSpace(value.String)
 }
 
 func parseSessionInfoTimestamps(createdAtRaw string, updatedAtRaw string) (time.Time, time.Time, error) {

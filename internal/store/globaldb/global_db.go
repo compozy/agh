@@ -564,6 +564,74 @@ var globalSchemaMigrations = []store.Migration{
 				ON task_run_preferred_capabilities(capability_id, run_id);`,
 		},
 	},
+	{
+		Version:  8,
+		Name:     "add_session_lineage_metadata",
+		Up:       migrateSessionLineageColumns,
+		Checksum: "2026-04-26-add-session-lineage-metadata",
+	},
+}
+
+func migrateSessionLineageColumns(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "sessions")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	columns, err := tableColumns(ctx, tx, "sessions")
+	if err != nil {
+		return err
+	}
+	specs := []struct {
+		name string
+		sql  string
+	}{
+		{name: "parent_session_id", sql: `ALTER TABLE sessions ADD COLUMN parent_session_id TEXT`},
+		{name: "root_session_id", sql: `ALTER TABLE sessions ADD COLUMN root_session_id TEXT`},
+		{name: "spawn_depth", sql: `ALTER TABLE sessions ADD COLUMN spawn_depth INTEGER NOT NULL DEFAULT 0`},
+		{name: "spawn_role", sql: `ALTER TABLE sessions ADD COLUMN spawn_role TEXT`},
+		{name: "ttl_expires_at", sql: `ALTER TABLE sessions ADD COLUMN ttl_expires_at TEXT`},
+		{
+			name: "auto_stop_on_parent",
+			sql:  `ALTER TABLE sessions ADD COLUMN auto_stop_on_parent BOOLEAN NOT NULL DEFAULT 0`,
+		},
+		{
+			name: "spawn_budget_json",
+			sql:  `ALTER TABLE sessions ADD COLUMN spawn_budget_json TEXT NOT NULL DEFAULT '{}'`,
+		},
+		{
+			name: "permission_policy_json",
+			sql:  `ALTER TABLE sessions ADD COLUMN permission_policy_json TEXT NOT NULL DEFAULT '{}'`,
+		},
+	}
+	for _, spec := range specs {
+		if _, ok := columns[spec.name]; ok {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, spec.sql); err != nil {
+			return fmt.Errorf("store: add sessions.%s column: %w", spec.name, err)
+		}
+	}
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_root ON sessions(root_session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_type_depth ON sessions(session_type, spawn_depth);`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_spawn_role ON sessions(spawn_role);`,
+	}
+	for _, stmt := range indexes {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: migrate session lineage indexes: %w", err)
+		}
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`UPDATE sessions SET root_session_id = id WHERE root_session_id IS NULL OR trim(root_session_id) = ''`,
+	); err != nil {
+		return fmt.Errorf("store: backfill root session lineage: %w", err)
+	}
+	return nil
 }
 
 func migrateMemoryOperationScopeColumns(ctx context.Context, tx *sql.Tx) error {

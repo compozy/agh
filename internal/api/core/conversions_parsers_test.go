@@ -24,6 +24,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
+	ttl := now.Add(time.Hour)
 	payload := core.SessionPayloadFromInfo(&session.Info{
 		ID:          "sess-1",
 		Name:        "demo",
@@ -33,9 +34,27 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		Workspace:   "/workspace",
 		Channel:     "builders",
 		Type:        session.SessionTypeDream,
-		State:       session.StateActive,
-		StopReason:  store.StopTimeout,
-		StopDetail:  "deadline exceeded",
+		Lineage: &store.SessionLineage{
+			ParentSessionID:  "sess-root",
+			RootSessionID:    "sess-root",
+			SpawnDepth:       1,
+			SpawnRole:        "worker",
+			TTLExpiresAt:     &ttl,
+			AutoStopOnParent: true,
+			SpawnBudget: store.SessionSpawnBudget{
+				MaxChildren:           2,
+				MaxDepth:              1,
+				TTLSeconds:            3600,
+				MaxActivePerWorkspace: 3,
+			},
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools:           []string{"edit"},
+				NetworkChannels: []string{"coord"},
+			},
+		},
+		State:      session.StateActive,
+		StopReason: store.StopTimeout,
+		StopDetail: "deadline exceeded",
 		Failure: &store.SessionFailure{
 			Kind:            store.FailureTimeout,
 			Summary:         "deadline exceeded",
@@ -77,6 +96,15 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	}
 	if payload.Type != session.SessionTypeDream {
 		t.Fatalf("payload.Type = %q, want %q", payload.Type, session.SessionTypeDream)
+	}
+	if payload.Lineage == nil ||
+		payload.Lineage.ParentSessionID != "sess-root" ||
+		payload.Lineage.RootSessionID != "sess-root" ||
+		payload.Lineage.SpawnDepth != 1 ||
+		payload.Lineage.SpawnRole != "worker" ||
+		payload.Lineage.SpawnBudget.MaxChildren != 2 ||
+		payload.Lineage.PermissionPolicy.Tools[0] != "edit" {
+		t.Fatalf("payload.Lineage = %#v", payload.Lineage)
 	}
 	if payload.Activity == nil || payload.Activity.TurnID != "turn-1" {
 		t.Fatalf("activity = %#v", payload.Activity)

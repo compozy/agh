@@ -112,6 +112,7 @@ func agentMePayloadFromCaller(caller agentidentity.Caller) contract.AgentMePaylo
 			Type:      caller.Session.Type,
 			State:     caller.Session.State,
 			Channel:   caller.Session.Channel,
+			Lineage:   SessionLineagePayloadFromStore(caller.Session.Lineage),
 			CreatedAt: caller.Session.CreatedAt,
 			UpdatedAt: caller.Session.UpdatedAt,
 		},

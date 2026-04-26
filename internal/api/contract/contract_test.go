@@ -19,6 +19,7 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC)
+		ttl := now.Add(time.Hour)
 		payload := core.SessionPayloadFromInfo(&session.Info{
 			ID:           "sess-1",
 			Name:         "demo",
@@ -28,6 +29,13 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			Workspace:    "/workspace",
 			State:        session.StateActive,
 			ACPSessionID: "acp-123",
+			Lineage: &store.SessionLineage{
+				RootSessionID:    "sess-1",
+				SpawnDepth:       0,
+				TTLExpiresAt:     &ttl,
+				SpawnBudget:      store.SessionSpawnBudget{TTLSeconds: 3600},
+				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"read"}},
+			},
 			Environment: &store.SessionEnvironmentMeta{
 				EnvironmentID: "env-json",
 				Backend:       "local",
@@ -61,6 +69,16 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		}
 		if _, exists := got["acp_session_id"]; !exists {
 			t.Fatalf("session JSON missing acp_session_id: %#v", got)
+		}
+		lineage, ok := got["lineage"].(map[string]any)
+		if !ok {
+			t.Fatalf("lineage type = %T, want object", got["lineage"])
+		}
+		if lineage["root_session_id"] != "sess-1" || lineage["spawn_depth"] != float64(0) {
+			t.Fatalf("lineage JSON = %#v", lineage)
+		}
+		if _, exists := lineage["permission_policy_json"]; exists {
+			t.Fatalf("lineage JSON leaked raw policy storage: %#v", lineage)
 		}
 		acpCaps, ok := got["acp_caps"].(map[string]any)
 		if !ok {

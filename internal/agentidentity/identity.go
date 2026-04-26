@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
@@ -72,6 +73,7 @@ type SessionSnapshot struct {
 	WorkspacePath string
 	Channel       string
 	Type          session.Type
+	Lineage       *store.SessionLineage
 	State         session.State
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -274,6 +276,7 @@ func SessionSnapshotFromInfo(info *session.Info) SessionSnapshot {
 		WorkspacePath: info.Workspace,
 		Channel:       info.Channel,
 		Type:          info.Type,
+		Lineage:       store.CloneSessionLineage(info.Lineage),
 		State:         info.State,
 		CreatedAt:     info.CreatedAt,
 		UpdatedAt:     info.UpdatedAt,

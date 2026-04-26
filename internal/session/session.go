@@ -33,9 +33,11 @@ const (
 type Type string
 
 const (
-	SessionTypeUser   Type = "user"
-	SessionTypeDream  Type = "dream"
-	SessionTypeSystem Type = "system"
+	SessionTypeUser        Type = "user"
+	SessionTypeDream       Type = "dream"
+	SessionTypeSystem      Type = "system"
+	SessionTypeCoordinator Type = "coordinator"
+	SessionTypeSpawned     Type = "spawned"
 )
 
 const (
@@ -53,6 +55,7 @@ type Info struct {
 	Workspace    string
 	Channel      string
 	Type         Type
+	Lineage      *store.SessionLineage
 	State        State
 	StopReason   store.StopReason
 	StopDetail   string
@@ -77,6 +80,7 @@ type Session struct {
 	Workspace    string
 	Channel      string
 	Type         Type
+	Lineage      *store.SessionLineage
 	State        State
 	stopCause    StopCause
 	stopReason   store.StopReason
@@ -121,6 +125,7 @@ func (s *Session) Info() *Info {
 		Workspace:    s.Workspace,
 		Channel:      s.Channel,
 		Type:         normalizeSessionType(s.Type),
+		Lineage:      store.NormalizeSessionLineage(s.ID, s.Lineage),
 		State:        s.State,
 		StopReason:   s.stopReason,
 		StopDetail:   s.stopDetail,
@@ -771,6 +776,7 @@ func (s *Session) Meta() store.SessionMeta {
 		WorkspaceID:  s.WorkspaceID,
 		Channel:      s.Channel,
 		SessionType:  string(normalizeSessionType(s.Type)),
+		Lineage:      store.NormalizeSessionLineage(s.ID, s.Lineage),
 		State:        string(s.State),
 		StopReason:   stopReasonPointer(s.stopReason),
 		StopDetail:   s.stopDetail,
@@ -793,6 +799,10 @@ func normalizeSessionType(sessionType Type) Type {
 		return SessionTypeDream
 	case SessionTypeSystem:
 		return SessionTypeSystem
+	case SessionTypeCoordinator:
+		return SessionTypeCoordinator
+	case SessionTypeSpawned:
+		return SessionTypeSpawned
 	default:
 		return SessionTypeUser
 	}

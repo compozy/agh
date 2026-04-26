@@ -504,6 +504,7 @@ func sessionInfoFromEnvironmentReconcileMeta(meta store.SessionMeta) store.Sessi
 		WorkspaceID:  strings.TrimSpace(meta.WorkspaceID),
 		Channel:      strings.TrimSpace(meta.Channel),
 		SessionType:  strings.TrimSpace(meta.SessionType),
+		Lineage:      store.NormalizeSessionLineage(meta.ID, meta.Lineage),
 		State:        strings.TrimSpace(meta.State),
 		ACPSessionID: cloneDaemonStringPointer(meta.ACPSessionID),
 		StopReason:   stopReason,

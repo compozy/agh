@@ -53,6 +53,7 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		StopDetail:    info.StopDetail,
 		Failure:       SessionFailurePayloadFromStore(info.Failure),
 		ACPSessionID:  info.ACPSessionID,
+		Lineage:       SessionLineagePayloadFromStore(info.Lineage),
 		CreatedAt:     info.CreatedAt,
 		UpdatedAt:     info.UpdatedAt,
 	}
@@ -66,6 +67,37 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		payload.Environment = environment
 	}
 	return payload
+}
+
+// SessionLineagePayloadFromStore converts typed session lineage metadata into a safe public payload.
+func SessionLineagePayloadFromStore(lineage *store.SessionLineage) *contract.SessionLineagePayload {
+	if lineage == nil {
+		return nil
+	}
+	normalized := store.NormalizeSessionLineage("", lineage)
+	payload := &contract.SessionLineagePayload{
+		ParentSessionID:  normalized.ParentSessionID,
+		RootSessionID:    normalized.RootSessionID,
+		SpawnDepth:       normalized.SpawnDepth,
+		SpawnRole:        normalized.SpawnRole,
+		TTLExpiresAt:     cloneTimePtr(normalized.TTLExpiresAt),
+		AutoStopOnParent: normalized.AutoStopOnParent,
+		SpawnBudget: contract.SpawnBudgetPayload{
+			MaxChildren:           normalized.SpawnBudget.MaxChildren,
+			MaxDepth:              normalized.SpawnBudget.MaxDepth,
+			TTLSeconds:            normalized.SpawnBudget.TTLSeconds,
+			MaxActivePerWorkspace: normalized.SpawnBudget.MaxActivePerWorkspace,
+		},
+		PermissionPolicy: contract.SpawnPermissionPolicyPayload{
+			Tools:               append([]string(nil), normalized.PermissionPolicy.Tools...),
+			Skills:              append([]string(nil), normalized.PermissionPolicy.Skills...),
+			MCPServers:          append([]string(nil), normalized.PermissionPolicy.MCPServers...),
+			WorkspacePaths:      append([]string(nil), normalized.PermissionPolicy.WorkspacePaths...),
+			NetworkChannels:     append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
+			EnvironmentProfiles: append([]string(nil), normalized.PermissionPolicy.EnvironmentProfiles...),
+		},
+	}
+	return contract.NormalizeSessionLineagePayload(payload)
 }
 
 // RuntimeActivityPayloadFromSessionMeta converts persisted session activity metadata into the shared payload.

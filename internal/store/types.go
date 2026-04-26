@@ -146,6 +146,7 @@ type SessionInfo struct {
 	WorkspaceID  string
 	Channel      string
 	SessionType  string
+	Lineage      *SessionLineage
 	State        string
 	ACPSessionID *string
 	StopReason   StopReason
@@ -171,6 +172,9 @@ func (s SessionInfo) Validate() error {
 	if err := requireField(s.State, "session state"); err != nil {
 		return err
 	}
+	if err := ValidateSessionLineage(s.ID, s.Lineage); err != nil {
+		return err
+	}
 	if err := s.Liveness.Validate(); err != nil {
 		return err
 	}
@@ -184,9 +188,13 @@ func (s SessionInfo) Validate() error {
 
 // SessionListQuery filters global session index queries.
 type SessionListQuery struct {
-	State     string
-	AgentName string
-	Limit     int
+	State           string
+	AgentName       string
+	SessionType     string
+	ParentSessionID string
+	RootSessionID   string
+	SpawnRole       string
+	Limit           int
 }
 
 // Validate ensures the query uses sane bounds.
@@ -599,6 +607,7 @@ type SessionMeta struct {
 	WorkspaceID  string                  `json:"workspace_id,omitempty"`
 	Channel      string                  `json:"channel,omitempty"`
 	SessionType  string                  `json:"session_type,omitempty"`
+	Lineage      *SessionLineage         `json:"lineage,omitempty"`
 	State        string                  `json:"state"`
 	StopReason   *StopReason             `json:"stop_reason,omitempty"`
 	StopDetail   string                  `json:"stop_detail,omitempty"`
@@ -626,6 +635,9 @@ func (m SessionMeta) Validate() error {
 	}
 	if m.StopReason != nil && !ValidStopReason(*m.StopReason) {
 		return fmt.Errorf("store: invalid session stop reason %q", *m.StopReason)
+	}
+	if err := ValidateSessionLineage(m.ID, m.Lineage); err != nil {
+		return err
 	}
 	if m.Failure != nil {
 		if err := m.Failure.Validate(); err != nil {

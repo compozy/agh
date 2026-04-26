@@ -828,6 +828,7 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 		WorkspaceID:  info.WorkspaceID,
 		Channel:      info.Channel,
 		SessionType:  string(info.Type),
+		Lineage:      store.CloneSessionLineage(info.Lineage),
 		State:        string(info.State),
 		ACPSessionID: stringPointer(info.ACPSessionID),
 		StopReason:   info.StopReason,

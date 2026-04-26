@@ -573,6 +573,12 @@ func migrateSessionColumns(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("store: add sessions.%s column: %w", column.name, err)
 		}
 	}
+	if _, err := db.ExecContext(
+		ctx,
+		`UPDATE sessions SET root_session_id = id WHERE root_session_id IS NULL OR trim(root_session_id) = ''`,
+	); err != nil {
+		return fmt.Errorf("store: backfill sessions root lineage: %w", err)
+	}
 
 	return nil
 }
@@ -619,6 +625,23 @@ func sessionColumnSpecs() []migrationColumnSpec {
 		{
 			name: "environment_last_sync_error",
 			sql:  `ALTER TABLE sessions ADD COLUMN environment_last_sync_error TEXT NOT NULL DEFAULT ''`,
+		},
+		{name: "parent_session_id", sql: `ALTER TABLE sessions ADD COLUMN parent_session_id TEXT`},
+		{name: "root_session_id", sql: `ALTER TABLE sessions ADD COLUMN root_session_id TEXT`},
+		{name: "spawn_depth", sql: `ALTER TABLE sessions ADD COLUMN spawn_depth INTEGER NOT NULL DEFAULT 0`},
+		{name: "spawn_role", sql: `ALTER TABLE sessions ADD COLUMN spawn_role TEXT`},
+		{name: "ttl_expires_at", sql: `ALTER TABLE sessions ADD COLUMN ttl_expires_at TEXT`},
+		{
+			name: "auto_stop_on_parent",
+			sql:  `ALTER TABLE sessions ADD COLUMN auto_stop_on_parent BOOLEAN NOT NULL DEFAULT 0`,
+		},
+		{
+			name: "spawn_budget_json",
+			sql:  `ALTER TABLE sessions ADD COLUMN spawn_budget_json TEXT NOT NULL DEFAULT '{}'`,
+		},
+		{
+			name: "permission_policy_json",
+			sql:  `ALTER TABLE sessions ADD COLUMN permission_policy_json TEXT NOT NULL DEFAULT '{}'`,
 		},
 	}
 }
