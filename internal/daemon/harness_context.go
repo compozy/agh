@@ -38,6 +38,8 @@ const (
 type HarnessPromptSection string
 
 const (
+	// HarnessPromptSectionSituation injects the bounded AGH situation context.
+	HarnessPromptSectionSituation HarnessPromptSection = "situation"
 	// HarnessPromptSectionMemory injects durable memory prompt context.
 	HarnessPromptSectionMemory HarnessPromptSection = "memory"
 	// HarnessPromptSectionSkills injects the active skills catalog prompt context.
@@ -50,6 +52,8 @@ const (
 type HarnessAugmenter string
 
 const (
+	// HarnessAugmenterSituation injects fresh bounded AGH situation context.
+	HarnessAugmenterSituation HarnessAugmenter = "situation"
 	// HarnessAugmenterDurableMemory enables the durable memory recall augmenter.
 	HarnessAugmenterDurableMemory HarnessAugmenter = "durable_memory"
 )
@@ -86,11 +90,13 @@ const (
 
 // HarnessRuntimeSignals captures daemon-owned capability flags available to the resolver.
 type HarnessRuntimeSignals struct {
-	MemoryPromptSectionEnabled bool
-	SkillsPromptSectionEnabled bool
-	DurableMemoryAugmenter     bool
-	SyntheticTurnsEnabled      bool
-	DetachedTaskRuntimeEnabled bool
+	SituationPromptSectionEnabled bool
+	MemoryPromptSectionEnabled    bool
+	SkillsPromptSectionEnabled    bool
+	SituationAugmenter            bool
+	DurableMemoryAugmenter        bool
+	SyntheticTurnsEnabled         bool
+	DetachedTaskRuntimeEnabled    bool
 }
 
 // HarnessSessionInput carries durable session metadata into the resolver.
@@ -475,7 +481,10 @@ func normalizeDetachedRunMetadata(input *DetachedRunMetadata) (*DetachedRunMetad
 }
 
 func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContext) []HarnessPromptSection {
-	sections := make([]HarnessPromptSection, 0, 3)
+	sections := make([]HarnessPromptSection, 0, 4)
+	if r.runtime.SituationPromptSectionEnabled {
+		sections = append(sections, HarnessPromptSectionSituation)
+	}
 	if r.runtime.MemoryPromptSectionEnabled {
 		sections = append(sections, HarnessPromptSectionMemory)
 	}
@@ -498,10 +507,14 @@ func (r *HarnessContextResolver) resolveAugmenters(
 	if turnCtx.Origin != TurnOriginUser {
 		return nil
 	}
-	if !r.runtime.DurableMemoryAugmenter {
-		return nil
+	augmenters := make([]HarnessAugmenter, 0, 2)
+	if r.runtime.SituationAugmenter {
+		augmenters = append(augmenters, HarnessAugmenterSituation)
 	}
-	return []HarnessAugmenter{HarnessAugmenterDurableMemory}
+	if r.runtime.DurableMemoryAugmenter {
+		augmenters = append(augmenters, HarnessAugmenterDurableMemory)
+	}
+	return augmenters
 }
 
 func (r *HarnessContextResolver) resolveReentry(turnCtx HarnessTurnContext) ReentryMode {

@@ -22,6 +22,15 @@ type ComposedAssembler struct {
 // ComposedAssembler.
 type ComposedAssemblerOption func(*ComposedAssembler)
 
+type startupPromptSectionProvider interface {
+	PromptStartupSection(
+		ctx context.Context,
+		startup session.StartupPromptContext,
+		agent aghconfig.AgentDef,
+		workspace *workspacepkg.ResolvedWorkspace,
+	) (string, error)
+}
+
 var (
 	_ session.PromptAssembler        = (*ComposedAssembler)(nil)
 	_ session.StartupPromptAssembler = (*ComposedAssembler)(nil)
@@ -139,7 +148,7 @@ func (a *ComposedAssembler) AssembleStartup(
 		return "", err
 	}
 
-	prependSections, appendSections, err := gatherPromptSections(ctx, workspace, selected)
+	prependSections, appendSections, err := gatherPromptSections(ctx, startup, agent, workspace, selected)
 	if err != nil {
 		return "", err
 	}
@@ -172,6 +181,8 @@ func (a *ComposedAssembler) selectDescriptors(
 
 func gatherPromptSections(
 	ctx context.Context,
+	startup session.StartupPromptContext,
+	agent aghconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 	descriptors []PromptSectionDescriptor,
 ) ([]string, []string, error) {
@@ -183,7 +194,7 @@ func gatherPromptSections(
 			continue
 		}
 
-		section, err := descriptor.Provider.PromptSection(ctx, workspace)
+		section, err := promptSection(ctx, descriptor.Provider, startup, agent, workspace)
 		if err != nil {
 			return nil, nil, fmt.Errorf(
 				"daemon: %s prompt section %q: %w",
@@ -213,6 +224,19 @@ func gatherPromptSections(
 	}
 
 	return prependSections, appendSections, nil
+}
+
+func promptSection(
+	ctx context.Context,
+	provider session.PromptProvider,
+	startup session.StartupPromptContext,
+	agent aghconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	if startupProvider, ok := provider.(startupPromptSectionProvider); ok {
+		return startupProvider.PromptStartupSection(ctx, startup, agent, workspace)
+	}
+	return provider.PromptSection(ctx, workspace)
 }
 
 func applyPromptSectionBudget(section string, descriptor PromptSectionDescriptor) string {

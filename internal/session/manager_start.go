@@ -254,16 +254,19 @@ func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.S
 	return ctx
 }
 
-func (s *sessionStartSpec) startupPromptContext() StartupPromptContext {
+func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupPromptContext {
 	ref := workref.NewRoot(s.workspace.ID, s.workspace.RootDir)
 	return StartupPromptContext{
 		SessionID:   strings.TrimSpace(s.sessionID),
 		SessionName: strings.TrimSpace(s.sessionName),
 		AgentName:   strings.TrimSpace(s.agentName),
+		Provider:    strings.TrimSpace(s.provider),
 		WorkspaceID: ref.WorkspaceID,
 		Workspace:   ref.Workspace,
 		Channel:     strings.TrimSpace(s.channel),
 		SessionType: normalizeSessionType(s.sessionType),
+		CreatedAt:   s.createdAt,
+		UpdatedAt:   updatedAt,
 	}
 }
 
@@ -277,7 +280,7 @@ func (m *Manager) prepareSessionStartRuntime(
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
 
-	startupCtx := spec.startupPromptContext()
+	startupCtx := spec.startupPromptContext(updatedAt)
 	startupPrompt, err := m.startupPrompt(
 		ctx,
 		spec.startupSessionContext(updatedAt),

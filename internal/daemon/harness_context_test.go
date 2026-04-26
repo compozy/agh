@@ -304,6 +304,7 @@ func TestSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testi
 		promptSectionProviderFunc(
 			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "skills", nil },
 		),
+		nil,
 	)
 	descriptors = append(descriptors, descriptors[len(descriptors)-1])
 

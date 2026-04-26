@@ -17,6 +17,8 @@ import (
 
 const (
 	durableMemoryAugmenterOrder = 100
+	situationAugmenterOrder     = 200
+	situationAugmenterBudget    = 20_000
 )
 
 type promptInputAugmenterBudgetBehavior string
@@ -53,8 +55,9 @@ type promptInputComposite struct {
 
 func defaultPromptInputAugmenterDescriptors(
 	durableMemory session.PromptInputAugmenter,
+	situationAugmenters ...session.PromptInputAugmenter,
 ) []promptInputAugmenterDescriptor {
-	descriptors := make([]promptInputAugmenterDescriptor, 0, 1)
+	descriptors := make([]promptInputAugmenterDescriptor, 0, 2)
 	if durableMemory != nil {
 		descriptors = append(descriptors, promptInputAugmenterDescriptor{
 			Name:           HarnessAugmenterDurableMemory,
@@ -63,6 +66,16 @@ func defaultPromptInputAugmenterDescriptors(
 			BudgetBehavior: promptInputAugmenterBudgetBehaviorTrim,
 			Critical:       false,
 			Augmenter:      durableMemory,
+		})
+	}
+	if len(situationAugmenters) > 0 && situationAugmenters[0] != nil {
+		descriptors = append(descriptors, promptInputAugmenterDescriptor{
+			Name:           HarnessAugmenterSituation,
+			Order:          situationAugmenterOrder,
+			Budget:         situationAugmenterBudget,
+			BudgetBehavior: promptInputAugmenterBudgetBehaviorOmit,
+			Critical:       false,
+			Augmenter:      situationAugmenters[0],
 		})
 	}
 	return descriptors

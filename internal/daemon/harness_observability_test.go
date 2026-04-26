@@ -34,6 +34,7 @@ func TestSectionSelectorQueuesStartupSummariesUntilSessionCreated(t *testing.T) 
 		promptSectionProviderFunc(
 			func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) { return "skills", nil },
 		),
+		nil,
 	)
 
 	startup := session.StartupPromptContext{

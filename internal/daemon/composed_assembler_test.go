@@ -367,7 +367,7 @@ func TestComposedAssemblerAssembleStartupLoadsBundledNetworkSectionDescriptor(t 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{})
 	assembler := NewComposedAssembler(
 		WithSectionSelector(NewSectionSelector(resolver, nil)),
-		WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil)...),
+		WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil, nil)...),
 	)
 
 	got := assembleStartupPrompt(

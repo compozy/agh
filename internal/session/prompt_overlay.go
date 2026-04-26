@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -13,10 +14,13 @@ type StartupPromptContext struct {
 	SessionID   string
 	SessionName string
 	AgentName   string
+	Provider    string
 	WorkspaceID string
 	Workspace   string
 	Channel     string
 	SessionType Type
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // StartupPromptAssembler optionally extends PromptAssembler with durable

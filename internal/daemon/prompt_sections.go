@@ -14,13 +14,15 @@ import (
 const (
 	bundledNetworkSkillName = "agh-network"
 
-	startupMemorySectionOrder  = 100
-	startupSkillsSectionOrder  = 100
-	startupNetworkSectionOrder = 200
+	startupSituationSectionOrder = 50
+	startupMemorySectionOrder    = 100
+	startupSkillsSectionOrder    = 100
+	startupNetworkSectionOrder   = 200
 
-	startupMemorySectionBudget  = 24_000
-	startupSkillsSectionBudget  = 16_000
-	startupNetworkSectionBudget = 12_000
+	startupSituationSectionBudget = 20_000
+	startupMemorySectionBudget    = 24_000
+	startupSkillsSectionBudget    = 16_000
+	startupNetworkSectionBudget   = 12_000
 )
 
 // PromptSectionPosition identifies whether a startup section renders before or
@@ -63,8 +65,21 @@ type PromptSectionDescriptor struct {
 func defaultStartupPromptSectionDescriptors(
 	memoryProvider session.PromptProvider,
 	skillsProvider session.PromptProvider,
+	situationProvider session.PromptProvider,
 ) []PromptSectionDescriptor {
-	descriptors := make([]PromptSectionDescriptor, 0, 3)
+	descriptors := make([]PromptSectionDescriptor, 0, 4)
+
+	if situationProvider != nil {
+		descriptors = append(descriptors, PromptSectionDescriptor{
+			Name:           string(HarnessPromptSectionSituation),
+			Position:       PromptSectionPositionPrepend,
+			Order:          startupSituationSectionOrder,
+			Budget:         startupSituationSectionBudget,
+			BudgetBehavior: PromptSectionBudgetBehaviorOmit,
+			Provider:       situationProvider,
+			Predicate:      policyIncludesSection(HarnessPromptSectionSituation),
+		})
+	}
 
 	if memoryProvider != nil {
 		descriptors = append(descriptors, PromptSectionDescriptor{
@@ -106,6 +121,7 @@ func defaultStartupPromptSectionDescriptors(
 func defaultStartupPromptSectionDescriptorsFromProviders(
 	prependProviders []session.PromptProvider,
 	appendProviders []session.PromptProvider,
+	situationProvider session.PromptProvider,
 ) []PromptSectionDescriptor {
 	var memoryProvider session.PromptProvider
 	for _, provider := range prependProviders {
@@ -123,7 +139,7 @@ func defaultStartupPromptSectionDescriptorsFromProviders(
 		}
 	}
 
-	return defaultStartupPromptSectionDescriptors(memoryProvider, skillsProvider)
+	return defaultStartupPromptSectionDescriptors(memoryProvider, skillsProvider, situationProvider)
 }
 
 func policyIncludesSection(section HarnessPromptSection) SectionPredicate {

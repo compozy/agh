@@ -43,7 +43,10 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 		compositeResolver,
 		nil,
 		append(
-			defaultPromptInputAugmenterDescriptors(memory.NewRecallAugmenter(daemonInstance.memoryStore)),
+			defaultPromptInputAugmenterDescriptors(
+				memory.NewRecallAugmenter(daemonInstance.memoryStore),
+				daemonInstance.situationContext.Augment,
+			),
 			promptInputAugmenterDescriptor{
 				Name:   suffixAugmenter,
 				Order:  200,

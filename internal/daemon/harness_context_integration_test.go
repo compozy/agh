@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -18,6 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -89,9 +91,13 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
 		t.Fatalf("network skill occurrences = %d, want 1", got)
 	}
+	if got := strings.Count(driver.startCalls[0].SystemPrompt, "<agh-situation-context>"); got != 1 {
+		t.Fatalf("situation context occurrences = %d, want 1", got)
+	}
 	assertPromptContainsInOrder(
 		t,
 		driver.startCalls[0].SystemPrompt,
+		"<agh-situation-context>",
 		"# Persistent Memory",
 		"You are a coding assistant.",
 		"<available-skills>",
@@ -102,9 +108,14 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if err != nil {
 		t.Fatalf("ResolvePrompt(user) error = %v", err)
 	}
-	if !slices.Equal(userResolved.Policy.EnableAugmenters, []HarnessAugmenter{HarnessAugmenterDurableMemory}) {
-		t.Fatalf("user EnableAugmenters = %#v, want durable memory", userResolved.Policy.EnableAugmenters)
+	if !slices.Equal(
+		userResolved.Policy.EnableAugmenters,
+		[]HarnessAugmenter{HarnessAugmenterSituation, HarnessAugmenterDurableMemory},
+	) {
+		t.Fatalf("user EnableAugmenters = %#v, want situation and durable memory", userResolved.Policy.EnableAugmenters)
 	}
+
+	seedHarnessSituationTaskRun(t, daemonInstance, created.Info().WorkspaceID, created.Info().Workspace, created.ID)
 
 	userEvents, err := manager.PromptWithOpts(testutil.Context(t), created.ID, session.PromptOpts{
 		Message:    "workspace note",
@@ -116,6 +127,15 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	drainHarnessIntegrationEvents(userEvents)
 	if got := driver.promptCalls[0].Message; !strings.Contains(got, "Relevant durable memory for this turn:") {
 		t.Fatalf("user prompt message = %q, want durable memory augmentation", got)
+	}
+	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<agh-situation-context>") {
+		t.Fatalf("user prompt message = %q, want situation context augmentation", got)
+	}
+	if got := driver.promptCalls[0].Message; !strings.Contains(got, `"coordination_channel_id":"coord-run-1"`) {
+		t.Fatalf("user prompt message = %q, want active task coordination channel", got)
+	}
+	if got := strings.Count(driver.promptCalls[0].Message, "<agh-situation-context>"); got != 1 {
+		t.Fatalf("user prompt situation context occurrences = %d, want 1", got)
 	}
 
 	networkResolved, err := daemonInstance.harnessResolver.ResolvePrompt(created.Info(), session.TurnSourceNetwork, acp.PromptMeta{})
@@ -252,10 +272,66 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 	assertPromptContainsInOrder(
 		t,
 		driver.startCalls[0].SystemPrompt,
+		"<agh-situation-context>",
 		"# Persistent Memory",
 		"You are a coding assistant.",
 		"<available-skills>",
 	)
+}
+
+func seedHarnessSituationTaskRun(
+	t *testing.T,
+	daemonInstance *Daemon,
+	workspaceID string,
+	workspaceRoot string,
+	sessionID string,
+) {
+	t.Helper()
+
+	if daemonInstance.tasks == nil || daemonInstance.tasks.store == nil {
+		t.Fatal("daemon task store is unavailable")
+	}
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	if err := daemonInstance.registry.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID:        workspaceID,
+		RootDir:   workspaceRoot,
+		Name:      "workspace",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	taskRecord := taskpkg.Task{
+		ID:          "task-run-context",
+		Identifier:  "AUTO-CTX",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: workspaceID,
+		Title:       "Render situation context",
+		Status:      taskpkg.TaskStatusInProgress,
+		Priority:    taskpkg.PriorityHigh,
+		CreatedBy:   taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "test"},
+		Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "test"},
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := daemonInstance.tasks.store.CreateTask(testutil.Context(t), taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run := taskpkg.Run{
+		ID:             "run-context",
+		TaskID:         taskRecord.ID,
+		Status:         taskpkg.TaskRunStatusRunning,
+		Attempt:        1,
+		SessionID:      sessionID,
+		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "test"},
+		NetworkChannel: "coord-run-1",
+		Metadata:       json.RawMessage(`{"coordination_channel_id":"coord-run-1","workflow_id":"wf-run-1"}`),
+		QueuedAt:       now,
+		StartedAt:      now.Add(time.Minute),
+	}
+	if err := daemonInstance.tasks.store.CreateTaskRun(testutil.Context(t), run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
 }
 
 func bootHarnessPolicyDaemon(

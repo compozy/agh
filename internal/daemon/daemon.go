@@ -29,6 +29,7 @@ import (
 	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/situation"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
@@ -118,6 +119,7 @@ type RuntimeDeps struct {
 	WorkspaceResolver workspacepkg.RuntimeResolver
 	WorkspaceService  core.WorkspaceService
 	AgentCatalog      core.AgentCatalog
+	AgentContext      *situation.Service
 	CoordinatorConfig CoordinatorConfigResolver
 	SkillsRegistry    core.SkillsRegistry
 	DreamTrigger      DreamTrigger
@@ -326,6 +328,7 @@ type Daemon struct {
 	harnessResolver      *HarnessContextResolver
 	registry             Registry
 	memoryStore          *memory.Store
+	situationContext     *situation.Service
 	sessions             SessionManager
 	tasks                *taskRuntime
 	network              networkRuntime
