@@ -154,6 +154,8 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		HookTaskRunLeaseExpired:   {HookEventFamilyTaskRun, "TaskRunLeaseExpiredPayload", "TaskRunObservationPatch"},
 		HookTaskRunLeaseRecovered: {HookEventFamilyTaskRun, "TaskRunLeaseRecoveredPayload", "TaskRunObservationPatch"},
 		HookTaskRunReleased:       {HookEventFamilyTaskRun, "TaskRunReleasedPayload", "TaskRunObservationPatch"},
+		HookTaskRunCompleted:      {HookEventFamilyTaskRun, "TaskRunCompletedPayload", "TaskRunObservationPatch"},
+		HookTaskRunFailed:         {HookEventFamilyTaskRun, "TaskRunFailedPayload", "TaskRunObservationPatch"},
 		HookSpawnPreCreate:        {HookEventFamilySpawn, "SpawnPreCreatePayload", "SpawnCreatePatch"},
 		HookSpawnCreated:          {HookEventFamilySpawn, "SpawnCreatedPayload", "SpawnObservationPatch"},
 		HookSpawnParentStopped:    {HookEventFamilySpawn, "SpawnParentStoppedPayload", "SpawnObservationPatch"},

@@ -114,6 +114,8 @@ const (
 	HookTaskRunLeaseExpired   HookEvent = "task.run.lease_expired"
 	HookTaskRunLeaseRecovered HookEvent = "task.run.lease_recovered"
 	HookTaskRunReleased       HookEvent = "task.run.released"
+	HookTaskRunCompleted      HookEvent = "task.run.completed"
+	HookTaskRunFailed         HookEvent = "task.run.failed"
 
 	HookSpawnPreCreate     HookEvent = "spawn.pre_create"
 	HookSpawnCreated       HookEvent = "spawn.created"
@@ -259,6 +261,14 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
+	HookTaskRunCompleted: {
+		family:       HookEventFamilyTaskRun,
+		syncEligible: true,
+	},
+	HookTaskRunFailed: {
+		family:       HookEventFamilyTaskRun,
+		syncEligible: true,
+	},
 	HookSpawnPreCreate: {
 		family:       HookEventFamilySpawn,
 		syncEligible: true,
@@ -332,6 +342,8 @@ var allHookEvents = []HookEvent{
 	HookTaskRunLeaseExpired,
 	HookTaskRunLeaseRecovered,
 	HookTaskRunReleased,
+	HookTaskRunCompleted,
+	HookTaskRunFailed,
 	HookSpawnPreCreate,
 	HookSpawnCreated,
 	HookSpawnParentStopped,

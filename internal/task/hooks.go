@@ -20,10 +20,30 @@ type RunHookDispatcher interface {
 		context.Context,
 		hookspkg.TaskRunPostClaimPayload,
 	) (hookspkg.TaskRunPostClaimPayload, error)
+	DispatchTaskRunLeaseExtended(
+		context.Context,
+		hookspkg.TaskRunLeaseExtendedPayload,
+	) (hookspkg.TaskRunLeaseExtendedPayload, error)
+	DispatchTaskRunLeaseExpired(
+		context.Context,
+		hookspkg.TaskRunLeaseExpiredPayload,
+	) (hookspkg.TaskRunLeaseExpiredPayload, error)
 	DispatchTaskRunLeaseRecovered(
 		context.Context,
 		hookspkg.TaskRunLeaseRecoveredPayload,
 	) (hookspkg.TaskRunLeaseRecoveredPayload, error)
+	DispatchTaskRunReleased(
+		context.Context,
+		hookspkg.TaskRunReleasedPayload,
+	) (hookspkg.TaskRunReleasedPayload, error)
+	DispatchTaskRunCompleted(
+		context.Context,
+		hookspkg.TaskRunCompletedPayload,
+	) (hookspkg.TaskRunCompletedPayload, error)
+	DispatchTaskRunFailed(
+		context.Context,
+		hookspkg.TaskRunFailedPayload,
+	) (hookspkg.TaskRunFailedPayload, error)
 }
 
 var _ RunHookDispatcher = noopTaskRunHooks{}
@@ -51,10 +71,45 @@ func (noopTaskRunHooks) DispatchTaskRunPostClaim(
 	return payload, nil
 }
 
+func (noopTaskRunHooks) DispatchTaskRunLeaseExtended(
+	_ context.Context,
+	payload hookspkg.TaskRunLeaseExtendedPayload,
+) (hookspkg.TaskRunLeaseExtendedPayload, error) {
+	return payload, nil
+}
+
+func (noopTaskRunHooks) DispatchTaskRunLeaseExpired(
+	_ context.Context,
+	payload hookspkg.TaskRunLeaseExpiredPayload,
+) (hookspkg.TaskRunLeaseExpiredPayload, error) {
+	return payload, nil
+}
+
 func (noopTaskRunHooks) DispatchTaskRunLeaseRecovered(
 	_ context.Context,
 	payload hookspkg.TaskRunLeaseRecoveredPayload,
 ) (hookspkg.TaskRunLeaseRecoveredPayload, error) {
+	return payload, nil
+}
+
+func (noopTaskRunHooks) DispatchTaskRunReleased(
+	_ context.Context,
+	payload hookspkg.TaskRunReleasedPayload,
+) (hookspkg.TaskRunReleasedPayload, error) {
+	return payload, nil
+}
+
+func (noopTaskRunHooks) DispatchTaskRunCompleted(
+	_ context.Context,
+	payload hookspkg.TaskRunCompletedPayload,
+) (hookspkg.TaskRunCompletedPayload, error) {
+	return payload, nil
+}
+
+func (noopTaskRunHooks) DispatchTaskRunFailed(
+	_ context.Context,
+	payload hookspkg.TaskRunFailedPayload,
+) (hookspkg.TaskRunFailedPayload, error) {
 	return payload, nil
 }
 

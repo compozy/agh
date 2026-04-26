@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 55
+const expectedHookEventCount = 57
 
 func TestAllHookEvents(t *testing.T) {
 	t.Parallel()
@@ -96,6 +96,8 @@ func TestAutonomyHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) 
 		HookTaskRunLeaseExpired:   HookEventFamilyTaskRun,
 		HookTaskRunLeaseRecovered: HookEventFamilyTaskRun,
 		HookTaskRunReleased:       HookEventFamilyTaskRun,
+		HookTaskRunCompleted:      HookEventFamilyTaskRun,
+		HookTaskRunFailed:         HookEventFamilyTaskRun,
 		HookSpawnPreCreate:        HookEventFamilySpawn,
 		HookSpawnCreated:          HookEventFamilySpawn,
 		HookSpawnParentStopped:    HookEventFamilySpawn,

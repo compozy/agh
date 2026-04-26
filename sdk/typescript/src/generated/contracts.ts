@@ -119,6 +119,8 @@ export type HookEvent =
   | "task.run.lease_expired"
   | "task.run.lease_recovered"
   | "task.run.released"
+  | "task.run.completed"
+  | "task.run.failed"
   | "spawn.pre_create"
   | "spawn.created"
   | "spawn.parent_stopped"
@@ -2834,6 +2836,31 @@ export interface TaskRunCompleteParams {
   result?: JSONValue;
 }
 
+export interface TaskRunCompletedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  task_id?: string;
+  run_id?: string;
+  workspace_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_ref?: string;
+  task_status?: string;
+  run_status?: string;
+  attempt?: number;
+  lease_until: ISODateTime;
+  release_reason?: string;
+  error?: string;
+  previous_run_status?: string;
+  previous_session_id?: string;
+  recovery_action?: string;
+  recovery_reason?: string;
+}
+
 export interface TaskRunContext {
   task_id?: string;
   run_id?: string;
@@ -2916,6 +2943,31 @@ export interface TaskRunFailParams {
   id: string;
   error: string;
   metadata?: JSONValue;
+}
+
+export interface TaskRunFailedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  task_id?: string;
+  run_id?: string;
+  workspace_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_ref?: string;
+  task_status?: string;
+  run_status?: string;
+  attempt?: number;
+  lease_until: ISODateTime;
+  release_reason?: string;
+  error?: string;
+  previous_run_status?: string;
+  previous_session_id?: string;
+  recovery_action?: string;
+  recovery_reason?: string;
 }
 
 export interface TaskRunGetParams {
@@ -3444,6 +3496,8 @@ export interface HookPayloadByEvent {
   "task.run.lease_expired": TaskRunLeaseExpiredPayload;
   "task.run.lease_recovered": TaskRunLeaseRecoveredPayload;
   "task.run.released": TaskRunReleasedPayload;
+  "task.run.completed": TaskRunCompletedPayload;
+  "task.run.failed": TaskRunFailedPayload;
   "spawn.pre_create": SpawnPreCreatePayload;
   "spawn.created": SpawnCreatedPayload;
   "spawn.parent_stopped": SpawnParentStoppedPayload;
@@ -3502,6 +3556,8 @@ export interface HookPatchByEvent {
   "task.run.lease_expired": TaskRunObservationPatch;
   "task.run.lease_recovered": TaskRunObservationPatch;
   "task.run.released": TaskRunObservationPatch;
+  "task.run.completed": TaskRunObservationPatch;
+  "task.run.failed": TaskRunObservationPatch;
   "spawn.pre_create": SpawnCreatePatch;
   "spawn.created": SpawnObservationPatch;
   "spawn.parent_stopped": SpawnObservationPatch;

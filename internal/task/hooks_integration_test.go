@@ -97,6 +97,20 @@ func (h integrationTaskRunHooks) DispatchTaskRunPostClaim(
 	return payload, nil
 }
 
+func (h integrationTaskRunHooks) DispatchTaskRunLeaseExtended(
+	_ context.Context,
+	payload hookspkg.TaskRunLeaseExtendedPayload,
+) (hookspkg.TaskRunLeaseExtendedPayload, error) {
+	return payload, nil
+}
+
+func (h integrationTaskRunHooks) DispatchTaskRunLeaseExpired(
+	_ context.Context,
+	payload hookspkg.TaskRunLeaseExpiredPayload,
+) (hookspkg.TaskRunLeaseExpiredPayload, error) {
+	return payload, nil
+}
+
 func (h integrationTaskRunHooks) DispatchTaskRunLeaseRecovered(
 	ctx context.Context,
 	payload hookspkg.TaskRunLeaseRecoveredPayload,
@@ -104,5 +118,26 @@ func (h integrationTaskRunHooks) DispatchTaskRunLeaseRecovered(
 	if h.recovered != nil {
 		return h.recovered(ctx, payload)
 	}
+	return payload, nil
+}
+
+func (h integrationTaskRunHooks) DispatchTaskRunReleased(
+	_ context.Context,
+	payload hookspkg.TaskRunReleasedPayload,
+) (hookspkg.TaskRunReleasedPayload, error) {
+	return payload, nil
+}
+
+func (h integrationTaskRunHooks) DispatchTaskRunCompleted(
+	_ context.Context,
+	payload hookspkg.TaskRunCompletedPayload,
+) (hookspkg.TaskRunCompletedPayload, error) {
+	return payload, nil
+}
+
+func (h integrationTaskRunHooks) DispatchTaskRunFailed(
+	_ context.Context,
+	payload hookspkg.TaskRunFailedPayload,
+) (hookspkg.TaskRunFailedPayload, error) {
 	return payload, nil
 }

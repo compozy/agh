@@ -67,6 +67,33 @@ func (fakeStore) ListTaskRunsByStatus(context.Context, []taskpkg.RunStatus) ([]t
 	return []taskpkg.Run{{ID: "run-1", TaskID: "task-1", Status: taskpkg.TaskRunStatusQueued, Attempt: 1}}, nil
 }
 
+func (fakeStore) ClaimNextRun(context.Context, taskpkg.ClaimCriteria) (taskpkg.ClaimResult, error) {
+	return taskpkg.ClaimResult{}, taskpkg.ErrNoClaimableRun
+}
+
+func (fakeStore) HeartbeatRunLease(context.Context, taskpkg.LeaseHeartbeat) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
+func (fakeStore) ReleaseRunLease(context.Context, taskpkg.LeaseRelease) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
+func (fakeStore) CompleteRunLease(context.Context, taskpkg.LeaseCompletion) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
+func (fakeStore) FailRunLease(context.Context, taskpkg.LeaseFailure) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
+func (fakeStore) RecoverExpiredRunLeases(
+	context.Context,
+	taskpkg.ExpiredLeaseRecovery,
+) ([]taskpkg.ExpiredLeaseRecoveryResult, error) {
+	return nil, nil
+}
+
 func (fakeStore) ReserveQueuedRun(
 	context.Context,
 	string,

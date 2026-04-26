@@ -904,7 +904,7 @@ func (g *GlobalDB) GetTaskRunByIdempotencyKey(
 		`SELECT
 			tr.id, tr.task_id, tr.status, tr.attempt, tr.claimed_by_kind, tr.claimed_by_ref,
 			tr.session_id, tr.origin_kind, tr.origin_ref, tr.idempotency_key, tr.network_channel,
-			tr.claim_token, tr.claim_token_hash, tr.lease_until, tr.heartbeat_at,
+			'' AS claim_token, tr.claim_token_hash, tr.lease_until, tr.heartbeat_at,
 			tr.coordination_channel_id, tr.queued_at, tr.claimed_at, tr.started_at, tr.ended_at,
 			tr.error, tr.metadata_json, tr.result_json
 		 FROM task_run_idempotency tri

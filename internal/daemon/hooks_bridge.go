@@ -166,6 +166,14 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.TaskRunReleasedPayload,
 	) (hookspkg.TaskRunReleasedPayload, error)
+	DispatchTaskRunCompleted(
+		context.Context,
+		hookspkg.TaskRunCompletedPayload,
+	) (hookspkg.TaskRunCompletedPayload, error)
+	DispatchTaskRunFailed(
+		context.Context,
+		hookspkg.TaskRunFailedPayload,
+	) (hookspkg.TaskRunFailedPayload, error)
 	DispatchSpawnPreCreate(
 		context.Context,
 		hookspkg.SpawnPreCreatePayload,
@@ -827,6 +835,32 @@ func (n *hooksNotifier) DispatchTaskRunReleased(
 		hookspkg.HookTaskRunReleased,
 		payload,
 		hookRuntime.DispatchTaskRunReleased,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskRunCompleted(
+	ctx context.Context,
+	payload hookspkg.TaskRunCompletedPayload,
+) (hookspkg.TaskRunCompletedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskRunCompleted,
+		payload,
+		hookRuntime.DispatchTaskRunCompleted,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskRunFailed(
+	ctx context.Context,
+	payload hookspkg.TaskRunFailedPayload,
+) (hookspkg.TaskRunFailedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskRunFailed,
+		payload,
+		hookRuntime.DispatchTaskRunFailed,
 	)
 }
 

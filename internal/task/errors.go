@@ -37,4 +37,12 @@ var (
 	ErrStaleNetworkChannel = errors.New("task: stale network channel")
 	// ErrPermissionDenied reports that the resolved actor context lacks authority for the requested task action.
 	ErrPermissionDenied = errors.New("task: permission denied")
+	// ErrNoClaimableRun reports that no task run matched claim criteria.
+	ErrNoClaimableRun = errors.New("task: no claimable run")
+	// ErrInvalidClaimToken reports that a lease mutation did not prove ownership with the current token.
+	ErrInvalidClaimToken = errors.New("task: invalid claim token")
+	// ErrLeaseExpired reports that a lease mutation targeted an expired ownership lease.
+	ErrLeaseExpired = errors.New("task: lease expired")
+	// ErrActiveRunLease reports that a session already owns an active task-run lease.
+	ErrActiveRunLease = errors.New("task: active run lease exists")
 )

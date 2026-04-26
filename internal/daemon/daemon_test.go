@@ -5142,6 +5142,48 @@ func (r *recordingRegistry) CountActiveSessionBindings(context.Context, string) 
 	return 0, nil
 }
 
+func (r *recordingRegistry) ClaimNextRun(
+	context.Context,
+	taskpkg.ClaimCriteria,
+) (taskpkg.ClaimResult, error) {
+	return taskpkg.ClaimResult{}, taskpkg.ErrNoClaimableRun
+}
+
+func (r *recordingRegistry) HeartbeatRunLease(
+	context.Context,
+	taskpkg.LeaseHeartbeat,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) ReleaseRunLease(
+	context.Context,
+	taskpkg.LeaseRelease,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) CompleteRunLease(
+	context.Context,
+	taskpkg.LeaseCompletion,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) FailRunLease(
+	context.Context,
+	taskpkg.LeaseFailure,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) RecoverExpiredRunLeases(
+	context.Context,
+	taskpkg.ExpiredLeaseRecovery,
+) ([]taskpkg.ExpiredLeaseRecoveryResult, error) {
+	return nil, nil
+}
+
 func (r *recordingRegistry) ReserveQueuedRun(
 	context.Context,
 	string,
@@ -5966,6 +6008,20 @@ func (f *fakeHookRuntime) DispatchTaskRunReleased(
 	_ context.Context,
 	payload hookspkg.TaskRunReleasedPayload,
 ) (hookspkg.TaskRunReleasedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchTaskRunCompleted(
+	_ context.Context,
+	payload hookspkg.TaskRunCompletedPayload,
+) (hookspkg.TaskRunCompletedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchTaskRunFailed(
+	_ context.Context,
+	payload hookspkg.TaskRunFailedPayload,
+) (hookspkg.TaskRunFailedPayload, error) {
 	return payload, nil
 }
 

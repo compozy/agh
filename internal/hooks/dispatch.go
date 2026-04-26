@@ -889,6 +889,40 @@ func (h *Hooks) DispatchTaskRunReleased(
 	)
 }
 
+// DispatchTaskRunCompleted runs the task.run.completed hook dispatch.
+func (h *Hooks) DispatchTaskRunCompleted(
+	ctx context.Context,
+	payload TaskRunCompletedPayload,
+) (TaskRunCompletedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskRunCompleted,
+		payload,
+		dispatchConfig[TaskRunCompletedPayload, TaskRunObservationPatch]{
+			match: matchTaskRunLease,
+			apply: applyNoop[TaskRunCompletedPayload, TaskRunObservationPatch],
+		},
+	)
+}
+
+// DispatchTaskRunFailed runs the task.run.failed hook dispatch.
+func (h *Hooks) DispatchTaskRunFailed(
+	ctx context.Context,
+	payload TaskRunFailedPayload,
+) (TaskRunFailedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskRunFailed,
+		payload,
+		dispatchConfig[TaskRunFailedPayload, TaskRunObservationPatch]{
+			match: matchTaskRunLease,
+			apply: applyNoop[TaskRunFailedPayload, TaskRunObservationPatch],
+		},
+	)
+}
+
 // DispatchSpawnPreCreate runs the spawn.pre_create hook pipeline.
 func (h *Hooks) DispatchSpawnPreCreate(
 	ctx context.Context,

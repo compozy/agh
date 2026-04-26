@@ -344,6 +344,13 @@ func recoverTaskRunsOnBoot(
 	sessions taskBridgeSessionManager,
 	actor taskpkg.ActorContext,
 ) (taskRecoveryStats, error) {
+	expired, err := manager.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
+		Reason: taskRecoveryReasonBoot,
+	}, actor)
+	if err != nil {
+		return taskRecoveryStats{}, fmt.Errorf("daemon: recover expired task run leases on boot: %w", err)
+	}
+
 	runs, err := store.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{
 		taskpkg.TaskRunStatusClaimed,
 		taskpkg.TaskRunStatusStarting,
@@ -353,7 +360,7 @@ func recoverTaskRunsOnBoot(
 		return taskRecoveryStats{}, fmt.Errorf("daemon: list task runs for boot recovery: %w", err)
 	}
 
-	stats := taskRecoveryStats{}
+	stats := taskRecoveryStats{requeued: len(expired)}
 	for _, run := range runs {
 		recovery, err := planTaskRunRecovery(ctx, sessions, run)
 		if err != nil {

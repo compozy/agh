@@ -181,6 +181,7 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	if err := second.UpdateTaskRun(ctx, storedQueued); err != nil {
 		t.Fatalf("UpdateTaskRun(attached) error = %v", err)
 	}
+	storedQueued.ClaimToken = ""
 
 	if err := second.Close(ctx); err != nil {
 		t.Fatalf("Close(second) error = %v", err)

@@ -686,6 +686,232 @@ func (s *inMemoryManagerStore) CountActiveSessionBindings(_ context.Context, ses
 	return count, nil
 }
 
+func (s *inMemoryManagerStore) ClaimNextRun(_ context.Context, criteria ClaimCriteria) (ClaimResult, error) {
+	normalized, err := criteria.Normalize(time.Now().UTC())
+	if err != nil {
+		return ClaimResult{}, err
+	}
+	for _, run := range s.runs {
+		if run.SessionID == normalized.ClaimerSessionID &&
+			(run.Status == TaskRunStatusClaimed || run.Status == TaskRunStatusStarting || run.Status == TaskRunStatusRunning) &&
+			(run.LeaseUntil.IsZero() || run.LeaseUntil.After(normalized.Now)) {
+			return ClaimResult{}, ErrActiveRunLease
+		}
+	}
+
+	candidates := make([]Run, 0)
+	for _, run := range s.runs {
+		taskRecord, ok := s.tasks[run.TaskID]
+		if !ok || run.Status.Normalize() != TaskRunStatusQueued {
+			continue
+		}
+		if taskRecord.Scope.Normalize() != normalized.Scope {
+			continue
+		}
+		if normalized.Scope == ScopeWorkspace && taskRecord.WorkspaceID != normalized.WorkspaceID {
+			continue
+		}
+		if taskPriorityMin(taskRecord.Priority) < normalized.PriorityMin {
+			continue
+		}
+		if !capabilitySetContainsAll(normalized.RequiredCapabilities, run.RequiredCapabilities) {
+			continue
+		}
+		candidates = append(candidates, cloneTaskRun(run))
+	}
+	sort.Slice(candidates, func(i int, j int) bool {
+		leftTask := s.tasks[candidates[i].TaskID]
+		rightTask := s.tasks[candidates[j].TaskID]
+		if taskPriorityMin(leftTask.Priority) != taskPriorityMin(rightTask.Priority) {
+			return taskPriorityMin(leftTask.Priority) > taskPriorityMin(rightTask.Priority)
+		}
+		if !candidates[i].QueuedAt.Equal(candidates[j].QueuedAt) {
+			return candidates[i].QueuedAt.Before(candidates[j].QueuedAt)
+		}
+		return candidates[i].ID < candidates[j].ID
+	})
+	if len(candidates) == 0 {
+		return ClaimResult{}, ErrNoClaimableRun
+	}
+
+	token, err := NewClaimToken()
+	if err != nil {
+		return ClaimResult{}, err
+	}
+	tokenHash, err := ClaimTokenHash(token)
+	if err != nil {
+		return ClaimResult{}, err
+	}
+	run := candidates[0]
+	run.Status = TaskRunStatusClaimed
+	run.ClaimedBy = cloneActorIdentity(normalized.ClaimedBy)
+	run.SessionID = normalized.ClaimerSessionID
+	run.ClaimToken = ""
+	run.ClaimTokenHash = tokenHash
+	run.ClaimedAt = normalized.Now
+	run.HeartbeatAt = normalized.Now
+	run.LeaseUntil = normalized.Now.Add(normalized.LeaseDuration)
+	s.runs[run.ID] = cloneTaskRun(run)
+	taskRecord := cloneTask(s.tasks[run.TaskID])
+	return ClaimResult{
+		Task:       taskRecord,
+		Run:        cloneTaskRun(run),
+		ClaimToken: token,
+		LeaseUntil: run.LeaseUntil,
+	}, nil
+}
+
+func (s *inMemoryManagerStore) HeartbeatRunLease(_ context.Context, heartbeat LeaseHeartbeat) (Run, error) {
+	normalized, err := heartbeat.Normalize(time.Now().UTC())
+	if err != nil {
+		return Run{}, err
+	}
+	run, err := s.requireCurrentTestLease(normalized.RunID, normalized.ClaimToken, normalized.Now)
+	if err != nil {
+		return Run{}, err
+	}
+	run.HeartbeatAt = normalized.Now
+	run.LeaseUntil = normalized.Now.Add(normalized.LeaseDuration)
+	s.runs[run.ID] = cloneTaskRun(run)
+	return cloneTaskRun(run), nil
+}
+
+func (s *inMemoryManagerStore) ReleaseRunLease(_ context.Context, release LeaseRelease) (Run, error) {
+	normalized, err := release.Normalize(time.Now().UTC())
+	if err != nil {
+		return Run{}, err
+	}
+	run, err := s.requireCurrentTestLease(normalized.RunID, normalized.ClaimToken, normalized.Now)
+	if err != nil {
+		return Run{}, err
+	}
+	run = requeuedTestRun(run)
+	s.runs[run.ID] = cloneTaskRun(run)
+	return cloneTaskRun(run), nil
+}
+
+func (s *inMemoryManagerStore) CompleteRunLease(_ context.Context, completion LeaseCompletion) (Run, error) {
+	normalized, err := completion.Normalize(time.Now().UTC())
+	if err != nil {
+		return Run{}, err
+	}
+	run, err := s.requireCurrentTestLease(normalized.RunID, normalized.ClaimToken, normalized.Now)
+	if err != nil {
+		return Run{}, err
+	}
+	run.Status = TaskRunStatusCompleted
+	run.Result = cloneRawJSON(normalized.Result.Value)
+	run.Error = ""
+	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
+	run.EndedAt = normalized.Now
+	s.runs[run.ID] = cloneTaskRun(run)
+	return cloneTaskRun(run), nil
+}
+
+func (s *inMemoryManagerStore) FailRunLease(_ context.Context, failure LeaseFailure) (Run, error) {
+	normalized, err := failure.Normalize(time.Now().UTC())
+	if err != nil {
+		return Run{}, err
+	}
+	run, err := s.requireCurrentTestLease(normalized.RunID, normalized.ClaimToken, normalized.Now)
+	if err != nil {
+		return Run{}, err
+	}
+	run.Status = TaskRunStatusFailed
+	run.Error = normalized.Failure.Error
+	run.Result = nil
+	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
+	run.EndedAt = normalized.Now
+	s.runs[run.ID] = cloneTaskRun(run)
+	return cloneTaskRun(run), nil
+}
+
+func (s *inMemoryManagerStore) RecoverExpiredRunLeases(
+	_ context.Context,
+	recovery ExpiredLeaseRecovery,
+) ([]ExpiredLeaseRecoveryResult, error) {
+	normalized, err := recovery.Normalize(time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	results := make([]ExpiredLeaseRecoveryResult, 0)
+	for _, run := range s.runs {
+		if run.LeaseUntil.IsZero() || run.LeaseUntil.After(normalized.Now) {
+			continue
+		}
+		switch run.Status.Normalize() {
+		case TaskRunStatusClaimed, TaskRunStatusStarting, TaskRunStatusRunning:
+		default:
+			continue
+		}
+		previous := run
+		run = requeuedTestRun(run)
+		s.runs[run.ID] = cloneTaskRun(run)
+		results = append(results, ExpiredLeaseRecoveryResult{
+			Run:                    cloneTaskRun(run),
+			PreviousRunStatus:      previous.Status,
+			PreviousSessionID:      previous.SessionID,
+			PreviousLeaseUntil:     previous.LeaseUntil,
+			PreviousClaimTokenHash: previous.ClaimTokenHash,
+			Reason:                 normalized.Reason,
+		})
+	}
+	return results, nil
+}
+
+func (s *inMemoryManagerStore) requireCurrentTestLease(runID string, claimToken string, now time.Time) (Run, error) {
+	run, ok := s.runs[strings.TrimSpace(runID)]
+	if !ok {
+		return Run{}, ErrTaskRunNotFound
+	}
+	if !VerifyClaimToken(claimToken, run.ClaimTokenHash) {
+		return Run{}, ErrInvalidClaimToken
+	}
+	switch run.Status.Normalize() {
+	case TaskRunStatusClaimed, TaskRunStatusStarting, TaskRunStatusRunning:
+	default:
+		return Run{}, ErrInvalidStatusTransition
+	}
+	if run.LeaseUntil.IsZero() || !run.LeaseUntil.After(now) {
+		return Run{}, ErrLeaseExpired
+	}
+	return cloneTaskRun(run), nil
+}
+
+func capabilitySetContainsAll(have []string, required []string) bool {
+	if len(required) == 0 {
+		return true
+	}
+	capabilities := make(map[string]struct{}, len(have))
+	for _, capability := range have {
+		capabilities[strings.TrimSpace(capability)] = struct{}{}
+	}
+	for _, capability := range required {
+		if _, ok := capabilities[strings.TrimSpace(capability)]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func requeuedTestRun(run Run) Run {
+	run.Status = TaskRunStatusQueued
+	run.ClaimedBy = nil
+	run.SessionID = ""
+	run.ClaimToken = ""
+	run.ClaimTokenHash = ""
+	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
+	run.ClaimedAt = time.Time{}
+	run.StartedAt = time.Time{}
+	run.EndedAt = time.Time{}
+	run.Error = ""
+	run.Result = nil
+	return run
+}
+
 func (s *inMemoryManagerStore) ReserveQueuedRun(
 	_ context.Context,
 	taskID string,

@@ -1,0 +1,366 @@
+package task
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	base := ClaimCriteria{
+		Scope:                ScopeGlobal,
+		ClaimerSessionID:     "sess-claim",
+		RequiredCapabilities: []string{"golang"},
+		LeaseDuration:        time.Minute,
+		Now:                  now,
+	}
+
+	tests := []struct {
+		name     string
+		criteria ClaimCriteria
+		wantErr  error
+	}{
+		{
+			name:     "missing claimer session",
+			criteria: ClaimCriteria{Scope: ScopeGlobal, LeaseDuration: time.Minute, Now: now},
+			wantErr:  ErrValidation,
+		},
+		{
+			name: "workspace scope requires workspace id",
+			criteria: ClaimCriteria{
+				Scope:            ScopeWorkspace,
+				ClaimerSessionID: "sess-claim",
+				LeaseDuration:    time.Minute,
+				Now:              now,
+			},
+			wantErr: ErrInvalidScopeBinding,
+		},
+		{
+			name: "capability ids reject whitespace",
+			criteria: ClaimCriteria{
+				Scope:                ScopeGlobal,
+				ClaimerSessionID:     "sess-claim",
+				RequiredCapabilities: []string{"golang sqlite"},
+				LeaseDuration:        time.Minute,
+				Now:                  now,
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "lease duration is bounded",
+			criteria: ClaimCriteria{
+				Scope:            ScopeGlobal,
+				ClaimerSessionID: "sess-claim",
+				LeaseDuration:    MaxRunLeaseDuration + time.Nanosecond,
+				Now:              now,
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name:     "valid criteria defaults claimed by",
+			criteria: base,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := tt.criteria.Normalize(now)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("Normalize() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Normalize() error = %v", err)
+			}
+			if got.ClaimedBy == nil || got.ClaimedBy.Kind != ActorKindAgentSession ||
+				got.ClaimedBy.Ref != "sess-claim" {
+				t.Fatalf("ClaimedBy = %#v, want agent session claimer", got.ClaimedBy)
+			}
+		})
+	}
+
+	rawToken := "agh_claim_unit_token"
+	hash, err := ClaimTokenHash(rawToken)
+	if err != nil {
+		t.Fatalf("ClaimTokenHash() error = %v", err)
+	}
+	if !strings.HasPrefix(hash, "sha256:") {
+		t.Fatalf("ClaimTokenHash() = %q, want sha256 prefix", hash)
+	}
+	if strings.Contains(hash, rawToken) {
+		t.Fatalf("ClaimTokenHash() = %q contains raw token", hash)
+	}
+	if !VerifyClaimToken(rawToken, hash) {
+		t.Fatal("VerifyClaimToken(raw, hash) = false, want true")
+	}
+	if !VerifyClaimToken(" "+rawToken+" ", strings.TrimPrefix(hash, "sha256:")) {
+		t.Fatal("VerifyClaimToken() should accept canonical hash without prefix and trim raw token")
+	}
+	if VerifyClaimToken("wrong-token", hash) {
+		t.Fatal("VerifyClaimToken(wrong, hash) = true, want false")
+	}
+	if _, err := ClaimTokenHash(" "); !errors.Is(err, ErrValidation) {
+		t.Fatalf("ClaimTokenHash(empty) error = %v, want %v", err, ErrValidation)
+	}
+}
+
+func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
+	t.Parallel()
+
+	result := ClaimResult{
+		Task: Task{
+			Metadata: json.RawMessage(`{"claim_token":"task-raw","nested":{"claim_token":"nested-raw","keep":true}}`),
+		},
+		Run: Run{
+			Metadata: json.RawMessage(`{"claim_token":"run-raw","items":[{"claim_token":"item-raw","ok":true}]}`),
+			Result:   json.RawMessage(`{"claim_token":"result-raw","ok":true}`),
+		},
+		CoordinationChannel: &CoordinationChannelMetadata{
+			ID:                  " coord.core ",
+			AllowedMessageKinds: []string{"status", "status", " reply "},
+		},
+	}
+
+	claimResultWithoutRawTokenInMetadata(&result)
+	for label, raw := range map[string]json.RawMessage{
+		"task metadata": result.Task.Metadata,
+		"run metadata":  result.Run.Metadata,
+		"run result":    result.Run.Result,
+	} {
+		if strings.Contains(strings.ToLower(string(raw)), "claim_token") {
+			t.Fatalf("%s still contains raw claim_token field: %s", label, raw)
+		}
+	}
+	if result.CoordinationChannel == nil {
+		t.Fatal("CoordinationChannel = nil, want sanitized metadata")
+	}
+	if got, want := result.CoordinationChannel.ID, "coord.core"; got != want {
+		t.Fatalf("CoordinationChannel.ID = %q, want %q", got, want)
+	}
+	if got, want := result.CoordinationChannel.DisplayName, "coord.core"; got != want {
+		t.Fatalf("CoordinationChannel.DisplayName = %q, want %q", got, want)
+	}
+	if got, want := result.CoordinationChannel.AllowedMessageKinds, []string{
+		"status",
+		"reply",
+	}; len(
+		got,
+	) != len(
+		want,
+	) ||
+		got[0] != want[0] ||
+		got[1] != want[1] {
+		t.Fatalf("AllowedMessageKinds = %#v, want %#v", got, want)
+	}
+}
+
+func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	operator := validActorContext()
+	agent := validActorContext()
+	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-agent"}
+	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Claim lease task",
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	firstRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+	if err != nil {
+		t.Fatalf("EnqueueRun(first) error = %v", err)
+	}
+	secondTask, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Second claim lease task",
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask(second) error = %v", err)
+	}
+	if _, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: secondTask.ID}, operator); err != nil {
+		t.Fatalf("EnqueueRun(second) error = %v", err)
+	}
+
+	claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-agent",
+		LeaseDuration:    time.Minute,
+		Now:              claimNow,
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	if got, want := claim.Run.ID, firstRun.ID; got != want {
+		t.Fatalf("ClaimNextRun() run id = %q, want %q", got, want)
+	}
+	if claim.ClaimToken == "" {
+		t.Fatal("ClaimToken is empty")
+	}
+	if claim.Run.ClaimToken != "" {
+		t.Fatalf("Run.ClaimToken = %q, want empty read model", claim.Run.ClaimToken)
+	}
+	if !VerifyClaimToken(claim.ClaimToken, claim.Run.ClaimTokenHash) {
+		t.Fatal("ClaimToken does not verify against persisted hash")
+	}
+
+	if _, err := manager.CompleteRun(context.Background(), firstRun.ID, RunResult{
+		Value: json.RawMessage(`{"legacy":true}`),
+	}, agent); !errors.Is(err, ErrInvalidClaimToken) {
+		t.Fatalf("CompleteRun(unfenced active lease) error = %v, want %v", err, ErrInvalidClaimToken)
+	}
+	if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+		RunID:         firstRun.ID,
+		ClaimToken:    "wrong-token",
+		LeaseDuration: time.Minute,
+		Now:           claimNow.Add(10 * time.Second),
+	}, agent); !errors.Is(err, ErrInvalidClaimToken) {
+		t.Fatalf("HeartbeatRunLease(stale token) error = %v, want %v", err, ErrInvalidClaimToken)
+	}
+	if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+		RunID:         firstRun.ID,
+		ClaimToken:    claim.ClaimToken,
+		LeaseDuration: time.Minute,
+		Now:           claim.LeaseUntil,
+	}, agent); !errors.Is(err, ErrLeaseExpired) {
+		t.Fatalf("HeartbeatRunLease(expired lease) error = %v, want %v", err, ErrLeaseExpired)
+	}
+	heartbeat, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+		RunID:         firstRun.ID,
+		ClaimToken:    claim.ClaimToken,
+		LeaseDuration: 2 * time.Minute,
+		Now:           claimNow.Add(30 * time.Second),
+	}, agent)
+	if err != nil {
+		t.Fatalf("HeartbeatRunLease(current token) error = %v", err)
+	}
+	if got, want := heartbeat.LeaseUntil, claimNow.Add(150*time.Second); !got.Equal(want) {
+		t.Fatalf("HeartbeatRunLease().LeaseUntil = %v, want %v", got, want)
+	}
+
+	if _, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-agent",
+		LeaseDuration:    time.Minute,
+		Now:              claimNow.Add(40 * time.Second),
+	}, agent); !errors.Is(err, ErrActiveRunLease) {
+		t.Fatalf("ClaimNextRun(second active lease) error = %v, want %v", err, ErrActiveRunLease)
+	}
+
+	completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		RunID:      firstRun.ID,
+		ClaimToken: claim.ClaimToken,
+		Result:     RunResult{Value: json.RawMessage(`{"ok":true}`)},
+		Now:        claimNow.Add(45 * time.Second),
+	}, agent)
+	if err != nil {
+		t.Fatalf("CompleteRunLease() error = %v", err)
+	}
+	if got, want := completed.Status, TaskRunStatusCompleted; got != want {
+		t.Fatalf("completed.Status = %q, want %q", got, want)
+	}
+	if completed.LeaseUntil.IsZero() == false || completed.HeartbeatAt.IsZero() == false {
+		t.Fatalf(
+			"completed lease fields = lease_until %v heartbeat_at %v, want zero",
+			completed.LeaseUntil,
+			completed.HeartbeatAt,
+		)
+	}
+	if completed.ClaimTokenHash == "" {
+		t.Fatal("completed.ClaimTokenHash = empty, want retained fencing history")
+	}
+
+	secondClaim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-agent",
+		LeaseDuration:    time.Minute,
+		Now:              claimNow.Add(time.Minute),
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun(after completion) error = %v", err)
+	}
+	released, err := manager.ReleaseRunLease(context.Background(), LeaseRelease{
+		RunID:      secondClaim.Run.ID,
+		ClaimToken: secondClaim.ClaimToken,
+		Reason:     "handoff",
+		Now:        claimNow.Add(70 * time.Second),
+	}, agent)
+	if err != nil {
+		t.Fatalf("ReleaseRunLease() error = %v", err)
+	}
+	if got, want := released.Status, TaskRunStatusQueued; got != want {
+		t.Fatalf("released.Status = %q, want %q", got, want)
+	}
+	if released.ClaimTokenHash != "" || released.SessionID != "" || released.ClaimedBy != nil {
+		t.Fatalf("released ownership fields = hash %q session %q claimed_by %#v, want cleared",
+			released.ClaimTokenHash,
+			released.SessionID,
+			released.ClaimedBy,
+		)
+	}
+	if _, err := manager.HeartbeatRunLease(context.Background(), LeaseHeartbeat{
+		RunID:         released.ID,
+		ClaimToken:    secondClaim.ClaimToken,
+		LeaseDuration: time.Minute,
+		Now:           claimNow.Add(80 * time.Second),
+	}, agent); !errors.Is(err, ErrInvalidClaimToken) {
+		t.Fatalf("HeartbeatRunLease(after release) error = %v, want %v", err, ErrInvalidClaimToken)
+	}
+
+	failClaim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-agent",
+		LeaseDuration:    time.Minute,
+		Now:              claimNow.Add(90 * time.Second),
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun(for failure) error = %v", err)
+	}
+	failed, err := manager.FailRunLease(context.Background(), LeaseFailure{
+		RunID:      failClaim.Run.ID,
+		ClaimToken: failClaim.ClaimToken,
+		Failure:    RunFailure{Error: "worker failed"},
+		Now:        claimNow.Add(100 * time.Second),
+	}, agent)
+	if err != nil {
+		t.Fatalf("FailRunLease() error = %v", err)
+	}
+	if got, want := failed.Status, TaskRunStatusFailed; got != want {
+		t.Fatalf("failed.Status = %q, want %q", got, want)
+	}
+	if got, want := failed.Error, "worker failed"; got != want {
+		t.Fatalf("failed.Error = %q, want %q", got, want)
+	}
+}
+
+func TestManagerClaimNextRunRequiresWriteAuthority(t *testing.T) {
+	t.Parallel()
+
+	manager := newTaskManagerForTest(t, newInMemoryManagerStore())
+	actor := validActorContext()
+	actor.Authority.Write = false
+	actor.Authority.CreateGlobal = false
+	actor.Authority.CreateWorkspace = false
+
+	if _, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-agent",
+	}, actor); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("ClaimNextRun(read-only actor) error = %v, want %v", err, ErrPermissionDenied)
+	}
+}

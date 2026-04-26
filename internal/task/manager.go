@@ -37,6 +37,9 @@ const (
 	taskEventRunForceStopped   = "task.run_force_stopped"
 	taskEventRunRecovered      = "task.run_recovered"
 	taskEventRunRejected       = "task.run_rejected"
+	taskEventRunLeaseExtended  = "task.run_lease_extended"
+	taskEventRunLeaseExpired   = "task.run_lease_expired"
+	taskEventRunReleased       = "task.run_released"
 )
 
 // Option customizes Service construction.
@@ -964,6 +967,10 @@ func (m *Service) recoverRunByRequeue(
 	run.ClaimedBy = nil
 	run.ClaimedAt = time.Time{}
 	run.SessionID = ""
+	run.ClaimToken = ""
+	run.ClaimTokenHash = ""
+	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
 	run.StartedAt = time.Time{}
 	run.EndedAt = time.Time{}
 	run.Error = ""
@@ -1664,6 +1671,9 @@ func (m *Service) CompleteRun(
 	if err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(run.ClaimTokenHash) != "" {
+		return nil, fmt.Errorf("%w: task run %q requires token-fenced completion", ErrInvalidClaimToken, run.ID)
+	}
 	if err := requireRunTransition(run, TaskRunStatusCompleted); err != nil {
 		return nil, err
 	}
@@ -1671,6 +1681,9 @@ func (m *Service) CompleteRun(
 	run.Status = TaskRunStatusCompleted
 	run.Result = cloneRawJSON(normalizedResult.Value)
 	run.Error = ""
+	run.ClaimToken = ""
+	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
 	run.EndedAt = m.now().UTC()
 	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
 		return nil, err
@@ -1710,6 +1723,9 @@ func (m *Service) FailRun(
 	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(run.ClaimTokenHash) != "" {
+		return nil, fmt.Errorf("%w: task run %q requires token-fenced failure", ErrInvalidClaimToken, run.ID)
 	}
 	return m.failRunRecord(ctx, taskRecord, run, normalizedFailure, actor)
 }
@@ -2767,6 +2783,9 @@ func (m *Service) failRunRecord(
 	run.Status = TaskRunStatusFailed
 	run.Error = failure.Error
 	run.Result = nil
+	run.ClaimToken = ""
+	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
 	run.EndedAt = m.now().UTC()
 	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
 		return nil, err
@@ -3402,9 +3421,11 @@ type runEnqueuedPayload struct {
 }
 
 type runClaimedPayload struct {
-	Status     RunStatus     `json:"status"`
-	TaskStatus Status        `json:"task_status"`
-	ClaimedBy  ActorIdentity `json:"claimed_by"`
+	Status         RunStatus     `json:"status"`
+	TaskStatus     Status        `json:"task_status"`
+	ClaimedBy      ActorIdentity `json:"claimed_by"`
+	ClaimTokenHash string        `json:"claim_token_hash,omitempty"`
+	LeaseUntil     time.Time     `json:"lease_until"`
 }
 
 type runTransitionPayload struct {
@@ -3414,16 +3435,18 @@ type runTransitionPayload struct {
 }
 
 type completedRunPayload struct {
-	Status     RunStatus       `json:"status"`
-	TaskStatus Status          `json:"task_status"`
-	Result     json.RawMessage `json:"result,omitempty"`
+	Status         RunStatus       `json:"status"`
+	TaskStatus     Status          `json:"task_status"`
+	Result         json.RawMessage `json:"result,omitempty"`
+	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
 }
 
 type failedRunPayload struct {
-	Status     RunStatus       `json:"status"`
-	TaskStatus Status          `json:"task_status"`
-	Error      string          `json:"error"`
-	Metadata   json.RawMessage `json:"metadata,omitempty"`
+	Status         RunStatus       `json:"status"`
+	TaskStatus     Status          `json:"task_status"`
+	Error          string          `json:"error"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
 }
 
 type cancelledRunPayload struct {
@@ -3458,4 +3481,31 @@ type recoveredRunPayload struct {
 	SessionState   string                `json:"session_state,omitempty"`
 	Classification string                `json:"classification,omitempty"`
 	Detail         string                `json:"detail,omitempty"`
+}
+
+type leaseExtendedPayload struct {
+	Status         RunStatus `json:"status"`
+	TaskStatus     Status    `json:"task_status"`
+	LeaseUntil     time.Time `json:"lease_until"`
+	HeartbeatAt    time.Time `json:"heartbeat_at"`
+	ClaimTokenHash string    `json:"claim_token_hash,omitempty"`
+}
+
+type releasedRunPayload struct {
+	PreviousStatus RunStatus `json:"previous_status"`
+	Status         RunStatus `json:"status"`
+	TaskStatus     Status    `json:"task_status"`
+	Reason         string    `json:"reason,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+}
+
+type expiredLeasePayload struct {
+	PreviousStatus      RunStatus `json:"previous_status"`
+	Status              RunStatus `json:"status"`
+	TaskStatus          Status    `json:"task_status"`
+	Reason              string    `json:"reason,omitempty"`
+	SessionID           string    `json:"session_id,omitempty"`
+	LeaseUntil          time.Time `json:"lease_until"`
+	PreviousTokenHash   string    `json:"previous_claim_token_hash,omitempty"`
+	CoordinationChannel string    `json:"coordination_channel_id,omitempty"`
 }

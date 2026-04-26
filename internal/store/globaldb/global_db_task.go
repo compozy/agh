@@ -49,7 +49,7 @@ const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
 ), tasks.updated_at) DESC, updated_at DESC, created_at DESC, id DESC`
 
 const taskRunSelectColumnsSQL = `id, task_id, status, attempt, claimed_by_kind, claimed_by_ref,
-	session_id, origin_kind, origin_ref, idempotency_key, network_channel, claim_token,
+	session_id, origin_kind, origin_ref, idempotency_key, network_channel, '' AS claim_token,
 	claim_token_hash, lease_until, heartbeat_at, coordination_channel_id, queued_at,
 	claimed_at, started_at, ended_at, error, metadata_json, result_json`
 
@@ -428,7 +428,7 @@ func (g *GlobalDB) UpdateTaskRun(ctx context.Context, run taskpkg.Run) error {
 			normalized.Origin.Ref,
 			store.NullableString(normalized.IdempotencyKey),
 			store.NullableString(normalized.NetworkChannel),
-			store.NullableString(normalized.ClaimToken),
+			nil,
 			store.NullableString(normalized.ClaimTokenHash),
 			nullableTaskTimestamp(normalized.LeaseUntil),
 			nullableTaskTimestamp(normalized.HeartbeatAt),
@@ -732,7 +732,7 @@ func insertTaskRunWithExecutor(ctx context.Context, exec taskSQLExecutor, run ta
 		run.Origin.Ref,
 		store.NullableString(run.IdempotencyKey),
 		store.NullableString(run.NetworkChannel),
-		store.NullableString(run.ClaimToken),
+		nil,
 		store.NullableString(run.ClaimTokenHash),
 		nullableTaskTimestamp(run.LeaseUntil),
 		nullableTaskTimestamp(run.HeartbeatAt),

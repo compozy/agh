@@ -233,30 +233,54 @@ type StubAutomationManager struct {
 }
 
 type StubTaskManager struct {
-	CreateTaskFn       func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
-	CreateChildTaskFn  func(context.Context, string, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
-	DeleteTaskFn       func(context.Context, string, taskpkg.ActorContext) error
-	UpdateTaskFn       func(context.Context, string, taskpkg.Patch, taskpkg.ActorContext) (*taskpkg.Task, error)
-	PublishTaskFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
-	ApproveTaskFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
-	RejectTaskFn       func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
-	CancelTaskFn       func(context.Context, string, taskpkg.CancelTask, taskpkg.ActorContext) (*taskpkg.Task, error)
+	CreateTaskFn      func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
+	CreateChildTaskFn func(
+		context.Context,
+		string,
+		taskpkg.CreateTask,
+		taskpkg.ActorContext,
+	) (*taskpkg.Task, error)
+	DeleteTaskFn  func(context.Context, string, taskpkg.ActorContext) error
+	UpdateTaskFn  func(context.Context, string, taskpkg.Patch, taskpkg.ActorContext) (*taskpkg.Task, error)
+	PublishTaskFn func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
+	ApproveTaskFn func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
+	RejectTaskFn  func(context.Context, string, taskpkg.ActorContext) (*taskpkg.Task, error)
+	CancelTaskFn  func(
+		context.Context,
+		string,
+		taskpkg.CancelTask,
+		taskpkg.ActorContext,
+	) (*taskpkg.Task, error)
 	MarkTaskReadFn     func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
 	ArchiveTaskFn      func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
 	DismissTaskFn      func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
 	AddDependencyFn    func(context.Context, taskpkg.AddDependency, taskpkg.ActorContext) error
 	RemoveDependencyFn func(context.Context, string, string, taskpkg.ActorContext) error
 	EnqueueRunFn       func(context.Context, taskpkg.EnqueueRun, taskpkg.ActorContext) (*taskpkg.Run, error)
-	ClaimRunFn         func(context.Context, string, taskpkg.ClaimRun, taskpkg.ActorContext) (*taskpkg.Run, error)
-	StartRunFn         func(context.Context, string, taskpkg.StartRun, taskpkg.ActorContext) (*taskpkg.Run, error)
-	AttachRunSessionFn func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Run, error)
-	CompleteRunFn      func(context.Context, string, taskpkg.RunResult, taskpkg.ActorContext) (*taskpkg.Run, error)
-	FailRunFn          func(context.Context, string, taskpkg.RunFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
-	CancelRunFn        func(context.Context, string, taskpkg.CancelRun, taskpkg.ActorContext) (*taskpkg.Run, error)
-	GetTaskFn          func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error)
-	ListTaskRunsFn     func(context.Context, string, taskpkg.RunQuery, taskpkg.ActorContext) ([]taskpkg.Run, error)
-	ListTasksFn        func(context.Context, taskpkg.Query, taskpkg.ActorContext) ([]taskpkg.Summary, error)
-	TimelineFn         func(
+	ClaimNextRunFn     func(
+		context.Context,
+		taskpkg.ClaimCriteria,
+		taskpkg.ActorContext,
+	) (*taskpkg.ClaimResult, error)
+	ClaimRunFn                func(context.Context, string, taskpkg.ClaimRun, taskpkg.ActorContext) (*taskpkg.Run, error)
+	StartRunFn                func(context.Context, string, taskpkg.StartRun, taskpkg.ActorContext) (*taskpkg.Run, error)
+	AttachRunSessionFn        func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Run, error)
+	HeartbeatRunLeaseFn       func(context.Context, taskpkg.LeaseHeartbeat, taskpkg.ActorContext) (*taskpkg.Run, error)
+	ReleaseRunLeaseFn         func(context.Context, taskpkg.LeaseRelease, taskpkg.ActorContext) (*taskpkg.Run, error)
+	CompleteRunLeaseFn        func(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error)
+	FailRunLeaseFn            func(context.Context, taskpkg.LeaseFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
+	CompleteRunFn             func(context.Context, string, taskpkg.RunResult, taskpkg.ActorContext) (*taskpkg.Run, error)
+	FailRunFn                 func(context.Context, string, taskpkg.RunFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
+	CancelRunFn               func(context.Context, string, taskpkg.CancelRun, taskpkg.ActorContext) (*taskpkg.Run, error)
+	RecoverExpiredRunLeasesFn func(
+		context.Context,
+		taskpkg.ExpiredLeaseRecovery,
+		taskpkg.ActorContext,
+	) ([]taskpkg.ExpiredLeaseRecoveryResult, error)
+	GetTaskFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error)
+	ListTaskRunsFn func(context.Context, string, taskpkg.RunQuery, taskpkg.ActorContext) ([]taskpkg.Run, error)
+	ListTasksFn    func(context.Context, taskpkg.Query, taskpkg.ActorContext) ([]taskpkg.Summary, error)
+	TimelineFn     func(
 		context.Context,
 		string,
 		taskpkg.TimelineQuery,
@@ -667,6 +691,17 @@ func (s StubTaskManager) EnqueueRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
+func (s StubTaskManager) ClaimNextRun(
+	ctx context.Context,
+	criteria taskpkg.ClaimCriteria,
+	actor taskpkg.ActorContext,
+) (*taskpkg.ClaimResult, error) {
+	if s.ClaimNextRunFn != nil {
+		return s.ClaimNextRunFn(ctx, criteria, actor)
+	}
+	return nil, taskpkg.ErrNoClaimableRun
+}
+
 func (s StubTaskManager) ClaimRun(
 	ctx context.Context,
 	runID string,
@@ -699,6 +734,50 @@ func (s StubTaskManager) AttachRunSession(
 ) (*taskpkg.Run, error) {
 	if s.AttachRunSessionFn != nil {
 		return s.AttachRunSessionFn(ctx, runID, sessionID, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) HeartbeatRunLease(
+	ctx context.Context,
+	heartbeat taskpkg.LeaseHeartbeat,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	if s.HeartbeatRunLeaseFn != nil {
+		return s.HeartbeatRunLeaseFn(ctx, heartbeat, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) ReleaseRunLease(
+	ctx context.Context,
+	release taskpkg.LeaseRelease,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	if s.ReleaseRunLeaseFn != nil {
+		return s.ReleaseRunLeaseFn(ctx, release, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) CompleteRunLease(
+	ctx context.Context,
+	completion taskpkg.LeaseCompletion,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	if s.CompleteRunLeaseFn != nil {
+		return s.CompleteRunLeaseFn(ctx, completion, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) FailRunLease(
+	ctx context.Context,
+	failure taskpkg.LeaseFailure,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	if s.FailRunLeaseFn != nil {
+		return s.FailRunLeaseFn(ctx, failure, actor)
 	}
 	return nil, taskpkg.ErrTaskRunNotFound
 }
@@ -737,6 +816,17 @@ func (s StubTaskManager) CancelRun(
 		return s.CancelRunFn(ctx, runID, req, actor)
 	}
 	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) RecoverExpiredRunLeases(
+	ctx context.Context,
+	recovery taskpkg.ExpiredLeaseRecovery,
+	actor taskpkg.ActorContext,
+) ([]taskpkg.ExpiredLeaseRecoveryResult, error) {
+	if s.RecoverExpiredRunLeasesFn != nil {
+		return s.RecoverExpiredRunLeasesFn(ctx, recovery, actor)
+	}
+	return nil, nil
 }
 
 func (s StubTaskManager) GetTask(

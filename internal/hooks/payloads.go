@@ -783,6 +783,12 @@ type TaskRunLeaseRecoveredPayload = TaskRunLeasePayload
 // TaskRunReleasedPayload is delivered after a task run lease is released.
 type TaskRunReleasedPayload = TaskRunLeasePayload
 
+// TaskRunCompletedPayload is delivered after a token-fenced task run completion.
+type TaskRunCompletedPayload = TaskRunLeasePayload
+
+// TaskRunFailedPayload is delivered after a token-fenced task run failure.
+type TaskRunFailedPayload = TaskRunLeasePayload
+
 // TaskRunPreClaimPatch denies or narrows task-run claim criteria.
 type TaskRunPreClaimPatch struct {
 	ControlPatch

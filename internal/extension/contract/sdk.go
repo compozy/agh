@@ -385,6 +385,14 @@ var namedHookTypes = map[string]NamedType{
 		Name:  "TaskRunReleasedPayload",
 		Value: hooks.TaskRunReleasedPayload{},
 	},
+	"TaskRunCompletedPayload": {
+		Name:  "TaskRunCompletedPayload",
+		Value: hooks.TaskRunCompletedPayload{},
+	},
+	"TaskRunFailedPayload": {
+		Name:  "TaskRunFailedPayload",
+		Value: hooks.TaskRunFailedPayload{},
+	},
 	"TaskRunPreClaimPatch":    {Name: "TaskRunPreClaimPatch", Value: hooks.TaskRunPreClaimPatch{}},
 	"TaskRunObservationPatch": {Name: "TaskRunObservationPatch", Value: hooks.TaskRunObservationPatch{}},
 	"PermissionSet":           {Name: "PermissionSet", Value: hooks.PermissionSet{}},

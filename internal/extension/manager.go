@@ -1731,20 +1731,21 @@ func (m *Manager) disableExtension(name string, reason error) {
 		return
 	}
 	instanceIDs := managedBridgeInstanceIDs(ext)
+	m.unregisterResources(ext)
 
 	if err := m.registry.Disable(name); err != nil {
 		reason = errors.Join(reason, err)
 	}
-	m.unregisterResources(ext)
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	ext.info.Enabled = false
 	ext.phase = ExtensionPhaseRecover
 	ext.lastError = reason.Error()
 	ext.active = false
 	ext.process = nil
 	ext.awaitingStability = false
+	m.mu.Unlock()
+
 	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
 }
 

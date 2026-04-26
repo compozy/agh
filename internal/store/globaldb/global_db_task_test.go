@@ -721,6 +721,8 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if err := globalDB.UpdateTaskRun(testutil.Context(t), runningRun); err != nil {
 		t.Fatalf("UpdateTaskRun(running) error = %v", err)
 	}
+	expectedRunningRun := runningRun
+	expectedRunningRun.ClaimToken = ""
 
 	runsByTask, err := globalDB.ListTaskRuns(testutil.Context(t), taskpkg.RunQuery{TaskID: taskRecord.ID})
 	if err != nil {
@@ -729,7 +731,7 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if got, want := len(runsByTask), 1; got != want {
 		t.Fatalf("len(ListTaskRuns(task)) = %d, want %d", got, want)
 	}
-	assertTaskRunEqual(t, runsByTask[0], runningRun)
+	assertTaskRunEqual(t, runsByTask[0], expectedRunningRun)
 
 	runsBySession, err := globalDB.ListTaskRuns(testutil.Context(t), taskpkg.RunQuery{SessionID: "sess-task-run"})
 	if err != nil {
@@ -749,7 +751,7 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if got, want := len(runsByChannel), 1; got != want {
 		t.Fatalf("len(ListTaskRuns(coordination channel)) = %d, want %d", got, want)
 	}
-	assertTaskRunEqual(t, runsByChannel[0], runningRun)
+	assertTaskRunEqual(t, runsByChannel[0], expectedRunningRun)
 
 	runsByStatus, err := globalDB.ListTaskRunsByStatus(
 		testutil.Context(t),
@@ -777,6 +779,7 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if err := globalDB.UpdateTaskRun(testutil.Context(t), completedRun); err != nil {
 		t.Fatalf("UpdateTaskRun(completed) error = %v", err)
 	}
+	completedRun.ClaimToken = ""
 
 	storedCompleted, err := globalDB.GetTaskRun(testutil.Context(t), completedRun.ID)
 	if err != nil {

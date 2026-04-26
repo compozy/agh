@@ -394,6 +394,20 @@ var hookEventDescriptors = map[HookEvent]EventDescriptor{
 		PayloadSchema: "TaskRunReleasedPayload",
 		PatchSchema:   "TaskRunObservationPatch",
 	},
+	HookTaskRunCompleted: {
+		Event:         HookTaskRunCompleted,
+		Family:        HookEventFamilyTaskRun,
+		SyncEligible:  true,
+		PayloadSchema: "TaskRunCompletedPayload",
+		PatchSchema:   "TaskRunObservationPatch",
+	},
+	HookTaskRunFailed: {
+		Event:         HookTaskRunFailed,
+		Family:        HookEventFamilyTaskRun,
+		SyncEligible:  true,
+		PayloadSchema: "TaskRunFailedPayload",
+		PatchSchema:   "TaskRunObservationPatch",
+	},
 	HookSpawnPreCreate: {
 		Event:         HookSpawnPreCreate,
 		Family:        HookEventFamilySpawn,
