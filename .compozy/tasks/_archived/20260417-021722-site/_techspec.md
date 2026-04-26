@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Build a documentation website for AGH at `agh.compozy.com` using Fumadocs (Next.js) as the framework. The site serves two linked audiences through two content collections: **AGH Runtime** for operators and **AGH Network Protocol** for implementers. The landing page is a custom Next.js page that presents a balanced runtime + network story, but keeps **Runtime / Get Started** as the primary conversion path for cold visitors. `AGH Network` is used as the public-facing marketing label; `AGH Network Protocol` is reserved for spec and reference contexts. The site lives in `packages/site/` alongside the existing `web/` (unchanged for alpha), sharing design tokens from `packages/ui`. CLI reference is auto-generated from Cobra; API reference is deferred to Wave 2.
+Build a documentation website for AGH at `agh.network` using Fumadocs (Next.js) as the framework. The site serves two linked audiences through two content collections: **AGH Runtime** for operators and **AGH Network Protocol** for implementers. The landing page is a custom Next.js page that presents a balanced runtime + network story, but keeps **Runtime / Get Started** as the primary conversion path for cold visitors. `AGH Network` is used as the public-facing marketing label; `AGH Network Protocol` is reserved for spec and reference contexts. The site lives in `packages/site/` alongside the existing `web/` (unchanged for alpha), sharing design tokens from `packages/ui`. CLI reference is auto-generated from Cobra; API reference is deferred to Wave 2.
 
 **Primary trade-off**: Fumadocs is younger than Astro Starlight or Docusaurus, with a smaller community and fewer examples. We accept this because it runs on Next.js/React — enabling component sharing from `packages/ui` and consistent DESIGN.md theming. Note: Astro Starlight can also render React components via its React integration, but the styling/theming layer still requires Astro-specific adaptation rather than native Tailwind CSS v4 preset sharing.
 
@@ -137,7 +137,7 @@ Not applicable — the site is a static/SSG site with no API endpoints. The site
 
 ### Vercel — Deployment
 
-- **Purpose**: Host the site at `agh.compozy.com`
+- **Purpose**: Host the site at `agh.network`
 - **Method**: Vercel Git integration, auto-deploy on push
 - **Preview**: PR preview deployments for doc changes
 
@@ -182,7 +182,7 @@ Not applicable — the site is a static/SSG site with no API endpoints. The site
 3. **Implement CLI codegen** — add `doc` subcommand to cmd/agh, post-processing script, `make cli-docs` target. Depends on step 2 (output goes to site content dir).
 4. **Build landing page** — implement an outcome-led hero, balanced Runtime + AGH Network split, runtime proof, network proof, named comparison, architecture proof, and runtime-first final CTA. Depends on step 2.
 5. **Write Wave 1 content** — ~20 MDX pages: Overview (3), Getting Started (3), Core Concepts (3), CLI Reference (4 groups, from step 3 output), Config Reference (2), Protocol Overview + Spec v0 (adapted from RFCs). Depends on steps 2 and 3.
-6. **Deploy to Vercel** — configure agh.compozy.com, Vercel project, preview deployments, static export via `next build`. Depends on steps 4 and 5.
+6. **Deploy to Vercel** — configure agh.network, Vercel project, preview deployments, static export via `next build`. Depends on steps 4 and 5.
 7. **(Wave 2) API reference codegen** — add `api-spec` command or hand-maintain openapi.json, configure fumadocs-openapi. Deferred — not alpha-critical. Depends on step 2.
 8. **(Future) Monorepo standardization** — rename web/ → packages/app/ when the whole repo benefits. Not gated by docs launch.
 

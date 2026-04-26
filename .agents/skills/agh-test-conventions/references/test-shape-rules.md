@@ -40,6 +40,15 @@ Verbatim canonical rules. Reviewers will quote these. Stay aligned.
 - Co-located with the package; no `test/` subdirectory.
 - `make test` = unit only. `make test-integration` = `+integration`. `make test-e2e-runtime` and `make test-e2e-web` are separate lanes.
 
+## Integration / E2E
+
+- `TestMain` for expensive one-time setup/teardown.
+- Use real dependencies: real SQLite via `t.TempDir()`, mock ACP server as a subprocess (`acpmock`). Prefer subprocess mocks over in-process fakes.
+- Keep package runtime ~30s max in CI.
+- Heavy E2E (`make test-e2e-nightly`) lives in the release-PR `dry-run` job — never in a cron/schedule workflow.
+- E2E tests are part of the runtime contract: when a runtime contract changes (prompt augmenter, situation context, fixture format), the E2E mock and matchers ship in the same PR.
+- Replace fragile string-matching with structured metadata. ACP prompt routing in `acpmock` uses typed prompt metadata, not rendered prompt substrings.
+
 ## Mocks
 
 - Mock via interfaces, not test-only methods on production types.
@@ -61,6 +70,12 @@ Verbatim canonical rules. Reviewers will quote these. Stay aligned.
 
 - `make verify` runs `-race`. Race-enabled tests need `CGO_ENABLED=1`.
 - `runRaceEnabledGoCommand` (or equivalent) clones caller env and forces `CGO_ENABLED=1` for race subprocesses. Do not trust ambient env.
+- Linux-Race CI parity: before claiming `make verify` complete on race-sensitive packages (`internal/session`, `internal/acp`, `internal/hooks`, `internal/subprocess`, `internal/resources`), reproduce locally with `act workflow_dispatch -W .github/workflows/ci.yml -j verify --container-architecture linux/amd64`.
+
+## Commit gate
+
+- `make verify` is the commit gate. If verification is blocked by an external/branch-side asset issue (missing test fixture, etc.), do NOT commit — report the verified blocker and hold.
+- Test failures are production bugs. Fix production code; don't weaken assertions. The only exception is documenting an INVALID review item with concrete evidence.
 
 ## E2E follows runtime contract
 
