@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/agentidentity"
+	"github.com/pedronauck/agh/internal/api/contract"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
@@ -513,6 +514,341 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 	}
 }
 
+func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
+	t.Parallel()
+
+	rawToken := "agh_claim_COMMANDTOKEN123"
+	t.Run("next", func(t *testing.T) {
+		t.Parallel()
+
+		var gotRequest AgentTaskClaimNextRequest
+		deps := newAgentCommandTestDeps(t, &stubClient{
+			agentTaskClaimNextFn: func(
+				_ context.Context,
+				request AgentTaskClaimNextRequest,
+				credentials agentidentity.Credentials,
+			) (AgentTaskNextRecord, error) {
+				assertAgentCredentials(t, credentials)
+				gotRequest = request
+				return AgentTaskNextRecord{
+					Claimed: true,
+					Claim:   ptr(agentTaskClaimRecord(rawToken)),
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"next",
+			"--workspace-id",
+			"ws-1",
+			"--capability",
+			"go",
+			"--capability",
+			"typescript",
+			"--priority-min",
+			"3",
+			"--lease-seconds",
+			"120",
+			"--wait",
+			"--idempotency-key",
+			"idem-next",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task next error = %v", err)
+		}
+		if gotRequest.WorkspaceID != "ws-1" ||
+			gotRequest.PriorityMin != 3 ||
+			gotRequest.LeaseSeconds != 120 ||
+			!gotRequest.Wait ||
+			gotRequest.IdempotencyKey != "idem-next" ||
+			len(gotRequest.RequiredCapabilities) != 2 ||
+			gotRequest.RequiredCapabilities[0] != "go" ||
+			gotRequest.RequiredCapabilities[1] != "typescript" {
+			t.Fatalf("next request = %#v, want parsed agent claim request", gotRequest)
+		}
+		var output AgentTaskNextRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(task next) error = %v", err)
+		}
+		if !output.Claimed || output.Claim == nil || output.Claim.ClaimToken != rawToken {
+			t.Fatalf("task next output = %#v, want claimed token response", output)
+		}
+	})
+
+	t.Run("next no work", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newAgentCommandTestDeps(t, &stubClient{
+			agentTaskClaimNextFn: func(
+				context.Context,
+				AgentTaskClaimNextRequest,
+				agentidentity.Credentials,
+			) (AgentTaskNextRecord, error) {
+				return AgentTaskNextRecord{Claimed: false}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "task", "next", "-o", "json")
+		if err != nil {
+			t.Fatalf("task next no-work error = %v", err)
+		}
+		var output AgentTaskNextRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(task next no-work) error = %v", err)
+		}
+		if output.Claimed || output.Claim != nil {
+			t.Fatalf("task next no-work output = %#v, want claimed false with no claim", output)
+		}
+	})
+
+	for _, tt := range []struct {
+		name string
+		args []string
+		fn   func(t *testing.T) *stubClient
+	}{
+		{
+			name: "heartbeat",
+			args: []string{"task", "heartbeat", "run-1", "--claim-token", rawToken, "--lease-seconds", "60", "-o", "json"},
+			fn: func(t *testing.T) *stubClient {
+				t.Helper()
+				return &stubClient{
+					agentTaskHeartbeatFn: func(
+						_ context.Context,
+						runID string,
+						request AgentTaskHeartbeatRequest,
+						credentials agentidentity.Credentials,
+					) (AgentTaskLeaseRecord, error) {
+						assertAgentCredentials(t, credentials)
+						if runID != "run-1" || request.ClaimToken != rawToken || request.LeaseSeconds != 60 {
+							t.Fatalf("heartbeat runID=%q request=%#v, want run-1 token lease", runID, request)
+						}
+						return agentTaskLeaseRecord(taskpkg.TaskRunStatusClaimed), nil
+					},
+				}
+			},
+		},
+		{
+			name: "complete",
+			args: []string{"task", "complete", "run-1", "--claim-token", rawToken, "--result", `{"ok":true}`, "-o", "json"},
+			fn: func(t *testing.T) *stubClient {
+				t.Helper()
+				return &stubClient{
+					agentTaskCompleteFn: func(
+						_ context.Context,
+						runID string,
+						request AgentTaskCompleteRequest,
+						credentials agentidentity.Credentials,
+					) (AgentTaskLeaseRecord, error) {
+						assertAgentCredentials(t, credentials)
+						if runID != "run-1" || request.ClaimToken != rawToken || string(request.Result) != `{"ok":true}` {
+							t.Fatalf("complete runID=%q request=%#v, want run-1 token result", runID, request)
+						}
+						return agentTaskLeaseRecord(taskpkg.TaskRunStatusCompleted), nil
+					},
+				}
+			},
+		},
+		{
+			name: "fail",
+			args: []string{
+				"task", "fail", "run-1", "--claim-token", rawToken, "--error", "boom", "--metadata", `{"code":"E_TASK"}`, "-o", "json",
+			},
+			fn: func(t *testing.T) *stubClient {
+				t.Helper()
+				return &stubClient{
+					agentTaskFailFn: func(
+						_ context.Context,
+						runID string,
+						request AgentTaskFailRequest,
+						credentials agentidentity.Credentials,
+					) (AgentTaskLeaseRecord, error) {
+						assertAgentCredentials(t, credentials)
+						if runID != "run-1" ||
+							request.ClaimToken != rawToken ||
+							request.Error != "boom" ||
+							string(request.Metadata) != `{"code":"E_TASK"}` {
+							t.Fatalf("fail runID=%q request=%#v, want run-1 token error metadata", runID, request)
+						}
+						return agentTaskLeaseRecord(taskpkg.TaskRunStatusFailed), nil
+					},
+				}
+			},
+		},
+		{
+			name: "release",
+			args: []string{"task", "release", "run-1", "--claim-token", rawToken, "--reason", "handoff", "-o", "json"},
+			fn: func(t *testing.T) *stubClient {
+				t.Helper()
+				return &stubClient{
+					agentTaskReleaseFn: func(
+						_ context.Context,
+						runID string,
+						request AgentTaskReleaseRequest,
+						credentials agentidentity.Credentials,
+					) (AgentTaskLeaseRecord, error) {
+						assertAgentCredentials(t, credentials)
+						if runID != "run-1" || request.ClaimToken != rawToken || request.Reason != "handoff" {
+							t.Fatalf("release runID=%q request=%#v, want run-1 token reason", runID, request)
+						}
+						return agentTaskLeaseRecord(taskpkg.TaskRunStatusQueued), nil
+					},
+				}
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdout, _, err := executeRootCommand(t, newAgentCommandTestDeps(t, tt.fn(t)), tt.args...)
+			if err != nil {
+				t.Fatalf("%s command error = %v", tt.name, err)
+			}
+			if strings.Contains(stdout, rawToken) {
+				t.Fatalf("%s output leaked raw token %q: %s", tt.name, rawToken, stdout)
+			}
+			var output AgentTaskLeaseRecord
+			if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+				t.Fatalf("json.Unmarshal(%s output) error = %v", tt.name, err)
+			}
+			if output.RunID != "run-1" {
+				t.Fatalf("%s output = %#v, want run-1 lease", tt.name, output)
+			}
+		})
+	}
+}
+
+func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
+	t.Parallel()
+
+	rawToken := "agh_claim_VALIDATIONTOKEN123"
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "blank run id",
+			args:    []string{"task", "heartbeat", " ", "--claim-token", rawToken, "-o", "json"},
+			wantErr: "run id is required",
+		},
+		{
+			name:    "missing token",
+			args:    []string{"task", "heartbeat", "run-1", "-o", "json"},
+			wantErr: "claim-token",
+		},
+		{
+			name: "negative lease",
+			args: []string{
+				"task",
+				"heartbeat",
+				"run-1",
+				"--claim-token",
+				rawToken,
+				"--lease-seconds",
+				"-1",
+				"-o",
+				"json",
+			},
+			wantErr: "--lease-seconds must be zero or positive",
+		},
+		{
+			name:    "negative priority",
+			args:    []string{"task", "next", "--priority-min", "-1", "-o", "json"},
+			wantErr: "--priority-min must be zero or positive",
+		},
+		{
+			name: "invalid result json",
+			args: []string{
+				"task",
+				"complete",
+				"run-1",
+				"--claim-token",
+				rawToken,
+				"--result",
+				`{"ok":`,
+				"-o",
+				"json",
+			},
+			wantErr: "invalid --result JSON",
+		},
+		{
+			name: "raw claim token in result",
+			args: []string{
+				"task",
+				"complete",
+				"run-1",
+				"--claim-token",
+				rawToken,
+				"--result",
+				`{"claim_token":"secret"}`,
+				"-o",
+				"json",
+			},
+			wantErr: "must not contain raw claim_token",
+		},
+		{
+			name: "raw claim token in failure metadata",
+			args: []string{
+				"task",
+				"fail",
+				"run-1",
+				"--claim-token",
+				rawToken,
+				"--error",
+				"boom",
+				"--metadata",
+				`{"claim_token":"secret"}`,
+				"-o",
+				"json",
+			},
+			wantErr: "must not contain raw claim_token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &stubClient{
+				getSessionFn: func(context.Context, string) (SessionRecord, error) {
+					t.Fatal("GetSession should not be called for local validation errors")
+					return SessionRecord{}, nil
+				},
+				agentTaskClaimNextFn: func(context.Context, AgentTaskClaimNextRequest, agentidentity.Credentials) (AgentTaskNextRecord, error) {
+					t.Fatal("AgentTaskClaimNext should not be called for local validation errors")
+					return AgentTaskNextRecord{}, nil
+				},
+				agentTaskHeartbeatFn: func(context.Context, string, AgentTaskHeartbeatRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error) {
+					t.Fatal("AgentTaskHeartbeat should not be called for local validation errors")
+					return AgentTaskLeaseRecord{}, nil
+				},
+				agentTaskCompleteFn: func(context.Context, string, AgentTaskCompleteRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error) {
+					t.Fatal("AgentTaskComplete should not be called for local validation errors")
+					return AgentTaskLeaseRecord{}, nil
+				},
+				agentTaskFailFn: func(context.Context, string, AgentTaskFailRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error) {
+					t.Fatal("AgentTaskFail should not be called for local validation errors")
+					return AgentTaskLeaseRecord{}, nil
+				},
+				agentTaskReleaseFn: func(context.Context, string, AgentTaskReleaseRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error) {
+					t.Fatal("AgentTaskRelease should not be called for local validation errors")
+					return AgentTaskLeaseRecord{}, nil
+				},
+			}
+			deps := newTestDeps(t, client)
+			deps.getenv = agentCommandEnv
+			_, _, err := executeRootCommand(t, deps, tt.args...)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("executeRootCommand(%v) error = %v, want %q", tt.args, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestTaskMutationCommandsMapRequests(t *testing.T) {
 	t.Parallel()
 
@@ -935,6 +1271,49 @@ func sampleTaskRunRecord(status taskpkg.RunStatus) TaskRunRecord {
 	}
 
 	return record
+}
+
+func agentTaskClaimRecord(rawToken string) AgentTaskClaimRecord {
+	lease := agentTaskLeaseRecord(taskpkg.TaskRunStatusClaimed)
+	return AgentTaskClaimRecord{
+		Task: contract.TaskReferencePayload{
+			ID:          "task-1",
+			Identifier:  "AUTO-1",
+			Title:       "Run autonomous task",
+			Status:      taskpkg.TaskStatusInProgress,
+			Priority:    taskpkg.PriorityHigh,
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-1",
+		},
+		Run:        sampleTaskRunRecord(taskpkg.TaskRunStatusClaimed),
+		Lease:      lease,
+		ClaimToken: rawToken,
+		CoordinationChannel: &contract.CoordinationChannelPayload{
+			ID:                  "builders",
+			Channel:             "builders",
+			DisplayName:         "Builders",
+			WorkspaceID:         "ws-1",
+			TaskID:              "task-1",
+			RunID:               "run-1",
+			AllowedMessageKinds: contract.CoordinationMessageKinds(),
+		},
+	}
+}
+
+func agentTaskLeaseRecord(status taskpkg.RunStatus) AgentTaskLeaseRecord {
+	leaseUntil := fixedTestNow.Add(5 * time.Minute)
+	heartbeatAt := fixedTestNow.Add(time.Minute)
+	return AgentTaskLeaseRecord{
+		TaskID:                "task-1",
+		RunID:                 "run-1",
+		Status:                status,
+		SessionID:             "sess-agent",
+		ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
+		ClaimTokenHash:        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		LeaseUntil:            &leaseUntil,
+		HeartbeatAt:           &heartbeatAt,
+		CoordinationChannelID: "builders",
+	}
 }
 
 func sampleTaskDetailRecord() TaskDetailRecord {

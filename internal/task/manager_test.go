@@ -972,16 +972,18 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		)
 	}
 
+	networkChannel := resolvedRunChannel(requestedChannel, taskRecord.NetworkChannel)
 	run := Run{
-		ID:             strings.TrimSpace(runID),
-		TaskID:         taskRecord.ID,
-		Status:         TaskRunStatusQueued,
-		Attempt:        nextAttempt,
-		Origin:         origin,
-		IdempotencyKey: trimmedKey,
-		NetworkChannel: resolvedRunChannel(requestedChannel, taskRecord.NetworkChannel),
-		Metadata:       normalizeRawJSON(metadata),
-		QueuedAt:       queuedAt.UTC(),
+		ID:                    strings.TrimSpace(runID),
+		TaskID:                taskRecord.ID,
+		Status:                TaskRunStatusQueued,
+		Attempt:               nextAttempt,
+		Origin:                origin,
+		IdempotencyKey:        trimmedKey,
+		NetworkChannel:        networkChannel,
+		CoordinationChannelID: testCoordinationChannelIDForQueuedRun(taskRecord, networkChannel),
+		Metadata:              normalizeRawJSON(metadata),
+		QueuedAt:              queuedAt.UTC(),
 	}
 	if err := s.CreateTaskRun(context.Background(), run); err != nil {
 		return Task{}, Run{}, false, err
@@ -997,6 +999,13 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		}
 	}
 	return taskRecord, run, false, nil
+}
+
+func testCoordinationChannelIDForQueuedRun(taskRecord Task, networkChannel string) string {
+	if taskRecord.Scope.Normalize() != ScopeWorkspace {
+		return ""
+	}
+	return strings.TrimSpace(networkChannel)
 }
 
 func (s *inMemoryManagerStore) CreateTaskEvent(_ context.Context, event Event) error {

@@ -586,6 +586,77 @@ func TestGlobalDBClaimNextRunReturnsSafeCoordinationChannelMetadata(t *testing.T
 	}
 }
 
+func TestGlobalDBClaimNextRunReturnsWorkspaceNetworkChannelMetadata(t *testing.T) {
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"claim-network-channel",
+		filepath.Join(t.TempDir(), "claim-network-channel"),
+	)
+	now := time.Date(2026, 4, 26, 12, 30, 0, 0, time.UTC)
+	globalDB.now = func() time.Time { return now }
+	if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
+		Channel:     "builders",
+		WorkspaceID: workspaceID,
+		Purpose:     "Build coordination",
+		CreatedBy:   "coordinator",
+	}); err != nil {
+		t.Fatalf("WriteNetworkChannel() error = %v", err)
+	}
+
+	taskRecord := taskRecordForTest("task-network-channel-claim")
+	taskRecord.Scope = taskpkg.ScopeWorkspace
+	taskRecord.WorkspaceID = workspaceID
+	taskRecord.Status = taskpkg.TaskStatusReady
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	_, run, existing, err := globalDB.ReserveQueuedRun(
+		ctx,
+		taskRecord.ID,
+		"run-network-channel-claim",
+		"idem-network-channel-claim",
+		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+		"builders",
+		json.RawMessage(`{"workflow_id":"wf-build"}`),
+		now,
+	)
+	if err != nil {
+		t.Fatalf("ReserveQueuedRun() error = %v", err)
+	}
+	if existing {
+		t.Fatal("ReserveQueuedRun() existing = true, want new run")
+	}
+	if got, want := run.CoordinationChannelID, "builders"; got != want {
+		t.Fatalf("ReserveQueuedRun().CoordinationChannelID = %q, want %q", got, want)
+	}
+
+	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      workspaceID,
+		ClaimerSessionID: "sess-build",
+		LeaseDuration:    time.Minute,
+		Now:              now.Add(time.Second),
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	if claim.CoordinationChannel == nil {
+		t.Fatal("CoordinationChannel = nil, want metadata for workspace channel-bound run")
+	}
+	if got, want := claim.CoordinationChannel.ID, "builders"; got != want {
+		t.Fatalf("CoordinationChannel.ID = %q, want %q", got, want)
+	}
+	if got, want := claim.CoordinationChannel.Purpose, "Build coordination"; got != want {
+		t.Fatalf("CoordinationChannel.Purpose = %q, want %q", got, want)
+	}
+	if got, want := claim.CoordinationChannel.WorkflowID, "wf-build"; got != want {
+		t.Fatalf("CoordinationChannel.WorkflowID = %q, want %q", got, want)
+	}
+}
+
 func leasedRunForGlobalTest(
 	t *testing.T,
 	id string,

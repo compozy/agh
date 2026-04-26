@@ -970,6 +970,23 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			},
 		},
 		{
+			name: "run result rejects raw claim token",
+			run: func() error {
+				return RunResult{Value: json.RawMessage(`{"claim_token":"secret"}`)}.Validate("result")
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "run failure rejects raw claim token metadata",
+			run: func() error {
+				return RunFailure{
+					Error:    "boom",
+					Metadata: json.RawMessage(`{"nested":{"claim_token":"secret"}}`),
+				}.Validate("failure")
+			},
+			wantErr: ErrValidation,
+		},
+		{
 			name: "task run query valid",
 			run: func() error {
 				return RunQuery{Status: TaskRunStatusRunning, Limit: 2}.Validate("runs")

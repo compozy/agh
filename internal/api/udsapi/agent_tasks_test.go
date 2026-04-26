@@ -1,0 +1,440 @@
+package udsapi
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/session"
+	taskpkg "github.com/pedronauck/agh/internal/task"
+)
+
+func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *testing.T) {
+	t.Parallel()
+
+	rawToken := "agh_claim_TESTTOKEN123"
+	leaseUntil := time.Date(2026, 4, 26, 10, 5, 0, 0, time.UTC)
+	claimHash, err := taskpkg.ClaimTokenHash(rawToken)
+	if err != nil {
+		t.Fatalf("ClaimTokenHash() error = %v", err)
+	}
+
+	var seenCriteria taskpkg.ClaimCriteria
+	var seenActor taskpkg.ActorContext
+	handlers := newAgentTaskHandlers(t, stubTaskManager{
+		ClaimNextRunFn: func(
+			_ context.Context,
+			criteria taskpkg.ClaimCriteria,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.ClaimResult, error) {
+			seenCriteria = criteria
+			seenActor = actor
+			run := agentTaskRun(taskpkg.TaskRunStatusClaimed)
+			run.ClaimTokenHash = claimHash
+			run.LeaseUntil = leaseUntil
+			run.CoordinationChannelID = "builders"
+			return &taskpkg.ClaimResult{
+				Task:       agentTaskRecord(),
+				Run:        run,
+				ClaimToken: rawToken,
+				LeaseUntil: leaseUntil,
+				CoordinationChannel: &taskpkg.CoordinationChannelMetadata{
+					ID:                  "builders",
+					Channel:             "builders",
+					DisplayName:         "Builders",
+					Purpose:             "coordinated execution",
+					WorkspaceID:         "ws-1",
+					TaskID:              "task-1",
+					RunID:               "run-1",
+					WorkflowID:          "wf-1",
+					AllowedMessageKinds: []string{"status", "result"},
+					LastActivityAt:      leaseUntil.Add(-time.Minute),
+				},
+			}, nil
+		},
+	})
+	handlers.AgentContextService = agentContextServiceFunc(
+		func(_ context.Context, info *session.Info) (contract.AgentContextPayload, error) {
+			if info.ID != "sess-agent" {
+				t.Fatalf("ContextForSession info = %#v, want caller session", info)
+			}
+			return contract.AgentContextPayload{
+				Capabilities: contract.AgentCapabilitySectionPayload{
+					Capabilities: []contract.AgentCapabilityPayload{{ID: "go"}},
+				},
+			}, nil
+		},
+	)
+	engine := newTestRouter(t, handlers)
+
+	recorder := performAgentKernelRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/api/agent/tasks/claim-next",
+		[]byte(`{"workspace_id":"ws-1","required_capabilities":["manual"],"priority_min":2,"lease_seconds":120}`),
+		agentKernelHeaders(),
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if count := strings.Count(recorder.Body.String(), rawToken); count != 1 {
+		t.Fatalf("raw claim token count = %d, want exactly one; body=%s", count, recorder.Body.String())
+	}
+
+	var response contract.AgentTaskClaimResponse
+	decodeJSONResponse(t, recorder, &response)
+	if response.Claim.ClaimToken != rawToken ||
+		response.Claim.Lease.ClaimTokenHash != claimHash ||
+		response.Claim.Lease.CoordinationChannelID != "builders" ||
+		response.Claim.CoordinationChannel == nil ||
+		response.Claim.CoordinationChannel.DisplayName != "Builders" ||
+		response.Claim.Run.CoordinationChannel == nil {
+		t.Fatalf("claim response = %#v, want token, hash, and coordination metadata", response.Claim)
+	}
+	if seenCriteria.WorkspaceID != "ws-1" ||
+		seenCriteria.ClaimerSessionID != "sess-agent" ||
+		seenCriteria.AgentName != "coder" ||
+		seenCriteria.PriorityMin != 2 ||
+		seenCriteria.LeaseDuration != 120*time.Second {
+		t.Fatalf("criteria = %#v, want caller workspace/session/agent and flags", seenCriteria)
+	}
+	if !containsString(seenCriteria.RequiredCapabilities, "manual") ||
+		!containsString(seenCriteria.RequiredCapabilities, "go") {
+		t.Fatalf(
+			"criteria.RequiredCapabilities = %#v, want request and context capabilities",
+			seenCriteria.RequiredCapabilities,
+		)
+	}
+	if seenActor.Actor.Kind != taskpkg.ActorKindAgentSession ||
+		seenActor.Actor.Ref != "sess-agent" ||
+		seenActor.Origin.Ref != "agent.task.next" {
+		t.Fatalf("actor = %#v, want agent-session actor and action origin", seenActor)
+	}
+}
+
+func TestAgentTaskClaimNextNoWorkReturnsNoContent(t *testing.T) {
+	t.Parallel()
+
+	handlers := newAgentTaskHandlers(t, stubTaskManager{
+		ClaimNextRunFn: func(
+			context.Context,
+			taskpkg.ClaimCriteria,
+			taskpkg.ActorContext,
+		) (*taskpkg.ClaimResult, error) {
+			return nil, taskpkg.ErrNoClaimableRun
+		},
+	})
+	recorder := performAgentKernelRequest(
+		t,
+		newTestRouter(t, handlers),
+		http.MethodPost,
+		"/api/agent/tasks/claim-next",
+		[]byte(`{}`),
+		agentKernelHeaders(),
+	)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNoContent, recorder.Body.String())
+	}
+	if strings.TrimSpace(recorder.Body.String()) != "" {
+		t.Fatalf("body = %q, want empty no-work response", recorder.Body.String())
+	}
+}
+
+func TestAgentTaskLeaseMutationsFenceTokenAndDoNotEchoIt(t *testing.T) {
+	t.Parallel()
+
+	rawToken := "agh_claim_MUTATIONTOKEN123"
+	for _, tt := range []struct {
+		name    string
+		path    string
+		body    string
+		manager stubTaskManager
+		status  taskpkg.RunStatus
+	}{
+		{
+			name:   "heartbeat",
+			path:   "/api/agent/tasks/run-1/heartbeat",
+			body:   fmt.Sprintf(`{"claim_token":%q,"lease_seconds":60}`, rawToken),
+			status: taskpkg.TaskRunStatusClaimed,
+			manager: stubTaskManager{
+				HeartbeatRunLeaseFn: func(
+					_ context.Context,
+					heartbeat taskpkg.LeaseHeartbeat,
+					actor taskpkg.ActorContext,
+				) (*taskpkg.Run, error) {
+					if heartbeat.RunID != "run-1" ||
+						heartbeat.ClaimToken != rawToken ||
+						heartbeat.LeaseDuration != time.Minute ||
+						actor.Actor.Ref != "sess-agent" {
+						t.Fatalf("heartbeat = %#v actor=%#v, want fenced caller request", heartbeat, actor)
+					}
+					run := agentTaskRun(taskpkg.TaskRunStatusClaimed)
+					run.LeaseUntil = time.Date(2026, 4, 26, 10, 6, 0, 0, time.UTC)
+					return &run, nil
+				},
+			},
+		},
+		{
+			name:   "complete",
+			path:   "/api/agent/tasks/run-1/complete",
+			body:   fmt.Sprintf(`{"claim_token":%q,"result":{"ok":true}}`, rawToken),
+			status: taskpkg.TaskRunStatusCompleted,
+			manager: stubTaskManager{
+				CompleteRunLeaseFn: func(
+					_ context.Context,
+					completion taskpkg.LeaseCompletion,
+					actor taskpkg.ActorContext,
+				) (*taskpkg.Run, error) {
+					if completion.RunID != "run-1" ||
+						completion.ClaimToken != rawToken ||
+						string(completion.Result.Value) != `{"ok":true}` ||
+						actor.Actor.Ref != "sess-agent" {
+						t.Fatalf("completion = %#v actor=%#v, want fenced caller request", completion, actor)
+					}
+					run := agentTaskRun(taskpkg.TaskRunStatusCompleted)
+					return &run, nil
+				},
+			},
+		},
+		{
+			name:   "fail",
+			path:   "/api/agent/tasks/run-1/fail",
+			body:   fmt.Sprintf(`{"claim_token":%q,"error":"boom","metadata":{"code":"E_TASK"}}`, rawToken),
+			status: taskpkg.TaskRunStatusFailed,
+			manager: stubTaskManager{
+				FailRunLeaseFn: func(
+					_ context.Context,
+					failure taskpkg.LeaseFailure,
+					actor taskpkg.ActorContext,
+				) (*taskpkg.Run, error) {
+					if failure.RunID != "run-1" ||
+						failure.ClaimToken != rawToken ||
+						failure.Failure.Error != "boom" ||
+						string(failure.Failure.Metadata) != `{"code":"E_TASK"}` ||
+						actor.Actor.Ref != "sess-agent" {
+						t.Fatalf("failure = %#v actor=%#v, want fenced caller request", failure, actor)
+					}
+					run := agentTaskRun(taskpkg.TaskRunStatusFailed)
+					return &run, nil
+				},
+			},
+		},
+		{
+			name:   "release",
+			path:   "/api/agent/tasks/run-1/release",
+			body:   fmt.Sprintf(`{"claim_token":%q,"reason":"handoff"}`, rawToken),
+			status: taskpkg.TaskRunStatusQueued,
+			manager: stubTaskManager{
+				ReleaseRunLeaseFn: func(
+					_ context.Context,
+					release taskpkg.LeaseRelease,
+					actor taskpkg.ActorContext,
+				) (*taskpkg.Run, error) {
+					if release.RunID != "run-1" ||
+						release.ClaimToken != rawToken ||
+						release.Reason != "handoff" ||
+						actor.Actor.Ref != "sess-agent" {
+						t.Fatalf("release = %#v actor=%#v, want fenced caller request", release, actor)
+					}
+					run := agentTaskRun(taskpkg.TaskRunStatusQueued)
+					return &run, nil
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := performAgentKernelRequest(
+				t,
+				newTestRouter(t, newAgentTaskHandlers(t, tt.manager)),
+				http.MethodPost,
+				tt.path,
+				[]byte(tt.body),
+				agentKernelHeaders(),
+			)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+			}
+			if strings.Contains(recorder.Body.String(), rawToken) {
+				t.Fatalf("response leaked raw token %q: %s", rawToken, recorder.Body.String())
+			}
+			var response contract.AgentTaskLeaseResponse
+			decodeJSONResponse(t, recorder, &response)
+			if response.Lease.RunID != "run-1" || response.Lease.Status != tt.status {
+				t.Fatalf("lease = %#v, want run-1 status %s", response.Lease, tt.status)
+			}
+		})
+	}
+}
+
+func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
+	t.Parallel()
+
+	rawToken := "agh_claim_DENIEDTOKEN123"
+	t.Run("missing identity", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := performAgentKernelRequest(
+			t,
+			newTestRouter(t, newAgentTaskHandlers(t, stubTaskManager{})),
+			http.MethodPost,
+			"/api/agent/tasks/claim-next",
+			[]byte(`{}`),
+			map[string]string{},
+		)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("permission denied redacts token in error", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newAgentTaskHandlers(t, stubTaskManager{
+			ClaimNextRunFn: func(
+				context.Context,
+				taskpkg.ClaimCriteria,
+				taskpkg.ActorContext,
+			) (*taskpkg.ClaimResult, error) {
+				return nil, fmt.Errorf("%w: denied %s", taskpkg.ErrPermissionDenied, rawToken)
+			},
+		})
+		recorder := performAgentKernelRequest(
+			t,
+			newTestRouter(t, handlers),
+			http.MethodPost,
+			"/api/agent/tasks/claim-next",
+			[]byte(`{}`),
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
+		}
+		if strings.Contains(recorder.Body.String(), rawToken) ||
+			!strings.Contains(recorder.Body.String(), "agh_claim_[REDACTED]") {
+			t.Fatalf("body = %s, want redacted claim token", recorder.Body.String())
+		}
+	})
+
+	t.Run("malformed payload", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := performAgentKernelRequest(
+			t,
+			newTestRouter(t, newAgentTaskHandlers(t, stubTaskManager{})),
+			http.MethodPost,
+			"/api/agent/tasks/run-1/heartbeat",
+			[]byte(`{"claim_token":`),
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+	})
+
+	t.Run("stale token maps conflict and redacts token", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := performAgentKernelRequest(
+			t,
+			newTestRouter(t, newAgentTaskHandlers(t, stubTaskManager{
+				ReleaseRunLeaseFn: func(
+					context.Context,
+					taskpkg.LeaseRelease,
+					taskpkg.ActorContext,
+				) (*taskpkg.Run, error) {
+					return nil, fmt.Errorf("%w: %s", taskpkg.ErrInvalidClaimToken, rawToken)
+				},
+			})),
+			http.MethodPost,
+			"/api/agent/tasks/run-1/release",
+			fmt.Appendf(nil, `{"claim_token":%q}`, rawToken),
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusConflict, recorder.Body.String())
+		}
+		if strings.Contains(recorder.Body.String(), rawToken) {
+			t.Fatalf("response leaked raw token: %s", recorder.Body.String())
+		}
+	})
+
+	t.Run("complete result rejects raw claim token before service", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := performAgentKernelRequest(
+			t,
+			newTestRouter(t, newAgentTaskHandlers(t, stubTaskManager{
+				CompleteRunLeaseFn: func(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error) {
+					t.Fatal("CompleteRunLease should not be called for raw claim_token result")
+					return nil, errors.New("unexpected")
+				},
+			})),
+			http.MethodPost,
+			"/api/agent/tasks/run-1/complete",
+			fmt.Appendf(nil, `{"claim_token":%q,"result":{"claim_token":"secret"}}`, rawToken),
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusUnprocessableEntity {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusUnprocessableEntity,
+				recorder.Body.String(),
+			)
+		}
+	})
+}
+
+func newAgentTaskHandlers(t *testing.T, tasks stubTaskManager) *Handlers {
+	t.Helper()
+	return newTestHandlersWithRuntime(
+		t,
+		activeAgentSessionManager(t),
+		stubObserver{},
+		nil,
+		tasks,
+		nil,
+		stubWorkspaceService{},
+		nil,
+		newTestHomePaths(t),
+	)
+}
+
+func agentTaskRecord() taskpkg.Task {
+	return taskpkg.Task{
+		ID:          "task-1",
+		Identifier:  "AUTO-1",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: "ws-1",
+		Title:       "Run autonomous task",
+		Status:      taskpkg.TaskStatusInProgress,
+		Priority:    taskpkg.PriorityHigh,
+	}
+}
+
+func agentTaskRun(status taskpkg.RunStatus) taskpkg.Run {
+	now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
+	return taskpkg.Run{
+		ID:                    "run-1",
+		TaskID:                "task-1",
+		Status:                status,
+		Attempt:               1,
+		SessionID:             "sess-agent",
+		ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
+		CoordinationChannelID: "builders",
+		QueuedAt:              now,
+		ClaimedAt:             now,
+		LeaseUntil:            now.Add(5 * time.Minute),
+	}
+}
+
+func containsString(values []string, expected string) bool {
+	return slices.Contains(values, expected)
+}

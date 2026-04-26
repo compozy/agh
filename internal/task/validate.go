@@ -762,7 +762,13 @@ func (r CancelRun) Validate(path string) error {
 
 // Validate reports whether the run result respects the shared result-size guardrail.
 func (r RunResult) Validate(path string) error {
-	return ValidateResultSize(r.Value, nestedPath(path, "value"))
+	if err := ValidateResultSize(r.Value, nestedPath(path, "value")); err != nil {
+		return err
+	}
+	if hasRawClaimTokenField(r.Value) {
+		return fmt.Errorf("%w: %s must not contain raw claim_token", ErrValidation, nestedPath(path, "value"))
+	}
+	return nil
 }
 
 // Validate reports whether the run failure contains a message and bounded metadata.
@@ -770,7 +776,13 @@ func (r RunFailure) Validate(path string) error {
 	if strings.TrimSpace(r.Error) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "error"))
 	}
-	return ValidatePayloadSize(r.Metadata, nestedPath(path, "metadata"))
+	if err := ValidatePayloadSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
+		return err
+	}
+	if hasRawClaimTokenField(r.Metadata) {
+		return fmt.Errorf("%w: %s must not contain raw claim_token", ErrValidation, nestedPath(path, "metadata"))
+	}
+	return nil
 }
 
 // Validate reports whether the task-query filters are internally consistent.

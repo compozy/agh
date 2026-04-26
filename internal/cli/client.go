@@ -22,6 +22,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/sse"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 const (
@@ -152,6 +153,35 @@ type DaemonClient interface {
 		request AgentChannelReplyRequest,
 		credentials agentidentity.Credentials,
 	) (AgentChannelMessageRecord, error)
+	AgentTaskClaimNext(
+		ctx context.Context,
+		request AgentTaskClaimNextRequest,
+		credentials agentidentity.Credentials,
+	) (AgentTaskNextRecord, error)
+	AgentTaskHeartbeat(
+		ctx context.Context,
+		runID string,
+		request AgentTaskHeartbeatRequest,
+		credentials agentidentity.Credentials,
+	) (AgentTaskLeaseRecord, error)
+	AgentTaskComplete(
+		ctx context.Context,
+		runID string,
+		request AgentTaskCompleteRequest,
+		credentials agentidentity.Credentials,
+	) (AgentTaskLeaseRecord, error)
+	AgentTaskFail(
+		ctx context.Context,
+		runID string,
+		request AgentTaskFailRequest,
+		credentials agentidentity.Credentials,
+	) (AgentTaskLeaseRecord, error)
+	AgentTaskRelease(
+		ctx context.Context,
+		runID string,
+		request AgentTaskReleaseRequest,
+		credentials agentidentity.Credentials,
+	) (AgentTaskLeaseRecord, error)
 }
 
 // CreateSessionRequest captures the shared daemon session creation payload.
@@ -349,6 +379,33 @@ type AgentChannelSendRequest = contract.AgentChannelSendRequest
 
 // AgentChannelReplyRequest captures one agent channel reply payload.
 type AgentChannelReplyRequest = contract.AgentChannelReplyRequest
+
+// AgentTaskClaimNextRequest captures one agent next-work request.
+type AgentTaskClaimNextRequest = contract.AgentTaskClaimNextRequest
+
+// AgentTaskHeartbeatRequest captures one agent lease heartbeat request.
+type AgentTaskHeartbeatRequest = contract.AgentTaskHeartbeatRequest
+
+// AgentTaskCompleteRequest captures one agent lease completion request.
+type AgentTaskCompleteRequest = contract.AgentTaskCompleteRequest
+
+// AgentTaskFailRequest captures one agent lease failure request.
+type AgentTaskFailRequest = contract.AgentTaskFailRequest
+
+// AgentTaskReleaseRequest captures one agent lease release request.
+type AgentTaskReleaseRequest = contract.AgentTaskReleaseRequest
+
+// AgentTaskClaimRecord is the synchronous claim payload returned to agents.
+type AgentTaskClaimRecord = contract.AgentTaskClaimPayload
+
+// AgentTaskLeaseRecord is the safe lease payload returned by agent lease mutations.
+type AgentTaskLeaseRecord = contract.TaskRunLeaseSummaryPayload
+
+// AgentTaskNextRecord is the stable CLI/client wrapper for next-work polling.
+type AgentTaskNextRecord struct {
+	Claimed bool                  `json:"claimed"`
+	Claim   *AgentTaskClaimRecord `json:"claim,omitempty"`
+}
 
 // AgentChannelRecvQuery captures receive options for agent channel messages.
 type AgentChannelRecvQuery struct {
@@ -1601,6 +1658,89 @@ func (c *unixSocketClient) AgentChannelReply(
 	return response.Message, nil
 }
 
+func (c *unixSocketClient) AgentTaskClaimNext(
+	ctx context.Context,
+	request AgentTaskClaimNextRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskNextRecord, error) {
+	const path = "/api/agent/tasks/claim-next"
+	response, err := c.doRequestWithCredentials(ctx, http.MethodPost, path, nil, request, "", credentials)
+	if err != nil {
+		return AgentTaskNextRecord{}, err
+	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	if response.StatusCode == http.StatusNoContent {
+		if err := drainResponseBody(http.MethodPost, path, response.Body); err != nil {
+			return AgentTaskNextRecord{}, err
+		}
+		return AgentTaskNextRecord{Claimed: false}, nil
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return AgentTaskNextRecord{}, readAPIError(response)
+	}
+
+	var decoded contract.AgentTaskClaimResponse
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		return AgentTaskNextRecord{}, fmt.Errorf("cli: decode %s %s response: %w", http.MethodPost, path, err)
+	}
+	claim := decoded.Claim
+	return AgentTaskNextRecord{Claimed: true, Claim: &claim}, nil
+}
+
+func (c *unixSocketClient) AgentTaskHeartbeat(
+	ctx context.Context,
+	runID string,
+	request AgentTaskHeartbeatRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	return c.agentTaskLeaseAction(ctx, strings.TrimSpace(runID), "heartbeat", request, credentials)
+}
+
+func (c *unixSocketClient) AgentTaskComplete(
+	ctx context.Context,
+	runID string,
+	request AgentTaskCompleteRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	return c.agentTaskLeaseAction(ctx, strings.TrimSpace(runID), "complete", request, credentials)
+}
+
+func (c *unixSocketClient) AgentTaskFail(
+	ctx context.Context,
+	runID string,
+	request AgentTaskFailRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	return c.agentTaskLeaseAction(ctx, strings.TrimSpace(runID), "fail", request, credentials)
+}
+
+func (c *unixSocketClient) AgentTaskRelease(
+	ctx context.Context,
+	runID string,
+	request AgentTaskReleaseRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	return c.agentTaskLeaseAction(ctx, strings.TrimSpace(runID), "release", request, credentials)
+}
+
+func (c *unixSocketClient) agentTaskLeaseAction(
+	ctx context.Context,
+	runID string,
+	action string,
+	request any,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	var response contract.AgentTaskLeaseResponse
+	path := "/api/agent/tasks/" + url.PathEscape(runID) + "/" + strings.TrimSpace(action)
+	if err := c.doAgentJSON(ctx, http.MethodPost, path, nil, request, credentials, &response); err != nil {
+		return AgentTaskLeaseRecord{}, err
+	}
+	return response.Lease, nil
+}
+
 func (c *unixSocketClient) extensionAction(ctx context.Context, name string, action string) (ExtensionRecord, error) {
 	var response struct {
 		Extension ExtensionRecord `json:"extension"`
@@ -2176,13 +2316,14 @@ func readAPIError(response *http.Response) error {
 		Error string `json:"error"`
 	}
 	if len(body) > 0 && json.Unmarshal(body, &payload) == nil && strings.TrimSpace(payload.Error) != "" {
-		return errors.New(strings.TrimSpace(payload.Error))
+		return errors.New(taskpkg.RedactClaimTokens(strings.TrimSpace(payload.Error)))
 	}
 
 	message := strings.TrimSpace(string(body))
 	if message == "" {
 		message = response.Status
 	}
+	message = taskpkg.RedactClaimTokens(message)
 	return fmt.Errorf("daemon api %s: %s", response.Status, message)
 }
 

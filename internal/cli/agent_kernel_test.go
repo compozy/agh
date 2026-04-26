@@ -171,6 +171,33 @@ func TestAgentCommandsRejectMissingIdentityBeforeAgentCalls(t *testing.T) {
 		{name: "me context", args: []string{"me", "context", "-o", "json"}},
 		{name: "ch list", args: []string{"ch", "list", "-o", "json"}},
 		{name: "ch recv", args: []string{"ch", "recv", "builders", "-o", "json"}},
+		{name: "task next", args: []string{"task", "next", "-o", "json"}},
+		{
+			name: "task heartbeat",
+			args: []string{"task", "heartbeat", "run-1", "--claim-token", "agh_claim_token", "-o", "json"},
+		},
+		{
+			name: "task complete",
+			args: []string{"task", "complete", "run-1", "--claim-token", "agh_claim_token", "-o", "json"},
+		},
+		{
+			name: "task fail",
+			args: []string{
+				"task",
+				"fail",
+				"run-1",
+				"--claim-token",
+				"agh_claim_token",
+				"--error",
+				"boom",
+				"-o",
+				"json",
+			},
+		},
+		{
+			name: "task release",
+			args: []string{"task", "release", "run-1", "--claim-token", "agh_claim_token", "-o", "json"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

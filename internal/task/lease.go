@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -31,6 +32,8 @@ var defaultCoordinationMessageKinds = []string{
 	"result",
 	"review_request",
 }
+
+var rawClaimTokenPattern = regexp.MustCompile(`agh_claim_[A-Za-z0-9_-]+`)
 
 // ClaimCriteria captures the atomic next-work filters for one claiming session.
 type ClaimCriteria struct {
@@ -125,6 +128,14 @@ func NewClaimToken() (string, error) {
 		return "", fmt.Errorf("task: generate claim token: %w", err)
 	}
 	return "agh_claim_" + base64.RawURLEncoding.EncodeToString(random), nil
+}
+
+// RedactClaimTokens replaces raw claim bearer tokens in free-form strings.
+func RedactClaimTokens(value string) string {
+	if value == "" {
+		return ""
+	}
+	return rawClaimTokenPattern.ReplaceAllString(value, "agh_claim_[REDACTED]")
 }
 
 // ClaimTokenHash returns the canonical hash persisted for one raw claim token.

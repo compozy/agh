@@ -112,6 +112,13 @@ func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
 	if _, err := ClaimTokenHash(" "); !errors.Is(err, ErrValidation) {
 		t.Fatalf("ClaimTokenHash(empty) error = %v, want %v", err, ErrValidation)
 	}
+
+	redacted := RedactClaimTokens("bad token agh_claim_secret-123 and agh_claim_other_456")
+	if strings.Contains(redacted, "agh_claim_secret-123") ||
+		strings.Contains(redacted, "agh_claim_other_456") ||
+		strings.Count(redacted, "agh_claim_[REDACTED]") != 2 {
+		t.Fatalf("RedactClaimTokens() = %q, want both raw claim tokens redacted", redacted)
+	}
 }
 
 func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {

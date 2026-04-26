@@ -184,6 +184,211 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 	}
 }
 
+func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
+	t.Parallel()
+
+	credentials := agentidentity.Credentials{
+		SessionID:   "sess-1",
+		AgentName:   "coder",
+		WorkspaceID: "ws-1",
+	}
+	rawToken := "agh_claim_CLIENTTOKEN123"
+	var sawClaim bool
+	var sawNoWork bool
+	var sawHeartbeat bool
+	var sawComplete bool
+	var sawFail bool
+	var sawRelease bool
+
+	client := &unixSocketClient{
+		socketPath: "/tmp/agh.sock",
+		httpClient: &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				assertAgentRequestHeaders(t, req, credentials)
+				switch {
+				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/claim-next":
+					var payload contract.AgentTaskClaimNextRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(claim-next body) error = %v", err)
+					}
+					if payload.WorkspaceID == "empty" {
+						sawNoWork = true
+						return newHTTPResponse(http.StatusNoContent, ""), nil
+					}
+					sawClaim = true
+					if payload.WorkspaceID != "ws-1" ||
+						payload.PriorityMin != 2 ||
+						payload.LeaseSeconds != 120 ||
+						!payload.Wait ||
+						len(payload.RequiredCapabilities) != 1 ||
+						payload.RequiredCapabilities[0] != "go" {
+						t.Fatalf("claim-next body = %#v, want parsed request", payload)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"claim":{"task":{"id":"task-1","title":"Run task","status":"in_progress","scope":"workspace","workspace_id":"ws-1"},"run":{"id":"run-1","task_id":"task-1","status":"claimed","attempt":1,"session_id":"sess-1","queued_at":"2026-04-03T12:00:00Z"},"lease":{"task_id":"task-1","run_id":"run-1","status":"claimed","session_id":"sess-1","coordination_channel_id":"builders"},"claim_token":"`+rawToken+`","coordination_channel":{"id":"builders","channel":"builders","display_name":"Builders","allowed_message_kinds":["status"]}}}`,
+					), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/heartbeat":
+					sawHeartbeat = true
+					var payload contract.AgentTaskHeartbeatRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(heartbeat body) error = %v", err)
+					}
+					if payload.ClaimToken != rawToken || payload.LeaseSeconds != 60 {
+						t.Fatalf("heartbeat body = %#v, want token and lease", payload)
+					}
+					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusClaimed), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/complete":
+					sawComplete = true
+					var payload contract.AgentTaskCompleteRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(complete body) error = %v", err)
+					}
+					if payload.ClaimToken != rawToken || string(payload.Result) != `{"ok":true}` {
+						t.Fatalf("complete body = %#v, want token and result", payload)
+					}
+					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusCompleted), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/fail":
+					sawFail = true
+					var payload contract.AgentTaskFailRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(fail body) error = %v", err)
+					}
+					if payload.ClaimToken != rawToken ||
+						payload.Error != "boom" ||
+						string(payload.Metadata) != `{"code":"E_TASK"}` {
+						t.Fatalf("fail body = %#v, want token error metadata", payload)
+					}
+					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusFailed), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/release":
+					sawRelease = true
+					var payload contract.AgentTaskReleaseRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(release body) error = %v", err)
+					}
+					if payload.ClaimToken != rawToken || payload.Reason != "handoff" {
+						t.Fatalf("release body = %#v, want token and reason", payload)
+					}
+					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusQueued), nil
+				default:
+					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+					return nil, nil
+				}
+			}),
+		},
+	}
+
+	claim, err := client.AgentTaskClaimNext(context.Background(), AgentTaskClaimNextRequest{
+		WorkspaceID:          "ws-1",
+		RequiredCapabilities: []string{"go"},
+		PriorityMin:          2,
+		LeaseSeconds:         120,
+		Wait:                 true,
+	}, credentials)
+	if err != nil {
+		t.Fatalf("AgentTaskClaimNext() error = %v", err)
+	}
+	if !claim.Claimed || claim.Claim == nil || claim.Claim.ClaimToken != rawToken {
+		t.Fatalf("AgentTaskClaimNext() = %#v, want claimed raw token response", claim)
+	}
+	noWork, err := client.AgentTaskClaimNext(
+		context.Background(),
+		AgentTaskClaimNextRequest{WorkspaceID: "empty"},
+		credentials,
+	)
+	if err != nil {
+		t.Fatalf("AgentTaskClaimNext(no work) error = %v", err)
+	}
+	if noWork.Claimed || noWork.Claim != nil {
+		t.Fatalf("AgentTaskClaimNext(no work) = %#v, want claimed false", noWork)
+	}
+	if lease, err := client.AgentTaskHeartbeat(
+		context.Background(),
+		"run-1",
+		AgentTaskHeartbeatRequest{ClaimToken: rawToken, LeaseSeconds: 60},
+		credentials,
+	); err != nil || lease.Status != taskpkg.TaskRunStatusClaimed {
+		t.Fatalf("AgentTaskHeartbeat() = %#v, %v", lease, err)
+	}
+	if lease, err := client.AgentTaskComplete(
+		context.Background(),
+		"run-1",
+		AgentTaskCompleteRequest{ClaimToken: rawToken, Result: json.RawMessage(`{"ok":true}`)},
+		credentials,
+	); err != nil || lease.Status != taskpkg.TaskRunStatusCompleted {
+		t.Fatalf("AgentTaskComplete() = %#v, %v", lease, err)
+	}
+	if lease, err := client.AgentTaskFail(
+		context.Background(),
+		"run-1",
+		AgentTaskFailRequest{
+			ClaimToken: rawToken,
+			Error:      "boom",
+			Metadata:   json.RawMessage(`{"code":"E_TASK"}`),
+		},
+		credentials,
+	); err != nil || lease.Status != taskpkg.TaskRunStatusFailed {
+		t.Fatalf("AgentTaskFail() = %#v, %v", lease, err)
+	}
+	if lease, err := client.AgentTaskRelease(
+		context.Background(),
+		"run-1",
+		AgentTaskReleaseRequest{ClaimToken: rawToken, Reason: "handoff"},
+		credentials,
+	); err != nil || lease.Status != taskpkg.TaskRunStatusQueued {
+		t.Fatalf("AgentTaskRelease() = %#v, %v", lease, err)
+	}
+	if !sawClaim || !sawNoWork || !sawHeartbeat || !sawComplete || !sawFail || !sawRelease {
+		t.Fatalf(
+			"method coverage claim=%t no_work=%t heartbeat=%t complete=%t fail=%t release=%t, want all true",
+			sawClaim,
+			sawNoWork,
+			sawHeartbeat,
+			sawComplete,
+			sawFail,
+			sawRelease,
+		)
+	}
+}
+
+func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
+	t.Parallel()
+
+	rawToken := "agh_claim_CLIENTERRORTOKEN123"
+	client := &unixSocketClient{
+		socketPath: "/tmp/agh.sock",
+		httpClient: &http.Client{
+			Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return newHTTPResponse(
+					http.StatusConflict,
+					`{"error":"task: invalid claim token: `+rawToken+`"}`,
+				), nil
+			}),
+		},
+	}
+	_, err := client.AgentTaskRelease(
+		context.Background(),
+		"run-1",
+		AgentTaskReleaseRequest{ClaimToken: rawToken},
+		agentidentity.Credentials{SessionID: "sess-1", AgentName: "coder"},
+	)
+	if err == nil {
+		t.Fatal("AgentTaskRelease() error = nil, want redacted API error")
+	}
+	if strings.Contains(err.Error(), rawToken) || !strings.Contains(err.Error(), "agh_claim_[REDACTED]") {
+		t.Fatalf("error = %q, want redacted claim token", err.Error())
+	}
+}
+
+func agentTaskLeaseHTTPResponse(status taskpkg.RunStatus) *http.Response {
+	return newHTTPResponse(
+		http.StatusOK,
+		`{"lease":{"task_id":"task-1","run_id":"run-1","status":"`+string(
+			status,
+		)+`","session_id":"sess-1","coordination_channel_id":"builders"}}`,
+	)
+}
+
 func assertAgentRequestHeaders(t *testing.T, req *http.Request, credentials agentidentity.Credentials) {
 	t.Helper()
 

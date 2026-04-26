@@ -1422,11 +1422,12 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 		return nil, err
 	}
 	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunEnqueued, actor, runEnqueuedPayload{
-		Attempt:        run.Attempt,
-		Status:         run.Status,
-		TaskStatus:     reconciledTask.Status,
-		NetworkChannel: run.NetworkChannel,
-		IdempotencyKey: run.IdempotencyKey,
+		Attempt:               run.Attempt,
+		Status:                run.Status,
+		TaskStatus:            reconciledTask.Status,
+		NetworkChannel:        run.NetworkChannel,
+		CoordinationChannelID: run.CoordinationChannelID,
+		IdempotencyKey:        run.IdempotencyKey,
 	}); err != nil {
 		return nil, err
 	}
@@ -3413,11 +3414,12 @@ type cancelledTaskPayload struct {
 }
 
 type runEnqueuedPayload struct {
-	Attempt        int       `json:"attempt"`
-	Status         RunStatus `json:"status"`
-	TaskStatus     Status    `json:"task_status"`
-	NetworkChannel string    `json:"network_channel,omitempty"`
-	IdempotencyKey string    `json:"idempotency_key,omitempty"`
+	Attempt               int       `json:"attempt"`
+	Status                RunStatus `json:"status"`
+	TaskStatus            Status    `json:"task_status"`
+	NetworkChannel        string    `json:"network_channel,omitempty"`
+	CoordinationChannelID string    `json:"coordination_channel_id,omitempty"`
+	IdempotencyKey        string    `json:"idempotency_key,omitempty"`
 }
 
 type runClaimedPayload struct {

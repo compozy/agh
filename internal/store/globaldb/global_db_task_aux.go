@@ -791,16 +791,18 @@ func (g *GlobalDB) createQueuedRunWithExecutor(
 		return taskpkg.Run{}, err
 	}
 
+	networkChannel := resolveStoredRunChannel(input.requestedChannel, taskRecord.NetworkChannel)
 	run := taskpkg.Run{
-		ID:             input.runID,
-		TaskID:         taskRecord.ID,
-		Status:         taskpkg.TaskRunStatusQueued,
-		Attempt:        nextAttempt,
-		Origin:         input.origin,
-		IdempotencyKey: input.idempotencyKey,
-		NetworkChannel: resolveStoredRunChannel(input.requestedChannel, taskRecord.NetworkChannel),
-		Metadata:       input.metadata,
-		QueuedAt:       input.queuedAt,
+		ID:                    input.runID,
+		TaskID:                taskRecord.ID,
+		Status:                taskpkg.TaskRunStatusQueued,
+		Attempt:               nextAttempt,
+		Origin:                input.origin,
+		IdempotencyKey:        input.idempotencyKey,
+		NetworkChannel:        networkChannel,
+		CoordinationChannelID: coordinationChannelIDForQueuedRun(taskRecord, networkChannel),
+		Metadata:              input.metadata,
+		QueuedAt:              input.queuedAt,
 	}
 	normalizedRun, err := g.normalizeTaskRunForCreate(run)
 	if err != nil {
@@ -813,6 +815,13 @@ func (g *GlobalDB) createQueuedRunWithExecutor(
 		return taskpkg.Run{}, err
 	}
 	return normalizedRun, nil
+}
+
+func coordinationChannelIDForQueuedRun(taskRecord taskpkg.Task, networkChannel string) string {
+	if taskRecord.Scope.Normalize() != taskpkg.ScopeWorkspace {
+		return ""
+	}
+	return strings.TrimSpace(networkChannel)
 }
 
 func insertQueuedTaskRun(ctx context.Context, exec taskSQLExecutor, run taskpkg.Run) error {

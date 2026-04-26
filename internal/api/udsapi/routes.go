@@ -95,6 +95,14 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 		agent.GET("/channels/:channel/recv", handlers.AgentChannelRecv)
 		agent.POST("/channels/:channel/send", handlers.AgentChannelSend)
 		agent.POST("/channels/reply", handlers.AgentChannelReply)
+		tasks := agent.Group("/tasks")
+		{
+			tasks.POST("/claim-next", handlers.AgentTaskClaimNext)
+			tasks.POST("/:run_id/heartbeat", handlers.AgentTaskHeartbeat)
+			tasks.POST("/:run_id/complete", handlers.AgentTaskComplete)
+			tasks.POST("/:run_id/fail", handlers.AgentTaskFail)
+			tasks.POST("/:run_id/release", handlers.AgentTaskRelease)
+		}
 	}
 }
 

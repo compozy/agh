@@ -106,6 +106,11 @@ type stubClient struct {
 	agentChannelRecvFn        func(context.Context, string, AgentChannelRecvQuery, agentidentity.Credentials) ([]AgentChannelMessageRecord, error)
 	agentChannelSendFn        func(context.Context, string, AgentChannelSendRequest, agentidentity.Credentials) (AgentChannelMessageRecord, error)
 	agentChannelReplyFn       func(context.Context, AgentChannelReplyRequest, agentidentity.Credentials) (AgentChannelMessageRecord, error)
+	agentTaskClaimNextFn      func(context.Context, AgentTaskClaimNextRequest, agentidentity.Credentials) (AgentTaskNextRecord, error)
+	agentTaskHeartbeatFn      func(context.Context, string, AgentTaskHeartbeatRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
+	agentTaskCompleteFn       func(context.Context, string, AgentTaskCompleteRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
+	agentTaskFailFn           func(context.Context, string, AgentTaskFailRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
+	agentTaskReleaseFn        func(context.Context, string, AgentTaskReleaseRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
 }
 
 var _ DaemonClient = (*stubClient)(nil)
@@ -932,6 +937,65 @@ func (s *stubClient) AgentChannelReply(
 		return s.agentChannelReplyFn(ctx, request, credentials)
 	}
 	return AgentChannelMessageRecord{}, errors.New("unexpected AgentChannelReply call")
+}
+
+func (s *stubClient) AgentTaskClaimNext(
+	ctx context.Context,
+	request AgentTaskClaimNextRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskNextRecord, error) {
+	if s.agentTaskClaimNextFn != nil {
+		return s.agentTaskClaimNextFn(ctx, request, credentials)
+	}
+	return AgentTaskNextRecord{}, errors.New("unexpected AgentTaskClaimNext call")
+}
+
+func (s *stubClient) AgentTaskHeartbeat(
+	ctx context.Context,
+	runID string,
+	request AgentTaskHeartbeatRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	if s.agentTaskHeartbeatFn != nil {
+		return s.agentTaskHeartbeatFn(ctx, runID, request, credentials)
+	}
+	return AgentTaskLeaseRecord{}, errors.New("unexpected AgentTaskHeartbeat call")
+}
+
+func (s *stubClient) AgentTaskComplete(
+	ctx context.Context,
+	runID string,
+	request AgentTaskCompleteRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	if s.agentTaskCompleteFn != nil {
+		return s.agentTaskCompleteFn(ctx, runID, request, credentials)
+	}
+	return AgentTaskLeaseRecord{}, errors.New("unexpected AgentTaskComplete call")
+}
+
+func (s *stubClient) AgentTaskFail(
+	ctx context.Context,
+	runID string,
+	request AgentTaskFailRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	if s.agentTaskFailFn != nil {
+		return s.agentTaskFailFn(ctx, runID, request, credentials)
+	}
+	return AgentTaskLeaseRecord{}, errors.New("unexpected AgentTaskFail call")
+}
+
+func (s *stubClient) AgentTaskRelease(
+	ctx context.Context,
+	runID string,
+	request AgentTaskReleaseRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	if s.agentTaskReleaseFn != nil {
+		return s.agentTaskReleaseFn(ctx, runID, request, credentials)
+	}
+	return AgentTaskLeaseRecord{}, errors.New("unexpected AgentTaskRelease call")
 }
 
 func newTestDeps(t *testing.T, client DaemonClient) commandDeps {

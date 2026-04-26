@@ -35,6 +35,7 @@ func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool
 		message = "unknown error"
 	}
 
+	message = taskpkg.RedactClaimTokens(message)
 	c.JSON(status, contract.ErrorPayload{Error: message})
 }
 
@@ -205,7 +206,11 @@ func StatusForTaskError(err error) int {
 		errors.Is(err, taskpkg.ErrCycleDetected),
 		errors.Is(err, taskpkg.ErrSessionAlreadyBound),
 		errors.Is(err, taskpkg.ErrSessionAttachNotAllowed),
-		errors.Is(err, taskpkg.ErrStaleNetworkChannel):
+		errors.Is(err, taskpkg.ErrStaleNetworkChannel),
+		errors.Is(err, taskpkg.ErrNoClaimableRun),
+		errors.Is(err, taskpkg.ErrInvalidClaimToken),
+		errors.Is(err, taskpkg.ErrLeaseExpired),
+		errors.Is(err, taskpkg.ErrActiveRunLease):
 		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError

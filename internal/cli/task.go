@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/network"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/spf13/cobra"
@@ -49,6 +50,11 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskGetCommand(deps))
 	cmd.AddCommand(newTaskUpdateCommand(deps))
 	cmd.AddCommand(newTaskCancelCommand(deps))
+	cmd.AddCommand(newTaskNextCommand(deps))
+	cmd.AddCommand(newTaskHeartbeatCommand(deps))
+	cmd.AddCommand(newTaskCompleteCommand(deps))
+	cmd.AddCommand(newTaskFailCommand(deps))
+	cmd.AddCommand(newTaskReleaseCommand(deps))
 	cmd.AddCommand(newTaskChildCommand(deps))
 	cmd.AddCommand(newTaskDependencyCommand(deps))
 	cmd.AddCommand(newTaskRunCommand(deps))
@@ -325,6 +331,249 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Optional cancellation reason")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional cancellation metadata JSON")
+	return cmd
+}
+
+func newTaskNextCommand(deps commandDeps) *cobra.Command {
+	var (
+		workspaceID          string
+		requiredCapabilities []string
+		priorityMin          int
+		leaseSeconds         int64
+		wait                 bool
+		idempotencyKey       string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "next",
+		Short: "Claim the next task run for the current agent session",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := validateAgentTaskLeaseSeconds(leaseSeconds); err != nil {
+				return err
+			}
+			if priorityMin < 0 {
+				return fmt.Errorf("cli: --priority-min must be zero or positive: %d", priorityMin)
+			}
+			request := AgentTaskClaimNextRequest{
+				WorkspaceID:          strings.TrimSpace(workspaceID),
+				RequiredCapabilities: trimAgentTaskCapabilities(requiredCapabilities),
+				PriorityMin:          priorityMin,
+				LeaseSeconds:         leaseSeconds,
+				Wait:                 wait,
+				IdempotencyKey:       strings.TrimSpace(idempotencyKey),
+			}
+
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			credentials, err := requireAgentCommandIdentity(cmd.Context(), deps, client, agentActionCLI("task.next"))
+			if err != nil {
+				return err
+			}
+			record, err := client.AgentTaskClaimNext(cmd.Context(), request, credentials)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, agentTaskNextBundle(record))
+		},
+	}
+	cmd.Flags().StringVar(&workspaceID, "workspace-id", "", "Workspace ID override; defaults to caller workspace")
+	cmd.Flags().StringArrayVar(&requiredCapabilities, "capability", nil, "Caller capability filter (repeatable)")
+	cmd.Flags().IntVar(&priorityMin, "priority-min", 0, "Minimum task priority")
+	cmd.Flags().Int64Var(&leaseSeconds, "lease-seconds", 0, "Lease duration in seconds")
+	cmd.Flags().BoolVar(&wait, "wait", false, "Wait until work is claimable")
+	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
+	return cmd
+}
+
+func newTaskHeartbeatCommand(deps commandDeps) *cobra.Command {
+	var claimToken string
+	var leaseSeconds int64
+
+	cmd := &cobra.Command{
+		Use:   "heartbeat <run-id>",
+		Short: "Extend a claimed task run lease for the current agent session",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runID, token, err := requiredAgentTaskRunToken(args[0], claimToken)
+			if err != nil {
+				return err
+			}
+			if err := validateAgentTaskLeaseSeconds(leaseSeconds); err != nil {
+				return err
+			}
+			request := AgentTaskHeartbeatRequest{
+				ClaimToken:   token,
+				LeaseSeconds: leaseSeconds,
+			}
+
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			credentials, err := requireAgentCommandIdentity(
+				cmd.Context(),
+				deps,
+				client,
+				agentActionCLI("task.heartbeat"),
+			)
+			if err != nil {
+				return err
+			}
+			record, err := client.AgentTaskHeartbeat(cmd.Context(), runID, request, credentials)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
+		},
+	}
+	cmd.Flags().StringVar(&claimToken, "claim-token", "", "Raw claim token from `agh task next`")
+	cmd.Flags().Int64Var(&leaseSeconds, "lease-seconds", 0, "Lease duration in seconds")
+	mustMarkFlagRequired(cmd, "claim-token")
+	return cmd
+}
+
+func newTaskCompleteCommand(deps commandDeps) *cobra.Command {
+	var claimToken string
+	var resultRaw string
+
+	cmd := &cobra.Command{
+		Use:   "complete <run-id>",
+		Short: "Complete a claimed task run for the current agent session",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runID, token, err := requiredAgentTaskRunToken(args[0], claimToken)
+			if err != nil {
+				return err
+			}
+			request := AgentTaskCompleteRequest{ClaimToken: token}
+			if cmd.Flags().Changed("result") {
+				request.Result, err = parseAgentTaskJSONFlag("result", resultRaw)
+				if err != nil {
+					return err
+				}
+			}
+
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			credentials, err := requireAgentCommandIdentity(
+				cmd.Context(),
+				deps,
+				client,
+				agentActionCLI("task.complete"),
+			)
+			if err != nil {
+				return err
+			}
+			record, err := client.AgentTaskComplete(cmd.Context(), runID, request, credentials)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
+		},
+	}
+	cmd.Flags().StringVar(&claimToken, "claim-token", "", "Raw claim token from `agh task next`")
+	cmd.Flags().StringVar(&resultRaw, "result", "", "Optional result JSON")
+	mustMarkFlagRequired(cmd, "claim-token")
+	return cmd
+}
+
+func newTaskFailCommand(deps commandDeps) *cobra.Command {
+	var claimToken string
+	var errorMessage string
+	var metadataRaw string
+
+	cmd := &cobra.Command{
+		Use:   "fail <run-id>",
+		Short: "Fail a claimed task run for the current agent session",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runID, token, err := requiredAgentTaskRunToken(args[0], claimToken)
+			if err != nil {
+				return err
+			}
+			request := AgentTaskFailRequest{
+				ClaimToken: token,
+				Error:      strings.TrimSpace(errorMessage),
+			}
+			if request.Error == "" {
+				return errors.New("cli: --error is required")
+			}
+			if cmd.Flags().Changed("metadata") {
+				request.Metadata, err = parseAgentTaskJSONFlag("metadata", metadataRaw)
+				if err != nil {
+					return err
+				}
+			}
+
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			credentials, err := requireAgentCommandIdentity(cmd.Context(), deps, client, agentActionCLI("task.fail"))
+			if err != nil {
+				return err
+			}
+			record, err := client.AgentTaskFail(cmd.Context(), runID, request, credentials)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
+		},
+	}
+	cmd.Flags().StringVar(&claimToken, "claim-token", "", "Raw claim token from `agh task next`")
+	cmd.Flags().StringVar(&errorMessage, "error", "", "Failure message")
+	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional failure metadata JSON")
+	mustMarkFlagRequired(cmd, "claim-token")
+	mustMarkFlagRequired(cmd, "error")
+	return cmd
+}
+
+func newTaskReleaseCommand(deps commandDeps) *cobra.Command {
+	var claimToken string
+	var reason string
+
+	cmd := &cobra.Command{
+		Use:   "release <run-id>",
+		Short: "Release a claimed task run for the current agent session",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runID, token, err := requiredAgentTaskRunToken(args[0], claimToken)
+			if err != nil {
+				return err
+			}
+			request := AgentTaskReleaseRequest{
+				ClaimToken: token,
+				Reason:     strings.TrimSpace(reason),
+			}
+
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			credentials, err := requireAgentCommandIdentity(
+				cmd.Context(),
+				deps,
+				client,
+				agentActionCLI("task.release"),
+			)
+			if err != nil {
+				return err
+			}
+			record, err := client.AgentTaskRelease(cmd.Context(), runID, request, credentials)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
+		},
+	}
+	cmd.Flags().StringVar(&claimToken, "claim-token", "", "Raw claim token from `agh task next`")
+	cmd.Flags().StringVar(&reason, "reason", "", "Optional release reason")
+	mustMarkFlagRequired(cmd, "claim-token")
 	return cmd
 }
 
@@ -942,6 +1191,51 @@ func parseJSONFlag(flagName string, raw string) (json.RawMessage, error) {
 	return json.RawMessage(trimmed), nil
 }
 
+func parseAgentTaskJSONFlag(flagName string, raw string) (json.RawMessage, error) {
+	payload, err := parseJSONFlag(flagName, raw)
+	if err != nil {
+		return nil, err
+	}
+	if err := contract.ValidateNoRawClaimTokenField(payload); err != nil {
+		return nil, fmt.Errorf("cli: --%s must not contain raw claim_token fields: %w", flagName, err)
+	}
+	return payload, nil
+}
+
+func requiredAgentTaskRunToken(rawRunID string, rawClaimToken string) (string, string, error) {
+	runID := strings.TrimSpace(rawRunID)
+	if runID == "" {
+		return "", "", errors.New("cli: run id is required")
+	}
+	token := strings.TrimSpace(rawClaimToken)
+	if token == "" {
+		return "", "", errors.New("cli: --claim-token is required")
+	}
+	return runID, token, nil
+}
+
+func validateAgentTaskLeaseSeconds(seconds int64) error {
+	if seconds < 0 {
+		return fmt.Errorf("cli: --lease-seconds must be zero or positive: %d", seconds)
+	}
+	maxSeconds := int64(taskpkg.MaxRunLeaseDuration.Seconds())
+	if seconds > maxSeconds {
+		return fmt.Errorf("cli: --lease-seconds must be less than or equal to %d", maxSeconds)
+	}
+	return nil
+}
+
+func trimAgentTaskCapabilities(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	trimmed := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed = append(trimmed, strings.TrimSpace(value))
+	}
+	return trimmed
+}
+
 func buildTaskCreateRequest(cmd *cobra.Command, input taskCreateInput) (CreateTaskRequest, error) {
 	scope, workspace, err := resolveTaskScopeWorkspace(input.ScopeRaw, input.WorkspaceRef, true)
 	if err != nil {
@@ -1011,6 +1305,30 @@ func validateTaskLast(last int) error {
 		return fmt.Errorf("cli: --last must be zero or positive: %d", last)
 	}
 	return nil
+}
+
+func agentTaskNextBundle(record AgentTaskNextRecord) outputBundle {
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			return renderJSONPreview(record)
+		},
+		toon: func() (string, error) {
+			return renderJSONPreview(record)
+		},
+	}
+}
+
+func agentTaskLeaseBundle(record AgentTaskLeaseRecord) outputBundle {
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			return renderJSONPreview(record)
+		},
+		toon: func() (string, error) {
+			return renderJSONPreview(record)
+		},
+	}
 }
 
 func taskBundle(item TaskRecord) outputBundle {
