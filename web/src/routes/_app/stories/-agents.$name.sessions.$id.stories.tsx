@@ -11,20 +11,24 @@ import {
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
-    "routes/app/session",
-    "Session route stories rendered via the real router, including transcript hydration, stopped sessions, permission prompts and not-found redirect behavior."
+    "routes/app/agents/session",
+    "Nested session chat route under an agent. Mirrors the previous routes/app/session stories — transcript hydration, stopped session, permission prompt, loading and not-found behaviors — through the canonical /agents/$name/sessions/$id URL."
   ),
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const codexSessionRoute = "/agents/codex-agent/sessions/sess-storybook";
+const claudeStoppedSessionRoute = "/agents/claude-agent/sessions/sess-reviewer";
+const missingSessionRoute = "/agents/codex-agent/sessions/sess-missing";
+
 /**
  * Active session transcript route for the primary Storybook session.
  */
 export const Default: Story = {
   args: {},
-  parameters: appRouteParameters("/session/sess-storybook"),
+  parameters: appRouteParameters(codexSessionRoute),
 };
 
 /**
@@ -33,7 +37,7 @@ export const Default: Story = {
 export const Loading: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/session/sess-storybook"),
+    ...appRouteParameters(codexSessionRoute),
     ...storybookMswParameters({
       session: [
         http.get("/api/sessions/:id", async () => {
@@ -50,7 +54,7 @@ export const Loading: Story = {
  */
 export const Stopped: Story = {
   args: {},
-  parameters: appRouteParameters("/session/sess-reviewer"),
+  parameters: appRouteParameters(claudeStoppedSessionRoute),
 };
 
 /**
@@ -59,7 +63,7 @@ export const Stopped: Story = {
 export const PendingPermission: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/session/sess-storybook"),
+    ...appRouteParameters(codexSessionRoute),
     ...storybookMswParameters({
       session: [
         http.get("/api/sessions/:id/transcript", () =>
@@ -71,12 +75,12 @@ export const PendingPermission: Story = {
 };
 
 /**
- * Not-found session behavior, which redirects back to the root empty state.
+ * Not-found session behavior — toast fires and navigation falls back to the parent agent route.
  */
 export const NotFoundRedirect: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/session/sess-missing"),
+    ...appRouteParameters(missingSessionRoute),
     ...storybookMswParameters({
       session: [
         http.get("/api/sessions/:id", ({ params }) =>

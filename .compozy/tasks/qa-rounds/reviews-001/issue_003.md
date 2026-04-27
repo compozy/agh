@@ -1,93 +1,26 @@
 ---
 status: resolved
-file: internal/automation/dispatch.go
-line: 60
+file: web/src/routes/_app/agents.$name.tsx
+line: 18
+severity: nitpick
 author: coderabbitai[bot]
-provider_ref: thread:PRRT_kwDOR5y4QM59r7vH,comment:PRRC_kwDOR5y4QM67Z0NB
+provider_ref: review:4177569108,nitpick_hash:803039727d80
+review_hash: 803039727d80
+source_review_id: "4177569108"
+source_review_submitted_at: "2026-04-26T22:35:58Z"
 ---
 
-# Issue 003: _🛠️ Refactor suggestion_ | _🟠 Major_
+# Issue 003: This still fetches agent detail data on nested session routes.
 ## Review Comment
 
-_🛠️ Refactor suggestion_ | _🟠 Major_
-
-**Make session stop timeout configurable, not hardcoded.**
-
-The new 10s value is operational policy in a core runtime path; it should be injected via dispatcher options (or TOML-backed config), not fixed in code.
-
-
-<details>
-<summary>Proposed refactor</summary>
-
-```diff
--const dispatcherSessionStopTimeout = 10 * time.Second
-+const defaultDispatcherSessionStopTimeout = 10 * time.Second
-
- type Dispatcher struct {
-   sessions SessionCreator
-   runs     RunStore
-   tasks    TaskService
-+  sessionStopTimeout time.Duration
-   ...
- }
-
- func NewDispatcher(sessions SessionCreator, runs RunStore, opts ...DispatcherOption) (*Dispatcher, error) {
-   ...
-   dispatcher := &Dispatcher{
-     sessions:      sessions,
-     runs:          runs,
-     logger:        slog.Default(),
-     now:           func() time.Time { return time.Now().UTC() },
-     sleep:         sleepWithContext,
-     maxConcurrent: DefaultMaxConcurrentJobs,
-+    sessionStopTimeout: defaultDispatcherSessionStopTimeout,
-   }
-   ...
- }
-
-+func WithDispatcherSessionStopTimeout(timeout time.Duration) DispatcherOption {
-+  return func(dispatcher *Dispatcher) {
-+    if timeout > 0 {
-+      dispatcher.sessionStopTimeout = timeout
-+    }
-+  }
-+}
-
- func (d *Dispatcher) stopAutomationSession(ctx context.Context, sessionID string, status RunStatus, runErr error) error {
-   ...
--  stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), dispatcherSessionStopTimeout)
-+  stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.sessionStopTimeout)
-   defer cancel()
-   ...
- }
-```
-</details>
-As per coding guidelines, "Never hardcode configuration in Go — use TOML config or functional options".
-
-<details>
-<summary>🤖 Prompt for AI Agents</summary>
-
-```
-Verify each finding against the current code and only fix it if needed.
-
-In `@internal/automation/dispatch.go` around lines 56 - 60, The hardcoded constant
-dispatcherSessionStopTimeout should be made configurable via dispatcher options
-rather than fixed in code: remove or replace the package-level const
-dispatcherSessionStopTimeout and add a field (e.g., SessionStopTimeout
-time.Duration) to the dispatcher options/config struct used by NewDispatcher (or
-Dispatcher) and its option helpers; wire that value into the shutdown logic that
-currently references dispatcherSessionStopTimeout and provide a sensible default
-(10*time.Second) when the option is not set so existing behavior remains
-unchanged.
-```
-
-</details>
-
-<!-- fingerprinting:phantom:poseidon:hawk -->
-
-<!-- This is an auto-generated comment by CodeRabbit -->
+`useAgentDetailPage(name)` runs before the child-route early return, so `/agents/$name/sessions/$id` still pays for the agent + sessions queries even though this component renders only `<Outlet />`. The clean fix is to move the detail shell into an index child route and let this parent route stay as a layout route.
 
 ## Triage
 
 - Decision: `VALID`
-- Notes: `dispatcherSessionStopTimeout` is a package-level operational timeout fixed at 10 seconds. The dispatcher already uses functional options for policy injection, so this should be configurable with a default. Fix by adding a `sessionStopTimeout` field, a `defaultDispatcherSessionStopTimeout`, and `WithDispatcherSessionStopTimeout`, then using the field in `stopAutomationSession`. A focused constructor test in `internal/automation/dispatch_test.go` is needed even though that file is outside the batch list because it validates the new option.
+- Notes:
+  - `AgentDetailPage` currently calls `useAgentDetailPage(name)` before checking `useChildMatches()`, so nested session routes still start agent detail and session list queries even though the parent renders only `<Outlet />`.
+  - The root cause is that the detail data hook lives in the layout component instead of in the detail-only rendering branch.
+  - Fix by splitting the detail shell into a child component that is rendered only when there is no child match, preserving hook rules while preventing nested routes from paying for unused data. Add a route test proving child routes render the outlet without invoking `useAgentDetailPage`.
+  - Resolution: split the detail shell into `AgentDetailContent`, leaving nested child routes to render `<Outlet />` without invoking the detail hook.
+  - Verification: targeted Vitest passed; `make verify` passed.

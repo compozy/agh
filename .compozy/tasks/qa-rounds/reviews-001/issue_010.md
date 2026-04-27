@@ -1,21 +1,51 @@
 ---
 status: resolved
-file: internal/network/router.go
-line: 639
-severity: minor
+file: web/src/systems/agent/components/stories/agent-sessions-list.stories.tsx
+line: 33
 author: coderabbitai[bot]
-provider_ref: review:4177411700,nitpick_hash:335034e78607
-review_hash: 335034e78607
-source_review_id: "4177411700"
-source_review_submitted_at: "2026-04-26T20:24:27Z"
+provider_ref: thread:PRRT_kwDOR5y4QM59sdE_,comment:PRRC_kwDOR5y4QM67ae4_
 ---
 
-# Issue 010: Directed self-WHOIS is now suppressed, but the manager still audits it as received.
+# Issue 010: _⚠️ Potential issue_ | _🟡 Minor_
 ## Review Comment
 
-Line 640 drops the local responder when the directed target is also the sender. That means a self-directed WHOIS now returns with no `Generated` response, but `Manager.controlMessageReceivers()` still records the target session as having received the request. This will skew received audits/stats for a message that was intentionally skipped.
+_⚠️ Potential issue_ | _🟡 Minor_
+
+**Don’t seed the failure story from `codexSessions[0]` unguarded.**
+
+If the fixtures stop containing `"codex-agent"`, this spread throws during module evaluation and breaks the whole story file. Build the failure row from an explicit base fixture or guard the lookup first.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against the current code and only fix it if needed.
+
+In `@web/src/systems/agent/components/stories/agent-sessions-list.stories.tsx`
+around lines 13 - 33, codexSessionsWithFailure currently spreads
+codexSessions[0] without checking its existence which will throw during module
+evaluation if codexSessions no longer contains the expected fixture; update the
+construction of codexSessionsWithFailure (and any use of codexSessions[0]) to
+either (a) build the failure session from an explicit base fixture object (copy
+required fields and override id/name/state/etc.) instead of spreading
+codexSessions[0], or (b) first guard the lookup by checking that codexSessions
+&& codexSessions.length > 0 and fall back to a safe default baseSession when
+missing; adjust the identifier referenced (codexSessionsWithFailure,
+codexSessions[0]) accordingly so the story never throws at import time.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:medusa:grasshopper -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Triage
 
 - Decision: `VALID`
-- Notes: A directed WHOIS whose target is also the sender is intentionally skipped by `whoisRequestResponders`, but the route result remains non-ignored. `Manager.recordInboundAudit` suppresses control-message receiver audit only for ignored/rejected results, so the skipped self-WHOIS can still be audited as received. Fix within `internal/network/router.go` by marking directed self-WHOIS requests as `Ignored`, and add coverage in `router_test.go`.
+- Notes:
+  - `codexSessionsWithFailure` spreads `codexSessions[0]` at module evaluation time.
+  - If the fixture set no longer includes a `codex-agent` session, the story file can crash during import before Storybook renders anything.
+  - Fix by using an explicit fallback `SessionPayload` base before creating the failure row.
+  - Resolution: added an explicit fallback codex session fixture and imported the story in the story regression test.
+  - Verification: targeted Vitest passed; `make verify` passed.

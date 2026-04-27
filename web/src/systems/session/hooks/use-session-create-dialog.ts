@@ -175,7 +175,10 @@ export function useSessionCreateDialog({
         provider,
       });
       setOpenState(false);
-      await navigate({ to: "/session/$id", params: { id: session.id } });
+      await navigate({
+        to: "/agents/$name/sessions/$id",
+        params: { name: session.agent_name, id: session.id },
+      });
     } catch (error) {
       const message = describeSubmitError(error);
       setSubmitError(message);

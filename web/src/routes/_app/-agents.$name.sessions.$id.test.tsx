@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SessionPayload } from "@/systems/session/types";
+import type { SessionPayload } from "@/systems/session";
 
 const {
   mockNavigate,
@@ -34,7 +34,7 @@ const {
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: (_path: string) => (opts: { component: () => ReactNode }) => ({
     component: opts.component,
-    useParams: () => ({ id: "sess_123" }),
+    useParams: () => ({ name: "claude-agent", id: "sess_123" }),
   }),
   useNavigate: () => mockNavigate,
 }));
@@ -42,6 +42,7 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("sonner", () => ({
   toast: {
     error: vi.fn(),
+    success: vi.fn(),
   },
 }));
 
@@ -85,7 +86,7 @@ vi.mock("@assistant-ui/react", () => ({
   ) => selector({ thread: { messages: [], isRunning: false } }),
 }));
 
-import { Route } from "./session.$id";
+import { Route } from "./agents.$name.sessions.$id";
 
 const SessionPage = (Route as unknown as { component: () => ReactNode }).component;
 
@@ -104,7 +105,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   };
 }
 
-describe("Session route — resume failure UX", () => {
+describe("Nested agent session route — resume failure UX", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
     mockResume.mutate.mockReset();
@@ -166,5 +167,44 @@ describe("Session route — resume failure UX", () => {
   it("renders the effective provider badge in the chat header", () => {
     render(<SessionPage />);
     expect(screen.getByTestId("session-provider-badge")).toHaveTextContent("codex");
+  });
+
+  it("replaces history when a missing session redirects to the agent page", () => {
+    mockUseSession.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error("Session not found: sess_123"),
+    });
+
+    render(<SessionPage />);
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/agents/$name",
+      params: { name: "claude-agent" },
+      replace: true,
+    });
+  });
+
+  it("navigates to the resolved session agent after delete succeeds", () => {
+    mockUseSession.mockReturnValue({
+      data: makeSession({ agent_name: "codex-agent" }),
+      isLoading: false,
+      error: null,
+    });
+    mockDelete.mutate.mockImplementation(
+      (_id: string, opts?: { onSuccess?: () => void; onError?: (error: unknown) => void }) => {
+        opts?.onSuccess?.();
+      }
+    );
+
+    render(<SessionPage />);
+
+    fireEvent.click(screen.getByTestId("delete-button"));
+    fireEvent.click(screen.getByTestId("delete-dialog-confirm"));
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/agents/$name",
+      params: { name: "codex-agent" },
+    });
   });
 });

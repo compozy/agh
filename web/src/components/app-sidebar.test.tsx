@@ -8,10 +8,20 @@ import { AppSidebar, type AppSidebarProps } from "@/components/app-sidebar";
 
 const onSelectWorkspace = vi.fn();
 const onCollapseChange = vi.fn();
-const onNewSession = vi.fn();
 const onAddWorkspace = vi.fn();
 let matchedRoute: Record<string, boolean> = {};
 let matchedRouteFuzzy: Record<string, boolean> = {};
+
+type MatchRouteParams = Record<string, string>;
+
+function routeMatchKey(to: string, params?: MatchRouteParams): string {
+  if (!params) return to;
+  const serializedParams = Object.entries(params)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+  return `${to}?${serializedParams}`;
+}
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -22,7 +32,7 @@ vi.mock("@tanstack/react-router", () => ({
   }: {
     children: ReactNode;
     to: string;
-    params?: Record<string, string>;
+    params?: MatchRouteParams;
     [key: string]: unknown;
   }) => {
     const href = params
@@ -34,11 +44,12 @@ vi.mock("@tanstack/react-router", () => ({
       </a>
     );
   },
-  useMatchRoute: () => (opts: { to: string; fuzzy?: boolean }) => {
+  useMatchRoute: () => (opts: { to: string; params?: MatchRouteParams; fuzzy?: boolean }) => {
+    const matchKey = routeMatchKey(opts.to, opts.params);
     if (opts.fuzzy) {
-      return matchedRouteFuzzy[opts.to] ?? matchedRoute[opts.to] ?? false;
+      return matchedRouteFuzzy[matchKey] ?? matchedRoute[matchKey] ?? false;
     }
-    return matchedRoute[opts.to] ?? false;
+    return matchedRoute[matchKey] ?? false;
   },
 }));
 
@@ -84,10 +95,6 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
     agentsLoading: false,
     agentsError: false,
     sessions: [],
-    onNewSession,
-    isCreatingSession: false,
-    pendingSessionAgentName: null,
-    pendingSessionWorkspaceId: null,
     ...overrides,
   };
 }
@@ -98,7 +105,6 @@ describe("AppSidebar", () => {
     matchedRouteFuzzy = {};
     onSelectWorkspace.mockReset();
     onCollapseChange.mockReset();
-    onNewSession.mockReset();
     onAddWorkspace.mockReset();
   });
 
@@ -187,13 +193,26 @@ describe("AppSidebar", () => {
   });
 
   describe("Agent List", () => {
-    it("renders agents with session counts", () => {
+    it("renders each agent as a flat link to /agents/$name", () => {
       renderSidebar(
         makeProps({
           agents: [
             { name: "coder", provider: "claude", prompt: "code" },
             { name: "writer", provider: "openai", prompt: "write" },
           ],
+        })
+      );
+
+      const coderRow = screen.getByTestId("agent-row-coder");
+      const writerRow = screen.getByTestId("agent-row-writer");
+      expect(coderRow).toHaveAttribute("href", "/agents/coder");
+      expect(writerRow).toHaveAttribute("href", "/agents/writer");
+    });
+
+    it("does not render session counts, expand toggles, or new-session buttons in the sidebar", () => {
+      renderSidebar(
+        makeProps({
+          agents: [{ name: "coder", provider: "claude", prompt: "code" }],
           sessions: [
             {
               id: "s1",
@@ -206,11 +225,39 @@ describe("AppSidebar", () => {
               updated_at: "2026-04-06T10:00:00Z",
               created_at: "2026-04-06T10:00:00Z",
             },
+          ],
+        })
+      );
+
+      expect(screen.queryByTestId("new-session-coder")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("agent-trigger-coder")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("session-row-s1")).not.toBeInTheDocument();
+    });
+
+    it("shows a status dot only on agents that have at least one active session", () => {
+      renderSidebar(
+        makeProps({
+          agents: [
+            { name: "coder", provider: "claude", prompt: "code" },
+            { name: "writer", provider: "openai", prompt: "write" },
+          ],
+          sessions: [
             {
-              id: "s2",
-              name: "Session 2",
+              id: "s_active",
+              name: "Live",
               agent_name: "coder",
               provider: "claude",
+              workspace_id: "ws_alpha",
+              workspace_path: "/workspace/alpha",
+              state: "active",
+              updated_at: "2026-04-06T10:00:00Z",
+              created_at: "2026-04-06T10:00:00Z",
+            },
+            {
+              id: "s_done",
+              name: "Done",
+              agent_name: "writer",
+              provider: "openai",
               workspace_id: "ws_alpha",
               workspace_path: "/workspace/alpha",
               state: "stopped",
@@ -221,10 +268,24 @@ describe("AppSidebar", () => {
         })
       );
 
-      expect(screen.getByText("coder")).toBeInTheDocument();
-      expect(screen.getByText("writer")).toBeInTheDocument();
-      expect(screen.getByText("2")).toBeInTheDocument();
-      expect(screen.getByText("0")).toBeInTheDocument();
+      expect(screen.getByTestId("agent-status-dot-coder")).toBeInTheDocument();
+      expect(screen.queryByTestId("agent-status-dot-writer")).not.toBeInTheDocument();
+    });
+
+    it("highlights the agent row whose route is active (fuzzy: covers nested session route)", () => {
+      matchedRouteFuzzy[routeMatchKey("/agents/$name", { name: "coder" })] = true;
+      renderSidebar(
+        makeProps({
+          agents: [
+            { name: "coder", provider: "claude", prompt: "code" },
+            { name: "writer", provider: "openai", prompt: "write" },
+          ],
+        })
+      );
+      expect(screen.getByTestId("agent-row-coder")).toHaveAttribute("data-active", "true");
+      expect(screen.getByTestId("agent-active-coder")).toBeInTheDocument();
+      expect(screen.getByTestId("agent-row-writer")).toHaveAttribute("data-active", "false");
+      expect(screen.queryByTestId("agent-active-writer")).not.toBeInTheDocument();
     });
 
     it("shows bootstrap hint when no agents are loaded", () => {
@@ -235,152 +296,6 @@ describe("AppSidebar", () => {
     it("shows the loading state when agents are loading", () => {
       renderSidebar(makeProps({ agentsLoading: true, agents: undefined }));
       expect(screen.getByText("Loading agents...")).toBeInTheDocument();
-    });
-
-    it("creates sessions via the agent's + button", () => {
-      renderSidebar(
-        makeProps({
-          agents: [{ name: "claude-agent", provider: "anthropic", prompt: "You are helpful." }],
-        })
-      );
-
-      fireEvent.click(screen.getByTestId("new-session-claude-agent"));
-      expect(onNewSession).toHaveBeenCalledWith("claude-agent");
-    });
-
-    it("disables the new-session button when no workspace is active", () => {
-      renderSidebar(
-        makeProps({
-          activeWorkspace: undefined,
-          activeWorkspaceId: null,
-          agents: [{ name: "claude-agent", provider: "anthropic", prompt: "help" }],
-        })
-      );
-
-      expect(screen.getByTestId("new-session-claude-agent")).toBeDisabled();
-    });
-
-    it("shows a spinner and temporary starting row for the pending agent", () => {
-      renderSidebar(
-        makeProps({
-          agents: [
-            { name: "claude-agent", provider: "anthropic", prompt: "help" },
-            { name: "general", provider: "openai", prompt: "general" },
-          ],
-          isCreatingSession: true,
-          pendingSessionAgentName: "claude-agent",
-          pendingSessionWorkspaceId: "ws_alpha",
-        })
-      );
-
-      expect(screen.getByTestId("new-session-claude-agent")).toBeDisabled();
-      expect(screen.getByTestId("new-session-general")).toBeDisabled();
-      expect(screen.getByTestId("new-session-spinner-claude-agent")).toBeInTheDocument();
-      expect(screen.queryByTestId("new-session-spinner-general")).not.toBeInTheDocument();
-      expect(screen.getByTestId("pending-session-row-claude-agent")).toHaveTextContent(
-        "starting..."
-      );
-    });
-
-    it("does not render the temporary row when the pending session belongs to another workspace", () => {
-      renderSidebar(
-        makeProps({
-          agents: [{ name: "claude-agent", provider: "anthropic", prompt: "help" }],
-          isCreatingSession: true,
-          pendingSessionAgentName: "claude-agent",
-          pendingSessionWorkspaceId: "ws_beta",
-        })
-      );
-
-      expect(screen.queryByTestId("pending-session-row-claude-agent")).not.toBeInTheDocument();
-    });
-
-    it("opens an agent group when sessions arrive after the initial render without Base UI warnings", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-      try {
-        const agent = { name: "coder", provider: "claude", prompt: "code" };
-        const initialProps = makeProps({
-          agents: [agent],
-          sessions: [],
-        });
-        const { rerender } = render(
-          <UIProvider reducedMotion="always">
-            <AppSidebar {...initialProps} />
-          </UIProvider>
-        );
-
-        rerender(
-          <UIProvider reducedMotion="always">
-            <AppSidebar
-              {...makeProps({
-                agents: [agent],
-                sessions: [
-                  {
-                    id: "sess_new",
-                    name: "New session",
-                    agent_name: "coder",
-                    provider: "claude",
-                    workspace_id: "ws_alpha",
-                    workspace_path: "/workspace/alpha",
-                    state: "active",
-                    updated_at: "2026-04-06T11:00:00Z",
-                    created_at: "2026-04-06T11:00:00Z",
-                  },
-                ],
-              })}
-            />
-          </UIProvider>
-        );
-
-        expect(screen.getByRole("link", { name: "New session" })).toBeInTheDocument();
-        expect(warnSpy).not.toHaveBeenCalled();
-        expect(errorSpy).not.toHaveBeenCalled();
-      } finally {
-        warnSpy.mockRestore();
-        errorSpy.mockRestore();
-      }
-    });
-
-    it("returns to the derived closed state when agent sessions disappear", () => {
-      const agent = { name: "coder", provider: "claude", prompt: "code" };
-      const { rerender } = render(
-        <UIProvider reducedMotion="always">
-          <AppSidebar
-            {...makeProps({
-              agents: [agent],
-              sessions: [
-                {
-                  id: "sess_live",
-                  name: "Live session",
-                  agent_name: "coder",
-                  provider: "claude",
-                  workspace_id: "ws_alpha",
-                  workspace_path: "/workspace/alpha",
-                  state: "active",
-                  updated_at: "2026-04-06T11:00:00Z",
-                  created_at: "2026-04-06T11:00:00Z",
-                },
-              ],
-            })}
-          />
-        </UIProvider>
-      );
-
-      expect(screen.getByRole("link", { name: "Live session" })).toBeInTheDocument();
-
-      rerender(
-        <UIProvider reducedMotion="always">
-          <AppSidebar
-            {...makeProps({
-              agents: [agent],
-              sessions: [],
-            })}
-          />
-        </UIProvider>
-      );
-
-      expect(screen.queryByText("No sessions")).not.toBeInTheDocument();
     });
   });
 

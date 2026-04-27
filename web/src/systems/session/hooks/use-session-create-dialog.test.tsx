@@ -145,8 +145,8 @@ describe("useSessionCreateDialog", () => {
       provider: "codex",
     });
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/session/$id",
-      params: { id: "sess-new" },
+      to: "/agents/$name/sessions/$id",
+      params: { name: "codex-agent", id: "sess-new" },
     });
   });
 
