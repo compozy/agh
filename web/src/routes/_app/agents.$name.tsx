@@ -19,11 +19,20 @@ function AgentDetailPage() {
   const { name } = Route.useParams();
   const childMatches = useChildMatches();
   const hasChildMatch = childMatches.length > 0;
-  const page = useAgentDetailPage(name);
 
   if (hasChildMatch) {
     return <Outlet />;
   }
+
+  return <AgentDetailContent name={name} />;
+}
+
+interface AgentDetailContentProps {
+  name: string;
+}
+
+function AgentDetailContent({ name }: AgentDetailContentProps) {
+  const page = useAgentDetailPage(name);
 
   if (page.agentLoading) {
     return (
@@ -59,6 +68,8 @@ function AgentDetailPage() {
     );
   }
 
+  const hasResolvedSessions = !page.sessionsLoading && !page.sessionsError;
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="agent-detail-page">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -76,7 +87,7 @@ function AgentDetailPage() {
           className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5"
           data-testid="agent-detail-body"
         >
-          <AgentStatsGrid sessions={page.sessions} />
+          {hasResolvedSessions ? <AgentStatsGrid sessions={page.sessions} /> : null}
           <AgentSessionsList
             agentName={name}
             sessions={page.sessions}

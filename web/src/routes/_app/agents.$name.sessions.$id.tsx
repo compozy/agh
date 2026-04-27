@@ -25,13 +25,7 @@ function SessionPageContent({
   session,
   workspaceName,
   onDeleteSuccess,
-}: {
-  agentName: string;
-  sessionId: string;
-  session: SessionPayload;
-  workspaceName?: string;
-  onDeleteSuccess: () => void;
-}) {
+}: SessionPageContentProps) {
   const {
     canClear,
     canPrompt,
@@ -88,6 +82,14 @@ function SessionPageContent({
   );
 }
 
+interface SessionPageContentProps {
+  agentName: string;
+  sessionId: string;
+  session: SessionPayload;
+  workspaceName?: string;
+  onDeleteSuccess: () => void;
+}
+
 function SessionPage() {
   const { name, id } = Route.useParams();
   const navigate = useNavigate();
@@ -123,16 +125,17 @@ function SessionPage() {
   }
 
   const workspaceName = workspaces?.find(workspace => workspace.id === session.workspace_id)?.name;
+  const resolvedAgentName = session.agent_name ?? name;
 
   return (
     <SessionChatRuntimeProvider key={id} sessionId={id} workspaceId={session.workspace_id}>
       <SessionPageContent
-        agentName={session.agent_name ?? name}
+        agentName={resolvedAgentName}
         sessionId={id}
         session={session}
         workspaceName={workspaceName}
         onDeleteSuccess={() => {
-          void navigate({ to: "/agents/$name", params: { name } });
+          void navigate({ to: "/agents/$name", params: { name: resolvedAgentName } });
         }}
       />
     </SessionChatRuntimeProvider>

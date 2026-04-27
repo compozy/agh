@@ -1,22 +1,40 @@
 ---
 status: resolved
-file: internal/api/udsapi/agent_channels_test.go
-line: 116
+file: web/src/routes/_app/agents.$name.sessions.$id.tsx
+line: 136
 author: coderabbitai[bot]
-provider_ref: thread:PRRT_kwDOR5y4QM59r7vG,comment:PRRC_kwDOR5y4QM67Z0NA
+provider_ref: thread:PRRT_kwDOR5y4QM59sdE9,comment:PRRC_kwDOR5y4QM67ae48
 ---
 
-# Issue 002: _⚠️ Potential issue_ | _🟠 Major_
+# Issue 002: _⚠️ Potential issue_ | _🟡 Minor_
 ## Review Comment
 
-_⚠️ Potential issue_ | _🟠 Major_
+_⚠️ Potential issue_ | _🟡 Minor_
 
-**Wrap this test case in `t.Run("Should ...")` to match required test structure.**
+**Use canonical agent name for post-delete navigation.**
 
-This new test is currently a direct top-level body without the required subtest naming pattern.
+`onDeleteSuccess` currently routes with the URL param `name`, which can be stale if the path is manually edited or mismatched. Use the resolved session agent name for consistent redirect behavior.
 
+<details>
+<summary>🐛 Suggested fix</summary>
 
-As per coding guidelines, "MUST use t.Run("Should...") pattern for ALL test cases".
+```diff
+   const workspaceName = workspaces?.find(workspace => workspace.id === session.workspace_id)?.name;
++  const resolvedAgentName = session.agent_name ?? name;
+@@
+       <SessionPageContent
+-        agentName={session.agent_name ?? name}
++        agentName={resolvedAgentName}
+         sessionId={id}
+         session={session}
+         workspaceName={workspaceName}
+         onDeleteSuccess={() => {
+-          void navigate({ to: "/agents/$name", params: { name } });
++          void navigate({ to: "/agents/$name", params: { name: resolvedAgentName } });
+         }}
+       />
+```
+</details>
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -24,16 +42,13 @@ As per coding guidelines, "MUST use t.Run("Should...") pattern for ALL test case
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@internal/api/udsapi/agent_channels_test.go` around lines 72 - 116, Wrap the
-existing TestAgentCoordinatorConfigRouteReturnsResolvedPayload body in a subtest
-using t.Run("Should return resolved workspace coordinator payload", func(t
-*testing.T) { ... }) so the test follows the required t.Run("Should ...")
-pattern; locate the TestAgentCoordinatorConfigRouteReturnsResolvedPayload
-function and move its current contents into a t.Run call while keeping all setup
-(manager := activeAgentSessionManager, handlers := newTestHandlers,
-handlers.CoordinatorConfig = agentCoordinatorConfigResolverFunc, engine :=
-newTestRouter, performAgentKernelRequest, decodeJSONResponse and assertions)
-unchanged inside the subtest body.
+In `@web/src/routes/_app/agents`.$name.sessions.$id.tsx around lines 125 - 136,
+The onDeleteSuccess handler uses the possibly-stale route param name when
+navigating after deletion; change it to use the resolved agent name from the
+session (e.g., session.agent_name ?? name) so the redirect is canonical. Update
+the onDeleteSuccess in SessionPageContent's props to call navigate({ to:
+"/agents/$name", params: { name: session.agent_name ?? name } }) (or compute a
+resolvedAgentName variable) to ensure consistent post-delete routing.
 ```
 
 </details>
@@ -45,4 +60,9 @@ unchanged inside the subtest body.
 ## Triage
 
 - Decision: `VALID`
-- Notes: `TestAgentCoordinatorConfigRouteReturnsResolvedPayload` contains one direct top-level test body while this repo requires each case to run under a `t.Run("Should ...")` subtest. Fix by moving the existing setup, request, and assertions into a named `Should return resolved workspace coordinator payload` subtest.
+- Notes:
+  - The route passes `session.agent_name ?? name` to the page content but still navigates after delete with the raw URL param `name`.
+  - If the URL param is stale or manually edited, delete success redirects to a non-canonical agent route even though the resolved session payload contains the correct agent name.
+  - Fix by computing a single resolved agent name from the session and using it for both rendering and post-delete navigation. Add a route test that exercises delete success with a mismatched URL param.
+  - Resolution: reused `resolvedAgentName` for both content and delete-success navigation, with a regression test covering a mismatched route param.
+  - Verification: targeted Vitest passed; `make verify` passed.

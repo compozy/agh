@@ -26,9 +26,13 @@ describe("storybook story and fixture regressions", () => {
       import("@/systems/session/components/stories/copy-button.stories"),
       import("@/systems/session/components/tool-renderers/stories/read-content.stories"),
       import("@/systems/session/components/tool-renderers/stories/search-content.stories"),
+      import("@/routes/_app/stories/-agents.$name.stories"),
+      import("@/systems/agent/components/stories/agent-info-panel.stories"),
+      import("@/systems/agent/components/stories/agent-sessions-list.stories"),
+      import("@/systems/agent/components/stories/agent-stats-grid.stories"),
     ]);
 
-    expect(modules).toHaveLength(9);
+    expect(modules).toHaveLength(13);
 
     for (const module of modules) {
       expect(module.default).toBeDefined();

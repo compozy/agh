@@ -42,6 +42,7 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("sonner", () => ({
   toast: {
     error: vi.fn(),
+    success: vi.fn(),
   },
 }));
 
@@ -166,5 +167,28 @@ describe("Nested agent session route — resume failure UX", () => {
   it("renders the effective provider badge in the chat header", () => {
     render(<SessionPage />);
     expect(screen.getByTestId("session-provider-badge")).toHaveTextContent("codex");
+  });
+
+  it("navigates to the resolved session agent after delete succeeds", () => {
+    mockUseSession.mockReturnValue({
+      data: makeSession({ agent_name: "codex-agent" }),
+      isLoading: false,
+      error: null,
+    });
+    mockDelete.mutate.mockImplementation(
+      (_id: string, opts?: { onSuccess?: () => void; onError?: (error: unknown) => void }) => {
+        opts?.onSuccess?.();
+      }
+    );
+
+    render(<SessionPage />);
+
+    fireEvent.click(screen.getByTestId("delete-button"));
+    fireEvent.click(screen.getByTestId("delete-dialog-confirm"));
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/agents/$name",
+      params: { name: "codex-agent" },
+    });
   });
 });

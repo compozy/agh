@@ -12,6 +12,17 @@ const onAddWorkspace = vi.fn();
 let matchedRoute: Record<string, boolean> = {};
 let matchedRouteFuzzy: Record<string, boolean> = {};
 
+type MatchRouteParams = Record<string, string>;
+
+function routeMatchKey(to: string, params?: MatchRouteParams): string {
+  if (!params) return to;
+  const serializedParams = Object.entries(params)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+  return `${to}?${serializedParams}`;
+}
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     children,
@@ -21,7 +32,7 @@ vi.mock("@tanstack/react-router", () => ({
   }: {
     children: ReactNode;
     to: string;
-    params?: Record<string, string>;
+    params?: MatchRouteParams;
     [key: string]: unknown;
   }) => {
     const href = params
@@ -33,11 +44,12 @@ vi.mock("@tanstack/react-router", () => ({
       </a>
     );
   },
-  useMatchRoute: () => (opts: { to: string; fuzzy?: boolean }) => {
+  useMatchRoute: () => (opts: { to: string; params?: MatchRouteParams; fuzzy?: boolean }) => {
+    const matchKey = routeMatchKey(opts.to, opts.params);
     if (opts.fuzzy) {
-      return matchedRouteFuzzy[opts.to] ?? matchedRoute[opts.to] ?? false;
+      return matchedRouteFuzzy[matchKey] ?? matchedRoute[matchKey] ?? false;
     }
-    return matchedRoute[opts.to] ?? false;
+    return matchedRoute[matchKey] ?? false;
   },
 }));
 
@@ -261,14 +273,19 @@ describe("AppSidebar", () => {
     });
 
     it("highlights the agent row whose route is active (fuzzy: covers nested session route)", () => {
-      matchedRouteFuzzy["/agents/$name"] = true;
+      matchedRouteFuzzy[routeMatchKey("/agents/$name", { name: "coder" })] = true;
       renderSidebar(
         makeProps({
-          agents: [{ name: "coder", provider: "claude", prompt: "code" }],
+          agents: [
+            { name: "coder", provider: "claude", prompt: "code" },
+            { name: "writer", provider: "openai", prompt: "write" },
+          ],
         })
       );
       expect(screen.getByTestId("agent-row-coder")).toHaveAttribute("data-active", "true");
       expect(screen.getByTestId("agent-active-coder")).toBeInTheDocument();
+      expect(screen.getByTestId("agent-row-writer")).toHaveAttribute("data-active", "false");
+      expect(screen.queryByTestId("agent-active-writer")).not.toBeInTheDocument();
     });
 
     it("shows bootstrap hint when no agents are loaded", () => {

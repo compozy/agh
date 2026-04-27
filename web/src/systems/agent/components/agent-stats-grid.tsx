@@ -1,5 +1,6 @@
 import { Metric, cn } from "@agh/ui";
 
+import { isAgentSessionFailure } from "../lib/session-status";
 import type { SessionPayload } from "@/systems/session";
 
 export interface AgentStatsGridProps {
@@ -57,11 +58,7 @@ function computeTotals(sessions: SessionPayload[]): SessionTotals {
 
   for (const session of sessions) {
     if (session.state === "active") active += 1;
-    if (
-      session.failure ||
-      session.stop_reason === "agent_crashed" ||
-      session.stop_reason === "error"
-    ) {
+    if (isAgentSessionFailure(session)) {
       failed += 1;
     }
     const elapsed = session.activity?.elapsed_seconds;

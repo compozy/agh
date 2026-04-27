@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { primaryAgentFixture } from "@/systems/agent/mocks";
@@ -33,7 +34,11 @@ const meta: Meta<typeof AgentInfoPanel> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function Frame({ children }: { children: React.ReactNode }) {
+interface FrameProps {
+  children: ReactNode;
+}
+
+function Frame({ children }: FrameProps) {
   return (
     <StorySurface className="flex">
       <div className="flex flex-1 items-center justify-center text-sm text-[color:var(--color-text-secondary)]">
@@ -48,6 +53,7 @@ function Frame({ children }: { children: React.ReactNode }) {
  * Default — three MCP servers rendered as compact rows with transport chips.
  */
 export const Default: Story = {
+  args: {},
   render: args => (
     <Frame>
       <AgentInfoPanel {...args} />

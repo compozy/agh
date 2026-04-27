@@ -1,4 +1,5 @@
 import { createContext } from "react";
+import type { ReactNode } from "react";
 
 export interface SessionCreateContextValue {
   openForAgent: (agentName: string) => void;
@@ -9,12 +10,11 @@ export interface SessionCreateContextValue {
 
 export const SessionCreateContext = createContext<SessionCreateContextValue | null>(null);
 
-export function SessionCreateProvider({
-  value,
-  children,
-}: {
+interface SessionCreateProviderProps {
   value: SessionCreateContextValue;
-  children: React.ReactNode;
-}) {
+  children: ReactNode;
+}
+
+export function SessionCreateProvider({ value, children }: SessionCreateProviderProps) {
   return <SessionCreateContext.Provider value={value}>{children}</SessionCreateContext.Provider>;
 }

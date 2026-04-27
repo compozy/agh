@@ -24,6 +24,15 @@ const STOPPING_STATUS: AgentSessionStatus = {
 const FAILED_STATUS: AgentSessionStatus = { kind: "failed", label: "FAILED", tone: "danger" };
 const DONE_STATUS: AgentSessionStatus = { kind: "done", label: "DONE", tone: "neutral" };
 
+export function isAgentSessionFailure(session: SessionPayload): boolean {
+  return (
+    session.state === "stopped" &&
+    (Boolean(session.failure) ||
+      session.stop_reason === "agent_crashed" ||
+      session.stop_reason === "error")
+  );
+}
+
 export function getAgentSessionStatus(session: SessionPayload): AgentSessionStatus {
   switch (session.state) {
     case "active":
@@ -33,11 +42,7 @@ export function getAgentSessionStatus(session: SessionPayload): AgentSessionStat
     case "stopping":
       return STOPPING_STATUS;
     case "stopped":
-      if (
-        session.failure ||
-        session.stop_reason === "agent_crashed" ||
-        session.stop_reason === "error"
-      ) {
+      if (isAgentSessionFailure(session)) {
         return FAILED_STATUS;
       }
       return DONE_STATUS;

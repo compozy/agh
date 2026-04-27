@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { sessionFixtures } from "@/systems/session/mocks";
@@ -10,10 +11,24 @@ const codexSessions: SessionPayload[] = sessionFixtures.filter(
   session => session.agent_name === "codex-agent"
 );
 
+const fallbackCodexSession: SessionPayload = {
+  id: "sess-storybook-base",
+  name: "Storybook rollout",
+  agent_name: "codex-agent",
+  provider: "codex",
+  workspace_id: "ws_storybook",
+  workspace_path: "/workspaces/agh2",
+  state: "active",
+  created_at: "2026-04-17T16:00:00Z",
+  updated_at: "2026-04-17T18:10:00Z",
+};
+
+const failureBaseSession = codexSessions[0] ?? fallbackCodexSession;
+
 const codexSessionsWithFailure: SessionPayload[] = [
   ...codexSessions,
   {
-    ...codexSessions[0],
+    ...failureBaseSession,
     id: "sess-storybook-failed",
     name: "Failed verification",
     state: "stopped",
@@ -50,7 +65,11 @@ const meta: Meta<typeof AgentSessionsList> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function Frame({ children }: { children: React.ReactNode }) {
+interface FrameProps {
+  children: ReactNode;
+}
+
+function Frame({ children }: FrameProps) {
   return (
     <PanelSurface>
       <div className="flex w-full flex-col gap-4 px-6 py-5">{children}</div>
@@ -62,6 +81,7 @@ function Frame({ children }: { children: React.ReactNode }) {
  * Default — table of sessions sorted by last activity with status chips and metadata.
  */
 export const Default: Story = {
+  args: {},
   render: args => (
     <Frame>
       <AgentSessionsList {...args} />

@@ -27,6 +27,20 @@ const codexSessions: SessionPayload[] = sessionFixtures.filter(
   session => session.agent_name === "codex-agent"
 );
 
+const fallbackCodexSession: SessionPayload = {
+  id: "sess-storybook-base",
+  name: "Storybook rollout",
+  agent_name: "codex-agent",
+  provider: "codex",
+  workspace_id: "ws_storybook",
+  workspace_path: "/workspaces/agh2",
+  state: "active",
+  created_at: "2026-04-17T16:00:00Z",
+  updated_at: "2026-04-17T18:10:00Z",
+};
+
+const failureBaseSession = codexSessions[0] ?? fallbackCodexSession;
+
 const codexAgentRoute = "/agents/codex-agent";
 const claudeAgentRoute = "/agents/claude-agent";
 const missingAgentRoute = "/agents/ghost-agent";
@@ -82,6 +96,11 @@ export const SessionsLoading: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-sessions-loading")).resolves.toBeDefined();
+  },
 };
 
 /**
@@ -101,6 +120,11 @@ export const AgentLoading: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-detail-loading")).resolves.toBeDefined();
+  },
 };
 
 /**
@@ -140,7 +164,7 @@ export const WithFailedSession: Story = {
             sessions: [
               ...codexSessions,
               {
-                ...codexSessions[0],
+                ...failureBaseSession,
                 id: "sess-storybook-failed",
                 name: "Failed verification",
                 state: "stopped" as const,

@@ -58,6 +58,8 @@ export function AgentSessionsList({
     );
   }
 
+  const now = Date.now();
+
   return (
     <div className="overflow-x-auto" data-testid="agent-sessions-table-wrapper">
       <Table data-testid="agent-sessions-table">
@@ -72,7 +74,7 @@ export function AgentSessionsList({
         </TableHeader>
         <TableBody>
           {sessions.map(session => (
-            <AgentSessionRow key={session.id} agentName={agentName} session={session} />
+            <AgentSessionRow key={session.id} agentName={agentName} session={session} now={now} />
           ))}
         </TableBody>
       </Table>
@@ -83,9 +85,10 @@ export function AgentSessionsList({
 interface AgentSessionRowProps {
   agentName: string;
   session: SessionPayload;
+  now: number;
 }
 
-function AgentSessionRow({ agentName, session }: AgentSessionRowProps) {
+function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
   const status = getAgentSessionStatus(session);
   const title = session.name?.trim() || session.id.slice(0, 12);
   return (
@@ -118,7 +121,7 @@ function AgentSessionRow({ agentName, session }: AgentSessionRowProps) {
         {formatIterations(session.activity?.iteration_current, session.activity?.iteration_max)}
       </TableCell>
       <TableCell className="text-right font-mono text-[12px] text-[color:var(--color-text-secondary)]">
-        {formatRelativeTime(session.activity?.last_activity_at ?? session.updated_at)}
+        {formatRelativeTime(session.activity?.last_activity_at ?? session.updated_at, now)}
       </TableCell>
     </TableRow>
   );
@@ -159,11 +162,11 @@ function formatIterations(current: number | undefined, max: number | undefined):
   return `${current}`;
 }
 
-function formatRelativeTime(value: string | null | undefined): string {
+function formatRelativeTime(value: string | null | undefined, now: number): string {
   if (!value) return "—";
   const ts = new Date(value).getTime();
   if (!Number.isFinite(ts)) return "—";
-  const diffMs = Date.now() - ts;
+  const diffMs = now - ts;
   if (diffMs < 0) return "just now";
   const seconds = Math.floor(diffMs / 1000);
   if (seconds < 45) return "just now";
