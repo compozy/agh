@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui/utils";
+import { cn } from "../lib/utils";
 
 export interface ClaudeLogoProps extends React.SVGProps<SVGSVGElement> {}
 

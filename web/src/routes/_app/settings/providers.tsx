@@ -1,24 +1,7 @@
 import { AlertCircle, Check, Database, KeyRound, Loader2, Plus, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  Button,
-  Empty,
-  Input,
-  MonoBadge,
-  Pill,
-  StatusDot,
-  type StatusDotTone,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@agh/ui";
+import { Alert, AlertAction, AlertDescription, Button, Empty, Input } from "@agh/ui";
 
 import {
   useSettingsProvidersPage,
@@ -28,6 +11,7 @@ import {
 } from "@/hooks/routes/use-settings-providers-page";
 import type { SettingsProviderEntry } from "@/systems/settings";
 import {
+  ProvidersGrid,
   SettingsCollectionHeader,
   SettingsDeleteDialog,
   SettingsEditorDialog,
@@ -132,7 +116,7 @@ function ProvidersSettingsPage() {
           data-testid="settings-page-providers-empty"
         />
       ) : (
-        <ProvidersTable
+        <ProvidersGrid
           providers={page.providers}
           onEdit={page.openEdit}
           onDelete={page.openDelete}
@@ -160,174 +144,6 @@ function ProvidersSettingsPage() {
       />
     </SettingsPageShell>
   );
-}
-
-function ProvidersTable({
-  providers,
-  onEdit,
-  onDelete,
-}: {
-  providers: SettingsProviderEntry[];
-  onEdit: (entry: SettingsProviderEntry) => void;
-  onDelete: (entry: SettingsProviderEntry) => void;
-}) {
-  return (
-    <div
-      className="overflow-hidden rounded-lg border border-[color:var(--color-divider)]"
-      data-testid="settings-page-providers-list"
-    >
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-[color:var(--color-surface-elevated)]">
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-              Provider
-            </TableHead>
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-              Command
-            </TableHead>
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-              Default model
-            </TableHead>
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-              API key env
-            </TableHead>
-            <TableHead className="text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-              Source
-            </TableHead>
-            <TableHead className="w-[1%] text-right text-[0.6rem] uppercase tracking-[0.18em] text-[color:var(--color-text-label)]">
-              Actions
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {providers.map(provider => (
-            <ProviderRow
-              key={provider.name}
-              provider={provider}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-function ProviderRow({
-  provider,
-  onEdit,
-  onDelete,
-}: {
-  provider: SettingsProviderEntry;
-  onEdit: (entry: SettingsProviderEntry) => void;
-  onDelete: (entry: SettingsProviderEntry) => void;
-}) {
-  const source = provider.source_metadata.effective_source;
-  const shadowed = provider.source_metadata.shadowed_sources ?? [];
-  const deletable = source.kind !== "builtin-provider";
-  const tone = providerStateTone(provider);
-
-  return (
-    <TableRow data-testid={`settings-page-providers-row-${provider.name}`}>
-      <TableCell>
-        <div className="flex items-center gap-2.5">
-          <StatusDot
-            tone={tone.tone}
-            size="md"
-            data-testid={`settings-page-providers-row-${provider.name}-status`}
-            data-tone={tone.label}
-          />
-          <span className="font-mono text-sm text-[color:var(--color-text-primary)]">
-            {provider.name}
-          </span>
-          {provider.default ? <Pill variant="accent">DEFAULT</Pill> : null}
-        </div>
-      </TableCell>
-      <TableCell
-        className="font-mono text-xs text-[color:var(--color-text-secondary)]"
-        data-testid={`settings-page-providers-row-${provider.name}-command`}
-      >
-        {provider.settings.command ?? <EmptyCell />}
-      </TableCell>
-      <TableCell
-        className="font-mono text-xs text-[color:var(--color-text-secondary)]"
-        data-testid={`settings-page-providers-row-${provider.name}-model`}
-      >
-        {provider.settings.default_model ?? <EmptyCell />}
-      </TableCell>
-      <TableCell className="font-mono text-xs">
-        <div className="flex items-center gap-2">
-          <span
-            className="text-[color:var(--color-text-secondary)]"
-            data-testid={`settings-page-providers-row-${provider.name}-api-key`}
-          >
-            {provider.settings.api_key_env ?? <EmptyCell />}
-          </span>
-          {provider.settings.api_key_env ? (
-            <MonoBadge
-              tone={provider.api_key_env_present ? "success" : "warning"}
-              data-testid={`settings-page-providers-row-${provider.name}-api-key-state`}
-            >
-              {provider.api_key_env_present ? "SET" : "MISSING"}
-            </MonoBadge>
-          ) : null}
-        </div>
-      </TableCell>
-      <TableCell>
-        <SettingsSourceBadge
-          data-testid={`settings-page-providers-row-${provider.name}-source`}
-          source={source}
-          shadowed={shadowed}
-        />
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onEdit(provider)}
-            data-testid={`settings-page-providers-row-${provider.name}-edit`}
-          >
-            Edit
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onDelete(provider)}
-            disabled={!deletable}
-            data-testid={`settings-page-providers-row-${provider.name}-delete`}
-            title={
-              deletable
-                ? undefined
-                : "Builtin providers cannot be deleted — edit the overlay to override them."
-            }
-          >
-            Delete
-          </Button>
-        </div>
-      </TableCell>
-    </TableRow>
-  );
-}
-
-function EmptyCell() {
-  return <span className="text-[color:var(--color-text-label)]">—</span>;
-}
-
-function providerStateTone(provider: SettingsProviderEntry): {
-  tone: StatusDotTone;
-  label: string;
-} {
-  if (!provider.command_available) {
-    return { tone: "warning", label: "binary-missing" };
-  }
-  if (!provider.api_key_env_present && provider.settings.api_key_env) {
-    return { tone: "warning", label: "unconfigured" };
-  }
-  return { tone: "success", label: "installed" };
 }
 
 interface ProviderEditorProps {

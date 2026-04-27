@@ -1,8 +1,8 @@
 "use client";
 
-import { GithubLogo } from "@/components/logos";
 import { baseOptions } from "@/lib/layout.shared";
 import { Logo, buttonVariants, cn } from "@agh/ui";
+import { GithubLogo } from "@agh/ui/logos";
 import { useHomeLayout } from "fumadocs-ui/layouts/home";
 import Link from "next/link";
 import { usePathname } from "next/navigation";

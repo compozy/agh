@@ -1,4 +1,4 @@
-import { cn } from "@agh/ui/utils";
+import { cn } from "../lib/utils";
 
 export interface OpenCodeLogoProps extends React.SVGProps<SVGSVGElement> {}
 

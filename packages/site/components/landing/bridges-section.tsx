@@ -9,7 +9,7 @@ import {
   SlackLogo,
   TelegramLogo,
   WhatsAppLogo,
-} from "../logos";
+} from "@agh/ui/logos";
 import { MonoBadge } from "./primitives/mono-badge";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";

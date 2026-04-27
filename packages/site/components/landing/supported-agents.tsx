@@ -10,7 +10,7 @@ import {
   OpenAILogo,
   OpenCodeLogo,
   PiLogo,
-} from "../logos";
+} from "@agh/ui/logos";
 import { SectionFrame } from "./primitives/section-frame";
 
 type Provider = { id: string; name: string; logo: ReactNode };

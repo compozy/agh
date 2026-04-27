@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { cn } from "@agh/ui/utils";
+import { cn } from "../lib/utils";
 
 export interface GeminiLogoProps extends React.SVGProps<SVGSVGElement> {}
 

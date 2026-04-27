@@ -670,7 +670,7 @@ Every icon comes from `lucide-react`. Standard set used: `Check`, `Minus`, `Arro
 
 ### Logos
 
-- **Partner / agent logos** (Claude, OpenAI, Gemini, GitHub, Cursor, OpenCode, Kiro, Pi, Slack, Telegram, Discord, Linear, Microsoft Teams, WhatsApp, Google Chat) live in `packages/site/components/logos/*.tsx` as custom SVGs. **Do not regenerate from scratch.**
+- **Partner / agent logos** (Claude, OpenAI, Gemini, GitHub, Cursor, OpenCode, Kiro, Pi, Slack, Telegram, Discord, Linear, Microsoft Teams, WhatsApp, Google Chat) live in `packages/ui/src/logos/*.tsx` as custom SVGs and are imported via the `@agh/ui/logos` subpath. **Do not regenerate from scratch.**
 - **Brand wordmark:** NuixyberNext `agh` + adjacent `ALPHA` chip. Only place NuixyberNext appears.
 
 ### Glyph Rules

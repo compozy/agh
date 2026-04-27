@@ -313,11 +313,14 @@ export interface SettingsSkillsSelectors {
 export interface SettingsProvidersSelectors {
   actionResult: Locator;
   actionResultDismiss: Locator;
+  card(name: string): Locator;
+  cardCommand(name: string): Locator;
+  cardSource(name: string): Locator;
   create: Locator;
+  deleteCard(name: string): Locator;
   deleteConfirm: Locator;
   deleteDialog: Locator;
-  deleteRow(name: string): Locator;
-  editRow(name: string): Locator;
+  editCard(name: string): Locator;
   editor: Locator;
   editorCommandInput: Locator;
   editorModelInput: Locator;
@@ -326,9 +329,6 @@ export interface SettingsProvidersSelectors {
   list: Locator;
   page: Locator;
   restartBanner: Locator;
-  row(name: string): Locator;
-  rowCommand(name: string): Locator;
-  rowSource(name: string): Locator;
 }
 
 export interface SettingsMCPServersSelectors {
@@ -651,11 +651,12 @@ export function settingsOperatorSelectors(
       deleteDialog: page.getByTestId(settingsProvidersTestIds.deleteDialog),
       deleteConfirm: page.getByTestId(settingsProvidersTestIds.deleteConfirm),
       restartBanner: page.getByTestId(settingsProvidersTestIds.restartBanner),
-      row: (name: string) => page.getByTestId(`settings-page-providers-row-${name}`),
-      rowCommand: (name: string) => page.getByTestId(`settings-page-providers-row-${name}-command`),
-      rowSource: (name: string) => page.getByTestId(`settings-page-providers-row-${name}-source`),
-      editRow: (name: string) => page.getByTestId(`settings-page-providers-row-${name}-edit`),
-      deleteRow: (name: string) => page.getByTestId(`settings-page-providers-row-${name}-delete`),
+      card: (name: string) => page.getByTestId(`settings-page-providers-card-${name}`),
+      cardCommand: (name: string) =>
+        page.getByTestId(`settings-page-providers-card-${name}-command`),
+      cardSource: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-source`),
+      editCard: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-edit`),
+      deleteCard: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-delete`),
     },
     mcpServers: {
       page: page.getByTestId(settingsMCPServersTestIds.page),

@@ -85,10 +85,10 @@ function TaskDetailRoute() {
   ];
 
   const handleDeleteTask = async (taskId: string) => {
+    void navigate({ to: "/tasks", replace: true });
     try {
       await deleteMutation.mutateAsync({ id: taskId });
       toast.success("Task deleted.");
-      void navigate({ to: "/tasks" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete task");
     }

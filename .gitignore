@@ -12,6 +12,8 @@ storybook-static/
 coverage.out
 coverage.html
 .codex/ledger/*-MEMORY-*
+.codex/hooks/
+.codex/loops/
 .codex/CONTINUITY*
 .resources/
 .old_project/

@@ -193,38 +193,38 @@ describe("ProvidersSettingsPage", () => {
     expect(pageState.openCreate).toHaveBeenCalled();
   });
 
-  it("renders each provider row with settings, source metadata, and state tone", () => {
+  it("renders each provider card with settings, source metadata, and state tone", () => {
     render(<ProvidersSettingsPage />);
-    expect(screen.getByTestId("settings-page-providers-row-claude")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-providers-row-claude-command")).toHaveTextContent(
+    expect(screen.getByTestId("settings-page-providers-card-claude")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-providers-card-claude-command")).toHaveTextContent(
       "npx claude"
     );
     expect(
-      screen.getByTestId("settings-page-providers-row-claude-api-key-state")
+      screen.getByTestId("settings-page-providers-card-claude-api-key-state")
     ).toHaveTextContent("SET");
     expect(
-      screen.getByTestId("settings-page-providers-row-claude-source-effective")
+      screen.getByTestId("settings-page-providers-card-claude-source-effective")
     ).toHaveTextContent("CONFIG");
     expect(
-      screen.getByTestId("settings-page-providers-row-codex-source-effective")
+      screen.getByTestId("settings-page-providers-card-codex-source-effective")
     ).toHaveTextContent("BUILTIN");
-    expect(screen.getByTestId("settings-page-providers-row-codex-api-key-state")).toHaveTextContent(
-      "MISSING"
-    );
+    expect(
+      screen.getByTestId("settings-page-providers-card-codex-api-key-state")
+    ).toHaveTextContent("MISSING");
   });
 
   it("disables delete for builtin-only providers", () => {
     render(<ProvidersSettingsPage />);
-    expect(screen.getByTestId("settings-page-providers-row-codex-delete")).toBeDisabled();
-    expect(screen.getByTestId("settings-page-providers-row-claude-delete")).not.toBeDisabled();
+    expect(screen.getByTestId("settings-page-providers-card-codex-delete")).toBeDisabled();
+    expect(screen.getByTestId("settings-page-providers-card-claude-delete")).not.toBeDisabled();
   });
 
-  it("invokes the edit and delete handlers from row controls", () => {
+  it("invokes the edit and delete handlers from card controls", () => {
     render(<ProvidersSettingsPage />);
-    fireEvent.click(screen.getByTestId("settings-page-providers-row-claude-edit"));
+    fireEvent.click(screen.getByTestId("settings-page-providers-card-claude-edit"));
     expect(pageState.openEdit).toHaveBeenCalledWith(claudeEntry);
 
-    fireEvent.click(screen.getByTestId("settings-page-providers-row-claude-delete"));
+    fireEvent.click(screen.getByTestId("settings-page-providers-card-claude-delete"));
     expect(pageState.openDelete).toHaveBeenCalledWith(claudeEntry);
   });
 

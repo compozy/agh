@@ -405,7 +405,7 @@ function InspectorBody({
         </TabsList>
         <ScrollArea className="flex-1 min-h-0">
           <div
-            className="flex flex-col gap-4 px-4 py-4"
+            className="flex min-h-full flex-col gap-4 px-4 py-4"
             data-testid="session-inspector-top-panel"
             data-active-tab={topTab}
           >
@@ -450,7 +450,7 @@ function InspectorBody({
         </TabsList>
         <ScrollArea className="flex-1 min-h-0">
           <div
-            className="flex flex-col gap-4 px-4 py-4"
+            className="flex min-h-full flex-col gap-4 px-4 py-4"
             data-testid="session-inspector-bottom-panel"
             data-active-tab={bottomTab}
           >
@@ -521,14 +521,13 @@ interface TraceSectionProps {
 function TraceSection({ events, total, limit, onViewAll }: TraceSectionProps) {
   const hasOverflow = total > limit;
   return (
-    <div data-testid="session-inspector-trace">
+    <div data-testid="session-inspector-trace" className="flex min-h-full flex-col">
       {events.length === 0 ? (
         <Empty
           icon={Activity}
           title="No trace events yet"
           description="Trace rows appear as the agent sends prompts, runs tools, and receives responses."
           data-testid="session-inspector-trace-empty"
-          fill={false}
         />
       ) : (
         <ol data-testid="session-inspector-trace-list" className="flex flex-col gap-3">
@@ -611,7 +610,7 @@ function UsageSection({ usage }: UsageSectionProps) {
       usage.ratePerSecond !== undefined);
 
   return (
-    <div data-testid="session-inspector-usage">
+    <div data-testid="session-inspector-usage" className="flex min-h-full flex-col">
       {hasUsage ? (
         <div data-testid="session-inspector-usage-grid" className="grid grid-cols-2 gap-2">
           <Metric
@@ -655,7 +654,6 @@ function UsageSection({ usage }: UsageSectionProps) {
           title="No usage yet"
           description="Token counts and cost land here once the agent completes its first turn."
           data-testid="session-inspector-usage-empty"
-          fill={false}
         />
       )}
     </div>
@@ -668,14 +666,13 @@ interface MemorySectionProps {
 
 function MemorySection({ docs }: MemorySectionProps) {
   return (
-    <div data-testid="session-inspector-memory">
+    <div data-testid="session-inspector-memory" className="flex min-h-full flex-col">
       {docs.length === 0 ? (
         <Empty
           icon={Library}
           title="No memory loaded"
           description="Workspace and repository memory docs appear here when they're attached to the session."
           data-testid="session-inspector-memory-empty"
-          fill={false}
         />
       ) : (
         <ul
@@ -717,14 +714,13 @@ interface FilesSectionProps {
 
 function FilesSection({ files }: FilesSectionProps) {
   return (
-    <div data-testid="session-inspector-files">
+    <div data-testid="session-inspector-files" className="flex min-h-full flex-col">
       {files.length === 0 ? (
         <Empty
           icon={FileCode}
           title="No files read"
           description="Files the agent reads during this session appear here."
           data-testid="session-inspector-files-empty"
-          fill={false}
         />
       ) : (
         <ScrollArea

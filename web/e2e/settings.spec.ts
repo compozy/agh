@@ -177,9 +177,9 @@ test("operator can replace a builtin provider with a config overlay and delete i
 
   await expect(settingsUI.providers.page).toBeVisible();
   await expect(settingsUI.providers.list).toBeVisible();
-  await expect(settingsUI.providers.row(builtinProviderName)).toBeVisible();
+  await expect(settingsUI.providers.card(builtinProviderName)).toBeVisible();
 
-  await settingsUI.providers.editRow(builtinProviderName).click();
+  await settingsUI.providers.editCard(builtinProviderName).click();
   await expect(settingsUI.providers.editor).toBeVisible();
   await settingsUI.providers.editorCommandInput.fill(
     browserSettingsOperatorFlowScenario.providers.overlayCommand
@@ -194,12 +194,12 @@ test("operator can replace a builtin provider with a config overlay and delete i
     `Saved provider "${builtinProviderName}"`
   );
   await expect(settingsUI.providers.actionResult).toContainText("restart required");
-  await expect(settingsUI.providers.rowCommand(builtinProviderName)).toContainText(
+  await expect(settingsUI.providers.cardCommand(builtinProviderName)).toContainText(
     browserSettingsOperatorFlowScenario.providers.overlayCommand
   );
-  await expect(settingsUI.providers.rowSource(builtinProviderName)).toContainText(/config/i);
+  await expect(settingsUI.providers.cardSource(builtinProviderName)).toContainText(/config/i);
 
-  await settingsUI.providers.deleteRow(builtinProviderName).click();
+  await settingsUI.providers.deleteCard(builtinProviderName).click();
   await expect(settingsUI.providers.deleteDialog).toBeVisible();
   await settingsUI.providers.deleteConfirm.click();
 
@@ -207,8 +207,8 @@ test("operator can replace a builtin provider with a config overlay and delete i
     `Deleted overlay for "${builtinProviderName}"`
   );
   await expect(settingsUI.providers.actionResult).toContainText("builtin fallback now effective");
-  await expect(settingsUI.providers.row(builtinProviderName)).toBeVisible();
-  await expect(settingsUI.providers.rowSource(builtinProviderName)).toContainText(/builtin/i);
+  await expect(settingsUI.providers.card(builtinProviderName)).toBeVisible();
+  await expect(settingsUI.providers.cardSource(builtinProviderName)).toContainText(/builtin/i);
   await browserArtifacts.captureScreenshot(
     "tc-func-008-providers-crud-and-builtin-fallback",
     appPage
