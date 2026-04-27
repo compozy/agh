@@ -65,7 +65,7 @@ export function AgentSessionsList({
       <Table data-testid="agent-sessions-table">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[42%]">Session</TableHead>
+            <TableHead className="w-2/5">Session</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Duration</TableHead>
             <TableHead className="text-right">Iterations</TableHead>
@@ -98,13 +98,13 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
           to="/agents/$name/sessions/$id"
           params={{ name: agentName, id: session.id }}
           className={cn(
-            "flex flex-col gap-0.5 text-[13px] text-[color:var(--color-text-primary)]",
+            "text-item-title flex flex-col gap-0.5 text-[color:var(--color-text-primary)]",
             "transition-colors hover:text-[color:var(--color-accent)]"
           )}
           data-testid={`agent-session-link-${session.id}`}
         >
           <span className="truncate font-medium">{title}</span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+          <span className="text-badge font-mono uppercase tracking-mono text-[color:var(--color-text-tertiary)]">
             {session.provider}
           </span>
         </Link>
@@ -114,13 +114,13 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
           {status.label}
         </MonoBadge>
       </TableCell>
-      <TableCell className="text-right font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+      <TableCell className="text-small-body text-right font-mono text-[color:var(--color-text-secondary)]">
         {formatDuration(session.activity?.elapsed_seconds)}
       </TableCell>
-      <TableCell className="text-right font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+      <TableCell className="text-small-body text-right font-mono text-[color:var(--color-text-secondary)]">
         {formatIterations(session.activity?.iteration_current, session.activity?.iteration_max)}
       </TableCell>
-      <TableCell className="text-right font-mono text-[12px] text-[color:var(--color-text-secondary)]">
+      <TableCell className="text-small-body text-right font-mono text-[color:var(--color-text-secondary)]">
         {formatRelativeTime(session.activity?.last_activity_at ?? session.updated_at, now)}
       </TableCell>
     </TableRow>
@@ -143,7 +143,7 @@ function AgentSessionsSkeleton() {
 }
 
 function formatDuration(seconds: number | undefined | null): string {
-  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) return "—";
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return "—";
   const total = Math.round(seconds);
   if (total < 60) return `${total}s`;
   const minutes = Math.floor(total / 60);

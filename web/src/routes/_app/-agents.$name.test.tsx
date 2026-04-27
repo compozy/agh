@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UseAgentDetailPageResult } from "@/hooks/routes/use-agent-detail-page";
-import { primaryAgentFixture } from "@/systems/agent/mocks";
-import { primarySessionFixture } from "@/systems/session/mocks";
+import { primaryAgentFixture } from "@/systems/agent/testing";
+import { primarySessionFixture } from "@/systems/session/testing";
 
 let childMatches: Array<{ id: string }> = [];
 const mockUseAgentDetailPage = vi.fn();

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SessionPayload } from "@/systems/session/types";
+import type { SessionPayload } from "@/systems/session";
 
 const {
   mockNavigate,
@@ -167,6 +167,22 @@ describe("Nested agent session route — resume failure UX", () => {
   it("renders the effective provider badge in the chat header", () => {
     render(<SessionPage />);
     expect(screen.getByTestId("session-provider-badge")).toHaveTextContent("codex");
+  });
+
+  it("replaces history when a missing session redirects to the agent page", () => {
+    mockUseSession.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error("Session not found: sess_123"),
+    });
+
+    render(<SessionPage />);
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/agents/$name",
+      params: { name: "claude-agent" },
+      replace: true,
+    });
   });
 
   it("navigates to the resolved session agent after delete succeeds", () => {

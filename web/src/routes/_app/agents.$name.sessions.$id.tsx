@@ -99,7 +99,7 @@ function SessionPage() {
   useEffect(() => {
     if (error?.message?.includes("not found")) {
       toast.error("Session not found");
-      void navigate({ to: "/agents/$name", params: { name } });
+      void navigate({ to: "/agents/$name", params: { name }, replace: true });
     }
   }, [error, navigate, name]);
 

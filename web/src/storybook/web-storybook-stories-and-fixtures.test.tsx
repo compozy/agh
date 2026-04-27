@@ -16,6 +16,7 @@ describe("storybook story and fixture regressions", () => {
   const fromWeb = (path: string) => resolve(webRoot, path);
 
   it("loads the edited story modules", { timeout: 15_000 }, async () => {
+    const agentStoryModules = import("@/systems/agent/storybook");
     const modules = await Promise.all([
       import("@/systems/knowledge/components/stories/knowledge-detail-panel.stories"),
       import("@/systems/knowledge/components/stories/knowledge-list-panel.stories"),
@@ -27,9 +28,9 @@ describe("storybook story and fixture regressions", () => {
       import("@/systems/session/components/tool-renderers/stories/read-content.stories"),
       import("@/systems/session/components/tool-renderers/stories/search-content.stories"),
       import("@/routes/_app/stories/-agents.$name.stories"),
-      import("@/systems/agent/components/stories/agent-info-panel.stories"),
-      import("@/systems/agent/components/stories/agent-sessions-list.stories"),
-      import("@/systems/agent/components/stories/agent-stats-grid.stories"),
+      agentStoryModules.then(module => module.agentInfoPanelStories),
+      agentStoryModules.then(module => module.agentSessionsListStories),
+      agentStoryModules.then(module => module.agentStatsGridStories),
     ]);
 
     expect(modules).toHaveLength(13);

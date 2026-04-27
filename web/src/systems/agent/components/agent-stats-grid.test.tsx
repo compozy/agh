@@ -1,8 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { primarySessionFixture } from "@/systems/session/mocks";
-import type { SessionPayload } from "@/systems/session/types";
+import type { SessionPayload } from "@/systems/session";
+import { primarySessionFixture } from "@/systems/session/testing";
 import { AgentStatsGrid } from "./agent-stats-grid";
 
 function makeSession(overrides: Partial<SessionPayload>): SessionPayload {

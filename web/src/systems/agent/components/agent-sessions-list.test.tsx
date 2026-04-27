@@ -2,8 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { primarySessionFixture } from "@/systems/session/mocks";
-import type { SessionPayload } from "@/systems/session/types";
+import type { SessionPayload } from "@/systems/session";
+import { primarySessionFixture } from "@/systems/session/testing";
 import { AgentSessionsList } from "./agent-sessions-list";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -84,5 +84,33 @@ describe("AgentSessionsList", () => {
       within(screen.getByTestId("agent-session-row-sess_two")).getByText("just now")
     ).toBeInTheDocument();
     expect(Date.now).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders zero elapsed duration as zero seconds", () => {
+    const sessions = [
+      makeSession({
+        id: "sess_zero_duration",
+        activity: {
+          elapsed_seconds: 0,
+          idle_seconds: 0,
+          iteration_current: 0,
+          iteration_max: 4,
+          last_activity_at: "2026-04-17T18:10:30Z",
+        },
+      }),
+    ];
+
+    render(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={sessions}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    expect(
+      within(screen.getByTestId("agent-session-row-sess_zero_duration")).getByText("0s")
+    ).toBeInTheDocument();
   });
 });
