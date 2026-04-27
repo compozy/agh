@@ -147,6 +147,12 @@ func (r *Resolver) createWorkspaceRegistration(ctx context.Context, opts Registe
 		return Workspace{}, err
 	}
 
+	if _, err := r.lookupWorkspaceBySameRoot(ctx, rootDir); err == nil {
+		return Workspace{}, fmt.Errorf("workspace: register workspace %q: %w", rootDir, ErrWorkspacePathTaken)
+	} else if !errors.Is(err, ErrWorkspaceNotFound) {
+		return Workspace{}, err
+	}
+
 	name := strings.TrimSpace(opts.Name)
 	if name == "" {
 		name, err = r.nextWorkspaceName(ctx, rootDir)
@@ -235,8 +241,18 @@ func (r *Resolver) lookupWorkspace(ctx context.Context, idOrNameOrPath string) (
 			return Workspace{}, err
 		}
 		ws, err := r.store.GetWorkspaceByPath(ctx, canonicalPath)
-		if err != nil {
+		if err == nil {
+			return ws, nil
+		}
+		if !errors.Is(err, ErrWorkspaceNotFound) {
 			return Workspace{}, fmt.Errorf("workspace: lookup workspace by path %q: %w", canonicalPath, err)
+		}
+		ws, err = r.lookupWorkspaceBySameRoot(ctx, canonicalPath)
+		if err != nil {
+			if errors.Is(err, ErrWorkspaceNotFound) {
+				return Workspace{}, fmt.Errorf("workspace: lookup workspace by path %q: %w", canonicalPath, err)
+			}
+			return Workspace{}, err
 		}
 		return ws, nil
 	default:
@@ -246,6 +262,35 @@ func (r *Resolver) lookupWorkspace(ctx context.Context, idOrNameOrPath string) (
 		}
 		return ws, nil
 	}
+}
+
+func (r *Resolver) lookupWorkspaceBySameRoot(ctx context.Context, canonicalPath string) (Workspace, error) {
+	targetInfo, err := os.Stat(canonicalPath)
+	if err != nil {
+		return Workspace{}, fmt.Errorf("workspace: stat workspace root %q: %w", canonicalPath, err)
+	}
+
+	workspaces, err := r.store.ListWorkspaces(ctx)
+	if err != nil {
+		return Workspace{}, fmt.Errorf("workspace: list workspaces for root match: %w", err)
+	}
+	for _, ws := range workspaces {
+		rootDir := strings.TrimSpace(ws.RootDir)
+		if rootDir == "" {
+			continue
+		}
+		candidateInfo, err := os.Stat(rootDir)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return Workspace{}, fmt.Errorf("workspace: stat registered workspace root %q: %w", rootDir, err)
+		}
+		if os.SameFile(targetInfo, candidateInfo) {
+			return cloneWorkspace(ws), nil
+		}
+	}
+	return Workspace{}, ErrWorkspaceNotFound
 }
 
 func (r *Resolver) refreshRootDir(ctx context.Context, ws Workspace) (Workspace, error) {

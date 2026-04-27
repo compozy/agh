@@ -3619,6 +3619,112 @@ func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
 	}
 }
 
+func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should stop completed run session", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{}
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(executor),
+			WithCancelGracePeriod(0),
+		)
+		actor := validActorContext()
+		runningRun := createRunningRunForTest(t, manager, actor)
+
+		if _, err := manager.CompleteRun(context.Background(), runningRun.ID, RunResult{
+			Value: json.RawMessage(`{"ok":true}`),
+		}, actor); err != nil {
+			t.Fatalf("CompleteRun() error = %v", err)
+		}
+
+		assertSessionStopCalls(t, executor, runningRun.SessionID, StopReasonCompleted)
+	})
+
+	t.Run("Should stop failed run session", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{}
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(executor),
+			WithCancelGracePeriod(0),
+		)
+		actor := validActorContext()
+		runningRun := createRunningRunForTest(t, manager, actor)
+
+		if _, err := manager.FailRun(context.Background(), runningRun.ID, RunFailure{
+			Error: "release validation failed",
+		}, actor); err != nil {
+			t.Fatalf("FailRun() error = %v", err)
+		}
+
+		assertSessionStopCalls(t, executor, runningRun.SessionID, StopReasonFailed)
+	})
+}
+
+func createRunningRunForTest(t *testing.T, manager *Service, actor ActorContext) *Run {
+	t.Helper()
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Terminal session cleanup",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	queuedRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	claimedRun, err := manager.ClaimRun(context.Background(), queuedRun.ID, ClaimRun{}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+	runningRun, err := manager.StartRun(context.Background(), claimedRun.ID, StartRun{}, actor)
+	if err != nil {
+		t.Fatalf("StartRun() error = %v", err)
+	}
+	if strings.TrimSpace(runningRun.SessionID) == "" {
+		t.Fatal("StartRun().SessionID is empty")
+	}
+	return runningRun
+}
+
+func assertSessionStopCalls(
+	t *testing.T,
+	executor *recordingSessionExecutor,
+	sessionID string,
+	reason StopReason,
+) {
+	t.Helper()
+
+	if len(executor.requestStopCalls) != 1 {
+		t.Fatalf("len(requestStopCalls) = %d, want 1", len(executor.requestStopCalls))
+	}
+	if got, want := executor.requestStopCalls[0].SessionID, sessionID; got != want {
+		t.Fatalf("requestStopCalls[0].SessionID = %q, want %q", got, want)
+	}
+	if got, want := executor.requestStopCalls[0].Reason, reason; got != want {
+		t.Fatalf("requestStopCalls[0].Reason = %q, want %q", got, want)
+	}
+	if len(executor.forceStopCalls) != 1 {
+		t.Fatalf("len(forceStopCalls) = %d, want 1", len(executor.forceStopCalls))
+	}
+	if got, want := executor.forceStopCalls[0].SessionID, sessionID; got != want {
+		t.Fatalf("forceStopCalls[0].SessionID = %q, want %q", got, want)
+	}
+	if got, want := executor.forceStopCalls[0].Reason, reason; got != want {
+		t.Fatalf("forceStopCalls[0].Reason = %q, want %q", got, want)
+	}
+}
+
 func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	t.Parallel()
 
@@ -4591,7 +4697,7 @@ func TestManagerHelperCoverage(t *testing.T) {
 		WithCancelGracePeriod(time.Millisecond),
 	)
 
-	if err := manager.waitAndForceStopRun(context.Background(), "sess-helper"); err != nil {
+	if err := manager.waitAndForceStopRun(context.Background(), "sess-helper", StopReasonCancellation); err != nil {
 		t.Fatalf("waitAndForceStopRun() error = %v", err)
 	}
 	if len(executor.forceStopCalls) != 1 {
@@ -4600,7 +4706,7 @@ func TestManagerHelperCoverage(t *testing.T) {
 
 	cancelledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := manager.waitAndForceStopRun(cancelledCtx, "sess-canceled"); err == nil {
+	if err := manager.waitAndForceStopRun(cancelledCtx, "sess-canceled", StopReasonCancellation); err == nil {
 		t.Fatal("waitAndForceStopRun(canceled) error = nil, want non-nil")
 	}
 }

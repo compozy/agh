@@ -285,6 +285,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
 	o.Memory.Apply(&dst.Memory)
+	inheritDreamAgentFromDefaultAgent(dst, o)
 	o.Skills.Apply(&dst.Skills)
 	o.Extensions.Apply(&dst.Extensions)
 	if err := o.Automation.Apply(&dst.Automation); err != nil {
@@ -293,6 +294,20 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Network.Apply(&dst.Network)
 	o.Autonomy.Apply(&dst.Autonomy)
 	return o.Hooks.Apply(&dst.Hooks)
+}
+
+func inheritDreamAgentFromDefaultAgent(dst *Config, overlay *configOverlay) {
+	if dst == nil || overlay == nil || overlay.Defaults.Agent == nil || overlay.Memory.Dream.Agent != nil {
+		return
+	}
+	defaultAgent := strings.TrimSpace(dst.Defaults.Agent)
+	if defaultAgent == "" || defaultAgent == DefaultAgentName {
+		return
+	}
+	currentDreamAgent := strings.TrimSpace(dst.Memory.Dream.Agent)
+	if currentDreamAgent == "" || currentDreamAgent == DefaultAgentName {
+		dst.Memory.Dream.Agent = defaultAgent
+	}
 }
 
 func (o daemonOverlay) Apply(dst *DaemonConfig) {

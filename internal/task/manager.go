@@ -1833,6 +1833,10 @@ func (m *Service) CompleteRun(
 		return nil, err
 	}
 
+	if err := m.stopTerminalRunSession(ctx, run, StopReasonCompleted); err != nil {
+		return nil, err
+	}
+
 	return &run, nil
 }
 
@@ -2956,6 +2960,10 @@ func (m *Service) failRunRecord(
 		return nil, err
 	}
 
+	if err := m.stopTerminalRunSession(ctx, run, StopReasonFailed); err != nil {
+		return nil, err
+	}
+
 	return &run, nil
 }
 
@@ -3019,7 +3027,7 @@ func (m *Service) cancelRunRecord(
 	}
 
 	if activeSession {
-		if err := m.waitAndForceStopRun(ctx, sessionID); err != nil {
+		if err := m.waitAndForceStopRun(ctx, sessionID, StopReasonCancellation); err != nil {
 			return nil, err
 		}
 		if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunForceStopped, actor, forceStoppedRunPayload{
@@ -3034,7 +3042,24 @@ func (m *Service) cancelRunRecord(
 	return &run, nil
 }
 
-func (m *Service) waitAndForceStopRun(ctx context.Context, sessionID string) error {
+func (m *Service) stopTerminalRunSession(ctx context.Context, run Run, reason StopReason) error {
+	sessionID := strings.TrimSpace(run.SessionID)
+	if sessionID == "" {
+		return nil
+	}
+	if err := m.requireSessionExecutor("stop terminal run session"); err != nil {
+		return err
+	}
+	if err := m.sessions.RequestTaskStop(ctx, sessionID, reason); err != nil {
+		return fmt.Errorf("task: request stop for session %q: %w", sessionID, err)
+	}
+	if err := m.waitAndForceStopRun(ctx, sessionID, reason); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Service) waitAndForceStopRun(ctx context.Context, sessionID string, reason StopReason) error {
 	if m.cancelGracePeriod > 0 {
 		timer := time.NewTimer(m.cancelGracePeriod)
 		defer timer.Stop()
@@ -3045,7 +3070,7 @@ func (m *Service) waitAndForceStopRun(ctx context.Context, sessionID string) err
 			return fmt.Errorf("task: wait for force-stop grace period on session %q: %w", sessionID, ctx.Err())
 		}
 	}
-	if err := m.sessions.ForceTaskStop(ctx, sessionID, StopReasonCancellation); err != nil {
+	if err := m.sessions.ForceTaskStop(ctx, sessionID, reason); err != nil {
 		return fmt.Errorf("task: force stop session %q: %w", sessionID, err)
 	}
 	return nil

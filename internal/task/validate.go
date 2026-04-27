@@ -268,7 +268,7 @@ func (r StopReason) Normalize() StopReason {
 // Validate reports whether the stop reason is supported.
 func (r StopReason) Validate(path string) error {
 	switch r.Normalize() {
-	case StopReasonCancellation, StopReasonShutdown, StopReasonOrphanedRun:
+	case StopReasonCompleted, StopReasonFailed, StopReasonCancellation, StopReasonShutdown, StopReasonOrphanedRun:
 		return nil
 	case "":
 		return fmt.Errorf("%w: %s is required", ErrValidation, path)

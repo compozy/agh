@@ -112,6 +112,72 @@ func TestResolveRoutesByIdentifierType(t *testing.T) {
 	}
 }
 
+func TestResolveMatchesWorkspaceBySameFilesystemRoot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve a registered alternate path to the same root", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		alternateRoot := symlinkWorkspaceRootForTest(t, root)
+		ws := Workspace{ID: "ws_same_root", RootDir: alternateRoot, Name: "repo"}
+		store := newMockWorkspaceStore(ws)
+		loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+		resolver := newTestResolver(t, store,
+			WithHomePaths(homePaths),
+			WithConfigLoader(loader.Load),
+		)
+
+		resolved, err := resolver.Resolve(ctx, root)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if got, want := resolved.ID, ws.ID; got != want {
+			t.Fatalf("Resolve() ID = %q, want %q", got, want)
+		}
+		if store.listCalls == 0 {
+			t.Fatal("ListWorkspaces() calls = 0, want same-root fallback")
+		}
+	})
+}
+
+func TestRegisterRejectsSameFilesystemRoot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject an alternate path to an existing root", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		alternateRoot := symlinkWorkspaceRootForTest(t, root)
+		existing := Workspace{ID: "ws_existing", RootDir: alternateRoot, Name: "repo"}
+		store := newMockWorkspaceStore(existing)
+		resolver := newTestResolver(t, store,
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+			WithIDGenerator(func(_ string) string { return "ws_duplicate" }),
+		)
+
+		_, err := resolver.Register(ctx, RegisterOptions{RootDir: root, Name: "repo-duplicate"})
+		if !errors.Is(err, ErrWorkspacePathTaken) {
+			t.Fatalf("Register() error = %v, want %v", err, ErrWorkspacePathTaken)
+		}
+	})
+}
+
+func symlinkWorkspaceRootForTest(t *testing.T, target string) string {
+	t.Helper()
+
+	link := filepath.Join(t.TempDir(), "workspace-link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("create symlink workspace root: %v", err)
+	}
+	return link
+}
+
 func TestResolveWorkspaceEnvironmentCascade(t *testing.T) {
 	t.Parallel()
 

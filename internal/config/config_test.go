@@ -370,6 +370,71 @@ func TestEnvironmentProfileValidationRejectsInvalidBackend(t *testing.T) {
 	}
 }
 
+func TestLoadDreamAgentInheritsCustomizedDefaultAgentWhenUnspecified(t *testing.T) {
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[defaults]
+agent = "operator"
+provider = "codex"
+
+[memory.dream]
+min_hours = 1
+min_sessions = 1
+check_interval = "1m"
+`)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got, want := cfg.Memory.Dream.Agent, "operator"; got != want {
+		t.Fatalf("Load() Memory.Dream.Agent = %q, want %q", got, want)
+	}
+}
+
+func TestLoadDreamAgentPreservesExplicitAgent(t *testing.T) {
+	homeRoot := filepath.Join(t.TempDir(), "home")
+	t.Setenv("AGH_HOME", homeRoot)
+
+	homePaths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[defaults]
+agent = "operator"
+provider = "codex"
+
+[memory.dream]
+agent = "memory-agent"
+min_hours = 1
+min_sessions = 1
+check_interval = "1m"
+`)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got, want := cfg.Memory.Dream.Agent, "memory-agent"; got != want {
+		t.Fatalf("Load() Memory.Dream.Agent = %q, want %q", got, want)
+	}
+}
+
 func TestEnvironmentProfileValidationRejectsInvalidSyncMode(t *testing.T) {
 	t.Parallel()
 

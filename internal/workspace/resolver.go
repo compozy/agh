@@ -177,6 +177,13 @@ func (r *Resolver) ResolveOrRegister(ctx context.Context, path string) (Resolved
 	if !errors.Is(err, ErrWorkspaceNotFound) {
 		return ResolvedWorkspace{}, fmt.Errorf("workspace: lookup workspace by path %q: %w", canonicalRoot, err)
 	}
+	ws, err = r.lookupWorkspaceBySameRoot(ctx, canonicalRoot)
+	if err == nil {
+		return r.Resolve(ctx, ws.ID)
+	}
+	if !errors.Is(err, ErrWorkspaceNotFound) {
+		return ResolvedWorkspace{}, err
+	}
 
 	ws, err = r.createWorkspaceRegistration(ctx, RegisterOptions{RootDir: canonicalRoot})
 	if err != nil {
