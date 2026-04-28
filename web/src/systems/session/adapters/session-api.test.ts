@@ -8,6 +8,8 @@ import {
 } from "@/test/fetch-test-utils";
 
 import {
+  SessionApiError,
+  SessionNotFoundError,
   cancelSessionPrompt,
   clearSessionConversation,
   createSession,
@@ -333,16 +335,30 @@ describe("repairSession", () => {
     const result = await repairSession("sess-001", { dry_run: true, force: true });
 
     expect(result).toEqual(mockRepair);
-    await expectFetchRequest({
-      method: "POST",
-      path: "/api/sessions/sess-001/repair?dry_run=true&force=true",
-    });
+    const request = fetchRequest();
+    const url = new URL(request.url);
+    expect(request.method).toBe("POST");
+    expect(url.pathname).toBe("/api/sessions/sess-001/repair");
+    expect(url.searchParams.get("dry_run")).toBe("true");
+    expect(url.searchParams.get("force")).toBe("true");
   });
 
   it("throws 404 error for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
+    await expect(repairSession("unknown")).rejects.toBeInstanceOf(SessionNotFoundError);
     await expect(repairSession("unknown")).rejects.toThrow("Session not found: unknown");
+  });
+
+  it("throws typed adapter error for non-404 failures", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
+    await expect(repairSession("sess-001")).rejects.toBeInstanceOf(SessionApiError);
+    await expect(repairSession("sess-001")).rejects.toMatchObject({
+      message: 'Failed to repair session "sess-001": 500',
+      status: 500,
+      sessionId: "sess-001",
+    });
   });
 
   it("passes abort signal to fetch", async () => {

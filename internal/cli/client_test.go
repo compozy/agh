@@ -806,11 +806,6 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("ResumeSession() = %#v, %v", resumed, err)
 	}
 
-	repaired, err := client.RepairSession(ctx, "sess-1", SessionRepairQuery{DryRun: true, Force: true})
-	if err != nil || repaired.SessionID != "sess-1" || len(repaired.Actions) != 1 {
-		t.Fatalf("RepairSession() = %#v, %v", repaired, err)
-	}
-
 	promptEvents, err := client.PromptSession(ctx, "sess-1", "hello")
 	if err != nil || len(promptEvents) != 1 || promptEvents[0].Text != "hello back" {
 		t.Fatalf("PromptSession() = %#v, %v", promptEvents, err)
@@ -983,6 +978,44 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	if err != nil || !consolidated.Triggered {
 		t.Fatalf("ConsolidateMemory() = %#v, %v", consolidated, err)
 	}
+}
+
+func TestUnixSocketClientRepairSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should repair session with dry run and force", func(t *testing.T) {
+		t.Parallel()
+
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodPost || req.URL.Path != "/api/sessions/sess-1/repair" {
+						return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
+					}
+					if got := req.URL.Query().Get("dry_run"); got != "true" {
+						t.Fatalf("repair dry_run query = %q, want true", got)
+					}
+					if got := req.URL.Query().Get("force"); got != "true" {
+						t.Fatalf("repair force query = %q, want true", got)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"repair":{"session_id":"sess-1","persisted":false,"issues":[],"actions":[{"code":"append_terminal_error","turn_id":"turn-1","persisted":false}]}}`,
+					), nil
+				}),
+			},
+		}
+
+		repaired, err := client.RepairSession(
+			context.Background(),
+			"sess-1",
+			SessionRepairQuery{DryRun: true, Force: true},
+		)
+		if err != nil || repaired.SessionID != "sess-1" || len(repaired.Actions) != 1 {
+			t.Fatalf("RepairSession() = %#v, %v", repaired, err)
+		}
+	})
 }
 
 func TestUnixSocketClientExtensionMethods(t *testing.T) {

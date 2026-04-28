@@ -27,7 +27,7 @@ const KIND_DOT_COLORS: Record<string, string> = {
   greet: "var(--color-kind-greet)",
   direct: "var(--color-kind-direct)",
   receipt: "var(--color-kind-receipt)",
-  recipe: "var(--color-kind-recipe)",
+  capability: "var(--color-kind-capability)",
   trace: "var(--color-kind-trace)",
   whois: "var(--color-kind-whois)",
 };

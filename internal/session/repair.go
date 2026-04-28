@@ -71,11 +71,15 @@ type RepairAction struct {
 	Persisted  bool
 }
 
+// repairEvent keeps the stored row and decoded ACP payload together so repair
+// analysis can reconcile metadata and transcript content in one pass.
 type repairEvent struct {
 	stored store.SessionEvent
 	agent  acp.AgentEvent
 }
 
+// repairTurnState tracks the latest prompt turn shape so repair can append only
+// the terminal events that are still missing for that turn.
 type repairTurnState struct {
 	turnID        string
 	hasPromptData bool
@@ -84,10 +88,14 @@ type repairTurnState struct {
 	toolResults   map[string]struct{}
 }
 
+// repairToolCall captures the minimum persisted tool-call metadata needed to
+// synthesize a matching interrupted tool_result when none was recorded.
 type repairToolCall struct {
 	toolName string
 }
 
+// repairAnalysis accumulates diagnostics plus the final turn state that drives
+// append-only repair planning, including whether analysis must block mutation.
 type repairAnalysis struct {
 	issues []RepairIssue
 	turn   repairTurnState
@@ -170,7 +178,6 @@ func planSessionRepair(
 			TurnID:   analysis.turn.turnID,
 			Detail:   "the final prompt turn already has a terminal event",
 		})
-		return result, nil
 	}
 
 	if strings.TrimSpace(meta.State) != string(StateStopped) {
@@ -193,7 +200,7 @@ func planSessionRepair(
 		return result, nil
 	}
 
-	actions := planRepairActions(analysis.turn)
+	actions := planRepairActions(analysis.turn, !analysis.turn.terminal)
 	result.Actions = append(result.Actions, actions...)
 	if opts.DryRun || len(actions) == 0 {
 		return result, nil
@@ -382,7 +389,7 @@ func repairDefaultStopReason(reason store.StopReason) bool {
 	}
 }
 
-func planRepairActions(turn repairTurnState) []RepairAction {
+func planRepairActions(turn repairTurnState, includeTerminal bool) []RepairAction {
 	actions := make([]RepairAction, 0, len(turn.toolCalls)+1)
 	toolCallIDs := make([]string, 0, len(turn.toolCalls))
 	for toolCallID := range turn.toolCalls {
@@ -402,7 +409,7 @@ func planRepairActions(turn repairTurnState) []RepairAction {
 			ToolName:   toolCall.toolName,
 		})
 	}
-	if turn.hasPromptData {
+	if includeTerminal && turn.hasPromptData {
 		actions = append(actions, RepairAction{
 			Code:   RepairActionAppendTerminalError,
 			TurnID: turn.turnID,

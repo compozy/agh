@@ -14,6 +14,7 @@ import {
 import type { KnowledgeMemoryItem } from "@/systems/knowledge/types";
 
 import { KnowledgeDeleteDialog } from "./knowledge-delete-dialog";
+import { pillToneFromKnowledgeTone } from "./knowledge-pill-tone";
 
 interface KnowledgeDetailPanelProps {
   memory: KnowledgeMemoryItem | undefined;
@@ -92,8 +93,8 @@ function KnowledgeDetailPanel({
 
   const resolvedScope = scope ?? resolveKnowledgeScope(memory);
   const scopeForTone = resolvedScope === "workspace" ? "workspace" : "global";
-  const scopeTone = memoryScopeTone(scopeForTone);
-  const typeTone = memoryTypeTone(memory.type);
+  const scopeTone = pillToneFromKnowledgeTone(memoryScopeTone(scopeForTone));
+  const typeTone = pillToneFromKnowledgeTone(memoryTypeTone(memory.type));
 
   const metadataRows: MetadataRow[] = [
     { key: "Type", value: memory.type, tone: "mono" },

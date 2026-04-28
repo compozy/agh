@@ -32,16 +32,16 @@ describe("knowledge-formatters", () => {
     expect(knowledgeScopeShortLabel("workspace")).toBe("WS");
   });
 
-  it("maps memory type → MonoBadge tone", () => {
-    expect(memoryTypeTone("user")).toBe("accent");
-    expect(memoryTypeTone("feedback")).toBe("accent");
-    expect(memoryTypeTone("project")).toBe("success");
-    expect(memoryTypeTone("reference")).toBe("info");
+  it("maps memory type to semantic knowledge tones", () => {
+    expect(memoryTypeTone("user")).toBe("user");
+    expect(memoryTypeTone("feedback")).toBe("feedback");
+    expect(memoryTypeTone("project")).toBe("project");
+    expect(memoryTypeTone("reference")).toBe("reference");
   });
 
-  it("maps memory scope → MonoBadge tone", () => {
-    expect(memoryScopeTone("global")).toBe("neutral");
-    expect(memoryScopeTone("workspace")).toBe("info");
+  it("maps memory scope to semantic knowledge tones", () => {
+    expect(memoryScopeTone("global")).toBe("global");
+    expect(memoryScopeTone("workspace")).toBe("workspace");
   });
 
   describe("formatKnowledgeRelativeTime", () => {

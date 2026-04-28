@@ -218,6 +218,38 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		if payload.Repair.SessionID != "sess-a" {
 			t.Fatalf("repair session id = %q, want sess-a", payload.Repair.SessionID)
 		}
+		if payload.Repair.Persisted {
+			t.Fatalf("repair persisted = %v, want false for dry-run", payload.Repair.Persisted)
+		}
+		if got, want := len(payload.Repair.Actions), 1; got != want {
+			t.Fatalf("repair actions len = %d, want %d", got, want)
+		}
+		action := payload.Repair.Actions[0]
+		if got, want := action.Code, session.RepairActionAppendTerminalError; got != want {
+			t.Fatalf("repair action code = %q, want %q", got, want)
+		}
+		if got, want := action.TurnID, "turn-1"; got != want {
+			t.Fatalf("repair action turn id = %q, want %q", got, want)
+		}
+		if action.Persisted {
+			t.Fatalf("repair action persisted = %v, want false for dry-run", action.Persisted)
+		}
+	})
+
+	t.Run("ShouldRejectConflictingRepairQueryAliases", func(t *testing.T) {
+		repairResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/sessions/sess-a/repair?dry_run=true&dry-run=false",
+			nil,
+		)
+		if repairResp.Code != http.StatusBadRequest {
+			t.Fatalf("repair conflicting alias status = %d, want %d", repairResp.Code, http.StatusBadRequest)
+		}
+		if !strings.Contains(repairResp.Body.String(), "conflicting boolean query values for dry_run, dry-run") {
+			t.Fatalf("repair conflicting alias body = %q, want conflict message", repairResp.Body.String())
+		}
 	})
 
 	t.Run("ShouldReturnSessionEvents", func(t *testing.T) {

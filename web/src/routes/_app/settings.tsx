@@ -137,7 +137,9 @@ function SettingsSectionLink({ section }: { section: SettingsSectionDescriptor }
         />
       )}
       <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-      <span className="truncate">{section.label}</span>
+      <span className="truncate" title={section.label}>
+        {section.label}
+      </span>
     </Link>
   );
 }

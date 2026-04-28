@@ -1,5 +1,3 @@
-import type { PillTone } from "@agh/ui";
-
 import type { KnowledgeMemoryItem, KnowledgeScope, MemoryType } from "@/systems/knowledge/types";
 
 const SCOPE_ORDER: Record<KnowledgeScope, number> = {
@@ -36,19 +34,14 @@ export function knowledgeScopeShortLabel(scope: KnowledgeScope): string {
   return scope === "workspace" ? "WS" : "GLOBAL";
 }
 
-const TYPE_TONE: Record<MemoryType, PillTone> = {
-  user: "accent",
-  feedback: "accent",
-  project: "success",
-  reference: "info",
-};
+export type KnowledgeTone = MemoryType | KnowledgeScope;
 
-export function memoryTypeTone(type: MemoryType): PillTone {
-  return TYPE_TONE[type];
+export function memoryTypeTone(type: MemoryType): KnowledgeTone {
+  return type;
 }
 
-export function memoryScopeTone(scope: KnowledgeScope): PillTone {
-  return scope === "workspace" ? "info" : "neutral";
+export function memoryScopeTone(scope: KnowledgeScope): KnowledgeTone {
+  return scope;
 }
 
 function safeDate(value: string): Date | null {

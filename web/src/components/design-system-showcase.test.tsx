@@ -46,6 +46,24 @@ function extractAghTokens(source: string): string[] {
   return [...tokens];
 }
 
+function extractTokenValueMap(source: string): Map<string, string> {
+  const values = new Map<string, string>();
+  const rootMatch = source.match(/:root\s*{([\s\S]*?)}/);
+  if (!rootMatch) return values;
+  const body = rootMatch[1];
+  for (const line of body.split("\n")) {
+    const match = line.match(/^\s*(--[a-z0-9-]+)\s*:\s*(.+?);\s*(?:\/\*[^*]*\*\/)?\s*$/i);
+    if (!match) continue;
+    const [, name, rawValue] = match;
+    values.set(name, rawValue.trim());
+  }
+  return values;
+}
+
+function normalizeTokenValue(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 describe("DesignSystemShowcase", () => {
   describe("rendering", () => {
     it("renders the page header, filter toolbar, and search input", () => {
@@ -183,6 +201,23 @@ describe("DesignSystemShowcase", () => {
       expect(kinds.has("duration")).toBe(true);
       expect(kinds.has("easing")).toBe(true);
       expect(kinds.has("tracking")).toBe(true);
+    });
+
+    it("keeps rendered swatch metadata synchronized with tokens.css values", () => {
+      const tokenValues = extractTokenValueMap(TOKENS_SOURCE);
+      const mismatches = TOKEN_GROUPS.flatMap(group =>
+        group.swatches.flatMap(swatch => {
+          const expected = tokenValues.get(swatch.token);
+          if (!expected) {
+            return [];
+          }
+          return normalizeTokenValue(expected) === normalizeTokenValue(swatch.value)
+            ? []
+            : [`${swatch.token}: showcase=${swatch.value} tokens=${expected}`];
+        })
+      );
+
+      expect(mismatches).toEqual([]);
     });
   });
 

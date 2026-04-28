@@ -298,7 +298,7 @@ const TOKEN_GROUPS: TokenGroup[] = [
     id: "protocol-kinds",
     label: "Protocol Kind Colors",
     caption:
-      "Kind-dot colors for `say`, `greet`, `direct`, `receipt`, `recipe`, `trace`, and `whois`.",
+      "Kind-dot colors for `say`, `greet`, `direct`, `receipt`, `capability`, `trace`, and `whois`.",
     swatches: [
       { token: "--color-kind-say", value: "#8E8E93", role: "say", kind: "color" },
       { token: "--color-kind-greet", value: "#5BA6FF", role: "greet", kind: "color" },
@@ -315,9 +315,9 @@ const TOKEN_GROUPS: TokenGroup[] = [
         kind: "color",
       },
       {
-        token: "--color-kind-recipe",
+        token: "--color-kind-capability",
         value: "var(--color-warning)",
-        role: "recipe",
+        role: "capability",
         kind: "color",
       },
       { token: "--color-kind-trace", value: "#B892FF", role: "trace", kind: "color" },

@@ -420,14 +420,29 @@ func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
 }
 
 func repairBoolQuery(c *gin.Context, names ...string) (bool, error) {
+	var (
+		value bool
+		seen  bool
+	)
 	for _, name := range names {
 		raw, ok := c.GetQuery(name)
 		if !ok {
 			continue
 		}
-		return ParseOptionalBool(raw)
+		parsed, err := ParseOptionalBool(raw)
+		if err != nil {
+			return false, fmt.Errorf("invalid %s query: %w", name, err)
+		}
+		if seen && parsed != value {
+			return false, fmt.Errorf(
+				"conflicting boolean query values for %s",
+				strings.Join(names, ", "),
+			)
+		}
+		value = parsed
+		seen = true
 	}
-	return false, nil
+	return value, nil
 }
 
 // StreamSession streams session events over SSE.

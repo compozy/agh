@@ -14,6 +14,7 @@ import {
 } from "../lib/knowledge-formatters";
 import { filterKnowledgeMemories, groupKnowledgeMemoriesByScope } from "../lib/knowledge-list";
 import type { KnowledgeMemoryItem } from "../types";
+import { pillToneFromKnowledgeTone } from "./knowledge-pill-tone";
 
 interface KnowledgeListPanelProps {
   memories: KnowledgeMemoryItem[];
@@ -68,10 +69,18 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
         </span>
       ) : null}
       <div className="flex flex-wrap items-center gap-1.5">
-        <Pill mono data-testid={`type-badge-${memory.type}`} tone={memoryTypeTone(memory.type)}>
+        <Pill
+          mono
+          data-testid={`type-badge-${memory.type}`}
+          tone={pillToneFromKnowledgeTone(memoryTypeTone(memory.type))}
+        >
           {memory.type}
         </Pill>
-        <Pill mono data-testid={`scope-badge-${scope}`} tone={memoryScopeTone(scope)}>
+        <Pill
+          mono
+          data-testid={`scope-badge-${scope}`}
+          tone={pillToneFromKnowledgeTone(memoryScopeTone(scope))}
+        >
           {knowledgeScopeShortLabel(scope)}
         </Pill>
       </div>

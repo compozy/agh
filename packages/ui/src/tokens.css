@@ -44,7 +44,7 @@
   --color-kind-greet: #5ba6ff;
   --color-kind-direct: var(--color-accent);
   --color-kind-receipt: var(--color-success);
-  --color-kind-recipe: var(--color-warning);
+  --color-kind-capability: var(--color-warning);
   --color-kind-trace: #b892ff;
   --color-kind-whois: #4fd1c5;
 

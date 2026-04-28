@@ -103,6 +103,67 @@ func TestManagerRepairSession(t *testing.T) {
 		assertTranscriptHasDonePart(t, messages)
 	})
 
+	t.Run("ShouldAppendInterruptedToolResultWithoutDuplicatingTerminalEvent", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		meta := repairSessionMeta("sess-repair-terminal-present", store.StopAgentCrashed, h.workspaceID)
+		events := append(
+			interruptedTurnEvents(t, meta.ID, meta.AgentName),
+			repairStoredEvent(
+				t,
+				meta.ID,
+				meta.AgentName,
+				acp.EventTypeError,
+				"turn-1",
+				time.Date(2026, 4, 28, 13, 0, 3, 0, time.UTC),
+				acp.AgentEvent{
+					Type:  acp.EventTypeError,
+					Error: repairTerminalErrorMessage,
+				},
+			),
+		)
+		seedRepairSession(t, h, meta, events...)
+
+		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
+		if err != nil {
+			t.Fatalf("RepairSession(terminal present) error = %v", err)
+		}
+		if !result.Persisted {
+			t.Fatal("RepairSession(terminal present).Persisted = false, want true")
+		}
+		if !repairIssuesContain(result.Issues, RepairIssueTerminalEventAlreadyExists) {
+			t.Fatalf(
+				"RepairSession(terminal present) issues = %#v, want %q",
+				result.Issues,
+				RepairIssueTerminalEventAlreadyExists,
+			)
+		}
+		if got, want := len(result.Actions), 1; got != want {
+			t.Fatalf("RepairSession(terminal present) actions = %d, want %d", got, want)
+		}
+		if got, want := result.Actions[0].Code, RepairActionAppendInterruptedToolResult; got != want {
+			t.Fatalf("RepairSession(terminal present) action code = %q, want %q", got, want)
+		}
+
+		storedEvents := readRepairEvents(t, h, meta.ID)
+		if got, want := len(storedEvents), 5; got != want {
+			t.Fatalf("stored events after repair with terminal = %d, want %d", got, want)
+		}
+		if got, want := storedEvents[4].Type, acp.EventTypeToolResult; got != want {
+			t.Fatalf("storedEvents[4].Type = %q, want %q", got, want)
+		}
+		errorCount := 0
+		for _, event := range storedEvents {
+			if event.Type == acp.EventTypeError {
+				errorCount++
+			}
+		}
+		if got, want := errorCount, 1; got != want {
+			t.Fatalf("stored error events = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("ShouldReportInvalidEventJSONWithoutMutating", func(t *testing.T) {
 		t.Parallel()
 

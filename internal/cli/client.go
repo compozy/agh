@@ -594,6 +594,8 @@ type unixSocketClient struct {
 	httpClient *http.Client
 }
 
+var _ DaemonClient = (*unixSocketClient)(nil)
+
 var errStopSSE = sse.ErrStop
 
 // NewClient constructs a daemon client that talks HTTP over a Unix domain socket.
