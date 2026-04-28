@@ -66,6 +66,7 @@ type bootState struct {
 	scheduler           *schedulerRuntime
 	coordinator         *coordinatorRuntime
 	network             networkRuntime
+	toolRegistry        toolspkg.Registry
 	observer            Observer
 	lifecycleObservers  *sessionLifecycleFanout
 	hookTelemetrySinks  *hookTelemetryFanout
@@ -174,6 +175,7 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		func() error { return d.bootScheduler(ctx, state, cleanup) },
 		func() error { return d.bootNetwork(ctx, state, cleanup) },
 		func() error { return d.bootHooks(ctx, state, cleanup) },
+		func() error { return d.bootToolRegistry(ctx, state) },
 		func() error { return d.bootCoordinator(ctx, state, cleanup) },
 		func() error { return d.bootAutomation(ctx, state, cleanup) },
 		func() error { return d.bootBundles(ctx, state) },
@@ -200,6 +202,7 @@ func (d *Daemon) beginBoot() error {
 		d.registry != nil ||
 		d.sessions != nil ||
 		d.network != nil ||
+		d.toolRegistry != nil ||
 		d.observer != nil ||
 		d.resourceReconcile != nil ||
 		d.automation != nil ||
@@ -736,6 +739,7 @@ func (d *Daemon) runtimeDeps(state *bootState, sessions SessionManager) RuntimeD
 			agentCatalogDependency(state.agentCatalog),
 		),
 		SkillsRegistry: skillsRegistryAPI(state.skillsRegistry),
+		ToolRegistry:   state.toolRegistry,
 		DreamTrigger:   dreamTriggerFromRuntime(state.dreamRuntime),
 		StartedAt:      state.startedAt,
 	}
@@ -1592,6 +1596,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.spawnReaper = state.spawnReaper
 	d.scheduler = state.scheduler
 	d.network = state.network
+	d.toolRegistry = state.toolRegistry
 	d.hooks = state.hooks
 	d.extensions = state.currentExtensionRuntime()
 	d.bridges = state.bridges

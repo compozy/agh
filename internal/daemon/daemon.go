@@ -111,6 +111,7 @@ type RuntimeDeps struct {
 	Sessions          SessionManager
 	Tasks             taskpkg.Manager
 	Network           core.NetworkService
+	ToolRegistry      toolspkg.Registry
 	Observer          Observer
 	Automation        core.AutomationManager
 	Bridges           core.BridgeService
@@ -334,6 +335,7 @@ type Daemon struct {
 	spawnReaper          *spawnReaper
 	scheduler            *schedulerRuntime
 	network              networkRuntime
+	toolRegistry         toolspkg.Registry
 	hooks                hookRuntime
 	extensions           extensionRuntime
 	observer             Observer
@@ -1080,6 +1082,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.skillsDone = nil
 	d.bridges = nil
 	d.network = nil
+	d.toolRegistry = nil
 }
 
 func (d *Daemon) shutdownDetached(ctx context.Context, targets shutdownTargets) error {
