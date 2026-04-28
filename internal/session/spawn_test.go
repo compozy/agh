@@ -12,11 +12,17 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
+const (
+	testToolEdit  = "agh__edit"
+	testToolRead  = "agh__read"
+	testToolShell = "agh__shell"
+)
+
 func TestValidatePermissionSubset(t *testing.T) {
 	t.Parallel()
 
 	parent := store.SessionPermissionPolicy{
-		Tools:           []string{"edit", "read"},
+		Tools:           []string{testToolEdit, testToolRead},
 		Skills:          []string{"go", "tests"},
 		MCPServers:      []string{"filesystem"},
 		WorkspacePaths:  []string{"/repo"},
@@ -30,13 +36,13 @@ func TestValidatePermissionSubset(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:  "exact",
+			name:  "Should accept exact permissions",
 			child: parent,
 		},
 		{
-			name: "subset",
+			name: "Should accept subset permissions",
 			child: store.SessionPermissionPolicy{
-				Tools:           []string{"read"},
+				Tools:           []string{testToolRead},
 				Skills:          []string{"go"},
 				MCPServers:      []string{"filesystem"},
 				WorkspacePaths:  []string{"/repo"},
@@ -45,21 +51,21 @@ func TestValidatePermissionSubset(t *testing.T) {
 			},
 		},
 		{
-			name: "superset rejected",
+			name: "Should reject superset permissions",
 			child: store.SessionPermissionPolicy{
-				Tools: []string{"edit", "shell"},
+				Tools: []string{testToolEdit, testToolShell},
 			},
 			wantErr: true,
 		},
 		{
-			name: "unknown atom rejected",
+			name: "Should reject unknown atoms",
 			child: store.SessionPermissionPolicy{
 				MCPServers: []string{"unknown-server"},
 			},
 			wantErr: true,
 		},
 		{
-			name: "blank atom rejected",
+			name: "Should reject blank atoms",
 			child: store.SessionPermissionPolicy{
 				Tools: []string{" "},
 			},
@@ -88,80 +94,80 @@ func TestValidatePermissionSubset(t *testing.T) {
 func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	h := newHarness(t, WithNow(func() time.Time { return now }))
-	parentPolicy := store.SessionPermissionPolicy{
-		Tools:           []string{"edit", "read"},
-		Skills:          []string{"go", "tests"},
-		MCPServers:      []string{"filesystem"},
-		WorkspacePaths:  []string{h.workspace},
-		NetworkChannels: []string{"builders"},
-		SandboxProfiles: []string{"default"},
-	}
-	parent := createSpawnParent(t, h, parentPolicy, store.SessionSpawnBudget{
-		MaxChildren:           2,
-		MaxDepth:              1,
-		MaxActivePerWorkspace: 2,
-	})
-	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), parent.ID)
-	})
+	t.Run("Should create child with durable lineage and narrowed permissions", func(t *testing.T) {
+		t.Parallel()
 
-	child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
-		ParentSessionID:  parent.ID,
-		AgentName:        "coder",
-		Name:             "child worker",
-		PromptOverlay:    "Focus only on tests.",
-		TTL:              30 * time.Minute,
-		AutoStopOnParent: true,
-		PermissionPolicy: store.SessionPermissionPolicy{
-			Tools:           []string{"read"},
-			Skills:          []string{"go"},
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		h := newHarness(t, WithNow(func() time.Time { return now }))
+		parentPolicy := store.SessionPermissionPolicy{
+			Tools:           []string{testToolEdit, testToolRead},
+			Skills:          []string{"go", "tests"},
 			MCPServers:      []string{"filesystem"},
 			WorkspacePaths:  []string{h.workspace},
 			NetworkChannels: []string{"builders"},
 			SandboxProfiles: []string{"default"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("Spawn() error = %v", err)
-	}
-	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), child.ID)
-	})
+		}
+		parent := createSpawnParent(t, h, parentPolicy, store.SessionSpawnBudget{
+			MaxChildren:           2,
+			MaxDepth:              1,
+			MaxActivePerWorkspace: 2,
+		})
+		cleanupSessionStop(t, h, parent.ID)
 
-	info := child.Info()
-	if info.Type != SessionTypeSpawned {
-		t.Fatalf("child type = %q, want %q", info.Type, SessionTypeSpawned)
-	}
-	if info.Channel != parent.Info().Channel {
-		t.Fatalf("child channel = %q, want inherited %q", info.Channel, parent.Info().Channel)
-	}
-	if info.Lineage == nil {
-		t.Fatal("child lineage = nil, want durable lineage")
-	}
-	if info.Lineage.ParentSessionID != parent.ID ||
-		info.Lineage.RootSessionID != parent.ID ||
-		info.Lineage.SpawnDepth != 1 ||
-		info.Lineage.SpawnRole != DefaultSpawnRole ||
-		!info.Lineage.AutoStopOnParent {
-		t.Fatalf("child lineage = %#v", info.Lineage)
-	}
-	wantTTL := now.Add(30 * time.Minute)
-	if info.Lineage.TTLExpiresAt == nil || !info.Lineage.TTLExpiresAt.Equal(wantTTL) {
-		t.Fatalf("child TTL = %#v, want %s", info.Lineage.TTLExpiresAt, wantTTL)
-	}
-	if got := info.Lineage.PermissionPolicy.Tools; len(got) != 1 || got[0] != "read" {
-		t.Fatalf("child permission tools = %#v, want narrowed read", got)
-	}
-	meta := readMeta(t, child.MetaPath())
-	if meta.Lineage == nil || meta.Lineage.ParentSessionID != parent.ID {
-		t.Fatalf("persisted lineage = %#v, want parent %q", meta.Lineage, parent.ID)
-	}
-	if len(h.driver.startCalls) < 2 ||
-		!strings.Contains(h.driver.startCalls[len(h.driver.startCalls)-1].SystemPrompt, "Focus only on tests.") {
-		t.Fatalf("child prompt overlay was not appended to start prompt: %#v", h.driver.startCalls)
-	}
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID:  parent.ID,
+			AgentName:        "coder",
+			Name:             "child worker",
+			PromptOverlay:    "Focus only on tests.",
+			TTL:              30 * time.Minute,
+			AutoStopOnParent: true,
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools:           []string{testToolRead},
+				Skills:          []string{"go"},
+				MCPServers:      []string{"filesystem"},
+				WorkspacePaths:  []string{h.workspace},
+				NetworkChannels: []string{"builders"},
+				SandboxProfiles: []string{"default"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+
+		info := child.Info()
+		if info.Type != SessionTypeSpawned {
+			t.Fatalf("child type = %q, want %q", info.Type, SessionTypeSpawned)
+		}
+		if info.Channel != parent.Info().Channel {
+			t.Fatalf("child channel = %q, want inherited %q", info.Channel, parent.Info().Channel)
+		}
+		if info.Lineage == nil {
+			t.Fatal("child lineage = nil, want durable lineage")
+		}
+		if info.Lineage.ParentSessionID != parent.ID ||
+			info.Lineage.RootSessionID != parent.ID ||
+			info.Lineage.SpawnDepth != 1 ||
+			info.Lineage.SpawnRole != DefaultSpawnRole ||
+			!info.Lineage.AutoStopOnParent {
+			t.Fatalf("child lineage = %#v", info.Lineage)
+		}
+		wantTTL := now.Add(30 * time.Minute)
+		if info.Lineage.TTLExpiresAt == nil || !info.Lineage.TTLExpiresAt.Equal(wantTTL) {
+			t.Fatalf("child TTL = %#v, want %s", info.Lineage.TTLExpiresAt, wantTTL)
+		}
+		if got := info.Lineage.PermissionPolicy.Tools; len(got) != 1 || got[0] != testToolRead {
+			t.Fatalf("child permission tools = %#v, want narrowed read", got)
+		}
+		meta := readMeta(t, child.MetaPath())
+		if meta.Lineage == nil || meta.Lineage.ParentSessionID != parent.ID {
+			t.Fatalf("persisted lineage = %#v, want parent %q", meta.Lineage, parent.ID)
+		}
+		if len(h.driver.startCalls) < 2 ||
+			!strings.Contains(h.driver.startCalls[len(h.driver.startCalls)-1].SystemPrompt, "Focus only on tests.") {
+			t.Fatalf("child prompt overlay was not appended to start prompt: %#v", h.driver.startCalls)
+		}
+	})
 }
 
 func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
@@ -207,7 +213,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 					AgentName:       "coder",
 					TTL:             time.Minute,
 					PermissionPolicy: store.SessionPermissionPolicy{
-						Tools: []string{"shell"},
+						Tools: []string{testToolShell},
 					},
 				})
 				return err
@@ -240,9 +246,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				t.Cleanup(func() {
-					_ = h.manager.Stop(testutil.Context(t), child.ID)
-				})
+				cleanupSessionStop(t, h, child.ID)
 				_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       "coder",
@@ -264,9 +268,7 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				t.Cleanup(func() {
-					_ = h.manager.Stop(testutil.Context(t), child.ID)
-				})
+				cleanupSessionStop(t, h, child.ID)
 				_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
 					ParentSessionID: child.ID,
 					AgentName:       "coder",
@@ -284,11 +286,9 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 
 			h := newHarness(t)
 			parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
-				Tools: []string{"read"},
+				Tools: []string{testToolRead},
 			}, store.SessionSpawnBudget{MaxChildren: 1, MaxDepth: 1})
-			t.Cleanup(func() {
-				_ = h.manager.Stop(testutil.Context(t), parent.ID)
-			})
+			cleanupSessionStop(t, h, parent.ID)
 
 			err := tt.run(t, h, parent)
 			if !errors.Is(err, tt.wantErr) {
@@ -301,31 +301,27 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 func TestManagerSpawnHooksCarryLineageAndCannotWidenPermissions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("payloads", func(t *testing.T) {
+	t.Run("Should carry lineage through hook payloads", func(t *testing.T) {
 		t.Parallel()
 
 		hooks := &recordingSessionSpawnHooks{}
 		h := newHarness(t, WithHookSet(HookSet{Spawn: hooks}))
 		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
-			Tools: []string{"read"},
+			Tools: []string{testToolRead},
 		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
-		t.Cleanup(func() {
-			_ = h.manager.Stop(testutil.Context(t), parent.ID)
-		})
+		cleanupSessionStop(t, h, parent.ID)
 
 		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
 			ParentSessionID:  parent.ID,
 			AgentName:        "coder",
 			TTL:              time.Minute,
 			AutoStopOnParent: true,
-			PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"read"}},
+			PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
 		})
 		if err != nil {
 			t.Fatalf("Spawn() error = %v", err)
 		}
-		t.Cleanup(func() {
-			_ = h.manager.Stop(testutil.Context(t), child.ID)
-		})
+		cleanupSessionStop(t, h, child.ID)
 
 		if len(hooks.preCreate) != 1 || len(hooks.created) != 1 {
 			t.Fatalf("hook counts pre=%d created=%d, want 1 each", len(hooks.preCreate), len(hooks.created))
@@ -336,7 +332,7 @@ func TestManagerSpawnHooksCarryLineageAndCannotWidenPermissions(t *testing.T) {
 			pre.SpawnDepth != 1 ||
 			pre.ChildSessionID != "" ||
 			len(pre.ChildPermissions.Tools) != 1 ||
-			pre.ChildPermissions.Tools[0] != "read" {
+			pre.ChildPermissions.Tools[0] != testToolRead {
 			t.Fatalf("pre-create payload = %#v, want parent/root/depth and narrowed permissions", pre)
 		}
 		created := hooks.created[0]
@@ -349,29 +345,27 @@ func TestManagerSpawnHooksCarryLineageAndCannotWidenPermissions(t *testing.T) {
 		}
 	})
 
-	t.Run("widening patch rejected", func(t *testing.T) {
+	t.Run("Should reject hook permission widening", func(t *testing.T) {
 		t.Parallel()
 
 		hooks := &recordingSessionSpawnHooks{
 			preCreatePatch: func(payload hookspkg.SpawnPreCreatePayload) hookspkg.SpawnPreCreatePayload {
-				payload.ChildPermissions.Tools = []string{"shell"}
+				payload.ChildPermissions.Tools = []string{testToolShell}
 				return payload
 			},
 		}
 		h := newHarness(t, WithHookSet(HookSet{Spawn: hooks}))
 		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
-			Tools: []string{"read"},
+			Tools: []string{testToolRead},
 		}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
-		t.Cleanup(func() {
-			_ = h.manager.Stop(testutil.Context(t), parent.ID)
-		})
+		cleanupSessionStop(t, h, parent.ID)
 
 		_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
 			ParentSessionID:  parent.ID,
 			AgentName:        "coder",
 			TTL:              time.Minute,
 			AutoStopOnParent: true,
-			PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"read"}},
+			PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
 		})
 		if !errors.Is(err, ErrSpawnPermissionDenied) {
 			t.Fatalf("Spawn() error = %v, want %v", err, ErrSpawnPermissionDenied)
@@ -401,6 +395,16 @@ func createSpawnParent(
 		t.Fatalf("Create(parent) error = %v", err)
 	}
 	return parent
+}
+
+func cleanupSessionStop(t *testing.T, h *harness, sessionID string) {
+	t.Helper()
+
+	t.Cleanup(func() {
+		if err := h.manager.Stop(testutil.Context(t), sessionID); err != nil {
+			t.Fatalf("Stop(%s) error = %v", sessionID, err)
+		}
+	})
 }
 
 type recordingSessionSpawnHooks struct {

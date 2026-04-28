@@ -48,6 +48,8 @@ const (
 	ReasonSourceDisabled ReasonCode = "source_disabled"
 	// ReasonPolicyDenied reports a policy denial.
 	ReasonPolicyDenied ReasonCode = "policy_denied"
+	// ReasonVisibilityDenied reports a descriptor hidden from a scoped projection.
+	ReasonVisibilityDenied ReasonCode = "visibility_denied"
 	// ReasonApprovalRequired reports required approval.
 	ReasonApprovalRequired ReasonCode = "approval_required"
 	// ReasonApprovalUnreachable reports no available approval channel.
@@ -70,6 +72,12 @@ const (
 	ReasonResultBudgetExceeded ReasonCode = "result_budget_exceeded"
 	// ReasonSecretMetadata reports sensitive metadata in a public envelope.
 	ReasonSecretMetadata ReasonCode = "secret_metadata"
+	// ReasonToolsetUnknown reports a policy reference to an unknown toolset.
+	ReasonToolsetUnknown ReasonCode = "toolset_unknown"
+	// ReasonToolsetCycle reports recursive toolset membership.
+	ReasonToolsetCycle ReasonCode = "toolset_cycle"
+	// ReasonToolUnknown reports a policy reference to an unknown tool.
+	ReasonToolUnknown ReasonCode = "tool_unknown"
 )
 
 var validReasonCodes = map[ReasonCode]struct{}{
@@ -95,6 +103,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonMCPAuthRefreshFailed:       {},
 	ReasonSourceDisabled:             {},
 	ReasonPolicyDenied:               {},
+	ReasonVisibilityDenied:           {},
 	ReasonApprovalRequired:           {},
 	ReasonApprovalUnreachable:        {},
 	ReasonApprovalTimedOut:           {},
@@ -106,6 +115,9 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonConflictedSanitizedName:    {},
 	ReasonResultBudgetExceeded:       {},
 	ReasonSecretMetadata:             {},
+	ReasonToolsetUnknown:             {},
+	ReasonToolsetCycle:               {},
+	ReasonToolUnknown:                {},
 }
 
 // Validate ensures the reason code is documented.

@@ -13,122 +13,143 @@ import (
 func TestCreateManualSessionProducesRootLineage(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	sess := createSession(t, h)
-	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), sess.ID)
+	t.Run("Should produce root lineage for manual sessions", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Fatalf("Stop(session) error = %v", err)
+			}
+		})
+
+		info := sess.Info()
+		if info.Lineage == nil {
+			t.Fatal("session.Info().Lineage = nil, want root lineage")
+		}
+		if info.Lineage.ParentSessionID != "" ||
+			info.Lineage.RootSessionID != sess.ID ||
+			info.Lineage.SpawnDepth != 0 ||
+			info.Lineage.AutoStopOnParent {
+			t.Fatalf("root lineage = %#v, want no parent, own root, depth 0", info.Lineage)
+		}
+
+		meta := readMeta(t, sess.MetaPath())
+		if meta.Lineage == nil {
+			t.Fatal("meta.Lineage = nil, want persisted root lineage")
+		}
+		if got, want := meta.Lineage.RootSessionID, sess.ID; got != want {
+			t.Fatalf("meta.Lineage.RootSessionID = %q, want %q", got, want)
+		}
 	})
-
-	info := sess.Info()
-	if info.Lineage == nil {
-		t.Fatal("session.Info().Lineage = nil, want root lineage")
-	}
-	if info.Lineage.ParentSessionID != "" ||
-		info.Lineage.RootSessionID != sess.ID ||
-		info.Lineage.SpawnDepth != 0 ||
-		info.Lineage.AutoStopOnParent {
-		t.Fatalf("root lineage = %#v, want no parent, own root, depth 0", info.Lineage)
-	}
-
-	meta := readMeta(t, sess.MetaPath())
-	if meta.Lineage == nil {
-		t.Fatal("meta.Lineage = nil, want persisted root lineage")
-	}
-	if got, want := meta.Lineage.RootSessionID, sess.ID; got != want {
-		t.Fatalf("meta.Lineage.RootSessionID = %q, want %q", got, want)
-	}
 }
 
 func TestCreateSpawnedAndCoordinatorSessionsValidateLineage(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	h := newHarness(t, WithNow(func() time.Time { return now }))
-	parent := createSession(t, h)
-	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), parent.ID)
-	})
+	t.Run("Should validate spawned and coordinator lineage", func(t *testing.T) {
+		t.Parallel()
 
-	childTTL := now.Add(45 * time.Minute)
-	child, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "worker",
-		Workspace: h.workspaceID,
-		Type:      SessionTypeSpawned,
-		Lineage: &store.SessionLineage{
-			ParentSessionID:  parent.ID,
-			RootSessionID:    parent.ID,
-			SpawnDepth:       1,
-			SpawnRole:        "worker",
-			TTLExpiresAt:     &childTTL,
-			AutoStopOnParent: true,
-			SpawnBudget: store.SessionSpawnBudget{
-				MaxChildren:           2,
-				MaxDepth:              1,
-				MaxActivePerWorkspace: 4,
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		h := newHarness(t, WithNow(func() time.Time { return now }))
+		parent := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil {
+				t.Fatalf("Stop(parent) error = %v", err)
+			}
+		})
+
+		childTTL := now.Add(45 * time.Minute)
+		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Name:      "worker",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeSpawned,
+			Lineage: &store.SessionLineage{
+				ParentSessionID:  parent.ID,
+				RootSessionID:    parent.ID,
+				SpawnDepth:       1,
+				SpawnRole:        "worker",
+				TTLExpiresAt:     &childTTL,
+				AutoStopOnParent: true,
+				SpawnBudget: store.SessionSpawnBudget{
+					MaxChildren:           2,
+					MaxDepth:              1,
+					MaxActivePerWorkspace: 4,
+				},
+				PermissionPolicy: store.SessionPermissionPolicy{
+					Tools:           []string{testToolEdit, testToolRead},
+					Skills:          []string{"go"},
+					NetworkChannels: []string{"builders"},
+				},
 			},
-			PermissionPolicy: store.SessionPermissionPolicy{
-				Tools:           []string{"edit", "read"},
-				Skills:          []string{"go"},
-				NetworkChannels: []string{"builders"},
+		})
+		if err != nil {
+			t.Fatalf("Create(spawned) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), child.ID); err != nil {
+				t.Fatalf("Stop(child) error = %v", err)
+			}
+		})
+
+		childInfo := child.Info()
+		if childInfo.Type != SessionTypeSpawned {
+			t.Fatalf("child type = %q, want %q", childInfo.Type, SessionTypeSpawned)
+		}
+		if childInfo.Lineage == nil {
+			t.Fatal("child lineage = nil, want metadata")
+		}
+		if childInfo.Lineage.ParentSessionID != parent.ID ||
+			childInfo.Lineage.RootSessionID != parent.ID ||
+			childInfo.Lineage.SpawnDepth != 1 ||
+			childInfo.Lineage.SpawnRole != "worker" ||
+			!childInfo.Lineage.AutoStopOnParent {
+			t.Fatalf("child lineage = %#v", childInfo.Lineage)
+		}
+		if childInfo.Lineage.TTLExpiresAt == nil || !childInfo.Lineage.TTLExpiresAt.Equal(childTTL) {
+			t.Fatalf("child TTL = %#v, want %s", childInfo.Lineage.TTLExpiresAt, childTTL)
+		}
+		if childInfo.Lineage.SpawnBudget.TTLSeconds <= 0 {
+			t.Fatalf(
+				"child budget TTLSeconds = %d, want derived positive value",
+				childInfo.Lineage.SpawnBudget.TTLSeconds,
+			)
+		}
+		if got := childInfo.Lineage.PermissionPolicy.Tools; len(got) != 2 ||
+			got[0] != testToolEdit ||
+			got[1] != testToolRead {
+			t.Fatalf("child policy tools = %#v, want normalized atoms", got)
+		}
+
+		coordinatorTTL := now.Add(2 * time.Hour)
+		coordinator, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Name:      "coordinator",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeCoordinator,
+			Lineage: &store.SessionLineage{
+				SpawnRole:    "coordinator",
+				TTLExpiresAt: &coordinatorTTL,
+				SpawnBudget:  store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1},
 			},
-		},
+		})
+		if err != nil {
+			t.Fatalf("Create(coordinator) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), coordinator.ID); err != nil {
+				t.Fatalf("Stop(coordinator) error = %v", err)
+			}
+		})
+		if coordinator.Info().Type != SessionTypeCoordinator ||
+			coordinator.Info().Lineage == nil ||
+			coordinator.Info().Lineage.RootSessionID != coordinator.ID ||
+			coordinator.Info().Lineage.ParentSessionID != "" {
+			t.Fatalf("coordinator info = %#v", coordinator.Info())
+		}
 	})
-	if err != nil {
-		t.Fatalf("Create(spawned) error = %v", err)
-	}
-	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), child.ID)
-	})
-
-	childInfo := child.Info()
-	if childInfo.Type != SessionTypeSpawned {
-		t.Fatalf("child type = %q, want %q", childInfo.Type, SessionTypeSpawned)
-	}
-	if childInfo.Lineage == nil {
-		t.Fatal("child lineage = nil, want metadata")
-	}
-	if childInfo.Lineage.ParentSessionID != parent.ID ||
-		childInfo.Lineage.RootSessionID != parent.ID ||
-		childInfo.Lineage.SpawnDepth != 1 ||
-		childInfo.Lineage.SpawnRole != "worker" ||
-		!childInfo.Lineage.AutoStopOnParent {
-		t.Fatalf("child lineage = %#v", childInfo.Lineage)
-	}
-	if childInfo.Lineage.TTLExpiresAt == nil || !childInfo.Lineage.TTLExpiresAt.Equal(childTTL) {
-		t.Fatalf("child TTL = %#v, want %s", childInfo.Lineage.TTLExpiresAt, childTTL)
-	}
-	if childInfo.Lineage.SpawnBudget.TTLSeconds <= 0 {
-		t.Fatalf("child budget TTLSeconds = %d, want derived positive value", childInfo.Lineage.SpawnBudget.TTLSeconds)
-	}
-	if got := childInfo.Lineage.PermissionPolicy.Tools; len(got) != 2 || got[0] != "edit" || got[1] != "read" {
-		t.Fatalf("child policy tools = %#v, want normalized atoms", got)
-	}
-
-	coordinatorTTL := now.Add(2 * time.Hour)
-	coordinator, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "coordinator",
-		Workspace: h.workspaceID,
-		Type:      SessionTypeCoordinator,
-		Lineage: &store.SessionLineage{
-			SpawnRole:    "coordinator",
-			TTLExpiresAt: &coordinatorTTL,
-			SpawnBudget:  store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1},
-		},
-	})
-	if err != nil {
-		t.Fatalf("Create(coordinator) error = %v", err)
-	}
-	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), coordinator.ID)
-	})
-	if coordinator.Info().Type != SessionTypeCoordinator ||
-		coordinator.Info().Lineage == nil ||
-		coordinator.Info().Lineage.RootSessionID != coordinator.ID ||
-		coordinator.Info().Lineage.ParentSessionID != "" {
-		t.Fatalf("coordinator info = %#v", coordinator.Info())
-	}
 }
 
 func TestCreateRejectsInvalidLineage(t *testing.T) {
@@ -138,7 +159,9 @@ func TestCreateRejectsInvalidLineage(t *testing.T) {
 	h := newHarness(t, WithNow(func() time.Time { return now }))
 	parent := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), parent.ID)
+		if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil {
+			t.Fatalf("Stop(parent) error = %v", err)
+		}
 	})
 	future := now.Add(time.Hour)
 	expired := now.Add(-time.Second)
@@ -149,7 +172,7 @@ func TestCreateRejectsInvalidLineage(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "invalid depth",
+			name: "Should reject invalid depth",
 			opts: spawnedCreateOpts(parent.ID, &store.SessionLineage{
 				ParentSessionID: parent.ID,
 				RootSessionID:   parent.ID,
@@ -159,7 +182,7 @@ func TestCreateRejectsInvalidLineage(t *testing.T) {
 			wantErr: "spawn depth",
 		},
 		{
-			name: "missing root",
+			name: "Should reject missing root",
 			opts: spawnedCreateOpts(parent.ID, &store.SessionLineage{
 				ParentSessionID: parent.ID,
 				SpawnDepth:      1,
@@ -168,7 +191,7 @@ func TestCreateRejectsInvalidLineage(t *testing.T) {
 			wantErr: "root session id is required",
 		},
 		{
-			name: "expired ttl",
+			name: "Should reject expired ttl",
 			opts: spawnedCreateOpts(parent.ID, &store.SessionLineage{
 				ParentSessionID: parent.ID,
 				RootSessionID:   parent.ID,
@@ -178,20 +201,20 @@ func TestCreateRejectsInvalidLineage(t *testing.T) {
 			wantErr: "ttl deadline must be in the future",
 		},
 		{
-			name: "malformed policy",
+			name: "Should reject malformed policy",
 			opts: spawnedCreateOpts(parent.ID, &store.SessionLineage{
 				ParentSessionID: parent.ID,
 				RootSessionID:   parent.ID,
 				SpawnDepth:      1,
 				TTLExpiresAt:    &future,
 				PermissionPolicy: store.SessionPermissionPolicy{
-					Tools: []string{"edit", " "},
+					Tools: []string{testToolEdit, " "},
 				},
 			}),
 			wantErr: "empty atom",
 		},
 		{
-			name: "missing parent",
+			name: "Should reject missing parent",
 			opts: spawnedCreateOpts(parent.ID, &store.SessionLineage{
 				ParentSessionID: "sess-missing",
 				RootSessionID:   parent.ID,
@@ -201,7 +224,7 @@ func TestCreateRejectsInvalidLineage(t *testing.T) {
 			wantErr: "validate parent lineage",
 		},
 		{
-			name: "coordinator missing ttl",
+			name: "Should reject coordinator missing ttl",
 			opts: CreateOpts{
 				AgentName: "coder",
 				Workspace: h.workspaceID,
@@ -214,8 +237,9 @@ func TestCreateRejectsInvalidLineage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := h.manager.Create(testutil.Context(t), tt.opts)
+			created, err := h.manager.Create(testutil.Context(t), tt.opts)
 			if err == nil {
+				cleanupSessionStop(t, h, created.ID)
 				t.Fatalf("Create(%s) error = nil, want failure", tt.name)
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {

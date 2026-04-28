@@ -154,10 +154,76 @@ func validateSessionPermissionPolicy(policy SessionPermissionPolicy) error {
 		{name: "sandbox_profiles", values: policy.SandboxProfiles},
 	}
 	for _, check := range checks {
-		for _, value := range check.values {
+		for idx, value := range check.values {
 			if strings.TrimSpace(value) == "" {
 				return fmt.Errorf("store: session permission policy %s contains an empty atom", check.name)
 			}
+			if check.name == "tools" {
+				if err := validateCanonicalToolIDAtom(value); err != nil {
+					return fmt.Errorf(
+						"store: session permission policy tools[%d] must be canonical ToolID: %w",
+						idx,
+						err,
+					)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// ValidateChildSessionToolSubset ensures child concrete tool atoms cannot exceed the parent.
+func ValidateChildSessionToolSubset(parent SessionPermissionPolicy, child SessionPermissionPolicy) error {
+	normalizedParent := NormalizeSessionPermissionPolicy(parent)
+	normalizedChild := NormalizeSessionPermissionPolicy(child)
+	if err := validateSessionPermissionPolicy(normalizedParent); err != nil {
+		return fmt.Errorf("store: parent session permission policy invalid: %w", err)
+	}
+	if err := validateSessionPermissionPolicy(normalizedChild); err != nil {
+		return fmt.Errorf("store: child session permission policy invalid: %w", err)
+	}
+
+	parentTools := make(map[string]struct{}, len(normalizedParent.Tools))
+	for _, tool := range normalizedParent.Tools {
+		parentTools[tool] = struct{}{}
+	}
+	for _, tool := range normalizedChild.Tools {
+		if _, ok := parentTools[tool]; !ok {
+			return fmt.Errorf("store: child session tool %q exceeds parent permission policy", tool)
+		}
+	}
+	return nil
+}
+
+func validateCanonicalToolIDAtom(value string) error {
+	switch {
+	case value == "":
+		return fmt.Errorf("id is required")
+	case !strings.Contains(value, "__"):
+		return fmt.Errorf("id must include canonical namespace separator")
+	case len(value) > 64:
+		return fmt.Errorf("id exceeds 64 characters")
+	case strings.Contains(value, "___"):
+		return fmt.Errorf("reserved separator is ambiguous")
+	}
+	for segment := range strings.SplitSeq(value, "__") {
+		if segment == "" {
+			return fmt.Errorf("id contains an empty segment")
+		}
+		if strings.HasPrefix(segment, "_") || strings.HasSuffix(segment, "_") {
+			return fmt.Errorf("segment uses reserved underscore boundary")
+		}
+		for i, r := range segment {
+			if i == 0 {
+				if r < 'a' || r > 'z' {
+					return fmt.Errorf("segment must start with a lowercase letter")
+				}
+				continue
+			}
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+				continue
+			}
+			return fmt.Errorf("segment contains an unsupported character")
 		}
 	}
 	return nil
