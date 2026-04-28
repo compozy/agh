@@ -31,6 +31,16 @@ func (r *Resolver) Register(ctx context.Context, opts RegisterOptions) (Workspac
 		}
 		return Workspace{}, err
 	}
+	if err := r.notifyChangeHook(ctx, "register", ws.ID); err != nil {
+		deleteErr := r.rollbackDeleteWorkspace(ctx, ws.ID)
+		if deleteErr != nil && !errors.Is(deleteErr, ErrWorkspaceNotFound) {
+			return Workspace{}, errors.Join(
+				err,
+				fmt.Errorf("workspace: rollback workspace registration %q: %w", ws.ID, deleteErr),
+			)
+		}
+		return Workspace{}, err
+	}
 
 	r.logger.Info("workspace.register",
 		"workspace_id", resolved.ID,
@@ -57,6 +67,9 @@ func (r *Resolver) Unregister(ctx context.Context, id string) error {
 	}
 
 	r.Invalidate(trimmedID)
+	if err := r.notifyChangeHook(ctx, "unregister", trimmedID); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -105,6 +118,9 @@ func (r *Resolver) Update(ctx context.Context, id string, opts UpdateOptions) er
 	}
 
 	r.Invalidate(trimmedID)
+	if err := r.notifyChangeHook(ctx, "update", trimmedID); err != nil {
+		return err
+	}
 	return nil
 }
 

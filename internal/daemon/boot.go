@@ -442,6 +442,9 @@ func (d *Daemon) bootRegistryState(
 		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
 			return aghconfig.LoadForHome(d.homePaths, aghconfig.WithWorkspaceRoot(rootDir))
 		}),
+		workspacepkg.WithChangeHook(func(changeCtx context.Context) error {
+			return syncWorkspaceDerivedResources(changeCtx, state)
+		}),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
@@ -1232,6 +1235,10 @@ func syncExtensionResourcePublishers(ctx context.Context, state *bootState) erro
 		}
 	}
 	return nil
+}
+
+func syncWorkspaceDerivedResources(ctx context.Context, state *bootState) error {
+	return syncExtensionResourcePublishers(ctx, state)
 }
 
 func (d *Daemon) extensionManagerDeps(

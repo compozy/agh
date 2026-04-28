@@ -303,9 +303,12 @@ var operationRegistry = []OperationSpec{
 		Method:      "GET",
 		Path:        "/api/agents",
 		OperationID: "listAgents",
-		Summary:     "List all readable agent definitions",
+		Summary:     "List all readable agent definitions, optionally resolved for a workspace",
 		Tags:        []string{"agents"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("workspace", "Workspace id, name, or path used to resolve workspace-local agents", false),
+		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.AgentsResponse{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
@@ -315,11 +318,12 @@ var operationRegistry = []OperationSpec{
 		Method:      "GET",
 		Path:        "/api/agents/{name}",
 		OperationID: "getAgent",
-		Summary:     "Get one agent definition by name",
+		Summary:     "Get one agent definition by name, optionally resolved for a workspace",
 		Tags:        []string{"agents"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Agent name"),
+			queryParam("workspace", "Workspace id, name, or path used to resolve a workspace-local agent", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.AgentResponse{}},

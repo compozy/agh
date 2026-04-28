@@ -18,6 +18,7 @@ import (
 	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -233,6 +234,54 @@ func skillListItems(allSkills []*skills.Skill, sourceFilter string) ([]skillList
 	}
 
 	return items, nil
+}
+
+func skillListItemsFromRecords(records []SkillRecord, sourceFilter string) ([]skillListItem, error) {
+	filter, err := normalizeSkillSourceFilter(sourceFilter)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]skillListItem, 0, len(records))
+	for _, record := range records {
+		source := strings.TrimSpace(record.Source)
+		if filter != "" && source != filter {
+			continue
+		}
+
+		items = append(items, skillListItem{
+			Name:        record.Name,
+			Description: record.Description,
+			Source:      source,
+			Enabled:     record.Enabled,
+		})
+	}
+
+	return items, nil
+}
+
+func skillInfoItemFromRecord(record SkillRecord) skillInfoItem {
+	return skillInfoItem{
+		Name:        record.Name,
+		Description: record.Description,
+		Version:     record.Version,
+		Source:      record.Source,
+		Path:        record.Dir,
+		Enabled:     record.Enabled,
+		Metadata:    cloneMetadata(record.Metadata),
+	}
+}
+
+func skillWorkspaceFlag(cmd *cobra.Command) (string, error) {
+	workspace, err := cmd.Flags().GetString("workspace")
+	if err != nil {
+		return "", fmt.Errorf("read workspace flag: %w", err)
+	}
+	trimmed := strings.TrimSpace(workspace)
+	if cmd.Flags().Changed("workspace") && trimmed == "" {
+		return "", fmt.Errorf("workspace flag cannot be empty")
+	}
+	return trimmed, nil
 }
 
 func normalizeSkillSourceFilter(sourceFilter string) (string, error) {

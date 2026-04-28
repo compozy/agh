@@ -16,12 +16,17 @@ agh install [flags]
 ```
   # Create ~/.agh/config.toml and ~/.agh/agents/general/AGENT.md
   agh install
+
+  # Bootstrap non-interactively for automation
+  agh install --provider codex --model gpt-5.4 -o json
 ```
 
 ### Options
 
 ```
-  -h, --help   help for install
+  -h, --help              help for install
+      --model string      Default model to configure without opening the wizard
+      --provider string   Default provider to configure without opening the wizard
 ```
 
 ### Options inherited from parent commands

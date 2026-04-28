@@ -60,11 +60,17 @@ type installWizardModel struct {
 }
 
 func newInstallCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var provider string
+	var model string
+
+	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Bootstrap AGH and create the default general agent",
 		Example: `  # Create ~/.agh/config.toml and ~/.agh/agents/general/AGENT.md
-  agh install`,
+  agh install
+
+  # Bootstrap non-interactively for automation
+  agh install --provider codex --model gpt-5.4 -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			homePaths, err := deps.resolveHome()
 			if err != nil {
@@ -79,7 +85,7 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			selection, err := deps.runInstallWizard(cmd.Context(), buildInstallWizardInput(&cfg))
+			selection, err := resolveInstallSelection(cmd, &cfg, provider, model, deps.runInstallWizard)
 			if err != nil {
 				return err
 			}
@@ -107,6 +113,63 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, installBundle(record))
 		},
 	}
+	cmd.Flags().StringVar(&provider, "provider", "", "Default provider to configure without opening the wizard")
+	cmd.Flags().StringVar(&model, "model", "", "Default model to configure without opening the wizard")
+	return cmd
+}
+
+func resolveInstallSelection(
+	cmd *cobra.Command,
+	cfg *aghconfig.Config,
+	provider string,
+	model string,
+	runWizard installWizardRunner,
+) (installWizardSelection, error) {
+	if cmd == nil {
+		return installWizardSelection{}, errors.New("cli: command is required")
+	}
+	if runWizard == nil {
+		return installWizardSelection{}, errors.New("cli: install wizard runner is required")
+	}
+
+	input := buildInstallWizardInput(cfg)
+	mode, err := resolveOutputFormat(cmd)
+	if err != nil {
+		return installWizardSelection{}, err
+	}
+	providerChanged := cmd.Flags().Changed("provider")
+	modelChanged := cmd.Flags().Changed("model")
+	if providerChanged || modelChanged || mode != OutputHuman {
+		return resolveNonInteractiveInstallSelection(input, provider, model)
+	}
+	return runWizard(cmd.Context(), input)
+}
+
+func resolveNonInteractiveInstallSelection(
+	input installWizardInput,
+	provider string,
+	model string,
+) (installWizardSelection, error) {
+	selectedProvider := strings.TrimSpace(provider)
+	if selectedProvider == "" {
+		selectedProvider = strings.TrimSpace(input.SelectedProvider)
+	}
+	if selectedProvider == "" {
+		return installWizardSelection{}, errors.New("cli: install provider is required")
+	}
+
+	selectedModel := strings.TrimSpace(model)
+	if selectedModel == "" {
+		selectedModel = strings.TrimSpace(input.SuggestedModels[selectedProvider])
+	}
+	if selectedModel == "" {
+		return installWizardSelection{}, fmt.Errorf(
+			"cli: install model is required for provider %q",
+			selectedProvider,
+		)
+	}
+
+	return installWizardSelection{Provider: selectedProvider, Model: selectedModel}, nil
 }
 
 func buildInstallWizardInput(cfg *aghconfig.Config) installWizardInput {

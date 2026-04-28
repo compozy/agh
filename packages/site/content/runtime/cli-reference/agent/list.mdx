@@ -17,6 +17,9 @@ agh agent list [flags]
   # Show every agent definition available to the daemon
   agh agent list
 
+  # Show agents resolved for a workspace
+  agh agent list --workspace ~/dev/ai/acme-startup
+
   # Emit the same list as JSON
   agh agent list -o json
 ```
@@ -24,7 +27,8 @@ agh agent list [flags]
 ### Options
 
 ```
-  -h, --help   help for list
+  -h, --help               help for list
+      --workspace string   Resolve agents from a workspace id, name, or path
 ```
 
 ### Options inherited from parent commands

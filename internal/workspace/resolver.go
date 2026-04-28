@@ -41,6 +41,7 @@ type Resolver struct {
 	now         func() time.Time
 	cacheTTL    time.Duration
 	idGenerator func(prefix string) string
+	changeHook  ChangeHook
 
 	mu    sync.RWMutex
 	cache map[string]*cachedEntry
@@ -76,6 +77,7 @@ func NewResolver(store Store, opts ...Option) (*Resolver, error) {
 		now:         resolvedOpts.now,
 		cacheTTL:    resolvedOpts.cacheTTL,
 		idGenerator: resolvedOpts.idGenerator,
+		changeHook:  resolvedOpts.changeHook,
 		cache:       make(map[string]*cachedEntry),
 	}, nil
 }
@@ -212,6 +214,16 @@ func (r *Resolver) ResolveOrRegister(ctx context.Context, path string) (Resolved
 		}
 		return ResolvedWorkspace{}, err
 	}
+	if err := r.notifyChangeHook(ctx, "auto-register", ws.ID); err != nil {
+		deleteErr := r.rollbackDeleteWorkspace(ctx, ws.ID)
+		if deleteErr != nil && !errors.Is(deleteErr, ErrWorkspaceNotFound) {
+			return ResolvedWorkspace{}, errors.Join(
+				err,
+				fmt.Errorf("workspace: rollback auto-registered workspace %q: %w", ws.ID, deleteErr),
+			)
+		}
+		return ResolvedWorkspace{}, err
+	}
 
 	r.logger.Info("workspace.register",
 		"workspace_id", resolved.ID,
@@ -239,6 +251,16 @@ func (r *Resolver) Invalidate(workspaceID string) {
 	r.mu.Lock()
 	delete(r.cache, trimmedID)
 	r.mu.Unlock()
+}
+
+func (r *Resolver) notifyChangeHook(ctx context.Context, operation string, workspaceID string) error {
+	if r == nil || r.changeHook == nil {
+		return nil
+	}
+	if err := r.changeHook(ctx); err != nil {
+		return fmt.Errorf("workspace: %s workspace %q change hook: %w", operation, workspaceID, err)
+	}
+	return nil
 }
 
 func (r *Resolver) buildResolvedWorkspace(

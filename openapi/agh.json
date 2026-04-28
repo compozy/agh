@@ -4889,6 +4889,16 @@
         "/api/agents": {
             "get": {
                 "operationId": "listAgents",
+                "parameters": [
+                    {
+                        "description": "Workspace id, name, or path used to resolve workspace-local agents",
+                        "in": "query",
+                        "name": "workspace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "content": {
@@ -5025,7 +5035,7 @@
                         "description": ""
                     }
                 },
-                "summary": "List all readable agent definitions",
+                "summary": "List all readable agent definitions, optionally resolved for a workspace",
                 "tags": ["agents"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -5039,6 +5049,14 @@
                         "in": "path",
                         "name": "name",
                         "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Workspace id, name, or path used to resolve a workspace-local agent",
+                        "in": "query",
+                        "name": "workspace",
                         "schema": {
                             "type": "string"
                         }
@@ -5193,7 +5211,7 @@
                         "description": ""
                     }
                 },
-                "summary": "Get one agent definition by name",
+                "summary": "Get one agent definition by name, optionally resolved for a workspace",
                 "tags": ["agents"],
                 "x-agh-transports": ["http", "uds"]
             }

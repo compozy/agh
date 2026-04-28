@@ -52,8 +52,11 @@ type stubClient struct {
 	getWorkspaceFn            func(context.Context, string) (WorkspaceDetailRecord, error)
 	updateWorkspaceFn         func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
 	deleteWorkspaceFn         func(context.Context, string) error
-	listAgentsFn              func(context.Context) ([]AgentRecord, error)
-	getAgentFn                func(context.Context, string) (AgentRecord, error)
+	listAgentsFn              func(context.Context, AgentQuery) ([]AgentRecord, error)
+	getAgentFn                func(context.Context, string, AgentQuery) (AgentRecord, error)
+	listSkillsFn              func(context.Context, SkillQuery) ([]SkillRecord, error)
+	getSkillFn                func(context.Context, string, SkillQuery) (SkillRecord, error)
+	getSkillContentFn         func(context.Context, string, SkillQuery) (string, error)
 	hookCatalogFn             func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error)
 	hookRunsFn                func(context.Context, HookRunsQuery) ([]HookRunRecord, error)
 	hookEventsFn              func(context.Context, HookEventsQuery) ([]HookEventRecord, error)
@@ -411,18 +414,39 @@ func (s *stubClient) DeleteWorkspace(ctx context.Context, ref string) error {
 	return errors.New("unexpected DeleteWorkspace call")
 }
 
-func (s *stubClient) ListAgents(ctx context.Context) ([]AgentRecord, error) {
+func (s *stubClient) ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error) {
 	if s.listAgentsFn != nil {
-		return s.listAgentsFn(ctx)
+		return s.listAgentsFn(ctx, query)
 	}
 	return nil, errors.New("unexpected ListAgents call")
 }
 
-func (s *stubClient) GetAgent(ctx context.Context, name string) (AgentRecord, error) {
+func (s *stubClient) GetAgent(ctx context.Context, name string, query AgentQuery) (AgentRecord, error) {
 	if s.getAgentFn != nil {
-		return s.getAgentFn(ctx, name)
+		return s.getAgentFn(ctx, name, query)
 	}
 	return AgentRecord{}, errors.New("unexpected GetAgent call")
+}
+
+func (s *stubClient) ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error) {
+	if s.listSkillsFn != nil {
+		return s.listSkillsFn(ctx, query)
+	}
+	return nil, errors.New("unexpected ListSkills call")
+}
+
+func (s *stubClient) GetSkill(ctx context.Context, name string, query SkillQuery) (SkillRecord, error) {
+	if s.getSkillFn != nil {
+		return s.getSkillFn(ctx, name, query)
+	}
+	return SkillRecord{}, errors.New("unexpected GetSkill call")
+}
+
+func (s *stubClient) GetSkillContent(ctx context.Context, name string, query SkillQuery) (string, error) {
+	if s.getSkillContentFn != nil {
+		return s.getSkillContentFn(ctx, name, query)
+	}
+	return "", errors.New("unexpected GetSkillContent call")
 }
 
 func (s *stubClient) HookCatalog(

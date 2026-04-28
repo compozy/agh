@@ -232,7 +232,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List all readable agent definitions */
+    /** List all readable agent definitions, optionally resolved for a workspace */
     get: operations["listAgents"];
     put?: never;
     post?: never;
@@ -249,7 +249,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get one agent definition by name */
+    /** Get one agent definition by name, optionally resolved for a workspace */
     get: operations["getAgent"];
     put?: never;
     post?: never;
@@ -4539,7 +4539,10 @@ export interface operations {
   };
   listAgents: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Workspace id, name, or path used to resolve workspace-local agents */
+        workspace?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -4607,7 +4610,10 @@ export interface operations {
   };
   getAgent: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Workspace id, name, or path used to resolve a workspace-local agent */
+        workspace?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */

@@ -98,14 +98,16 @@ agh network send \
   -o json
 ```
 
-Send a recipe artifact with the required nested `recipe` object:
+Send a capability artifact with the required nested `capability` object:
 
 ```bash
 agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
-  --kind recipe \
-  --body '{"recipe":{"recipe_id":"launch-checklist","version":"1.0.0","title":"Launch Checklist","summary":"Compact inline launch checklist.","content_type":"text/markdown","digest":"sha256:launch-checklist-v1","inline":"# Launch Checklist\n- Verify peers\n- Send canary\n- Confirm receipts"}}' \
+  --kind capability \
+  --to reviewer.sess-xyz \
+  --interaction-id int-capability-42 \
+  --body '{"capability":{"id":"launch-checklist","summary":"Compact inline launch checklist.","outcome":"Receiver can run a launch readiness checklist.","version":"1.0.0","digest":"sha256:f1d7f6af4a35babd8ae66b66b63076f4731d5d188f6812a57937a2469f2995e3","execution_outline":["Verify peers","Send canary","Confirm receipts"],"requirements":["workspace-read"]}}' \
   -o json
 ```
 
@@ -113,14 +115,15 @@ agh network send \
 
 - `direct` requires a JSON body with at least `"text"`.
 - If you are acknowledging admission, progress, or completion at the protocol level, use the real kinds `receipt` and `trace`. Do not send `--kind direct` with `intent:"receipt"` or `intent:"trace"` as a substitute.
-- `recipe` requires a nested `"recipe"` object. Do not put `recipe_id`, `version`, or other recipe fields at the top level.
-- `recipe.recipe_id`, `recipe.version`, `recipe.content_type`, and `recipe.digest` are required.
-- `recipe` must include either `recipe.inline` or `recipe.uri`.
+- `capability` requires a nested `"capability"` object. Do not put `id`, `summary`, `outcome`, or other capability fields at the top level.
+- Directed `capability` messages require `--to` and `--interaction-id`.
+- `capability.id`, `capability.summary`, `capability.outcome`, and `capability.digest` are required.
+- `capability.digest` must match the daemon's canonical SHA-256 digest for the normalized capability document.
 - `receipt` requires `"for_id"` and `"status"`.
 - `receipt` with `"status":"accepted"` must not include `reason_code`.
 - `receipt` with `"status":"rejected"`, `"duplicate"`, `"expired"`, or `"unsupported"` must include `reason_code`.
 - `trace` requires `"state"`. Valid states are `submitted`, `working`, `needs_input`, `completed`, `failed`, and `canceled`.
-- When replying to inbound `direct`, `receipt`, `trace`, or directed `recipe` messages, keep the wrapper `--interaction-id` and set `--reply-to` to the inbound message id.
+- When replying to inbound `direct`, `receipt`, `trace`, or directed `capability` messages, keep the wrapper `--interaction-id` and set `--reply-to` to the inbound message id.
 - When replying with `--kind direct` to an inbound broadcast `say`, open a NEW `--interaction-id` unique to your targeted conversation instead of reusing the broadcast interaction id.
 - Do not send `receipt` or `trace` directly against a broadcast `say`; those lifecycle kinds belong to a targeted interaction after you open it with `direct`.
 - When an inbound message directly caused your reply, set `--causation-id` to that inbound message id.

@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -13,6 +14,9 @@ const defaultCacheTTL = 10 * time.Minute
 // ConfigLoader loads the effective configuration for a workspace root.
 type ConfigLoader func(rootDir string) (aghconfig.Config, error)
 
+// ChangeHook runs after persisted workspace mutations that affect resolved runtime state.
+type ChangeHook func(context.Context) error
+
 // Option customizes a Resolver instance.
 type Option func(*resolverOptions)
 
@@ -23,6 +27,7 @@ type resolverOptions struct {
 	now         func() time.Time
 	cacheTTL    time.Duration
 	idGenerator func(prefix string) string
+	changeHook  ChangeHook
 }
 
 // WithHomePaths overrides the global AGH home layout used for agent and skill discovery.
@@ -63,6 +68,13 @@ func WithCacheTTL(ttl time.Duration) Option {
 func WithIDGenerator(generator func(prefix string) string) Option {
 	return func(opts *resolverOptions) {
 		opts.idGenerator = generator
+	}
+}
+
+// WithChangeHook installs a post-mutation hook for derived runtime projections.
+func WithChangeHook(hook ChangeHook) Option {
+	return func(opts *resolverOptions) {
+		opts.changeHook = hook
 	}
 }
 

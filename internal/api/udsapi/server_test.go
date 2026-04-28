@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,6 +96,32 @@ func TestPathHandlesNilServer(t *testing.T) {
 	if server.Path() != "" {
 		t.Fatalf("Path(nil) = %q, want empty string", server.Path())
 	}
+}
+
+func TestNewRejectsOverlongSocketPath(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject socket paths that exceed the portable Unix limit", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		socketPath := "/tmp/" + strings.Repeat("a", maxSocketPathBytes)
+		cfg := testConfigWithDisabledNetwork(homePaths)
+		cfg.Daemon.Socket = socketPath
+
+		_, err := New(
+			WithHomePaths(homePaths),
+			WithConfig(&cfg),
+			WithSocketPath(socketPath),
+			WithSessionManager(stubSessionManager{}),
+			WithTaskService(stubTaskManager{}),
+			WithObserver(stubObserver{}),
+			WithWorkspaceResolver(stubWorkspaceService{}),
+		)
+		if !errors.Is(err, ErrSocketPathTooLong) {
+			t.Fatalf("New() error = %v, want ErrSocketPathTooLong", err)
+		}
+	})
 }
 
 func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *testing.T) {

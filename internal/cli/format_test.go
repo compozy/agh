@@ -12,7 +12,7 @@ func TestHumanOutputProducesStyledTable(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{
-		listAgentsFn: func(_ context.Context) ([]AgentRecord, error) {
+		listAgentsFn: func(_ context.Context, _ AgentQuery) ([]AgentRecord, error) {
 			return []AgentRecord{{
 				Name:        "coder",
 				Provider:    "codex",
@@ -69,7 +69,7 @@ func TestToonOutputProducesToonDocument(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{
-		listAgentsFn: func(_ context.Context) ([]AgentRecord, error) {
+		listAgentsFn: func(_ context.Context, _ AgentQuery) ([]AgentRecord, error) {
 			return []AgentRecord{{Name: "coder", Provider: "codex", Tools: []string{"shell"}}}, nil
 		},
 	})

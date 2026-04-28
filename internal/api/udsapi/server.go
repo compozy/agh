@@ -25,6 +25,7 @@ const (
 	defaultPollInterval      = 100 * time.Millisecond
 	defaultReadHeaderTimeout = 5 * time.Second
 	defaultIdleTimeout       = 60 * time.Second
+	maxSocketPathBytes       = 103
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 	ErrTaskServiceRequired       = errors.New("udsapi: task service is required")
 	ErrObserverRequired          = errors.New("udsapi: observer is required")
 	ErrWorkspaceResolverRequired = errors.New("udsapi: workspace resolver is required")
+	ErrSocketPathTooLong         = errors.New("udsapi: socket path too long")
 )
 
 // Option customizes UDS server construction.
@@ -415,6 +417,15 @@ func (s *Server) configureSocketPath() error {
 	}
 	if strings.TrimSpace(s.socketPath) == "" {
 		return errors.New("udsapi: socket path is required")
+	}
+	if length := len([]byte(s.socketPath)); length > maxSocketPathBytes {
+		return fmt.Errorf(
+			"%w: %q is %d bytes; use %d bytes or fewer",
+			ErrSocketPathTooLong,
+			s.socketPath,
+			length,
+			maxSocketPathBytes,
+		)
 	}
 	return nil
 }

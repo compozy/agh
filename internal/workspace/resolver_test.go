@@ -824,6 +824,80 @@ func TestRegisterRollsBackWhenResolveFails(t *testing.T) {
 	}
 }
 
+func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should run after register update and unregister", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		store := newMockWorkspaceStore()
+		loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+		var hookCalls int
+		resolver := newTestResolver(t, store,
+			WithHomePaths(homePaths),
+			WithConfigLoader(loader.Load),
+			WithIDGenerator(func(_ string) string { return "ws_change" }),
+			WithChangeHook(func(context.Context) error {
+				hookCalls++
+				return nil
+			}),
+		)
+
+		registered, err := resolver.Register(ctx, RegisterOptions{RootDir: root, Name: "repo"})
+		if err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		if hookCalls != 1 {
+			t.Fatalf("change hook calls after Register() = %d, want 1", hookCalls)
+		}
+
+		renamed := "repo-renamed"
+		if err := resolver.Update(ctx, registered.ID, UpdateOptions{Name: &renamed}); err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if hookCalls != 2 {
+			t.Fatalf("change hook calls after Update() = %d, want 2", hookCalls)
+		}
+
+		if err := resolver.Unregister(ctx, registered.ID); err != nil {
+			t.Fatalf("Unregister() error = %v", err)
+		}
+		if hookCalls != 3 {
+			t.Fatalf("change hook calls after Unregister() = %d, want 3", hookCalls)
+		}
+	})
+
+	t.Run("Should roll back register when change hook fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		store := newMockWorkspaceStore()
+		resolver := newTestResolver(t, store,
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+			WithIDGenerator(func(_ string) string { return "ws_hook_fail" }),
+			WithChangeHook(func(context.Context) error {
+				return errors.New("sync failed")
+			}),
+		)
+
+		if _, err := resolver.Register(ctx, RegisterOptions{RootDir: root, Name: "repo"}); err == nil {
+			t.Fatal("Register() error = nil, want change hook failure")
+		}
+		if got := len(store.deleteCalls); got != 1 {
+			t.Fatalf("DeleteWorkspace() calls = %d, want 1", got)
+		}
+		if _, err := store.GetWorkspace(ctx, "ws_hook_fail"); !errors.Is(err, ErrWorkspaceNotFound) {
+			t.Fatalf("GetWorkspace(rolled back) error = %v, want %v", err, ErrWorkspaceNotFound)
+		}
+	})
+}
+
 func TestResolveOrRegisterReturnsConcurrentWinnerWhenPathTaken(t *testing.T) {
 	t.Parallel()
 

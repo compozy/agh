@@ -593,6 +593,46 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		}
 	})
 
+	t.Run("Should merge projected catalog agents into workspace detail", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, workspace, _, _, _, _, _, _ := setup(t)
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{
+			agents: []aghconfig.AgentDef{
+				{
+					Name:     "coder",
+					Provider: "catalog-should-not-win",
+					Prompt:   "global duplicate",
+				},
+				{
+					Name:     "qa-extension-agent",
+					Provider: "codex",
+					Prompt:   "extension agent",
+				},
+			},
+		}
+
+		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/"+workspace.ID, nil)
+		if getResp.Code != http.StatusOK {
+			t.Fatalf("get workspace status = %d, want %d", getResp.Code, http.StatusOK)
+		}
+
+		var getPayload contract.WorkspaceDetailPayload
+		testutil.DecodeJSONResponse(t, getResp, &getPayload)
+		if got, want := len(getPayload.Agents), 2; got != want {
+			t.Fatalf("len(agents) = %d, want %d: %#v", got, want, getPayload.Agents)
+		}
+		if got, want := getPayload.Agents[0].Name, "coder"; got != want {
+			t.Fatalf("agents[0].name = %q, want %q", got, want)
+		}
+		if got, want := getPayload.Agents[0].Provider, "fake"; got != want {
+			t.Fatalf("agents[0].provider = %q, want workspace-scoped provider %q", got, want)
+		}
+		if got, want := getPayload.Agents[1].Name, "qa-extension-agent"; got != want {
+			t.Fatalf("agents[1].name = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should update a workspace via the service", func(t *testing.T) {
 		t.Parallel()
 

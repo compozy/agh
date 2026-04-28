@@ -54,7 +54,7 @@ Activate skills **before** writing code. Match task domain → activate all requ
 ## Build Commands
 
 ```bash
-make web-dev             # Start Vite dev server on :3000 (proxies /api to :2123)
+make web-dev             # Start Vite dev server on :3000 (proxies /api to :2123 by default; override with AGH_WEB_API_PROXY_TARGET)
 make web-build           # Production build (vite build + tsc --noEmit)
 make web-lint            # Format (oxfmt) + lint (oxlint)
 make web-fmt             # Format with oxfmt
@@ -127,4 +127,4 @@ Domain features are organized as **systems** under `src/systems/<domain>/`. Each
 - **Commits**: Conventional Commits + commitlint + husky + lint-staged
 - **Icons**: lucide-react
 - **Notifications**: sonner
-- **Vite proxy**: `/api` → `localhost:2123` (AGH daemon)
+- **Vite proxy**: `/api` → `localhost:2123` by default; set `AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:<port>` for isolated daemon QA
