@@ -47,7 +47,7 @@ func TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier(t *test
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolName:  "Read",
+			ToolID:    "Read",
 		},
 	})
 	if record.Version <= 0 {
@@ -70,8 +70,8 @@ func TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier(t *test
 		if payload.SessionID != "sess-1" || payload.WorkspaceID != "ws-1" {
 			t.Fatalf("payload.SessionContext = %#v, want session metadata", payload.SessionContext)
 		}
-		if payload.ToolName != "Read" {
-			t.Fatalf("payload.ToolName = %q, want %q", payload.ToolName, "Read")
+		if payload.ToolID != "Read" {
+			t.Fatalf("payload.ToolID = %q, want %q", payload.ToolID, "Read")
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for resource-backed tool.pre_call hook")
@@ -115,7 +115,7 @@ func TestHookBindingResourceReconcileFiresPermissionHooksThroughSessionNotifier(
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolName:  "Read",
+			ToolID:    "Read",
 		},
 	})
 	h.putBinding(t, "perm-resolved", 0, resources.ResourceScope{
@@ -128,7 +128,7 @@ func TestHookBindingResourceReconcileFiresPermissionHooksThroughSessionNotifier(
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolName:  "Read",
+			ToolID:    "Read",
 		},
 	})
 	h.putBinding(t, "perm-denied", 0, resources.ResourceScope{
@@ -141,7 +141,7 @@ func TestHookBindingResourceReconcileFiresPermissionHooksThroughSessionNotifier(
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolName:  "Read",
+			ToolID:    "Read",
 		},
 	})
 	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
@@ -294,7 +294,7 @@ func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *test
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolName:  "Read",
+			ToolID:    "Read",
 		},
 	})
 	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
@@ -324,7 +324,7 @@ func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *test
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolName:  "Read",
+			ToolID:    "Read",
 		},
 	})
 	if err := h.driver.RunBoot(testutil.Context(t)); err == nil {
@@ -340,7 +340,7 @@ func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *test
 	})
 	select {
 	case payload := <-toolPayloads:
-		if payload.ToolName != "Read" || payload.SessionID != "sess-1" {
+		if payload.ToolID != "Read" || payload.SessionID != "sess-1" {
 			t.Fatalf("post-failure payload = %#v, want stable hook payload", payload)
 		}
 	case <-time.After(time.Second):

@@ -12,11 +12,16 @@ type RegistryOption func(*RuntimeRegistry)
 
 // RuntimeRegistry indexes providers and produces scoped projections.
 type RuntimeRegistry struct {
-	providers      []Provider
-	evaluator      PolicyEvaluator
-	policyInputs   PolicyInputs
-	toolsets       ToolsetCatalog
-	usePolicyInput bool
+	providers             []Provider
+	evaluator             PolicyEvaluator
+	policyInputs          PolicyInputs
+	toolsets              ToolsetCatalog
+	hooks                 HookRunner
+	limiter               ResultLimiter
+	events                ToolEventSink
+	defaultMaxResultBytes int64
+	sensitiveFields       []string
+	usePolicyInput        bool
 }
 
 var _ Registry = (*RuntimeRegistry)(nil)
@@ -61,6 +66,41 @@ func WithPolicyInputs(inputs PolicyInputs, toolsets ToolsetCatalog) RegistryOpti
 		registry.policyInputs = inputs
 		registry.toolsets = toolsets
 		registry.usePolicyInput = true
+	}
+}
+
+// WithHookRunner wires registry-owned call hooks into dispatch.
+func WithHookRunner(hooks HookRunner) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.hooks = hooks
+	}
+}
+
+// WithResultLimiter wires result budget and redaction enforcement.
+func WithResultLimiter(limiter ResultLimiter) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.limiter = limiter
+	}
+}
+
+// WithDefaultMaxResultBytes sets the fallback result budget for silent descriptors.
+func WithDefaultMaxResultBytes(maxBytes int64) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.defaultMaxResultBytes = maxBytes
+	}
+}
+
+// WithSensitiveResultFields configures extra field names redacted from results.
+func WithSensitiveResultFields(fields ...string) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.sensitiveFields = append(registry.sensitiveFields, fields...)
+	}
+}
+
+// WithToolEventSink wires structured dispatch events into observability.
+func WithToolEventSink(events ToolEventSink) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.events = events
 	}
 }
 
@@ -114,24 +154,9 @@ func (r *RuntimeRegistry) Get(ctx context.Context, scope Scope, id ToolID) (Tool
 	)
 }
 
-// Call revalidates policy and availability; full dispatch is added by the next task.
+// Call runs the central provider-agnostic registry dispatch pipeline.
 func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest) (ToolResult, error) {
-	callScope := scope
-	callScope.Operator = true
-	view, err := r.Get(ctx, callScope, req.ToolID)
-	if err != nil {
-		return ToolResult{}, err
-	}
-	if !view.Decision.Callable {
-		return ToolResult{}, denialErrorForView(&view)
-	}
-	return ToolResult{}, NewToolError(
-		ErrorCodeBackendFailed,
-		req.ToolID,
-		"tool dispatch is not wired",
-		ErrToolBackendFailed,
-		ReasonBackendNotExecutable,
-	)
+	return r.dispatch(ctx, scope, req)
 }
 
 // OperatorProjection returns all registered tools with diagnostics.

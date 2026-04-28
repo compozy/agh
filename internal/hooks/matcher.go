@@ -61,8 +61,7 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"agent_name":     {},
 		"workspace_id":   {},
 		"workspace_root": {},
-		"tool_name":      {},
-		"tool_namespace": {},
+		"tool_id":        {},
 		"tool_read_only": {},
 	},
 	HookEventFamilyPermission: {
@@ -526,10 +525,7 @@ func (m HookMatcher) matchSandbox(
 }
 
 func (m HookMatcher) matchToolCall(payload ToolCallRef) bool {
-	if !matchStringField(m.ToolName, payload.ToolName) {
-		return false
-	}
-	if !matchStringField(m.ToolNamespace, payload.ToolNamespace) {
+	if !matchStringField(m.ToolID, payload.ToolID) {
 		return false
 	}
 	if m.ToolReadOnly != nil && payload.ReadOnly != *m.ToolReadOnly {
@@ -557,8 +553,8 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 		InputClass:         strings.TrimSpace(matcher.InputClass),
 		ACPEventType:       strings.TrimSpace(matcher.ACPEventType),
 		TurnID:             strings.TrimSpace(matcher.TurnID),
+		ToolID:             strings.TrimSpace(matcher.ToolID),
 		ToolName:           strings.TrimSpace(matcher.ToolName),
-		ToolNamespace:      strings.TrimSpace(matcher.ToolNamespace),
 		DecisionClass:      strings.TrimSpace(matcher.DecisionClass),
 		MessageRole:        strings.TrimSpace(matcher.MessageRole),
 		MessageDeltaType:   strings.TrimSpace(matcher.MessageDeltaType),
@@ -629,8 +625,8 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	appendIf("input_class", matcher.InputClass != "")
 	appendIf("acp_event_type", matcher.ACPEventType != "")
 	appendIf("turn_id", matcher.TurnID != "")
+	appendIf("tool_id", matcher.ToolID != "")
 	appendIf("tool_name", matcher.ToolName != "")
-	appendIf("tool_namespace", matcher.ToolNamespace != "")
 	appendIf("tool_read_only", matcher.ToolReadOnly != nil)
 	appendIf("decision_class", matcher.DecisionClass != "")
 	appendIf("message_role", matcher.MessageRole != "")
@@ -680,8 +676,8 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 		{field: "input_class", pattern: matcher.InputClass},
 		{field: "acp_event_type", pattern: matcher.ACPEventType},
 		{field: "turn_id", pattern: matcher.TurnID},
+		{field: "tool_id", pattern: matcher.ToolID},
 		{field: "tool_name", pattern: matcher.ToolName},
-		{field: "tool_namespace", pattern: matcher.ToolNamespace},
 		{field: "decision_class", pattern: matcher.DecisionClass},
 		{field: "message_role", pattern: matcher.MessageRole},
 		{field: "message_delta_type", pattern: matcher.MessageDeltaType},

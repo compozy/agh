@@ -45,10 +45,9 @@ type ContextBlock struct {
 
 // ToolCallRef identifies a tool invocation in hook payloads.
 type ToolCallRef struct {
-	ToolCallID    string `json:"tool_call_id,omitempty"`
-	ToolName      string `json:"tool_name,omitempty"`
-	ToolNamespace string `json:"tool_namespace,omitempty"`
-	ReadOnly      bool   `json:"read_only,omitempty"`
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	ToolID     string `json:"tool_id,omitempty"`
+	ReadOnly   bool   `json:"read_only,omitempty"`
 }
 
 // ToolLocation captures one path-scoped tool location.
@@ -550,10 +549,9 @@ type ToolPostErrorPayload struct {
 // ToolCallPatch mutates or denies tool invocation inputs.
 type ToolCallPatch struct {
 	ControlPatch
-	ToolName      *string         `json:"tool_name,omitempty"`
-	ToolNamespace *string         `json:"tool_namespace,omitempty"`
-	ReadOnly      *bool           `json:"read_only,omitempty"`
-	ToolInput     json.RawMessage `json:"tool_input,omitempty"`
+	ToolID    *string         `json:"tool_id,omitempty"`
+	ReadOnly  *bool           `json:"read_only,omitempty"`
+	ToolInput json.RawMessage `json:"tool_input,omitempty"`
 }
 
 // ToolResultPatch mutates or denies tool outputs.

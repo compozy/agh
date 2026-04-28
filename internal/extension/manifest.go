@@ -134,8 +134,8 @@ type HookMatcherConfig struct {
 	InputClass         string `toml:"input_class,omitempty"         json:"input_class,omitempty"`
 	ACPEventType       string `toml:"acp_event_type,omitempty"      json:"acp_event_type,omitempty"`
 	TurnID             string `toml:"turn_id,omitempty"             json:"turn_id,omitempty"`
+	ToolID             string `toml:"tool_id,omitempty"             json:"tool_id,omitempty"`
 	ToolName           string `toml:"tool_name,omitempty"           json:"tool_name,omitempty"`
-	ToolNamespace      string `toml:"tool_namespace,omitempty"      json:"tool_namespace,omitempty"`
 	ToolReadOnly       *bool  `toml:"tool_read_only,omitempty"      json:"tool_read_only,omitempty"`
 	DecisionClass      string `toml:"decision_class,omitempty"      json:"decision_class,omitempty"`
 	MessageRole        string `toml:"message_role,omitempty"        json:"message_role,omitempty"`
@@ -721,8 +721,8 @@ func normalizeHooks(src []HookConfig) []HookConfig {
 				InputClass:         strings.TrimSpace(hook.Matcher.InputClass),
 				ACPEventType:       strings.TrimSpace(hook.Matcher.ACPEventType),
 				TurnID:             strings.TrimSpace(hook.Matcher.TurnID),
+				ToolID:             strings.TrimSpace(hook.Matcher.ToolID),
 				ToolName:           strings.TrimSpace(hook.Matcher.ToolName),
-				ToolNamespace:      strings.TrimSpace(hook.Matcher.ToolNamespace),
 				ToolReadOnly:       cloneBoolPointer(hook.Matcher.ToolReadOnly),
 				DecisionClass:      strings.TrimSpace(hook.Matcher.DecisionClass),
 				MessageRole:        strings.TrimSpace(hook.Matcher.MessageRole),

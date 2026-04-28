@@ -2635,7 +2635,7 @@ func TestSharedContractJSONParity(t *testing.T) {
 		t.Fatalf("observe decode = %#v, want %#v", cliObserve, sharedObserve)
 	}
 
-	hookCatalogResponse := `{"hooks":[{"order":1,"name":"permission-guard","event":"tool.pre_call","source":"config","mode":"sync","priority":10,"executor_kind":"subprocess","matcher":{"tool_name":"shell"},"metadata":{"origin":"config"}}]}`
+	hookCatalogResponse := `{"hooks":[{"order":1,"name":"permission-guard","event":"tool.pre_call","source":"config","mode":"sync","priority":10,"executor_kind":"subprocess","matcher":{"tool_id":"agh__shell"},"metadata":{"origin":"config"}}]}`
 	var cliHookCatalog struct {
 		Hooks []HookCatalogRecord `json:"hooks"`
 	}

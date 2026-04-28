@@ -21,8 +21,7 @@ priority = 640
 timeout = "7s"
 
 [hooks.declarations.matcher]
-tool_name = "read_file"
-tool_namespace = "fs"
+tool_id = "agh__read_file"
 tool_read_only = true
 
 [hooks.declarations.executor]
@@ -75,11 +74,8 @@ env = { PHASE = "pre" }
 	if got, want := hook.Env["PHASE"], "pre"; got != want {
 		t.Fatalf("hook.Env[PHASE] = %q, want %q", got, want)
 	}
-	if got, want := hook.Matcher.ToolName, "read_file"; got != want {
-		t.Fatalf("hook.Matcher.ToolName = %q, want %q", got, want)
-	}
-	if got, want := hook.Matcher.ToolNamespace, "fs"; got != want {
-		t.Fatalf("hook.Matcher.ToolNamespace = %q, want %q", got, want)
+	if got, want := hook.Matcher.ToolID, "agh__read_file"; got != want {
+		t.Fatalf("hook.Matcher.ToolID = %q, want %q", got, want)
 	}
 	if hook.Matcher.ToolReadOnly == nil || !*hook.Matcher.ToolReadOnly {
 		t.Fatalf("hook.Matcher.ToolReadOnly = %#v, want true", hook.Matcher.ToolReadOnly)

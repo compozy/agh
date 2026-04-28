@@ -31,21 +31,21 @@ func TestDispatchACPAgentHookEventDispatchesToolAndPermissionFamilies(t *testing
 			if payload.SessionID != sessionCtx.SessionID || payload.WorkspaceID != sessionCtx.WorkspaceID {
 				t.Fatalf("tool.pre_call session context = %#v, want %#v", payload.SessionContext, sessionCtx)
 			}
-			if payload.ToolName != "Read" {
-				t.Fatalf("tool.pre_call ToolName = %q, want %q", payload.ToolName, "Read")
+			if payload.ToolID != "Read" {
+				t.Fatalf("tool.pre_call ToolID = %q, want %q", payload.ToolID, "Read")
 			}
 			return nil
 		},
 		onToolPostCall: func(_ context.Context, payload hookspkg.ToolPostCallPayload) error {
 			got = append(got, string(payload.Event))
-			if payload.ToolName != "Read" || string(payload.ToolResult) != `{"ok":true}` {
+			if payload.ToolID != "Read" || string(payload.ToolResult) != `{"ok":true}` {
 				t.Fatalf("tool.post_call payload = %#v, want Read with result", payload)
 			}
 			return nil
 		},
 		onToolPostError: func(_ context.Context, payload hookspkg.ToolPostErrorPayload) error {
 			got = append(got, string(payload.Event))
-			if payload.ToolName != "Read" || payload.Error != "boom" {
+			if payload.ToolID != "Read" || payload.Error != "boom" {
 				t.Fatalf("tool.post_error payload = %#v, want Read with boom", payload)
 			}
 			return nil
@@ -329,7 +329,7 @@ func TestNewHookBindingPublisherUsesResourceBackedSync(t *testing.T) {
 				Source:  hookspkg.HookSourceNative,
 				Mode:    hookspkg.HookModeSync,
 				Command: "/bin/true",
-				Matcher: hookspkg.HookMatcher{ToolName: "Read"},
+				Matcher: hookspkg.HookMatcher{ToolID: "Read"},
 			}}, nil
 		},
 	})
@@ -390,13 +390,13 @@ func TestHookBindingProjectorBuildDoesNotMutateLiveRuntimeAndApplySwapsAtomicall
 			"tool-alpha": hookspkg.NewTypedNativeExecutor(
 				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
 					name := "alpha"
-					return hookspkg.ToolCallPatch{ToolName: &name}, nil
+					return hookspkg.ToolCallPatch{ToolID: &name}, nil
 				},
 			),
 			"tool-beta": hookspkg.NewTypedNativeExecutor(
 				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
 					name := "beta"
-					return hookspkg.ToolCallPatch{ToolName: &name}, nil
+					return hookspkg.ToolCallPatch{ToolID: &name}, nil
 				},
 			),
 		})),
@@ -418,7 +418,7 @@ func TestHookBindingProjectorBuildDoesNotMutateLiveRuntimeAndApplySwapsAtomicall
 			ExecutorKind: hookspkg.HookExecutorNative,
 			Matcher: hookspkg.HookMatcher{
 				AgentName: "codex",
-				ToolName:  "Read",
+				ToolID:    "Read",
 			},
 		}),
 	})
@@ -428,7 +428,7 @@ func TestHookBindingProjectorBuildDoesNotMutateLiveRuntimeAndApplySwapsAtomicall
 	if got, want := runtime.Version(), int64(0); got != want {
 		t.Fatalf("runtime.Version() before apply = %d, want %d", got, want)
 	}
-	if got, want := dispatchProjectedToolName(t, runtime), "Read"; got != want {
+	if got, want := dispatchProjectedToolID(t, runtime), "Read"; got != want {
 		t.Fatalf("DispatchToolPreCall() before apply = %q, want %q", got, want)
 	}
 	if err := projector.Apply(ctx, planAlpha); err != nil {
@@ -437,7 +437,7 @@ func TestHookBindingProjectorBuildDoesNotMutateLiveRuntimeAndApplySwapsAtomicall
 	if got, want := runtime.Version(), int64(1); got != want {
 		t.Fatalf("runtime.Version() after alpha apply = %d, want %d", got, want)
 	}
-	if got, want := dispatchProjectedToolName(t, runtime), "alpha"; got != want {
+	if got, want := dispatchProjectedToolID(t, runtime), "alpha"; got != want {
 		t.Fatalf("DispatchToolPreCall() after alpha apply = %q, want %q", got, want)
 	}
 
@@ -453,7 +453,7 @@ func TestHookBindingProjectorBuildDoesNotMutateLiveRuntimeAndApplySwapsAtomicall
 			ExecutorKind: hookspkg.HookExecutorNative,
 			Matcher: hookspkg.HookMatcher{
 				AgentName: "codex",
-				ToolName:  "Read",
+				ToolID:    "Read",
 			},
 		}),
 	})
@@ -463,7 +463,7 @@ func TestHookBindingProjectorBuildDoesNotMutateLiveRuntimeAndApplySwapsAtomicall
 	if got, want := runtime.Version(), int64(1); got != want {
 		t.Fatalf("runtime.Version() after beta build = %d, want %d", got, want)
 	}
-	if got, want := dispatchProjectedToolName(t, runtime), "alpha"; got != want {
+	if got, want := dispatchProjectedToolID(t, runtime), "alpha"; got != want {
 		t.Fatalf("DispatchToolPreCall() after beta build = %q, want %q", got, want)
 	}
 	if err := projector.Apply(ctx, planBeta); err != nil {
@@ -472,7 +472,7 @@ func TestHookBindingProjectorBuildDoesNotMutateLiveRuntimeAndApplySwapsAtomicall
 	if got, want := runtime.Version(), int64(2); got != want {
 		t.Fatalf("runtime.Version() after beta apply = %d, want %d", got, want)
 	}
-	if got, want := dispatchProjectedToolName(t, runtime), "beta"; got != want {
+	if got, want := dispatchProjectedToolID(t, runtime), "beta"; got != want {
 		t.Fatalf("DispatchToolPreCall() after beta apply = %q, want %q", got, want)
 	}
 }
@@ -486,7 +486,7 @@ func TestHookBindingProjectorBuildFailurePreservesAppliedRuntimeState(t *testing
 			"tool-stable": hookspkg.NewTypedNativeExecutor(
 				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
 					name := "stable"
-					return hookspkg.ToolCallPatch{ToolName: &name}, nil
+					return hookspkg.ToolCallPatch{ToolID: &name}, nil
 				},
 			),
 		})),
@@ -503,7 +503,7 @@ func TestHookBindingProjectorBuildFailurePreservesAppliedRuntimeState(t *testing
 			Source:       hookspkg.HookSourceNative,
 			Mode:         hookspkg.HookModeSync,
 			ExecutorKind: hookspkg.HookExecutorNative,
-			Matcher:      hookspkg.HookMatcher{ToolName: "Read"},
+			Matcher:      hookspkg.HookMatcher{ToolID: "Read"},
 		}),
 	})
 	if err != nil {
@@ -520,13 +520,13 @@ func TestHookBindingProjectorBuildFailurePreservesAppliedRuntimeState(t *testing
 			Source:       hookspkg.HookSourceNative,
 			Mode:         hookspkg.HookModeSync,
 			ExecutorKind: hookspkg.HookExecutorNative,
-			Matcher:      hookspkg.HookMatcher{ToolName: "Read"},
+			Matcher:      hookspkg.HookMatcher{ToolID: "Read"},
 		}),
 	})
 	if err == nil {
 		t.Fatal("projector.Build(missing executor) error = nil, want non-nil")
 	}
-	if got, want := dispatchProjectedToolName(t, runtime), "stable"; got != want {
+	if got, want := dispatchProjectedToolID(t, runtime), "stable"; got != want {
 		t.Fatalf("DispatchToolPreCall() after failed build = %q, want %q", got, want)
 	}
 }
@@ -666,7 +666,7 @@ func TestHookBindingReconcileFiresToolHookThroughNotifierUnit(t *testing.T) {
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolName:  "Read",
+			ToolID:    "Read",
 		},
 	})
 	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
@@ -683,7 +683,7 @@ func TestHookBindingReconcileFiresToolHookThroughNotifierUnit(t *testing.T) {
 
 	select {
 	case payload := <-toolPayloads:
-		if payload.SessionID != "sess-1" || payload.WorkspaceID != "ws-1" || payload.ToolName != "Read" {
+		if payload.SessionID != "sess-1" || payload.WorkspaceID != "ws-1" || payload.ToolID != "Read" {
 			t.Fatalf("payload = %#v, want sess-1/ws-1/Read", payload)
 		}
 	case <-time.After(time.Second):
@@ -715,7 +715,7 @@ func TestHookBindingReconcileFailurePreservesAppliedRuntimeStateUnit(t *testing.
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolName:  "Read",
+			ToolID:    "Read",
 		},
 	})
 	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
@@ -746,7 +746,7 @@ func TestHookBindingReconcileFailurePreservesAppliedRuntimeStateUnit(t *testing.
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolName:  "Read",
+			ToolID:    "Read",
 		},
 	})
 	if err := h.driver.RunBoot(testutil.Context(t)); err == nil {
@@ -762,7 +762,7 @@ func TestHookBindingReconcileFailurePreservesAppliedRuntimeStateUnit(t *testing.
 	})
 	select {
 	case payload := <-toolPayloads:
-		if payload.SessionID != "sess-1" || payload.ToolName != "Read" {
+		if payload.SessionID != "sess-1" || payload.ToolID != "Read" {
 			t.Fatalf("post-failure payload = %#v, want stable tool payload", payload)
 		}
 	case <-time.After(time.Second):
@@ -792,7 +792,7 @@ func testHookBindingRecord(
 	}
 }
 
-func dispatchProjectedToolName(t *testing.T, runtime *hookspkg.Hooks) string {
+func dispatchProjectedToolID(t *testing.T, runtime *hookspkg.Hooks) string {
 	t.Helper()
 
 	payload, err := runtime.DispatchToolPreCall(testutil.Context(t), hookspkg.ToolPreCallPayload{
@@ -809,13 +809,13 @@ func dispatchProjectedToolName(t *testing.T, runtime *hookspkg.Hooks) string {
 		TurnContext: hookspkg.TurnContext{TurnID: "turn-1"},
 		ToolCallRef: hookspkg.ToolCallRef{
 			ToolCallID: "tool-1",
-			ToolName:   "Read",
+			ToolID:     "Read",
 		},
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolPreCall() error = %v", err)
 	}
-	return payload.ToolName
+	return payload.ToolID
 }
 
 func toolEventRaw(sessionUpdate string, status string, toolResult any) map[string]any {

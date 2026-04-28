@@ -1181,17 +1181,15 @@ func TestCollectionHelperMapsIncludeNestedFields(t *testing.T) {
 		Args:         []string{"--json"},
 		Env:          map[string]string{"TOKEN": "value"},
 		Matcher: hookspkg.HookMatcher{
-			ToolName:         "read",
-			ToolNamespace:    "fs",
+			ToolID:           "agh__read",
 			ToolReadOnly:     &readOnly,
-			DecisionClass:    "tool",
 			MessageRole:      "assistant",
 			MessageDeltaType: "text",
 		},
 	}
 	matcher := hookMatcherMap(decl)
-	if got, want := matcher["tool_name"], "read"; got != want {
-		t.Fatalf("hookMatcherMap()[tool_name] = %#v, want %q", got, want)
+	if got, want := matcher["tool_id"], "agh__read"; got != want {
+		t.Fatalf("hookMatcherMap()[tool_id] = %#v, want %q", got, want)
 	}
 	executor := hookExecutorMap(decl)
 	if got, want := executor["kind"], string(hookspkg.HookExecutorSubprocess); got != want {

@@ -13308,10 +13308,10 @@
                                                             "sync_direction": {
                                                                 "type": "string"
                                                             },
-                                                            "tool_name": {
+                                                            "tool_id": {
                                                                 "type": "string"
                                                             },
-                                                            "tool_namespace": {
+                                                            "tool_name": {
                                                                 "type": "string"
                                                             },
                                                             "tool_read_only": {
@@ -24165,10 +24165,10 @@
                                                                     "sync_direction": {
                                                                         "type": "string"
                                                                     },
-                                                                    "tool_name": {
+                                                                    "tool_id": {
                                                                         "type": "string"
                                                                     },
-                                                                    "tool_namespace": {
+                                                                    "tool_name": {
                                                                         "type": "string"
                                                                     },
                                                                     "tool_read_only": {
@@ -24608,10 +24608,10 @@
                                                                     "sync_direction": {
                                                                         "type": "string"
                                                                     },
-                                                                    "tool_name": {
+                                                                    "tool_id": {
                                                                         "type": "string"
                                                                     },
-                                                                    "tool_namespace": {
+                                                                    "tool_name": {
                                                                         "type": "string"
                                                                     },
                                                                     "tool_read_only": {
@@ -25420,10 +25420,10 @@
                                                     "sync_direction": {
                                                         "type": "string"
                                                     },
-                                                    "tool_name": {
+                                                    "tool_id": {
                                                         "type": "string"
                                                     },
-                                                    "tool_namespace": {
+                                                    "tool_name": {
                                                         "type": "string"
                                                     },
                                                     "tool_read_only": {

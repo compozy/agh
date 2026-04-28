@@ -35,19 +35,31 @@ func (p registryTestProvider) Resolve(_ context.Context, _ Scope, id ToolID) (Ha
 type registryTestHandle struct {
 	descriptor   Descriptor
 	availability Availability
+	result       ToolResult
+	callErr      error
+	call         func(context.Context, CallRequest) (ToolResult, error)
 }
 
-var _ Handle = registryTestHandle{}
+var _ Handle = (*registryTestHandle)(nil)
 
-func (h registryTestHandle) Descriptor() Descriptor {
+func (h *registryTestHandle) Descriptor() Descriptor {
 	return h.descriptor
 }
 
-func (h registryTestHandle) Availability(_ context.Context, _ Scope) Availability {
+func (h *registryTestHandle) Availability(_ context.Context, _ Scope) Availability {
 	return h.availability
 }
 
-func (h registryTestHandle) Call(_ context.Context, _ CallRequest) (ToolResult, error) {
+func (h *registryTestHandle) Call(ctx context.Context, req CallRequest) (ToolResult, error) {
+	if h.call != nil {
+		return h.call(ctx, req)
+	}
+	if h.callErr != nil {
+		return ToolResult{}, h.callErr
+	}
+	if len(h.result.Content) > 0 || len(h.result.Structured) > 0 || h.result.Preview != "" {
+		return h.result, nil
+	}
 	return ToolResult{Content: []ToolContent{{Type: "text", Text: "ok"}}}, nil
 }
 
@@ -159,7 +171,7 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 			conflicted,
 			conflictedDuplicate,
 		)
-		provider.handles[networkSend.ID] = registryTestHandle{
+		provider.handles[networkSend.ID] = &registryTestHandle{
 			descriptor: networkSend,
 			availability: Availability{
 				Registered:  true,
@@ -265,7 +277,7 @@ func TestRuntimeRegistrySearchGetAndCustomEvaluator(t *testing.T) {
 func providerWithDescriptors(source SourceRef, descriptors ...Descriptor) registryTestProvider {
 	handles := make(map[ToolID]Handle, len(descriptors))
 	for _, descriptor := range descriptors {
-		handles[descriptor.ID] = registryTestHandle{
+		handles[descriptor.ID] = &registryTestHandle{
 			descriptor: descriptor,
 			availability: Availability{
 				Registered:  true,
@@ -336,23 +348,42 @@ func makeFilledBytes(length int, value byte) []byte {
 	return data
 }
 
-func TestRuntimeRegistryCallFailsClosedBeforeDispatchTask(t *testing.T) {
+func TestRuntimeRegistryCallDispatchesRegisteredTool(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return backend failure after policy passes until dispatch is wired", func(t *testing.T) {
+	t.Run("Should call provider handle after policy passes", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
 		descriptor := validDescriptor()
+		called := false
+		provider := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor)
+		provider.handles[descriptor.ID] = &registryTestHandle{
+			descriptor:   descriptor,
+			availability: provider.handles[descriptor.ID].Availability(ctx, Scope{}),
+			call: func(_ context.Context, req CallRequest) (ToolResult, error) {
+				called = true
+				if req.ToolID != descriptor.ID {
+					t.Fatalf("CallRequest.ToolID = %q, want %q", req.ToolID, descriptor.ID)
+				}
+				return ToolResult{Content: []ToolContent{{Type: "text", Text: "ok"}}}, nil
+			},
+		}
 		registry, err := NewRegistry(
-			WithProviders(providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor)),
+			WithProviders(provider),
 		)
 		if err != nil {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
-		_, err = registry.Call(ctx, Scope{}, CallRequest{ToolID: descriptor.ID})
-		if !errors.Is(err, ErrToolBackendFailed) {
-			t.Fatalf("RuntimeRegistry.Call() error = %v, want ErrToolBackendFailed", err)
+		result, err := registry.Call(ctx, Scope{}, CallRequest{ToolID: descriptor.ID})
+		if err != nil {
+			t.Fatalf("RuntimeRegistry.Call() error = %v, want nil", err)
+		}
+		if !called {
+			t.Fatal("provider handle was not called")
+		}
+		if len(result.Content) != 1 || result.Content[0].Text != "ok" {
+			t.Fatalf("result = %#v, want ok text content", result)
 		}
 	})
 }

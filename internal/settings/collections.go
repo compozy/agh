@@ -934,11 +934,11 @@ func hookMatcherMap(declaration hookspkg.HookDecl) map[string]any {
 	if strings.TrimSpace(declaration.Matcher.TurnID) != "" {
 		matcher["turn_id"] = declaration.Matcher.TurnID
 	}
+	if strings.TrimSpace(declaration.Matcher.ToolID) != "" {
+		matcher["tool_id"] = declaration.Matcher.ToolID
+	}
 	if strings.TrimSpace(declaration.Matcher.ToolName) != "" {
 		matcher["tool_name"] = declaration.Matcher.ToolName
-	}
-	if strings.TrimSpace(declaration.Matcher.ToolNamespace) != "" {
-		matcher["tool_namespace"] = declaration.Matcher.ToolNamespace
 	}
 	if declaration.Matcher.ToolReadOnly != nil {
 		matcher["tool_read_only"] = *declaration.Matcher.ToolReadOnly

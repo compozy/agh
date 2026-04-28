@@ -350,13 +350,13 @@ func TestValidateHookDeclRejectsInvalidMatcherPattern(t *testing.T) {
 		Source:  HookSourceConfig,
 		Command: "./hook.sh",
 		Matcher: HookMatcher{
-			ToolName: "[",
+			ToolID: "[",
 		},
 	})
 	if err == nil {
 		t.Fatal("ValidateHookDecl() error = nil, want non-nil")
 	}
-	if !strings.Contains(err.Error(), "matcher.tool_name pattern") {
+	if !strings.Contains(err.Error(), "matcher.tool_id pattern") {
 		t.Fatalf("ValidateHookDecl() error = %q, want matcher pattern detail", err)
 	}
 }

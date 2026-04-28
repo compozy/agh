@@ -8717,8 +8717,8 @@ export interface operations {
                 sandbox_profile?: string;
                 session_type?: string;
                 sync_direction?: string;
+                tool_id?: string;
                 tool_name?: string;
-                tool_namespace?: string;
                 tool_read_only?: boolean | null;
                 turn_id?: string;
                 workspace_id?: string;
@@ -13886,8 +13886,8 @@ export interface operations {
                   sandbox_profile?: string;
                   session_type?: string;
                   sync_direction?: string;
+                  tool_id?: string;
                   tool_name?: string;
-                  tool_namespace?: string;
                   tool_read_only?: boolean | null;
                   turn_id?: string;
                   workspace_id?: string;
@@ -14095,8 +14095,8 @@ export interface operations {
                   sandbox_profile?: string;
                   session_type?: string;
                   sync_direction?: string;
+                  tool_id?: string;
                   tool_name?: string;
-                  tool_namespace?: string;
                   tool_read_only?: boolean | null;
                   turn_id?: string;
                   workspace_id?: string;
@@ -14428,8 +14428,8 @@ export interface operations {
               sandbox_profile?: string;
               session_type?: string;
               sync_direction?: string;
+              tool_id?: string;
               tool_name?: string;
-              tool_namespace?: string;
               tool_read_only?: boolean | null;
               turn_id?: string;
               workspace_id?: string;

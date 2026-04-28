@@ -422,11 +422,16 @@ type ToolView struct {
 
 // CallRequest is the canonical dispatch request.
 type CallRequest struct {
-	ToolID        ToolID          `json:"tool_id"`
-	SessionID     string          `json:"session_id,omitempty"`
-	WorkspaceID   string          `json:"workspace_id,omitempty"`
-	Input         json.RawMessage `json:"input"`
-	ApprovalToken string          `json:"approval_token,omitempty"`
+	ToolID               ToolID          `json:"tool_id"`
+	ToolCallID           string          `json:"tool_call_id,omitempty"`
+	TurnID               string          `json:"turn_id,omitempty"`
+	SessionID            string          `json:"session_id,omitempty"`
+	WorkspaceID          string          `json:"workspace_id,omitempty"`
+	AgentName            string          `json:"agent_name,omitempty"`
+	CorrelationID        string          `json:"correlation_id,omitempty"`
+	Input                json.RawMessage `json:"input"`
+	SensitiveInputFields []string        `json:"sensitive_input_fields,omitempty"`
+	ApprovalToken        string          `json:"approval_token,omitempty"`
 }
 
 // ExtensionToolRuntimeDescriptor is the runtime reconciliation proof for an extension tool.
@@ -502,6 +507,55 @@ type EffectiveToolDecision struct {
 	AvailabilityResult   string       `json:"availability_result,omitempty"`
 	HookResult           string       `json:"hook_result,omitempty"`
 	ReasonCodes          []ReasonCode `json:"reason_codes,omitempty"`
+}
+
+// ToolCallEventKind identifies one structured dispatch observability event.
+type ToolCallEventKind string
+
+const (
+	// ToolCallStarted reports that dispatch passed identity resolution and began.
+	ToolCallStarted ToolCallEventKind = "tool.call_started"
+	// ToolCallCompleted reports successful provider execution and result limiting.
+	ToolCallCompleted ToolCallEventKind = "tool.call_completed"
+	// ToolCallFailed reports schema, hook, backend, cancellation, or timeout failures.
+	ToolCallFailed ToolCallEventKind = "tool.call_failed"
+	// ToolCallDenied reports policy, availability, approval, conflict, or hook denial.
+	ToolCallDenied ToolCallEventKind = "tool.call_denied"
+	// ToolResultTruncated reports deterministic result truncation.
+	ToolResultTruncated ToolCallEventKind = "tool.result_truncated"
+)
+
+// ToolCallEvent is the redacted dispatch event envelope emitted by Registry.Call.
+type ToolCallEvent struct {
+	Kind                 ToolCallEventKind `json:"kind"`
+	ToolID               ToolID            `json:"tool_id"`
+	DisplayTitle         string            `json:"display_title,omitempty"`
+	SourceKind           SourceKind        `json:"source_kind,omitempty"`
+	SourceOwner          string            `json:"source_owner,omitempty"`
+	WorkspaceID          string            `json:"workspace_id,omitempty"`
+	SessionID            string            `json:"session_id,omitempty"`
+	AgentName            string            `json:"agent_name,omitempty"`
+	Risk                 RiskClass         `json:"risk,omitempty"`
+	ReadOnly             bool              `json:"read_only"`
+	Destructive          bool              `json:"destructive"`
+	OpenWorld            bool              `json:"open_world"`
+	ApprovalMode         string            `json:"approval_mode,omitempty"`
+	Decision             string            `json:"decision,omitempty"`
+	ReasonCodes          []ReasonCode      `json:"reason_codes,omitempty"`
+	DurationMS           int64             `json:"duration_ms,omitempty"`
+	ResultBytes          int64             `json:"result_bytes,omitempty"`
+	Truncated            bool              `json:"truncated"`
+	CorrelationID        string            `json:"correlation_id,omitempty"`
+	ErrorCode            ErrorCode         `json:"error_code,omitempty"`
+	InputDigest          string            `json:"input_digest,omitempty"`
+	RedactedInputFields  []string          `json:"redacted_input_fields,omitempty"`
+	ResultDigest         string            `json:"result_digest,omitempty"`
+	ResultRedactionPaths []string          `json:"result_redaction_paths,omitempty"`
+}
+
+// ToolEventSink receives redacted dispatch events from the registry.
+type ToolEventSink interface {
+	EmitToolEvent(ctx context.Context, event ToolCallEvent) error
 }
 
 // ValidateProvider rejects nil or malformed providers before registry use.

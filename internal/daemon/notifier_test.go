@@ -99,8 +99,8 @@ func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 			if payload.SessionID != "sess-created" || payload.WorkspaceID != "ws-1" {
 				t.Fatalf("payload session context = %#v, want session metadata", payload.SessionContext)
 			}
-			if payload.ToolName != "Read" {
-				t.Fatalf("payload.ToolName = %q, want %q", payload.ToolName, "Read")
+			if payload.ToolID != "Read" {
+				t.Fatalf("payload.ToolID = %q, want %q", payload.ToolID, "Read")
 			}
 			return nil
 		},

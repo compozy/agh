@@ -45,8 +45,8 @@ type parsedHookMatcher struct {
 	InputClass         string `yaml:"input_class,omitempty"         toml:"input_class,omitempty"`
 	ACPEventType       string `yaml:"acp_event_type,omitempty"      toml:"acp_event_type,omitempty"`
 	TurnID             string `yaml:"turn_id,omitempty"             toml:"turn_id,omitempty"`
+	ToolID             string `yaml:"tool_id,omitempty"             toml:"tool_id,omitempty"`
 	ToolName           string `yaml:"tool_name,omitempty"           toml:"tool_name,omitempty"`
-	ToolNamespace      string `yaml:"tool_namespace,omitempty"      toml:"tool_namespace,omitempty"`
 	ToolReadOnly       *bool  `yaml:"tool_read_only,omitempty"      toml:"tool_read_only,omitempty"`
 	DecisionClass      string `yaml:"decision_class,omitempty"      toml:"decision_class,omitempty"`
 	MessageRole        string `yaml:"message_role,omitempty"        toml:"message_role,omitempty"`
@@ -186,8 +186,8 @@ func (m parsedHookMatcher) toHookMatcher(scopeAgentName string) (hookspkg.HookMa
 		InputClass:         strings.TrimSpace(m.InputClass),
 		ACPEventType:       strings.TrimSpace(m.ACPEventType),
 		TurnID:             strings.TrimSpace(m.TurnID),
+		ToolID:             strings.TrimSpace(m.ToolID),
 		ToolName:           strings.TrimSpace(m.ToolName),
-		ToolNamespace:      strings.TrimSpace(m.ToolNamespace),
 		DecisionClass:      strings.TrimSpace(m.DecisionClass),
 		MessageRole:        strings.TrimSpace(m.MessageRole),
 		MessageDeltaType:   strings.TrimSpace(m.MessageDeltaType),

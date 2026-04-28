@@ -83,10 +83,9 @@ func dispatchToolHookEvent(
 	base := hookspkg.PayloadBase{Timestamp: hookEventTimestamp(event.Timestamp, defaultTimestamp)}
 	turn := hookspkg.TurnContext{TurnID: strings.TrimSpace(event.TurnID)}
 	ref := hookspkg.ToolCallRef{
-		ToolCallID:    firstNonEmpty(strings.TrimSpace(event.ToolCallID), strings.TrimSpace(raw.ToolCallID)),
-		ToolName:      hookAgentToolName(raw, strings.TrimSpace(event.Title)),
-		ToolNamespace: "",
-		ReadOnly:      strings.EqualFold(strings.TrimSpace(raw.Kind), "read"),
+		ToolCallID: firstNonEmpty(strings.TrimSpace(event.ToolCallID), strings.TrimSpace(raw.ToolCallID)),
+		ToolID:     hookAgentToolName(raw, strings.TrimSpace(event.Title)),
+		ReadOnly:   strings.EqualFold(strings.TrimSpace(raw.Kind), "read"),
 	}
 
 	updateType := strings.ToLower(strings.TrimSpace(raw.SessionUpdate))

@@ -500,8 +500,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 						ExecutorKind: hookspkg.HookExecutorSubprocess,
 						Command:      "/bin/capture",
 						Matcher: hookspkg.HookMatcher{
-							ToolName:      "read",
-							ToolNamespace: "fs",
+							ToolID: "agh__read",
 						},
 					},
 					SourceMetadata: settingspkg.SourceMetadata{
@@ -657,10 +656,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					ExecutorKind: hookspkg.HookExecutorSubprocess,
 					Command:      "/bin/capture",
 					Matcher: hookspkg.HookMatcher{
-						ToolName:         "read",
-						ToolNamespace:    "fs",
+						ToolID:           "agh__read",
 						ToolReadOnly:     &readOnly,
-						DecisionClass:    "tool",
 						MessageRole:      "assistant",
 						MessageDeltaType: "text",
 					},
@@ -1113,9 +1110,8 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 					ExecutorKind: hookspkg.HookExecutorSubprocess,
 					Command:      "/bin/capture",
 					Matcher: hookspkg.HookMatcher{
-						ToolName:      "read",
-						ToolNamespace: "fs",
-						ToolReadOnly:  &readOnly,
+						ToolID:       "agh__read",
+						ToolReadOnly: &readOnly,
 					},
 				},
 			},
@@ -1206,7 +1202,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 								Mode:         hookspkg.HookModeAsync,
 								ExecutorKind: hookspkg.HookExecutorSubprocess,
 								Command:      "/bin/capture",
-								Matcher:      hookspkg.HookMatcher{ToolName: "read", ToolNamespace: "fs"},
+								Matcher:      hookspkg.HookMatcher{ToolID: "agh__read"},
 							},
 							SourceMetadata: settingspkg.SourceMetadata{
 								EffectiveSource: settingspkg.SourceRef{
@@ -1316,9 +1312,8 @@ func TestSettingsCollectionMutationHandlersRejectInvalidPayloads(t *testing.T) {
 					Command:      "/bin/capture",
 					Timeout:      "bad",
 					Matcher: hookspkg.HookMatcher{
-						ToolName:      "read",
-						ToolNamespace: "fs",
-						ToolReadOnly:  &readOnly,
+						ToolID:       "agh__read",
+						ToolReadOnly: &readOnly,
 					},
 				},
 			}),

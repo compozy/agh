@@ -26,6 +26,10 @@ var (
 	ErrToolResultTooLarge = errors.New("tools: tool result too large")
 	// ErrToolBackendFailed reports a backend adapter failure.
 	ErrToolBackendFailed = errors.New("tools: backend failed")
+	// ErrToolCanceled reports call cancellation.
+	ErrToolCanceled = errors.New("tools: tool call canceled")
+	// ErrToolTimedOut reports call deadline expiration.
+	ErrToolTimedOut = errors.New("tools: tool call timed out")
 )
 
 // ErrorCode is the stable public tool error code.
@@ -48,6 +52,10 @@ const (
 	ErrorCodeResultTooLarge ErrorCode = "tool_result_too_large"
 	// ErrorCodeBackendFailed maps to ErrToolBackendFailed.
 	ErrorCodeBackendFailed ErrorCode = "tool_backend_failed"
+	// ErrorCodeCanceled maps to ErrToolCanceled.
+	ErrorCodeCanceled ErrorCode = "tool_canceled"
+	// ErrorCodeTimedOut maps to ErrToolTimedOut.
+	ErrorCodeTimedOut ErrorCode = "tool_timed_out"
 )
 
 // ToolError carries stable reason codes with a wrapped cause.

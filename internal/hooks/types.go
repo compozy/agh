@@ -149,8 +149,8 @@ type HookMatcher struct {
 	InputClass         string           `json:"input_class,omitempty"         yaml:"input_class,omitempty"`
 	ACPEventType       string           `json:"acp_event_type,omitempty"      yaml:"acp_event_type,omitempty"`
 	TurnID             string           `json:"turn_id,omitempty"             yaml:"turn_id,omitempty"`
+	ToolID             string           `json:"tool_id,omitempty"             yaml:"tool_id,omitempty"`
 	ToolName           string           `json:"tool_name,omitempty"           yaml:"tool_name,omitempty"`
-	ToolNamespace      string           `json:"tool_namespace,omitempty"      yaml:"tool_namespace,omitempty"`
 	ToolReadOnly       *bool            `json:"tool_read_only,omitempty"      yaml:"tool_read_only,omitempty"`
 	DecisionClass      string           `json:"decision_class,omitempty"      yaml:"decision_class,omitempty"`
 	MessageRole        string           `json:"message_role,omitempty"        yaml:"message_role,omitempty"`

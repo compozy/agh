@@ -342,8 +342,8 @@ func hookMatcherRows(matcher hookspkg.HookMatcher) [][]string {
 	appendRow("input_class", matcher.InputClass)
 	appendRow("acp_event_type", matcher.ACPEventType)
 	appendRow("turn_id", matcher.TurnID)
+	appendRow("tool_id", matcher.ToolID)
 	appendRow("tool_name", matcher.ToolName)
-	appendRow("tool_namespace", matcher.ToolNamespace)
 	if matcher.ToolReadOnly != nil {
 		rows = append(rows, []string{"tool_read_only", strconv.FormatBool(*matcher.ToolReadOnly)})
 	}

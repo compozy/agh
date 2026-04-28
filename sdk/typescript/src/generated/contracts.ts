@@ -959,8 +959,8 @@ export interface HookMatcher {
   input_class?: string;
   acp_event_type?: string;
   turn_id?: string;
+  tool_id?: string;
   tool_name?: string;
-  tool_namespace?: string;
   tool_read_only?: boolean;
   decision_class?: string;
   message_role?: string;
@@ -3315,16 +3315,14 @@ export interface Tool {
 export interface ToolCallPatch {
   deny?: boolean;
   deny_reason?: string;
-  tool_name?: string;
-  tool_namespace?: string;
+  tool_id?: string;
   read_only?: boolean;
   tool_input?: JSONValue;
 }
 
 export interface ToolCallRef {
   tool_call_id?: string;
-  tool_name?: string;
-  tool_namespace?: string;
+  tool_id?: string;
   read_only?: boolean;
 }
 
@@ -3343,8 +3341,7 @@ export interface ToolPostCallPayload {
   updated_at: ISODateTime;
   turn_id?: string;
   tool_call_id?: string;
-  tool_name?: string;
-  tool_namespace?: string;
+  tool_id?: string;
   read_only?: boolean;
   title?: string;
   tool_input?: JSONValue;
@@ -3374,8 +3371,7 @@ export interface ToolPostErrorPayload {
   updated_at: ISODateTime;
   turn_id?: string;
   tool_call_id?: string;
-  tool_name?: string;
-  tool_namespace?: string;
+  tool_id?: string;
   read_only?: boolean;
   title?: string;
   tool_input?: JSONValue;
@@ -3397,8 +3393,7 @@ export interface ToolPreCallPayload {
   updated_at: ISODateTime;
   turn_id?: string;
   tool_call_id?: string;
-  tool_name?: string;
-  tool_namespace?: string;
+  tool_id?: string;
   read_only?: boolean;
   tool_input?: JSONValue;
 }

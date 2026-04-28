@@ -39,8 +39,8 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	sampleRaw := json.RawMessage(`{"key":"value"}`)
 	allowOnce := "allow-once"
 	reason := "blocked"
+	toolID := "agh__grep"
 	toolName := "grep"
-	toolNamespace := "fs"
 	strategy := "summarize"
 	text := "patched"
 	role := "assistant"
@@ -434,10 +434,9 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		SessionContext: sampleSession,
 		TurnContext:    sampleTurn,
 		ToolCallRef: ToolCallRef{
-			ToolCallID:    "tool-1",
-			ToolName:      "grep",
-			ToolNamespace: "fs",
-			ReadOnly:      true,
+			ToolCallID: "tool-1",
+			ToolID:     "agh__grep",
+			ReadOnly:   true,
 		},
 		ToolInput: sampleRaw,
 	})
@@ -446,10 +445,9 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		SessionContext: sampleSession,
 		TurnContext:    sampleTurn,
 		ToolCallRef: ToolCallRef{
-			ToolCallID:    "tool-1",
-			ToolName:      "grep",
-			ToolNamespace: "fs",
-			ReadOnly:      true,
+			ToolCallID: "tool-1",
+			ToolID:     "agh__grep",
+			ReadOnly:   true,
 		},
 		Title:      "grep result",
 		ToolInput:  sampleRaw,
@@ -460,21 +458,19 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		SessionContext: sampleSession,
 		TurnContext:    sampleTurn,
 		ToolCallRef: ToolCallRef{
-			ToolCallID:    "tool-1",
-			ToolName:      "grep",
-			ToolNamespace: "fs",
-			ReadOnly:      true,
+			ToolCallID: "tool-1",
+			ToolID:     "agh__grep",
+			ReadOnly:   true,
 		},
 		Title:     "grep error",
 		ToolInput: sampleRaw,
 		Error:     "failed",
 	})
 	assertJSONRoundTrip(t, "ToolCallPatch", ToolCallPatch{
-		ControlPatch:  ControlPatch{DenyReason: "tool"},
-		ToolName:      &toolName,
-		ToolNamespace: &toolNamespace,
-		ReadOnly:      &readOnly,
-		ToolInput:     sampleRaw,
+		ControlPatch: ControlPatch{DenyReason: "tool"},
+		ToolID:       &toolID,
+		ReadOnly:     &readOnly,
+		ToolInput:    sampleRaw,
 	})
 	assertJSONRoundTrip(t, "ToolResultPatch", ToolResultPatch{
 		ControlPatch: ControlPatch{DenyReason: "result"},

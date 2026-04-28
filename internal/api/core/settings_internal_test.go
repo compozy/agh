@@ -223,8 +223,7 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		Command:      "/bin/capture",
 		Timeout:      "bad",
 		Matcher: hookspkg.HookMatcher{
-			ToolName:      "read",
-			ToolNamespace: "fs",
+			ToolID: "agh__read",
 		},
 	}); err == nil {
 		t.Fatal("hookDeclarationFromPayload(invalid timeout) error = nil, want non-nil")

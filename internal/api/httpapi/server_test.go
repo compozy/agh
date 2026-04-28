@@ -516,9 +516,8 @@ func TestLoopbackServerRejectsMismatchedSettingsItemNames(t *testing.T) {
 					ExecutorKind: hookspkg.HookExecutorSubprocess,
 					Command:      "/bin/capture",
 					Matcher: hookspkg.HookMatcher{
-						ToolName:      "read",
-						ToolNamespace: "fs",
-						ToolReadOnly:  &readOnly,
+						ToolID:       "agh__read",
+						ToolReadOnly: &readOnly,
 					},
 				},
 			}),

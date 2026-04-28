@@ -1317,34 +1317,32 @@ func TestDispatchToolHooksApplyPatches(t *testing.T) {
 				Event:        HookToolPreCall,
 				Mode:         HookModeSync,
 				ExecutorKind: HookExecutorNative,
-				Matcher:      HookMatcher{ToolName: "read"},
+				Matcher:      HookMatcher{ToolID: "agh__read"},
 			},
 			{
 				Name:         "tool-post",
 				Event:        HookToolPostCall,
 				Mode:         HookModeSync,
 				ExecutorKind: HookExecutorNative,
-				Matcher:      HookMatcher{ToolName: "read"},
+				Matcher:      HookMatcher{ToolID: "agh__read"},
 			},
 			{
 				Name:         "tool-error",
 				Event:        HookToolPostError,
 				Mode:         HookModeSync,
 				ExecutorKind: HookExecutorNative,
-				Matcher:      HookMatcher{ToolName: "read"},
+				Matcher:      HookMatcher{ToolID: "agh__read"},
 			},
 		}),
 		WithExecutorResolver(testExecutorResolver(map[string]Executor{
 			"tool-pre": NewTypedNativeExecutor(
 				func(_ context.Context, _ RegisteredHook, _ ToolPreCallPayload) (ToolCallPatch, error) {
-					name := "write"
-					namespace := "fs"
+					id := "agh__write"
 					readOnly := false
 					return ToolCallPatch{
-						ToolName:      &name,
-						ToolNamespace: &namespace,
-						ReadOnly:      &readOnly,
-						ToolInput:     []byte(`{"patched":true}`),
+						ToolID:    &id,
+						ReadOnly:  &readOnly,
+						ToolInput: []byte(`{"patched":true}`),
 					}, nil
 				},
 			),
@@ -1376,12 +1374,12 @@ func TestDispatchToolHooksApplyPatches(t *testing.T) {
 
 	pre, err := hooks.DispatchToolPreCall(t.Context(), ToolPreCallPayload{
 		PayloadBase: PayloadBase{Event: HookToolPreCall},
-		ToolCallRef: ToolCallRef{ToolName: "read"},
+		ToolCallRef: ToolCallRef{ToolID: "agh__read"},
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolPreCall() error = %v, want nil", err)
 	}
-	if pre.ToolName != "write" || pre.ToolNamespace != "fs" || pre.ReadOnly {
+	if pre.ToolID != "agh__write" || pre.ReadOnly {
 		t.Fatalf("pre = %#v, want patched tool identity", pre)
 	}
 	if string(pre.ToolInput) != `{"patched":true}` {
@@ -1390,7 +1388,7 @@ func TestDispatchToolHooksApplyPatches(t *testing.T) {
 
 	post, err := hooks.DispatchToolPostCall(t.Context(), ToolPostCallPayload{
 		PayloadBase: PayloadBase{Event: HookToolPostCall},
-		ToolCallRef: ToolCallRef{ToolName: "read"},
+		ToolCallRef: ToolCallRef{ToolID: "agh__read"},
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolPostCall() error = %v, want nil", err)
@@ -1401,7 +1399,7 @@ func TestDispatchToolHooksApplyPatches(t *testing.T) {
 
 	postErr, err := hooks.DispatchToolPostError(t.Context(), ToolPostErrorPayload{
 		PayloadBase: PayloadBase{Event: HookToolPostError},
-		ToolCallRef: ToolCallRef{ToolName: "read"},
+		ToolCallRef: ToolCallRef{ToolID: "agh__read"},
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolPostError() error = %v, want nil", err)

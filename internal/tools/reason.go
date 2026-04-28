@@ -70,6 +70,10 @@ const (
 	ReasonConflictedSanitizedName ReasonCode = "conflicted_sanitized_name"
 	// ReasonResultBudgetExceeded reports a result budget violation.
 	ReasonResultBudgetExceeded ReasonCode = "result_budget_exceeded"
+	// ReasonCallCanceled reports dispatch cancellation.
+	ReasonCallCanceled ReasonCode = "call_canceled"
+	// ReasonCallTimedOut reports dispatch deadline expiration.
+	ReasonCallTimedOut ReasonCode = "call_timed_out"
 	// ReasonSecretMetadata reports sensitive metadata in a public envelope.
 	ReasonSecretMetadata ReasonCode = "secret_metadata"
 	// ReasonToolsetUnknown reports a policy reference to an unknown toolset.
@@ -114,6 +118,8 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonConflictedID:               {},
 	ReasonConflictedSanitizedName:    {},
 	ReasonResultBudgetExceeded:       {},
+	ReasonCallCanceled:               {},
+	ReasonCallTimedOut:               {},
 	ReasonSecretMetadata:             {},
 	ReasonToolsetUnknown:             {},
 	ReasonToolsetCycle:               {},

@@ -1274,11 +1274,8 @@ func applyMessagePatch(payload MessagePayload, patch MessagePatch) MessagePayloa
 }
 
 func applyToolCallPatch(payload ToolPreCallPayload, patch ToolCallPatch) ToolPreCallPayload {
-	if patch.ToolName != nil {
-		payload.ToolName = *patch.ToolName
-	}
-	if patch.ToolNamespace != nil {
-		payload.ToolNamespace = *patch.ToolNamespace
+	if patch.ToolID != nil {
+		payload.ToolID = *patch.ToolID
 	}
 	if patch.ReadOnly != nil {
 		payload.ReadOnly = *patch.ReadOnly
