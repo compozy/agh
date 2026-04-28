@@ -12,6 +12,8 @@ const (
 	ReasonIDInvalidFormat ReasonCode = "id_invalid_format"
 	// ReasonIDReservedConflict reports ambiguous reserved separator usage.
 	ReasonIDReservedConflict ReasonCode = "reserved_conflict"
+	// ReasonReservedNamespace reports an extension or external source claiming a reserved namespace.
+	ReasonReservedNamespace ReasonCode = "reserved_namespace"
 	// ReasonIDTooLong reports an id over the provider-safe limit.
 	ReasonIDTooLong ReasonCode = "id_too_long"
 	// ReasonDependencyMissing reports a missing dependency.
@@ -89,6 +91,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonIDEmptySegment:             {},
 	ReasonIDInvalidFormat:            {},
 	ReasonIDReservedConflict:         {},
+	ReasonReservedNamespace:          {},
 	ReasonIDTooLong:                  {},
 	ReasonDependencyMissing:          {},
 	ReasonBackendUnhealthy:           {},

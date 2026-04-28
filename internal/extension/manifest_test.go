@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -218,20 +219,34 @@ func TestNormalizeToolsDropsBlankKeysAndUsesDeterministicCollisions(t *testing.T
 		},
 		" lookup ": {
 			Description: " first ",
+			Backend: ToolBackendConfig{
+				Kind:    " extension_host ",
+				Handler: " lookup ",
+			},
 			InputSchema: json.RawMessage(`{"type":"object","title":"First"}`),
 		},
 		"lookup": {
 			Description: " second ",
+			Backend: ToolBackendConfig{
+				Kind:    " extension_host ",
+				Handler: " lookup ",
+			},
 			InputSchema: json.RawMessage(`{"type":"object","title":"Second"}`),
 			ReadOnly:    true,
+			Toolsets:    []string{" ext__lookup__read ", " "},
 		},
 	})
 
 	want := map[string]ToolConfig{
 		"lookup": {
 			Description: "second",
+			Backend: ToolBackendConfig{
+				Kind:    "extension_host",
+				Handler: "lookup",
+			},
 			InputSchema: json.RawMessage(`{"type":"object","title":"Second"}`),
 			ReadOnly:    true,
+			Toolsets:    []string{"ext__lookup__read"},
 		},
 	}
 
@@ -266,6 +281,99 @@ command = "agh-ext-resource-grants"
 	}
 	if got, want := manifest.Resources.Publish.MaxScope, resources.ResourceScopeKindWorkspace; got != want {
 		t.Fatalf("Resources.Publish.MaxScope = %q, want %q", got, want)
+	}
+}
+
+func TestLoadManifestRejectsInvalidToolMetadata(t *testing.T) {
+	testCases := []struct {
+		name     string
+		toolJSON string
+		wantText string
+	}{
+		{
+			name: "Should Reject Reserved AGH Namespace",
+			toolJSON: `"id": "agh__skill_view",
+        "description": "Search",
+        "backend": {"kind": "extension_host", "handler": "lookup"},
+        "read_only": true`,
+			wantText: "reserved_namespace",
+		},
+		{
+			name: "Should Reject Invalid Tool ID",
+			toolJSON: `"id": "Bad",
+        "description": "Search",
+        "backend": {"kind": "extension_host", "handler": "lookup"},
+        "read_only": true`,
+			wantText: "id_invalid_format",
+		},
+		{
+			name: "Should Reject Missing Handler",
+			toolJSON: `"description": "Search",
+        "backend": {"kind": "extension_host"},
+        "read_only": true`,
+			wantText: "handler_missing",
+		},
+		{
+			name: "Should Reject Invalid Handler Binding",
+			toolJSON: `"description": "Search",
+        "backend": {"kind": "extension_host", "handler": "bad handler"},
+        "read_only": true`,
+			wantText: "handler_missing",
+		},
+		{
+			name: "Should Reject Invalid Risk Class",
+			toolJSON: `"description": "Search",
+        "backend": {"kind": "extension_host", "handler": "lookup"},
+        "risk": "danger",
+        "read_only": true`,
+			wantText: "unsupported risk class",
+		},
+		{
+			name: "Should Reject Non Object Input Schema",
+			toolJSON: `"description": "Search",
+        "backend": {"kind": "extension_host", "handler": "lookup"},
+        "input_schema": false,
+        "read_only": true`,
+			wantText: "schema_invalid",
+		},
+		{
+			name: "Should Reject Invalid Toolset ID",
+			toolJSON: `"description": "Search",
+        "backend": {"kind": "extension_host", "handler": "lookup"},
+        "toolsets": ["bad.toolset"],
+        "read_only": true`,
+			wantText: "toolsets",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			withDaemonVersion(t, "0.6.0")
+
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, manifestJSONFileName), fmt.Sprintf(`{
+  "extension": {
+    "name": "tool-metadata",
+    "version": "0.2.1",
+    "min_agh_version": "0.5.0"
+  },
+  "resources": {
+    "tools": {
+      "lookup": {
+        %s
+      }
+    }
+  }
+}`, tc.toolJSON))
+
+			_, err := LoadManifest(dir)
+			if err == nil {
+				t.Fatal("LoadManifest() error = nil, want invalid tool metadata")
+			}
+			if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), tc.wantText) {
+				t.Fatalf("LoadManifest() error = %v, want ErrManifestInvalid containing %q", err, tc.wantText)
+			}
+		})
 	}
 }
 
@@ -978,7 +1086,11 @@ func expectedManifest() Manifest {
 			Tools: map[string]ToolConfig{
 				"lookup": {
 					Description: "Search workspace content",
-					ReadOnly:    true,
+					Backend: ToolBackendConfig{
+						Kind:    "extension_host",
+						Handler: "lookup",
+					},
+					ReadOnly: true,
 				},
 			},
 			MCPServers: map[string]MCPServerConfig{
@@ -1025,6 +1137,10 @@ agents = ["agents/"]
 [resources.tools.lookup]
 description = "Search workspace content"
 read_only = true
+
+[resources.tools.lookup.backend]
+kind = "extension_host"
+handler = "lookup"
 
 [[resources.hooks]]
 name = "workspace-context"
@@ -1081,6 +1197,10 @@ const validManifestJSON = `{
     "tools": {
       "lookup": {
         "description": "Search workspace content",
+        "backend": {
+          "kind": "extension_host",
+          "handler": "lookup"
+        },
         "read_only": true
       }
     },

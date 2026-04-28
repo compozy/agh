@@ -17,129 +17,233 @@ import (
 )
 
 func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
-	db := openDaemonTestGlobalDB(t)
-	kernel, err := resources.NewKernel(db.DB())
-	if err != nil {
-		t.Fatalf("resources.NewKernel() error = %v", err)
-	}
+	t.Run("Should Publish Static Resources And Rebuild On Boot", func(t *testing.T) {
+		db := openDaemonTestGlobalDB(t)
+		kernel, err := resources.NewKernel(db.DB())
+		if err != nil {
+			t.Fatalf("resources.NewKernel() error = %v", err)
+		}
 
-	toolCodec, err := toolspkg.NewResourceCodec()
-	if err != nil {
-		t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
-	}
-	toolStore, err := resources.NewStore(kernel, toolCodec)
-	if err != nil {
-		t.Fatalf("resources.NewStore(tool) error = %v", err)
-	}
-	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
-	if err != nil {
-		t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
-	}
-	mcpStore, err := resources.NewStore(kernel, mcpCodec)
-	if err != nil {
-		t.Fatalf("resources.NewStore(mcp) error = %v", err)
-	}
+		toolCodec, err := toolspkg.NewResourceCodec()
+		if err != nil {
+			t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
+		}
+		toolStore, err := resources.NewStore(kernel, toolCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(tool) error = %v", err)
+		}
+		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		if err != nil {
+			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+		}
+		mcpStore, err := resources.NewStore(kernel, mcpCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(mcp) error = %v", err)
+		}
 
-	registry := extensionpkg.NewRegistry(db.DB())
-	extensionDir := writeToolMCPIntegrationExtension(t)
-	manifest, err := extensionpkg.LoadManifest(extensionDir)
-	if err != nil {
-		t.Fatalf("extensionpkg.LoadManifest() error = %v", err)
-	}
-	checksum, err := extensionpkg.ComputeDirectoryChecksum(extensionDir)
-	if err != nil {
-		t.Fatalf("extensionpkg.ComputeDirectoryChecksum() error = %v", err)
-	}
-	if err := registry.Install(manifest, extensionDir, checksum); err != nil {
-		t.Fatalf("registry.Install() error = %v", err)
-	}
-	info, err := registry.Get(manifest.Name)
-	if err != nil {
-		t.Fatalf("registry.Get() error = %v", err)
-	}
+		registry := extensionpkg.NewRegistry(db.DB())
+		extensionDir := writeToolMCPIntegrationExtension(t)
+		manifest, err := extensionpkg.LoadManifest(extensionDir)
+		if err != nil {
+			t.Fatalf("extensionpkg.LoadManifest() error = %v", err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(extensionDir)
+		if err != nil {
+			t.Fatalf("extensionpkg.ComputeDirectoryChecksum() error = %v", err)
+		}
+		if err := registry.Install(manifest, extensionDir, checksum); err != nil {
+			t.Fatalf("registry.Install() error = %v", err)
+		}
+		info, err := registry.Get(manifest.Name)
+		if err != nil {
+			t.Fatalf("registry.Get() error = %v", err)
+		}
 
-	initialToolCatalog := newResourceCatalog(cloneToolSpec)
-	initialMCPServerCatalog := newResourceCatalog(cloneDaemonMCPServer)
-	driver := newToolMCPIntegrationDriver(t, kernel, toolCodec, mcpCodec, initialToolCatalog, initialMCPServerCatalog)
+		initialToolCatalog := newResourceCatalog(cloneToolSpec)
+		initialMCPServerCatalog := newResourceCatalog(cloneDaemonMCPServer)
+		driver := newToolMCPIntegrationDriver(t, kernel, toolCodec, mcpCodec, initialToolCatalog, initialMCPServerCatalog)
 
-	runtime := &toolMCPIntegrationRuntime{
-		extension: &extensionpkg.Extension{
-			Info:     *info,
-			Manifest: manifest,
-			RootDir:  extensionDir,
-			Status: extensionpkg.ExtensionStatus{
-				Name:       info.Name,
-				Version:    info.Version,
-				Source:     info.Source,
-				Enabled:    info.Enabled,
-				Registered: true,
+		runtime := &toolMCPIntegrationRuntime{
+			extension: &extensionpkg.Extension{
+				Info:     *info,
+				Manifest: manifest,
+				RootDir:  extensionDir,
+				Status: extensionpkg.ExtensionStatus{
+					Name:       info.Name,
+					Version:    info.Version,
+					Source:     info.Source,
+					Enabled:    info.Enabled,
+					Registered: true,
+				},
 			},
-		},
-	}
-	syncer := newToolMCPSourceSyncer(
-		toolStore,
-		toolCodec,
-		mcpStore,
-		mcpCodec,
-		toolMCPSyncActor(),
-		discardLogger(),
-		func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-			return driver.Trigger(ctx, kind, reason)
-		},
-		daemonConfigMCPDeclarationProvider(&aghconfig.Config{
-			MCPServers: []aghconfig.MCPServer{{
-				Name:    "git",
-				Command: "npx",
-				Args:    []string{"@modelcontextprotocol/server-git"},
-			}},
-		}, nil, nil, discardLogger()),
-		extensionManifestToolMCPDeclarationProvider(
-			registry,
-			func() extensionRuntime { return runtime },
-			nil,
+		}
+		syncer := newToolMCPSourceSyncer(
+			toolStore,
+			toolCodec,
+			mcpStore,
+			mcpCodec,
+			toolMCPSyncActor(),
 			discardLogger(),
-		),
-	)
-	if err := syncer.Sync(testutil.Context(t)); err != nil {
-		t.Fatalf("syncer.Sync() error = %v", err)
-	}
+			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+				return driver.Trigger(ctx, kind, reason)
+			},
+			daemonConfigMCPDeclarationProvider(&aghconfig.Config{
+				MCPServers: []aghconfig.MCPServer{{
+					Name:    "git",
+					Command: "npx",
+					Args:    []string{"@modelcontextprotocol/server-git"},
+				}},
+			}, nil, nil, discardLogger()),
+			extensionManifestToolMCPDeclarationProvider(
+				registry,
+				func() extensionRuntime { return runtime },
+				nil,
+				discardLogger(),
+			),
+		)
+		if err := syncer.Sync(testutil.Context(t)); err != nil {
+			t.Fatalf("syncer.Sync() error = %v", err)
+		}
 
-	source := toolMCPSyncActor().Source
-	tools, err := toolStore.List(testutil.Context(t), toolMCPSyncActor(), resources.ResourceFilter{Source: &source})
-	if err != nil {
-		t.Fatalf("toolStore.List() error = %v", err)
-	}
-	if got, want := len(tools), 1; got != want {
-		t.Fatalf("len(toolStore.List()) = %d, want %d", got, want)
-	}
-	if got, want := tools[0].Spec.ID, toolspkg.ToolID("ext__static_tool_mcp__lookup"); got != want {
-		t.Fatalf("tools[0].Spec.ID = %q, want %q", got, want)
-	}
-	if got, want := tools[0].Spec.Source.Kind, toolspkg.ToolSourceExtension; got != want {
-		t.Fatalf("tools[0].Spec.Source.Kind = %q, want %q", got, want)
-	}
+		source := toolMCPSyncActor().Source
+		tools, err := toolStore.List(testutil.Context(t), toolMCPSyncActor(), resources.ResourceFilter{Source: &source})
+		if err != nil {
+			t.Fatalf("toolStore.List() error = %v", err)
+		}
+		if got, want := len(tools), 1; got != want {
+			t.Fatalf("len(toolStore.List()) = %d, want %d", got, want)
+		}
+		if got, want := tools[0].Spec.ID, toolspkg.ToolID("ext__static_tool_mcp__lookup"); got != want {
+			t.Fatalf("tools[0].Spec.ID = %q, want %q", got, want)
+		}
+		if got, want := tools[0].Spec.Source.Kind, toolspkg.ToolSourceExtension; got != want {
+			t.Fatalf("tools[0].Spec.Source.Kind = %q, want %q", got, want)
+		}
 
-	servers, err := mcpStore.List(testutil.Context(t), toolMCPSyncActor(), resources.ResourceFilter{Source: &source})
-	if err != nil {
-		t.Fatalf("mcpStore.List() error = %v", err)
-	}
-	if got, want := len(servers), 2; got != want {
-		t.Fatalf("len(mcpStore.List()) = %d, want %d", got, want)
-	}
+		servers, err := mcpStore.List(testutil.Context(t), toolMCPSyncActor(), resources.ResourceFilter{Source: &source})
+		if err != nil {
+			t.Fatalf("mcpStore.List() error = %v", err)
+		}
+		if got, want := len(servers), 2; got != want {
+			t.Fatalf("len(mcpStore.List()) = %d, want %d", got, want)
+		}
 
-	rebuiltToolCatalog := newResourceCatalog(cloneToolSpec)
-	rebuiltMCPCatalog := newResourceCatalog(cloneDaemonMCPServer)
-	bootDriver := newToolMCPIntegrationDriver(t, kernel, toolCodec, mcpCodec, rebuiltToolCatalog, rebuiltMCPCatalog)
-	if err := bootDriver.RunBoot(testutil.Context(t)); err != nil {
-		t.Fatalf("bootDriver.RunBoot() error = %v", err)
-	}
+		rebuiltToolCatalog := newResourceCatalog(cloneToolSpec)
+		rebuiltMCPCatalog := newResourceCatalog(cloneDaemonMCPServer)
+		bootDriver := newToolMCPIntegrationDriver(t, kernel, toolCodec, mcpCodec, rebuiltToolCatalog, rebuiltMCPCatalog)
+		if err := bootDriver.RunBoot(testutil.Context(t)); err != nil {
+			t.Fatalf("bootDriver.RunBoot() error = %v", err)
+		}
 
-	if got, want := len(rebuiltToolCatalog.Snapshot()), 1; got != want {
-		t.Fatalf("len(rebuiltToolCatalog.Snapshot()) = %d, want %d", got, want)
-	}
-	if got, want := len(rebuiltMCPCatalog.Snapshot()), 2; got != want {
-		t.Fatalf("len(rebuiltMCPCatalog.Snapshot()) = %d, want %d", got, want)
-	}
+		if got, want := len(rebuiltToolCatalog.Snapshot()), 1; got != want {
+			t.Fatalf("len(rebuiltToolCatalog.Snapshot()) = %d, want %d", got, want)
+		}
+		if got, want := len(rebuiltMCPCatalog.Snapshot()), 2; got != want {
+			t.Fatalf("len(rebuiltMCPCatalog.Snapshot()) = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
+	t.Run("Should Publish Tools Across Extension Lifecycle", func(t *testing.T) {
+		db := openDaemonTestGlobalDB(t)
+		kernel, err := resources.NewKernel(db.DB())
+		if err != nil {
+			t.Fatalf("resources.NewKernel() error = %v", err)
+		}
+		toolCodec, err := toolspkg.NewResourceCodec()
+		if err != nil {
+			t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
+		}
+		toolStore, err := resources.NewStore(kernel, toolCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(tool) error = %v", err)
+		}
+		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		if err != nil {
+			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+		}
+		mcpStore, err := resources.NewStore(kernel, mcpCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(mcp) error = %v", err)
+		}
+		registry := extensionpkg.NewRegistry(db.DB())
+		extensionDir := writeToolMCPIntegrationExtension(t)
+		manifest, err := extensionpkg.LoadManifest(extensionDir)
+		if err != nil {
+			t.Fatalf("extensionpkg.LoadManifest() error = %v", err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(extensionDir)
+		if err != nil {
+			t.Fatalf("extensionpkg.ComputeDirectoryChecksum() error = %v", err)
+		}
+		if err := registry.Install(manifest, extensionDir, checksum); err != nil {
+			t.Fatalf("registry.Install() error = %v", err)
+		}
+		info, err := registry.Get(manifest.Name)
+		if err != nil {
+			t.Fatalf("registry.Get() error = %v", err)
+		}
+		runtime := &toolMCPIntegrationRuntime{
+			extension: &extensionpkg.Extension{
+				Info:     *info,
+				Manifest: manifest,
+				RootDir:  extensionDir,
+				Status: extensionpkg.ExtensionStatus{
+					Name:       info.Name,
+					Version:    info.Version,
+					Source:     info.Source,
+					Enabled:    info.Enabled,
+					Registered: true,
+					Active:     true,
+					Healthy:    true,
+				},
+			},
+		}
+		toolCatalog := newResourceCatalog(cloneToolSpec)
+		mcpCatalog := newResourceCatalog(cloneDaemonMCPServer)
+		driver := newToolMCPIntegrationDriver(t, kernel, toolCodec, mcpCodec, toolCatalog, mcpCatalog)
+		syncer := newToolMCPSourceSyncer(
+			toolStore,
+			toolCodec,
+			mcpStore,
+			mcpCodec,
+			toolMCPSyncActor(),
+			discardLogger(),
+			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+				return driver.Trigger(ctx, kind, reason)
+			},
+			extensionManifestToolMCPDeclarationProvider(
+				registry,
+				func() extensionRuntime { return runtime },
+				nil,
+				discardLogger(),
+			),
+		)
+
+		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 1, 1)
+
+		if err := registry.Disable(manifest.Name); err != nil {
+			t.Fatalf("registry.Disable() error = %v", err)
+		}
+		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 1, 0)
+
+		if err := registry.Enable(manifest.Name); err != nil {
+			t.Fatalf("registry.Enable() error = %v", err)
+		}
+		runtime.extension.Status.Registered = false
+		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 1, 0)
+
+		runtime.extension.Status.Registered = true
+		runtime.extension.Status.Healthy = false
+		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 1, 1)
+
+		runtime.extension = nil
+		if err := registry.Uninstall(manifest.Name); err != nil {
+			t.Fatalf("registry.Uninstall() error = %v", err)
+		}
+		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 0, 0)
+	})
 }
 
 type toolMCPIntegrationRuntime struct {
@@ -220,6 +324,10 @@ min_agh_version = "0.5.0"
 description = "Search extension data"
 read_only = true
 
+[resources.tools.lookup.backend]
+kind = "extension_host"
+handler = "lookup"
+
 [resources.mcp_servers.kubectl]
 command = "./bin/mcp-kubectl"
 args = ["--cluster", "prod"]
@@ -228,4 +336,20 @@ args = ["--cluster", "prod"]
 		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
 	}
 	return dir
+}
+
+func syncAndAssertToolMCPStoreCounts(
+	t *testing.T,
+	syncer toolMCPPublisher,
+	toolStore resources.Store[toolspkg.Tool],
+	mcpStore resources.Store[aghconfig.MCPServer],
+	wantTools int,
+	wantMCPServers int,
+) {
+	t.Helper()
+
+	if err := syncer.Sync(testutil.Context(t)); err != nil {
+		t.Fatalf("syncer.Sync() error = %v", err)
+	}
+	assertToolMCPStoreCounts(t, toolStore, mcpStore, wantTools, wantMCPServers)
 }

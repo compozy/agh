@@ -18,6 +18,7 @@ import (
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/extension/surfaces"
 	"github.com/pedronauck/agh/internal/resources"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 	"github.com/pedronauck/agh/internal/version"
 )
 
@@ -153,9 +154,34 @@ type MCPServerConfig struct {
 
 // ToolConfig declares one static tool bundled by the extension.
 type ToolConfig struct {
-	Description string          `toml:"description,omitempty"  json:"description,omitempty"`
-	InputSchema json.RawMessage `toml:"input_schema,omitempty" json:"input_schema,omitempty"`
-	ReadOnly    bool            `toml:"read_only,omitempty"    json:"read_only,omitempty"`
+	ID                   string            `toml:"id,omitempty"                    json:"id,omitempty"`
+	DisplayTitle         string            `toml:"display_title,omitempty"         json:"display_title,omitempty"`
+	Description          string            `toml:"description,omitempty"           json:"description,omitempty"`
+	Handler              string            `toml:"handler,omitempty"               json:"handler,omitempty"`
+	Backend              ToolBackendConfig `toml:"backend,omitempty"               json:"backend"`
+	InputSchema          json.RawMessage   `toml:"input_schema,omitempty"          json:"input_schema,omitempty"`
+	OutputSchema         json.RawMessage   `toml:"output_schema,omitempty"         json:"output_schema,omitempty"`
+	Risk                 string            `toml:"risk,omitempty"                  json:"risk,omitempty"`
+	ReadOnly             bool              `toml:"read_only,omitempty"             json:"read_only,omitempty"`
+	Destructive          bool              `toml:"destructive,omitempty"           json:"destructive,omitempty"`
+	OpenWorld            bool              `toml:"open_world,omitempty"            json:"open_world,omitempty"`
+	RequiresInteraction  bool              `toml:"requires_interaction,omitempty"  json:"requires_interaction,omitempty"`
+	ConcurrencySafe      bool              `toml:"concurrency_safe,omitempty"      json:"concurrency_safe,omitempty"`
+	MaxResultBytes       int64             `toml:"max_result_bytes,omitempty"      json:"max_result_bytes,omitempty"`
+	Toolsets             []string          `toml:"toolsets,omitempty"              json:"toolsets,omitempty"`
+	Tags                 []string          `toml:"tags,omitempty"                  json:"tags,omitempty"`
+	SearchHints          []string          `toml:"search_hints,omitempty"          json:"search_hints,omitempty"`
+	RequiresEnv          []string          `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
+	RequiredCapabilities []string          `toml:"required_capabilities,omitempty" json:"required_capabilities,omitempty"`
+	Visibility           string            `toml:"visibility,omitempty"            json:"visibility,omitempty"`
+}
+
+// ToolBackendConfig binds a manifest tool to its backend metadata.
+type ToolBackendConfig struct {
+	Kind    string `toml:"kind,omitempty"    json:"kind,omitempty"`
+	Handler string `toml:"handler,omitempty" json:"handler,omitempty"`
+	Server  string `toml:"server,omitempty"  json:"server,omitempty"`
+	Tool    string `toml:"tool,omitempty"    json:"tool,omitempty"`
 }
 
 // Duration stores time.Duration values while decoding TOML strings and JSON
@@ -255,6 +281,9 @@ func (m *Manifest) Validate() error {
 		return err
 	}
 	if err := validateEnvRequirements("requires_env", m.RequiresEnv); err != nil {
+		return err
+	}
+	if err := validateToolConfigs(m.Name, m.Resources.Tools); err != nil {
 		return err
 	}
 	if err := validateDottedIdentifiers("capabilities.provides", m.Capabilities.Provides, false); err != nil {
@@ -680,6 +709,51 @@ func validateEnvRequirements(field string, values []string) error {
 	return nil
 }
 
+func validateToolConfigs(extensionName string, tools map[string]ToolConfig) error {
+	if len(tools) == 0 {
+		return nil
+	}
+
+	seenIDs := make(map[toolspkg.ToolID]string, len(tools))
+	for _, name := range sortedMapKeys(tools) {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" {
+			continue
+		}
+		field := "resources.tools." + trimmedName
+		cfg := tools[name]
+		if err := validateEnvRequirements(field+".requires_env", cfg.RequiresEnv); err != nil {
+			return err
+		}
+		if err := validateDottedIdentifiers(
+			field+".required_capabilities",
+			cfg.RequiredCapabilities,
+			false,
+		); err != nil {
+			return err
+		}
+		descriptor, err := resolveManifestToolDescriptor(extensionName, trimmedName, cfg)
+		if err != nil {
+			return &ManifestValidationError{
+				Field:   field,
+				Message: err.Error(),
+			}
+		}
+		if previous, ok := seenIDs[descriptor.Tool.ID]; ok {
+			return &ManifestValidationError{
+				Field: field + ".id",
+				Value: descriptor.Tool.ID.String(),
+				Message: fmt.Sprintf(
+					"duplicate tool id also declared by resources.tools.%s",
+					previous,
+				),
+			}
+		}
+		seenIDs[descriptor.Tool.ID] = trimmedName
+	}
+	return nil
+}
+
 func validEnvRequirementName(name string) bool {
 	if name == "" {
 		return false
@@ -784,9 +858,31 @@ func normalizeTools(src map[string]ToolConfig) map[string]ToolConfig {
 
 		tool := src[name]
 		dst[trimmedName] = ToolConfig{
-			Description: strings.TrimSpace(tool.Description),
-			InputSchema: cloneManifestRawMessage(tool.InputSchema),
-			ReadOnly:    tool.ReadOnly,
+			ID:           strings.TrimSpace(tool.ID),
+			DisplayTitle: strings.TrimSpace(tool.DisplayTitle),
+			Description:  strings.TrimSpace(tool.Description),
+			Handler:      strings.TrimSpace(tool.Handler),
+			Backend: ToolBackendConfig{
+				Kind:    strings.TrimSpace(tool.Backend.Kind),
+				Handler: strings.TrimSpace(tool.Backend.Handler),
+				Server:  strings.TrimSpace(tool.Backend.Server),
+				Tool:    strings.TrimSpace(tool.Backend.Tool),
+			},
+			InputSchema:          cloneManifestRawMessage(tool.InputSchema),
+			OutputSchema:         cloneManifestRawMessage(tool.OutputSchema),
+			Risk:                 strings.TrimSpace(tool.Risk),
+			ReadOnly:             tool.ReadOnly,
+			Destructive:          tool.Destructive,
+			OpenWorld:            tool.OpenWorld,
+			RequiresInteraction:  tool.RequiresInteraction,
+			ConcurrencySafe:      tool.ConcurrencySafe,
+			MaxResultBytes:       tool.MaxResultBytes,
+			Toolsets:             normalizeStrings(tool.Toolsets),
+			Tags:                 normalizeStrings(tool.Tags),
+			SearchHints:          normalizeStrings(tool.SearchHints),
+			RequiresEnv:          normalizeStrings(tool.RequiresEnv),
+			RequiredCapabilities: normalizeStrings(tool.RequiredCapabilities),
+			Visibility:           strings.TrimSpace(tool.Visibility),
 		}
 	}
 	if len(dst) == 0 {

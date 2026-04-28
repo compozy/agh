@@ -605,10 +605,6 @@ func extensionManifestToolMCPDeclarationProvider(
 		desired := toolMCPDesiredResources{}
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
 		for _, info := range infos {
-			if !info.Enabled {
-				continue
-			}
-
 			ext, err := loadExtensionSnapshot(registry, manager, logger, info.Name)
 			if err != nil {
 				return toolMCPDesiredResources{}, fmt.Errorf(
@@ -617,7 +613,7 @@ func extensionManifestToolMCPDeclarationProvider(
 					err,
 				)
 			}
-			if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
+			if ext == nil || ext.Manifest == nil {
 				continue
 			}
 
@@ -637,6 +633,9 @@ func extensionManifestToolMCPDeclarationProvider(
 				})
 			}
 
+			if !info.Enabled || !ext.Status.Registered {
+				continue
+			}
 			servers, err := extensionpkg.ResolveManifestMCPServerResources(ext.RootDir, ext.Manifest, getenv)
 			if err != nil {
 				return toolMCPDesiredResources{}, fmt.Errorf(

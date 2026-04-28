@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -443,6 +444,27 @@ type ExtensionToolRuntimeDescriptor struct {
 	ReadOnly           bool      `json:"read_only"`
 	Risk               RiskClass `json:"risk"`
 	Capabilities       []string  `json:"capabilities,omitempty"`
+}
+
+// Validate checks runtime reconciliation metadata for an extension tool.
+func (d ExtensionToolRuntimeDescriptor) Validate() error {
+	if err := d.ID.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(d.Handler) == "" {
+		return NewValidationError("handler", ReasonHandlerMissing, "handler is required")
+	}
+	if strings.TrimSpace(d.InputSchemaDigest) == "" {
+		return NewValidationError(
+			"input_schema_digest",
+			ReasonRuntimeDescriptorMismatch,
+			"input schema digest is required",
+		)
+	}
+	if err := d.Risk.Validate("risk"); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ExtensionToolCallRequest is the extension host call request.
