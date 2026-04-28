@@ -320,7 +320,7 @@ func (h *BaseHandlers) RepairSession(c *gin.Context) {
 		return
 	}
 
-	result, err := h.Sessions.RepairSession(c.Request.Context(), session.SessionRepairOpts{
+	result, err := h.Sessions.RepairSession(c.Request.Context(), session.RepairOpts{
 		SessionID: c.Param("id"),
 		DryRun:    dryRun,
 		Force:     force,

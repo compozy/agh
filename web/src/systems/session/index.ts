@@ -14,6 +14,9 @@ export type {
   SessionHistoryResponse,
   SessionMessage,
   SessionPayload,
+  SessionRepairPayload,
+  SessionRepairQuery,
+  SessionRepairResponse,
   SessionResponse,
   SessionState,
   SessionsResponse,
@@ -37,6 +40,7 @@ export {
   fetchSessionHistory,
   fetchSessionTranscript,
   fetchSessions,
+  repairSession,
   resumeSession,
   stopSession,
 } from "./adapters/session-api";
@@ -66,8 +70,10 @@ export {
   useClearSessionConversation,
   useCreateSession,
   useDeleteSession,
+  useRepairSession,
   useResumeSession,
   useStopSession,
+  type RepairSessionParams,
 } from "./hooks/use-session-actions";
 export {
   useSessionCreateDialog,

@@ -6,6 +6,7 @@ import {
   sessionEventsFixture,
   sessionFixtures,
   sessionHistoryFixture,
+  sessionRepairFixture,
   sessionTranscriptFixture,
 } from "./fixtures";
 
@@ -68,6 +69,28 @@ export const handlers: HttpHandler[] = [
       session: {
         ...session,
         state: "active",
+      },
+    });
+  }),
+  http.post("/api/sessions/:id/repair", ({ params, request }) => {
+    const id = String(params.id);
+
+    if (!sessionById.has(id)) {
+      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+    }
+
+    const url = new URL(request.url);
+    const dryRun = url.searchParams.get("dry_run") === "true";
+
+    return HttpResponse.json({
+      repair: {
+        ...sessionRepairFixture,
+        session_id: id,
+        persisted: !dryRun,
+        actions: sessionRepairFixture.actions.map(action => ({
+          ...action,
+          persisted: !dryRun,
+        })),
       },
     });
   }),

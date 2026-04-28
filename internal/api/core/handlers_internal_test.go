@@ -54,9 +54,9 @@ func (s sessionManagerStub) Transcript(context.Context, string) ([]transcript.UI
 
 func (s sessionManagerStub) RepairSession(
 	context.Context,
-	session.SessionRepairOpts,
-) (*session.SessionRepairResult, error) {
-	return &session.SessionRepairResult{}, nil
+	session.RepairOpts,
+) (*session.RepairResult, error) {
+	return &session.RepairResult{}, nil
 }
 
 func (s sessionManagerStub) Delete(context.Context, string) error { return nil }

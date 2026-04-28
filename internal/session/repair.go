@@ -36,24 +36,24 @@ const (
 	repairTerminalErrorMessage   = "Session interrupted before a terminal prompt event was persisted."
 )
 
-// SessionRepairOpts controls one persisted session repair pass.
-type SessionRepairOpts struct {
+// RepairOpts controls one persisted session repair pass.
+type RepairOpts struct {
 	SessionID string
 	DryRun    bool
 	Force     bool
 }
 
-// SessionRepairResult describes the detected inconsistencies and append-only
+// RepairResult describes the detected inconsistencies and append-only
 // repair events planned or persisted for a session.
-type SessionRepairResult struct {
+type RepairResult struct {
 	SessionID string
-	Issues    []SessionRepairIssue
-	Actions   []SessionRepairAction
+	Issues    []RepairIssue
+	Actions   []RepairAction
 	Persisted bool
 }
 
-// SessionRepairIssue is one non-mutating diagnostic discovered during repair.
-type SessionRepairIssue struct {
+// RepairIssue is one non-mutating diagnostic discovered during repair.
+type RepairIssue struct {
 	Code     string
 	Severity string
 	TurnID   string
@@ -61,8 +61,8 @@ type SessionRepairIssue struct {
 	Detail   string
 }
 
-// SessionRepairAction is one append-only mutation planned or persisted by repair.
-type SessionRepairAction struct {
+// RepairAction is one append-only mutation planned or persisted by repair.
+type RepairAction struct {
 	Code       string
 	TurnID     string
 	EventID    string
@@ -89,7 +89,7 @@ type repairToolCall struct {
 }
 
 type repairAnalysis struct {
-	issues []SessionRepairIssue
+	issues []RepairIssue
 	turn   repairTurnState
 	block  bool
 }
@@ -98,8 +98,8 @@ type repairAnalysis struct {
 // appends terminal repair events for an interrupted final prompt turn.
 func (m *Manager) RepairSession(
 	ctx context.Context,
-	opts SessionRepairOpts,
-) (result *SessionRepairResult, err error) {
+	opts RepairOpts,
+) (result *RepairResult, err error) {
 	if ctx == nil {
 		return nil, errors.New("session: repair context is required")
 	}
@@ -129,14 +129,34 @@ func (m *Manager) RepairSession(
 		return nil, fmt.Errorf("session: query events for repair %q: %w", target, err)
 	}
 
-	result = &SessionRepairResult{SessionID: target}
+	result, actions := planSessionRepair(target, meta, opts, events)
+	if len(actions) == 0 {
+		return result, nil
+	}
+
+	persisted, err := m.persistRepairActions(ctx, recorder, meta, actions)
+	if err != nil {
+		return result, err
+	}
+	result.Actions = persisted
+	result.Persisted = len(persisted) > 0
+	return result, nil
+}
+
+func planSessionRepair(
+	target string,
+	meta store.SessionMeta,
+	opts RepairOpts,
+	events []store.SessionEvent,
+) (*RepairResult, []RepairAction) {
+	result := &RepairResult{SessionID: target}
 	analysis := analyzeRepairEvents(events)
 	result.Issues = append(result.Issues, analysis.issues...)
 	if analysis.block {
 		return result, nil
 	}
 	if strings.TrimSpace(analysis.turn.turnID) == "" {
-		result.Issues = append(result.Issues, SessionRepairIssue{
+		result.Issues = append(result.Issues, RepairIssue{
 			Code:     RepairIssueNoRepairableTurn,
 			Severity: RepairSeverityInfo,
 			Detail:   "no prompt turn exists in the session event store",
@@ -144,7 +164,7 @@ func (m *Manager) RepairSession(
 		return result, nil
 	}
 	if analysis.turn.terminal {
-		result.Issues = append(result.Issues, SessionRepairIssue{
+		result.Issues = append(result.Issues, RepairIssue{
 			Code:     RepairIssueTerminalEventAlreadyExists,
 			Severity: RepairSeverityInfo,
 			TurnID:   analysis.turn.turnID,
@@ -154,7 +174,7 @@ func (m *Manager) RepairSession(
 	}
 
 	if strings.TrimSpace(meta.State) != string(StateStopped) {
-		result.Issues = append(result.Issues, SessionRepairIssue{
+		result.Issues = append(result.Issues, RepairIssue{
 			Code:     RepairIssueSessionNotStopped,
 			Severity: RepairSeverityError,
 			TurnID:   analysis.turn.turnID,
@@ -164,7 +184,7 @@ func (m *Manager) RepairSession(
 	}
 	stopReason := sessionMetaStopReason(meta)
 	if !opts.Force && !repairDefaultStopReason(stopReason) {
-		result.Issues = append(result.Issues, SessionRepairIssue{
+		result.Issues = append(result.Issues, RepairIssue{
 			Code:     RepairIssueStopReasonRequiresForce,
 			Severity: RepairSeverityError,
 			TurnID:   analysis.turn.turnID,
@@ -178,94 +198,21 @@ func (m *Manager) RepairSession(
 	if opts.DryRun || len(actions) == 0 {
 		return result, nil
 	}
-
-	persisted, err := m.persistRepairActions(ctx, recorder, meta, actions)
-	if err != nil {
-		return result, err
-	}
-	result.Actions = persisted
-	result.Persisted = len(persisted) > 0
-	return result, nil
+	return result, actions
 }
 
 func analyzeRepairEvents(events []store.SessionEvent) repairAnalysis {
-	ordered := append([]store.SessionEvent(nil), events...)
-	slices.SortStableFunc(ordered, func(a store.SessionEvent, b store.SessionEvent) int {
-		switch {
-		case a.Sequence < b.Sequence:
-			return -1
-		case a.Sequence > b.Sequence:
-			return 1
-		default:
-			return strings.Compare(a.ID, b.ID)
-		}
-	})
-
 	analysis := repairAnalysis{}
 	turns := make(map[string]*repairTurnState)
 	var lastTurnID string
 	var previousSequence int64
 
-	for _, event := range ordered {
-		expected := previousSequence + 1
-		switch {
-		case previousSequence > 0 && event.Sequence == previousSequence:
-			analysis.issues = append(analysis.issues, SessionRepairIssue{
-				Code:     RepairIssueSequenceDuplicate,
-				Severity: RepairSeverityError,
-				EventID:  event.ID,
-				Detail:   fmt.Sprintf("duplicate sequence %d", event.Sequence),
-			})
-			analysis.block = true
-		case previousSequence > 0 && event.Sequence < previousSequence:
-			analysis.issues = append(analysis.issues, SessionRepairIssue{
-				Code:     RepairIssueSequenceRegression,
-				Severity: RepairSeverityError,
-				EventID:  event.ID,
-				Detail:   fmt.Sprintf("sequence regressed from %d to %d", previousSequence, event.Sequence),
-			})
-			analysis.block = true
-		case event.Sequence != expected:
-			analysis.issues = append(analysis.issues, SessionRepairIssue{
-				Code:     RepairIssueSequenceGap,
-				Severity: RepairSeverityWarning,
-				EventID:  event.ID,
-				Detail:   fmt.Sprintf("expected sequence %d, found %d", expected, event.Sequence),
-			})
-		}
-		if event.Sequence > previousSequence {
-			previousSequence = event.Sequence
-		}
-
-		agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
-		if err != nil {
-			analysis.issues = append(analysis.issues, SessionRepairIssue{
-				Code:     RepairIssueInvalidEventJSON,
-				Severity: RepairSeverityError,
-				TurnID:   strings.TrimSpace(event.TurnID),
-				EventID:  event.ID,
-				Detail:   err.Error(),
-			})
-			analysis.block = true
+	for _, event := range sortedRepairEvents(events) {
+		trackRepairSequence(&analysis, event, &previousSequence)
+		agentEvent, eventType, ok := decodeRepairEvent(&analysis, event)
+		if !ok {
 			continue
 		}
-
-		eventType := strings.TrimSpace(event.Type)
-		decodedType := strings.TrimSpace(agentEvent.Type)
-		if decodedType != "" && eventType != "" && decodedType != eventType {
-			analysis.issues = append(analysis.issues, SessionRepairIssue{
-				Code:     RepairIssueEventTypeMismatch,
-				Severity: RepairSeverityError,
-				TurnID:   strings.TrimSpace(event.TurnID),
-				EventID:  event.ID,
-				Detail:   fmt.Sprintf("stored type %q does not match payload type %q", eventType, decodedType),
-			})
-			analysis.block = true
-		}
-		if eventType == "" {
-			eventType = decodedType
-		}
-
 		turnID := strings.TrimSpace(firstNonEmpty(event.TurnID, agentEvent.TurnID))
 		if turnID == "" || eventType == EventTypeSessionStopped {
 			continue
@@ -279,6 +226,92 @@ func analyzeRepairEvents(events []store.SessionEvent) repairAnalysis {
 		analysis.turn = *turns[lastTurnID]
 	}
 	return analysis
+}
+
+func sortedRepairEvents(events []store.SessionEvent) []store.SessionEvent {
+	ordered := append([]store.SessionEvent(nil), events...)
+	slices.SortStableFunc(ordered, func(a store.SessionEvent, b store.SessionEvent) int {
+		switch {
+		case a.Sequence < b.Sequence:
+			return -1
+		case a.Sequence > b.Sequence:
+			return 1
+		default:
+			return strings.Compare(a.ID, b.ID)
+		}
+	})
+	return ordered
+}
+
+func trackRepairSequence(
+	analysis *repairAnalysis,
+	event store.SessionEvent,
+	previousSequence *int64,
+) {
+	expected := *previousSequence + 1
+	switch {
+	case *previousSequence > 0 && event.Sequence == *previousSequence:
+		analysis.issues = append(analysis.issues, RepairIssue{
+			Code:     RepairIssueSequenceDuplicate,
+			Severity: RepairSeverityError,
+			EventID:  event.ID,
+			Detail:   fmt.Sprintf("duplicate sequence %d", event.Sequence),
+		})
+		analysis.block = true
+	case *previousSequence > 0 && event.Sequence < *previousSequence:
+		analysis.issues = append(analysis.issues, RepairIssue{
+			Code:     RepairIssueSequenceRegression,
+			Severity: RepairSeverityError,
+			EventID:  event.ID,
+			Detail:   fmt.Sprintf("sequence regressed from %d to %d", *previousSequence, event.Sequence),
+		})
+		analysis.block = true
+	case event.Sequence != expected:
+		analysis.issues = append(analysis.issues, RepairIssue{
+			Code:     RepairIssueSequenceGap,
+			Severity: RepairSeverityWarning,
+			EventID:  event.ID,
+			Detail:   fmt.Sprintf("expected sequence %d, found %d", expected, event.Sequence),
+		})
+	}
+	if event.Sequence > *previousSequence {
+		*previousSequence = event.Sequence
+	}
+}
+
+func decodeRepairEvent(
+	analysis *repairAnalysis,
+	event store.SessionEvent,
+) (acp.AgentEvent, string, bool) {
+	agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
+	if err != nil {
+		analysis.issues = append(analysis.issues, RepairIssue{
+			Code:     RepairIssueInvalidEventJSON,
+			Severity: RepairSeverityError,
+			TurnID:   strings.TrimSpace(event.TurnID),
+			EventID:  event.ID,
+			Detail:   err.Error(),
+		})
+		analysis.block = true
+		return acp.AgentEvent{}, "", false
+	}
+
+	eventType := strings.TrimSpace(event.Type)
+	decodedType := strings.TrimSpace(agentEvent.Type)
+	if decodedType != "" && eventType != "" && decodedType != eventType {
+		analysis.issues = append(analysis.issues, RepairIssue{
+			Code:     RepairIssueEventTypeMismatch,
+			Severity: RepairSeverityError,
+			TurnID:   strings.TrimSpace(event.TurnID),
+			EventID:  event.ID,
+			Detail:   fmt.Sprintf("stored type %q does not match payload type %q", eventType, decodedType),
+		})
+		analysis.block = true
+	}
+	if eventType == "" {
+		eventType = decodedType
+	}
+	return agentEvent, eventType, true
 }
 
 func ensureRepairTurn(turns map[string]*repairTurnState, turnID string) *repairTurnState {
@@ -316,7 +349,7 @@ func applyRepairEvent(
 		turn.hasPromptData = true
 		toolCallID := strings.TrimSpace(event.agent.ToolCallID)
 		if toolCallID == "" {
-			analysis.issues = append(analysis.issues, SessionRepairIssue{
+			analysis.issues = append(analysis.issues, RepairIssue{
 				Code:     RepairIssueDanglingToolCallMissingID,
 				Severity: RepairSeverityWarning,
 				TurnID:   turn.turnID,
@@ -349,8 +382,8 @@ func repairDefaultStopReason(reason store.StopReason) bool {
 	}
 }
 
-func planRepairActions(turn repairTurnState) []SessionRepairAction {
-	actions := make([]SessionRepairAction, 0, len(turn.toolCalls)+1)
+func planRepairActions(turn repairTurnState) []RepairAction {
+	actions := make([]RepairAction, 0, len(turn.toolCalls)+1)
 	toolCallIDs := make([]string, 0, len(turn.toolCalls))
 	for toolCallID := range turn.toolCalls {
 		if _, ok := turn.toolResults[toolCallID]; ok {
@@ -362,7 +395,7 @@ func planRepairActions(turn repairTurnState) []SessionRepairAction {
 
 	for _, toolCallID := range toolCallIDs {
 		toolCall := turn.toolCalls[toolCallID]
-		actions = append(actions, SessionRepairAction{
+		actions = append(actions, RepairAction{
 			Code:       RepairActionAppendInterruptedToolResult,
 			TurnID:     turn.turnID,
 			ToolCallID: toolCallID,
@@ -370,7 +403,7 @@ func planRepairActions(turn repairTurnState) []SessionRepairAction {
 		})
 	}
 	if turn.hasPromptData {
-		actions = append(actions, SessionRepairAction{
+		actions = append(actions, RepairAction{
 			Code:   RepairActionAppendTerminalError,
 			TurnID: turn.turnID,
 		})
@@ -382,9 +415,9 @@ func (m *Manager) persistRepairActions(
 	ctx context.Context,
 	recorder EventRecorder,
 	meta store.SessionMeta,
-	actions []SessionRepairAction,
-) ([]SessionRepairAction, error) {
-	persisted := make([]SessionRepairAction, 0, len(actions))
+	actions []RepairAction,
+) ([]RepairAction, error) {
+	persisted := make([]RepairAction, 0, len(actions))
 	for _, action := range actions {
 		event, err := m.repairActionEvent(meta, action)
 		if err != nil {
@@ -414,7 +447,7 @@ func (m *Manager) persistRepairActions(
 	return persisted, nil
 }
 
-func (m *Manager) repairActionEvent(meta store.SessionMeta, action SessionRepairAction) (acp.AgentEvent, error) {
+func (m *Manager) repairActionEvent(meta store.SessionMeta, action RepairAction) (acp.AgentEvent, error) {
 	now := m.now().UTC()
 	event := acp.AgentEvent{
 		SessionID: repairACPSessionID(meta),

@@ -25,6 +25,9 @@ export type SessionHistoryResponse = OperationResponse<"getSessionHistory", 200>
 export type TurnHistoryPayload = SessionHistoryResponse["history"][number];
 
 export type SessionTranscriptResponse = OperationResponse<"getSessionTranscript", 200>;
+export type SessionRepairResponse = OperationResponse<"repairSession", 200>;
+export type SessionRepairPayload = SessionRepairResponse["repair"];
+export type SessionRepairQuery = OperationQuery<"repairSession">;
 
 export type CreateSessionParams = OperationRequestBody<"createSession">;
 export type SessionApprovalResponse = OperationResponse<"approveSession", 200>;

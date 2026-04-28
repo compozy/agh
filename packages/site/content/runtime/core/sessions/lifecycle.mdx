@@ -231,7 +231,18 @@ That repair is what makes status, list, and resume safe after a crash:
 - stale `stopping` becomes `stopped` with `agent_crashed`, `process_exit`, and detail `stop did not complete`
 - stale `starting` becomes `stopped` with `error`, `startup_failure`, and detail `start did not complete`
 
+During daemon boot, AGH also inspects stopped sessions whose stop reason is `agent_crashed` or
+`error`. If the final persisted turn was interrupted, AGH appends repair events to terminalize the
+transcript: dangling tool calls receive interrupted tool results, then the turn receives a terminal
+error event. The repair is append-only; AGH does not truncate, delete, or resequence session events.
+
 This repair happens before resume validation. The repaired session keeps the same AGH session ID.
+Operators and agents can inspect or run the same transcript repair explicitly:
+
+```bash
+agh session repair <session-id> --dry-run
+agh session repair <session-id>
+```
 
 ## What gets persisted
 

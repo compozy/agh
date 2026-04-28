@@ -8,6 +8,7 @@ import {
   useClearSessionConversation,
   useCreateSession,
   useDeleteSession,
+  useRepairSession,
 } from "./use-session-actions";
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionPayload } from "../types";
@@ -16,11 +17,17 @@ vi.mock("../adapters/session-api", () => ({
   clearSessionConversation: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
+  repairSession: vi.fn(),
   stopSession: vi.fn(),
   resumeSession: vi.fn(),
 }));
 
-import { clearSessionConversation, createSession, deleteSession } from "../adapters/session-api";
+import {
+  clearSessionConversation,
+  createSession,
+  deleteSession,
+  repairSession,
+} from "../adapters/session-api";
 
 function createWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
@@ -233,5 +240,52 @@ describe("session actions", () => {
     );
     expect(queryClient.getQueryData(sessionKeys.events(createdSession.id))).toEqual(eventsSnapshot);
     expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
+  });
+
+  it("useRepairSession invalidates transcript-facing caches after repair completes", async () => {
+    vi.mocked(repairSession).mockResolvedValue({
+      session_id: createdSession.id,
+      issues: [],
+      actions: [
+        {
+          code: "append_terminal_error",
+          turn_id: "turn-1",
+          event_id: "ev-repair-1",
+          persisted: true,
+        },
+      ],
+      persisted: true,
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useRepairSession(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: createdSession.id,
+        dry_run: true,
+        force: true,
+      });
+    });
+
+    expect(repairSession).toHaveBeenCalledWith(createdSession.id, {
+      dry_run: true,
+      force: true,
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.detail(createdSession.id) });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.history(createdSession.id),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.transcript(createdSession.id),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.events(createdSession.id) });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.lists() });
   });
 });

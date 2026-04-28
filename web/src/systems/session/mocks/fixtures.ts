@@ -3,6 +3,7 @@ import type {
   SessionApprovalResponse,
   SessionEventPayload,
   SessionPayload,
+  SessionRepairPayload,
   TranscriptMessage,
   TurnHistoryPayload,
   UIMessage,
@@ -100,6 +101,20 @@ export const sessionHistoryFixture: TurnHistoryPayload[] = [
     events: sessionEventsFixture,
   },
 ];
+
+export const sessionRepairFixture: SessionRepairPayload = {
+  session_id: primarySessionFixture.id,
+  issues: [],
+  actions: [
+    {
+      code: "append_terminal_error",
+      turn_id: "turn_001",
+      event_id: "event_repair_001",
+      persisted: true,
+    },
+  ],
+  persisted: true,
+};
 
 export const bashToolMessageFixture: UIMessage = {
   id: "tool_bash",

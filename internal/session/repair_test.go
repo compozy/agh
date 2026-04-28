@@ -23,7 +23,7 @@ func TestManagerRepairSession(t *testing.T) {
 		meta := repairSessionMeta("sess-repair-dry", store.StopAgentCrashed, h.workspaceID)
 		seedRepairSession(t, h, meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
 
-		result, err := h.manager.RepairSession(testutil.Context(t), SessionRepairOpts{
+		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{
 			SessionID: meta.ID,
 			DryRun:    true,
 		})
@@ -58,7 +58,7 @@ func TestManagerRepairSession(t *testing.T) {
 		meta := repairSessionMeta("sess-repair-append", store.StopAgentCrashed, h.workspaceID)
 		seedRepairSession(t, h, meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
 
-		result, err := h.manager.RepairSession(testutil.Context(t), SessionRepairOpts{SessionID: meta.ID})
+		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
 		if err != nil {
 			t.Fatalf("RepairSession() error = %v", err)
 		}
@@ -116,7 +116,7 @@ func TestManagerRepairSession(t *testing.T) {
 			Timestamp: time.Date(2026, 4, 28, 13, 0, 0, 0, time.UTC),
 		})
 
-		result, err := h.manager.RepairSession(testutil.Context(t), SessionRepairOpts{SessionID: meta.ID})
+		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
 		if err != nil {
 			t.Fatalf("RepairSession(invalid JSON) error = %v", err)
 		}
@@ -140,7 +140,7 @@ func TestManagerRepairSession(t *testing.T) {
 		meta := repairSessionMeta("sess-repair-force", store.StopCompleted, h.workspaceID)
 		seedRepairSession(t, h, meta, interruptedTurnEvents(t, meta.ID, meta.AgentName)...)
 
-		blocked, err := h.manager.RepairSession(testutil.Context(t), SessionRepairOpts{SessionID: meta.ID})
+		blocked, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
 		if err != nil {
 			t.Fatalf("RepairSession(non-force) error = %v", err)
 		}
@@ -151,7 +151,7 @@ func TestManagerRepairSession(t *testing.T) {
 			t.Fatalf("RepairSession(non-force) issues = %#v, want force issue", blocked.Issues)
 		}
 
-		forced, err := h.manager.RepairSession(testutil.Context(t), SessionRepairOpts{
+		forced, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{
 			SessionID: meta.ID,
 			Force:     true,
 		})
@@ -190,16 +190,32 @@ func interruptedTurnEvents(t *testing.T, sessionID string, agentName string) []s
 			Type: acp.EventTypeUserMessage,
 			Text: "run pwd",
 		}),
-		repairStoredEvent(t, sessionID, agentName, acp.EventTypeAgentMessage, "turn-1", base.Add(time.Second), acp.AgentEvent{
-			Type: acp.EventTypeAgentMessage,
-			Text: "Running command",
-		}),
-		repairStoredEvent(t, sessionID, agentName, acp.EventTypeToolCall, "turn-1", base.Add(2*time.Second), acp.AgentEvent{
-			Type:       acp.EventTypeToolCall,
-			Title:      "Bash",
-			ToolCallID: "tool-1",
-			Raw:        []byte(`{"rawInput":{"command":"pwd"},"_meta":{"claudeCode":{"toolName":"Bash"}}}`),
-		}),
+		repairStoredEvent(
+			t,
+			sessionID,
+			agentName,
+			acp.EventTypeAgentMessage,
+			"turn-1",
+			base.Add(time.Second),
+			acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage,
+				Text: "Running command",
+			},
+		),
+		repairStoredEvent(
+			t,
+			sessionID,
+			agentName,
+			acp.EventTypeToolCall,
+			"turn-1",
+			base.Add(2*time.Second),
+			acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				Title:      "Bash",
+				ToolCallID: "tool-1",
+				Raw:        []byte(`{"rawInput":{"command":"pwd"},"_meta":{"claudeCode":{"toolName":"Bash"}}}`),
+			},
+		),
 	}
 }
 
@@ -276,7 +292,7 @@ func readRepairEvents(t *testing.T, h *harness, sessionID string) []store.Sessio
 	return events
 }
 
-func repairIssuesContain(issues []SessionRepairIssue, code string) bool {
+func repairIssuesContain(issues []RepairIssue, code string) bool {
 	for _, issue := range issues {
 		if issue.Code == code {
 			return true

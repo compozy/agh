@@ -28,7 +28,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	var createCalled atomic.Bool
-	var repairSeen session.SessionRepairOpts
+	var repairSeen session.RepairOpts
 	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{testutil.NewSessionInfo("sess-a")}, nil
@@ -72,11 +72,11 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			resumed.State = session.StateActive
 			return resumed, nil
 		},
-		RepairFn: func(_ context.Context, opts session.SessionRepairOpts) (*session.SessionRepairResult, error) {
+		RepairFn: func(_ context.Context, opts session.RepairOpts) (*session.RepairResult, error) {
 			repairSeen = opts
-			return &session.SessionRepairResult{
+			return &session.RepairResult{
 				SessionID: opts.SessionID,
-				Actions: []session.SessionRepairAction{{
+				Actions: []session.RepairAction{{
 					Code:      session.RepairActionAppendTerminalError,
 					TurnID:    "turn-1",
 					Persisted: !opts.DryRun,
@@ -198,7 +198,13 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	})
 
 	t.Run("ShouldRepairSession", func(t *testing.T) {
-		repairResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions/sess-a/repair?dry_run=true&force=true", nil)
+		repairResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/sessions/sess-a/repair?dry_run=true&force=true",
+			nil,
+		)
 		if repairResp.Code != http.StatusOK {
 			t.Fatalf("repair status = %d, want %d", repairResp.Code, http.StatusOK)
 		}

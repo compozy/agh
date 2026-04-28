@@ -67,6 +67,12 @@ For an inactive session, AGH follows this sequence:
 5. Attempt ACP `session/load`.
 6. On success, transition the AGH session back to `active`.
 
+Daemon boot also performs append-only transcript repair for sessions stopped with `agent_crashed` or
+`error`. That pass closes interrupted final turns before replay, so resumed sessions do not inherit
+permanently streaming assistant messages or dangling tool calls. Use
+`agh session repair <session-id> --dry-run` when you want to inspect the planned repair before
+writing events.
+
 ### Native ACP resume
 
 If the agent supports `session/load`, AGH asks the upstream ACP runtime to restore its own native

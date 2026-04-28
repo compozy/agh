@@ -59,7 +59,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
         ) : null}
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-2 border-t border-[color:var(--color-divider)] pt-4">
+      <CardContent className="flex flex-col flex-1 gap-2 border-t border-[color:var(--color-divider)] pt-4">
         <MetaRow label="Command" testId={`${testId}-command`}>
           {provider.settings.command ?? <EmptyValue />}
         </MetaRow>

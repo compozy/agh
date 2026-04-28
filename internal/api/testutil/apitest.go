@@ -51,7 +51,7 @@ type StubSessionManager struct {
 	EventsFn        func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	HistoryFn       func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
 	TranscriptFn    func(context.Context, string) ([]transcript.UIMessage, error)
-	RepairFn        func(context.Context, session.SessionRepairOpts) (*session.SessionRepairResult, error)
+	RepairFn        func(context.Context, session.RepairOpts) (*session.RepairResult, error)
 	DeleteFn        func(context.Context, string) error
 	StopFn          func(context.Context, string) error
 	StopWithCauseFn func(context.Context, string, session.StopCause, string) error
@@ -128,12 +128,12 @@ func (s StubSessionManager) Transcript(ctx context.Context, id string) ([]transc
 
 func (s StubSessionManager) RepairSession(
 	ctx context.Context,
-	opts session.SessionRepairOpts,
-) (*session.SessionRepairResult, error) {
+	opts session.RepairOpts,
+) (*session.RepairResult, error) {
 	if s.RepairFn != nil {
 		return s.RepairFn(ctx, opts)
 	}
-	return &session.SessionRepairResult{SessionID: opts.SessionID}, nil
+	return &session.RepairResult{SessionID: opts.SessionID}, nil
 }
 
 func (s StubSessionManager) Delete(ctx context.Context, id string) error {

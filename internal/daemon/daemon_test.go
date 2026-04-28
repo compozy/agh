@@ -4263,7 +4263,7 @@ type fakeSessionManager struct {
 	promptCtxCancelled       chan struct{}
 	stopCalls                []string
 	deleteCalls              []string
-	repairCalls              []session.SessionRepairOpts
+	repairCalls              []session.RepairOpts
 	stopWithCauseCalls       []fakeStopWithCauseCall
 	requestStopCalls         []fakeStopWithCauseCall
 	waitFinalizationsRelease <-chan struct{}
@@ -4382,12 +4382,12 @@ func (f *fakeSessionManager) Transcript(context.Context, string) ([]transcript.U
 
 func (f *fakeSessionManager) RepairSession(
 	_ context.Context,
-	opts session.SessionRepairOpts,
-) (*session.SessionRepairResult, error) {
+	opts session.RepairOpts,
+) (*session.RepairResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.repairCalls = append(f.repairCalls, opts)
-	return &session.SessionRepairResult{SessionID: opts.SessionID}, nil
+	return &session.RepairResult{SessionID: opts.SessionID}, nil
 }
 
 func (f *fakeSessionManager) Stop(_ context.Context, id string) error {

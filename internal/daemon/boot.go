@@ -152,55 +152,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	cleanup := &bootCleanup{}
 	defer cleanup.run(&err)
 
-	if err := d.bootConfig(state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootPromptProviders(ctx, state); err != nil {
-		return err
-	}
-	if err := d.bootRuntime(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootSessionRepair(ctx, state); err != nil {
-		return err
-	}
-	if err := d.bootTasks(ctx, state); err != nil {
-		return err
-	}
-	if err := d.bootSpawnReaper(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootScheduler(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootNetwork(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootHooks(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootCoordinator(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootAutomation(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootBundles(ctx, state); err != nil {
-		return err
-	}
-	if err := d.bootResourceReconcile(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootExtensions(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootSettings(ctx, state); err != nil {
-		return err
-	}
-	if err := d.bootServers(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootFinalize(ctx, state); err != nil {
+	if err := d.bootComponents(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.markRestartReadyIfRequested(state.info); err != nil {
@@ -208,6 +160,34 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 
 	d.publishBootState(state)
+	return nil
+}
+
+func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	steps := []func() error{
+		func() error { return d.bootConfig(state, cleanup) },
+		func() error { return d.bootPromptProviders(ctx, state) },
+		func() error { return d.bootRuntime(ctx, state, cleanup) },
+		func() error { return d.bootSessionRepair(ctx, state) },
+		func() error { return d.bootTasks(ctx, state) },
+		func() error { return d.bootSpawnReaper(ctx, state, cleanup) },
+		func() error { return d.bootScheduler(ctx, state, cleanup) },
+		func() error { return d.bootNetwork(ctx, state, cleanup) },
+		func() error { return d.bootHooks(ctx, state, cleanup) },
+		func() error { return d.bootCoordinator(ctx, state, cleanup) },
+		func() error { return d.bootAutomation(ctx, state, cleanup) },
+		func() error { return d.bootBundles(ctx, state) },
+		func() error { return d.bootResourceReconcile(ctx, state, cleanup) },
+		func() error { return d.bootExtensions(ctx, state, cleanup) },
+		func() error { return d.bootSettings(ctx, state) },
+		func() error { return d.bootServers(ctx, state, cleanup) },
+		func() error { return d.bootFinalize(ctx, state) },
+	}
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -555,7 +535,7 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 			continue
 		}
 
-		result, repairErr := state.sessions.RepairSession(ctx, session.SessionRepairOpts{SessionID: info.ID})
+		result, repairErr := state.sessions.RepairSession(ctx, session.RepairOpts{SessionID: info.ID})
 		if repairErr != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return fmt.Errorf("daemon: boot session repair canceled: %w", ctxErr)
@@ -601,7 +581,7 @@ func bootShouldRepairSession(info *session.Info) bool {
 	}
 }
 
-func repairIssueCount(result *session.SessionRepairResult, severity string) int {
+func repairIssueCount(result *session.RepairResult, severity string) int {
 	if result == nil {
 		return 0
 	}

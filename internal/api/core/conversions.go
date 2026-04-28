@@ -234,7 +234,7 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) 
 }
 
 // SessionRepairPayloadFromResult converts a session repair report into the shared payload.
-func SessionRepairPayloadFromResult(result *session.SessionRepairResult) contract.SessionRepairPayload {
+func SessionRepairPayloadFromResult(result *session.RepairResult) contract.SessionRepairPayload {
 	if result == nil {
 		return contract.SessionRepairPayload{}
 	}

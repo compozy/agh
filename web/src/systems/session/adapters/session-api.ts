@@ -12,6 +12,8 @@ import type {
   SessionMessage,
   SessionEventPayload,
   SessionPayload,
+  SessionRepairPayload,
+  SessionRepairQuery,
   TurnHistoryPayload,
 } from "../types";
 import { normalizeTranscriptMessages } from "../lib/message-schemas";
@@ -21,6 +23,7 @@ export type {
   CreateSessionParams,
   FetchSessionEventsParams,
   PermissionDecision,
+  SessionRepairQuery,
 } from "../types";
 
 export async function fetchSessions(
@@ -130,6 +133,27 @@ export async function resumeSession(id: string, signal?: AbortSignal): Promise<S
     throw new Error(defaultApiErrorMessage(`Failed to resume session "${id}"`, response, error));
   }
   return requireResponseData(data, response, `Failed to resume session "${id}"`).session;
+}
+
+export async function repairSession(
+  id: string,
+  query: SessionRepairQuery = {},
+  signal?: AbortSignal
+): Promise<SessionRepairPayload> {
+  const { data, error, response } = await apiClient.POST("/api/sessions/{id}/repair", {
+    params: {
+      path: { id },
+      query,
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new Error(`Session not found: ${id}`);
+    }
+    throw new Error(defaultApiErrorMessage(`Failed to repair session "${id}"`, response, error));
+  }
+  return requireResponseData(data, response, `Failed to repair session "${id}"`).repair;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

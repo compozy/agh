@@ -5,12 +5,13 @@ import {
   createSession,
   type CreateSessionParams,
   deleteSession,
+  repairSession,
   resumeSession,
   stopSession,
 } from "../adapters/session-api";
 import { useSessionStore } from "./use-session-store";
 import { sessionKeys } from "../lib/query-keys";
-import type { SessionPayload } from "../types";
+import type { SessionPayload, SessionRepairQuery } from "../types";
 
 function mergeSessionList(
   current: SessionPayload[] | undefined,
@@ -95,6 +96,25 @@ export function useResumeSession() {
     mutationFn: (id: string) => resumeSession(id),
     onSettled: (_data, _error, id) => {
       queryClient.invalidateQueries({ queryKey: sessionKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+    },
+  });
+}
+
+export interface RepairSessionParams extends SessionRepairQuery {
+  id: string;
+}
+
+export function useRepairSession() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, ...query }: RepairSessionParams) => repairSession(id, query),
+    onSettled: (_data, _error, params) => {
+      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(params.id) });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.history(params.id) });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.transcript(params.id) });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.events(params.id) });
       queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });

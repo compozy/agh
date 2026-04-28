@@ -141,6 +141,7 @@ Commands:
 agh daemon start
 agh session list --all
 agh session status <session-id>
+agh session repair <session-id> --dry-run
 ```
 
 The repair rules are:
@@ -150,6 +151,15 @@ The repair rules are:
 | `active`    | `stopped` with stop reason `agent_crashed` |
 | `stopping`  | `stopped` with stop reason `agent_crashed` |
 | `starting`  | `stopped` with stop reason `error`         |
+
+For sessions already stopped with `agent_crashed` or `error`, boot also repairs interrupted
+transcripts by appending terminal repair events. If a transcript or chat replay still shows a
+dangling tool call or streaming assistant message after restart, run:
+
+```bash
+agh session repair <session-id> --dry-run
+agh session repair <session-id>
+```
 
 If resume still fails, check that the workspace directory, agent definition, and
 `$AGH_HOME/sessions/<session-id>/events.db` still exist.
