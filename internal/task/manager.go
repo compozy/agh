@@ -1201,10 +1201,10 @@ func (m *Service) recoverRunByFailure(
 	previousStatus RunStatus,
 	previousSessionID string,
 ) (*Run, error) {
-	failedRun, err := m.failRunRecord(ctx, taskRecord, run, RunFailure{
+	failedRun, err := m.failRunRecordWithOptions(ctx, taskRecord, run, RunFailure{
 		Error:    runBootRecoveryError(run, recovery),
 		Metadata: runBootRecoveryMetadata(run, recovery),
-	}, actor)
+	}, actor, failRunRecordOptions{stopTerminalSession: false})
 	if err != nil {
 		return nil, err
 	}
@@ -1229,6 +1229,9 @@ func (m *Service) recoverRunByFailure(
 		previousSessionID,
 		recovery,
 	); err != nil {
+		return nil, err
+	}
+	if err := m.stopRecoveredRunSession(ctx, *failedRun, recovery); err != nil {
 		return nil, err
 	}
 	return failedRun, nil
@@ -2923,12 +2926,29 @@ type cancelRunOptions struct {
 	reconcileTask        bool
 }
 
+type failRunRecordOptions struct {
+	stopTerminalSession bool
+}
+
 func (m *Service) failRunRecord(
 	ctx context.Context,
 	taskRecord Task,
 	run Run,
 	failure RunFailure,
 	actor ActorContext,
+) (*Run, error) {
+	return m.failRunRecordWithOptions(ctx, taskRecord, run, failure, actor, failRunRecordOptions{
+		stopTerminalSession: true,
+	})
+}
+
+func (m *Service) failRunRecordWithOptions(
+	ctx context.Context,
+	taskRecord Task,
+	run Run,
+	failure RunFailure,
+	actor ActorContext,
+	opts failRunRecordOptions,
 ) (*Run, error) {
 	switch run.Status.Normalize() {
 	case TaskRunStatusStarting, TaskRunStatusRunning:
@@ -2960,8 +2980,10 @@ func (m *Service) failRunRecord(
 		return nil, err
 	}
 
-	if err := m.stopTerminalRunSession(ctx, run, StopReasonFailed); err != nil {
-		return nil, err
+	if opts.stopTerminalSession {
+		if err := m.stopTerminalRunSession(ctx, run, StopReasonFailed); err != nil {
+			return nil, err
+		}
 	}
 
 	return &run, nil
@@ -3059,6 +3081,23 @@ func (m *Service) stopTerminalRunSession(ctx context.Context, run Run, reason St
 	return nil
 }
 
+func (m *Service) stopRecoveredRunSession(ctx context.Context, run Run, recovery RunBootRecovery) error {
+	sessionID := strings.TrimSpace(run.SessionID)
+	if sessionID == "" {
+		return nil
+	}
+	if err := m.requireSessionExecutor("stop recovered run session"); err != nil {
+		return err
+	}
+	if recoverySessionStateRequiresCooperativeStop(recovery.SessionState) {
+		return m.stopTerminalRunSession(ctx, run, StopReasonFailed)
+	}
+	if err := m.sessions.ForceTaskStop(ctx, sessionID, StopReasonFailed); err != nil {
+		return fmt.Errorf("task: force stop session %q: %w", sessionID, err)
+	}
+	return nil
+}
+
 func (m *Service) waitAndForceStopRun(ctx context.Context, sessionID string, reason StopReason) error {
 	if m.cancelGracePeriod > 0 {
 		timer := time.NewTimer(m.cancelGracePeriod)
@@ -3074,6 +3113,15 @@ func (m *Service) waitAndForceStopRun(ctx context.Context, sessionID string, rea
 		return fmt.Errorf("task: force stop session %q: %w", sessionID, err)
 	}
 	return nil
+}
+
+func recoverySessionStateRequiresCooperativeStop(state string) bool {
+	switch strings.TrimSpace(state) {
+	case "starting", "active", "stopping":
+		return true
+	default:
+		return false
+	}
 }
 
 func requireRunTransition(run Run, next RunStatus) error {

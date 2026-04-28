@@ -5122,6 +5122,18 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		if !strings.Contains(recovered.Error, "orphaned on boot") {
 			t.Fatalf("recovered.Error = %q, want orphaned-on-boot detail", recovered.Error)
 		}
+		if got, want := len(executor.requestStopCalls), 0; got != want {
+			t.Fatalf("len(requestStopCalls) = %d, want %d", got, want)
+		}
+		if got, want := len(executor.forceStopCalls), 1; got != want {
+			t.Fatalf("len(forceStopCalls) = %d, want %d", got, want)
+		}
+		if got, want := executor.forceStopCalls[0].SessionID, run.SessionID; got != want {
+			t.Fatalf("forceStopCalls[0].SessionID = %q, want %q", got, want)
+		}
+		if got, want := executor.forceStopCalls[0].Reason, StopReasonFailed; got != want {
+			t.Fatalf("forceStopCalls[0].Reason = %q, want %q", got, want)
+		}
 
 		events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskRecord.ID})
 		if err != nil {

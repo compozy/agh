@@ -17,9 +17,12 @@ import {
   formatHistoricalParticipantCount,
   formatNetworkDateTime,
   formatNetworkRelativeTime,
+  getChannelRecencyAt,
+  getMostRecentTimestamp,
   getNetworkRoomKey,
   getPeerDisplayName,
   getPeerPresenceTone,
+  getPeerRecencyAt,
   isHistoricalChannel,
   isPresenceOnlyChannel,
   matchesChannelSearch,
@@ -163,8 +166,9 @@ function makeUnreadCount(
 }
 
 function summarizePeerMeta(peer: NetworkPeerSummary) {
-  if (peer.last_seen) {
-    return formatNetworkRelativeTime(peer.last_seen);
+  const lastSeenAt = getPeerRecencyAt(peer);
+  if (lastSeenAt) {
+    return formatNetworkRelativeTime(lastSeenAt);
   }
 
   return peer.local ? "local" : "offline";
@@ -181,19 +185,20 @@ function makeChannelRoomItem(
   selectedRoomKey: string | null
 ): NetworkRoomListItem {
   const key = getNetworkRoomKey("channel", channel.channel);
+  const lastSeenAt = getChannelRecencyAt(channel);
 
   return {
     id: channel.channel,
     isStarred,
     key,
-    lastActivityAt: channel.last_activity_at ?? null,
+    lastActivityAt: lastSeenAt,
     meta: summarizeChannelMeta(channel),
     preview: summarizeChannelPreview(channel),
     roomType: "channel",
     subtitle: summarizeChannelSubtitle(channel),
     title: channel.channel,
     tone: (channel.message_count ?? 0) > 0 ? "accent" : "neutral",
-    unreadCount: makeUnreadCount(key, channel.last_activity_at, readMarkers, selectedRoomKey),
+    unreadCount: makeUnreadCount(key, lastSeenAt, readMarkers, selectedRoomKey),
   };
 }
 
@@ -203,26 +208,27 @@ function makePeerRoomItem(
   selectedRoomKey: string | null
 ): NetworkRoomListItem {
   const key = getNetworkRoomKey("peer", peer.peer_id);
+  const lastSeenAt = getPeerRecencyAt(peer);
 
   return {
     id: peer.peer_id,
     isStarred: false,
     key,
-    lastActivityAt: peer.last_seen ?? null,
+    lastActivityAt: lastSeenAt,
     meta: summarizePeerMeta(peer),
     preview: summarizePeerPreview(peer),
     roomType: "peer",
     subtitle: peer.local ? "Local peer" : "Remote peer",
     title: getPeerDisplayName(peer),
     tone: getPeerPresenceTone(peer),
-    unreadCount: makeUnreadCount(key, peer.last_seen, readMarkers, selectedRoomKey),
+    unreadCount: makeUnreadCount(key, lastSeenAt, readMarkers, selectedRoomKey),
   };
 }
 
 function makeMemberFromPeer(peer: NetworkPeerSummary): NetworkRoomMember {
   return {
     id: peer.peer_id,
-    lastSeen: peer.last_seen ?? null,
+    lastSeen: getPeerRecencyAt(peer),
     local: peer.local,
     sessionId: peer.session_id ?? null,
     subtitle: peer.local ? `Local · #${peer.channel}` : `Remote · #${peer.channel}`,
@@ -341,6 +347,23 @@ function summarizePeerWireFields(peer: NetworkPeerDetail | undefined): NetworkRo
   ];
 }
 
+function findLastNonPresenceTimestamp(messages: NetworkTimelineMessage[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message || message.kind === "greet") {
+      continue;
+    }
+
+    return message.timestamp ?? null;
+  }
+
+  return null;
+}
+
+function countVisibleConversationMessages(messages: NetworkTimelineMessage[]): number {
+  return messages.filter(message => message.kind !== "greet").length;
+}
+
 function makeChannelActiveRoom({
   detail,
   filteredMessages,
@@ -357,13 +380,14 @@ function makeChannelActiveRoom({
   const lastActivityAt =
     detail?.last_activity_at ??
     room.last_activity_at ??
-    rawMessages[rawMessages.length - 1]?.timestamp ??
+    findLastNonPresenceTimestamp(rawMessages) ??
     null;
   const lastPresenceAt = detail?.last_presence_at ?? room.last_presence_at ?? null;
   const purpose = detail?.purpose?.trim() || room.purpose?.trim() || null;
   const members = sortNetworkPeers(detail?.peers ?? []).map(makeMemberFromPeer);
   const presenceOnly = isPresenceOnlyChannel(detail ?? room);
   const historical = isHistoricalChannel(detail ?? room);
+  const visibleMessageCount = countVisibleConversationMessages(rawMessages);
   const memberSummary =
     (detail?.peer_count ?? room.peer_count ?? 0)
       ? formatChannelMemberCount(detail ?? room)
@@ -426,7 +450,7 @@ function makeChannelActiveRoom({
     lastPresenceAt,
     memberCount: detail?.peer_count ?? room.peer_count ?? members.length,
     members,
-    messageCount: detail?.message_count ?? room.message_count ?? rawMessages.length,
+    messageCount: detail?.message_count ?? room.message_count ?? visibleMessageCount,
     messages: filteredMessages,
     presenceCount: detail?.presence_count ?? room.presence_count ?? 0,
     preview: summarizeChannelPreview(room),
@@ -453,12 +477,14 @@ function makePeerActiveRoom({
   room: NetworkPeerSummary;
   showPresence: boolean;
 }): NetworkActiveRoom {
-  const lastActivityAt =
-    rawMessages[rawMessages.length - 1]?.timestamp ?? detail?.last_seen ?? room.last_seen ?? null;
+  const lastActivityAt = findLastNonPresenceTimestamp(rawMessages);
+  const lastSeenAt =
+    detail?.last_seen ?? detail?.joined_at ?? room.last_seen ?? room.joined_at ?? null;
   const capabilities = buildPeerCapabilityViews(
     detail?.peer_card.capabilities,
     detail?.capability_catalog
   );
+  const visibleMessageCount = countVisibleConversationMessages(rawMessages);
 
   return {
     aboutFields: [
@@ -466,7 +492,7 @@ function makePeerActiveRoom({
       { label: "Channel", mono: true, value: room.channel },
       {
         label: "Last Seen",
-        value: detail?.last_seen ? formatNetworkDateTime(detail.last_seen) : "Unavailable",
+        value: lastSeenAt ? formatNetworkDateTime(lastSeenAt) : "Unavailable",
       },
     ],
     canCompose: pickPeerSenderSessionId(detail, channelPeers) !== null,
@@ -488,10 +514,10 @@ function makePeerActiveRoom({
     key: getNetworkRoomKey("peer", room.peer_id),
     kindCounts: summarizeKindCounts(rawMessages),
     lastActivityAt,
-    lastPresenceAt: detail?.last_seen ?? room.last_seen ?? null,
+    lastPresenceAt: lastSeenAt,
     memberCount: channelPeers.length,
     members: sortNetworkPeers(channelPeers).map(makeMemberFromPeer),
-    messageCount: rawMessages.length,
+    messageCount: visibleMessageCount,
     messages: filteredMessages,
     presenceCount: showPresence
       ? rawMessages.reduce(
@@ -749,23 +775,26 @@ function useNetworkPage(search: NetworkRouteSearch = {}) {
   ]);
 
   useEffect(() => {
-    if (!activeRoom?.key || !activeRoom.lastActivityAt) {
+    const lastReadAt = getMostRecentTimestamp(
+      activeRoom?.lastActivityAt,
+      activeRoom?.lastPresenceAt
+    );
+    if (!activeRoom?.key || !lastReadAt) {
       return;
     }
 
     const roomKey = activeRoom.key;
-    const lastActivityAt = activeRoom.lastActivityAt;
 
     setReadMarkers(current => {
-      if (current[roomKey] === lastActivityAt) {
+      if (current[roomKey] === lastReadAt) {
         return current;
       }
 
-      const next = { ...current, [roomKey]: lastActivityAt };
+      const next = { ...current, [roomKey]: lastReadAt };
       writeStringRecord(ROOM_READ_AT_STORAGE_KEY, next);
       return next;
     });
-  }, [activeRoom?.key, activeRoom?.lastActivityAt]);
+  }, [activeRoom?.key, activeRoom?.lastActivityAt, activeRoom?.lastPresenceAt]);
 
   useEffect(() => {
     setComposeDraft("");

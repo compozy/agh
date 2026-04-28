@@ -1,0 +1,358 @@
+package udsapi
+
+import (
+	"context"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/session"
+	taskpkg "github.com/pedronauck/agh/internal/task"
+)
+
+type agentTaskLeaseBindingCapture struct {
+	actorContext taskpkg.ActorContext
+	heartbeat    taskpkg.LeaseHeartbeat
+	completion   taskpkg.LeaseCompletion
+	failure      taskpkg.LeaseFailure
+	release      taskpkg.LeaseRelease
+}
+
+func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
+	t.Parallel()
+
+	const historicalChannel = "scope-uds-history-reclaim-081526"
+
+	t.Run("Should preserve historical channel bindings in claim-next responses", func(t *testing.T) {
+		t.Parallel()
+
+		rawToken := "agh_claim_UDSHISTORY123"
+		leaseUntil := time.Date(2026, 4, 28, 8, 16, 0, 0, time.UTC)
+		claimHash, err := taskpkg.ClaimTokenHash(rawToken)
+		if err != nil {
+			t.Fatalf("ClaimTokenHash() error = %v", err)
+		}
+
+		var seenCriteria taskpkg.ClaimCriteria
+		handlers := newHistoricalAgentTaskHandlers(t, historicalChannel, stubTaskManager{
+			ClaimNextRunFn: func(
+				_ context.Context,
+				criteria taskpkg.ClaimCriteria,
+				actor taskpkg.ActorContext,
+			) (*taskpkg.ClaimResult, error) {
+				seenCriteria = criteria
+				if actor.Actor.Ref != "sess-agent" || actor.Origin.Ref != "agent.task.next" {
+					t.Fatalf("actor = %#v, want sess-agent claim actor", actor)
+				}
+				run := agentTaskRun(taskpkg.TaskRunStatusClaimed)
+				run.LeaseUntil = leaseUntil
+				run.ClaimTokenHash = claimHash
+				run.CoordinationChannelID = historicalChannel
+				return &taskpkg.ClaimResult{
+					Task:       agentTaskRecord(),
+					Run:        run,
+					ClaimToken: rawToken,
+					LeaseUntil: leaseUntil,
+					CoordinationChannel: &taskpkg.CoordinationChannelMetadata{
+						ID:                  historicalChannel,
+						Channel:             historicalChannel,
+						DisplayName:         "Historical reclaim lane",
+						WorkspaceID:         "ws-1",
+						TaskID:              "task-1",
+						RunID:               "run-1",
+						AllowedMessageKinds: []string{"status", "result"},
+						LastActivityAt:      leaseUntil.Add(-time.Minute),
+					},
+				}, nil
+			},
+		})
+		handlers.AgentContextService = agentContextServiceFunc(
+			func(_ context.Context, info *session.Info) (contract.AgentContextPayload, error) {
+				if info.ID != "sess-agent" || info.Channel != historicalChannel {
+					t.Fatalf("ContextForSession info = %#v, want sess-agent on %s", info, historicalChannel)
+				}
+				return contract.AgentContextPayload{
+					Capabilities: contract.AgentCapabilitySectionPayload{
+						Capabilities: []contract.AgentCapabilityPayload{{ID: "manual"}},
+					},
+				}, nil
+			},
+		)
+
+		recorder := performAgentKernelRequest(
+			t,
+			newTestRouter(t, handlers),
+			http.MethodPost,
+			"/api/agent/tasks/claim-next",
+			[]byte(`{"workspace_id":"ws-1","required_capabilities":["triage"],"lease_seconds":90}`),
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		var response contract.AgentTaskClaimResponse
+		decodeJSONResponse(t, recorder, &response)
+
+		if response.Claim.Lease.SessionID != "sess-agent" ||
+			response.Claim.Lease.CoordinationChannelID != historicalChannel ||
+			response.Claim.Run.CoordinationChannelID != historicalChannel {
+			t.Fatalf("claim response = %#v, want preserved historical session/channel bindings", response.Claim)
+		}
+		if response.Claim.CoordinationChannel == nil ||
+			response.Claim.CoordinationChannel.ID != historicalChannel ||
+			response.Claim.Run.CoordinationChannel == nil ||
+			response.Claim.Run.CoordinationChannel.ID != historicalChannel {
+			t.Fatalf("claim response = %#v, want historical coordination metadata", response.Claim)
+		}
+		if seenCriteria.ClaimerSessionID != "sess-agent" ||
+			seenCriteria.CoordinationChannelID != historicalChannel ||
+			seenCriteria.LeaseDuration != 90*time.Second {
+			t.Fatalf("criteria = %#v, want historical caller fencing", seenCriteria)
+		}
+	})
+
+	t.Run("Should preserve historical channel bindings in lease mutation responses", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name          string
+			path          string
+			body          []byte
+			buildManager  func(*testing.T, *agentTaskLeaseBindingCapture, time.Time) stubTaskManager
+			assertCapture func(*testing.T, *agentTaskLeaseBindingCapture)
+			wantStatus    taskpkg.RunStatus
+		}{
+			{
+				name: "Should preserve historical channel bindings in heartbeat responses",
+				path: "/api/agent/tasks/run-1/heartbeat",
+				body: []byte(`{"claim_token":"agh_claim_UDSHB123","lease_seconds":60}`),
+				buildManager: func(
+					t *testing.T,
+					capture *agentTaskLeaseBindingCapture,
+					now time.Time,
+				) stubTaskManager {
+					t.Helper()
+					return stubTaskManager{
+						HeartbeatRunLeaseFn: func(
+							_ context.Context,
+							heartbeat taskpkg.LeaseHeartbeat,
+							actor taskpkg.ActorContext,
+						) (*taskpkg.Run, error) {
+							capture.heartbeat = heartbeat
+							capture.actorContext = actor
+							run := agentTaskRun(taskpkg.TaskRunStatusClaimed)
+							run.CoordinationChannelID = historicalChannel
+							run.LeaseUntil = now.Add(time.Minute)
+							return &run, nil
+						},
+					}
+				},
+				assertCapture: func(t *testing.T, capture *agentTaskLeaseBindingCapture) {
+					t.Helper()
+					if capture.heartbeat.RunID != "run-1" ||
+						capture.heartbeat.ClaimToken != "agh_claim_UDSHB123" ||
+						capture.heartbeat.LeaseDuration != time.Minute {
+						t.Fatalf("heartbeat = %#v, want run-1 + claim token + 60s", capture.heartbeat)
+					}
+					if capture.actorContext.Actor.Ref != "sess-agent" ||
+						capture.actorContext.Origin.Ref != "agent.task.heartbeat" {
+						t.Fatalf("actorContext = %#v", capture.actorContext)
+					}
+				},
+				wantStatus: taskpkg.TaskRunStatusClaimed,
+			},
+			{
+				name: "Should preserve historical channel bindings in release responses",
+				path: "/api/agent/tasks/run-1/release",
+				body: []byte(`{"claim_token":"agh_claim_UDSREL123","reason":"handoff"}`),
+				buildManager: func(
+					t *testing.T,
+					capture *agentTaskLeaseBindingCapture,
+					_ time.Time,
+				) stubTaskManager {
+					t.Helper()
+					return stubTaskManager{
+						ReleaseRunLeaseFn: func(
+							_ context.Context,
+							release taskpkg.LeaseRelease,
+							actor taskpkg.ActorContext,
+						) (*taskpkg.Run, error) {
+							capture.release = release
+							capture.actorContext = actor
+							run := agentTaskRun(taskpkg.TaskRunStatusQueued)
+							run.CoordinationChannelID = historicalChannel
+							return &run, nil
+						},
+					}
+				},
+				assertCapture: func(t *testing.T, capture *agentTaskLeaseBindingCapture) {
+					t.Helper()
+					if capture.release.RunID != "run-1" ||
+						capture.release.ClaimToken != "agh_claim_UDSREL123" ||
+						capture.release.Reason != "handoff" {
+						t.Fatalf("release = %#v, want run-1 + claim token + handoff", capture.release)
+					}
+					if capture.actorContext.Actor.Ref != "sess-agent" ||
+						capture.actorContext.Origin.Ref != "agent.task.release" {
+						t.Fatalf("actorContext = %#v", capture.actorContext)
+					}
+				},
+				wantStatus: taskpkg.TaskRunStatusQueued,
+			},
+			{
+				name: "Should preserve historical channel bindings in complete responses",
+				path: "/api/agent/tasks/run-1/complete",
+				body: []byte(`{"claim_token":"agh_claim_UDSCOMP123","result":{"status":"done","mode":"uds-history"}}`),
+				buildManager: func(
+					t *testing.T,
+					capture *agentTaskLeaseBindingCapture,
+					_ time.Time,
+				) stubTaskManager {
+					t.Helper()
+					return stubTaskManager{
+						CompleteRunLeaseFn: func(
+							_ context.Context,
+							completion taskpkg.LeaseCompletion,
+							actor taskpkg.ActorContext,
+						) (*taskpkg.Run, error) {
+							capture.completion = completion
+							capture.actorContext = actor
+							run := agentTaskRun(taskpkg.TaskRunStatusCompleted)
+							run.CoordinationChannelID = historicalChannel
+							run.Result = completion.Result.Value
+							return &run, nil
+						},
+					}
+				},
+				assertCapture: func(t *testing.T, capture *agentTaskLeaseBindingCapture) {
+					t.Helper()
+					if capture.completion.RunID != "run-1" ||
+						capture.completion.ClaimToken != "agh_claim_UDSCOMP123" ||
+						string(capture.completion.Result.Value) != `{"status":"done","mode":"uds-history"}` {
+						t.Fatalf("completion = %#v, want preserved completion payload", capture.completion)
+					}
+					if capture.actorContext.Actor.Ref != "sess-agent" ||
+						capture.actorContext.Origin.Ref != "agent.task.complete" {
+						t.Fatalf("actorContext = %#v", capture.actorContext)
+					}
+				},
+				wantStatus: taskpkg.TaskRunStatusCompleted,
+			},
+			{
+				name: "Should preserve historical channel bindings in fail responses",
+				path: "/api/agent/tasks/run-1/fail",
+				body: []byte(`{"claim_token":"agh_claim_UDSFAIL123","error":"boom","metadata":{"step":"reclaim"}}`),
+				buildManager: func(
+					t *testing.T,
+					capture *agentTaskLeaseBindingCapture,
+					_ time.Time,
+				) stubTaskManager {
+					t.Helper()
+					return stubTaskManager{
+						FailRunLeaseFn: func(
+							_ context.Context,
+							failure taskpkg.LeaseFailure,
+							actor taskpkg.ActorContext,
+						) (*taskpkg.Run, error) {
+							capture.failure = failure
+							capture.actorContext = actor
+							run := agentTaskRun(taskpkg.TaskRunStatusFailed)
+							run.CoordinationChannelID = historicalChannel
+							run.Error = failure.Failure.Error
+							run.Metadata = failure.Failure.Metadata
+							return &run, nil
+						},
+					}
+				},
+				assertCapture: func(t *testing.T, capture *agentTaskLeaseBindingCapture) {
+					t.Helper()
+					if capture.failure.RunID != "run-1" ||
+						capture.failure.ClaimToken != "agh_claim_UDSFAIL123" ||
+						capture.failure.Failure.Error != "boom" ||
+						string(capture.failure.Failure.Metadata) != `{"step":"reclaim"}` {
+						t.Fatalf("failure = %#v, want preserved failure payload", capture.failure)
+					}
+					if capture.actorContext.Actor.Ref != "sess-agent" ||
+						capture.actorContext.Origin.Ref != "agent.task.fail" {
+						t.Fatalf("actorContext = %#v", capture.actorContext)
+					}
+				},
+				wantStatus: taskpkg.TaskRunStatusFailed,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				capture := &agentTaskLeaseBindingCapture{}
+				handlers := newHistoricalAgentTaskHandlers(
+					t,
+					historicalChannel,
+					tc.buildManager(t, capture, time.Date(2026, 4, 28, 8, 17, 0, 0, time.UTC)),
+				)
+				recorder := performAgentKernelRequest(
+					t,
+					newTestRouter(t, handlers),
+					http.MethodPost,
+					tc.path,
+					tc.body,
+					agentKernelHeaders(),
+				)
+				if recorder.Code != http.StatusOK {
+					t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+				}
+
+				var response contract.AgentTaskLeaseResponse
+				decodeJSONResponse(t, recorder, &response)
+
+				if response.Lease.RunID != "run-1" ||
+					response.Lease.Status != tc.wantStatus ||
+					response.Lease.SessionID != "sess-agent" ||
+					response.Lease.CoordinationChannelID != historicalChannel {
+					t.Fatalf("lease = %#v, want preserved historical session/channel bindings", response.Lease)
+				}
+
+				tc.assertCapture(t, capture)
+			})
+		}
+	})
+}
+
+func newHistoricalAgentTaskHandlers(t *testing.T, channelID string, tasks stubTaskManager) *Handlers {
+	t.Helper()
+
+	return newTestHandlersWithRuntime(
+		t,
+		stubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				if id != "sess-agent" {
+					return nil, session.ErrSessionNotFound
+				}
+				now := time.Date(2026, 4, 28, 8, 15, 0, 0, time.UTC)
+				return &session.Info{
+					ID:          "sess-agent",
+					Name:        "worker",
+					AgentName:   "coder",
+					Provider:    "test-provider",
+					WorkspaceID: "ws-1",
+					Workspace:   "/workspace/project",
+					Channel:     channelID,
+					Type:        session.SessionTypeUser,
+					State:       session.StateActive,
+					CreatedAt:   now,
+					UpdatedAt:   now,
+				}, nil
+			},
+		},
+		stubObserver{},
+		nil,
+		tasks,
+		nil,
+		stubWorkspaceService{},
+		nil,
+		newTestHomePaths(t),
+	)
+}

@@ -984,33 +984,39 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 	now := time.Date(2026, 4, 14, 19, 0, 0, 0, time.UTC)
 	for _, run := range []taskpkg.Run{
 		{
-			ID:        "run-claimed",
-			TaskID:    claimedTask.ID,
-			Status:    taskpkg.TaskRunStatusClaimed,
-			Attempt:   1,
-			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
-			QueuedAt:  now,
-			ClaimedAt: now.Add(30 * time.Second),
+			ID:                    "run-claimed",
+			TaskID:                claimedTask.ID,
+			Status:                taskpkg.TaskRunStatusClaimed,
+			Attempt:               1,
+			Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
+			NetworkChannel:        "scope-direct-history",
+			CoordinationChannelID: "scope-direct-history",
+			QueuedAt:              now,
+			ClaimedAt:             now.Add(30 * time.Second),
 		},
 		{
-			ID:        "run-starting",
-			TaskID:    startingTask.ID,
-			Status:    taskpkg.TaskRunStatusStarting,
-			Attempt:   1,
-			SessionID: "sess-stopped",
-			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
-			QueuedAt:  now,
-			StartedAt: now.Add(time.Minute),
+			ID:                    "run-starting",
+			TaskID:                startingTask.ID,
+			Status:                taskpkg.TaskRunStatusStarting,
+			Attempt:               1,
+			SessionID:             "sess-stopped",
+			Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
+			NetworkChannel:        "scope-starting-history",
+			CoordinationChannelID: "scope-starting-history",
+			QueuedAt:              now,
+			StartedAt:             now.Add(time.Minute),
 		},
 		{
-			ID:        "run-running",
-			TaskID:    runningTask.ID,
-			Status:    taskpkg.TaskRunStatusRunning,
-			Attempt:   1,
-			SessionID: "sess-missing",
-			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
-			QueuedAt:  now,
-			StartedAt: now.Add(2 * time.Minute),
+			ID:                    "run-running",
+			TaskID:                runningTask.ID,
+			Status:                taskpkg.TaskRunStatusRunning,
+			Attempt:               1,
+			SessionID:             "sess-missing",
+			Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
+			NetworkChannel:        "scope-running-history",
+			CoordinationChannelID: "scope-running-history",
+			QueuedAt:              now,
+			StartedAt:             now.Add(2 * time.Minute),
 		},
 	} {
 		if err := seedDB.CreateTaskRun(testutil.Context(t), run); err != nil {
@@ -1065,6 +1071,12 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 	if got, want := claimedRun.Status, taskpkg.TaskRunStatusQueued; got != want {
 		t.Fatalf("claimedRun.Status = %q, want %q", got, want)
 	}
+	if got, want := claimedRun.NetworkChannel, "scope-direct-history"; got != want {
+		t.Fatalf("claimedRun.NetworkChannel = %q, want %q", got, want)
+	}
+	if got, want := claimedRun.CoordinationChannelID, "scope-direct-history"; got != want {
+		t.Fatalf("claimedRun.CoordinationChannelID = %q, want %q", got, want)
+	}
 
 	startingRun, err := d.tasks.store.GetTaskRun(testutil.Context(t), "run-starting")
 	if err != nil {
@@ -1073,6 +1085,12 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 	if got, want := startingRun.Status, taskpkg.TaskRunStatusFailed; got != want {
 		t.Fatalf("startingRun.Status = %q, want %q", got, want)
 	}
+	if got, want := startingRun.NetworkChannel, "scope-starting-history"; got != want {
+		t.Fatalf("startingRun.NetworkChannel = %q, want %q", got, want)
+	}
+	if got, want := startingRun.CoordinationChannelID, "scope-starting-history"; got != want {
+		t.Fatalf("startingRun.CoordinationChannelID = %q, want %q", got, want)
+	}
 
 	runningRun, err := d.tasks.store.GetTaskRun(testutil.Context(t), "run-running")
 	if err != nil {
@@ -1080,6 +1098,12 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 	}
 	if got, want := runningRun.Status, taskpkg.TaskRunStatusFailed; got != want {
 		t.Fatalf("runningRun.Status = %q, want %q", got, want)
+	}
+	if got, want := runningRun.NetworkChannel, "scope-running-history"; got != want {
+		t.Fatalf("runningRun.NetworkChannel = %q, want %q", got, want)
+	}
+	if got, want := runningRun.CoordinationChannelID, "scope-running-history"; got != want {
+		t.Fatalf("runningRun.CoordinationChannelID = %q, want %q", got, want)
 	}
 
 	claimedEvents, err := d.tasks.store.ListTaskEvents(testutil.Context(t), taskpkg.EventQuery{TaskID: claimedTask.ID})

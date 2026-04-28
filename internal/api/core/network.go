@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -59,6 +60,7 @@ func (h *BaseHandlers) NetworkPeers(c *gin.Context) {
 	for _, peer := range peers {
 		payload = append(payload, networkPeerPayloadFromInfoWithSessions(peer, sessionByID))
 	}
+	sortNetworkPeerPayloads(payload)
 	c.JSON(http.StatusOK, contract.NetworkPeersResponse{Peers: payload})
 }
 
@@ -298,7 +300,51 @@ func NetworkPeerPayloadsFromInfos(peers []network.PeerInfo) []contract.NetworkPe
 	for _, peer := range peers {
 		payload = append(payload, NetworkPeerPayloadFromInfo(peer))
 	}
+	sortNetworkPeerPayloads(payload)
 	return payload
+}
+
+func sortNetworkPeerPayloads(peers []contract.NetworkPeerPayload) {
+	sort.Slice(peers, func(i int, j int) bool {
+		if peers[i].Local != peers[j].Local {
+			return peers[i].Local
+		}
+
+		left := networkPeerSortTimestamp(peers[i])
+		right := networkPeerSortTimestamp(peers[j])
+		switch {
+		case left != nil && right != nil && !left.Equal(*right):
+			return left.After(*right)
+		case left != nil && right == nil:
+			return true
+		case left == nil && right != nil:
+			return false
+		}
+
+		leftName := networkPeerSortName(peers[i])
+		rightName := networkPeerSortName(peers[j])
+		if leftName != rightName {
+			return leftName < rightName
+		}
+		if peers[i].PeerID != peers[j].PeerID {
+			return peers[i].PeerID < peers[j].PeerID
+		}
+		return peers[i].Channel < peers[j].Channel
+	})
+}
+
+func networkPeerSortTimestamp(peer contract.NetworkPeerPayload) *time.Time {
+	if peer.LastSeen != nil {
+		return peer.LastSeen
+	}
+	return peer.JoinedAt
+}
+
+func networkPeerSortName(peer contract.NetworkPeerPayload) string {
+	if value := strings.TrimSpace(peer.DisplayName); value != "" {
+		return value
+	}
+	return strings.TrimSpace(peer.PeerID)
 }
 
 // NetworkPeerPayloadFromInfo converts one visible peer snapshot into the shared payload.
@@ -331,12 +377,19 @@ func networkPeerCardPayload(peer network.PeerInfo) contract.NetworkPeerCardPaylo
 	return contract.NetworkPeerCardPayload{
 		PeerID:              peer.PeerCard.PeerID,
 		DisplayName:         peer.PeerCard.DisplayName,
-		ProfilesSupported:   append([]string(nil), peer.PeerCard.ProfilesSupported...),
+		ProfilesSupported:   cloneNetworkStringSliceOrEmpty(peer.PeerCard.ProfilesSupported),
 		Capabilities:        networkCapabilityBriefPayloads(peer.PeerCard, capabilityCatalog),
-		ArtifactsSupported:  append([]string(nil), peer.PeerCard.ArtifactsSupported...),
-		TrustModesSupported: append([]string(nil), peer.PeerCard.TrustModesSupported...),
+		ArtifactsSupported:  cloneNetworkStringSliceOrEmpty(peer.PeerCard.ArtifactsSupported),
+		TrustModesSupported: cloneNetworkStringSliceOrEmpty(peer.PeerCard.TrustModesSupported),
 		Ext:                 clonePeerCardExtWithoutCapabilityDiscovery(peer.PeerCard.Ext),
 	}
+}
+
+func cloneNetworkStringSliceOrEmpty(values []string) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+	return append([]string(nil), values...)
 }
 
 func networkCapabilityBriefPayloads(

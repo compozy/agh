@@ -358,7 +358,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fixture.Agent(ops-coordinator) error = %v", err)
 	}
-	turn, err = ops.SelectTurn("", 2, acp.PromptMeta{
+	turn, err = ops.SelectTurn("", 1, acp.PromptMeta{
 		TurnSource: acp.PromptTurnSourceNetwork,
 		Network: &acp.PromptNetworkMeta{
 			MessageID:   "msg_direct_01",
@@ -376,6 +376,27 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	}
 	if got, want := turn.Name, "accept-direct-request"; got != want {
 		t.Fatalf("network turn.Name = %q, want %q", got, want)
+	}
+
+	capabilityCurator, err := networkFixture.Agent("capability-curator")
+	if err != nil {
+		t.Fatalf("fixture.Agent(capability-curator) error = %v", err)
+	}
+	turn, err = capabilityCurator.SelectTurn("", 1, acp.PromptMeta{
+		TurnSource: acp.PromptTurnSourceNetwork,
+		Network: &acp.PromptNetworkMeta{
+			MessageID: "msg_capability_say_01",
+			Kind:      "say",
+			Channel:   "capabilities",
+			From:      "release-bot.sess",
+			To:        "capability-curator.sess",
+		},
+	})
+	if err != nil {
+		t.Fatalf("capabilityCurator.SelectTurn(network) error = %v", err)
+	}
+	if got, want := turn.Name, "observe-capability-request"; got != want {
+		t.Fatalf("capability curator turn.Name = %q, want %q", got, want)
 	}
 }
 

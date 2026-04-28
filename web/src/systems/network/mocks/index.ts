@@ -5,6 +5,7 @@ export {
   networkChannelMessagesFixture,
   networkChannelsFixture,
   networkPeerFixture,
+  networkRemotePeerFixture,
   networkPeerMessagesFixture,
   networkPeersFixture,
   networkStatusFixture,

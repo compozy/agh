@@ -8,6 +8,7 @@ import {
   networkPeerFixture,
   networkPeerMessagesFixture,
   networkPeersFixture,
+  networkRemotePeerFixture,
   networkStatusFixture,
 } from "./fixtures";
 
@@ -82,18 +83,25 @@ export const handlers: HttpHandler[] = [
   }),
   http.get("/api/network/peers/:peer_id", ({ params }) => {
     const peerId = String(params.peer_id);
+    const peerSummary = networkPeersFixture.find(peer => peer.peer_id === peerId);
 
-    if (!networkPeersFixture.some(peer => peer.peer_id === peerId)) {
+    if (!peerSummary) {
       return HttpResponse.json({ error: `Peer not found: ${peerId}` }, { status: 404 });
     }
 
+    const baseDetail = peerSummary.local ? networkPeerFixture : networkRemotePeerFixture;
+
     return HttpResponse.json({
       peer: {
-        ...networkPeerFixture,
+        ...baseDetail,
+        channel: peerSummary.channel,
+        joined_at: peerSummary.joined_at,
+        last_seen: peerSummary.last_seen,
+        local: peerSummary.local,
         peer_id: peerId,
-        display_name:
-          networkPeersFixture.find(peer => peer.peer_id === peerId)?.display_name ??
-          networkPeerFixture.display_name,
+        display_name: peerSummary.display_name ?? baseDetail.display_name,
+        peer_card: peerSummary.peer_card,
+        session_id: peerSummary.session_id,
       },
     });
   }),

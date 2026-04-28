@@ -103,12 +103,8 @@ test("operator can create a network channel, inspect peers, observe timeline sta
   await expect(ui.channelMessage(operatorFlow.messageIds.say)).toContainText(
     browserNetworkOperatorFlowScenario.texts.say
   );
-  await expect(ui.channelMessage(operatorFlow.messageIds.direct)).toContainText(
-    browserNetworkOperatorFlowScenario.texts.direct
-  );
-  await expect(ui.channelMessage(operatorFlow.messageIds.trace)).toContainText(
-    browserNetworkOperatorFlowScenario.texts.trace
-  );
+  await expect(ui.channelMessage(operatorFlow.messageIds.direct)).toHaveCount(0);
+  await expect(ui.channelMessage(operatorFlow.messageIds.trace)).toHaveCount(0);
 
   await ui
     .peerItem(operatorFlow.responder.peerId)
@@ -117,6 +113,12 @@ test("operator can create a network channel, inspect peers, observe timeline sta
   await expect(ui.roomHeader).toContainText(responderAgentName);
   await expect(ui.roomIntro).toContainText("Direct thread");
   await expect(ui.detailsPanel).toContainText(channelName);
+  await expect(ui.channelMessage(operatorFlow.messageIds.direct)).toContainText(
+    browserNetworkOperatorFlowScenario.texts.direct
+  );
+  await expect(ui.channelMessage(operatorFlow.messageIds.trace)).toContainText(
+    browserNetworkOperatorFlowScenario.texts.trace
+  );
 
   await ui
     .channelItem(channelName)
@@ -132,6 +134,8 @@ test("operator can create a network channel, inspect peers, observe timeline sta
   await expect(ui.channelMessage(operatorFlow.messageIds.say)).toContainText(
     browserNetworkOperatorFlowScenario.texts.say
   );
+  await expect(ui.channelMessage(operatorFlow.messageIds.direct)).toHaveCount(0);
+  await expect(ui.channelMessage(operatorFlow.messageIds.trace)).toHaveCount(0);
 
   await browserArtifacts.captureScreenshot("network-operator-reloaded", appPage);
 });
