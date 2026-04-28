@@ -14,6 +14,7 @@ Use this checklist to perform a final audit of the generated skill before deploy
 *   [ ] **Standard Folders:** Only use `scripts/`, `references/`, and `assets/`.
 *   [ ] **No Human Docs:** The directory contains NO `README.md`, `CHANGELOG.md`, or `INSTALLATION_GUIDE.md`.
 *   [ ] **Forward Slashes:** All file paths in `SKILL.md` use forward slashes (`/`) regardless of the operating system.
+*   [ ] **Explicit Helper Paths:** Bundled helpers are referenced by an unambiguous repo-root path when the skill is intended for repository use.
 
 ## 3. Logic & Instructions (SKILL.md)
 *   [ ] **Lean Context:** The `SKILL.md` file is under 500 lines.
@@ -26,8 +27,8 @@ Use this checklist to perform a final audit of the generated skill before deploy
 *   [ ] **CLI Design:** Scripts in `scripts/` are designed as tiny CLIs that take arguments.
 *   [ ] **Feedback Loop:** Scripts provide descriptive `stdout` for success and `stderr` for failure to allow agent self-correction.
 *   [ ] **No Library Code:** Scripts are single-purpose; complex logic is offloaded to the repository's standard CLI or external tools.
+*   [ ] **Helper Role:** Each referenced helper is labeled as read-only, bootstrap, or mutating in `SKILL.md`.
 
 ## 5. Error Handling
 *   [ ] **Edge Cases:** The `SKILL.md` includes an "Error Handling" section addressing common failure states or missing configurations.
 *   [ ] **Validation:** The `SKILL.md` includes a step to run validation scripts where applicable.
-

@@ -14,10 +14,10 @@ except ModuleNotFoundError:  # pragma: no cover
 MAKEFILE_TARGETS = {
     "install": ["install", "deps", "setup", "bootstrap"],
     "verify": ["verify", "check", "ci"],
-    "lint": ["lint", "fmt", "format"],
-    "test": ["test", "unit", "integration", "e2e"],
-    "build": ["build", "compile"],
-    "start": ["start", "run", "dev", "serve"],
+    "lint": ["lint", "web-lint", "fmt", "format"],
+    "test": ["test", "web-test", "unit", "integration", "e2e", "test-e2e-runtime", "test-e2e-web"],
+    "build": ["build", "web-build", "compile"],
+    "start": ["web-dev", "start", "run", "dev", "serve"],
 }
 
 PACKAGE_JSON_TARGETS = {
@@ -30,6 +30,9 @@ PACKAGE_JSON_TARGETS = {
 }
 
 WEB_UI_FRAMEWORK_CONFIGS = [
+    "web/vite.config.ts",
+    "web/vite.config.js",
+    "web/vite.config.mjs",
     "next.config.js",
     "next.config.mjs",
     "next.config.ts",
@@ -53,6 +56,11 @@ WEB_UI_FRAMEWORK_CONFIGS = [
 ]
 
 WEB_UI_ENTRY_PATTERNS = [
+    "web/index.html",
+    "web/src/App.tsx",
+    "web/src/App.jsx",
+    "web/src/main.tsx",
+    "web/src/main.ts",
     "index.html",
     "public/index.html",
     "src/index.html",
@@ -109,25 +117,40 @@ def parse_package_json(path: Path, result: dict) -> None:
     if not isinstance(scripts, dict):
         return
 
-    if (path.parent / "package-lock.json").exists():
+    package_manager = payload.get("packageManager", "")
+    if isinstance(package_manager, str) and package_manager.startswith("bun@"):
+        add_command(result, "install", "bun install --frozen-lockfile")
+        runner = "bun run"
+    elif (path.parent / "bun.lock").exists() or (path.parent / "bun.lockb").exists():
+        add_command(result, "install", "bun install --frozen-lockfile")
+        runner = "bun run"
+    elif (path.parent / "package-lock.json").exists():
         add_command(result, "install", "npm ci")
+        runner = "npm run"
     elif (path.parent / "pnpm-lock.yaml").exists():
         add_command(result, "install", "pnpm install --frozen-lockfile")
+        runner = "pnpm run"
     elif (path.parent / "yarn.lock").exists():
         add_command(result, "install", "yarn install --frozen-lockfile")
+        runner = "yarn"
     else:
         add_command(result, "install", "npm install")
+        runner = "npm run"
 
     for category, preferred in PACKAGE_JSON_TARGETS.items():
         for target in preferred:
             if target not in scripts:
                 continue
-            if target == "test":
+            if runner == "bun run":
+                add_command(result, category, f"bun run {target}")
+            elif runner == "yarn":
+                add_command(result, category, f"yarn {target}")
+            elif target == "test":
                 add_command(result, category, "npm test")
             elif target == "start":
                 add_command(result, category, "npm start")
             else:
-                add_command(result, category, f"npm run {target}")
+                add_command(result, category, f"{runner} {target}")
 
 
 def parse_go_mod(path: Path, result: dict) -> None:

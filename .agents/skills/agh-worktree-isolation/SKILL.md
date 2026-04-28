@@ -1,6 +1,6 @@
 ---
 name: agh-worktree-isolation
-description: Configures unique AGH_HOME, daemon ports, and tmux-bridge socket paths for parallel agent worktrees so concurrent QA runs do not deadlock SQLite, ports, or git index locks. Allocates an isolated home via mktemp or a worktree-scoped path, picks a free daemon port, and exports a dedicated tmux socket. Blocks operations that would write to default home or default ports when concurrency is signaled. Use before any QA execution, real-scenario QA, or test run that may run alongside another agent in another worktree. Do not use for single-worktree development or build-only commands that touch no runtime state.
+description: Configures unique AGH_HOME, daemon ports, and tmux-bridge socket paths for parallel agent worktrees so concurrent QA runs do not deadlock SQLite, ports, or git index locks. Allocates an isolated home via mktemp or a worktree-scoped path, picks a free daemon port, and exports a dedicated tmux socket. Acts as the low-level primitive beneath agh-qa-bootstrap and blocks operations that would write to default home or default ports when concurrency is signaled. Use before any QA execution, real-scenario QA, or test run that may run alongside another agent in another worktree. Do not use for single-worktree development or build-only commands that touch no runtime state.
 trigger: explicit
 argument-hint: "[scenario-slug]"
 ---
@@ -23,7 +23,7 @@ Default `~/.agh/` and the default daemon port deadlock when two agents run concu
 
 **Step 2: Allocate AGH_HOME**
 
-1. Run `python3 scripts/allocate-isolation.py --slug "<scenario-slug>"`. The script:
+1. Run `python3 .agents/skills/agh-worktree-isolation/scripts/allocate-isolation.py --slug "<scenario-slug>"`. The script:
    - Creates a unique `AGH_HOME` directory under `${TMPDIR:-/tmp}/agh-iso-<slug>-<random>/` OR uses the worktree-scoped `Compozy/_worktrees/<slug>/.agh/` when invoked from a worktree.
    - Picks a free TCP port on `127.0.0.1` for the daemon HTTP server.
    - Picks a free TCP port on `127.0.0.1` for any UDS-test-mode TCP shim (or a unique UDS path under the AGH_HOME).
@@ -33,7 +33,7 @@ Default `~/.agh/` and the default daemon port deadlock when two agents run concu
 **Step 3: Source the Envelope**
 
 1. Capture the exported variables: `AGH_HOME`, `AGH_HTTP_PORT`, `AGH_UDS_PATH`, `TMUX_BRIDGE_SOCKET`.
-2. For shells: `eval "$(python3 scripts/allocate-isolation.py --slug "<slug>")"`.
+2. For shells: `eval "$(python3 .agents/skills/agh-worktree-isolation/scripts/allocate-isolation.py --slug "<slug>")"`.
 3. For Make/CI invocations: pass the variables as overrides to the daemon start command.
 4. Confirm the daemon does NOT write to `~/.agh/` or default port 23230.
 
@@ -47,7 +47,8 @@ Default `~/.agh/` and the default daemon port deadlock when two agents run concu
 **Step 5: Run the Isolated Scenario**
 
 1. Hand off to the inner skill (`real-scenario-qa`, `qa-execution`, `make test-e2e-runtime`, etc.).
-2. Inner skills inherit the env via the shell session. Do not re-allocate.
+2. Prefer `agh-qa-bootstrap` for production-like local QA because it layers provider-home isolation, manifest writing, browser policy, and Web proxy env on top of this primitive.
+3. Inner skills inherit the env via the shell session. Do not re-allocate.
 
 **Step 6: Cleanup**
 
@@ -61,4 +62,4 @@ Default `~/.agh/` and the default daemon port deadlock when two agents run concu
 - **AGH_HOME path collision:** the script uses random suffixes; collision is essentially impossible. If it happens, retry once.
 - **User invokes without concurrency signal but with `--force`:** apply isolation. Some users always want isolated runs.
 - **Worktree-scoped path lacks write permission:** fall back to TMPDIR-scoped path with a logged warning.
-- **`scripts/allocate-isolation.py` not executable:** chmod +x and retry; surface if still failing.
+- **`.agents/skills/agh-worktree-isolation/scripts/allocate-isolation.py` not executable:** chmod +x and retry; surface if still failing.

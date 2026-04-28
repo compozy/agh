@@ -41,6 +41,11 @@ These govern how features move from idea to ship. Internalize them before openin
 - **Every spec/feature carries an extensibility + agent-manageability + config lifecycle analysis.** Creating, updating, or removing a feature MUST state how it integrates with AGH extensibility surfaces (extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs), which CLI/HTTP/UDS surfaces let agents manage it, and whether `config.toml` keys/defaults/docs are added, changed, or removed. "No impact" is acceptable only with explicit evidence.
 - **Reference competitors by file path in tasks.** When a TechSpec relies on `.resources/<repo>/` references, generated tasks must include explicit competitor file paths so implementing agents read them too. Reference-bearing analysis files belong under `.compozy/tasks/<slug>/analysis/`.
 - **Worktree isolation is mandatory for parallel QA.** Concurrent runs use unique `AGH_HOME`, unique daemon ports, and unique `tmux-bridge` socket paths. Default home/port use is forbidden when concurrency is signaled.
+- **Deterministic QA bootstrap is mandatory for local release/scenario QA.** Start with `agh-qa-bootstrap`, create a fresh lab for each new QA pass by default, and reuse a `bootstrap-manifest.json` only when continuing the same active QA session/loop.
+- **Provider-home isolation is mandatory for local QA.** Never point provider-backed QA at the raw global `~/.codex`; use `PROVIDER_HOME` and `PROVIDER_CODEX_HOME` from the bootstrap manifest.
+- **Isolated Web QA must export `AGH_WEB_API_PROXY_TARGET`.** When the daemon is not on the default `:2123`, derive the proxy target from the bootstrap manifest/env instead of hardcoding localhost defaults.
+- **Never parallelize config writes against one isolated QA home.** `agh config set` and similar config mutations must run sequentially when they target the same provider or runtime home.
+- **Skill helpers must use explicit repo-root paths.** Do not write or execute ambiguous `scripts/...` helper paths when the helper actually lives under `.agents/skills/<skill>/scripts/`.
 - **Two-touch rule.** If the same package or behavior has been patched twice in the same workstream, the third change MUST be a structural redesign, not a third patch. Open a new TechSpec.
 - **Conversation in Brazilian Portuguese; artifacts in English.** Spoken/typed exchanges may use BR-PT. TechSpecs, ADRs, code, commit messages, docs are always English.
 - **Pushback markers are escalation signals.** When the user uses "fraco", "leviano", "ruim", "está totalmente errado", "meia boca", "esquecendo coisas", slow down and re-clarify before acting.
@@ -84,7 +89,7 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | Competitor research                   | `cy-research-competitors`                                                                | `context7` + `find-docs`               |
 | Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                   |
 | Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     | `fix-coderabbit-review`                |
-| Release / scenario QA                 | `real-scenario-qa` (delegates to `qa-execution` + `qa-report`)                           | `agh-worktree-isolation`               |
+| Release / scenario QA                 | `agh-qa-bootstrap` + `real-scenario-qa` + `qa-report` + `qa-execution`                   | `agh-worktree-isolation`               |
 | Git rebase / conflicts                | `git-rebase`                                                                             |                                        |
 | External docs lookup                  | `context7` + `find-docs`                                                                 | `exa-web-search-free`                  |
 | Diagrams (spec / ADR)                 | `architecture-diagram`                                                                   | `mermaid-diagrams`                     |

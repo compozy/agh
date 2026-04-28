@@ -2,7 +2,7 @@
 set -euo pipefail
 
 scope="${1:-release-candidate}"
-base_dir="${2:-"$HOME/dev/ai"}"
+base_dir="${2:-"$HOME/dev/qa-labs"}"
 
 slug="$(printf '%s' "$scope" \
   | tr '[:upper:]' '[:lower:]' \

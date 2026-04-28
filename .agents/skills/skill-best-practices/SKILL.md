@@ -11,7 +11,7 @@ Follow these steps to generate a skill that adheres to the agentskills.io specif
 1.  Define a unique `name`: 1-64 characters, lowercase, numbers, and single hyphens only.
 2.  Draft a `description`: Max 1,024 characters, written in the third person, including negative triggers.
 3.  **Execute Validation Script:** Run the validation script to ensure compliance before proceeding:
-    `python3 scripts/validate-metadata.py --name "[name]" --description "[description]"`
+    `python3 .agents/skills/skill-best-practices/scripts/validate-metadata.py --name "[name]" --description "[description]"`
 4.  If the script returns an error, self-correct the metadata based on the `stderr` output and re-run until successful.
 
 ## Step 2: Structure the Directory
@@ -34,11 +34,14 @@ Follow these steps to generate a skill that adheres to the agentskills.io specif
 1.  Identify "fragile" tasks (regex, complex parsing, or repetitive boilerplate).
 2.  Outline a single-purpose script for the `scripts/` directory.
 3.  Ensure the script uses standard output (stdout/stderr) to communicate success or failure to the agent.
+4.  In `SKILL.md`, reference bundled helpers by their explicit repo-root path when the skill will run inside a repository, for example `.agents/skills/<skill-name>/scripts/helper.py`, rather than ambiguous `scripts/helper.py`.
+5.  Label each helper as **read-only**, **bootstrap**, or **mutating** so downstream agents know whether the helper only inspects state or changes it.
 
 ## Step 5: Final Logic Validation
 1.  Review the `SKILL.md` for "hallucination gaps" (points where the agent is forced to guess).
 2.  Verify all file paths are **relative** and use forward slashes (`/`).
-3.  Cross-reference the final output against `references/checklist.md`.
+3.  Verify every referenced helper path is unambiguous from the repository root and that the helper's role (`read-only`, `bootstrap`, or `mutating`) is stated.
+4.  Cross-reference the final output against `references/checklist.md`.
 
 ## Error Handling
 *   **Metadata Failure:** If `scripts/validate-metadata.py` fails, identify the specific error (e.g., "STYLE ERROR") and rewrite the field to remove first/second person pronouns.

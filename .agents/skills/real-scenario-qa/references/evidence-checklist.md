@@ -2,6 +2,14 @@
 
 Use this checklist before claiming a realistic scenario is complete.
 
+## Behavioral Anti-Smoke Gates
+
+- A Behavioral Scenario Charter exists and names the operator intent, startup situation, expected business outcome, agent roles, live provider plan, and realistic disruption probes.
+- At least one complete operator journey was executed from setup through outcome, not only isolated commands or endpoint checks.
+- Smoke checks, `make verify`, unit/integration tests, CRUD-only checks, and page-render checks are reported as readiness or regression evidence only, not as final behavioral proof.
+- The scenario includes at least one realistic disruption that a user would care about, such as wrong agent ownership, missed handoff, incoherent artifact, stale operator view, failed automation side effect, interrupted session, restart recovery, or confusing history.
+- The final claim explains why the tested behavior matters to an operator or agent, not only which technical path executed.
+
 ## Baseline and Environment
 
 - Canonical verification gate was discovered from repository files.
@@ -16,19 +24,30 @@ Use this checklist before claiming a realistic scenario is complete.
 ## Realistic Data
 
 - Agents were created or selected from real project configuration.
+- Agent roles map to the charter and have differentiated responsibilities.
 - Channels represent real company areas or product functions.
 - Tasks, subtasks, dependencies, and runs use persisted task APIs or CLI commands.
 - Automations, cron jobs, and triggers create real runs and artifacts.
 - Knowledge entries are written to the real workspace or configured memory store.
 - Hooks and extensions produce real observable side effects when in scope.
+- Generated artifacts are coherent, inspected, connected to their producing task/session/channel, and used by a later scenario step.
+
+## Live Agent and LLM Behavior
+
+- At least one provider-backed agent session was executed when credentials and local prerequisites were available.
+- If provider-backed agents were unavailable, the exact credential/tool/runtime boundary is documented and no mock/stub/fake reply is used as final proof.
+- Agent outputs include meaningful decisions, revisions, handoffs, or artifacts instead of token echoes or canned text.
+- Agent messages, task claims, channel participation, and generated artifacts match the intended role and workspace/channel constraints.
+- Any wrong-agent, wrong-channel, hallucinated artifact, or incoherent workflow behavior is filed as a product issue, not dismissed as test noise.
 
 ## Public Surface Coverage
 
 - CLI commands were exercised for every selected scenario track with a public CLI surface.
 - Web UI was exercised through `browser-use:browser` for every selected operator-facing track with a Web surface, or through `agent-browser` only when browser-use was unavailable.
-- CLI and Web evidence cover at least one overlapping persisted object, such as the same task, automation run, channel, message, knowledge entry, hook result, or extension state.
+- CLI and Web evidence cover at least one overlapping persisted object, such as the same task, automation run, channel, message, knowledge entry, hook result, extension state, or generated artifact.
 - HTTP/API endpoints were exercised for at least one core workflow when the product exposes public API behavior.
 - Browser evidence includes the tool used, final URL, and a DOM snapshot or screenshot for each high-risk flow.
+- Browser evidence proves the operator can understand and act on real scenario state, not only that a route rendered.
 - Persistence was inspected through supported APIs or direct DB reads when needed for debugging.
 - Logs, health payloads, and generated artifacts were captured as evidence.
 
@@ -40,6 +59,7 @@ Use this checklist before claiming a realistic scenario is complete.
 - Fixes target production behavior, not test expectations.
 - Regression coverage proves the bug and protects the intended invariant.
 - Full verification gate was rerun after the last code change.
+- The affected behavioral journey was replayed after a fix, including live provider-backed agent behavior when it was part of the original failure and remains reachable.
 
 ## Release Readiness
 
@@ -47,4 +67,4 @@ Use this checklist before claiming a realistic scenario is complete.
 - No active sessions, stuck task runs, runaway cron jobs, or unhealthy memory state remain unless intentionally left for a soak.
 - Operator-facing history is understandable and not dominated by protocol noise.
 - Browser-use limitations, `agent-browser` fallback usage or failure, missing credentials, and external blockers are named explicitly.
-- Release readiness is not claimed unless both CLI and Web browser gates pass through browser-use or the approved `agent-browser` fallback, or the Web surface is proven out-of-scope.
+- Release readiness is not claimed unless the behavioral journey, live agent/provider evidence when reachable, CLI evidence, and Web browser evidence pass through browser-use or the approved `agent-browser` fallback, or the Web surface is proven out-of-scope.
