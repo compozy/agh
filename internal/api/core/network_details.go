@@ -218,17 +218,13 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 
 	sessionByID := sessionInfoMapByID(sessions)
 	peerByID := peerInfoMapByID(peers)
-	payload, err := networkTimelinePayloads(
+	payload := networkTimelinePayloads(
 		messages,
 		sessionByID,
 		peerByID,
 		query,
 		h.networkPresenceWindow(),
 	)
-	if err != nil {
-		h.respondNetworkMessageError(c, err)
-		return
-	}
 
 	c.JSON(http.StatusOK, contract.NetworkChannelMessagesResponse{Messages: payload})
 }
@@ -284,17 +280,13 @@ func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
 
 	sessionByID := sessionInfoMapByID(sessions)
 	peerByID := peerInfoMapByID(peers)
-	payload, err := networkTimelinePayloads(
+	payload := networkTimelinePayloads(
 		messages,
 		sessionByID,
 		peerByID,
 		query,
 		h.networkPresenceWindow(),
 	)
-	if err != nil {
-		h.respondNetworkMessageError(c, err)
-		return
-	}
 
 	c.JSON(http.StatusOK, contract.NetworkPeerMessagesResponse{Messages: payload})
 }
@@ -1236,8 +1228,6 @@ func listTimelineRawMessages(
 	query store.NetworkMessageQuery,
 ) ([]store.NetworkMessageEntry, error) {
 	rawQuery := query
-	rawQuery.BeforeMessageID = ""
-	rawQuery.AfterMessageID = ""
 	rawQuery.Limit = 0
 	return networkStore.ListNetworkMessages(ctx, rawQuery)
 }
@@ -1256,17 +1246,14 @@ func networkTimelinePayloads(
 	peerByID map[string]network.PeerInfo,
 	query store.NetworkMessageQuery,
 	presenceWindow time.Duration,
-) ([]contract.NetworkChannelMessagePayload, error) {
+) []contract.NetworkChannelMessagePayload {
 	history := summarizeNetworkMessageHistory(messages, presenceWindow)
-	views, err := paginateNetworkTimelineViews(history.timelineViews(query.IncludePresence), query)
-	if err != nil {
-		return nil, err
-	}
+	views := paginateNetworkTimelineViews(history.timelineViews(query.IncludePresence), query)
 	payload := make([]contract.NetworkChannelMessagePayload, 0, len(views))
 	for _, view := range views {
 		payload = append(payload, NetworkChannelMessagePayloadFromView(view, sessionByID, peerByID))
 	}
-	return payload, nil
+	return payload
 }
 
 func (s networkMessageHistorySummary) timelineViews(includePresence bool) []networkTimelineMessageView {
@@ -1440,29 +1427,27 @@ func filterVisiblePeerMessages(messages []store.NetworkMessageEntry, includePres
 func paginateNetworkTimelineViews(
 	views []networkTimelineMessageView,
 	query store.NetworkMessageQuery,
-) ([]networkTimelineMessageView, error) {
+) []networkTimelineMessageView {
 	paginated := views
 	if before := strings.TrimSpace(query.BeforeMessageID); before != "" {
 		index := indexNetworkTimelineViewByMessageID(paginated, before)
-		if index < 0 {
-			return nil, fmt.Errorf("api: network message cursor not found: %w", sql.ErrNoRows)
+		if index >= 0 {
+			paginated = paginated[:index]
 		}
-		paginated = paginated[:index]
 	}
 	if after := strings.TrimSpace(query.AfterMessageID); after != "" {
 		index := indexNetworkTimelineViewByMessageID(paginated, after)
-		if index < 0 {
-			return nil, fmt.Errorf("api: network message cursor not found: %w", sql.ErrNoRows)
+		if index >= 0 {
+			paginated = paginated[index+1:]
 		}
-		paginated = paginated[index+1:]
 	}
 	if query.Limit <= 0 || len(paginated) <= query.Limit {
-		return paginated, nil
+		return paginated
 	}
 	if strings.TrimSpace(query.BeforeMessageID) != "" {
-		return paginated[len(paginated)-query.Limit:], nil
+		return paginated[len(paginated)-query.Limit:]
 	}
-	return paginated[:query.Limit], nil
+	return paginated[:query.Limit]
 }
 
 func indexNetworkTimelineViewByMessageID(views []networkTimelineMessageView, messageID string) int {

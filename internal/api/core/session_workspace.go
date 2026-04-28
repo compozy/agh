@@ -112,6 +112,8 @@ func statusForWorkspaceError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspacePathTaken),
 		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions):
 		return http.StatusConflict
+	case errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}

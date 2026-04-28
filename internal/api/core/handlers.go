@@ -537,7 +537,7 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 
 func (h *BaseHandlers) workspaceAgentDefs(ctx context.Context, workspaceRef string) ([]aghconfig.AgentDef, error) {
 	if h.Workspaces == nil {
-		return nil, fmt.Errorf("%s: workspace resolver unavailable", h.transportName())
+		return nil, fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
 	if err != nil {

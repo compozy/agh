@@ -192,6 +192,8 @@ func TestNetworkChannelAggregateKeepsConversationActivitySeparateFromMetadata(t 
 }
 
 func TestSortedNetworkChannelPayloads(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should sort channels by effective recency when activity is missing", func(t *testing.T) {
 		t.Parallel()
 
@@ -288,6 +290,8 @@ func TestSortedNetworkChannelPayloads(t *testing.T) {
 }
 
 func TestSortedNetworkPeerPayloads(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should sort local peers by joined-at recency when last-seen is missing", func(t *testing.T) {
 		t.Parallel()
 

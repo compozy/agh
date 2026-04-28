@@ -18,6 +18,8 @@ var (
 	ErrWorkspaceRootMissing = errors.New("workspace root directory no longer exists")
 	// ErrAgentNotAvailable reports that the requested agent cannot be resolved in the workspace.
 	ErrAgentNotAvailable = errors.New("agent not available in workspace")
+	// ErrWorkspaceResolverUnavailable reports that workspace resolution cannot run because its dependency is absent.
+	ErrWorkspaceResolverUnavailable = errors.New("workspace resolver unavailable")
 	// ErrWorkspaceNameTaken reports that a workspace name is already registered.
 	ErrWorkspaceNameTaken = errors.New("workspace name already in use")
 	// ErrWorkspacePathTaken reports that a workspace root path is already registered.

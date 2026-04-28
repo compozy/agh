@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -37,7 +36,7 @@ func newAgentListCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			workspace, err := agentWorkspaceFlag(cmd)
+			workspace, err := commandWorkspaceFlag(cmd)
 			if err != nil {
 				return err
 			}
@@ -71,7 +70,7 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			workspace, err := agentWorkspaceFlag(cmd)
+			workspace, err := commandWorkspaceFlag(cmd)
 			if err != nil {
 				return err
 			}
@@ -84,18 +83,6 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().String("workspace", "", "Resolve the agent from a workspace id, name, or path")
 	return cmd
-}
-
-func agentWorkspaceFlag(cmd *cobra.Command) (string, error) {
-	workspace, err := cmd.Flags().GetString("workspace")
-	if err != nil {
-		return "", fmt.Errorf("read workspace flag: %w", err)
-	}
-	trimmed := strings.TrimSpace(workspace)
-	if cmd.Flags().Changed("workspace") && trimmed == "" {
-		return "", fmt.Errorf("workspace flag cannot be empty")
-	}
-	return trimmed, nil
 }
 
 func agentListBundle(items []AgentRecord) outputBundle {

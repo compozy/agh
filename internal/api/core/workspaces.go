@@ -106,6 +106,10 @@ func (h *BaseHandlers) workspaceDetailAgents(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) ([]aghconfig.AgentDef, error) {
+	if resolved == nil {
+		return nil, errors.New("api: resolved workspace is required")
+	}
+
 	merged := make(map[string]aghconfig.AgentDef, len(resolved.Agents))
 	for _, agent := range resolved.Agents {
 		name := strings.TrimSpace(agent.Name)

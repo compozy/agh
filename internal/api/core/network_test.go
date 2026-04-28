@@ -1514,6 +1514,7 @@ func TestBaseHandlersNetworkChannelMessagesTogglePresenceEpisodes(t *testing.T) 
 				return nil, nil
 			},
 		}
+		sawAfterCursor := false
 		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
 			ListNetworkMessagesFn: func(
 				_ context.Context,
@@ -1528,8 +1529,12 @@ func TestBaseHandlersNetworkChannelMessagesTogglePresenceEpisodes(t *testing.T) 
 				if query.BeforeMessageID != "" {
 					t.Fatalf("ListNetworkMessages() before = %q, want empty raw cursor", query.BeforeMessageID)
 				}
-				if query.AfterMessageID != "" {
-					t.Fatalf("ListNetworkMessages() after = %q, want empty raw cursor", query.AfterMessageID)
+				switch query.AfterMessageID {
+				case "":
+				case "msg-greet-03":
+					sawAfterCursor = true
+				default:
+					t.Fatalf("ListNetworkMessages() after = %q, want empty or msg-greet-03", query.AfterMessageID)
 				}
 				return []store.NetworkMessageEntry{
 					{
@@ -1603,6 +1608,9 @@ func TestBaseHandlersNetworkChannelMessagesTogglePresenceEpisodes(t *testing.T) 
 		)
 		if afterResp.Code != http.StatusOK {
 			t.Fatalf("after presence messages code = %d, want %d", afterResp.Code, http.StatusOK)
+		}
+		if !sawAfterCursor {
+			t.Fatal("ListNetworkMessages() did not receive after cursor msg-greet-03")
 		}
 		var afterPayload contract.NetworkChannelMessagesResponse
 		testutil.DecodeJSONResponse(t, afterResp, &afterPayload)
@@ -1950,6 +1958,7 @@ func TestBaseHandlersNetworkChannelMessagesPaginateVisiblePublicTimeline(t *test
 					Timestamp:   recordedAt.Add(4 * time.Minute),
 				},
 			}
+			sawAfterCursor := false
 			fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
 				ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
 					if got, want := query.Channel, "builders"; got != want {
@@ -1964,8 +1973,12 @@ func TestBaseHandlersNetworkChannelMessagesPaginateVisiblePublicTimeline(t *test
 							query.BeforeMessageID,
 						)
 					}
-					if query.AfterMessageID != "" {
-						t.Fatalf("ListNetworkMessages() after = %q, want empty raw fetch cursor", query.AfterMessageID)
+					switch query.AfterMessageID {
+					case "":
+					case "msg-say-01":
+						sawAfterCursor = true
+					default:
+						t.Fatalf("ListNetworkMessages() after = %q, want empty or msg-say-01", query.AfterMessageID)
 					}
 					return messages, nil
 				},
@@ -1999,6 +2012,9 @@ func TestBaseHandlersNetworkChannelMessagesPaginateVisiblePublicTimeline(t *test
 			)
 			if afterResp.Code != http.StatusOK {
 				t.Fatalf("after messages code = %d, want %d", afterResp.Code, http.StatusOK)
+			}
+			if !sawAfterCursor {
+				t.Fatal("ListNetworkMessages() did not receive after cursor msg-say-01")
 			}
 			var afterPayload contract.NetworkChannelMessagesResponse
 			testutil.DecodeJSONResponse(t, afterResp, &afterPayload)
@@ -2146,6 +2162,7 @@ func TestBaseHandlersNetworkPeerMessagesCanIncludePresenceWithoutBroadcasts(t *t
 				}}, nil
 			},
 		}
+		sawAfterCursor := false
 		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
 			ListNetworkMessagesFn: func(
 				_ context.Context,
@@ -2163,8 +2180,12 @@ func TestBaseHandlersNetworkPeerMessagesCanIncludePresenceWithoutBroadcasts(t *t
 				if query.BeforeMessageID != "" {
 					t.Fatalf("ListNetworkMessages() before = %q, want empty raw cursor", query.BeforeMessageID)
 				}
-				if query.AfterMessageID != "" {
-					t.Fatalf("ListNetworkMessages() after = %q, want empty raw cursor", query.AfterMessageID)
+				switch query.AfterMessageID {
+				case "":
+				case "msg-greet-02":
+					sawAfterCursor = true
+				default:
+					t.Fatalf("ListNetworkMessages() after = %q, want empty or msg-greet-02", query.AfterMessageID)
 				}
 				return []store.NetworkMessageEntry{
 					{
@@ -2233,6 +2254,9 @@ func TestBaseHandlersNetworkPeerMessagesCanIncludePresenceWithoutBroadcasts(t *t
 		if afterResp.Code != http.StatusOK {
 			t.Fatalf("after peer messages code = %d, want %d", afterResp.Code, http.StatusOK)
 		}
+		if !sawAfterCursor {
+			t.Fatal("ListNetworkMessages() did not receive after cursor msg-greet-02")
+		}
 		var afterPayload contract.NetworkPeerMessagesResponse
 		testutil.DecodeJSONResponse(t, afterResp, &afterPayload)
 		if got, want := len(afterPayload.Messages), 1; got != want {
@@ -2281,6 +2305,7 @@ func TestBaseHandlersNetworkPeerMessagesPaginateVisiblePeerTimeline(t *testing.T
 				}}, nil
 			},
 		}
+		sawAfterCursor := false
 		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
 			ListNetworkMessagesFn: func(
 				_ context.Context,
@@ -2298,8 +2323,12 @@ func TestBaseHandlersNetworkPeerMessagesPaginateVisiblePeerTimeline(t *testing.T
 				if query.BeforeMessageID != "" {
 					t.Fatalf("ListNetworkMessages() before = %q, want empty raw fetch cursor", query.BeforeMessageID)
 				}
-				if query.AfterMessageID != "" {
-					t.Fatalf("ListNetworkMessages() after = %q, want empty raw fetch cursor", query.AfterMessageID)
+				switch query.AfterMessageID {
+				case "":
+				case "msg-greet-01":
+					sawAfterCursor = true
+				default:
+					t.Fatalf("ListNetworkMessages() after = %q, want empty or msg-greet-01", query.AfterMessageID)
 				}
 				return []store.NetworkMessageEntry{
 					{
@@ -2359,6 +2388,9 @@ func TestBaseHandlersNetworkPeerMessagesPaginateVisiblePeerTimeline(t *testing.T
 		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("peer messages code = %d, want %d", resp.Code, http.StatusOK)
+		}
+		if !sawAfterCursor {
+			t.Fatal("ListNetworkMessages() did not receive after cursor msg-greet-01")
 		}
 
 		var payload contract.NetworkPeerMessagesResponse

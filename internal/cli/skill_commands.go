@@ -43,7 +43,7 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
   agh skill list --source bundled`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspaceRef, err := skillWorkspaceFlag(cmd)
+			workspaceRef, err := commandWorkspaceFlag(cmd)
 			if err != nil {
 				return err
 			}
@@ -119,14 +119,18 @@ func newSkillViewCommand(deps commandDeps) *cobra.Command {
 }
 
 func runSkillViewCommand(cmd *cobra.Command, deps commandDeps, name string, filePath string) error {
-	workspaceRef, err := skillWorkspaceFlag(cmd)
+	skillName := strings.TrimSpace(name)
+	if skillName == "" {
+		return errors.New("skill name is required")
+	}
+	workspaceRef, err := commandWorkspaceFlag(cmd)
 	if err != nil {
 		return err
 	}
 	if workspaceRef != "" {
-		return runDaemonSkillViewCommand(cmd, deps, name, filePath, workspaceRef)
+		return runDaemonSkillViewCommand(cmd, deps, skillName, filePath, workspaceRef)
 	}
-	return runLocalSkillViewCommand(cmd, deps, name, filePath)
+	return runLocalSkillViewCommand(cmd, deps, skillName, filePath)
 }
 
 func runDaemonSkillViewCommand(
@@ -232,7 +236,7 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
   agh skill info code-review`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			workspaceRef, err := skillWorkspaceFlag(cmd)
+			workspaceRef, err := commandWorkspaceFlag(cmd)
 			if err != nil {
 				return err
 			}

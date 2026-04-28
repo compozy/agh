@@ -1,26 +1,28 @@
 ---
 status: resolved
-file: web/src/systems/agent/components/agent-stats-grid.tsx
-line: 60
+file: internal/cli/config.go
+line: 97
 severity: nitpick
 author: coderabbitai[bot]
-provider_ref: review:4177569108,nitpick_hash:84f075eef815
-review_hash: 84f075eef815
-source_review_id: "4177569108"
-source_review_submitted_at: "2026-04-26T22:35:58Z"
+provider_ref: review:4188693296,nitpick_hash:519534b735ab
+review_hash: 519534b735ab
+source_review_id: "4188693296"
+source_review_submitted_at: "2026-04-28T12:24:35Z"
 ---
 
-# Issue 008: Share the failure predicate with session-status.ts.
+# Issue 008: Add coverage for the new defaults.sandbox mutation key.
 ## Review Comment
 
-This condition duplicates the stopped/failed classification from `web/src/systems/agent/lib/session-status.ts`. If one side changes, the badge in `AgentSessionsList` and this counter will drift. A shared helper would keep both views consistent.
+Line 97 adds new mutable surface (`defaults.sandbox`), but this change should be pinned with a direct CLI regression test (accept `defaults.sandbox`, reject legacy `defaults.environment`) to avoid rename drift.
+
+As per coding guidelines, "`**/*.go`: Maintain 80% code coverage per Go package".
 
 ## Triage
 
 - Decision: `VALID`
-- Notes:
-  - `AgentStatsGrid` duplicates the failure classification already embedded in `getAgentSessionStatus`, so the table badge and aggregate failed counter can drift.
-  - The minimum correct fix requires a supporting edit outside the listed code files: `web/src/systems/agent/lib/session-status.ts` will export a shared `isAgentSessionFailure` predicate.
-  - `AgentStatsGrid` will consume that helper, keeping the counter and badge classification on the same source of truth.
-  - Resolution: exported `isAgentSessionFailure` from `session-status.ts` and used it in both the badge classifier and stats counter.
-  - Verification: targeted Vitest passed; `make verify` passed.
+- Notes: `defaults.sandbox` is now accepted by `config set`, but `config_test.go` only covers `defaults.provider` and sandbox profile paths. Add a direct CLI regression that sets `defaults.sandbox`, verifies JSON output, and verifies the persisted config value.
+
+## Resolution
+
+- Added CLI coverage that sets `defaults.sandbox`, checks JSON output, and verifies persisted config state.
+- Verified through targeted CLI tests and `make verify`.

@@ -265,14 +265,14 @@ func skillInfoItemFromRecord(record SkillRecord) skillInfoItem {
 		Name:        record.Name,
 		Description: record.Description,
 		Version:     record.Version,
-		Source:      record.Source,
+		Source:      strings.TrimSpace(record.Source),
 		Path:        record.Dir,
 		Enabled:     record.Enabled,
 		Metadata:    cloneMetadata(record.Metadata),
 	}
 }
 
-func skillWorkspaceFlag(cmd *cobra.Command) (string, error) {
+func commandWorkspaceFlag(cmd *cobra.Command) (string, error) {
 	workspace, err := cmd.Flags().GetString("workspace")
 	if err != nil {
 		return "", fmt.Errorf("read workspace flag: %w", err)

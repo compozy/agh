@@ -1,9 +1,9 @@
 ---
 status: resolved
-file: web/src/systems/agent/components/stories/agent-stats-grid.stories.tsx
-line: 63
+file: internal/cli/skill_workspace.go
+line: 269
 author: coderabbitai[bot]
-provider_ref: thread:PRRT_kwDOR5y4QM59sdFC,comment:PRRC_kwDOR5y4QM67ae5D
+provider_ref: thread:PRRT_kwDOR5y4QM5-IGMX,comment:PRRC_kwDOR5y4QM67_zdR
 ---
 
 # Issue 012: _⚠️ Potential issue_ | _🟡 Minor_
@@ -11,42 +11,55 @@ provider_ref: thread:PRRT_kwDOR5y4QM59sdFC,comment:PRRC_kwDOR5y4QM67ae5D
 
 _⚠️ Potential issue_ | _🟡 Minor_
 
-**Potential runtime error if fixture is empty.**
+**Normalize `Source` in `skillInfoItemFromRecord`.**
 
-Line 48 accesses `richSessions[0]` without a guard. If `sessionFixtures` has no sessions with `agent_name === "codex-agent"`, this will spread `undefined` and cause unexpected behavior or errors.
-
+`skillListItemsFromRecords` trims `record.Source`, but `skillInfoItemFromRecord` returns it raw. This can produce inconsistent `skill list` vs `skill info` output for the same daemon record.
 
 
 <details>
-<summary>🛡️ Proposed fix with guard</summary>
+<summary>Suggested fix</summary>
 
 ```diff
-+const baseSession = richSessions[0];
-+
- const failedSessions: SessionPayload[] = [
-   ...richSessions,
--  {
--    ...richSessions[0],
-+  ...(baseSession ? [{
-+    ...baseSession,
-     id: "sess-failure",
-     state: "stopped",
-     stop_reason: "agent_crashed",
-     failure: { kind: "agent_crashed", summary: "broker disconnect" },
-     activity: {
-       elapsed_seconds: 412,
-       idle_seconds: 0,
-       iteration_current: 2,
-       iteration_max: 6,
-       last_activity_at: "2026-04-17T18:55:00Z",
-       last_activity_kind: "tool",
-       last_progress_at: "2026-04-17T18:55:00Z",
-     },
--  },
-+  }] : []),
- ];
+ func skillInfoItemFromRecord(record SkillRecord) skillInfoItem {
+  return skillInfoItem{
+    Name:        record.Name,
+    Description: record.Description,
+    Version:     record.Version,
+-		Source:      record.Source,
++		Source:      strings.TrimSpace(record.Source),
+    Path:        record.Dir,
+    Enabled:     record.Enabled,
+    Metadata:    cloneMetadata(record.Metadata),
+  }
+ }
 ```
 </details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+func skillInfoItemFromRecord(record SkillRecord) skillInfoItem {
+	return skillInfoItem{
+		Name:        record.Name,
+		Description: record.Description,
+		Version:     record.Version,
+		Source:      strings.TrimSpace(record.Source),
+		Path:        record.Dir,
+		Enabled:     record.Enabled,
+		Metadata:    cloneMetadata(record.Metadata),
+	}
+}
+```
+
+</details>
+
+<!-- suggestion_end -->
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -54,28 +67,28 @@ Line 48 accesses `richSessions[0]` without a guard. If `sessionFixtures` has no 
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@web/src/systems/agent/components/stories/agent-stats-grid.stories.tsx` around
-lines 45 - 63, The test fixture builds failedSessions by spreading
-richSessions[0] without ensuring richSessions is non-empty, which can spread
-undefined and crash; update the failedSessions construction (the failedSessions
-constant that references richSessions[0]) to guard against an empty richSessions
-– e.g., check richSessions.length and if empty use a safe fallback object (a
-minimal session shape or the first item from sessionFixtures) or skip adding the
-failure case so the fixture remains valid when no "codex-agent" sessions exist.
+In `@internal/cli/skill_workspace.go` around lines 263 - 269, The Source field is
+returned raw in skillInfoItemFromRecord causing inconsistent output versus
+skillListItemsFromRecords which trims record.Source; update
+skillInfoItemFromRecord to normalize Source the same way (e.g., use
+strings.TrimSpace on record.Source) before assigning to skillInfoItem.Source so
+both skillInfoItemFromRecord and skillListItemsFromRecords produce consistent
+Source values.
 ```
 
 </details>
 
-<!-- fingerprinting:phantom:poseidon:ocelot -->
+<!-- fingerprinting:phantom:poseidon:hawk -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Triage
 
 - Decision: `VALID`
-- Notes:
-  - `failedSessions` spreads `richSessions[0]` without proving the filtered fixture array is non-empty.
-  - If the `codex-agent` fixture is removed, the story can fail during module import.
-  - Fix by introducing an explicit fallback `SessionPayload` base and using it when `richSessions[0]` is absent. Also convert the story frame props to the same explicit `ReactNode`/interface pattern used by the other scoped stories.
-  - Resolution: added an explicit fallback rich session, guarded the failure base, and converted the frame props to `ReactNode` plus `FrameProps`.
-  - Verification: targeted Vitest passed; `make verify` passed.
+- Notes: `skillListItemsFromRecords` normalizes `record.Source`, but `skillInfoItemFromRecord` returns it raw. This can make `skill list --workspace` and `skill info --workspace` disagree for the same daemon payload. Fix by trimming the source in the info conversion path and pin it with daemon CLI coverage.
+
+## Resolution
+
+- Trimmed daemon skill source values in the `skill info` conversion path.
+- Updated daemon CLI coverage to prove list/info source normalization stays consistent.
+- Verified through targeted CLI tests and `make verify`.

@@ -1,28 +1,28 @@
 ---
 status: resolved
-file: web/src/systems/agent/components/stories/agent-info-panel.stories.tsx
-line: 36
+file: internal/cli/config_test.go
+line: 242
 severity: nitpick
 author: coderabbitai[bot]
-provider_ref: review:4177569108,nitpick_hash:9d984974c582
-review_hash: 9d984974c582
-source_review_id: "4177569108"
-source_review_submitted_at: "2026-04-26T22:35:58Z"
+provider_ref: review:4188693296,nitpick_hash:bd52edee9423
+review_hash: bd52edee9423
+source_review_id: "4188693296"
+source_review_submitted_at: "2026-04-28T12:24:35Z"
 ---
 
-# Issue 009: Prefer an interface for Frame props.
+# Issue 009: Add a negative regression for legacy environments.* mutation paths.
 ## Review Comment
 
-Use a named interface for the component props instead of an inline object shape in the function signature.
+After the rename to `sandboxes.*`, add an explicit assertion that `config set environments.dev.backend local` fails. This prevents accidental alias/fallback reintroduction.
 
-As per coding guidelines, `**/*.{ts,tsx}`: Use `interface` for defining object shapes in TypeScript instead of `type` declarations.
+Based on learnings, "Renames must update code, storage, APIs, CLI, extensions, specs, RFCs, and .compozy/tasks/* artifacts all in a single change. Do not create aliases, dual fields, or schema fallback paths."
 
 ## Triage
 
 - Decision: `VALID`
-- Notes:
-  - `Frame` declares its props inline and uses `React.ReactNode` without a local React type import.
-  - The local TypeScript style requires named interfaces for object shapes, and React 19 automatic JSX runtime still requires explicit React type imports for `ReactNode`.
-  - Fix by importing `ReactNode` as a type and replacing the inline object shape with a named `FrameProps` interface.
-  - Resolution: added an explicit `ReactNode` type import and a named `FrameProps` interface.
-  - Verification: `make web-typecheck` passed; `make verify` passed.
+- Notes: The hard rename from environments to sandboxes needs a negative guard against alias reintroduction. `config set environments.dev.backend local` is currently unsupported through the classifier, but no regression pins that behavior. Add an explicit CLI failure assertion for the legacy path.
+
+## Resolution
+
+- Added negative CLI regressions for legacy `defaults.environment` and `environments.*` mutation paths.
+- Verified through targeted CLI tests and `make verify`.

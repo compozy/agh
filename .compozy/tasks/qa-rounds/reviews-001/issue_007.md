@@ -1,26 +1,26 @@
 ---
 status: resolved
-file: web/src/systems/agent/components/agent-sessions-list.tsx
-line: 162
+file: internal/cli/agent.go
+line: 89
 severity: nitpick
 author: coderabbitai[bot]
-provider_ref: review:4177569108,nitpick_hash:2b82716ddc57
-review_hash: 2b82716ddc57
-source_review_id: "4177569108"
-source_review_submitted_at: "2026-04-26T22:35:58Z"
+provider_ref: review:4188693296,nitpick_hash:fc0a36b91f40
+review_hash: fc0a36b91f40
+source_review_id: "4188693296"
+source_review_submitted_at: "2026-04-28T12:24:35Z"
 ---
 
-# Issue 007: Consider memoizing Date.now() for consistent relative time.
+# Issue 007: Consolidate duplicated workspace-flag parsing helper.
 ## Review Comment
 
-`formatRelativeTime` calls `Date.now()` on each invocation (line 166). If multiple sessions render close together, they may get slightly different "now" values, causing inconsistent relative times within the same render pass. This is a minor visual inconsistency, not a bug.
+`agentWorkspaceFlag` duplicates `skillWorkspaceFlag` behavior in the same package. Reusing one helper avoids divergence in future validation/error-message changes.
 
 ## Triage
 
 - Decision: `VALID`
-- Notes:
-  - `formatRelativeTime` calls `Date.now()` for each rendered row, so sessions in the same table can format against different reference instants.
-  - The impact is minor but real near relative-time boundaries and creates avoidable render-pass inconsistency.
-  - Fix by capturing one `now` value per `AgentSessionsList` render and passing it to every row formatter.
-  - Resolution: captured one render-pass timestamp and passed it through each session row formatter, with a test proving `Date.now()` is called once per table render.
-  - Verification: targeted Vitest passed; `make verify` passed.
+- Notes: `agentWorkspaceFlag` and `skillWorkspaceFlag` contain identical flag parsing, trimming, and empty explicit flag validation. This duplication can diverge. Fix by consolidating both call sites on one shared workspace flag helper.
+
+## Resolution
+
+- Consolidated agent and skill workspace flag parsing on `commandWorkspaceFlag`.
+- Verified through targeted CLI tests and `make verify`.

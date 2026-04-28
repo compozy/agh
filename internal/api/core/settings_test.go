@@ -975,11 +975,12 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 
 	readOnly := true
 	tests := []struct {
-		name   string
-		method string
-		path   string
-		body   any
-		assert func(t *testing.T, service *stubSettingsService)
+		name           string
+		method         string
+		path           string
+		body           any
+		assert         func(t *testing.T, service *stubSettingsService)
+		assertResponse func(t *testing.T, resp *httptest.ResponseRecorder)
 	}{
 		{
 			name:   "list providers",
@@ -989,6 +990,14 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				t.Helper()
 				if service.LastListCollectionRequest.Collection != settingspkg.CollectionProviders {
 					t.Fatalf("Collection = %q, want providers", service.LastListCollectionRequest.Collection)
+				}
+			},
+			assertResponse: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				t.Helper()
+				var payload contract.SettingsProvidersResponse
+				testutil.DecodeJSONResponse(t, resp, &payload)
+				if len(payload.Providers) != 1 || payload.Providers[0].Name != "openai" {
+					t.Fatalf("providers payload = %#v, want openai provider", payload)
 				}
 			},
 		},
@@ -1004,6 +1013,14 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 					t.Fatalf("LastListCollectionRequest = %#v", service.LastListCollectionRequest)
 				}
 			},
+			assertResponse: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				t.Helper()
+				var payload contract.SettingsMCPServersResponse
+				testutil.DecodeJSONResponse(t, resp, &payload)
+				if len(payload.MCPServers) != 1 || payload.MCPServers[0].Name != "memory" {
+					t.Fatalf("mcp servers payload = %#v, want memory server", payload)
+				}
+			},
 		},
 		{
 			name:   "get sandbox",
@@ -1015,6 +1032,14 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 					t.Fatalf("Collection = %q, want sandboxes", service.LastListCollectionRequest.Collection)
 				}
 			},
+			assertResponse: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				t.Helper()
+				var payload contract.SettingsSandboxResponse
+				testutil.DecodeJSONResponse(t, resp, &payload)
+				if payload.Sandbox.Name != "local" || payload.Sandbox.Profile.Backend != "local" {
+					t.Fatalf("sandbox payload = %#v, want local sandbox profile", payload)
+				}
+			},
 		},
 		{
 			name:   "list hooks",
@@ -1024,6 +1049,14 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				t.Helper()
 				if service.LastListCollectionRequest.Collection != settingspkg.CollectionHooks {
 					t.Fatalf("Collection = %q, want hooks", service.LastListCollectionRequest.Collection)
+				}
+			},
+			assertResponse: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				t.Helper()
+				var payload contract.SettingsHooksResponse
+				testutil.DecodeJSONResponse(t, resp, &payload)
+				if len(payload.Hooks) != 1 || payload.Hooks[0].Name != "capture" {
+					t.Fatalf("hooks payload = %#v, want capture hook", payload)
 				}
 			},
 		},
@@ -1045,6 +1078,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 					t.Fatalf("LastPutCollectionRequest.Provider = %#v", service.LastPutCollectionRequest.Provider)
 				}
 			},
+			assertResponse: assertAppliedSettingsMutation,
 		},
 		{
 			name:   "put sandbox",
@@ -1065,6 +1099,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 					t.Fatalf("LastPutCollectionRequest.Sandbox = %#v", service.LastPutCollectionRequest.Sandbox)
 				}
 			},
+			assertResponse: assertAppliedSettingsMutation,
 		},
 		{
 			name:   "put hook",
@@ -1091,6 +1126,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 					t.Fatalf("LastPutCollectionRequest.Hook = %#v", service.LastPutCollectionRequest.Hook)
 				}
 			},
+			assertResponse: assertAppliedSettingsMutation,
 		},
 	}
 
@@ -1204,8 +1240,19 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			if got, want := resp.Code, http.StatusOK; got != want {
 				t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
 			}
+			tc.assertResponse(t, resp)
 			tc.assert(t, service)
 		})
+	}
+}
+
+func assertAppliedSettingsMutation(t *testing.T, resp *httptest.ResponseRecorder) {
+	t.Helper()
+
+	var payload contract.MutationResult
+	testutil.DecodeJSONResponse(t, resp, &payload)
+	if !payload.Applied || payload.Behavior != contract.SettingsMutationBehaviorAppliedNow {
+		t.Fatalf("settings mutation payload = %#v, want applied_now", payload)
 	}
 }
 

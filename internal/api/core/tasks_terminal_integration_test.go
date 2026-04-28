@@ -4,7 +4,9 @@ package core_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
 
@@ -25,15 +27,16 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 	t.Parallel()
 
 	testCases := []struct {
-		name               string
-		path               string
-		body               []byte
-		buildTaskManager   func(*testing.T, *taskRunTerminalIntegrationCapture, time.Time) testutil.StubTaskManager
-		assertCapture      func(*testing.T, *taskRunTerminalIntegrationCapture)
-		wantStatus         taskpkg.RunStatus
-		wantOriginRef      string
-		wantError          string
-		wantMetadataString string
+		name             string
+		path             string
+		body             []byte
+		buildTaskManager func(*testing.T, *taskRunTerminalIntegrationCapture, time.Time) testutil.StubTaskManager
+		assertCapture    func(*testing.T, *taskRunTerminalIntegrationCapture)
+		wantStatus       taskpkg.RunStatus
+		wantOriginRef    string
+		wantError        string
+		wantMetadataJSON string
+		wantResultJSON   string
 	}{
 		{
 			name: "Should preserve historical channel bindings in complete responses",
@@ -69,9 +72,10 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 					t.Fatalf("actorContext = %#v", capture.actorContext)
 				}
 			},
-			wantStatus:         taskpkg.TaskRunStatusCompleted,
-			wantOriginRef:      "tasks.complete_run",
-			wantMetadataString: "",
+			wantStatus:       taskpkg.TaskRunStatusCompleted,
+			wantOriginRef:    "tasks.complete_run",
+			wantMetadataJSON: "",
+			wantResultJSON:   `{"ok":true,"path":"historical-http-complete"}`,
 		},
 		{
 			name: "Should preserve historical channel bindings in fail responses",
@@ -108,17 +112,15 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 				if capture.failure.Error != "boom" {
 					t.Fatalf("failure = %#v, want error %q", capture.failure, "boom")
 				}
-				if string(capture.failure.Metadata) != `{"step":"claim","mode":"historical-http"}` {
-					t.Fatalf("failure metadata = %s", string(capture.failure.Metadata))
-				}
+				assertRawJSONEqual(t, "failure metadata", capture.failure.Metadata, `{"step":"claim","mode":"historical-http"}`)
 				if capture.actorContext.Actor.Ref != "user-1" || capture.actorContext.Origin.Ref != "tasks.fail_run" {
 					t.Fatalf("actorContext = %#v", capture.actorContext)
 				}
 			},
-			wantStatus:         taskpkg.TaskRunStatusFailed,
-			wantOriginRef:      "tasks.fail_run",
-			wantError:          "boom",
-			wantMetadataString: `{"step":"claim","mode":"historical-http"}`,
+			wantStatus:       taskpkg.TaskRunStatusFailed,
+			wantOriginRef:    "tasks.fail_run",
+			wantError:        "boom",
+			wantMetadataJSON: `{"step":"claim","mode":"historical-http"}`,
 		},
 		{
 			name: "Should preserve historical channel bindings in cancel responses",
@@ -154,16 +156,14 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 				if capture.cancel.Reason != "operator canceled" {
 					t.Fatalf("cancel = %#v, want reason %q", capture.cancel, "operator canceled")
 				}
-				if string(capture.cancel.Metadata) != `{"step":"cancel","mode":"historical-http"}` {
-					t.Fatalf("cancel metadata = %s", string(capture.cancel.Metadata))
-				}
+				assertRawJSONEqual(t, "cancel metadata", capture.cancel.Metadata, `{"step":"cancel","mode":"historical-http"}`)
 				if capture.actorContext.Actor.Ref != "user-1" || capture.actorContext.Origin.Ref != "tasks.cancel_run" {
 					t.Fatalf("actorContext = %#v", capture.actorContext)
 				}
 			},
-			wantStatus:         taskpkg.TaskRunStatusCanceled,
-			wantOriginRef:      "tasks.cancel_run",
-			wantMetadataString: `{"step":"cancel","mode":"historical-http"}`,
+			wantStatus:       taskpkg.TaskRunStatusCanceled,
+			wantOriginRef:    "tasks.cancel_run",
+			wantMetadataJSON: `{"step":"cancel","mode":"historical-http"}`,
 		},
 	}
 
@@ -207,15 +207,34 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 			if payload.Run.Error != tc.wantError {
 				t.Fatalf("payload.Run.Error = %q, want %q", payload.Run.Error, tc.wantError)
 			}
-			if string(payload.Run.Metadata) != tc.wantMetadataString {
-				t.Fatalf("payload.Run.Metadata = %s, want %s", string(payload.Run.Metadata), tc.wantMetadataString)
+			if tc.wantMetadataJSON == "" {
+				if len(payload.Run.Metadata) != 0 {
+					t.Fatalf("payload.Run.Metadata = %s, want empty metadata", string(payload.Run.Metadata))
+				}
+			} else {
+				assertRawJSONEqual(t, "payload.Run.Metadata", payload.Run.Metadata, tc.wantMetadataJSON)
 			}
-			if tc.wantStatus == taskpkg.TaskRunStatusCompleted &&
-				string(payload.Run.Result) != `{"ok":true,"path":"historical-http-complete"}` {
-				t.Fatalf("payload.Run.Result = %s", string(payload.Run.Result))
+			if tc.wantResultJSON != "" {
+				assertRawJSONEqual(t, "payload.Run.Result", payload.Run.Result, tc.wantResultJSON)
 			}
 
 			tc.assertCapture(t, capture)
 		})
+	}
+}
+
+func assertRawJSONEqual(t *testing.T, label string, got json.RawMessage, want string) {
+	t.Helper()
+
+	var gotValue any
+	if err := json.Unmarshal(got, &gotValue); err != nil {
+		t.Fatalf("%s json.Unmarshal(got) error = %v; got=%s", label, err, string(got))
+	}
+	var wantValue any
+	if err := json.Unmarshal([]byte(want), &wantValue); err != nil {
+		t.Fatalf("%s json.Unmarshal(want) error = %v; want=%s", label, err, want)
+	}
+	if !reflect.DeepEqual(gotValue, wantValue) {
+		t.Fatalf("%s = %#v, want %#v", label, gotValue, wantValue)
 	}
 }

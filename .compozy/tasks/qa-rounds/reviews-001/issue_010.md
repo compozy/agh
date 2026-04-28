@@ -1,51 +1,27 @@
 ---
 status: resolved
-file: web/src/systems/agent/components/stories/agent-sessions-list.stories.tsx
-line: 33
+file: internal/cli/install_test.go
+line: 249
+severity: nitpick
 author: coderabbitai[bot]
-provider_ref: thread:PRRT_kwDOR5y4QM59sdE_,comment:PRRC_kwDOR5y4QM67ae4_
+provider_ref: review:4188693296,nitpick_hash:95f5b525c802
+review_hash: 95f5b525c802
+source_review_id: "4188693296"
+source_review_submitted_at: "2026-04-28T12:24:35Z"
 ---
 
-# Issue 010: _⚠️ Potential issue_ | _🟡 Minor_
+# Issue 010: Consider using the returned model from Update() for idiomatic Bubble Tea usage.
 ## Review Comment
 
-_⚠️ Potential issue_ | _🟡 Minor_
-
-**Don’t seed the failure story from `codexSessions[0]` unguarded.**
-
-If the fixtures stop containing `"codex-agent"`, this spread throws during module evaluation and breaks the whole story file. Build the failure row from an explicit base fixture or guard the lookup first.
-
-<details>
-<summary>🤖 Prompt for AI Agents</summary>
-
-```
-Verify each finding against the current code and only fix it if needed.
-
-In `@web/src/systems/agent/components/stories/agent-sessions-list.stories.tsx`
-around lines 13 - 33, codexSessionsWithFailure currently spreads
-codexSessions[0] without checking its existence which will throw during module
-evaluation if codexSessions no longer contains the expected fixture; update the
-construction of codexSessionsWithFailure (and any use of codexSessions[0]) to
-either (a) build the failure session from an explicit base fixture object (copy
-required fields and override id/name/state/etc.) instead of spreading
-codexSessions[0], or (b) first guard the lookup by checking that codexSessions
-&& codexSessions.length > 0 and fall back to a safe default baseSession when
-missing; adjust the identifier referenced (codexSessionsWithFailure,
-codexSessions[0]) accordingly so the story never throws at import time.
-```
-
-</details>
-
-<!-- fingerprinting:phantom:medusa:grasshopper -->
-
-<!-- This is an auto-generated comment by CodeRabbit -->
+While the current code works because `installWizardModel` uses pointer receivers and mutates in place, idiomatic Bubble Tea code typically uses the returned model value. This makes the test more resilient to future refactoring.
 
 ## Triage
 
 - Decision: `VALID`
-- Notes:
-  - `codexSessionsWithFailure` spreads `codexSessions[0]` at module evaluation time.
-  - If the fixture set no longer includes a `codex-agent` session, the story file can crash during import before Storybook renders anything.
-  - Fix by using an explicit fallback `SessionPayload` base before creating the failure row.
-  - Resolution: added an explicit fallback codex session fixture and imported the story in the story regression test.
-  - Verification: targeted Vitest passed; `make verify` passed.
+- Notes: `TestInstallWizardModelTransitions` calls `Update` and discards the returned Bubble Tea model in several places. It passes today because the model mutates in place, but the test would mask a future value-style refactor. Fix by assigning the returned model through a typed test helper.
+
+## Resolution
+
+- Added a typed `updateInstallWizardModel` helper and assigned the returned model for each wizard transition.
+- Removed underscore-discarded command returns and asserted command behavior where relevant.
+- Verified through targeted CLI tests and `make verify`.

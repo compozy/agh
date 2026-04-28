@@ -18,7 +18,7 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 			Name:        "extension-review",
 			Description: "Extension review helper",
 			Version:     "1.0.0",
-			Source:      "user",
+			Source:      " user ",
 			Enabled:     true,
 			Dir:         "/agh-home/extensions/review/skills/extension-review",
 			Metadata:    map[string]any{"area": "qa"},
@@ -91,11 +91,11 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &info); err != nil {
 			t.Fatalf("json.Unmarshal(skill info) error = %v; stdout=%s", err, stdout)
 		}
-		if info.Name != record.Name || info.Source != record.Source || info.Path != record.Dir {
+		if info.Name != record.Name || info.Source != "user" || info.Path != record.Dir {
 			t.Fatalf("skill info = %#v, want daemon skill record", info)
 		}
 
-		stdout, _, err = executeRootCommand(t, deps, "skill", "view", record.Name, "--workspace", workspace)
+		stdout, _, err = executeRootCommand(t, deps, "skill", "view", " "+record.Name+" ", "--workspace", workspace)
 		if err != nil {
 			t.Fatalf("skill view --workspace error = %v", err)
 		}
