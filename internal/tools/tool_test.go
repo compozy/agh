@@ -4,179 +4,725 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 )
 
-type staticProvider struct {
-	tools []Tool
-	err   error
+type testProvider struct {
+	source SourceRef
 }
 
-var _ ToolProvider = staticProvider{}
+var _ Provider = testProvider{}
 
-func (p staticProvider) Tools(_ context.Context) ([]Tool, error) {
-	return p.tools, p.err
+func (p testProvider) ID() SourceRef {
+	return p.source
 }
 
-func assertToolEqual(t *testing.T, got, want Tool) {
+func (p testProvider) List(_ context.Context, _ Scope) ([]Descriptor, error) {
+	return nil, nil
+}
+
+func (p testProvider) Resolve(_ context.Context, _ Scope, _ ToolID) (Handle, bool, error) {
+	return nil, false, nil
+}
+
+type testHandle struct {
+	descriptor Descriptor
+}
+
+var _ Handle = testHandle{}
+
+func (h testHandle) Descriptor() Descriptor {
+	return h.descriptor
+}
+
+func (h testHandle) Availability(_ context.Context, _ Scope) Availability {
+	return Availability{
+		Registered: true,
+		Enabled:    true,
+		Available:  true,
+		Authorized: true,
+		Executable: true,
+	}
+}
+
+func (h testHandle) Call(_ context.Context, _ CallRequest) (ToolResult, error) {
+	return ToolResult{Content: []ToolContent{{Type: "text", Text: "ok"}}}, nil
+}
+
+func validDescriptor() Descriptor {
+	return Descriptor{
+		ID:           "agh__skill_view",
+		DisplayTitle: "Skill View",
+		Description:  "View one skill",
+		InputSchema:  json.RawMessage(`{"type":"object"}`),
+		OutputSchema: json.RawMessage(`{"type":"object"}`),
+		Backend: BackendRef{
+			Kind:       BackendNativeGo,
+			NativeName: "skill_view",
+		},
+		Source: SourceRef{
+			Kind:  SourceBuiltin,
+			Owner: "daemon",
+		},
+		Visibility:      VisibilityModel,
+		Risk:            RiskRead,
+		ReadOnly:        true,
+		ConcurrencySafe: true,
+		MaxResultBytes:  1024,
+		Toolsets:        []ToolsetID{"agh__bootstrap"},
+		Tags:            []string{"skills"},
+		SearchHints:     []string{"skill body"},
+	}
+}
+
+func requireReason(t *testing.T, err error, want ReasonCode) {
 	t.Helper()
 
-	if got.Name != want.Name {
-		t.Fatalf("Tool.Name = %q, want %q", got.Name, want.Name)
+	if err == nil {
+		t.Fatalf("error = nil, want reason %q", want)
 	}
-	if got.Description != want.Description {
-		t.Fatalf("Tool.Description = %q, want %q", got.Description, want.Description)
+	got, ok := ReasonOf(err)
+	if !ok {
+		t.Fatalf("ReasonOf(%v) ok = false, want true", err)
 	}
-	if string(got.InputSchema) != string(want.InputSchema) {
-		t.Fatalf("Tool.InputSchema = %s, want %s", string(got.InputSchema), string(want.InputSchema))
-	}
-	if got.ReadOnly != want.ReadOnly {
-		t.Fatalf("Tool.ReadOnly = %t, want %t", got.ReadOnly, want.ReadOnly)
-	}
-	if got.Source != want.Source {
-		t.Fatalf("Tool.Source = %v, want %v", got.Source, want.Source)
+	if got != want {
+		t.Fatalf("ReasonOf(%v) = %q, want %q", err, got, want)
 	}
 }
 
-func TestToolMarshalJSONCanonical(t *testing.T) {
+func TestToolIDValidation(t *testing.T) {
 	t.Parallel()
 
-	tool := Tool{
-		Name:        "pgvector_search",
-		Description: "Semantic search over stored memories",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}}}`),
-		ReadOnly:    true,
-		Source:      ToolSourceExtension,
+	valid := []ToolID{
+		"agh__skill_view",
+		"mcp__github__create_issue",
+		"ext__linear__search",
+		"a__b2_c3",
+	}
+	for _, id := range valid {
+		t.Run("Should accept "+id.String(), func(t *testing.T) {
+			t.Parallel()
+
+			if err := id.Validate(); err != nil {
+				t.Fatalf("ToolID(%q).Validate() error = %v", id, err)
+			}
+		})
 	}
 
-	data, err := json.Marshal(tool)
-	if err != nil {
-		t.Fatalf("json.Marshal(Tool) error = %v", err)
-	}
-
-	var decoded map[string]json.RawMessage
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(canonical Tool JSON) error = %v", err)
-	}
-
-	if got := string(decoded["name"]); got != `"pgvector_search"` {
-		t.Fatalf("encoded name = %s, want %q", got, `"pgvector_search"`)
-	}
-	if _, ok := decoded["tool_name"]; ok {
-		t.Fatalf("encoded JSON unexpectedly included tool_name alias: %s", string(data))
-	}
-	if got := string(decoded["read_only"]); got != "true" {
-		t.Fatalf("encoded read_only = %s, want true", got)
-	}
-	if got := string(decoded["source"]); got != `"extension"` {
-		t.Fatalf("encoded source = %s, want %q", got, `"extension"`)
-	}
-}
-
-func TestToolUnmarshalJSONCanonicalAndHookCompatible(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		data string
-		want Tool
+	tooLong := ToolID("agh__" + strings.Repeat("a", 60))
+	invalid := []struct {
+		name   string
+		id     ToolID
+		reason ReasonCode
 	}{
-		{
-			name: "canonical tool JSON",
-			data: `{"name":"builtin_ls","description":"List files","input_schema":{"type":"object"},"read_only":true,"source":"builtin"}`,
-			want: Tool{
-				Name:        "builtin_ls",
-				Description: "List files",
-				InputSchema: json.RawMessage(`{"type":"object"}`),
-				ReadOnly:    true,
-				Source:      ToolSourceBuiltin,
-			},
-		},
-		{
-			name: "hook-compatible tool name alias",
-			data: `{"tool_name":"mcp_search","description":"Search via MCP","input_schema":{"type":"object"},"read_only":false,"source":"mcp"}`,
-			want: Tool{
-				Name:        "mcp_search",
-				Description: "Search via MCP",
-				InputSchema: json.RawMessage(`{"type":"object"}`),
-				ReadOnly:    false,
-				Source:      ToolSourceMCP,
-			},
-		},
+		{name: "Should reject empty ids", id: "", reason: ReasonIDEmpty},
+		{name: "Should reject dotted ids", id: "agh.skill_view", reason: ReasonIDInvalidFormat},
+		{name: "Should reject hyphenated ids", id: "agh__skill-view", reason: ReasonIDInvalidFormat},
+		{name: "Should reject uppercase ids", id: "agh__Skill_view", reason: ReasonIDInvalidFormat},
+		{name: "Should reject empty segments", id: "agh__", reason: ReasonIDEmptySegment},
+		{name: "Should reject reserved separator ambiguity", id: "agh___skill", reason: ReasonIDReservedConflict},
+		{name: "Should reject over length ids", id: tooLong, reason: ReasonIDTooLong},
 	}
-
-	for _, tt := range tests {
+	for _, tt := range invalid {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var got Tool
-			if err := json.Unmarshal([]byte(tt.data), &got); err != nil {
-				t.Fatalf("json.Unmarshal(Tool) error = %v", err)
-			}
-
-			assertToolEqual(t, got, tt.want)
+			requireReason(t, tt.id.Validate(), tt.reason)
 		})
 	}
 }
 
-func TestToolUnmarshalJSONRejectsConflictingNames(t *testing.T) {
+func TestDescriptorValidation(t *testing.T) {
 	t.Parallel()
 
-	var got Tool
-	err := json.Unmarshal([]byte(`{"name":"builtin_ls","tool_name":"mcp_search","source":"dynamic"}`), &got)
-	if err == nil {
-		t.Fatal("json.Unmarshal(conflicting Tool names) error = nil, want non-nil")
+	t.Run("Should accept valid native descriptors", func(t *testing.T) {
+		t.Parallel()
+
+		if err := validDescriptor().Validate(); err != nil {
+			t.Fatalf("Descriptor.Validate() error = %v", err)
+		}
+	})
+
+	tests := []struct {
+		name   string
+		mutate func(*Descriptor)
+		reason ReasonCode
+	}{
+		{
+			name: "Should reject non object input schemas",
+			mutate: func(d *Descriptor) {
+				d.InputSchema = json.RawMessage(`[]`)
+			},
+			reason: ReasonSchemaInvalid,
+		},
+		{
+			name: "Should reject missing extension handlers",
+			mutate: func(d *Descriptor) {
+				d.Backend = BackendRef{Kind: BackendExtensionHost, ExtensionID: "linear"}
+				d.Source = SourceRef{Kind: SourceExtension, Owner: "linear"}
+			},
+			reason: ReasonHandlerMissing,
+		},
+		{
+			name: "Should reject missing mcp raw provenance",
+			mutate: func(d *Descriptor) {
+				d.ID = "mcp__github__create_issue"
+				d.Backend = BackendRef{Kind: BackendMCP, MCPServer: "github", MCPTool: "create_issue"}
+				d.Source = SourceRef{Kind: SourceMCP, Owner: "github"}
+			},
+			reason: ReasonMCPUnreachable,
+		},
+		{
+			name: "Should reject read only destructive descriptors",
+			mutate: func(d *Descriptor) {
+				d.Destructive = true
+			},
+			reason: ReasonPolicyDenied,
+		},
+		{
+			name: "Should reject bridge backend descriptors",
+			mutate: func(d *Descriptor) {
+				d.Backend = BackendRef{Kind: BackendBridge}
+			},
+			reason: ReasonBackendNotExecutable,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			descriptor := validDescriptor()
+			tt.mutate(&descriptor)
+			requireReason(t, descriptor.Validate(), tt.reason)
+		})
 	}
 }
 
-func TestToolSourceOrderingAndJSON(t *testing.T) {
+func TestShouldValidateIdentifierHelpers(t *testing.T) {
 	t.Parallel()
 
-	if ToolSourceBuiltin >= ToolSourceMCP ||
-		ToolSourceMCP >= ToolSourceExtension ||
-		ToolSourceExtension >= ToolSourceDynamic {
-		t.Fatalf("unexpected ToolSource ordering: builtin=%d mcp=%d extension=%d dynamic=%d",
-			ToolSourceBuiltin, ToolSourceMCP, ToolSourceExtension, ToolSourceDynamic)
-	}
+	t.Run("Should expose tool id namespace and segments", func(t *testing.T) {
+		t.Parallel()
 
-	data, err := json.Marshal(ToolSourceExtension)
-	if err != nil {
-		t.Fatalf("json.Marshal(ToolSourceExtension) error = %v", err)
-	}
-	if string(data) != `"extension"` {
-		t.Fatalf("json.Marshal(ToolSourceExtension) = %s, want %q", string(data), `"extension"`)
-	}
+		id := ToolID("mcp__github__create_issue")
+		segments, err := id.Segments()
+		if err != nil {
+			t.Fatalf("ToolID.Segments() error = %v", err)
+		}
+		if got, want := strings.Join(segments, ","), "mcp,github,create_issue"; got != want {
+			t.Fatalf("ToolID.Segments() = %s, want %s", got, want)
+		}
+		namespace, err := id.Namespace()
+		if err != nil {
+			t.Fatalf("ToolID.Namespace() error = %v", err)
+		}
+		if got, want := namespace, "mcp"; got != want {
+			t.Fatalf("ToolID.Namespace() = %q, want %q", got, want)
+		}
+	})
 
-	var decoded ToolSource
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(ToolSource) error = %v", err)
+	t.Run("Should marshal and unmarshal validated ids", func(t *testing.T) {
+		t.Parallel()
+
+		encoded, err := ToolID("agh__skill_view").MarshalText()
+		if err != nil {
+			t.Fatalf("ToolID.MarshalText() error = %v", err)
+		}
+		if got, want := string(encoded), "agh__skill_view"; got != want {
+			t.Fatalf("ToolID.MarshalText() = %q, want %q", got, want)
+		}
+		var decoded ToolID
+		if err := decoded.UnmarshalText([]byte(" agh__skill_view ")); err != nil {
+			t.Fatalf("ToolID.UnmarshalText() error = %v", err)
+		}
+		if decoded != "agh__skill_view" {
+			t.Fatalf("decoded ToolID = %q, want agh__skill_view", decoded)
+		}
+		requireReason(t, decoded.UnmarshalText([]byte("Bad")), ReasonIDInvalidFormat)
+	})
+
+	t.Run("Should marshal and unmarshal validated toolsets", func(t *testing.T) {
+		t.Parallel()
+
+		encoded, err := ToolsetID("agh__core").MarshalText()
+		if err != nil {
+			t.Fatalf("ToolsetID.MarshalText() error = %v", err)
+		}
+		if got, want := string(encoded), "agh__core"; got != want {
+			t.Fatalf("ToolsetID.MarshalText() = %q, want %q", got, want)
+		}
+		var decoded ToolsetID
+		if err := decoded.UnmarshalText([]byte(" agh__core ")); err != nil {
+			t.Fatalf("ToolsetID.UnmarshalText() error = %v", err)
+		}
+		if decoded.String() != "agh__core" {
+			t.Fatalf("decoded ToolsetID = %q, want agh__core", decoded)
+		}
+		requireReason(t, decoded.UnmarshalText([]byte("agh.core")), ReasonIDInvalidFormat)
+	})
+
+	t.Run("Should canonicalize raw external segments", func(t *testing.T) {
+		t.Parallel()
+
+		segment, err := CanonicalIDSegment(" GitHub Create Issue! ")
+		if err != nil {
+			t.Fatalf("CanonicalIDSegment() error = %v", err)
+		}
+		if got, want := segment, "github_create_issue"; got != want {
+			t.Fatalf("CanonicalIDSegment() = %q, want %q", got, want)
+		}
+		requireReason(t, fmtErrorFromCanonicalSegment("123"), ReasonIDInvalidFormat)
+		requireReason(t, fmtErrorFromCanonicalSegment(""), ReasonIDEmpty)
+	})
+
+	t.Run("Should build canonical tool ids without truncation", func(t *testing.T) {
+		t.Parallel()
+
+		id, err := CanonicalToolID("mcp", "GitHub", "Create Issue")
+		if err != nil {
+			t.Fatalf("CanonicalToolID() error = %v", err)
+		}
+		if got, want := id, ToolID("mcp__github__create_issue"); got != want {
+			t.Fatalf("CanonicalToolID() = %q, want %q", got, want)
+		}
+		_, err = CanonicalToolID("mcp", strings.Repeat("a", 62))
+		requireReason(t, err, ReasonIDTooLong)
+	})
+
+	t.Run("Should validate json object schemas", func(t *testing.T) {
+		t.Parallel()
+
+		if err := ValidateJSONObject("schema", nil, false); err != nil {
+			t.Fatalf("ValidateJSONObject(optional nil) error = %v", err)
+		}
+		if err := ValidateJSONObject("schema", json.RawMessage(`{"type":"object"}`), true); err != nil {
+			t.Fatalf("ValidateJSONObject(object) error = %v", err)
+		}
+		requireReason(t, ValidateJSONObject("schema", nil, true), ReasonSchemaInvalid)
+		requireReason(t, ValidateJSONObject("schema", json.RawMessage(`null`), true), ReasonSchemaInvalid)
+		requireReason(t, ValidateJSONObject("schema", json.RawMessage(`[]`), true), ReasonSchemaInvalid)
+	})
+}
+
+func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should convert descriptors to cold tools with cloned schemas", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDescriptor()
+		cold := descriptor.Tool()
+		if err := cold.Validate(); err != nil {
+			t.Fatalf("Tool.Validate() error = %v", err)
+		}
+		descriptor.InputSchema[0] = '['
+		if got, want := string(cold.InputSchema), `{"type":"object"}`; got != want {
+			t.Fatalf("cold.InputSchema = %s, want %s", got, want)
+		}
+		roundTrip := cold.Descriptor()
+		if got, want := roundTrip.Source.Kind.String(), "builtin"; got != want {
+			t.Fatalf("SourceKind.String() = %q, want %q", got, want)
+		}
+	})
+
+	tests := []struct {
+		name   string
+		mutate func(*Descriptor)
+		reason ReasonCode
+	}{
+		{
+			name: "Should reject missing native handler names",
+			mutate: func(d *Descriptor) {
+				d.Backend = BackendRef{Kind: BackendNativeGo}
+			},
+			reason: ReasonDependencyMissing,
+		},
+		{
+			name: "Should reject missing extension ids",
+			mutate: func(d *Descriptor) {
+				d.Backend = BackendRef{Kind: BackendExtensionHost, Handler: "lookup"}
+				d.Source = SourceRef{Kind: SourceExtension, Owner: "linear"}
+			},
+			reason: ReasonExtensionInactive,
+		},
+		{
+			name: "Should reject missing mcp servers",
+			mutate: func(d *Descriptor) {
+				d.ID = "mcp__github__create_issue"
+				d.Backend = BackendRef{Kind: BackendMCP, MCPTool: "create_issue"}
+				d.Source = SourceRef{
+					Kind:          SourceMCP,
+					Owner:         "github",
+					RawServerName: "github",
+					RawToolName:   "create_issue",
+				}
+			},
+			reason: ReasonMCPUnreachable,
+		},
+		{
+			name: "Should reject missing mcp tool names",
+			mutate: func(d *Descriptor) {
+				d.ID = "mcp__github__create_issue"
+				d.Backend = BackendRef{Kind: BackendMCP, MCPServer: "github"}
+				d.Source = SourceRef{
+					Kind:          SourceMCP,
+					Owner:         "github",
+					RawServerName: "github",
+					RawToolName:   "create_issue",
+				}
+			},
+			reason: ReasonDependencyMissing,
+		},
+		{
+			name: "Should reject missing source owners",
+			mutate: func(d *Descriptor) {
+				d.Source = SourceRef{Kind: SourceBuiltin}
+			},
+			reason: ReasonSourceDisabled,
+		},
+		{
+			name: "Should reject unsupported visibility values",
+			mutate: func(d *Descriptor) {
+				d.Visibility = Visibility("public")
+			},
+			reason: ReasonPolicyDenied,
+		},
+		{
+			name: "Should reject unsupported risk values",
+			mutate: func(d *Descriptor) {
+				d.Risk = RiskClass("unknown")
+			},
+			reason: ReasonPolicyDenied,
+		},
+		{
+			name: "Should reject negative result budgets",
+			mutate: func(d *Descriptor) {
+				d.MaxResultBytes = -1
+			},
+			reason: ReasonResultBudgetExceeded,
+		},
+		{
+			name: "Should reject non object output schemas",
+			mutate: func(d *Descriptor) {
+				d.OutputSchema = json.RawMessage(`[]`)
+			},
+			reason: ReasonSchemaInvalid,
+		},
+		{
+			name: "Should wrap invalid toolset ids with their field",
+			mutate: func(d *Descriptor) {
+				d.Toolsets = []ToolsetID{"agh.bad"}
+			},
+			reason: ReasonIDInvalidFormat,
+		},
 	}
-	if decoded != ToolSourceExtension {
-		t.Fatalf("decoded ToolSource = %v, want %v", decoded, ToolSourceExtension)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			descriptor := validDescriptor()
+			tt.mutate(&descriptor)
+			requireReason(t, descriptor.Validate(), tt.reason)
+		})
 	}
 }
 
-func TestToolSourceInvalid(t *testing.T) {
+func TestAvailabilityValidation(t *testing.T) {
 	t.Parallel()
 
-	if got := ToolSource(42).String(); got != "" {
-		t.Fatalf("ToolSource(42).String() = %q, want empty string", got)
-	}
-	if err := ToolSource(42).Validate(); err == nil {
-		t.Fatal("ToolSource(42).Validate() error = nil, want non-nil")
-	} else if !errors.Is(err, ErrInvalidToolSource) {
-		t.Fatalf("ToolSource(42).Validate() error = %v, want ErrInvalidToolSource", err)
-	}
-	if _, err := ToolSource(42).MarshalText(); err == nil {
-		t.Fatal("ToolSource(42).MarshalText() error = nil, want non-nil")
-	} else if !errors.Is(err, ErrInvalidToolSource) {
-		t.Fatalf("ToolSource(42).MarshalText() error = %v, want ErrInvalidToolSource", err)
-	}
+	t.Run("Should accept executable availability", func(t *testing.T) {
+		t.Parallel()
 
-	var decoded ToolSource
-	if err := json.Unmarshal([]byte(`"remote"`), &decoded); err == nil {
-		t.Fatal("json.Unmarshal(invalid ToolSource) error = nil, want non-nil")
-	} else if !errors.Is(err, ErrInvalidToolSource) {
-		t.Fatalf("json.Unmarshal(invalid ToolSource) error = %v, want ErrInvalidToolSource", err)
+		availability := Availability{
+			Registered: true,
+			Enabled:    true,
+			Available:  true,
+			Authorized: true,
+			Executable: true,
+		}
+		if err := availability.Validate(); err != nil {
+			t.Fatalf("Availability.Validate() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject conflicted availability without conflict reason", func(t *testing.T) {
+		t.Parallel()
+
+		requireReason(t, Availability{Conflicted: true}.Validate(), ReasonConflictedID)
+	})
+
+	t.Run("Should reject executable unavailable state", func(t *testing.T) {
+		t.Parallel()
+
+		requireReason(t, Availability{Executable: true}.Validate(), ReasonBackendNotExecutable)
+	})
+
+	t.Run("Should reject available state without prerequisites", func(t *testing.T) {
+		t.Parallel()
+
+		requireReason(t, Availability{Available: true}.Validate(), ReasonBackendUnhealthy)
+	})
+
+	t.Run("Should reject unknown reason codes", func(t *testing.T) {
+		t.Parallel()
+
+		availability := Availability{ReasonCodes: []ReasonCode{"future_reason"}}
+		requireReason(t, availability.Validate(), ReasonPolicyDenied)
+	})
+
+	t.Run("Should accept conflicted state with deterministic conflict reason", func(t *testing.T) {
+		t.Parallel()
+
+		availability := Availability{
+			Conflicted:  true,
+			ReasonCodes: []ReasonCode{ReasonConflictedSanitizedName},
+		}
+		if err := availability.Validate(); err != nil {
+			t.Fatalf("Availability.Validate() error = %v", err)
+		}
+	})
+}
+
+func TestToolResultValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve safe content metadata", func(t *testing.T) {
+		t.Parallel()
+
+		result := ToolResult{
+			Content: []ToolContent{{
+				Type:     "text",
+				Text:     "hello",
+				Metadata: map[string]json.RawMessage{"format": json.RawMessage(`"plain"`)},
+			}},
+			Metadata: map[string]json.RawMessage{"source": json.RawMessage(`"unit"`)},
+			Bytes:    5,
+		}
+		if err := result.Validate(64); err != nil {
+			t.Fatalf("ToolResult.Validate() error = %v", err)
+		}
+		if got := string(result.Content[0].Metadata["format"]); got != `"plain"` {
+			t.Fatalf("content metadata was not preserved: %s", got)
+		}
+	})
+
+	t.Run("Should require truncation for oversized results", func(t *testing.T) {
+		t.Parallel()
+
+		requireReason(t, ToolResult{Bytes: 65}.Validate(64), ReasonResultBudgetExceeded)
+	})
+
+	t.Run("Should accept truncated oversized results", func(t *testing.T) {
+		t.Parallel()
+
+		if err := (ToolResult{Bytes: 65, Truncated: true}).Validate(64); err != nil {
+			t.Fatalf("ToolResult.Validate() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject secret metadata keys", func(t *testing.T) {
+		t.Parallel()
+
+		result := ToolResult{
+			Metadata: map[string]json.RawMessage{"access_token": json.RawMessage(`"secret"`)},
+		}
+		requireReason(t, result.Validate(64), ReasonSecretMetadata)
+	})
+
+	resultTests := []struct {
+		name   string
+		result ToolResult
+		reason ReasonCode
+	}{
+		{name: "Should reject negative byte counts", result: ToolResult{Bytes: -1}, reason: ReasonResultBudgetExceeded},
+		{name: "Should reject negative durations", result: ToolResult{DurationMS: -1}, reason: ReasonBackendUnhealthy},
+		{
+			name:   "Should reject content without types",
+			result: ToolResult{Content: []ToolContent{{Text: "missing type"}}},
+			reason: ReasonSchemaInvalid,
+		},
+		{
+			name: "Should reject secret content metadata",
+			result: ToolResult{
+				Content: []ToolContent{
+					{Type: "text", Metadata: map[string]json.RawMessage{"refresh-token": json.RawMessage(`"secret"`)}},
+				},
+			},
+			reason: ReasonSecretMetadata,
+		},
+		{
+			name:   "Should reject negative artifact bytes",
+			result: ToolResult{Artifacts: []ArtifactRef{{URI: "file://artifact", Bytes: -1}}},
+			reason: ReasonResultBudgetExceeded,
+		},
+		{
+			name:   "Should reject redactions without paths",
+			result: ToolResult{Redactions: []Redaction{{Reason: ReasonSecretMetadata}}},
+			reason: ReasonSecretMetadata,
+		},
+		{
+			name:   "Should reject unsupported redaction reasons",
+			result: ToolResult{Redactions: []Redaction{{Path: "$.token", Reason: "future_reason"}}},
+			reason: ReasonPolicyDenied,
+		},
 	}
+	for _, tt := range resultTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			requireReason(t, tt.result.Validate(64), tt.reason)
+		})
+	}
+}
+
+func TestProviderAndHandleValidation(t *testing.T) {
+	t.Parallel()
+
+	validSource := SourceRef{Kind: SourceBuiltin, Owner: "daemon"}
+
+	t.Run("Should accept complete providers and handles", func(t *testing.T) {
+		t.Parallel()
+
+		if err := ValidateProvider(testProvider{source: validSource}); err != nil {
+			t.Fatalf("ValidateProvider() error = %v", err)
+		}
+		if err := ValidateHandle(testHandle{descriptor: validDescriptor()}); err != nil {
+			t.Fatalf("ValidateHandle() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject nil providers", func(t *testing.T) {
+		t.Parallel()
+
+		requireReason(t, ValidateProvider(nil), ReasonDependencyMissing)
+	})
+
+	t.Run("Should reject typed nil providers", func(t *testing.T) {
+		t.Parallel()
+
+		var provider *testProvider
+		requireReason(t, ValidateProvider(provider), ReasonDependencyMissing)
+	})
+
+	t.Run("Should reject incomplete providers", func(t *testing.T) {
+		t.Parallel()
+
+		requireReason(t, ValidateProvider(testProvider{}), ReasonSourceDisabled)
+	})
+
+	t.Run("Should reject nil handles", func(t *testing.T) {
+		t.Parallel()
+
+		requireReason(t, ValidateHandle(nil), ReasonBackendNotExecutable)
+	})
+
+	t.Run("Should reject typed nil handles", func(t *testing.T) {
+		t.Parallel()
+
+		var handle *testHandle
+		requireReason(t, ValidateHandle(handle), ReasonBackendNotExecutable)
+	})
+
+	t.Run("Should reject incomplete handles", func(t *testing.T) {
+		t.Parallel()
+
+		requireReason(t, ValidateHandle(testHandle{}), ReasonIDEmpty)
+	})
+}
+
+func TestToolErrorReasonExtraction(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should extract reasons from tool errors", func(t *testing.T) {
+		t.Parallel()
+
+		cause := errors.New("permission source")
+		err := NewToolError(
+			ErrorCodeDenied,
+			"agh__network_send",
+			"denied",
+			cause,
+			ReasonPolicyDenied,
+			ReasonSessionDenied,
+		)
+		if !errors.Is(err, cause) {
+			t.Fatalf("errors.Is(ToolError, cause) = false, want true")
+		}
+		if got, want := err.Error(), "denied"; got != want {
+			t.Fatalf("ToolError.Error() = %q, want %q", got, want)
+		}
+		requireReason(t, err, ReasonPolicyDenied)
+	})
+
+	t.Run("Should fall back to wrapped cause and code messages", func(t *testing.T) {
+		t.Parallel()
+
+		cause := errors.New("backend down")
+		withCause := NewToolError(ErrorCodeBackendFailed, "agh__skill_view", "", cause)
+		if got, want := withCause.Error(), "backend down"; got != want {
+			t.Fatalf("ToolError.Error() = %q, want %q", got, want)
+		}
+		codeOnly := NewToolError(ErrorCodeNotFound, "agh__skill_view", "", nil)
+		if got, want := codeOnly.Error(), string(ErrorCodeNotFound); got != want {
+			t.Fatalf("ToolError.Error() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should format nil and validation errors deterministically", func(t *testing.T) {
+		t.Parallel()
+
+		var nilToolErr *ToolError
+		if got, want := nilToolErr.Error(), nilErrorText; got != want {
+			t.Fatalf("nil ToolError.Error() = %q, want %q", got, want)
+		}
+		if unwrapped := nilToolErr.Unwrap(); unwrapped != nil {
+			t.Fatalf("nil ToolError.Unwrap() = %v, want nil", unwrapped)
+		}
+		var nilValidation *ValidationError
+		if got, want := nilValidation.Error(), nilErrorText; got != want {
+			t.Fatalf("nil ValidationError.Error() = %q, want %q", got, want)
+		}
+		err := NewValidationError("tool_id", ReasonIDInvalidFormat, "bad format")
+		if got, want := err.Error(), "tools: validation failed: tool_id: id_invalid_format: bad format"; got != want {
+			t.Fatalf("ValidationError.Error() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should report no reason for generic errors", func(t *testing.T) {
+		t.Parallel()
+
+		if reason, ok := ReasonOf(errors.New("plain")); ok || reason != "" {
+			t.Fatalf("ReasonOf(generic) = %q, %v; want empty false", reason, ok)
+		}
+	})
+}
+
+func TestSourceKindJSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should encode and decode source aliases as strings", func(t *testing.T) {
+		t.Parallel()
+
+		data, err := json.Marshal(ToolSourceExtension)
+		if err != nil {
+			t.Fatalf("json.Marshal(ToolSourceExtension) error = %v", err)
+		}
+		if got, want := string(data), `"extension"`; got != want {
+			t.Fatalf("json.Marshal(ToolSourceExtension) = %s, want %s", got, want)
+		}
+
+		var decoded ToolSource
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(ToolSource) error = %v", err)
+		}
+		if decoded != ToolSourceExtension {
+			t.Fatalf("decoded ToolSource = %s, want %s", decoded, ToolSourceExtension)
+		}
+	})
+}
+
+func fmtErrorFromCanonicalSegment(raw string) error {
+	_, err := CanonicalIDSegment(raw)
+	return err
 }

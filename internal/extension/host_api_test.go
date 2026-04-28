@@ -4962,11 +4962,24 @@ func (e *hostAPITestEnv) currentTime() time.Time {
 
 func hostAPITestToolSpec(name string, description string, source string) map[string]any {
 	return map[string]any{
-		"name":         name,
-		"description":  description,
+		"id":            "ext__host_api__" + name,
+		"display_title": name,
+		"description":   description,
+		"backend": map[string]any{
+			"kind":         "extension_host",
+			"extension_id": "host-api",
+			"handler":      name,
+		},
 		"input_schema": map[string]any{"type": "object"},
-		"read_only":    true,
-		"source":       source,
+		"source": map[string]any{
+			"kind":          source,
+			"owner":         "host-api",
+			"raw_tool_name": name,
+		},
+		"visibility":       "operator",
+		"risk":             "read",
+		"read_only":        true,
+		"concurrency_safe": true,
 	}
 }
 

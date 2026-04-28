@@ -928,7 +928,7 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "TaskInboxLane", typ: contract.TaskInboxLaneApprovals},
 		{name: "HookSkillSource", typ: hooks.HookSkillSourceBundled},
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},
-		{name: "ToolSource", typ: tools.ToolSource(0)},
+		{name: "ToolSource", typ: tools.ToolSourceBuiltin},
 		{name: "HostAPIMethod", typ: extensionprotocol.HostAPIMethod("memory.read")},
 	}
 

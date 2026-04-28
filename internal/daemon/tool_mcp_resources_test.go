@@ -18,6 +18,28 @@ var (
 	errProviderFailure = errors.New("provider failure")
 )
 
+func testToolSpec(id toolspkg.ToolID) toolspkg.Tool {
+	return toolspkg.Tool{
+		ID:           id,
+		DisplayTitle: "lookup",
+		Description:  "Search extension data",
+		Backend: toolspkg.BackendRef{
+			Kind:        toolspkg.BackendExtensionHost,
+			ExtensionID: "linear",
+			Handler:     "lookup",
+		},
+		InputSchema: json.RawMessage(`{"type":"object"}`),
+		Source: toolspkg.SourceRef{
+			Kind:        toolspkg.SourceExtension,
+			Owner:       "linear",
+			RawToolName: "lookup",
+		},
+		Visibility: toolspkg.VisibilityOperator,
+		Risk:       toolspkg.RiskRead,
+		ReadOnly:   true,
+	}
+}
+
 func TestResourceCatalogProjectorBuildAndApply(t *testing.T) {
 	t.Parallel()
 
@@ -39,12 +61,7 @@ func TestResourceCatalogProjectorBuildAndApply(t *testing.T) {
 		Scope: resources.ResourceScope{
 			Kind: resources.ResourceScopeKindGlobal,
 		},
-		Spec: toolspkg.Tool{
-			Name:        "lookup",
-			Description: "Search extension data",
-			InputSchema: json.RawMessage(`{"type":"object"}`),
-			Source:      toolspkg.ToolSourceExtension,
-		},
+		Spec: testToolSpec("ext__linear__lookup"),
 	}}
 
 	plan, err := projector.Build(context.Background(), records)
@@ -72,9 +89,9 @@ func TestResourceCatalogProjectorBuildAndApply(t *testing.T) {
 	if got, want := len(snapshot), 1; got != want {
 		t.Fatalf("len(snapshot) = %d, want %d", got, want)
 	}
-	snapshot[0].Spec.Name = "mutated"
-	if got, want := catalog.Snapshot()[0].Spec.Name, "lookup"; got != want {
-		t.Fatalf("catalog.Snapshot()[0].Spec.Name = %q, want %q", got, want)
+	snapshot[0].Spec.ID = "ext__linear__mutated"
+	if got, want := catalog.Snapshot()[0].Spec.ID, toolspkg.ToolID("ext__linear__lookup"); got != want {
+		t.Fatalf("catalog.Snapshot()[0].Spec.ID = %q, want %q", got, want)
 	}
 }
 
@@ -152,12 +169,7 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
 		workspaceScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
 
-		toolSpec := toolspkg.Tool{
-			Name:        "lookup",
-			Description: "Search extension data",
-			InputSchema: json.RawMessage(`{"type":"object"}`),
-			Source:      toolspkg.ToolSourceExtension,
-		}
+		toolSpec := testToolSpec("ext__linear__lookup")
 		toolEncoded, err := toolCodec.Encode(toolSpec)
 		if err != nil {
 			t.Fatalf("toolCodec.Encode() error = %v", err)
@@ -270,12 +282,7 @@ func TestToolMCPSourceSyncerHandlesNilReceiverAndTriggerFailures(t *testing.T) {
 				tools: []toolPublicationInput{{
 					sourceKey: "test/tool/lookup",
 					scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-					spec: toolspkg.Tool{
-						Name:        "lookup",
-						Description: "Search extension data",
-						InputSchema: json.RawMessage(`{"type":"object"}`),
-						Source:      toolspkg.ToolSourceExtension,
-					},
+					spec:      testToolSpec("ext__linear__lookup"),
 				}},
 			}, nil
 		},
@@ -324,12 +331,7 @@ func TestToolMCPSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		tools: []toolPublicationInput{{
 			sourceKey: "test/tool/lookup",
 			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			spec: toolspkg.Tool{
-				Name:        "lookup",
-				Description: "Search extension data",
-				InputSchema: json.RawMessage(`{"type":"object"}`),
-				Source:      toolspkg.ToolSourceExtension,
-			},
+			spec:      testToolSpec("ext__linear__lookup"),
 		}},
 		mcpServers: []mcpServerPublicationInput{{
 			sourceKey: "test/mcp/git",
@@ -509,43 +511,43 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 	}
 
 	toolScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
-	toolSpec, toolEncoded, err := validateAndEncodeTool(context.Background(), toolCodec, toolScope, toolspkg.Tool{
-		Name:        " lookup ",
-		Description: " Search extension data ",
-		InputSchema: json.RawMessage(`{"required":["query"],"type":"object"}`),
-		Source:      toolspkg.ToolSourceExtension,
-	})
+	toolSpec := testToolSpec("ext__linear__lookup")
+	toolSpec.Description = " Search extension data "
+	toolSpec.InputSchema = json.RawMessage(`{"required":["query"],"type":"object"}`)
+	toolEncodedSpec, toolEncoded, err := validateAndEncodeTool(context.Background(), toolCodec, toolScope, toolSpec)
 	if err != nil {
 		t.Fatalf("validateAndEncodeTool(valid) error = %v", err)
 	}
-	if got, want := toolSpec.Name, "lookup"; got != want {
-		t.Fatalf("toolSpec.Name = %q, want %q", got, want)
+	if got, want := toolEncodedSpec.ID, toolspkg.ToolID("ext__linear__lookup"); got != want {
+		t.Fatalf("toolSpec.ID = %q, want %q", got, want)
 	}
 	var toolPayload struct {
-		Name        string `json:"name"`
+		ID          string `json:"id"`
 		Description string `json:"description"`
-		Source      string `json:"source"`
-		ReadOnly    bool   `json:"read_only"`
+		Source      struct {
+			Kind string `json:"kind"`
+		} `json:"source"`
+		ReadOnly bool `json:"read_only"`
 	}
 	if err := json.Unmarshal(toolEncoded, &toolPayload); err != nil {
 		t.Fatalf("json.Unmarshal(toolEncoded) error = %v", err)
 	}
-	if got, want := toolPayload.Name, "lookup"; got != want {
-		t.Fatalf("toolPayload.Name = %#v, want %#v", got, want)
+	if got, want := toolPayload.ID, "ext__linear__lookup"; got != want {
+		t.Fatalf("toolPayload.ID = %#v, want %#v", got, want)
 	}
 	if got, want := toolPayload.Description, "Search extension data"; got != want {
 		t.Fatalf("toolPayload.Description = %#v, want %#v", got, want)
 	}
-	if got, want := toolPayload.Source, "extension"; got != want {
-		t.Fatalf("toolPayload.Source = %#v, want %#v", got, want)
+	if got, want := toolPayload.Source.Kind, "extension"; got != want {
+		t.Fatalf("toolPayload.Source.Kind = %#v, want %#v", got, want)
 	}
-	if got, want := toolPayload.ReadOnly, false; got != want {
+	if got, want := toolPayload.ReadOnly, true; got != want {
 		t.Fatalf("toolPayload.ReadOnly = %#v, want %#v", got, want)
 	}
 
 	_, _, err = validateAndEncodeTool(context.Background(), toolCodec, toolScope, toolspkg.Tool{
-		Name:   " ",
-		Source: toolspkg.ToolSourceExtension,
+		ID:          "ext__linear__lookup",
+		InputSchema: json.RawMessage(`{"type":"object"}`),
 	})
 	if err == nil {
 		t.Fatal("validateAndEncodeTool(invalid) error = nil, want validation failure")
@@ -553,8 +555,8 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 	if !errors.Is(err, resources.ErrValidation) {
 		t.Fatalf("validateAndEncodeTool(invalid) error = %v, want %v", err, resources.ErrValidation)
 	}
-	if !strings.Contains(err.Error(), "tool.name is required") {
-		t.Fatalf("validateAndEncodeTool(invalid) error = %v, want tool.name validation context", err)
+	if !strings.Contains(err.Error(), "backend.kind") {
+		t.Fatalf("validateAndEncodeTool(invalid) error = %v, want backend.kind validation context", err)
 	}
 
 	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()

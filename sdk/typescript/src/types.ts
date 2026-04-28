@@ -7,10 +7,13 @@ import type {
   HookPatchByEvent,
   HookPayloadByEvent,
   HostAPIMethod,
+  SourceKind,
 } from "./generated/contracts.js";
 
 export * from "./base-types.js";
 export * from "./generated/contracts.js";
+
+export type ToolSource = SourceKind;
 
 export type ExtensionSourceTier = "bundled" | "user" | "workspace" | "marketplace";
 

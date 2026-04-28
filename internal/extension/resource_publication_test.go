@@ -15,6 +15,7 @@ func TestResolveManifestToolResourcesMatchesDynamicSnapshotCanonicalShape(t *tes
 	t.Parallel()
 
 	manifest := &Manifest{
+		Name: "linear",
 		Resources: ResourcesConfig{
 			Tools: map[string]ToolConfig{
 				" lookup ": {
@@ -29,7 +30,10 @@ func TestResolveManifestToolResourcesMatchesDynamicSnapshotCanonicalShape(t *tes
 		},
 	}
 
-	tools := ResolveManifestToolResources(manifest)
+	tools, err := ResolveManifestToolResources(manifest)
+	if err != nil {
+		t.Fatalf("ResolveManifestToolResources() error = %v", err)
+	}
 	if got, want := len(tools), 1; got != want {
 		t.Fatalf("len(ResolveManifestToolResources()) = %d, want %d", got, want)
 	}
@@ -42,14 +46,27 @@ func TestResolveManifestToolResourcesMatchesDynamicSnapshotCanonicalShape(t *tes
 
 	manifestCanonical := mustCanonicalToolJSON(t, codec, scope, tools[0])
 	dynamicSpec, err := codec.DecodeAndValidate(testutil.Context(t), scope, []byte(`{
-		"name": "lookup",
+		"id": "ext__linear__lookup",
+		"display_title": "lookup",
 		"description": "search workspace",
+		"backend": {
+			"kind": "extension_host",
+			"extension_id": "linear",
+			"handler": "lookup"
+		},
 		"input_schema": {
 			"type": "object",
 			"properties": {"path": {"type": "string"}}
 		},
+		"source": {
+			"kind": "extension",
+			"owner": "linear",
+			"raw_tool_name": "lookup"
+		},
+		"visibility": "operator",
+		"risk": "read",
 		"read_only": true,
-		"source": "extension"
+		"concurrency_safe": true
 	}`))
 	if err != nil {
 		t.Fatalf("codec.DecodeAndValidate(dynamic) error = %v", err)

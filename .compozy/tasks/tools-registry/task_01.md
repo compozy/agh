@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Core Tool Contracts and Canonical ToolID
 type: backend
 complexity: high
@@ -29,12 +29,12 @@ Establish the canonical runtime contracts for the Tool Registry before any execu
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Replace the current `Tool{Name,...}` shape with final registry contracts in `internal/tools`
-- [ ] 1.2 Add `ToolID`, namespace, descriptor, backend, source, availability, result, and error validators
-- [ ] 1.3 Add provider and handle interfaces for `native_go`, `extension_host`, and `mcp` backends
-- [ ] 1.4 Preserve tool-resource schema validation while separating cold resources from executable descriptors
-- [ ] 1.5 Add deterministic reason constants used by policy, availability, dispatch, and public surfaces
-- [ ] 1.6 Add package-boundary-safe tests and compile-time assertions
+- [x] 1.1 Replace the current `Tool{Name,...}` shape with final registry contracts in `internal/tools`
+- [x] 1.2 Add `ToolID`, namespace, descriptor, backend, source, availability, result, and error validators
+- [x] 1.3 Add provider and handle interfaces for `native_go`, `extension_host`, and `mcp` backends
+- [x] 1.4 Preserve tool-resource schema validation while separating cold resources from executable descriptors
+- [x] 1.5 Add deterministic reason constants used by policy, availability, dispatch, and public surfaces
+- [x] 1.6 Add package-boundary-safe tests and compile-time assertions
 
 ## Implementation Details
 
@@ -74,14 +74,14 @@ Use the TechSpec sections "Core Interfaces", "Data Models", "Architectural Bound
 
 ## Tests
 - Unit tests:
-  - [ ] Valid IDs such as `agh__skill_view` and `mcp__github__create_issue` are accepted
-  - [ ] Dotted, hyphenated, uppercase, empty-segment, reserved-conflict, and over-length IDs are rejected with stable reasons
-  - [ ] Descriptors require object input schemas and valid backend/source refs
-  - [ ] Result envelopes preserve content metadata while enforcing redaction/truncation fields
-  - [ ] Provider and handle interfaces reject nil or incomplete implementations where applicable
+  - [x] Valid IDs such as `agh__skill_view` and `mcp__github__create_issue` are accepted
+  - [x] Dotted, hyphenated, uppercase, empty-segment, reserved-conflict, and over-length IDs are rejected with stable reasons
+  - [x] Descriptors require object input schemas and valid backend/source refs
+  - [x] Result envelopes preserve content metadata while enforcing redaction/truncation fields
+  - [x] Provider and handle interfaces reject nil or incomplete implementations where applicable
 - Integration tests:
-  - [ ] `go test ./internal/tools -race` passes
-  - [ ] `make boundaries` proves `internal/tools` has no forbidden domain imports
+  - [x] `go test ./internal/tools -race` passes
+  - [x] `make boundaries` proves `internal/tools` has no forbidden domain imports
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -90,3 +90,12 @@ Use the TechSpec sections "Core Interfaces", "Data Models", "Architectural Bound
 - Test coverage >=80%
 - `internal/tools` can represent native, extension-host, and MCP executable tools without importing their implementation packages
 - Invalid public ToolIDs fail closed with deterministic reason codes
+
+## Verification Evidence
+
+- `go test ./internal/tools -race -count=1` passed.
+- `go test ./internal/tools -coverprofile=/tmp/tools.cover -count=1` reported 93.6% statement coverage.
+- `python3 .agents/skills/agh-test-conventions/scripts/check-test-conventions.py internal/tools/{tool_test.go,resource_test.go,boundary_test.go}` passed.
+- `make boundaries` passed with `OK: all package boundaries respected`.
+- `make lint` passed with `0 issues`.
+- `make verify` passed: web format/lint/typecheck/tests/build, Go lint, race-enabled Go tests, Go build, and package boundaries.

@@ -3258,14 +3258,58 @@ export interface TasksParams {
   limit?: number;
 }
 
-export type ToolSource = "builtin" | "mcp" | "extension" | "dynamic";
+export type ToolID = string;
+
+export type BackendKind = string;
+
+export interface BackendRef {
+  kind: BackendKind;
+  extension_id?: string;
+  handler?: string;
+  mcp_server?: string;
+  mcp_tool?: string;
+  native_name?: string;
+  requires_capabilities?: string[];
+}
+
+export type SourceKind = "builtin" | "mcp" | "extension" | "dynamic";
+
+export interface SourceRef {
+  kind: SourceKind;
+  owner: string;
+  raw_server_name?: string;
+  raw_tool_name?: string;
+  resource_id?: string;
+  resource_version?: string;
+  workspace_id?: string;
+  scope?: string;
+}
+
+export type Visibility = string;
+
+export type RiskClass = string;
+
+export type ToolsetID = string;
 
 export interface Tool {
-  name: string;
+  id: ToolID;
+  backend: BackendRef;
+  display_title?: string;
   description: string;
   input_schema: JSONValue;
+  output_schema?: JSONValue;
+  source: SourceRef;
+  visibility: Visibility;
+  risk: RiskClass;
   read_only: boolean;
-  source: ToolSource;
+  destructive: boolean;
+  open_world: boolean;
+  requires_interaction: boolean;
+  concurrency_safe: boolean;
+  max_result_bytes?: number;
+  toolsets?: ToolsetID[];
+  tags?: string[];
+  search_hints?: string[];
 }
 
 export interface ToolCallPatch {

@@ -332,11 +332,14 @@ func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
 		[]byte(`{
 			"scope":{"kind":"global"},
 			"spec":{
-				"name":" lookup ",
+				"id":" dyn__lookup ",
+				"backend":{"kind":"native_go","native_name":" lookup "},
 				"description":" search workspace ",
 				"input_schema":{"type":"object"},
 				"read_only":true,
-				"source":"dynamic"
+				"source":{"kind":"dynamic","owner":" udsapi "},
+				"visibility":"operator",
+				"risk":"read"
 			}
 		}`),
 		nil,
@@ -348,13 +351,13 @@ func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
 	}
 	var created contract.ResourceResponse
 	decodeHTTPJSON(t, createResp, &created)
-	if got, want := strings.TrimSpace(string(created.Record.Spec)), `{"name":"lookup","description":"search workspace","input_schema":{"type":"object"},"read_only":true,"source":"dynamic"}`; got != want {
+	if got, want := strings.TrimSpace(string(created.Record.Spec)), `{"id":"dyn__lookup","backend":{"kind":"native_go","native_name":"lookup"},"description":"search workspace","input_schema":{"type":"object"},"source":{"kind":"dynamic","owner":"udsapi"},"visibility":"operator","risk":"read","read_only":true}`; got != want {
 		t.Fatalf("created tool spec = %s, want %s", got, want)
 	}
 
 	waitForProjectedToolRevision(t, runtime, 1)
 	revision, records := runtime.toolCatalog.snapshot()
-	if revision != 1 || len(records) != 1 || records[0].Spec.Name != "lookup" {
+	if revision != 1 || len(records) != 1 || records[0].Spec.ID != toolspkg.ToolID("dyn__lookup") {
 		t.Fatalf("tool projection after create = revision:%d records:%#v, want lookup@1", revision, records)
 	}
 
@@ -367,11 +370,14 @@ func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
 			"scope":{"kind":"global"},
 			"expected_version":%d,
 			"spec":{
-				"name":"lookup",
+				"id":"dyn__lookup",
+				"backend":{"kind":"native_go","native_name":"lookup"},
 				"description":"search workspace v2",
 				"input_schema":{"type":"object"},
 				"read_only":true,
-				"source":"dynamic"
+				"source":{"kind":"dynamic","owner":"udsapi"},
+				"visibility":"operator",
+				"risk":"read"
 			}
 		}`, created.Record.Version)),
 		nil,

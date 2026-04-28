@@ -11,9 +11,9 @@ import (
 )
 
 // ResolveManifestToolResources converts manifest tool declarations into tool specs.
-func ResolveManifestToolResources(manifest *Manifest) []toolspkg.Tool {
+func ResolveManifestToolResources(manifest *Manifest) ([]toolspkg.Tool, error) {
 	if manifest == nil || len(manifest.Resources.Tools) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	names := make([]string, 0, len(manifest.Resources.Tools))
@@ -25,15 +25,40 @@ func ResolveManifestToolResources(manifest *Manifest) []toolspkg.Tool {
 	tools := make([]toolspkg.Tool, 0, len(names))
 	for _, name := range names {
 		cfg := manifest.Resources.Tools[name]
+		id, err := toolspkg.CanonicalToolID("ext", manifest.Name, name)
+		if err != nil {
+			return nil, fmt.Errorf("extension: tool %q id: %w", name, err)
+		}
+		trimmedName := strings.TrimSpace(name)
 		tools = append(tools, toolspkg.Tool{
-			Name:        strings.TrimSpace(name),
-			Description: strings.TrimSpace(cfg.Description),
+			ID:           id,
+			DisplayTitle: trimmedName,
+			Description:  strings.TrimSpace(cfg.Description),
+			Backend: toolspkg.BackendRef{
+				Kind:        toolspkg.BackendExtensionHost,
+				ExtensionID: strings.TrimSpace(manifest.Name),
+				Handler:     trimmedName,
+			},
 			InputSchema: cloneRawMessage(cfg.InputSchema),
-			ReadOnly:    cfg.ReadOnly,
-			Source:      toolspkg.ToolSourceExtension,
+			Source: toolspkg.SourceRef{
+				Kind:        toolspkg.SourceExtension,
+				Owner:       strings.TrimSpace(manifest.Name),
+				RawToolName: trimmedName,
+			},
+			Visibility:      toolspkg.VisibilityOperator,
+			Risk:            riskForManifestTool(cfg),
+			ReadOnly:        cfg.ReadOnly,
+			ConcurrencySafe: cfg.ReadOnly,
 		})
 	}
-	return tools
+	return tools, nil
+}
+
+func riskForManifestTool(cfg ToolConfig) toolspkg.RiskClass {
+	if cfg.ReadOnly {
+		return toolspkg.RiskRead
+	}
+	return toolspkg.RiskMutating
 }
 
 // ResolveManifestMCPServerResources converts manifest MCP declarations into MCP server specs.

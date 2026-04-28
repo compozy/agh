@@ -112,11 +112,11 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 	if got, want := len(tools), 1; got != want {
 		t.Fatalf("len(toolStore.List()) = %d, want %d", got, want)
 	}
-	if got, want := tools[0].Spec.Name, "lookup"; got != want {
-		t.Fatalf("tools[0].Spec.Name = %q, want %q", got, want)
+	if got, want := tools[0].Spec.ID, toolspkg.ToolID("ext__static_tool_mcp__lookup"); got != want {
+		t.Fatalf("tools[0].Spec.ID = %q, want %q", got, want)
 	}
-	if got, want := tools[0].Spec.Source, toolspkg.ToolSourceExtension; got != want {
-		t.Fatalf("tools[0].Spec.Source = %q, want %q", got, want)
+	if got, want := tools[0].Spec.Source.Kind, toolspkg.ToolSourceExtension; got != want {
+		t.Fatalf("tools[0].Spec.Source.Kind = %q, want %q", got, want)
 	}
 
 	servers, err := mcpStore.List(testutil.Context(t), toolMCPSyncActor(), resources.ResourceFilter{Source: &source})

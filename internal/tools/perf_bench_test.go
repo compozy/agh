@@ -10,63 +10,72 @@ import (
 
 var (
 	benchmarkCanonicalToolJSON = []byte(`{
-		"name":"builtin_ls",
-		"description":"List files",
+		"id":"agh__skill_view",
+		"display_title":"Skill View",
+		"description":"View one skill",
+		"backend":{"kind":"native_go","native_name":"skill_view"},
 		"input_schema":{"type":"object","properties":{"path":{"type":"string"}}},
+		"source":{"kind":"builtin","owner":"daemon"},
+		"visibility":"model",
+		"risk":"read",
 		"read_only":true,
-		"source":"builtin"
-	}`)
-	benchmarkHookToolJSON = []byte(`{
-		"tool_name":"mcp_search",
-		"description":"Search via MCP",
-		"input_schema":{"type":"object","properties":{"query":{"type":"string"}}},
-		"read_only":false,
-		"source":"mcp"
+		"concurrency_safe":true
 	}`)
 	benchmarkToolScope = resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
 	benchmarkToolSpec  = Tool{
-		Name:        "lookup",
-		Description: "Search files",
+		ID:           "ext__linear__search",
+		DisplayTitle: "Search",
+		Description:  "Search files",
+		Backend: BackendRef{
+			Kind:        BackendExtensionHost,
+			ExtensionID: "linear",
+			Handler:     "search",
+		},
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"}}}`),
-		ReadOnly:    true,
-		Source:      ToolSourceExtension,
+		Source: SourceRef{
+			Kind:  SourceExtension,
+			Owner: "linear",
+		},
+		Visibility: VisibilityOperator,
+		Risk:       RiskRead,
+		ReadOnly:   true,
 	}
 )
 
-func BenchmarkToolSourceString(b *testing.B) {
+func BenchmarkSourceKindString(b *testing.B) {
 	b.ReportAllocs()
 
-	source := ToolSourceExtension
+	source := SourceExtension
 	for b.Loop() {
 		if source.String() == "" {
-			b.Fatal("ToolSource.String() returned empty string")
+			b.Fatal("SourceKind.String() returned empty string")
 		}
 	}
 }
 
-func BenchmarkToolSourceMarshalText(b *testing.B) {
+func BenchmarkToolIDMarshalText(b *testing.B) {
 	b.ReportAllocs()
 
-	source := ToolSourceExtension
+	id := ToolID("mcp__github__create_issue")
 	for b.Loop() {
-		data, err := source.MarshalText()
+		data, err := id.MarshalText()
 		if err != nil {
-			b.Fatalf("ToolSource.MarshalText() error = %v", err)
+			b.Fatalf("ToolID.MarshalText() error = %v", err)
 		}
 		if len(data) == 0 {
-			b.Fatal("ToolSource.MarshalText() returned empty data")
+			b.Fatal("ToolID.MarshalText() returned empty data")
 		}
 	}
 }
 
-func BenchmarkToolSourceUnmarshalText(b *testing.B) {
+func BenchmarkToolIDUnmarshalText(b *testing.B) {
 	b.ReportAllocs()
 
-	text := []byte("extension")
+	text := []byte("mcp__github__create_issue")
 	for b.Loop() {
-		var source ToolSource
-		if err := (&source).UnmarshalText(text); err != nil {
-			b.Fatalf("ToolSource.UnmarshalText() error = %v", err)
+		var id ToolID
+		if err := (&id).UnmarshalText(text); err != nil {
+			b.Fatalf("ToolID.UnmarshalText() error = %v", err)
 		}
 	}
 }
@@ -79,7 +88,6 @@ func BenchmarkToolUnmarshalJSON(b *testing.B) {
 		data []byte
 	}{
 		{name: "canonical", data: benchmarkCanonicalToolJSON},
-		{name: "hook_alias", data: benchmarkHookToolJSON},
 	}
 
 	for _, bench := range benchmarks {

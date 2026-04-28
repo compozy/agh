@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -211,9 +212,21 @@ func daemonBenchmarkToolMCPDesiredResources(count int) toolMCPDesiredResources {
 			sourceKey: fmt.Sprintf("bench/tool/%03d", i),
 			scope:     scope,
 			spec: toolspkg.Tool{
-				Name:        fmt.Sprintf("tool-%03d", i),
-				Description: fmt.Sprintf("Tool %d", i),
-				Source:      toolspkg.ToolSourceBuiltin,
+				ID:           toolspkg.ToolID(fmt.Sprintf("agh__bench_tool_%03d", i)),
+				DisplayTitle: fmt.Sprintf("tool-%03d", i),
+				Description:  fmt.Sprintf("Tool %d", i),
+				Backend: toolspkg.BackendRef{
+					Kind:       toolspkg.BackendNativeGo,
+					NativeName: fmt.Sprintf("bench_tool_%03d", i),
+				},
+				InputSchema: json.RawMessage(`{"type":"object"}`),
+				Source: toolspkg.SourceRef{
+					Kind:  toolspkg.SourceBuiltin,
+					Owner: "daemon",
+				},
+				Visibility: toolspkg.VisibilityOperator,
+				Risk:       toolspkg.RiskRead,
+				ReadOnly:   true,
 			},
 		})
 		desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{

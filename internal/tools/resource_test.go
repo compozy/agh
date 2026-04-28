@@ -20,49 +20,145 @@ func mustToolResourceCodec(t *testing.T) resources.KindCodec[Tool] {
 func TestToolResourceCodecCanonicalizesInputSchema(t *testing.T) {
 	t.Parallel()
 
-	codec := mustToolResourceCodec(t)
+	t.Run("Should canonicalize and trim final tool resource specs", func(t *testing.T) {
+		t.Parallel()
 
-	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
-	spec, err := codec.DecodeAndValidate(testutil.Context(t), scope, []byte(`{
-		"name": " lookup ",
-		"description": " search files ",
-		"input_schema": {
-			"properties": {"path": {"type": "string"}},
-			"type": "object"
-		},
-		"read_only": true,
-		"source": "extension"
-	}`))
-	if err != nil {
-		t.Fatalf("codec.DecodeAndValidate() error = %v", err)
-	}
+		codec := mustToolResourceCodec(t)
 
-	if got, want := spec.Name, "lookup"; got != want {
-		t.Fatalf("spec.Name = %q, want %q", got, want)
-	}
-	if got, want := spec.Description, "search files"; got != want {
-		t.Fatalf("spec.Description = %q, want %q", got, want)
-	}
-	if got, want := string(spec.InputSchema), `{"properties":{"path":{"type":"string"}},"type":"object"}`; got != want {
-		t.Fatalf("spec.InputSchema = %s, want %s", got, want)
-	}
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		spec, err := codec.DecodeAndValidate(testutil.Context(t), scope, []byte(`{
+			"id": "ext__linear__search",
+			"display_title": " Search ",
+			"description": " search files ",
+			"backend": {
+				"kind": "extension_host",
+				"extension_id": " linear ",
+				"handler": " search ",
+				"requires_capabilities": [" files.read "]
+			},
+			"input_schema": {
+				"properties": {"path": {"type": "string"}},
+				"type": "object"
+			},
+			"output_schema": null,
+			"source": {
+				"kind": "extension",
+				"owner": " linear ",
+				"raw_tool_name": " search "
+			},
+			"visibility": "operator",
+			"risk": "read",
+			"read_only": true,
+			"concurrency_safe": true,
+			"toolsets": [" linear__read "],
+			"tags": [" search "],
+			"search_hints": [" files "]
+		}`))
+		if err != nil {
+			t.Fatalf("codec.DecodeAndValidate() error = %v", err)
+		}
+
+		if got, want := spec.ID, ToolID("ext__linear__search"); got != want {
+			t.Fatalf("spec.ID = %q, want %q", got, want)
+		}
+		if got, want := spec.DisplayTitle, "Search"; got != want {
+			t.Fatalf("spec.DisplayTitle = %q, want %q", got, want)
+		}
+		if got, want := spec.Description, "search files"; got != want {
+			t.Fatalf("spec.Description = %q, want %q", got, want)
+		}
+		if got, want := string(
+			spec.InputSchema,
+		), `{"properties":{"path":{"type":"string"}},"type":"object"}`; got != want {
+			t.Fatalf("spec.InputSchema = %s, want %s", got, want)
+		}
+		if spec.OutputSchema != nil {
+			t.Fatalf("spec.OutputSchema = %s, want nil", spec.OutputSchema)
+		}
+		if got, want := spec.Backend.ExtensionID, "linear"; got != want {
+			t.Fatalf("spec.Backend.ExtensionID = %q, want %q", got, want)
+		}
+		if got, want := spec.Backend.RequiresCapabilities[0], "files.read"; got != want {
+			t.Fatalf("spec.Backend.RequiresCapabilities[0] = %q, want %q", got, want)
+		}
+		if got, want := spec.Source.Owner, "linear"; got != want {
+			t.Fatalf("spec.Source.Owner = %q, want %q", got, want)
+		}
+		if got, want := spec.Source.RawToolName, "search"; got != want {
+			t.Fatalf("spec.Source.RawToolName = %q, want %q", got, want)
+		}
+		if got, want := spec.Toolsets[0], ToolsetID("linear__read"); got != want {
+			t.Fatalf("spec.Toolsets[0] = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestToolResourceCodecRejectsInvalidSchema(t *testing.T) {
 	t.Parallel()
 
-	codec := mustToolResourceCodec(t)
+	t.Run("Should reject invalid input schemas", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := codec.DecodeAndValidate(
-		testutil.Context(t),
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-		[]byte(`{
-		"name": "lookup",
-		"input_schema": "{not-json",
-		"source": "extension"
-	}`),
-	)
-	if err == nil {
-		t.Fatal("codec.DecodeAndValidate() error = nil, want invalid input_schema failure")
-	}
+		codec := mustToolResourceCodec(t)
+		_, err := codec.DecodeAndValidate(
+			testutil.Context(t),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			[]byte(`{
+				"id": "ext__linear__search",
+				"backend": {"kind": "extension_host", "extension_id": "linear", "handler": "search"},
+				"input_schema": "{not-json",
+				"source": {"kind": "extension", "owner": "linear"},
+				"visibility": "operator",
+				"risk": "read",
+				"read_only": true
+			}`),
+		)
+		if err == nil {
+			t.Fatal("codec.DecodeAndValidate() error = nil, want invalid input_schema failure")
+		}
+	})
+
+	t.Run("Should reject missing input schemas", func(t *testing.T) {
+		t.Parallel()
+
+		codec := mustToolResourceCodec(t)
+		_, err := codec.DecodeAndValidate(
+			testutil.Context(t),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			[]byte(`{
+				"id": "ext__linear__search",
+				"backend": {"kind": "extension_host", "extension_id": "linear", "handler": "search"},
+				"source": {"kind": "extension", "owner": "linear"},
+				"visibility": "operator",
+				"risk": "read",
+				"read_only": true
+			}`),
+		)
+		if err == nil {
+			t.Fatal("codec.DecodeAndValidate() error = nil, want missing input_schema failure")
+		}
+	})
+
+	t.Run("Should reject invalid output schemas", func(t *testing.T) {
+		t.Parallel()
+
+		codec := mustToolResourceCodec(t)
+		_, err := codec.DecodeAndValidate(
+			testutil.Context(t),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			[]byte(`{
+				"id": "ext__linear__search",
+				"backend": {"kind": "extension_host", "extension_id": "linear", "handler": "search"},
+				"input_schema": {"type": "object"},
+				"output_schema": "invalid",
+				"source": {"kind": "extension", "owner": "linear"},
+				"visibility": "operator",
+				"risk": "read",
+				"read_only": true
+			}`),
+		)
+		if err == nil {
+			t.Fatal("codec.DecodeAndValidate() error = nil, want invalid output_schema failure")
+		}
+	})
 }

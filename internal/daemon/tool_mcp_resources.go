@@ -305,14 +305,14 @@ type desiredMCPServerResource struct {
 }
 
 func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context) (struct {
-	tools      map[string]desiredToolResource
+	tools      map[string]*desiredToolResource
 	mcpServers map[string]desiredMCPServerResource
 }, error) {
 	desired := struct {
-		tools      map[string]desiredToolResource
+		tools      map[string]*desiredToolResource
 		mcpServers map[string]desiredMCPServerResource
 	}{
-		tools:      make(map[string]desiredToolResource),
+		tools:      make(map[string]*desiredToolResource),
 		mcpServers: make(map[string]desiredMCPServerResource),
 	}
 
@@ -325,13 +325,14 @@ func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context) (struct {
 			return desired, err
 		}
 
-		for _, item := range items.tools {
+		for i := range items.tools {
+			item := &items.tools[i]
 			spec, encoded, err := validateAndEncodeTool(ctx, s.toolCodec, item.scope, item.spec)
 			if err != nil {
 				return desired, err
 			}
 			id := managedResourceID(toolManagedIDPrefix, item.scope.Normalize(), item.sourceKey, encoded)
-			desired.tools[id] = desiredToolResource{
+			desired.tools[id] = &desiredToolResource{
 				id:      id,
 				scope:   item.scope.Normalize(),
 				spec:    spec,
@@ -356,7 +357,7 @@ func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context) (struct {
 	return desired, nil
 }
 
-func (s *toolMCPSourceSyncer) syncTools(ctx context.Context, desired map[string]desiredToolResource) (bool, error) {
+func (s *toolMCPSourceSyncer) syncTools(ctx context.Context, desired map[string]*desiredToolResource) (bool, error) {
 	source := s.actor.Source
 	current, err := s.toolStore.List(ctx, s.actor, resources.ResourceFilter{Source: &source})
 	if err != nil {
@@ -370,6 +371,9 @@ func (s *toolMCPSourceSyncer) syncTools(ctx context.Context, desired map[string]
 
 	changed := false
 	for id, desiredTool := range desired {
+		if desiredTool == nil {
+			continue
+		}
 		existing, ok := currentByID[id]
 		if ok && s.sameTool(existing, desiredTool.scope, desiredTool.encoded) {
 			delete(currentByID, id)
@@ -617,9 +621,17 @@ func extensionManifestToolMCPDeclarationProvider(
 				continue
 			}
 
-			for _, tool := range extensionpkg.ResolveManifestToolResources(ext.Manifest) {
+			tools, err := extensionpkg.ResolveManifestToolResources(ext.Manifest)
+			if err != nil {
+				return toolMCPDesiredResources{}, fmt.Errorf(
+					"daemon: resolve extension %q tools: %w",
+					ext.Info.Name,
+					err,
+				)
+			}
+			for _, tool := range tools {
 				desired.tools = append(desired.tools, toolPublicationInput{
-					sourceKey: "extension/" + ext.Info.Name + "/tool/" + strings.TrimSpace(tool.Name),
+					sourceKey: "extension/" + ext.Info.Name + "/tool/" + strings.TrimSpace(tool.ID.String()),
 					scope:     globalScope,
 					spec:      cloneToolSpec(tool),
 				})
@@ -717,6 +729,13 @@ func cloneToolSpec(src toolspkg.Tool) toolspkg.Tool {
 	if len(src.InputSchema) > 0 {
 		cloned.InputSchema = append([]byte(nil), src.InputSchema...)
 	}
+	if len(src.OutputSchema) > 0 {
+		cloned.OutputSchema = append([]byte(nil), src.OutputSchema...)
+	}
+	cloned.Backend.RequiresCapabilities = slices.Clone(src.Backend.RequiresCapabilities)
+	cloned.Toolsets = slices.Clone(src.Toolsets)
+	cloned.Tags = slices.Clone(src.Tags)
+	cloned.SearchHints = slices.Clone(src.SearchHints)
 	return cloned
 }
 
