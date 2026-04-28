@@ -228,6 +228,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/sessions/:id/clear",
 		"POST /api/sessions/:id/prompt",
 		"POST /api/sessions/:id/prompt/cancel",
+		"POST /api/sessions/:id/repair",
 		"POST /api/sessions/:id/resume",
 		"POST /api/sessions/:id/stop",
 		"POST /api/settings/actions/restart",

@@ -118,6 +118,33 @@ type TurnHistoryPayload struct {
 	Events []SessionEventPayload `json:"events"`
 }
 
+// SessionRepairPayload reports one dry-run or persisted session repair pass.
+type SessionRepairPayload struct {
+	SessionID string                       `json:"session_id"`
+	Issues    []SessionRepairIssuePayload  `json:"issues"`
+	Actions   []SessionRepairActionPayload `json:"actions"`
+	Persisted bool                         `json:"persisted"`
+}
+
+// SessionRepairIssuePayload is one inconsistency found during session repair.
+type SessionRepairIssuePayload struct {
+	Code     string `json:"code"`
+	Severity string `json:"severity"`
+	TurnID   string `json:"turn_id,omitempty"`
+	EventID  string `json:"event_id,omitempty"`
+	Detail   string `json:"detail,omitempty"`
+}
+
+// SessionRepairActionPayload is one append-only repair action.
+type SessionRepairActionPayload struct {
+	Code       string `json:"code"`
+	TurnID     string `json:"turn_id"`
+	EventID    string `json:"event_id,omitempty"`
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	ToolName   string `json:"tool_name,omitempty"`
+	Persisted  bool   `json:"persisted"`
+}
+
 // AgentPayload is the shared agent definition response payload.
 type AgentPayload struct {
 	Name        string               `json:"name"`

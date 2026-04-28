@@ -24,6 +24,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionStopCommand(deps))
 	cmd.AddCommand(newSessionStatusCommand(deps))
 	cmd.AddCommand(newSessionResumeCommand(deps))
+	cmd.AddCommand(newSessionRepairCommand(deps))
 	cmd.AddCommand(newSessionWaitCommand(deps))
 	cmd.AddCommand(newSessionPromptCommand(deps))
 	cmd.AddCommand(newSessionEventsCommand(deps))
@@ -196,6 +197,42 @@ func newSessionResumeCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionBundle(info, deps.now))
 		},
 	}
+}
+
+func newSessionRepairCommand(deps commandDeps) *cobra.Command {
+	var (
+		dryRun bool
+		force  bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "repair <id>",
+		Short: "Inspect and repair an interrupted session transcript",
+		Example: `  # Report the repair actions without writing new events
+  agh session repair sess_1234 --dry-run
+
+  # Force repair for a stopped session whose stop reason is not crash or error
+  agh session repair sess_1234 --force`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+
+			result, err := client.RepairSession(cmd.Context(), args[0], SessionRepairQuery{
+				DryRun: dryRun,
+				Force:  force,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, sessionRepairBundle(result))
+		},
+	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Report planned repairs without persisting events")
+	cmd.Flags().BoolVar(&force, "force", false, "Allow repair for stopped non-crash sessions")
+	return cmd
 }
 
 func newSessionWaitCommand(deps commandDeps) *cobra.Command {
@@ -552,6 +589,70 @@ func sessionSandboxBackend(info SessionRecord) string {
 		return ""
 	}
 	return strings.TrimSpace(info.Sandbox.Backend)
+}
+
+func sessionRepairBundle(record SessionRepairRecord) outputBundle {
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			return renderHumanSection("Session Repair", []keyValue{
+				{Label: "Session", Value: stringOrDash(record.SessionID)},
+				{Label: "Persisted", Value: strconv.FormatBool(record.Persisted)},
+				{Label: "Issues", Value: stringOrDash(sessionRepairIssueSummary(record.Issues))},
+				{Label: "Actions", Value: stringOrDash(sessionRepairActionSummary(record.Actions))},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject("repair", []string{
+				"session_id",
+				"persisted",
+				"issues",
+				"actions",
+			}, []string{
+				record.SessionID,
+				strconv.FormatBool(record.Persisted),
+				sessionRepairIssueSummary(record.Issues),
+				sessionRepairActionSummary(record.Actions),
+			}), nil
+		},
+	}
+}
+
+func sessionRepairIssueSummary(items []SessionRepairIssueRecord) string {
+	if len(items) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		parts = append(parts, repairSummaryPart(item.Code, item.TurnID, item.EventID))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func sessionRepairActionSummary(items []SessionRepairActionRecord) string {
+	if len(items) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		ref := item.EventID
+		if ref == "" {
+			ref = item.ToolCallID
+		}
+		parts = append(parts, repairSummaryPart(item.Code, item.TurnID, ref))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func repairSummaryPart(code string, turnID string, ref string) string {
+	value := strings.TrimSpace(code)
+	if trimmedTurn := strings.TrimSpace(turnID); trimmedTurn != "" {
+		value += ":" + trimmedTurn
+	}
+	if trimmedRef := strings.TrimSpace(ref); trimmedRef != "" {
+		value += ":" + trimmedRef
+	}
+	return value
 }
 
 func sessionFailureKind(info SessionRecord) string {

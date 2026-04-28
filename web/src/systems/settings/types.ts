@@ -1,3 +1,5 @@
+import type { LucideIcon } from "lucide-react";
+
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type SettingsGeneralSection = OperationResponse<"getSettingsGeneral", 200>;
@@ -67,6 +69,7 @@ export type SettingsCollectionName = "providers" | "mcp-servers" | "sandboxes" |
 export interface SettingsSectionDescriptor {
   slug: SettingsSectionSlug;
   label: string;
+  icon: LucideIcon;
 }
 
 export type SettingsSectionSlug =

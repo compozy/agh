@@ -10,7 +10,12 @@ import {
 import { AlertTriangle, RefreshCw, Settings as SettingsIcon } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 
-import { Button, Empty, buttonVariants, cn } from "@agh/ui";
+import { Button, Empty, SidebarSectionLabel, buttonVariants, cn } from "@agh/ui";
+import {
+  ACTIVE_NAV_INDICATOR_CLASS,
+  ACTIVE_NAV_ROW_CLASS,
+  NAV_ROW_CLASS,
+} from "@/components/sidebar-nav-classes";
 import {
   SETTINGS_ROOT_PATH,
   SETTINGS_SECTIONS,
@@ -97,15 +102,11 @@ function SettingsSectionNav() {
   return (
     <nav
       aria-label="Settings sections"
-      className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)]"
+      className="flex w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)] px-2 py-3"
       data-testid="settings-section-nav"
     >
-      <div className="px-4 pb-2 pt-5">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-[var(--tracking-mono)] text-[color:var(--color-text-label)]">
-          Settings
-        </span>
-      </div>
-      <div className="flex flex-col gap-0.5 px-2 pb-4">
+      <SidebarSectionLabel className="px-2 pt-2 pb-1">Settings</SidebarSectionLabel>
+      <div className="flex flex-col gap-0.5">
         {SETTINGS_SECTIONS.map(section => (
           <SettingsSectionLink key={section.slug} section={section} />
         ))}
@@ -118,6 +119,7 @@ function SettingsSectionLink({ section }: { section: SettingsSectionDescriptor }
   const matchRoute = useMatchRoute();
   const sectionPath = settingsSectionPath(section.slug);
   const isActive = !!matchRoute({ to: sectionPath, fuzzy: true });
+  const Icon = section.icon;
 
   return (
     <Link
@@ -125,20 +127,17 @@ function SettingsSectionLink({ section }: { section: SettingsSectionDescriptor }
       data-testid={`settings-section-${section.slug}`}
       data-active={isActive ? "true" : "false"}
       aria-current={isActive ? "page" : undefined}
-      className={cn(
-        "relative flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
-        "text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-hover)]",
-        isActive &&
-          "bg-[color:var(--color-hover)] font-medium text-[color:var(--color-text-primary)]"
-      )}
+      className={cn(NAV_ROW_CLASS, isActive && ACTIVE_NAV_ROW_CLASS)}
     >
       {isActive && (
         <span
-          className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-[color:var(--color-accent)]"
+          aria-hidden="true"
+          className={ACTIVE_NAV_INDICATOR_CLASS}
           data-testid={`settings-section-active-${section.slug}`}
         />
       )}
-      <span>{section.label}</span>
+      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      <span className="truncate">{section.label}</span>
     </Link>
   );
 }

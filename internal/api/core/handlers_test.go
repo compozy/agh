@@ -28,6 +28,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	var createCalled atomic.Bool
+	var repairSeen session.SessionRepairOpts
 	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{testutil.NewSessionInfo("sess-a")}, nil
@@ -70,6 +71,18 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			resumed := testutil.NewSession(id)
 			resumed.State = session.StateActive
 			return resumed, nil
+		},
+		RepairFn: func(_ context.Context, opts session.SessionRepairOpts) (*session.SessionRepairResult, error) {
+			repairSeen = opts
+			return &session.SessionRepairResult{
+				SessionID: opts.SessionID,
+				Actions: []session.SessionRepairAction{{
+					Code:      session.RepairActionAppendTerminalError,
+					TurnID:    "turn-1",
+					Persisted: !opts.DryRun,
+				}},
+				Persisted: !opts.DryRun,
+			}, nil
 		},
 		EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
 			if id != "sess-a" || query.Limit != 10 || query.AfterSequence != 5 {
@@ -181,6 +194,23 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		resumeResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions/sess-a/resume", nil)
 		if resumeResp.Code != http.StatusOK {
 			t.Fatalf("resume status = %d, want %d", resumeResp.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("ShouldRepairSession", func(t *testing.T) {
+		repairResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions/sess-a/repair?dry_run=true&force=true", nil)
+		if repairResp.Code != http.StatusOK {
+			t.Fatalf("repair status = %d, want %d", repairResp.Code, http.StatusOK)
+		}
+		if repairSeen.SessionID != "sess-a" || !repairSeen.DryRun || !repairSeen.Force {
+			t.Fatalf("repair opts = %#v, want sess-a dry-run force", repairSeen)
+		}
+		var payload contract.SessionRepairResponse
+		if err := json.Unmarshal(repairResp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(repair response) error = %v", err)
+		}
+		if payload.Repair.SessionID != "sess-a" {
+			t.Fatalf("repair session id = %q, want sess-a", payload.Repair.SessionID)
 		}
 	})
 

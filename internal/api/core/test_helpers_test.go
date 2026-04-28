@@ -160,6 +160,7 @@ func newHandlerFixtureWithAutomationAndTasks(
 	engine.DELETE("/sessions/:id", handlers.DeleteSession)
 	engine.POST("/sessions/:id/stop", handlers.StopSession)
 	engine.POST("/sessions/:id/resume", handlers.ResumeSession)
+	engine.POST("/sessions/:id/repair", handlers.RepairSession)
 	engine.GET("/sessions/:id/events", handlers.SessionEvents)
 	engine.GET("/sessions/:id/history", handlers.SessionHistory)
 	engine.GET("/sessions/:id/transcript", handlers.SessionTranscript)

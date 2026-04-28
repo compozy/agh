@@ -233,6 +233,43 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) 
 	return payload
 }
 
+// SessionRepairPayloadFromResult converts a session repair report into the shared payload.
+func SessionRepairPayloadFromResult(result *session.SessionRepairResult) contract.SessionRepairPayload {
+	if result == nil {
+		return contract.SessionRepairPayload{}
+	}
+
+	issues := make([]contract.SessionRepairIssuePayload, 0, len(result.Issues))
+	for _, issue := range result.Issues {
+		issues = append(issues, contract.SessionRepairIssuePayload{
+			Code:     issue.Code,
+			Severity: issue.Severity,
+			TurnID:   issue.TurnID,
+			EventID:  issue.EventID,
+			Detail:   issue.Detail,
+		})
+	}
+
+	actions := make([]contract.SessionRepairActionPayload, 0, len(result.Actions))
+	for _, action := range result.Actions {
+		actions = append(actions, contract.SessionRepairActionPayload{
+			Code:       action.Code,
+			TurnID:     action.TurnID,
+			EventID:    action.EventID,
+			ToolCallID: action.ToolCallID,
+			ToolName:   action.ToolName,
+			Persisted:  action.Persisted,
+		})
+	}
+
+	return contract.SessionRepairPayload{
+		SessionID: result.SessionID,
+		Issues:    issues,
+		Actions:   actions,
+		Persisted: result.Persisted,
+	}
+}
+
 // AgentPayloadFromDef converts an agent definition into the shared payload.
 func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
 	mcpServers := make([]contract.AgentMCPServerJSON, 0, len(agent.MCPServers))

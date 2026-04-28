@@ -18,6 +18,11 @@ import {
 import { cn, Logo, Sidebar, SidebarSectionLabel, Pill } from "@agh/ui";
 
 import { ConnectionIndicator, type ConnectionStatus } from "@/components/connection-indicator";
+import {
+  ACTIVE_NAV_INDICATOR_CLASS,
+  ACTIVE_NAV_ROW_CLASS,
+  NAV_ROW_CLASS,
+} from "@/components/sidebar-nav-classes";
 import { AgentIcon, type AgentPayload } from "@/systems/agent";
 import type { SessionPayload } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
@@ -80,13 +85,6 @@ function RailSlot({
     </div>
   );
 }
-
-const NAV_ROW_CLASS =
-  "relative flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-[13px] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-hover)] hover:text-[color:var(--color-text-primary)]";
-const ACTIVE_NAV_ROW_CLASS =
-  "bg-[color:var(--color-surface)] font-medium text-[color:var(--color-text-primary)]";
-const ACTIVE_NAV_INDICATOR_CLASS =
-  "absolute -left-2 top-1.5 bottom-1.5 w-[2px] rounded-r-[2px] bg-[color:var(--color-accent)]";
 
 interface NavItemProps {
   to: string;

@@ -4263,6 +4263,7 @@ type fakeSessionManager struct {
 	promptCtxCancelled       chan struct{}
 	stopCalls                []string
 	deleteCalls              []string
+	repairCalls              []session.SessionRepairOpts
 	stopWithCauseCalls       []fakeStopWithCauseCall
 	requestStopCalls         []fakeStopWithCauseCall
 	waitFinalizationsRelease <-chan struct{}
@@ -4377,6 +4378,16 @@ func (f *fakeSessionManager) History(context.Context, string, store.EventQuery) 
 
 func (f *fakeSessionManager) Transcript(context.Context, string) ([]transcript.UIMessage, error) {
 	return nil, nil
+}
+
+func (f *fakeSessionManager) RepairSession(
+	_ context.Context,
+	opts session.SessionRepairOpts,
+) (*session.SessionRepairResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.repairCalls = append(f.repairCalls, opts)
+	return &session.SessionRepairResult{SessionID: opts.SessionID}, nil
 }
 
 func (f *fakeSessionManager) Stop(_ context.Context, id string) error {
@@ -4520,6 +4531,41 @@ func TestFakeSessionManagerClearConversationTreatsMissingSessionAsFreshConversat
 		}
 		if got, want := cleared.State, session.StateActive; got != want {
 			t.Fatalf("cleared.State = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestBootSessionRepair(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldRepairOnlyStoppedCrashOrErrorSessions", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &fakeSessionManager{
+			infos: []*session.Info{
+				{ID: "sess-crash", State: session.StateStopped, StopReason: store.StopAgentCrashed},
+				{ID: "sess-error", State: session.StateStopped, StopReason: store.StopError},
+				{ID: "sess-complete", State: session.StateStopped, StopReason: store.StopCompleted},
+				{ID: "sess-active", State: session.StateActive, StopReason: store.StopAgentCrashed},
+			},
+		}
+		state := &bootState{
+			logger:   discardLogger(),
+			sessions: manager,
+		}
+		daemon := &Daemon{}
+
+		if err := daemon.bootSessionRepair(testutil.Context(t), state); err != nil {
+			t.Fatalf("bootSessionRepair() error = %v", err)
+		}
+
+		manager.mu.Lock()
+		defer manager.mu.Unlock()
+		if got, want := len(manager.repairCalls), 2; got != want {
+			t.Fatalf("repair calls = %d, want %d", got, want)
+		}
+		if manager.repairCalls[0].SessionID != "sess-crash" || manager.repairCalls[1].SessionID != "sess-error" {
+			t.Fatalf("repair calls = %#v, want crash then error sessions", manager.repairCalls)
 		}
 	})
 }

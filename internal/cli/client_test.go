@@ -498,6 +498,17 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
 					), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/repair":
+					if got := req.URL.Query().Get("dry_run"); got != "true" {
+						t.Fatalf("repair dry_run query = %q, want true", got)
+					}
+					if got := req.URL.Query().Get("force"); got != "true" {
+						t.Fatalf("repair force query = %q, want true", got)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"repair":{"session_id":"sess-1","persisted":false,"issues":[],"actions":[{"code":"append_terminal_error","turn_id":"turn-1","persisted":false}]}}`,
+					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions/sess-1/prompt":
 					body, err := io.ReadAll(req.Body)
 					if err != nil {
@@ -793,6 +804,11 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	resumed, err := client.ResumeSession(ctx, "sess-1")
 	if err != nil || resumed.ID != "sess-1" {
 		t.Fatalf("ResumeSession() = %#v, %v", resumed, err)
+	}
+
+	repaired, err := client.RepairSession(ctx, "sess-1", SessionRepairQuery{DryRun: true, Force: true})
+	if err != nil || repaired.SessionID != "sess-1" || len(repaired.Actions) != 1 {
+		t.Fatalf("RepairSession() = %#v, %v", repaired, err)
 	}
 
 	promptEvents, err := client.PromptSession(ctx, "sess-1", "hello")
@@ -2307,6 +2323,21 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 			name:    "Should alias TurnHistoryRecord to the shared contract",
 			cliType: TurnHistoryRecord{},
 			want:    contract.TurnHistoryPayload{},
+		},
+		{
+			name:    "Should alias SessionRepairRecord to the shared contract",
+			cliType: SessionRepairRecord{},
+			want:    contract.SessionRepairPayload{},
+		},
+		{
+			name:    "Should alias SessionRepairIssueRecord to the shared contract",
+			cliType: SessionRepairIssueRecord{},
+			want:    contract.SessionRepairIssuePayload{},
+		},
+		{
+			name:    "Should alias SessionRepairActionRecord to the shared contract",
+			cliType: SessionRepairActionRecord{},
+			want:    contract.SessionRepairActionPayload{},
 		},
 		{
 			name:    "Should alias AgentRecord to the shared contract",

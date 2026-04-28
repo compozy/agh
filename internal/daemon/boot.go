@@ -31,6 +31,7 @@ import (
 	"github.com/pedronauck/agh/internal/situation"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/toolruntime"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
@@ -158,6 +159,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return err
 	}
 	if err := d.bootRuntime(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootSessionRepair(ctx, state); err != nil {
 		return err
 	}
 	if err := d.bootTasks(ctx, state); err != nil {
@@ -524,6 +528,90 @@ func (d *Daemon) bootRuntimeServices(
 	}
 	state.deps.Resources = resourceService
 	return nil
+}
+
+func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error {
+	if state == nil {
+		return errors.New("daemon: boot session repair state is required")
+	}
+	if state.sessions == nil {
+		return errors.New("daemon: boot session repair requires session manager")
+	}
+
+	infos, err := state.sessions.ListAll(ctx)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("daemon: boot session repair canceled: %w", ctxErr)
+		}
+		state.logger.Warn("daemon: boot session repair skipped session list", "error", err)
+		return nil
+	}
+
+	for _, info := range infos {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("daemon: boot session repair canceled: %w", err)
+		}
+		if !bootShouldRepairSession(info) {
+			continue
+		}
+
+		result, repairErr := state.sessions.RepairSession(ctx, session.SessionRepairOpts{SessionID: info.ID})
+		if repairErr != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return fmt.Errorf("daemon: boot session repair canceled: %w", ctxErr)
+			}
+			state.logger.Warn(
+				"daemon: boot session repair failed",
+				"session_id", info.ID,
+				"error", repairErr,
+			)
+			continue
+		}
+		if result == nil {
+			continue
+		}
+		errorIssues := repairIssueCount(result, session.RepairSeverityError)
+		if len(result.Actions) == 0 && errorIssues == 0 {
+			continue
+		}
+		state.logger.Info(
+			"daemon: boot session repair complete",
+			"session_id", result.SessionID,
+			"persisted", result.Persisted,
+			"actions", len(result.Actions),
+			"issues", len(result.Issues),
+			"error_issues", errorIssues,
+		)
+	}
+	return nil
+}
+
+func bootShouldRepairSession(info *session.Info) bool {
+	if info == nil || strings.TrimSpace(info.ID) == "" {
+		return false
+	}
+	if info.State != session.StateStopped {
+		return false
+	}
+	switch info.StopReason {
+	case store.StopAgentCrashed, store.StopError:
+		return true
+	default:
+		return false
+	}
+}
+
+func repairIssueCount(result *session.SessionRepairResult, severity string) int {
+	if result == nil {
+		return 0
+	}
+	count := 0
+	for _, issue := range result.Issues {
+		if strings.TrimSpace(issue.Severity) == severity {
+			count++
+		}
+	}
+	return count
 }
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {

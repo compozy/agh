@@ -44,6 +44,7 @@ type SessionManager interface {
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
 	Transcript(ctx context.Context, id string) ([]transcript.UIMessage, error)
+	RepairSession(ctx context.Context, opts session.SessionRepairOpts) (*session.SessionRepairResult, error)
 	Delete(ctx context.Context, id string) error
 	Stop(ctx context.Context, id string) error
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error

@@ -1772,6 +1772,25 @@ var operationRegistry = []OperationSpec{
 		},
 	},
 	{
+		Method:      "POST",
+		Path:        "/api/sessions/{id}/repair",
+		OperationID: "repairSession",
+		Summary:     "Inspect and repair an interrupted session transcript",
+		Tags:        []string{"sessions"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Session id"),
+			boolQueryParam("dry_run", "Report planned repairs without persisting new events"),
+			boolQueryParam("force", "Allow repair for stopped sessions whose stop reason is not crash or error"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SessionRepairResponse{}},
+			{Status: 400, Description: "Invalid repair options", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Session not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
 		Method:      "GET",
 		Path:        "/api/sessions/{id}/events",
 		OperationID: "listSessionEvents",

@@ -307,6 +307,32 @@ func (h *BaseHandlers) ResumeSession(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(sess.Info())})
 }
 
+// RepairSession inspects and optionally repairs an interrupted persisted session transcript.
+func (h *BaseHandlers) RepairSession(c *gin.Context) {
+	dryRun, err := repairBoolQuery(c, "dry_run", "dry-run")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	force, err := repairBoolQuery(c, "force")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := h.Sessions.RepairSession(c.Request.Context(), session.SessionRepairOpts{
+		SessionID: c.Param("id"),
+		DryRun:    dryRun,
+		Force:     force,
+	})
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.SessionRepairResponse{Repair: SessionRepairPayloadFromResult(result)})
+}
+
 // ClearSessionConversation clears persisted conversation history and restarts the
 // session with a fresh ACP conversation context while preserving the same id.
 func (h *BaseHandlers) ClearSessionConversation(c *gin.Context) {
@@ -391,6 +417,17 @@ func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.SessionTranscriptResponse{Messages: messages})
+}
+
+func repairBoolQuery(c *gin.Context, names ...string) (bool, error) {
+	for _, name := range names {
+		raw, ok := c.GetQuery(name)
+		if !ok {
+			continue
+		}
+		return ParseOptionalBool(raw)
+	}
+	return false, nil
 }
 
 // StreamSession streams session events over SSE.

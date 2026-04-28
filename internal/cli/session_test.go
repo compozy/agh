@@ -301,6 +301,58 @@ func TestSessionListPassesWorkspaceFilter(t *testing.T) {
 	}
 }
 
+func TestSessionRepairPassesFlagsAndRendersJSON(t *testing.T) {
+	t.Parallel()
+
+	var seenQuery SessionRepairQuery
+	var seenID string
+	deps := newTestDeps(t, &stubClient{
+		repairSessionFn: func(_ context.Context, id string, query SessionRepairQuery) (SessionRepairRecord, error) {
+			seenID = id
+			seenQuery = query
+			return SessionRepairRecord{
+				SessionID: id,
+				Issues: []SessionRepairIssueRecord{{
+					Code:     session.RepairIssueStopReasonRequiresForce,
+					Severity: session.RepairSeverityError,
+					TurnID:   "turn-1",
+				}},
+				Actions: []SessionRepairActionRecord{{
+					Code:      session.RepairActionAppendTerminalError,
+					TurnID:    "turn-1",
+					Persisted: false,
+				}},
+			}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"session",
+		"repair",
+		"sess-1",
+		"--dry-run",
+		"--force",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("executeRootCommand(session repair) error = %v", err)
+	}
+	if seenID != "sess-1" || !seenQuery.DryRun || !seenQuery.Force {
+		t.Fatalf("repair call = id %q query %#v, want dry-run force for sess-1", seenID, seenQuery)
+	}
+
+	var decoded SessionRepairRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(session repair) error = %v", err)
+	}
+	if decoded.SessionID != "sess-1" || len(decoded.Issues) != 1 || len(decoded.Actions) != 1 {
+		t.Fatalf("decoded repair = %#v, want one issue and one action for sess-1", decoded)
+	}
+}
+
 func TestSessionEventsFollowUsesSSE(t *testing.T) {
 	t.Parallel()
 

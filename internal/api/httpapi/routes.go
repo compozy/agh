@@ -69,6 +69,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	sessions.DELETE("/:id", handlers.DeleteSession)
 	sessions.POST("/:id/stop", handlers.StopSession)
 	sessions.POST("/:id/resume", handlers.ResumeSession)
+	sessions.POST("/:id/repair", handlers.RepairSession)
 	sessions.POST("/:id/clear", handlers.ClearSessionConversation)
 	sessions.POST("/:id/prompt", handlers.promptSession)
 	sessions.POST("/:id/prompt/cancel", handlers.cancelSessionPrompt)

@@ -29,6 +29,11 @@ type SessionTranscriptResponse struct {
 	Messages []transcript.UIMessage `json:"messages"`
 }
 
+// SessionRepairResponse wraps the repair report for one session.
+type SessionRepairResponse struct {
+	Repair SessionRepairPayload `json:"repair"`
+}
+
 // SessionApprovalResponse wraps the approve-session success payload.
 type SessionApprovalResponse struct {
 	Status string `json:"status"`

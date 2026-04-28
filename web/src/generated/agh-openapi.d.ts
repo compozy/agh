@@ -1177,6 +1177,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/{id}/repair": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Inspect and repair an interrupted session transcript */
+    post: operations["repairSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{id}/resume": {
     parameters: {
       query?: never;
@@ -12820,6 +12837,93 @@ export interface operations {
         };
       };
       /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  repairSession: {
+    parameters: {
+      query?: {
+        /** @description Report planned repairs without persisting new events */
+        dry_run?: boolean;
+        /** @description Allow repair for stopped sessions whose stop reason is not crash or error */
+        force?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            repair: {
+              actions: {
+                code: string;
+                event_id?: string;
+                persisted: boolean;
+                tool_call_id?: string;
+                tool_name?: string;
+                turn_id: string;
+              }[];
+              issues: {
+                code: string;
+                detail?: string;
+                event_id?: string;
+                severity: string;
+                turn_id?: string;
+              }[];
+              persisted: boolean;
+              session_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid repair options */
       400: {
         headers: {
           [name: string]: unknown;

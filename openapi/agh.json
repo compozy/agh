@@ -22154,6 +22154,179 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
+        "/api/sessions/{id}/repair": {
+            "post": {
+                "operationId": "repairSession",
+                "parameters": [
+                    {
+                        "description": "Session id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Report planned repairs without persisting new events",
+                        "in": "query",
+                        "name": "dry_run",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "description": "Allow repair for stopped sessions whose stop reason is not crash or error",
+                        "in": "query",
+                        "name": "force",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "repair": {
+                                            "properties": {
+                                                "actions": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "code": {
+                                                                "type": "string"
+                                                            },
+                                                            "event_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "persisted": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "tool_call_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "tool_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_id": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "code",
+                                                            "persisted",
+                                                            "turn_id"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "issues": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "code": {
+                                                                "type": "string"
+                                                            },
+                                                            "detail": {
+                                                                "type": "string"
+                                                            },
+                                                            "event_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "severity": {
+                                                                "type": "string"
+                                                            },
+                                                            "turn_id": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["code", "severity"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "persisted": {
+                                                    "type": "boolean"
+                                                },
+                                                "session_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "actions",
+                                                "issues",
+                                                "persisted",
+                                                "session_id"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["repair"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid repair options"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Session not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Inspect and repair an interrupted session transcript",
+                "tags": ["sessions"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
         "/api/sessions/{id}/resume": {
             "post": {
                 "operationId": "resumeSession",

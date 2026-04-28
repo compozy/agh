@@ -61,6 +61,7 @@ type DaemonClient interface {
 	GetSession(ctx context.Context, id string) (SessionRecord, error)
 	StopSession(ctx context.Context, id string) error
 	ResumeSession(ctx context.Context, id string) (SessionRecord, error)
+	RepairSession(ctx context.Context, id string, query SessionRepairQuery) (SessionRepairRecord, error)
 	PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error)
 	SessionEvents(ctx context.Context, id string, query SessionEventQuery) ([]SessionEventRecord, error)
 	StreamSessionEvents(
@@ -208,6 +209,21 @@ type SessionRecord = contract.SessionPayload
 
 // ACPCapsRecord captures optional runtime capabilities exposed by the daemon API.
 type ACPCapsRecord = contract.ACPCapsPayload
+
+// SessionRepairRecord reports one session repair pass returned by the daemon API.
+type SessionRepairRecord = contract.SessionRepairPayload
+
+// SessionRepairIssueRecord is one inconsistency reported by session repair.
+type SessionRepairIssueRecord = contract.SessionRepairIssuePayload
+
+// SessionRepairActionRecord is one planned or persisted repair action.
+type SessionRepairActionRecord = contract.SessionRepairActionPayload
+
+// SessionRepairQuery captures CLI repair modifiers.
+type SessionRepairQuery struct {
+	DryRun bool
+	Force  bool
+}
 
 // SessionEventRecord is one persisted session event row returned by the daemon API.
 type SessionEventRecord = contract.SessionEventPayload
@@ -867,6 +883,27 @@ func (c *unixSocketClient) ResumeSession(ctx context.Context, id string) (Sessio
 		return SessionRecord{}, err
 	}
 	return response.Session, nil
+}
+
+func (c *unixSocketClient) RepairSession(
+	ctx context.Context,
+	id string,
+	query SessionRepairQuery,
+) (SessionRepairRecord, error) {
+	var response struct {
+		Repair SessionRepairRecord `json:"repair"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/repair",
+		sessionRepairValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return SessionRepairRecord{}, err
+	}
+	return response.Repair, nil
 }
 
 func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error) {
@@ -2183,6 +2220,17 @@ func sessionListValues(query SessionListQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
 		values.Set("workspace", trimmed)
+	}
+	return values
+}
+
+func sessionRepairValues(query SessionRepairQuery) url.Values {
+	values := url.Values{}
+	if query.DryRun {
+		values.Set("dry_run", "true")
+	}
+	if query.Force {
+		values.Set("force", "true")
 	}
 	return values
 }

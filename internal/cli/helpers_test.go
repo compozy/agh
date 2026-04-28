@@ -43,6 +43,7 @@ type stubClient struct {
 	getSessionFn              func(context.Context, string) (SessionRecord, error)
 	stopSessionFn             func(context.Context, string) error
 	resumeSessionFn           func(context.Context, string) (SessionRecord, error)
+	repairSessionFn           func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
 	promptSessionFn           func(context.Context, string, string) ([]AgentEventRecord, error)
 	sessionEventsFn           func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
 	streamSessionFn           func(context.Context, string, SessionEventQuery, string, SSEHandler) error
@@ -324,6 +325,17 @@ func (s *stubClient) ResumeSession(ctx context.Context, id string) (SessionRecor
 		return s.resumeSessionFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected ResumeSession call")
+}
+
+func (s *stubClient) RepairSession(
+	ctx context.Context,
+	id string,
+	query SessionRepairQuery,
+) (SessionRepairRecord, error) {
+	if s.repairSessionFn != nil {
+		return s.repairSessionFn(ctx, id, query)
+	}
+	return SessionRepairRecord{}, errors.New("unexpected RepairSession call")
 }
 
 func (s *stubClient) PromptSession(
