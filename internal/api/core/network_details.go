@@ -210,10 +210,7 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	if len(rawMessages) == 0 &&
-		strings.TrimSpace(query.BeforeMessageID) == "" &&
-		strings.TrimSpace(query.AfterMessageID) == "" &&
-		!networkChannelExists(sessions, peers, metadata, channel) {
+	if len(rawMessages) == 0 && !networkChannelExists(sessions, peers, metadata, channel) {
 		notFoundErr := fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
 		h.respondError(c, http.StatusNotFound, notFoundErr)
 		return
@@ -221,13 +218,17 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 
 	sessionByID := sessionInfoMapByID(sessions)
 	peerByID := peerInfoMapByID(peers)
-	payload := networkTimelinePayloads(
+	payload, err := networkTimelinePayloads(
 		messages,
 		sessionByID,
 		peerByID,
 		query,
 		h.networkPresenceWindow(),
 	)
+	if err != nil {
+		h.respondNetworkMessageError(c, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, contract.NetworkChannelMessagesResponse{Messages: payload})
 }
@@ -283,13 +284,17 @@ func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
 
 	sessionByID := sessionInfoMapByID(sessions)
 	peerByID := peerInfoMapByID(peers)
-	payload := networkTimelinePayloads(
+	payload, err := networkTimelinePayloads(
 		messages,
 		sessionByID,
 		peerByID,
 		query,
 		h.networkPresenceWindow(),
 	)
+	if err != nil {
+		h.respondNetworkMessageError(c, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, contract.NetworkPeerMessagesResponse{Messages: payload})
 }
@@ -1232,6 +1237,8 @@ func listTimelineRawMessages(
 ) ([]store.NetworkMessageEntry, error) {
 	rawQuery := query
 	rawQuery.Limit = 0
+	rawQuery.BeforeMessageID = ""
+	rawQuery.AfterMessageID = ""
 	return networkStore.ListNetworkMessages(ctx, rawQuery)
 }
 
@@ -1249,14 +1256,17 @@ func networkTimelinePayloads(
 	peerByID map[string]network.PeerInfo,
 	query store.NetworkMessageQuery,
 	presenceWindow time.Duration,
-) []contract.NetworkChannelMessagePayload {
+) ([]contract.NetworkChannelMessagePayload, error) {
 	history := summarizeNetworkMessageHistory(messages, presenceWindow)
-	views := paginateNetworkTimelineViews(history.timelineViews(query.IncludePresence), query)
+	views, err := paginateNetworkTimelineViews(history.timelineViews(query.IncludePresence), query)
+	if err != nil {
+		return nil, err
+	}
 	payload := make([]contract.NetworkChannelMessagePayload, 0, len(views))
 	for _, view := range views {
 		payload = append(payload, NetworkChannelMessagePayloadFromView(view, sessionByID, peerByID))
 	}
-	return payload
+	return payload, nil
 }
 
 func (s networkMessageHistorySummary) timelineViews(includePresence bool) []networkTimelineMessageView {
@@ -1430,27 +1440,29 @@ func filterVisiblePeerMessages(messages []store.NetworkMessageEntry, includePres
 func paginateNetworkTimelineViews(
 	views []networkTimelineMessageView,
 	query store.NetworkMessageQuery,
-) []networkTimelineMessageView {
+) ([]networkTimelineMessageView, error) {
 	paginated := views
 	if before := strings.TrimSpace(query.BeforeMessageID); before != "" {
 		index := indexNetworkTimelineViewByMessageID(paginated, before)
-		if index >= 0 {
-			paginated = paginated[:index]
+		if index < 0 {
+			return nil, fmt.Errorf("network timeline before cursor: %w", sql.ErrNoRows)
 		}
+		paginated = paginated[:index]
 	}
 	if after := strings.TrimSpace(query.AfterMessageID); after != "" {
 		index := indexNetworkTimelineViewByMessageID(paginated, after)
-		if index >= 0 {
-			paginated = paginated[index+1:]
+		if index < 0 {
+			return nil, fmt.Errorf("network timeline after cursor: %w", sql.ErrNoRows)
 		}
+		paginated = paginated[index+1:]
 	}
 	if query.Limit <= 0 || len(paginated) <= query.Limit {
-		return paginated
+		return paginated, nil
 	}
 	if strings.TrimSpace(query.BeforeMessageID) != "" {
-		return paginated[len(paginated)-query.Limit:]
+		return paginated[len(paginated)-query.Limit:], nil
 	}
-	return paginated[:query.Limit]
+	return paginated[:query.Limit], nil
 }
 
 func indexNetworkTimelineViewByMessageID(views []networkTimelineMessageView, messageID string) int {
