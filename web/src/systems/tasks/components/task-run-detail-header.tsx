@@ -3,7 +3,7 @@ import { ArrowUpRight, ChevronRight, Play } from "lucide-react";
 
 import { Button, Pill, PageHeader } from "@agh/ui";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import { formatRelativeTime, taskRunStatusTone, taskStatusSignal } from "../lib/task-formatters";
 import type { TaskRunDetailView } from "../types";
 
@@ -133,7 +133,7 @@ export function TaskRunDetailHeader({
                 {record.id}
               </Pill>
             </span>
-            <Pill tone={pillVariantFromTone(taskRunStatusTone(record.status))}>
+            <Pill tone={pillToneFromLegacyTone(taskRunStatusTone(record.status))}>
               {record.status}
             </Pill>
           </span>

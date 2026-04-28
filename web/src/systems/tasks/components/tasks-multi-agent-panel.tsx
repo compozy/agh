@@ -15,7 +15,7 @@ import {
 } from "../lib/task-formatters";
 import type { TaskTimelineItem } from "../types";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 /**
  * Window (in ms) during which an agent is considered "freshly active" — only
@@ -193,7 +193,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
               </Pill>
               <Pill
                 data-testid={`tasks-multi-agent-agent-status-${task.id}`}
-                tone={pillVariantFromTone(statusTone)}
+                tone={pillToneFromLegacyTone(statusTone)}
               >
                 {taskStatusLabel(task.status)}
               </Pill>

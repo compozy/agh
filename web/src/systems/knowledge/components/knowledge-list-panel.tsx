@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 import {
   formatKnowledgeRelativeTime,
+  knowledgeScopeShortLabel,
   knowledgeMemoryKey,
   memoryScopeTone,
   resolveKnowledgeScope,
@@ -71,7 +72,7 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
           {memory.type}
         </Pill>
         <Pill mono data-testid={`scope-badge-${scope}`} tone={memoryScopeTone(scope)}>
-          {scope === "workspace" ? "WS" : "GLOBAL"}
+          {knowledgeScopeShortLabel(scope)}
         </Pill>
       </div>
     </button>

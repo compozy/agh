@@ -14,7 +14,7 @@ export type LegacyPillTone =
   | "accent"
   | "warning";
 
-export function pillVariantFromTone(tone: LegacyPillTone | null | undefined): PillTone {
+export function pillToneFromLegacyTone(tone: LegacyPillTone | null | undefined): PillTone {
   switch (tone) {
     case "amber":
     case "accent":

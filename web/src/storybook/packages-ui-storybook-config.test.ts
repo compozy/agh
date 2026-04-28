@@ -30,6 +30,7 @@ describe("packages/ui Storybook config", () => {
   it("imports shared tokens without pulling in web styling or data-layer providers", () => {
     expect(packagesUiPreviewSource).toContain('import "./preview.css";');
     expect(packagesUiPreviewCssSource).toContain('@import "@agh/ui/tokens.css";');
+    expect(packagesUiPreviewCssSource).toContain('@import "shadcn/tailwind.css";');
     expect(packagesUiPreviewSource).not.toContain("web/src/styles.css");
     expect(packagesUiPreviewSource).not.toContain("msw");
     expect(packagesUiPreviewSource).not.toContain("QueryClient");

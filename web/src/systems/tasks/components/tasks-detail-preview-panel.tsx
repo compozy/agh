@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { AlertCircle, Loader2, Radio } from "lucide-react";
 
 import { Button, CodeBlock, Metric, Pill, Section } from "@agh/ui";
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
@@ -57,8 +57,8 @@ type PreviewRecord = Pick<
 
 /**
  * Inline preview rendered on `/tasks` when a list row is selected but no detail
- * route is active. Composes `StatusDot`, `MonoBadge`, `Pill`, `Metric`, `Section`,
- * and a `CodeBlock` preview of the task prompt + scope + agent.
+ * route is active. Composes `Pill.Dot`, `Pill`, `Metric`, `Section`, and a
+ * `CodeBlock` preview of the task prompt + scope + agent.
  */
 export function TasksDetailPreviewPanel({
   task,
@@ -160,18 +160,18 @@ export function TasksDetailPreviewPanel({
             <Pill mono>{identifier}</Pill>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[13px] text-[color:var(--color-text-secondary)]">
-            <Pill tone={pillVariantFromTone(taskStatusTone(record.status))}>
+            <Pill tone={pillToneFromLegacyTone(taskStatusTone(record.status))}>
               {taskStatusLabel(record.status)}
             </Pill>
             <Pill
               data-testid="tasks-detail-preview-lifecycle"
               title={taskLifecyclePhaseDescription(lifecyclePhase)}
-              tone={pillVariantFromTone(taskLifecyclePhaseTone(lifecyclePhase))}
+              tone={pillToneFromLegacyTone(taskLifecyclePhaseTone(lifecyclePhase))}
             >
               {taskLifecyclePhaseLabel(lifecyclePhase)}
             </Pill>
             {record.priority ? (
-              <Pill tone={pillVariantFromTone(taskPriorityTone(record.priority))}>
+              <Pill tone={pillToneFromLegacyTone(taskPriorityTone(record.priority))}>
                 {taskPriorityLabel(record.priority)}
               </Pill>
             ) : null}
@@ -182,7 +182,7 @@ export function TasksDetailPreviewPanel({
               <Pill
                 data-testid="tasks-detail-preview-coordination"
                 title="Coordination channel is bound to the active run. Channel messages support coordination only — task ownership stays in the task service."
-                tone={pillVariantFromTone("violet")}
+                tone={pillToneFromLegacyTone("violet")}
               >
                 <span className="inline-flex items-center gap-1">
                   <Radio className="size-3" aria-hidden="true" />

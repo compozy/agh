@@ -84,23 +84,7 @@ interface BridgeMetrics {
   successTone: "default" | "accent" | "success" | "warning" | "danger";
 }
 
-function statusToStatusDotTone(status: BridgeStatus): PillTone {
-  if (status === "disabled") return "danger";
-  switch (bridgeStatusTone(status)) {
-    case "green":
-      return "success";
-    case "amber":
-      return "warning";
-    case "danger":
-      return "danger";
-    case "violet":
-      return "info";
-    default:
-      return "neutral";
-  }
-}
-
-function statusToMonoBadgeTone(status: BridgeStatus): PillTone {
+function statusToPillTone(status: BridgeStatus): PillTone {
   if (status === "disabled") return "danger";
   switch (bridgeStatusTone(status)) {
     case "green":
@@ -545,8 +529,7 @@ function BridgeDetailHeader({
   onOpenEdit,
   onRestartBridge,
 }: BridgeDetailHeaderProps) {
-  const statusDotTone = statusToStatusDotTone(effectiveStatus);
-  const statusBadgeTone = statusToMonoBadgeTone(effectiveStatus);
+  const statusTone = statusToPillTone(effectiveStatus);
   const pulse = effectiveStatus === "starting";
 
   return (
@@ -560,11 +543,11 @@ function BridgeDetailHeader({
             >
               <Waypoints className="size-4" />
             </span>
-            <Pill.Dot pulse={pulse} tone={statusDotTone} />
+            <Pill.Dot pulse={pulse} tone={statusTone} />
             <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]">
               {bridge.display_name}
             </h2>
-            <Pill mono tone={statusBadgeTone}>
+            <Pill mono tone={statusTone}>
               {effectiveStatus}
             </Pill>
             <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>

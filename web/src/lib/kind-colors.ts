@@ -5,13 +5,13 @@
  * names, event ids) render without a dot.
  */
 export const KIND_COLORS: Record<string, string> = {
-  say: "#8E8E93",
-  greet: "#5BA6FF",
-  direct: "var(--color-accent)",
-  receipt: "var(--color-success)",
-  recipe: "var(--color-warning)",
-  trace: "#B892FF",
-  whois: "#4FD1C5",
+  say: "var(--color-kind-say)",
+  greet: "var(--color-kind-greet)",
+  direct: "var(--color-kind-direct)",
+  receipt: "var(--color-kind-receipt)",
+  recipe: "var(--color-kind-recipe)",
+  trace: "var(--color-kind-trace)",
+  whois: "var(--color-kind-whois)",
 };
 
 export function kindColorFor(kind: string): string | undefined {

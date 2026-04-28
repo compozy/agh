@@ -1,6 +1,6 @@
 import { Pill, Section } from "@agh/ui";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import { formatPercent, taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
 
@@ -45,7 +45,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
               <Pill
                 data-testid={`tasks-dashboard-status-pill-${entry.status}`}
                 size="sm"
-                tone={pillVariantFromTone(taskStatusTone(entry.status))}
+                tone={pillToneFromLegacyTone(taskStatusTone(entry.status))}
               >
                 {taskStatusLabel(entry.status)}
                 <span

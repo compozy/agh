@@ -91,10 +91,10 @@ describe("PillGroup", () => {
       <PillGroup value="list" onChange={() => {}} items={items} />
     );
     let segments = container.querySelectorAll<HTMLElement>('[data-slot="pill-group-item"]');
-    expect(segments[0]?.className).toContain("h-[22px]");
+    expect(segments[0]?.className).toContain("h-(--height-mono-badge)");
 
     rerender(<PillGroup value="list" onChange={() => {}} items={items} size="sm" />);
     segments = container.querySelectorAll<HTMLElement>('[data-slot="pill-group-item"]');
-    expect(segments[0]?.className).toContain("h-[20px]");
+    expect(segments[0]?.className).toContain("h-(--height-pill-group-segment-sm)");
   });
 });

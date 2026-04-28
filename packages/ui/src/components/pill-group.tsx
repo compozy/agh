@@ -6,7 +6,7 @@ import * as React from "react";
 import { cn } from "../lib/utils";
 
 const pillGroupSegmentVariants = cva(
-  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-[5px] font-mono text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--color-accent) focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-(--radius-chip) font-mono text-badge font-semibold uppercase tracking-(--tracking-badge) transition-colors duration-(--duration-base) ease-(--ease-out) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--color-accent) focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
@@ -14,8 +14,8 @@ const pillGroupSegmentVariants = cva(
         false: "bg-transparent text-(--color-text-tertiary) hover:text-(--color-text-secondary)",
       },
       size: {
-        sm: "h-[20px] px-2",
-        md: "h-[22px] px-2.5",
+        sm: "h-(--height-pill-group-segment-sm) px-(--space-pill-group-segment-sm-x)",
+        md: "h-(--height-mono-badge) px-(--space-pill-group-segment-md-x)",
       },
     },
     defaultVariants: {
@@ -59,7 +59,7 @@ function PillGroup<V extends string = string>({
       data-slot="pill-group"
       role="group"
       className={cn(
-        "inline-flex items-center gap-[2px] rounded-[8px] border border-(--color-divider) bg-(--color-surface-panel) p-[3px]",
+        "inline-flex items-center gap-(--space-pill-group-track-gap) rounded-(--radius) border border-(--color-divider) bg-(--color-surface-panel) p-(--space-pill-group-track-padding)",
         className
       )}
       {...props}
@@ -86,7 +86,7 @@ function PillGroup<V extends string = string>({
             {typeof item.badge === "number" && item.badge > 0 ? (
               <span
                 data-slot="pill-group-badge"
-                className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-[7px] bg-(--color-accent) px-1 font-mono text-[9px] font-bold tabular-nums text-(--color-accent-ink)"
+                className="inline-flex h-(--size-pill-group-badge) min-w-(--size-pill-group-badge) items-center justify-center rounded-full bg-(--color-accent) px-(--space-pill-group-badge-x) font-mono text-[var(--text-pill-group-badge)] font-bold tabular-nums text-(--color-accent-ink)"
               >
                 {item.badge}
               </span>

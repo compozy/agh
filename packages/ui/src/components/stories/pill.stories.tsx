@@ -11,7 +11,7 @@ const meta: Meta<typeof Pill> = {
     docs: {
       description: {
         component:
-          "Unified semantic pill — replaces `Pill`, `Pill`, `KindChip`, `Pill.Dot`, `WireChip`, and the legacy `Pill`. Compose with `Pill.Dot` for leading status dots.",
+          "Unified semantic pill — replaces legacy `MonoBadge`, `StatusDot`, `KindChip`, `WireChip`, and connection-state label compositions. Compose with `Pill.Dot` for leading status dots.",
       },
     },
   },
@@ -23,13 +23,13 @@ type Story = StoryObj<typeof meta>;
 const TONES: PillTone[] = ["neutral", "accent", "success", "warning", "danger", "info"];
 
 const KIND_DOT_COLORS: Record<string, string> = {
-  say: "#8E8E93",
-  greet: "#5BA6FF",
-  direct: "var(--color-accent)",
-  receipt: "var(--color-success)",
-  recipe: "var(--color-warning)",
-  trace: "#B892FF",
-  whois: "#4FD1C5",
+  say: "var(--color-kind-say)",
+  greet: "var(--color-kind-greet)",
+  direct: "var(--color-kind-direct)",
+  receipt: "var(--color-kind-receipt)",
+  recipe: "var(--color-kind-recipe)",
+  trace: "var(--color-kind-trace)",
+  whois: "var(--color-kind-whois)",
 };
 
 export const Default: Story = {

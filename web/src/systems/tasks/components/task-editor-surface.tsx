@@ -18,7 +18,7 @@ import {
 } from "@agh/ui";
 
 import type { CreateTaskDraftInput } from "@/hooks/routes/use-tasks-page";
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import type { TaskOwnerKind, TaskPriority, TaskRecord, TaskScope } from "../types";
 import { TASK_TEMPLATES, type TaskTemplate, type TaskTemplateId } from "../lib/task-templates";
 import { taskStatusLabel, taskStatusSignal, taskStatusTone } from "../lib/task-formatters";
@@ -122,7 +122,7 @@ export function TaskEditorSurface({
   const headerMeta = task ? (
     <div className="flex flex-wrap items-center gap-2 text-[13px] text-[color:var(--color-text-secondary)]">
       {task.identifier ? <Pill mono>{task.identifier}</Pill> : null}
-      <Pill tone={pillVariantFromTone(taskStatusTone(task.status))}>
+      <Pill tone={pillToneFromLegacyTone(taskStatusTone(task.status))}>
         {taskStatusLabel(task.status)}
       </Pill>
       <span>Scope {task.scope}</span>

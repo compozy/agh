@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { Button, Empty, Pill, Section } from "@agh/ui";
 import { cn } from "@/lib/utils";
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import { TASK_TEMPLATES, type TaskTemplate, type TaskTemplateId } from "../lib/task-templates";
 
@@ -125,7 +125,7 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
       {template.badges.length > 0 ? (
         <div className="mt-auto flex flex-wrap gap-1.5">
           {template.badges.map(badge => (
-            <Pill key={badge.label} tone={pillVariantFromTone(badge.tone)}>
+            <Pill key={badge.label} tone={pillToneFromLegacyTone(badge.tone)}>
               {badge.label}
             </Pill>
           ))}

@@ -2,7 +2,7 @@ import { AlertTriangle, Check, Gauge } from "lucide-react";
 
 import { Empty, Pill, Section } from "@agh/ui";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import { formatDurationMs } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
 
@@ -38,7 +38,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
       data-testid="tasks-dashboard-queue-health"
       label="Queue health · 24h"
       right={
-        <Pill data-testid="tasks-dashboard-health-status" tone={pillVariantFromTone(healthTone)}>
+        <Pill data-testid="tasks-dashboard-health-status" tone={pillToneFromLegacyTone(healthTone)}>
           {health.status}
         </Pill>
       }

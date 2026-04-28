@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Pill, Section } from "@agh/ui";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import {
   formatAttemptLabel,
   formatDurationMs,
@@ -63,7 +63,7 @@ export function TasksDashboardActiveRuns({
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-[11px]">
                       {run.task_identifier ? <Pill mono>{run.task_identifier}</Pill> : null}
-                      <Pill tone={pillVariantFromTone(taskRunStatusTone(run.run_status))}>
+                      <Pill tone={pillToneFromLegacyTone(taskRunStatusTone(run.run_status))}>
                         {run.run_status}
                       </Pill>
                       {run.stuck ? (

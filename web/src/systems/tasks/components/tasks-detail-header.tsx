@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ListChecks, Radio } from "lucide-react";
 
 import { Button, Pill, PageHeader } from "@agh/ui";
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
@@ -40,10 +40,10 @@ export interface TasksDetailHeaderProps {
 }
 
 /**
- * Detail page header — `PageHeader` with the task title + short id `MonoBadge` +
- * status pill, plus action buttons (edit, cancel, publish, enqueue) in the meta
- * slot. The eyebrow row below surfaces secondary metadata (owner, origin, created-
- * by, last update, priority + approval pills).
+ * Detail page header — `PageHeader` with task title, `Pill.Dot`, short id `Pill`,
+ * status pills, and action buttons (edit, cancel, publish, enqueue) in the meta
+ * slot. The eyebrow row below surfaces secondary metadata (owner, origin,
+ * created-by, last update, priority + approval pills).
  */
 export function TasksDetailHeader({
   detail,
@@ -94,14 +94,14 @@ export function TasksDetailHeader({
             </Pill>
             <Pill
               data-testid="tasks-detail-status"
-              tone={pillVariantFromTone(taskStatusTone(record.status))}
+              tone={pillToneFromLegacyTone(taskStatusTone(record.status))}
             >
               {taskStatusLabel(record.status)}
             </Pill>
             <Pill
               data-testid="tasks-detail-lifecycle"
               title={taskLifecyclePhaseDescription(lifecyclePhase)}
-              tone={pillVariantFromTone(taskLifecyclePhaseTone(lifecyclePhase))}
+              tone={pillToneFromLegacyTone(taskLifecyclePhaseTone(lifecyclePhase))}
             >
               {taskLifecyclePhaseLabel(lifecyclePhase)}
             </Pill>
@@ -109,7 +109,7 @@ export function TasksDetailHeader({
               <Pill
                 data-testid="tasks-detail-coordination"
                 title="Coordination channel is bound to the active run. Channel messages support coordination only — task ownership stays in the task service."
-                tone={pillVariantFromTone("violet")}
+                tone={pillToneFromLegacyTone("violet")}
               >
                 <span className="inline-flex items-center gap-1">
                   <Radio className="size-3" aria-hidden="true" />
@@ -202,7 +202,7 @@ export function TasksDetailHeader({
         data-testid="tasks-detail-meta"
       >
         {record.priority ? (
-          <Pill tone={pillVariantFromTone(taskPriorityTone(record.priority))}>
+          <Pill tone={pillToneFromLegacyTone(taskPriorityTone(record.priority))}>
             {taskPriorityLabel(record.priority)}
           </Pill>
         ) : null}

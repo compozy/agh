@@ -39,15 +39,34 @@
   --color-warning: #ffd60a;
   --color-info: #bf5af2;
 
+  /* Protocol kind colors */
+  --color-kind-say: #8e8e93;
+  --color-kind-greet: #5ba6ff;
+  --color-kind-direct: var(--color-accent);
+  --color-kind-receipt: var(--color-success);
+  --color-kind-recipe: var(--color-warning);
+  --color-kind-trace: #b892ff;
+  --color-kind-whois: #4fd1c5;
+
   /* Landing diagram backgrounds */
   --color-canvas-deep: #0e0e0f;
   --color-line: #3c3a39;
 
   /* Shared mono/diagram constants */
   --tracking-mono: 0.06em;
+  --tracking-badge: 0.08em;
   --radius-diagram: 12px;
   --radius-chip: 5px;
   --radius-mono-badge: 6px;
+  --height-mono-badge: 22px;
+  --height-pill-group-segment-sm: 20px;
+  --size-pill-group-badge: 14px;
+  --space-pill-group-track-gap: 2px;
+  --space-pill-group-track-padding: 3px;
+  --space-pill-group-segment-sm-x: 8px;
+  --space-pill-group-segment-md-x: 10px;
+  --space-pill-group-badge-x: 4px;
+  --text-pill-group-badge: 0.5625rem;
 
   /* Motion */
   --duration-fast: 100ms;

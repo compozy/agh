@@ -2,7 +2,7 @@ import * as React from "react";
 
 import { Pill } from "@agh/ui";
 import { cn } from "@/lib/utils";
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
@@ -108,7 +108,7 @@ function TasksListRow({
           <Pill
             data-slot="tasks-list-row-lane"
             size="sm"
-            tone={pillVariantFromTone(taskLaneTone(lane))}
+            tone={pillToneFromLegacyTone(taskLaneTone(lane))}
           >
             {LANE_LABELS[lane] ?? lane}
           </Pill>

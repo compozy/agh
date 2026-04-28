@@ -120,5 +120,6 @@ export {
 export { useCreateNetworkChannel, useSendNetworkMessage } from "./hooks/use-network-actions";
 
 // Components
+export { KindChip } from "./components/kind-chip";
 export { NetworkCreateChannelDialog } from "./components/network-create-channel-dialog";
 export { NetworkWorkspaceShell } from "./components/network-workspace-shell";

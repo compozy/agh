@@ -1,7 +1,7 @@
 import { Pill, type PillTone } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
-import { KindChip } from "@/systems/network/components/kind-chip";
+import { KindChip } from "@/systems/network";
 import {
   buildBridgeProviderKey,
   isBridgeProviderSelectable,

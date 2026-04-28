@@ -136,7 +136,7 @@ import {
 } from "@agh/ui";
 
 import { ConnectionIndicator } from "@/components/connection-indicator";
-import { KindChip } from "@/systems/network/components/kind-chip";
+import { KindChip } from "@/systems/network";
 
 const DESIGN_MD_BASE = "https://github.com/compozy/agh/blob/main/DESIGN.md";
 
@@ -295,6 +295,36 @@ const TOKEN_GROUPS: TokenGroup[] = [
     ],
   },
   {
+    id: "protocol-kinds",
+    label: "Protocol Kind Colors",
+    caption:
+      "Kind-dot colors for `say`, `greet`, `direct`, `receipt`, `recipe`, `trace`, and `whois`.",
+    swatches: [
+      { token: "--color-kind-say", value: "#8E8E93", role: "say", kind: "color" },
+      { token: "--color-kind-greet", value: "#5BA6FF", role: "greet", kind: "color" },
+      {
+        token: "--color-kind-direct",
+        value: "var(--color-accent)",
+        role: "direct",
+        kind: "color",
+      },
+      {
+        token: "--color-kind-receipt",
+        value: "var(--color-success)",
+        role: "receipt",
+        kind: "color",
+      },
+      {
+        token: "--color-kind-recipe",
+        value: "var(--color-warning)",
+        role: "recipe",
+        kind: "color",
+      },
+      { token: "--color-kind-trace", value: "#B892FF", role: "trace", kind: "color" },
+      { token: "--color-kind-whois", value: "#4FD1C5", role: "whois", kind: "color" },
+    ],
+  },
+  {
     id: "radii",
     label: "Radii",
     caption: "Small chips at 5/6px, inputs at 8px, cards/code at 12px.",
@@ -350,6 +380,12 @@ const TOKEN_GROUPS: TokenGroup[] = [
         token: "--tracking-mono",
         value: "0.06em",
         role: "Mono eyebrow tracking",
+        kind: "tracking",
+      },
+      {
+        token: "--tracking-badge",
+        value: "0.08em",
+        role: "Badge uppercase tracking",
         kind: "tracking",
       },
     ],

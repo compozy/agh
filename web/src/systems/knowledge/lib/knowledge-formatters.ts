@@ -36,7 +36,7 @@ export function knowledgeScopeShortLabel(scope: KnowledgeScope): string {
   return scope === "workspace" ? "WS" : "GLOBAL";
 }
 
-const TYPE_TONE: Record<string, PillTone> = {
+const TYPE_TONE: Record<MemoryType, PillTone> = {
   user: "accent",
   feedback: "accent",
   project: "success",
@@ -44,7 +44,7 @@ const TYPE_TONE: Record<string, PillTone> = {
 };
 
 export function memoryTypeTone(type: MemoryType): PillTone {
-  return TYPE_TONE[type] ?? "accent";
+  return TYPE_TONE[type];
 }
 
 export function memoryScopeTone(scope: KnowledgeScope): PillTone {

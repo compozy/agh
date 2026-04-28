@@ -201,7 +201,7 @@ describe("DesignSystemShowcase", () => {
         "lucide-react",
         "react",
         "@/components/connection-indicator",
-        "@/systems/network/components/kind-chip",
+        "@/systems/network",
       ]);
       const forbidden = [...sources].filter(specifier => {
         if (allowed.has(specifier)) return false;

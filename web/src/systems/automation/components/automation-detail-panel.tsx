@@ -13,7 +13,7 @@ import {
 
 import { Button, CodeBlock, Empty, Metric, Pill, Section, type MetricTone } from "@agh/ui";
 
-import { KindChip } from "@/systems/network/components/kind-chip";
+import { KindChip } from "@/systems/network";
 import { AutomationRunHistory } from "./automation-run-history";
 import {
   automationScopeLabel,

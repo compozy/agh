@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { CodeBlock, Metric, Pill, Section, Table, TableBody, TableCell, TableRow } from "@agh/ui";
 
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import { taskRunStatusTone } from "../lib/task-formatters";
 import type { TaskRunDetailView } from "../types";
 
@@ -44,7 +44,7 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
               <Pill mono>{record.id}</Pill>
             </IdentityRow>
             <IdentityRow label="Status">
-              <Pill tone={pillVariantFromTone(taskRunStatusTone(record.status))}>
+              <Pill tone={pillToneFromLegacyTone(taskRunStatusTone(record.status))}>
                 {record.status}
               </Pill>
             </IdentityRow>

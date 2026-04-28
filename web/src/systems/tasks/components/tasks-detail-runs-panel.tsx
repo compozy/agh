@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@agh/ui";
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
@@ -99,14 +99,14 @@ export function TasksDetailRunsPanel({
                   <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <Pill mono>{run.id}</Pill>
-                      <Pill tone={pillVariantFromTone(taskRunStatusTone(run.status))}>
+                      <Pill tone={pillToneFromLegacyTone(taskRunStatusTone(run.status))}>
                         {run.status}
                       </Pill>
                       {channelLabel ? (
                         <Pill
                           data-testid={`tasks-detail-runs-channel-${run.id}`}
                           title="Coordination channel is bound to this run. Channel messages support coordination only — claim, heartbeat, and terminal status stay in the task service."
-                          tone={pillVariantFromTone("violet")}
+                          tone={pillToneFromLegacyTone("violet")}
                         >
                           <span className="inline-flex items-center gap-1">
                             <Radio className="size-3" aria-hidden="true" />

@@ -6,13 +6,18 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Pill, type PillTone } from "./pill";
 
-function WithMotion({
-  reducedMotion,
-  children,
-}: {
+interface WithMotionProps {
   reducedMotion: "always" | "never";
   children: ReactNode;
-}) {
+}
+
+interface ToneExpectation {
+  tone: PillTone;
+  bg: string;
+  text: string;
+}
+
+function WithMotion({ reducedMotion, children }: WithMotionProps) {
   return <MotionConfig reducedMotion={reducedMotion}>{children}</MotionConfig>;
 }
 
@@ -28,7 +33,7 @@ describe("Pill", () => {
     expect(pill.className).toContain("text-(--color-text-secondary)");
   });
 
-  it.each<{ tone: PillTone; bg: string; text: string }>([
+  it.each<ToneExpectation>([
     { tone: "accent", bg: "bg-(--color-accent-tint)", text: "text-(--color-accent)" },
     { tone: "success", bg: "bg-(--color-success-tint)", text: "text-(--color-success)" },
     { tone: "warning", bg: "bg-(--color-warning-tint)", text: "text-(--color-warning)" },

@@ -12,7 +12,7 @@ const meta: Meta<typeof PillGroup> = {
     docs: {
       description: {
         component:
-          "Segmented toggle track. Controlled via `items` + `value` + `onChange`. Renamed from the legacy `PillGroup`.",
+          "Segmented toggle track. Controlled via `items` + `value` + `onChange`. Replaces the legacy segmented pills toggle.",
       },
     },
   },

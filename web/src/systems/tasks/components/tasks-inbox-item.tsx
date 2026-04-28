@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { Button, Pill } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 import {
   formatAttemptLabel,
   formatRelativeTime,
@@ -63,7 +63,7 @@ export function TasksInboxItem({
   // the old StatusDot + accent combination stacked too much color per row.
   const trailing = (
     <>
-      <Pill size="sm" tone={pillVariantFromTone(taskStatusTone(task.status))}>
+      <Pill size="sm" tone={pillToneFromLegacyTone(taskStatusTone(task.status))}>
         {taskStatusLabel(task.status)}
       </Pill>
       {run ? (

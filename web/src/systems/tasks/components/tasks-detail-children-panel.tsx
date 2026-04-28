@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@agh/ui";
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   formatRelativeTime,
@@ -92,11 +92,11 @@ export function TasksDetailChildrenPanel({
                       <Pill mono>
                         {taskShortId({ id: child.id, identifier: child.identifier })}
                       </Pill>
-                      <Pill tone={pillVariantFromTone(taskStatusTone(child.status))}>
+                      <Pill tone={pillToneFromLegacyTone(taskStatusTone(child.status))}>
                         {child.status}
                       </Pill>
                       {child.priority ? (
-                        <Pill tone={pillVariantFromTone(taskPriorityTone(child.priority))}>
+                        <Pill tone={pillToneFromLegacyTone(taskPriorityTone(child.priority))}>
                           {taskPriorityLabel(child.priority)}
                         </Pill>
                       ) : null}

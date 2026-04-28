@@ -1,7 +1,7 @@
 import { AlertCircle } from "lucide-react";
 
 import { Pill } from "@agh/ui";
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   formatAttemptLabel,
@@ -92,7 +92,7 @@ export function TaskCard({
 
           <div className="flex flex-wrap items-center gap-1.5">
             {task.priority ? (
-              <Pill tone={pillVariantFromTone(taskPriorityTone(task.priority))}>
+              <Pill tone={pillToneFromLegacyTone(taskPriorityTone(task.priority))}>
                 {taskPriorityLabel(task.priority)}
               </Pill>
             ) : null}

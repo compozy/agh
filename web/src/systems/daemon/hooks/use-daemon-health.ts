@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
-import type { ConnectionStatus } from "@/components/connection-indicator";
 import type { HealthPayload } from "../types";
 import { daemonHealthOptions } from "../lib/query-options";
+
+type ConnectionStatus = "connected" | "reconnecting" | "disconnected";
 
 interface DaemonHealthResult {
   health: HealthPayload | undefined;

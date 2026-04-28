@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@agh/ui";
-import { pillVariantFromTone } from "@/lib/pill-variant";
+import { pillToneFromLegacyTone } from "@/lib/pill-variant";
 
 import {
   taskOwnerLabel,
@@ -88,7 +88,7 @@ export function TasksDetailDependenciesPanel({
                       <Pill mono>
                         {taskShortId({ id: target.id, identifier: target.identifier })}
                       </Pill>
-                      <Pill tone={pillVariantFromTone(taskStatusTone(target.status))}>
+                      <Pill tone={pillToneFromLegacyTone(taskStatusTone(target.status))}>
                         {taskStatusLabel(target.status)}
                       </Pill>
                     </div>
