@@ -60,7 +60,7 @@ AGH should treat tool pool assembly as separate from registration. Registration 
 
 AGH should model visibility explicitly instead of scattering "hidden" flags. Candidate tiers include internal-only, daemon-manageable, CLI/HTTP-visible, agent-visible, model-visible, deferred-discoverable, user-command-only, and extension-private.
 
-AGH should support provider-neutral search and deferred schema loading even if Anthropic-specific `tool_reference` blocks are not portable. A registry search index and `agh.tool.search` are useful independently.
+AGH should support provider-neutral search and deferred schema loading even if Anthropic-specific `tool_reference` blocks are not portable. A registry search index and `agh__tool_search` are useful independently.
 
 AGH should keep permissions as an ordered pipeline. Discovery-time filtering improves UX, but dispatch must revalidate deny/ask/allow rules, tool-specific requirements, session permissions, workspace permissions, and hooks.
 

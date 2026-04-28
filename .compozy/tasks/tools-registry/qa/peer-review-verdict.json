@@ -1,0 +1,98 @@
+
+{
+  "blockers": [
+    {
+      "id": "B-001",
+      "section": "Integration Points → Hosted MCP / Implementation Steps step 8 / Safety Invariants",
+      "issue": "The hosted MCP exposure path is described as `agent session -> ACP mcpServers -> agh tool mcp --session <id> -> UDS -> daemon Tool Registry`, but the TechSpec never specifies how the daemon authenticates that the spawned `agh tool mcp --session <id>` process is actually authorized to act on behalf of that session. There is no proof-of-session token, no per-session UDS handshake, no spawn-time secret bound to the ACP `mcpServers` config, and no rejection rule for a foreign process attaching to another session's projection. ADR-002 explicitly requires the TechSpec to 'define how the hosted MCP server is authorized, scoped to the session/workspace, and prevented from bypassing registry dispatch'; this is unfulfilled.",
+      "rationale": "Without a specified auth model, any local process (a malicious extension sidecar, a co-tenant agent, an unrelated CLI invocation) that can reach the UDS socket can call `agh tool mcp --session <other_session>` and obtain the full session-callable tool projection — including any approve-all-permitted mutating tools, `agh__network_send`, and bounded `agh__task_*` operations. This is a session-impersonation security regression and a direct violation of the security-invariant posture in `internal/CLAUDE.md` (claim_token redaction is paired with session/workspace scoping precisely because UDS reachability is not an authorization). It is also exactly what ADR-002 stipulated must be in the TechSpec.",
+      "suggested_fix": "Add a 'Hosted MCP Authentication' subsection that specifies: (a) the daemon mints a single-use, hashed session-bound proxy token at session creation, never logs the raw value, and persists only its hash; (b) the ACP `mcpServers` env / arg passes the raw token to the spawned `agh tool mcp` process via inherited stdio handshake, never via argv; (c) the proxy presents the token over UDS in an initial bind RPC and the daemon ties the resulting projection to that single session_id; (d) the token is invalidated on session end / disconnect / TTL; (e) raw tokens are subject to the same redaction rules as `claim_token`. List this in Safety Invariants as an additional numbered item."
+    },
+    {
+      "id": "B-002",
+      "section": "Implementation Design → Implementation Steps step 6 / Integration Points → Network And Tasks / ADR-004 alignment",
+      "issue": "The MVP scope still leaves `agh__task_*` as an open wildcard. The TechSpec lists only `agh__task_list` and `agh__task_read` in the canonical examples and the build order says 'bounded `agh__task_*`' without enumerating the set. ADR-004 explicitly requires the TechSpec to enumerate the bounded operations (candidates: list/get/create/update/claim/release/complete) and to map each one to an existing or planned task primitive. That enumeration is missing.",
+      "rationale": "L-003 / L-004 / L-005 are load-bearing: `task_runs` is the single durable queue, manual==per must converge on the same primitives, and `task.Service.ClaimNextRun` is the only authoritative claimer. If the TechSpec ships without naming the exact tools and their authority routing, an implementer can plausibly introduce `agh__task_claim` or `agh__task_release` that wraps task state mutations outside `ClaimNextRun`, or expose `agh__task_create` as auto-publishing — both of which collapse the autonomy invariants Pedro shipped on 2026-04-26. This also violates `cy-tasks-tail-qa-pair` / Web-Docs-Impact discipline because the QA pair has no concrete tool list to test.",
+      "suggested_fix": "Add a 'Bootstrap Task Tools' subsection that names every `agh__task_*` tool in the MVP, with `read_only`/`destructive`/`open_world` classification and the exact `internal/task` method each one calls. Explicitly state which task tools are excluded from MVP (e.g., `agh__task_claim` and `agh__task_complete` are excluded because claim/lease state changes belong to `ClaimNextRun` and to the task lifecycle authority, not to a generic agent-callable tool). Bind this subsection to a Safety Invariant entry: 'No `agh__task_*` tool may bypass `task.Service.ClaimNextRun`, `Spawn`, or session manager terminal-state authority.'"
+    },
+    {
+      "id": "B-003",
+      "section": "Integration Points → Hosted MCP / API Endpoints (`approval_token`) / ADR-005 integration",
+      "issue": "The TechSpec exposes session-callable tools through the hosted MCP server, but never specifies how a tool whose `EffectiveToolDecision.approval_required == true` is actually invoked over MCP. MCP has no per-call approval prompt, the model has no path to surface `approval_token` over `tools/call`, and the spec does not say whether such tools are (a) filtered out of `SessionToolView` entirely, (b) auto-routed through ACP `session/request_permission`, or (c) silently fail. The CLI/HTTP `invoke` request has an `approval_token` field; the hosted MCP path has no equivalent.",
+      "rationale": "ADR-005 is explicit that approval-required tools must integrate with the ACP `permissions.mode` ceiling and the `session/request_permission` callback path. Without a specified mechanism, the hosted MCP path becomes a silent approval-bypass surface (if approval is auto-skipped) or a dead surface (if tools are listed but uncallable). Either outcome violates 'truthful UI > plausible UI' (CLAUDE.md Design System) at the agent surface and creates exactly the contradictory state ADR-005 was written to prevent. The 'partial-surface completion' rule in `internal/CLAUDE.md` is tripped here too — CLI/HTTP gets `approval_token`, MCP doesn't.",
+      "suggested_fix": "Add a 'Hosted MCP Approval Bridge' subsection that specifies: (a) `SessionToolView` for hosted MCP filters out tools that require approval AND have no live approval channel for this session (default fail-closed); (b) when ACP `session/request_permission` is available, the daemon issues that request from inside `Registry.Call` and blocks the MCP `tools/call` response until approved/denied/timed-out; (c) when no approval channel is available (deny-all + no live operator), the MCP call returns `ErrToolAprovalRequired` with `reason_codes` including `approval_unreachable`. Add a Safety Invariant: 'A hosted MCP `tools/call` cannot succeed past `approval_required` without a daemon-mediated approval that satisfies the same ACP/session ceiling as a CLI/HTTP `approval_token`.'"
+    },
+    {
+      "id": "B-004",
+      "section": "MVP Boundary Statement / Implementation Steps step 7-8 / Test Strategy → Integration Tests",
+      "issue": "The MVP boundary is internally contradictory about extension tool execution. The MVP statement says 'extension descriptor projection' (descriptors only). Step 7 builds 'extension manifest backend metadata and descriptor projection.' Step 8 says 'MCP adapter contracts and hosted MCP stdio proxy command' — 'contracts' is ambiguous as to whether the MCP-backed extension dispatch path actually executes. Yet the integration test plan aserts 'MCP-backed extension tool remains unavailable until backend health/auth passes,' which only makes sense if dispatch is functional. The post-MVP list defers only `bridge`; `mcp`, `extension_host`, and `subprocess` are silent. This produces the exact partial-surface ambiguity that L-007 and the no-partial-surface rule in `internal/CLAUDE.md` forbid.",
+      "rationale": "Either MVP ships extension tool dispatch (mcp / extension_host / subprocess) or it doesn't — the spec must commit. If it does ship, step 8's deliverable list is incomplete (no extension_host adapter, no subprocess adapter, no MCP call-through specified). If it doesn't, the integration test about MCP backend health is wrong and the descriptor-only state must be explicit. Without resolution, implementers will pick whichever interpretation is convenient mid-stream and the surface will ship half-built, exactly the partial-surface failure mode that breaks `make verify`-passing-but-not-actually-working features (L-007).",
+      "suggested_fix": "Replace the ambiguous wording with a concrete table in 'MVP Boundary Statement': for each backend kind (`builtin`, `mcp`, `extension_host`, `subprocess`, `bridge`), state explicitly whether MVP delivers (1) descriptor + availability state only or (2) full dispatch through `Registry.Call`. Update the test strategy to match. If only some kinds dispatch in MVP, name the others as 'descriptor-only, returns `ErrToolUnavailable` with reason `backend_not_implemented` if invoked' so the surface stays truthful and the post-MVP work list is explicit."
+    }
+  ],
+  "nits": [
+    {
+      "id": "N-001",
+      "section": "Data Models → Toolset",
+      "issue": "`ToolsetID` grammar is never specified; only example values like `agh__bootstrap` and `linear__read` appear.",
+      "suggested_fix": "State that `ToolsetID` shares the canonical `ToolID` grammar (lowercase ASCII segments separated by `__`, max 64 chars) and is validated by the same parser."
+    },
+    {
+      "id": "N-002",
+      "section": "Config Lifecycle → Agent Definitions",
+      "issue": "Wildcard / pattern grammar for `agent.tools`, `agent.deny_tools`, and registry allow/deny is referenced but never formally defined.",
+      "suggested_fix": "Add a 'Tool Pattern Grammar' subsection: allowed forms (`agh__skill_*`, `mcp__github__*`, exact IDs), disallowed forms (regex, `*__suffix`, mid-segment wildcards), and matching semantics against the canonical `ToolID`."
+    },
+    {
+      "id": "N-003",
+      "section": "API Endpoints → Invoke request",
+      "issue": "`approval_token` is introduced without specifying its format, lifetime, source, or relationship to claim_token redaction rules.",
+      "suggested_fix": "Define `approval_token` as an opaque local-approval reference issued by the daemon's approval surface, hashed at rest, redacted in logs/SSE/events, and unrelated to `claim_token` (separate code path)."
+    },
+    {
+      "id": "N-004",
+      "section": "Data Models → SourceRef",
+      "issue": "`dynamic` source kind is enumerated but has no MVP producer (synthesis explicitly notes the existing enum has no producer).",
+      "suggested_fix": "Either remove `dynamic` from the MVP enum (greenfield-delete) or note explicitly that it is reserved with no MVP producer and has no validation surface yet."
+    },
+    {
+      "id": "N-005",
+      "section": "Integration Points → Hosted MCP",
+      "issue": "Lifecycle of the hosted MCP proxy process (per-session vs long-lived, stdio ownership, restart on session resume) is undefined.",
+      "suggested_fix": "Add a one-paragraph lifecycle: stdio proxy is spawned by the ACP runtime per `mcpServers` entry, scoped to one session, exits when stdio closes, reconnects to the same session on `session/load`."
+    },
+    {
+      "id": "N-006",
+      "section": "Integration Points → Skills",
+      "issue": "`agh__skill_view` returns full skill content but interaction with `default_max_result_bytes` (262144) is not specified — large skill bodies will silently truncate.",
+      "suggested_fix": "State that `agh__skill_view` truncates per registry result budget and returns `truncated=true` plus a typed `next_offset`/artifact reference, or raises its descriptor's `max_result_bytes` to the documented skill body cap."
+    },
+    {
+      "id": "N-007",
+      "section": "Integration Points → Hooks / Implementation Steps step 11 / Delete Targets",
+      "issue": "Hook payload identity migration (`tool_name`+`tool_namespace` → `tool_id`) is a contract change; co-shipping the hook tests / extension-author docs / fixture matchers in the same PR is implied but not enforced (L-007 risk).",
+      "suggested_fix": "Add an explicit bullet under step 11: 'Update typed hook payloads, hook matchers, fixture builders, extension-author docs, and codegen in the same change; no dual identity allowed mid-PR.'"
+    },
+    {
+      "id": "N-008",
+      "section": "Config Lifecycle → Agent Definitions",
+      "issue": "Existing `SessionPermissionPolicy.Tools` rows from the autonomy MVP (shipped 2026-04-26) may not match the new canonical `ToolID` grammar; the spec says implementation should 'validate' these atoms but does not state the cleanup behavior on validation failure.",
+      "suggested_fix": "State explicitly: 'Greenfield posture — invalid atoms reject session spawn / lineage load with a typed error; no silent normalization. Local databases pre-dating this TechSpec require a fresh `AGH_HOME` per L-006/L-008 allowed exception.'"
+    },
+    {
+      "id": "N-009",
+      "section": "API Endpoints / Hosted MCP",
+      "issue": "Workspace resolution path for the hosted MCP `tools/list` is implicit. The CallRequest carries `workspace_id`, but the MCP proxy only knows `session_id`.",
+      "suggested_fix": "State that the proxy never accepts client-supplied workspace_id; the daemon derives workspace_id from session_id at projection time and at dispatch time."
+    },
+    {
+      "id": "N-010",
+      "section": "ADR-004 / Implementation Steps step 6",
+      "issue": "Risk / read-only / destructive / open-world classification for each MVP tool (`agh__network_send`, `agh__task_*`, `agh__skill_view`) is left to implementation.",
+      "suggested_fix": "Add a small classification table per MVP tool to remove ambiguity at implementation time and to feed the policy matrix tests."
+    }
+  ],
+  "readiness": "NEEDS_REWORK",
+  "summary": "The TechSpec is structurally strong — it carries all six L-012 quality markers, names delete targets, integrates with ADR-005 ceiling semantics, forbids in-process third-party handlers, and centralizes dispatch. It is blocked on four concrete gaps that break the spec's own contracts: hosted-MCP proxy authentication is undefined (ADR-002 explicitly required it), the bounded `agh__task_*` set is not enumerated (ADR-004 explicitly required it and L-005 requires the authoritative-primitive boundary), the approval flow over hosted MCP has no specified bridge to ACP `session/request_permission`, and the MVP boundary for extension tool execution (mcp / extension_host / subprocess) is internally contradictory. Resolve those four and the spec is ready."
+}
+

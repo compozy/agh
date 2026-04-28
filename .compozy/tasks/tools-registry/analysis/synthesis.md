@@ -14,15 +14,39 @@ The foundation should not be "add many built-in tools." The foundation should be
 6. agent-manageable CLI/HTTP/UDS/session surfaces,
 7. toolsets/bundles comparable to skills.
 
-OpenFang was not analyzed because `.resources/openfang` is not present in this checkout.
+The ACP inventory found `.resources/openfang` present, but with no meaningful ACP evidence.
 
 ## Recommended Architecture
+
+### Accepted decisions so far
+
+- Extension tool execution boundary: manifest-first descriptors with out-of-process execution only for extension tools in the MVP.
+- Session exposure path: AGH-hosted local MCP server plus shared CLI/HTTP/UDS contracts.
+- Package boundary: `internal/tools` owns runtime registry contracts and dispatch; a thin `internal/catalog` facade composes tools and skills for cross-domain discovery.
+- MVP native tool scope: bootstrap catalog/skill tools plus network and bounded task tools (`agh__tool_*`, `agh__skill_*`, `agh__network_peers`, `agh__network_send`, `agh__task_*`).
+- Policy integration: existing ACP `permissions.mode` is the system/session approval ceiling; registry policy is a granular layer below it and cannot silently grant more authority than ACP policy allows.
+- Visibility by surface: operator surfaces show unavailable/unauthorized/conflicted tools with reason codes; session/model-visible surfaces expose only tools callable in that effective session context.
+- Naming/collision policy: one canonical public `ToolID` uses provider-safe lower snake segments separated by reserved `__`, for example `agh__skill_view` and `mcp__github__create_issue`; this is captured in ADR-007.
+
+### ACP compatibility finding
+
+ACP does not define a durable callable-tool registry. It defines session lifecycle, `mcpServers` bootstrap fields, client authority callbacks, permission requests, and observable tool-call events. ACP `ToolCall` records have `toolCallId`, human-readable `title`, coarse `kind`, status, locations, raw input/output, and content, but no programmatic tool `name` equivalent to MCP `Tool.name`.
+
+This means the Tool Registry should remain an AGH daemon/runtime service. Session exposure should use the accepted AGH-hosted MCP path, where AGH exposes the canonical `ToolID` directly as the hosted MCP `Tool.name`.
+
+Accepted identity format:
+
+- `ToolID`: stable provider-safe id with reserved `__` namespace separators, such as `agh__skill_view`.
+- `DisplayTitle`: human-readable and non-unique.
+- `SourceRef`: structured provenance, not inferred only from prefixes.
+
+Collision handling must be fail-closed. Canonical ID collisions are provider registration errors or operator diagnostics. Sanitized external-name collisions make the affected tools unavailable to that session until resolved. Display title collisions are allowed because titles are not policy identities.
 
 ### 1. Split descriptor, runtime handle, and resource record
 
 Keep the existing `internal/tools.Tool` resource shape as the cold catalog/desired-state record, but introduce a runtime contract with separate types:
 
-- `ToolID`: stable namespaced id such as `agh.skill.view`, `mcp.github.create_issue`, `ext.linear.search`.
+- `ToolID`: stable provider-safe id such as `agh__skill_view`, `mcp__github__create_issue`, `ext__linear__search`.
 - `Descriptor`: identity, description, input schema, optional output schema, read-only/destructive/open-world/concurrency metadata, source/provenance, visibility, tags, owner, result budget.
 - `Handle`: descriptor plus `Availability(ctx, ToolContext)` and `Call(ctx, ToolCall)` for executable tools.
 - `Provider`: contributes descriptors/handles and can refresh.
@@ -59,6 +83,8 @@ Use explicit status:
 
 Discovery can hide unavailable/unauthorized tools from agents while operator surfaces show reasons. Dispatch must recheck availability and authorization.
 
+The registry should expose separate operator and session projections. The operator projection includes diagnostics, source/provenance, policy reasons, availability reasons, and conflicts. The session projection powers hosted MCP and future driver injection and includes only tools that pass effective visibility/execution gates for that session.
+
 ### 4. Centralize dispatch
 
 Every AGH-owned tool call should pass through:
@@ -81,6 +107,7 @@ No CLI, HTTP, UDS, MCP, extension, or session path should bypass this pipeline.
 
 Use one policy engine that combines:
 
+- system/session ACP `permissions.mode`,
 - daemon defaults,
 - workspace config,
 - extension grants,
@@ -93,23 +120,25 @@ Use one policy engine that combines:
 
 Toolsets should be recursive resources/config entries. This copies Hermes' strongest idea while fitting AGH's resource model.
 
+The registry must not create a second approval system that contradicts ACP. `approve-all` removes automatic approval prompts for otherwise allowed tools, but explicit registry denies, source grants, session lineage restrictions, availability failures, and hooks still apply. `approve-reads` auto-approves only registry-classified read-only tools. `deny-all` denies execution by default and requires an explicit approval path.
+
 ### 6. Provide a small bootstrap native toolset
 
 The TechSpec should not enumerate every future AGH tool. It should require a small proving set:
 
-- `agh.tool.list`
-- `agh.tool.search`
-- `agh.tool.info`
-- `agh.skill.list`
-- `agh.skill.view`
+- `agh__tool_list`
+- `agh__tool_search`
+- `agh__tool_info`
+- `agh__skill_list`
+- `agh__skill_view`
 
 Optional later groups:
 
-- `agh.skill.install`
-- `agh.network.peers`
-- `agh.network.send`
-- `agh.task.*`
-- `agh.extension.*`
+- `agh__skill_install`
+- `agh__network_peers`
+- `agh__network_send`
+- `agh__task_*`
+- `agh__extension_*`
 
 The bootstrap set proves discovery, schema loading, skill body loading, policy, result budget, and telemetry without overcommitting the whole daemon.
 
@@ -148,14 +177,14 @@ Build on:
 - `internal/toolruntime` for subprocess ownership if extension tools need process handles,
 - `internal/api/contract` for shared HTTP/UDS payloads.
 
-Avoid a large generic `internal/catalog` at first unless it only coordinates cross-domain search. The runtime tool registry belongs in or near `internal/tools`; a catalog facade can compose tools and skills for `agh.tool.*` / `agh.skill.*`.
+Avoid a large generic `internal/catalog` at first unless it only coordinates cross-domain search. The runtime tool registry belongs in or near `internal/tools`; a catalog facade can compose tools and skills for `agh__tool_*` / `agh__skill_*`.
 
 ## Proposed MVP Scope
 
 ### In scope
 
 - Runtime tool registry contract and central dispatch pipeline.
-- Built-in provider for the small `agh.tool.*` and `agh.skill.*` set.
+- Built-in provider for `agh__tool_list`, `agh__tool_search`, `agh__tool_info`, `agh__skill_list`, `agh__skill_search`, `agh__skill_view`, `agh__network_peers`, `agh__network_send`, and a bounded `agh__task_*` set.
 - Resource-backed descriptors from existing `tool` records.
 - Extension manifest backend metadata for future executable extension tools.
 - MCP adapter design, even if full MCP call-through is deferred.
@@ -171,8 +200,9 @@ Avoid a large generic `internal/catalog` at first unless it only coordinates cro
 - Full shell/browser/file tool replacement for ACP runtimes.
 - Provider-specific Anthropic `tool_reference` integration.
 - In-process third-party extension handlers.
-- Large catalog of AGH-native tools.
-- Network peer tool execution.
+- Large catalog of AGH-native tools beyond the selected catalog/skill/network/task set.
+- Skill install/remove/update tools unless explicitly paired with supply-chain policy/scanning work.
+- Network peer remote tool execution.
 - Marketplace signing/trust overhaul, except for explicit risk hooks needed by extension tools.
 
 ## Critical Decisions Before TechSpec
@@ -183,7 +213,7 @@ Avoid a large generic `internal/catalog` at first unless it only coordinates cro
 4. MVP tool set: only list/search/info/view, or include mutating install/network/task tools.
 5. Policy defaults: external tools disabled, ask, or visible-but-not-callable until granted.
 6. Availability visibility: hide unavailable tools from agents, show unavailable tools with reasons, or configurable by surface.
-7. Naming/collision policy: always namespaced ids with optional display aliases, or global names with precedence.
+7. Naming/collision policy: accepted in ADR-007. Use one canonical provider-safe `ToolID` with reserved `__` namespace separators, display-only title, structured provenance, and no shadowing or silent sanitized-name collisions.
 
 ## Competitor Pattern Matrix
 

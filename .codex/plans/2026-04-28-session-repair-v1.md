@@ -10,10 +10,10 @@ The v1 repair is append-only. It provides automatic boot repair for crashed/erro
 
 - Add `session.RepairSession(ctx, opts)` in `internal/session`.
 - Add stable repair types:
-  - `SessionRepairOpts{SessionID, DryRun, Force}`
-  - `SessionRepairResult{SessionID, Issues, Actions, Persisted}`
-  - `SessionRepairIssue{Code, Severity, TurnID, Detail}`
-  - `SessionRepairAction{Code, TurnID, EventID, Persisted}`
+  - `RepairOpts{SessionID, DryRun, Force}`
+  - `RepairResult{SessionID, Issues, Actions, Persisted}`
+  - `RepairIssue{Code, Severity, TurnID, Detail}`
+  - `RepairAction{Code, TurnID, EventID, Persisted}`
 - Repair behavior:
   - Append a canonical `error` event when the final persisted turn lacks `done` or `error` and the session is stopped with `agent_crashed` or `error`.
   - Append interrupted synthetic `tool_result` events before the terminal `error` when the interrupted turn has dangling `tool_call` events.
@@ -34,6 +34,36 @@ The v1 repair is append-only. It provides automatic boot repair for crashed/erro
 - HTTP/UDS/CLI tests for repair endpoint/command and error mapping.
 - Boot/integration tests proving automatic repair is idempotent after daemon restart.
 - Verification: focused Go tests, `make codegen`, `make codegen-check`, web type/test gates if generated types change, and full `make verify`.
+
+## Web/Docs Impact
+
+- `web/`:
+  - `web/src/generated/agh-openapi.d.ts` — regenerated `repairSession` operation and payload types from OpenAPI.
+  - `web/src/systems/session/types.ts` — session repair response/query aliases derived from generated contract types.
+  - `web/src/systems/session/adapters/session-api.ts` — `repairSession` client for `POST /api/sessions/{id}/repair`.
+  - `web/src/systems/session/hooks/use-session-actions.ts` — `useRepairSession` mutation invalidating session detail, history, transcript, events, and lists.
+  - `web/src/systems/session/mocks/fixtures.ts` and `web/src/systems/session/mocks/handlers.ts` — MSW fixture/handler for session repair.
+  - No route/component UI change — checked `web/src/routes/_app/**` and `web/src/systems/session/components/**`; v1 is intentionally agent/operator-manageable via CLI/HTTP/UDS, not a visible web control.
+- `packages/site`:
+  - `packages/site/content/runtime/cli-reference/session/repair.mdx` — generated CLI reference for `agh session repair`.
+  - `packages/site/content/runtime/cli-reference/session/index.mdx` and `packages/site/content/runtime/cli-reference/session/meta.json` — generated CLI navigation updates.
+  - `packages/site/content/runtime/core/sessions/lifecycle.mdx` — conceptual crash/transcript repair behavior.
+  - `packages/site/content/runtime/core/sessions/resume.mdx` — resume flow mentions append-only transcript repair before replay.
+  - `packages/site/content/runtime/core/operations/troubleshooting.mdx` — operator runbook includes dry-run/manual repair.
+  - `packages/site/content/runtime/api-reference/index.mdx` — no direct file edit; OpenAPI-backed API reference receives `repairSession` via `openapi/agh.json`.
+
+## Extensibility / Agent Manageability / Config Lifecycle
+
+- `Extensibility`:
+  - none — checked extension manifests, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, and protocol docs; repair is a session persistence operation and does not add an extension point or protocol surface.
+- `Agent manageability`:
+  - CLI: `agh session repair <id> --dry-run --force -o json`.
+  - HTTP: `POST /api/sessions/{id}/repair?dry_run=true&force=false`.
+  - UDS: same route and payload as HTTP.
+  - Structured output: `SessionRepairResponse` with `issues`, `actions`, `persisted`, `tool_call_id`, and `tool_name`.
+  - Error contracts: 400 for invalid repair options, 404 for unknown sessions, non-persisting diagnostics for invalid transcript/event conditions.
+- `Config lifecycle`:
+  - none — checked `config.toml` keys/defaults, structs, merge/overlay behavior, validation, examples, docs, and tests; v1 adds no configuration.
 
 ## Assumptions
 

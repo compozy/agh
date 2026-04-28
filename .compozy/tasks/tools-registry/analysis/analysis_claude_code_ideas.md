@@ -29,7 +29,7 @@ The document proposes an `eager`, `deferred`, and `discovered` registry with `Se
 
 AGH should adapt this provider-neutrally:
 
-- `agh.tool.search` returns descriptors and optional schema handles.
+- `agh__tool_search` returns descriptors and optional schema handles.
 - CLI/HTTP/UDS search returns the same data.
 - ACP/model-specific `tool_reference` integration is optional and provider-dependent.
 - The registry can still compute deltas and persist "discovered in this session" state later.
@@ -114,7 +114,7 @@ AGH should not over-inject tool catalogs into prompts. Progressive disclosure an
 
 ## Open Questions
 
-1. Should AGH's first registry search surface be `agh.tool.search` as an agent-callable tool, `agh tool search` as CLI, or both?
+1. Should AGH's first registry search surface be `agh__tool_search` as an agent-callable tool, `agh tool search` as CLI, or both?
 2. Should catalog delta support be designed now even if only a subset of drivers implement it?
 3. Should result persistence share AGH's session event/artifact store or get a dedicated tool-result artifact store?
 

@@ -91,7 +91,7 @@ The Tool Registry should copy the skills registry's useful properties where they
 
 1. No central runtime registry that owns executable tool handles.
 2. No agent-facing discovery API for tools.
-3. No native AGH tools such as `agh.tool.search`, `agh.skill.view`, or `agh.network.send`.
+3. No native AGH tools such as `agh__tool_search`, `agh__skill_view`, or `agh__network_send`.
 4. No availability model for env vars, binaries, MCP health, extension health, workspace scope, or policy state.
 5. No central permission pipeline for AGH-owned tools.
 6. No namespace or structured provenance model, so duplicate names would be ambiguous.
