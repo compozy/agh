@@ -3,10 +3,8 @@ import { AlertCircle, ChevronRight, GitBranch } from "lucide-react";
 
 import {
   Empty,
-  MonoBadge,
   Pill,
   Section,
-  StatusDot,
   Table,
   TableBody,
   TableCell,
@@ -79,7 +77,7 @@ export function TasksDetailDependenciesPanel({
             return (
               <TableRow data-testid={`tasks-detail-dependencies-item-${target.id}`} key={target.id}>
                 <TableCell className="w-8 pl-4">
-                  <StatusDot tone={signal.tone} pulse={signal.pulse} />
+                  <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
                 </TableCell>
                 <TableCell className="max-w-[360px]">
                   <div className="flex min-w-0 flex-col gap-1">
@@ -87,10 +85,10 @@ export function TasksDetailDependenciesPanel({
                       {target.title}
                     </span>
                     <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                      <MonoBadge>
+                      <Pill mono>
                         {taskShortId({ id: target.id, identifier: target.identifier })}
-                      </MonoBadge>
-                      <Pill variant={pillVariantFromTone(taskStatusTone(target.status))}>
+                      </Pill>
+                      <Pill tone={pillVariantFromTone(taskStatusTone(target.status))}>
                         {taskStatusLabel(target.status)}
                       </Pill>
                     </div>

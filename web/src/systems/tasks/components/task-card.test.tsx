@@ -43,7 +43,7 @@ describe("TaskCard", () => {
     expect(screen.getByTestId("task-card-children-task_001")).toHaveTextContent("2 children");
     expect(screen.getByTestId("task-card-deps-task_001")).toHaveTextContent("1 dep");
     // Status is rendered as a pulsing accent dot for in_progress tasks.
-    const dot = container.querySelector('[data-slot="status-dot"]');
+    const dot = container.querySelector('[data-slot="pill-dot"]');
     expect(dot).not.toBeNull();
     expect(dot).toHaveAttribute("data-tone", "accent");
     expect(dot).toHaveAttribute("data-pulse", "true");

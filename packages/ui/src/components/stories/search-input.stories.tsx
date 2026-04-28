@@ -17,7 +17,6 @@ const meta: Meta<typeof SearchInput> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

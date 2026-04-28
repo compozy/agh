@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 
-import type { ConnectionStatus, StatusDotTone } from "@agh/ui";
+import type { PillTone } from "@agh/ui";
+
+import type { ConnectionStatus } from "@/components/connection-indicator";
 
 import { useAgents } from "@/systems/agent";
 import { useDaemonHealth } from "@/systems/daemon";
@@ -12,7 +14,7 @@ export type DaemonStatusKey = "healthy" | "degraded" | "disconnected" | "unknown
 
 interface DaemonStatusDescriptor {
   key: DaemonStatusKey;
-  tone: StatusDotTone;
+  tone: PillTone;
   label: string;
   description: string;
 }

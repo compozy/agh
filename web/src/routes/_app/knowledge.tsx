@@ -1,7 +1,7 @@
 import { AlertCircle, BookOpen, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Empty, PageHeader, Pills, SplitPane } from "@agh/ui";
+import { Empty, PageHeader, PillGroup, SplitPane } from "@agh/ui";
 import { useKnowledgePage } from "@/hooks/routes/use-knowledge-page";
 import { KnowledgeDetailPanel, KnowledgeListPanel } from "@/systems/knowledge";
 
@@ -43,7 +43,7 @@ function KnowledgePage() {
   }
 
   const controls = (
-    <Pills
+    <PillGroup
       aria-label="Knowledge scope"
       data-testid="tab-pills"
       items={[

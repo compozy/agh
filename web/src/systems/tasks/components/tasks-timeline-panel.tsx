@@ -1,8 +1,8 @@
 import { Activity, AlertCircle, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { Button, Empty, MonoBadge, Pills, Section, StatusDot } from "@agh/ui";
-import type { PillsItem } from "@agh/ui";
+import { Button, Empty, Pill, PillGroup, Section } from "@agh/ui";
+import type { PillGroupItem } from "@agh/ui";
 
 import { taskStatusSignal } from "../lib/task-formatters";
 import type { TaskRunStatus, TaskTimelineItem } from "../types";
@@ -104,7 +104,7 @@ function runStatusPill(status: TaskRunStatus): string {
   }
 }
 
-const VIEW_MODE_ITEMS: ReadonlyArray<PillsItem<TasksTimelineViewMode>> = [
+const VIEW_MODE_ITEMS: ReadonlyArray<PillGroupItem<TasksTimelineViewMode>> = [
   { value: "interleaved", label: "Interleaved", testId: "tasks-timeline-view-interleaved" },
   { value: "by_agent", label: "By agent", testId: "tasks-timeline-view-by-agent" },
   { value: "by_event_type", label: "By event type", testId: "tasks-timeline-view-by-event-type" },
@@ -218,7 +218,7 @@ export function TasksTimelinePanel({
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
-          <Pills<TasksTimelineViewMode>
+          <PillGroup<TasksTimelineViewMode>
             aria-label="Timeline view mode"
             data-testid="tasks-timeline-view-mode"
             items={VIEW_MODE_ITEMS}
@@ -231,7 +231,7 @@ export function TasksTimelinePanel({
               className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-accent)]"
               data-testid="tasks-timeline-live"
             >
-              <StatusDot tone="accent" pulse />
+              <Pill.Dot tone="accent" pulse />
               Live
             </span>
           ) : null}
@@ -306,7 +306,7 @@ function InterleavedEventList({ items, isLive }: InterleavedEventListProps) {
             key={item.event_id}
           >
             <div className="mt-1">
-              <StatusDot pulse={pulse} tone={signalTone} />
+              <Pill.Dot pulse={pulse} tone={signalTone} />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
@@ -320,7 +320,7 @@ function InterleavedEventList({ items, isLive }: InterleavedEventListProps) {
                 >
                   {item.event_type}
                 </span>
-                <MonoBadge>seq {item.sequence}</MonoBadge>
+                <Pill mono>seq {item.sequence}</Pill>
                 {item.run ? (
                   <>
                     <span>· attempt {item.run.attempt}</span>

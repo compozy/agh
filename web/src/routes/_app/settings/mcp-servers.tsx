@@ -9,11 +9,10 @@ import {
   Button,
   Empty,
   Input,
-  MonoBadge,
+  Pill,
   NativeSelect,
   NativeSelectOption,
-  Pills,
-  StatusDot,
+  PillGroup,
   Table,
   TableBody,
   TableCell,
@@ -230,7 +229,7 @@ function ScopeSelector({
       className="flex flex-wrap items-center gap-2"
       data-testid="settings-page-mcp-servers-scope-row"
     >
-      <Pills<ScopeValue>
+      <PillGroup<ScopeValue>
         items={items}
         value={currentValue}
         size="sm"
@@ -338,7 +337,7 @@ function MCPServerRow({
     <TableRow data-testid={`settings-page-mcp-servers-row-${server.name}`}>
       <TableCell>
         <div className="flex min-w-0 items-center gap-2.5">
-          <StatusDot
+          <Pill.Dot
             tone="success"
             size="md"
             data-testid={`settings-page-mcp-servers-row-${server.name}-status`}
@@ -598,9 +597,9 @@ function TargetSelector({
             >
               <span>allowed:</span>
               {entry.source_metadata.available_targets.map(available => (
-                <MonoBadge key={available} tone="neutral">
+                <Pill mono key={available} tone="neutral">
                   {targetWriteLabel(available)}
-                </MonoBadge>
+                </Pill>
               ))}
             </div>
           ) : null}

@@ -15,7 +15,6 @@ const meta: Meta<typeof Textarea> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

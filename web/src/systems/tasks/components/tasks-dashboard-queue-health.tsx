@@ -38,7 +38,7 @@ export function TasksDashboardQueueHealth({ dashboard, buckets }: TasksDashboard
       data-testid="tasks-dashboard-queue-health"
       label="Queue health · 24h"
       right={
-        <Pill data-testid="tasks-dashboard-health-status" variant={pillVariantFromTone(healthTone)}>
+        <Pill data-testid="tasks-dashboard-health-status" tone={pillVariantFromTone(healthTone)}>
           {health.status}
         </Pill>
       }

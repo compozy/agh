@@ -1,4 +1,4 @@
-import { ScrollArea, Section, Empty, MonoBadge, cn } from "@agh/ui";
+import { ScrollArea, Section, Empty, Pill, cn } from "@agh/ui";
 import { Plug } from "lucide-react";
 
 import type { AgentPayload } from "../types";
@@ -53,9 +53,9 @@ export function AgentInfoPanel({ agent, className }: AgentInfoPanelProps) {
                           </span>
                         ) : null}
                       </div>
-                      <MonoBadge tone="info" data-testid={`agent-info-mcp-kind-${server.name}`}>
+                      <Pill mono tone="info" data-testid={`agent-info-mcp-kind-${server.name}`}>
                         {transport}
-                      </MonoBadge>
+                      </Pill>
                     </li>
                   );
                 })}

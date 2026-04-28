@@ -13,7 +13,7 @@ import {
   FieldDescription,
   FieldLabel,
   Input,
-  MonoBadge,
+  Pill,
   Section,
   Textarea,
 } from "@agh/ui";
@@ -107,9 +107,9 @@ export function NetworkCreateChannelDialog({
             <Section
               label="Add agents"
               right={
-                <MonoBadge data-testid="network-selected-agents-count">
+                <Pill mono data-testid="network-selected-agents-count">
                   {draft.selectedAgentNames.length} selected
-                </MonoBadge>
+                </Pill>
               }
             >
               {agents.length === 0 ? (
@@ -154,9 +154,9 @@ export function NetworkCreateChannelDialog({
                         <span className="min-w-0 flex-1 truncate text-[13px] text-[color:var(--color-text-primary)]">
                           {agent.name}
                         </span>
-                        <MonoBadge tone={isSelected ? "accent" : "default"}>
+                        <Pill mono tone={isSelected ? "accent" : "neutral"}>
                           {agent.provider}
-                        </MonoBadge>
+                        </Pill>
                       </button>
                     );
                   })}

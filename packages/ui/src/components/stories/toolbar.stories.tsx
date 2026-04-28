@@ -3,7 +3,7 @@ import { useState } from "react";
 import { PlusIcon } from "lucide-react";
 
 import { Button } from "../button";
-import { Pills } from "../pills";
+import { PillGroup } from "../pill-group";
 import { SearchInput } from "../search-input";
 import { Toolbar } from "../toolbar";
 
@@ -15,11 +15,10 @@ const meta: Meta<typeof Toolbar> = {
     docs: {
       description: {
         component:
-          "Composition-first toolbar shell — pass `SearchInput`, `Pills`, `Button` children directly. Wraps on narrow viewports.",
+          "Composition-first toolbar shell — pass `SearchInput`, `PillGroup`, `Button` children directly. Wraps on narrow viewports.",
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;
@@ -30,7 +29,7 @@ function Harness() {
   const [search, setSearch] = useState("");
   return (
     <Toolbar aria-label="Tasks toolbar">
-      <Pills
+      <PillGroup
         value={mode}
         onChange={setMode}
         items={[
@@ -73,7 +72,7 @@ export const Sticky: Story = {
   render: () => (
     <div className="w-[560px] max-h-48 overflow-auto rounded-md border border-[color:var(--color-divider)]">
       <Toolbar sticky>
-        <Pills
+        <PillGroup
           value="list"
           onChange={() => {}}
           items={[

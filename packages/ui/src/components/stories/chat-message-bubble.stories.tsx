@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 
 import { ChatMessageBubble, type ChatMessageRole } from "../chat-message-bubble";
-import { StatusDot } from "../status-dot";
+import { Pill } from "../pill";
 import { ToolCallCard, type ToolCallStatus } from "../tool-call-card";
 
 const meta: Meta<typeof ChatMessageBubble> = {
@@ -17,7 +17,6 @@ const meta: Meta<typeof ChatMessageBubble> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;
@@ -36,7 +35,7 @@ const ROLE_ALIGN: Record<ChatMessageRole, "left" | "right"> = {
 function AgentMeta() {
   return (
     <>
-      <StatusDot tone="accent" size="sm" />
+      <Pill.Dot tone="accent" size="sm" />
       <span>claude</span>
       <span className="text-[color:var(--color-text-tertiary)]">· 12:03</span>
     </>

@@ -1,5 +1,7 @@
-import { KindChip, MonoBadge, type MonoBadgeTone } from "@agh/ui";
+import { Pill, type PillTone } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
+import { KindChip } from "@/systems/network/components/kind-chip";
 import {
   buildBridgeProviderKey,
   isBridgeProviderSelectable,
@@ -12,7 +14,7 @@ interface BridgeProviderCardProps {
   selected?: boolean;
 }
 
-function healthBadgeTone(health?: string): MonoBadgeTone {
+function healthBadgeTone(health?: string): PillTone {
   switch (health) {
     case "healthy":
       return "success";
@@ -23,7 +25,7 @@ function healthBadgeTone(health?: string): MonoBadgeTone {
   }
 }
 
-function stateBadgeTone(state?: string): MonoBadgeTone {
+function stateBadgeTone(state?: string): PillTone {
   switch (state) {
     case "active":
       return "success";
@@ -58,7 +60,9 @@ export function BridgeProviderCard({
             </span>
           </div>
         </div>
-        <MonoBadge tone={healthBadgeTone(provider.health)}>{provider.health}</MonoBadge>
+        <Pill mono tone={healthBadgeTone(provider.health)}>
+          {provider.health}
+        </Pill>
       </div>
 
       <p className="text-[12px] leading-relaxed text-[color:var(--color-text-secondary)]">
@@ -66,8 +70,14 @@ export function BridgeProviderCard({
       </p>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <MonoBadge tone={stateBadgeTone(provider.state)}>{provider.state}</MonoBadge>
-        {!selectable ? <MonoBadge tone="danger">UNAVAILABLE</MonoBadge> : null}
+        <Pill mono tone={stateBadgeTone(provider.state)}>
+          {provider.state}
+        </Pill>
+        {!selectable ? (
+          <Pill mono tone="danger">
+            UNAVAILABLE
+          </Pill>
+        ) : null}
       </div>
 
       <p className="text-[11px] leading-relaxed text-[color:var(--color-text-tertiary)]">

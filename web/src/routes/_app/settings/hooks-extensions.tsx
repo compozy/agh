@@ -9,10 +9,9 @@ import {
   Button,
   Empty,
   Input,
-  MonoBadge,
+  Pill,
   NativeSelect,
   NativeSelectOption,
-  StatusDot,
   Switch,
   Table,
   TableBody,
@@ -21,7 +20,7 @@ import {
   TableHeader,
   TableRow,
   cn,
-  pillToggleVariants,
+  pillGroupSegmentVariants,
 } from "@agh/ui";
 import { useSettingsHooksExtensionsPage } from "@/hooks/routes/use-settings-hooks-extensions-page";
 import type {
@@ -306,7 +305,9 @@ function HookRow({
         </div>
       </TableCell>
       <TableCell>
-        <MonoBadge tone="info">{declaration.event}</MonoBadge>
+        <Pill mono tone="info">
+          {declaration.event}
+        </Pill>
       </TableCell>
       <TableCell className="font-mono text-xs text-[color:var(--color-text-secondary)]">
         {mode}
@@ -436,16 +437,28 @@ function ExtensionRow({
       data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}`}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <StatusDot tone={healthTone} size="md" pulse={entry.health === "degraded"} />
+        <Pill.Dot tone={healthTone} size="md" pulse={entry.health === "degraded"} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate font-mono text-sm text-[color:var(--color-text-primary)]">
             {entry.name}
           </span>
           <span className="flex flex-wrap items-center gap-1.5 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[color:var(--color-text-tertiary)]">
             <span>{entry.state || (entry.enabled ? "running" : "stopped")}</span>
-            {entry.version ? <MonoBadge tone="neutral">v{entry.version}</MonoBadge> : null}
-            {entry.health ? <MonoBadge tone={healthTone}>{entry.health}</MonoBadge> : null}
-            {missingEnv.length > 0 ? <MonoBadge tone="warning">env missing</MonoBadge> : null}
+            {entry.version ? (
+              <Pill mono tone="neutral">
+                v{entry.version}
+              </Pill>
+            ) : null}
+            {entry.health ? (
+              <Pill mono tone={healthTone}>
+                {entry.health}
+              </Pill>
+            ) : null}
+            {missingEnv.length > 0 ? (
+              <Pill mono tone="warning">
+                env missing
+              </Pill>
+            ) : null}
           </span>
           {entry.last_error ? (
             <span
@@ -685,7 +698,7 @@ function AllowedKindsField({
                 onClick={() => onToggle(kind)}
                 data-testid={`settings-page-hooks-extensions-policy-allowed-kinds-${kind}`}
                 data-active={active ? "true" : "false"}
-                className={cn(pillToggleVariants({ active, size: "sm" }))}
+                className={cn(pillGroupSegmentVariants({ active, size: "sm" }))}
               >
                 {kind}
               </button>

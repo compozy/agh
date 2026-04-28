@@ -33,7 +33,6 @@ const meta: Meta<typeof Command> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

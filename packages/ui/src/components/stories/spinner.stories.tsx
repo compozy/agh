@@ -20,7 +20,6 @@ const meta: Meta<typeof Spinner> = {
       </div>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

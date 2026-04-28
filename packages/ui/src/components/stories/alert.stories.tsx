@@ -23,7 +23,6 @@ const meta: Meta<typeof Alert> = {
       </div>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

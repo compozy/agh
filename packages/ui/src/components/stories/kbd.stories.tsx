@@ -20,7 +20,6 @@ const meta: Meta<typeof Kbd> = {
       </div>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

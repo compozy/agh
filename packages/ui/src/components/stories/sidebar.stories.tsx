@@ -28,7 +28,6 @@ const meta: Meta<typeof Sidebar> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

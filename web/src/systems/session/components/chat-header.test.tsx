@@ -50,7 +50,7 @@ describe("ChatHeader", () => {
     );
 
     const dot = screen.getByTestId("agent-status-dot");
-    expect(dot.getAttribute("data-slot")).toBe("status-dot");
+    expect(dot.getAttribute("data-slot")).toBe("pill-dot");
     expect(dot.getAttribute("data-tone")).toBe("success");
     expect(dot.getAttribute("data-size")).toBe("md");
   });
@@ -85,7 +85,7 @@ describe("ChatHeader", () => {
 
     const badge = screen.getByTestId("session-workspace-badge");
     expect(badge).toHaveTextContent("alpha");
-    expect(badge.getAttribute("data-slot")).toBe("mono-badge");
+    expect(badge.getAttribute("data-slot")).toBe("pill");
   });
 
   it("shows current runtime activity when the session is supervised", () => {

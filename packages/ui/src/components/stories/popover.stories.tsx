@@ -26,7 +26,6 @@ const meta: Meta<typeof Popover> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

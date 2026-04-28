@@ -1,15 +1,15 @@
 import { AlertCircle, Loader2, Plus } from "lucide-react";
 
-import { Button, Section, StatusDot } from "@agh/ui";
+import { Button, Section, Pill } from "@agh/ui";
 
 import type { KanbanColumnGroup, TaskKanbanColumnId } from "../lib/task-grouping";
 import { formatAttemptLabel, taskOwnerLabel } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";
 import { TasksListRow } from "./tasks-list-row";
 
-import type { StatusDotTone } from "@agh/ui";
+import type { PillTone } from "@agh/ui";
 
-const COLUMN_HEADER_TONE: Record<TaskKanbanColumnId, StatusDotTone> = {
+const COLUMN_HEADER_TONE: Record<TaskKanbanColumnId, PillTone> = {
   pending: "neutral",
   running: "accent",
   done: "success",
@@ -101,7 +101,7 @@ function KanbanColumn({
       className="min-w-[260px] flex-1"
       label={
         <span className="inline-flex items-center gap-2">
-          <StatusDot tone={headerTone} />
+          <Pill.Dot tone={headerTone} />
           <span>{column.label}</span>
           <span
             className="font-mono text-[10px] font-medium tracking-[0.08em] text-[color:var(--color-text-tertiary)]"

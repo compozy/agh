@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, ChevronRight, Play } from "lucide-react";
 
-import { Button, MonoBadge, PageHeader, Pill, StatusDot } from "@agh/ui";
+import { Button, Pill, PageHeader } from "@agh/ui";
 
 import { pillVariantFromTone } from "@/lib/pill-variant";
 import { formatRelativeTime, taskRunStatusTone, taskStatusSignal } from "../lib/task-formatters";
@@ -92,7 +92,9 @@ export function TaskRunDetailHeader({
         meta={
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {elapsed ? (
-              <MonoBadge data-testid="task-run-detail-duration">{elapsed}</MonoBadge>
+              <Pill mono data-testid="task-run-detail-duration">
+                {elapsed}
+              </Pill>
             ) : null}
             {session?.session_id && session.agent_name ? (
               <Link
@@ -121,14 +123,17 @@ export function TaskRunDetailHeader({
         }
         title={
           <span className="flex min-w-0 items-center gap-2">
-            <StatusDot pulse={signal.pulse} tone={signal.tone} />
+            <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
             <span
               className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-[color:var(--color-text-primary)]"
               data-testid="task-run-detail-title"
             >
-              Run <MonoBadge data-testid="task-run-detail-run-id">{record.id}</MonoBadge>
+              Run{" "}
+              <Pill mono data-testid="task-run-detail-run-id">
+                {record.id}
+              </Pill>
             </span>
-            <Pill variant={pillVariantFromTone(taskRunStatusTone(record.status))}>
+            <Pill tone={pillVariantFromTone(taskRunStatusTone(record.status))}>
               {record.status}
             </Pill>
           </span>

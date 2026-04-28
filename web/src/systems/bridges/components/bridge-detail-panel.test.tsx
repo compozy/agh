@@ -250,7 +250,7 @@ describe("BridgeDetailPanel", () => {
     );
 
     expect(screen.getByTestId("open-test-delivery-btn")).toBeDisabled();
-    const dangerDot = document.querySelector('[data-slot="status-dot"][data-tone="danger"]');
+    const dangerDot = document.querySelector('[data-slot="pill-dot"][data-tone="danger"]');
     expect(dangerDot).not.toBeNull();
   });
 

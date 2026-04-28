@@ -25,7 +25,6 @@ const meta: Meta<typeof InputGroup> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

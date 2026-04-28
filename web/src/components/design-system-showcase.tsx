@@ -45,7 +45,6 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-  ConnectionIndicator,
   Dialog,
   DialogClose,
   DialogContent,
@@ -75,15 +74,13 @@ import {
   ItemTitle,
   Kbd,
   KbdGroup,
-  KindChip,
   Label,
   Metric,
-  MonoBadge,
+  Pill,
   NativeSelect,
   NativeSelectOption,
   PageHeader,
-  Pill,
-  Pills,
+  PillGroup,
   Popover,
   PopoverContent,
   PopoverDescription,
@@ -114,7 +111,6 @@ import {
   Skeleton,
   SplitPane,
   Spinner,
-  StatusDot,
   Switch,
   Table,
   TableBody,
@@ -138,6 +134,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@agh/ui";
+
+import { ConnectionIndicator } from "@/components/connection-indicator";
+import { KindChip } from "@/systems/network/components/kind-chip";
 
 const DESIGN_MD_BASE = "https://github.com/compozy/agh/blob/main/DESIGN.md";
 
@@ -442,7 +441,7 @@ function DesignSystemShowcase() {
         />
 
         <Toolbar aria-label="Showcase filters" className="gap-3">
-          <Pills
+          <PillGroup
             value={filter}
             onChange={(next: FilterValue) => setFilter(next)}
             items={FILTERS.map(item => ({ label: item.label, value: item.value }))}
@@ -486,7 +485,7 @@ function FoundationsTokenSection() {
       id="foundations"
       data-testid="section-foundations"
       label={<SectionLink section={SECTIONS[0]}>Foundations — Tokens</SectionLink>}
-      right={<MonoBadge>tokens.css</MonoBadge>}
+      right={<Pill mono>tokens.css</Pill>}
     >
       <div className="flex flex-col gap-6 pt-4">
         {TOKEN_GROUPS.map(group => (
@@ -588,7 +587,7 @@ function TypographySection() {
       id="typography"
       data-testid="section-typography"
       label={<SectionLink section={SECTIONS[1]}>Foundations — Typography</SectionLink>}
-      right={<MonoBadge>Inter · JetBrains Mono · NuixyberNext</MonoBadge>}
+      right={<Pill mono>Inter · JetBrains Mono · NuixyberNext</Pill>}
     >
       <div className="grid gap-3 pt-4 md:grid-cols-2">
         <Card>
@@ -623,7 +622,7 @@ function TypographySection() {
               <span className="font-wordmark text-[28px] leading-none tracking-[-0.02em] text-[color:var(--color-text-primary)]">
                 agh
               </span>
-              <Pill variant="default" size="sm" className="border-[color:var(--color-divider)]">
+              <Pill tone="neutral" size="sm" className="border-[color:var(--color-divider)]">
                 Alpha
               </Pill>
             </div>
@@ -641,7 +640,11 @@ function ButtonsAndPillsSection() {
       id="buttons"
       data-testid="section-buttons"
       label={<SectionLink section={SECTIONS[2]}>Buttons & Pills</SectionLink>}
-      right={<MonoBadge tone="accent">action</MonoBadge>}
+      right={
+        <Pill mono tone="accent">
+          action
+        </Pill>
+      }
     >
       <div className="flex flex-col gap-6 pt-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -677,14 +680,14 @@ function ButtonsAndPillsSection() {
           <Badge variant="outline">Outline</Badge>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Pill variant="default">Neutral</Pill>
-          <Pill variant="accent">Action</Pill>
-          <Pill variant="success">Stable</Pill>
-          <Pill variant="warning">Pending</Pill>
-          <Pill variant="danger">Error</Pill>
-          <Pill variant="info">Info</Pill>
+          <Pill tone="neutral">Neutral</Pill>
+          <Pill tone="accent">Action</Pill>
+          <Pill tone="success">Stable</Pill>
+          <Pill tone="warning">Pending</Pill>
+          <Pill tone="danger">Error</Pill>
+          <Pill tone="info">Info</Pill>
         </div>
-        <Pills
+        <PillGroup
           value={pillFilter}
           onChange={setPillFilter}
           items={[
@@ -709,7 +712,7 @@ function InputsAndSearchSection() {
       id="inputs"
       data-testid="section-inputs"
       label={<SectionLink section={SECTIONS[3]}>Inputs & Search</SectionLink>}
-      right={<MonoBadge>form primitives</MonoBadge>}
+      right={<Pill mono>form primitives</Pill>}
     >
       <div className="grid gap-6 pt-4 md:grid-cols-2">
         <Field>
@@ -797,7 +800,11 @@ function StatusAndMetricSection() {
       id="status"
       data-testid="section-status"
       label={<SectionLink section={SECTIONS[4]}>Status, Metric, MonoBadge, KindChip</SectionLink>}
-      right={<MonoBadge tone="info">signal</MonoBadge>}
+      right={
+        <Pill mono tone="info">
+          signal
+        </Pill>
+      }
     >
       <div className="grid gap-3 pt-4 md:grid-cols-3">
         <Metric label="Active sessions" value="12" detail="+3" tone="accent" />
@@ -811,15 +818,15 @@ function StatusAndMetricSection() {
       </div>
       <div className="flex flex-wrap items-center gap-4 pt-4">
         <div className="inline-flex items-center gap-2">
-          <StatusDot tone="success" />
+          <Pill.Dot tone="success" />
           <span className="text-sm text-[color:var(--color-text-secondary)]">Connected</span>
         </div>
         <div className="inline-flex items-center gap-2">
-          <StatusDot tone="warning" pulse />
+          <Pill.Dot tone="warning" pulse />
           <span className="text-sm text-[color:var(--color-text-secondary)]">Reconnecting</span>
         </div>
         <div className="inline-flex items-center gap-2">
-          <StatusDot tone="danger" />
+          <Pill.Dot tone="danger" />
           <span className="text-sm text-[color:var(--color-text-secondary)]">Disconnected</span>
         </div>
         <ConnectionIndicator status="connected" />
@@ -827,13 +834,27 @@ function StatusAndMetricSection() {
         <ConnectionIndicator status="disconnected" />
       </div>
       <div className="flex flex-wrap items-center gap-2 pt-4">
-        <MonoBadge tone="default">id_01HQ…</MonoBadge>
-        <MonoBadge tone="neutral">idle</MonoBadge>
-        <MonoBadge tone="accent">RUNNING</MonoBadge>
-        <MonoBadge tone="success">DONE</MonoBadge>
-        <MonoBadge tone="warning">PARTIAL</MonoBadge>
-        <MonoBadge tone="danger">ERROR</MonoBadge>
-        <MonoBadge tone="info">INFO</MonoBadge>
+        <Pill mono tone="neutral">
+          id_01HQ…
+        </Pill>
+        <Pill mono tone="neutral">
+          idle
+        </Pill>
+        <Pill mono tone="accent">
+          RUNNING
+        </Pill>
+        <Pill mono tone="success">
+          DONE
+        </Pill>
+        <Pill mono tone="warning">
+          PARTIAL
+        </Pill>
+        <Pill mono tone="danger">
+          ERROR
+        </Pill>
+        <Pill mono tone="info">
+          INFO
+        </Pill>
       </div>
       <div className="flex flex-wrap items-center gap-2 pt-3">
         {KINDS.map(kind => (
@@ -864,7 +885,11 @@ function FeedbackSection() {
       id="feedback"
       data-testid="section-feedback"
       label={<SectionLink section={SECTIONS[5]}>Feedback (Alert, Empty, Toaster)</SectionLink>}
-      right={<MonoBadge tone="warning">state</MonoBadge>}
+      right={
+        <Pill mono tone="warning">
+          state
+        </Pill>
+      }
     >
       <div className="grid gap-3 pt-4 md:grid-cols-2">
         <Alert>
@@ -914,7 +939,11 @@ function OverlaysSection() {
       id="overlays"
       data-testid="section-overlays"
       label={<SectionLink section={SECTIONS[6]}>Dialog · Sheet · Popover · Tooltip</SectionLink>}
-      right={<MonoBadge tone="accent">motion</MonoBadge>}
+      right={
+        <Pill mono tone="accent">
+          motion
+        </Pill>
+      }
     >
       <div className="flex flex-wrap items-center gap-3 pt-4">
         <Dialog>
@@ -1066,7 +1095,11 @@ agh session list --active`;
       id="code-chat"
       data-testid="section-code-chat"
       label={<SectionLink section={SECTIONS[7]}>Code & Chat</SectionLink>}
-      right={<MonoBadge tone="accent">session shells</MonoBadge>}
+      right={
+        <Pill mono tone="accent">
+          session shells
+        </Pill>
+      }
     >
       <div className="grid gap-4 pt-4 md:grid-cols-2">
         <CodeBlock code={sampleCode} language="shell" />
@@ -1078,7 +1111,7 @@ agh session list --active`;
             role="agent"
             meta={
               <>
-                <StatusDot tone="success" size="sm" />
+                <Pill.Dot tone="success" size="sm" />
                 <span>CLAUDE · 10:42</span>
               </>
             }
@@ -1105,7 +1138,7 @@ function LayoutSection() {
       id="layout"
       data-testid="section-layout"
       label={<SectionLink section={SECTIONS[8]}>Sidebar & SplitPane</SectionLink>}
-      right={<MonoBadge>layout</MonoBadge>}
+      right={<Pill mono>layout</Pill>}
     >
       <div className="grid gap-4 pt-4 lg:grid-cols-2">
         <div className="h-[340px] overflow-hidden rounded-[var(--radius-diagram)] border border-[color:var(--color-divider)]">
@@ -1206,7 +1239,9 @@ function LayoutSection() {
                     <TableRow>
                       <TableCell>Version</TableCell>
                       <TableCell>
-                        <MonoBadge tone="accent">v0.4.2</MonoBadge>
+                        <Pill mono tone="accent">
+                          v0.4.2
+                        </Pill>
                       </TableCell>
                     </TableRow>
                     <TableRow>

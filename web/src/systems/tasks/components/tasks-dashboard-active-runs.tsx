@@ -1,7 +1,7 @@
 import { AlertCircle, ArrowRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { MonoBadge, Pill, Section, StatusDot } from "@agh/ui";
+import { Pill, Section } from "@agh/ui";
 
 import { pillVariantFromTone } from "@/lib/pill-variant";
 import {
@@ -56,20 +56,20 @@ export function TasksDashboardActiveRuns({
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-col gap-1.5">
                     <div className="flex min-w-0 items-center gap-2">
-                      <StatusDot pulse={signal.pulse} tone={signal.tone} />
+                      <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
                       <span className="min-w-0 truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
                         {run.task_title}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                      {run.task_identifier ? <MonoBadge>{run.task_identifier}</MonoBadge> : null}
-                      <Pill variant={pillVariantFromTone(taskRunStatusTone(run.run_status))}>
+                      {run.task_identifier ? <Pill mono>{run.task_identifier}</Pill> : null}
+                      <Pill tone={pillVariantFromTone(taskRunStatusTone(run.run_status))}>
                         {run.run_status}
                       </Pill>
                       {run.stuck ? (
                         <Pill
                           data-testid={`tasks-dashboard-active-run-stuck-${run.run_id}`}
-                          variant="danger"
+                          tone="danger"
                         >
                           stuck
                         </Pill>

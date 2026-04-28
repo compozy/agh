@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { Pills } from "@agh/ui";
+import { PillGroup } from "@agh/ui";
 
 import { SettingsFieldRow } from "./settings-field-row";
 
@@ -73,7 +73,7 @@ describe("SettingsFieldRow", () => {
       <SettingsFieldRow
         label="Catalog scope"
         control={
-          <Pills
+          <PillGroup
             items={[
               { value: "global", label: "Global" },
               { value: "workspace", label: "Workspace" },

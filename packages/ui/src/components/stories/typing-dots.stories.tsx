@@ -14,7 +14,6 @@ const meta: Meta<typeof TypingDots> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

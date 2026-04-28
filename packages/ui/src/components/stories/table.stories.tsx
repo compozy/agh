@@ -29,7 +29,6 @@ const meta: Meta<typeof Table> = {
       </div>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

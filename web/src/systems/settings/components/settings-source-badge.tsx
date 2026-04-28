@@ -1,4 +1,4 @@
-import { MonoBadge, type MonoBadgeTone } from "@agh/ui";
+import { Pill, type PillTone } from "@agh/ui";
 
 import type { SettingsSourceKind } from "../types";
 
@@ -22,7 +22,7 @@ const KIND_LABELS: Record<SettingsSourceKind, string> = {
   "workspace-mcp-sidecar": "WS-MCP.JSON",
 };
 
-function badgeTone(kind: SettingsSourceKind): MonoBadgeTone {
+function badgeTone(kind: SettingsSourceKind): PillTone {
   switch (kind) {
     case "builtin-provider":
       return "neutral";
@@ -52,12 +52,13 @@ function SettingsSourceBadge({
 }: SettingsSourceBadgeProps) {
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
-      <MonoBadge
+      <Pill
+        mono
         tone={badgeTone(source.kind)}
         data-testid={testId ? `${testId}-effective` : undefined}
       >
         {sourceLabel(source)}
-      </MonoBadge>
+      </Pill>
       {shadowed && shadowed.length > 0 ? (
         <span
           className="flex flex-wrap items-center gap-1 font-mono text-[10px] font-semibold tracking-[0.1em] text-[color:var(--color-text-label)]"
@@ -65,13 +66,14 @@ function SettingsSourceBadge({
         >
           <span className="uppercase">shadows</span>
           {shadowed.map((entry, index) => (
-            <MonoBadge
+            <Pill
+              mono
               tone="neutral"
               // biome-ignore lint/suspicious/noArrayIndexKey: source list is stable per read
               key={`${entry.kind}-${entry.scope}-${entry.workspace_id ?? ""}-${index}`}
             >
               {sourceLabel(entry)}
-            </MonoBadge>
+            </Pill>
           ))}
         </span>
       ) : null}

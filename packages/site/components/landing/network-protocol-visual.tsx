@@ -2,10 +2,10 @@
 
 import { useEffect, useReducer, useRef } from "react";
 import { ArrowLeftRight, Pause, Play } from "lucide-react";
-import { Button } from "@agh/ui";
+import { Button, Pill } from "@agh/ui";
 import { cn } from "@agh/ui/utils";
 import { AnimatedDiagram } from "./primitives/animated-diagram";
-import { KindChip, type NetworkKind } from "./primitives/kind-chip";
+import { KIND_MEANING, type NetworkKind } from "./primitives/network-kinds";
 
 type Lane = "A" | "NET" | "B";
 type Direction = "->" | "<-" | "..";
@@ -232,7 +232,15 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
 
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <KindChip kind={step.kind} active={isCurrent} />
+                      <Pill
+                        mono
+                        size="xs"
+                        tone="accent"
+                        solid={isCurrent}
+                        title={KIND_MEANING[step.kind]}
+                      >
+                        {step.kind}
+                      </Pill>
                       <span
                         className={cn(
                           "inline-flex items-center gap-1 font-mono text-[11px] tracking-[0.03em]",

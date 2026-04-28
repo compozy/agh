@@ -196,7 +196,7 @@ describe("TasksRoute", () => {
     expect(await screen.findByTestId("tasks-inbox-view")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-open-create")).toBeInTheDocument();
     const inboxTab = screen.getByTestId("tasks-mode-inbox");
-    expect(inboxTab.querySelector('[data-slot="pills-badge"]')).toHaveTextContent("1");
+    expect(inboxTab.querySelector('[data-slot="pill-group-badge"]')).toHaveTextContent("1");
     expect(screen.getByTestId("tasks-inbox-group-approvals")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tasks-inbox-item-approve-task_apr"));

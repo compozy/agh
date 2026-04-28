@@ -304,7 +304,7 @@ describe("MCPServersSettingsPage", () => {
   it("renders each row with a success StatusDot and name", () => {
     render(<MCPServersPage />);
     const dot = screen.getByTestId("settings-page-mcp-servers-row-filesystem-status");
-    expect(dot).toHaveAttribute("data-slot", "status-dot");
+    expect(dot).toHaveAttribute("data-slot", "pill-dot");
     expect(dot).toHaveAttribute("data-tone", "configured");
   });
 

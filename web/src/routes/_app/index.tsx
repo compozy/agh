@@ -1,17 +1,9 @@
 import { AlertTriangle, Home, ServerOff } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import {
-  ConnectionIndicator,
-  Empty,
-  Metric,
-  MonoBadge,
-  PageHeader,
-  Section,
-  Skeleton,
-  StatusDot,
-} from "@agh/ui";
+import { Empty, Metric, Pill, PageHeader, Section, Skeleton } from "@agh/ui";
 
+import { ConnectionIndicator } from "@/components/connection-indicator";
 import { type HomeMetricEntry, type HomePageView, useHomePage } from "@/hooks/routes/use-home-page";
 
 export const Route = createFileRoute("/_app/")({
@@ -88,9 +80,9 @@ function DaemonStatusSection({ page }: { page: HomePageView }) {
       label="Daemon"
       right={
         page.daemonVersion ? (
-          <MonoBadge data-testid="home-daemon-version" tone="default">
+          <Pill mono data-testid="home-daemon-version" tone="neutral">
             v{page.daemonVersion}
-          </MonoBadge>
+          </Pill>
         ) : null
       }
     >
@@ -103,7 +95,7 @@ function DaemonStatusSection({ page }: { page: HomePageView }) {
           data-status={page.daemonStatus.key}
         >
           <div className="flex items-center gap-3">
-            <StatusDot
+            <Pill.Dot
               data-testid="home-daemon-status-dot"
               data-status={page.daemonStatus.key}
               size="md"

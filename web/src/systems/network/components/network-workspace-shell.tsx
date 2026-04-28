@@ -14,19 +14,17 @@ import {
 import {
   Button,
   Empty,
-  KIND_DOT_COLORS,
-  KindChip,
-  MonoBadge,
-  MonoChip,
-  Pills,
+  Pill,
+  PillGroup,
   SearchInput,
   SidebarSectionLabel,
-  StatusDot,
   Textarea,
   WireCard,
-  WireChip,
 } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
+import { KIND_COLORS } from "@/lib/kind-colors";
+import { KindChip } from "./kind-chip";
 
 import {
   NETWORK_KIND_FILTERS,
@@ -106,7 +104,7 @@ function fieldToneToBadgeTone(field?: NetworkRoomField["tone"]) {
     case "warning":
       return field;
     default:
-      return "default";
+      return "neutral";
   }
 }
 
@@ -212,7 +210,7 @@ function NetworkSidebarRow({
               )}
             />
           ) : (
-            <StatusDot tone={item.tone} />
+            <Pill.Dot tone={item.tone} />
           )}
         </span>
         <span
@@ -228,9 +226,9 @@ function NetworkSidebarRow({
         </span>
       </button>
       {unread ? (
-        <MonoBadge tone="solid-accent" uppercase={false}>
+        <Pill mono tone="accent" solid uppercase={false}>
           {item.unreadCount}
-        </MonoBadge>
+        </Pill>
       ) : null}
       {isChannel ? (
         <button
@@ -266,10 +264,14 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
         <WireCard className="w-full max-w-none space-y-3 p-3.5">
           <div className="flex flex-wrap items-center gap-1.5">
             {readString(capability, "id") ? (
-              <MonoChip>{readString(capability, "id")}</MonoChip>
+              <Pill mono size="xs" tone="neutral">
+                {readString(capability, "id")}
+              </Pill>
             ) : null}
             {readString(capability, "version") ? (
-              <MonoChip>{readString(capability, "version")}</MonoChip>
+              <Pill mono size="xs" tone="neutral">
+                {readString(capability, "version")}
+              </Pill>
             ) : null}
           </div>
           <div className="space-y-1">
@@ -305,8 +307,16 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
       return (
         <WireCard className="w-full max-w-none space-y-1.5 p-3.5">
           <div className="flex flex-wrap items-center gap-1.5">
-            {readString(body, "status") ? <MonoChip>{readString(body, "status")}</MonoChip> : null}
-            {readString(body, "for_id") ? <MonoChip>{readString(body, "for_id")}</MonoChip> : null}
+            {readString(body, "status") ? (
+              <Pill mono size="xs" tone="neutral">
+                {readString(body, "status")}
+              </Pill>
+            ) : null}
+            {readString(body, "for_id") ? (
+              <Pill mono size="xs" tone="neutral">
+                {readString(body, "for_id")}
+              </Pill>
+            ) : null}
           </div>
           <p className="text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
             {readString(body, "detail") ?? getNetworkMessagePrimaryText(message)}
@@ -323,7 +333,9 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
               </span>
             ) : null}
             {message.presence_count && message.presence_count > 1 ? (
-              <MonoChip>{message.presence_count} heartbeats</MonoChip>
+              <Pill mono size="xs" tone="neutral">
+                {message.presence_count} heartbeats
+              </Pill>
             ) : null}
           </div>
           <p className="text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
@@ -338,7 +350,9 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
           {readStringList(peerCard, "capabilities").length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {readStringList(peerCard, "capabilities").map(capabilityName => (
-                <MonoChip key={capabilityName}>{capabilityName}</MonoChip>
+                <Pill mono size="xs" tone="neutral" key={capabilityName}>
+                  {capabilityName}
+                </Pill>
               ))}
             </div>
           ) : null}
@@ -349,7 +363,9 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
         <WireCard className="w-full max-w-none space-y-1.5 p-3.5">
           {readString(body, "type") ? (
             <div className="flex flex-wrap items-center gap-1.5">
-              <MonoChip>{readString(body, "type")}</MonoChip>
+              <Pill mono size="xs" tone="neutral">
+                {readString(body, "type")}
+              </Pill>
             </div>
           ) : null}
           <p className="text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
@@ -367,7 +383,9 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
         <WireCard className="w-full max-w-none space-y-1.5 p-3.5">
           {readString(body, "state") ? (
             <div className="flex flex-wrap items-center gap-1.5">
-              <MonoChip>{readString(body, "state")}</MonoChip>
+              <Pill mono size="xs" tone="neutral">
+                {readString(body, "state")}
+              </Pill>
             </div>
           ) : null}
           <p className="text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
@@ -378,7 +396,11 @@ function NetworkMessageBody({ message }: { message: NetworkTimelineMessage }) {
     default:
       return (
         <div className="space-y-1.5">
-          {intent ? <MonoChip>{intent}</MonoChip> : null}
+          {intent ? (
+            <Pill mono size="xs" tone="neutral">
+              {intent}
+            </Pill>
+          ) : null}
           <p className="whitespace-pre-wrap text-[13.5px] leading-[1.55] text-[color:var(--color-text-primary)]">
             {getNetworkMessagePrimaryText(message)}
           </p>
@@ -463,18 +485,30 @@ function NetworkMessageList({
                     {formatNetworkRelativeTime(message.timestamp)}
                   </span>
                   {message.direction === "sent" ? (
-                    <MonoBadge tone="accent" uppercase={false}>
+                    <Pill mono tone="accent" uppercase={false}>
                       {message.direction}
-                    </MonoBadge>
+                    </Pill>
                   ) : null}
                 </div>
               )}
               <NetworkMessageBody message={message} />
               {(message.peer_to || message.trace_id || message.reply_to) && !grouped ? (
                 <div className="flex flex-wrap gap-1.5">
-                  {message.peer_to ? <MonoChip>to {message.peer_to}</MonoChip> : null}
-                  {message.trace_id ? <MonoChip>trace {message.trace_id}</MonoChip> : null}
-                  {message.reply_to ? <MonoChip>reply {message.reply_to}</MonoChip> : null}
+                  {message.peer_to ? (
+                    <Pill mono size="xs" tone="neutral">
+                      to {message.peer_to}
+                    </Pill>
+                  ) : null}
+                  {message.trace_id ? (
+                    <Pill mono size="xs" tone="neutral">
+                      trace {message.trace_id}
+                    </Pill>
+                  ) : null}
+                  {message.reply_to ? (
+                    <Pill mono size="xs" tone="neutral">
+                      reply {message.reply_to}
+                    </Pill>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -502,9 +536,9 @@ function NetworkDetailFieldList({ fields }: { fields: NetworkRoomField[] }) {
             {field.label}
           </div>
           {field.mono ? (
-            <MonoBadge tone={fieldToneToBadgeTone(field.tone)} uppercase={false}>
+            <Pill mono tone={fieldToneToBadgeTone(field.tone)} uppercase={false}>
               {field.value}
-            </MonoBadge>
+            </Pill>
           ) : (
             <p className="text-[13px] leading-6 text-[color:var(--color-text-primary)]">
               {field.value}
@@ -585,7 +619,7 @@ export function NetworkWorkspaceShell({
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <StatusDot
+                <Pill.Dot
                   pulse={status.status === "running" || status.status === "online"}
                   tone={getNetworkStatusTone(status.status)}
                 />
@@ -759,33 +793,45 @@ export function NetworkWorkspaceShell({
                 <span className="mr-1 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
                   Filter by kind
                 </span>
-                <WireChip active={activeKind === "all"} onClick={() => onSelectKind("all")}>
+                <Pill
+                  mono
+                  size="xs"
+                  active={activeKind === "all"}
+                  render={<button type="button" />}
+                  onClick={() => onSelectKind("all")}
+                >
                   all
-                </WireChip>
+                </Pill>
                 {NETWORK_KIND_FILTERS.map(kind => {
                   const count =
                     activeRoom?.kindCounts.find(metric => metric.kind === kind)?.count ?? 0;
 
                   return (
-                    <WireChip
+                    <Pill
+                      mono
+                      size="xs"
                       active={activeKind === kind}
-                      dotColor={KIND_DOT_COLORS[kind.toLowerCase()]}
                       key={kind}
+                      render={<button type="button" />}
                       onClick={() => onSelectKind(kind)}
                     >
+                      <Pill.Dot color={KIND_COLORS[kind.toLowerCase()]} />
                       {formatNetworkKindLabel(kind).toLowerCase()}
                       {count > 0 ? ` ${count}` : ""}
-                    </WireChip>
+                    </Pill>
                   );
                 })}
-                <WireChip
+                <Pill
+                  mono
+                  size="xs"
                   active={showPresence}
-                  dotColor="var(--color-success)"
+                  render={<button type="button" />}
                   onClick={onTogglePresence}
                 >
+                  <Pill.Dot color="var(--color-success)" />
                   presence
                   {(activeRoom?.presenceCount ?? 0) > 0 ? ` ${activeRoom?.presenceCount ?? 0}` : ""}
-                </WireChip>
+                </Pill>
               </div>
             </div>
 
@@ -795,7 +841,11 @@ export function NetworkWorkspaceShell({
                   <WireCard className="w-full max-w-none p-5">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <KindChip kind={activeRoom?.roomType === "channel" ? "channel" : "direct"} />
-                      {activeRoom?.purpose ? <MonoChip>{activeRoom.purpose}</MonoChip> : null}
+                      {activeRoom?.purpose ? (
+                        <Pill mono size="xs" tone="neutral">
+                          {activeRoom.purpose}
+                        </Pill>
+                      ) : null}
                     </div>
                     <h2 className="mt-3 text-[16px] font-semibold text-[color:var(--color-text-primary)]">
                       {activeRoom?.introTitle ?? "Loading room"}
@@ -869,7 +919,7 @@ export function NetworkWorkspaceShell({
               </span>
             </div>
             <div className="mt-4">
-              <Pills<NetworkDetailsTab>
+              <PillGroup<NetworkDetailsTab>
                 aria-label="Room detail tabs"
                 items={[
                   { value: "about", label: "About" },
@@ -909,9 +959,13 @@ export function NetworkWorkspaceShell({
                       {activeRoom.capabilities.map(capability => (
                         <WireCard className="w-full max-w-none p-3.5" key={capability.id}>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <MonoChip>{capability.id}</MonoChip>
+                            <Pill mono size="xs" tone="neutral">
+                              {capability.id}
+                            </Pill>
                             {capability.detail?.version ? (
-                              <MonoChip>{capability.detail.version}</MonoChip>
+                              <Pill mono size="xs" tone="neutral">
+                                {capability.detail.version}
+                              </Pill>
                             ) : null}
                           </div>
                           <p className="mt-2 text-[12.5px] leading-5 text-[color:var(--color-text-secondary)]">
@@ -933,7 +987,7 @@ export function NetworkWorkspaceShell({
                   activeRoom.members.map(member => (
                     <WireCard className="w-full max-w-none p-3.5" key={member.id}>
                       <div className="flex items-center gap-3">
-                        <StatusDot tone={member.tone} />
+                        <Pill.Dot tone={member.tone} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-mono text-[12px] font-medium text-[color:var(--color-text-primary)]">
                             {member.title}
@@ -942,7 +996,9 @@ export function NetworkWorkspaceShell({
                             {member.subtitle}
                           </p>
                         </div>
-                        <MonoChip>{member.local ? "local" : "remote"}</MonoChip>
+                        <Pill mono size="xs" tone="neutral">
+                          {member.local ? "local" : "remote"}
+                        </Pill>
                       </div>
                       {member.lastSeen ? (
                         <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">

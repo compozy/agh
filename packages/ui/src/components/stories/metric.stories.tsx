@@ -14,7 +14,6 @@ const meta: Meta<typeof Metric> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

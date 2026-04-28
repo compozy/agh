@@ -3,10 +3,8 @@ import { AlertCircle, ChevronRight, Inbox, Loader2, Radio } from "lucide-react";
 
 import {
   Empty,
-  MonoBadge,
   Pill,
   Section,
-  StatusDot,
   Table,
   TableBody,
   TableCell,
@@ -95,20 +93,20 @@ export function TasksDetailRunsPanel({
             return (
               <TableRow data-testid={`tasks-detail-runs-item-${run.id}`} key={run.id}>
                 <TableCell className="w-8 pl-4">
-                  <StatusDot tone={signal.tone} pulse={signal.pulse} />
+                  <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
                 </TableCell>
                 <TableCell className="max-w-[360px]">
                   <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <MonoBadge>{run.id}</MonoBadge>
-                      <Pill variant={pillVariantFromTone(taskRunStatusTone(run.status))}>
+                      <Pill mono>{run.id}</Pill>
+                      <Pill tone={pillVariantFromTone(taskRunStatusTone(run.status))}>
                         {run.status}
                       </Pill>
                       {channelLabel ? (
                         <Pill
                           data-testid={`tasks-detail-runs-channel-${run.id}`}
                           title="Coordination channel is bound to this run. Channel messages support coordination only — claim, heartbeat, and terminal status stay in the task service."
-                          variant={pillVariantFromTone("violet")}
+                          tone={pillVariantFromTone("violet")}
                         >
                           <span className="inline-flex items-center gap-1">
                             <Radio className="size-3" aria-hidden="true" />

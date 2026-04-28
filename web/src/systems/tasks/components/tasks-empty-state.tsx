@@ -125,7 +125,7 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
       {template.badges.length > 0 ? (
         <div className="mt-auto flex flex-wrap gap-1.5">
           {template.badges.map(badge => (
-            <Pill key={badge.label} variant={pillVariantFromTone(badge.tone)}>
+            <Pill key={badge.label} tone={pillVariantFromTone(badge.tone)}>
               {badge.label}
             </Pill>
           ))}

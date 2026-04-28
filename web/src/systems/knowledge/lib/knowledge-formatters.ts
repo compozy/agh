@@ -1,4 +1,4 @@
-import type { MonoBadgeTone } from "@agh/ui";
+import type { PillTone } from "@agh/ui";
 
 import type { KnowledgeMemoryItem, KnowledgeScope, MemoryType } from "@/systems/knowledge/types";
 
@@ -36,18 +36,18 @@ export function knowledgeScopeShortLabel(scope: KnowledgeScope): string {
   return scope === "workspace" ? "WS" : "GLOBAL";
 }
 
-const TYPE_TONE: Record<string, MonoBadgeTone> = {
+const TYPE_TONE: Record<string, PillTone> = {
   user: "accent",
   feedback: "accent",
   project: "success",
   reference: "info",
 };
 
-export function memoryTypeTone(type: MemoryType): MonoBadgeTone {
+export function memoryTypeTone(type: MemoryType): PillTone {
   return TYPE_TONE[type] ?? "accent";
 }
 
-export function memoryScopeTone(scope: KnowledgeScope): MonoBadgeTone {
+export function memoryScopeTone(scope: KnowledgeScope): PillTone {
   return scope === "workspace" ? "info" : "neutral";
 }
 

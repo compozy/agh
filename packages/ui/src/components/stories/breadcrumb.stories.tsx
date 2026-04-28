@@ -22,7 +22,6 @@ const meta: Meta<typeof Breadcrumb> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

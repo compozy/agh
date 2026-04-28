@@ -1,16 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import {
-  CodeBlock,
-  Metric,
-  MonoBadge,
-  Pill,
-  Section,
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-} from "@agh/ui";
+import { CodeBlock, Metric, Pill, Section, Table, TableBody, TableCell, TableRow } from "@agh/ui";
 
 import { pillVariantFromTone } from "@/lib/pill-variant";
 import { taskRunStatusTone } from "../lib/task-formatters";
@@ -51,10 +41,10 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
         <Table className="text-[13px]">
           <TableBody>
             <IdentityRow label="Run ID" testId="task-run-detail-identity-run">
-              <MonoBadge>{record.id}</MonoBadge>
+              <Pill mono>{record.id}</Pill>
             </IdentityRow>
             <IdentityRow label="Status">
-              <Pill variant={pillVariantFromTone(taskRunStatusTone(record.status))}>
+              <Pill tone={pillVariantFromTone(taskRunStatusTone(record.status))}>
                 {record.status}
               </Pill>
             </IdentityRow>
@@ -63,7 +53,7 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
             </IdentityRow>
             {record.idempotency_key ? (
               <IdentityRow label="Idempotency" testId="task-run-detail-identity-idempotency">
-                <MonoBadge>{record.idempotency_key}</MonoBadge>
+                <Pill mono>{record.idempotency_key}</Pill>
               </IdentityRow>
             ) : null}
             {record.claimed_by?.ref ? (
@@ -220,7 +210,9 @@ export function TaskRunActivityPanel({ run }: TaskRunActivityPanelProps) {
                 Last event
               </dt>
               <dd>
-                <MonoBadge data-testid="task-run-detail-activity-event">{lastEventType}</MonoBadge>
+                <Pill mono data-testid="task-run-detail-activity-event">
+                  {lastEventType}
+                </Pill>
               </dd>
             </div>
           ) : null}

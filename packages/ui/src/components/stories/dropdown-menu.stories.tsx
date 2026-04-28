@@ -31,7 +31,6 @@ const meta: Meta<typeof DropdownMenu> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

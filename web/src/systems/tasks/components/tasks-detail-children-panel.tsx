@@ -3,10 +3,8 @@ import { AlertCircle, ChevronRight, ListTree } from "lucide-react";
 
 import {
   Empty,
-  MonoBadge,
   Pill,
   Section,
-  StatusDot,
   Table,
   TableBody,
   TableCell,
@@ -83,7 +81,7 @@ export function TasksDetailChildrenPanel({
             return (
               <TableRow data-testid={`tasks-detail-children-item-${child.id}`} key={child.id}>
                 <TableCell className="w-8 pl-4">
-                  <StatusDot tone={signal.tone} pulse={signal.pulse} />
+                  <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
                 </TableCell>
                 <TableCell className="max-w-[360px]">
                   <div className="flex min-w-0 flex-col gap-1">
@@ -91,14 +89,14 @@ export function TasksDetailChildrenPanel({
                       {child.title}
                     </span>
                     <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                      <MonoBadge>
+                      <Pill mono>
                         {taskShortId({ id: child.id, identifier: child.identifier })}
-                      </MonoBadge>
-                      <Pill variant={pillVariantFromTone(taskStatusTone(child.status))}>
+                      </Pill>
+                      <Pill tone={pillVariantFromTone(taskStatusTone(child.status))}>
                         {child.status}
                       </Pill>
                       {child.priority ? (
-                        <Pill variant={pillVariantFromTone(taskPriorityTone(child.priority))}>
+                        <Pill tone={pillVariantFromTone(taskPriorityTone(child.priority))}>
                           {taskPriorityLabel(child.priority)}
                         </Pill>
                       ) : null}

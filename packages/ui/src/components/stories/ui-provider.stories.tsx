@@ -28,7 +28,6 @@ const meta: Meta<typeof UIProvider> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

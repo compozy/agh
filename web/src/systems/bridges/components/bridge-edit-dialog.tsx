@@ -14,7 +14,7 @@ import {
   FieldSet,
   FieldTitle,
   Input,
-  MonoBadge,
+  Pill,
   NativeSelect,
   NativeSelectOption,
   Section,
@@ -142,7 +142,7 @@ export function BridgeEditDialog({
                   </p>
                   {provider?.secret_slots?.length ? (
                     <div className="mt-3 flex items-center gap-2">
-                      <MonoBadge>{provider.secret_slots.length}</MonoBadge>
+                      <Pill mono>{provider.secret_slots.length}</Pill>
                       <p className="text-[12px] text-[color:var(--color-text-secondary)]">
                         Secret slots are managed inline from the detail panel.
                       </p>

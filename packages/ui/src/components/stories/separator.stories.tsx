@@ -20,7 +20,6 @@ const meta: Meta<typeof Separator> = {
       </div>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

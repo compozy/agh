@@ -45,7 +45,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
               <Pill
                 data-testid={`tasks-dashboard-status-pill-${entry.status}`}
                 size="sm"
-                variant={pillVariantFromTone(taskStatusTone(entry.status))}
+                tone={pillVariantFromTone(taskStatusTone(entry.status))}
               >
                 {taskStatusLabel(entry.status)}
                 <span

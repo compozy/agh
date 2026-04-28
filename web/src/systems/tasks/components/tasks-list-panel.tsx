@@ -1,6 +1,6 @@
 import { AlertCircle, ListChecks, Plus, Search } from "lucide-react";
 
-import { Button, Empty, Pills, SearchInput, Section } from "@agh/ui";
+import { Button, Empty, PillGroup, SearchInput, Section } from "@agh/ui";
 
 import type { TaskListItem, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
@@ -88,7 +88,7 @@ export function TasksListPanel({
           placeholder="Filter tasks…"
           data-testid="tasks-list-search-input"
         />
-        <Pills
+        <PillGroup
           aria-label="Task lane"
           data-testid="tasks-list-lane-pills"
           items={LANE_ITEMS.map(item => ({

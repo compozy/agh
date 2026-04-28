@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { AlertCircle, ArrowUpRight, ChevronRight, Loader2, Users } from "lucide-react";
 import { useMemo } from "react";
 
-import { Empty, MonoBadge, Pill, StatusDot } from "@agh/ui";
+import { Empty, Pill } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import type { MultiAgentAgent, MultiAgentLiveState } from "@/hooks/routes/use-task-detail-page";
@@ -176,7 +176,7 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
               className="flex flex-wrap items-center gap-2"
               data-testid={`tasks-multi-agent-agent-meta-${task.id}`}
             >
-              <StatusDot tone={agent.isLive ? "accent" : "neutral"} pulse={pulse} />
+              <Pill.Dot tone={agent.isLive ? "accent" : "neutral"} pulse={pulse} />
               <span
                 className={cn(
                   "truncate text-[13px]",
@@ -188,12 +188,12 @@ function TasksMultiAgentAgentCard({ agent, timeline }: TasksMultiAgentAgentCardP
               >
                 {agent.label}
               </span>
-              <MonoBadge data-testid={`tasks-multi-agent-agent-id-${task.id}`}>
+              <Pill mono data-testid={`tasks-multi-agent-agent-id-${task.id}`}>
                 {task.identifier ?? task.id}
-              </MonoBadge>
+              </Pill>
               <Pill
                 data-testid={`tasks-multi-agent-agent-status-${task.id}`}
-                variant={pillVariantFromTone(statusTone)}
+                tone={pillVariantFromTone(statusTone)}
               >
                 {taskStatusLabel(task.status)}
               </Pill>

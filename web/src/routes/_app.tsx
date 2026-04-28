@@ -43,7 +43,6 @@ function AppLayout() {
         collapsed={page.collapsed}
         onCollapseChange={page.setCollapsed}
         workspaces={page.areWorkspacesLoading || page.workspacesError ? undefined : page.workspaces}
-        activeWorkspace={page.activeWorkspace}
         activeWorkspaceId={page.activeWorkspaceId}
         onSelectWorkspace={page.setActiveWorkspaceId}
         onAddWorkspace={page.openWorkspaceSetup}

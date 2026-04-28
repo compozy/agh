@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { MonoBadge, Pill } from "@agh/ui";
+import { Pill } from "@agh/ui";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 
 import {
@@ -92,12 +92,12 @@ export function TaskCard({
 
           <div className="flex flex-wrap items-center gap-1.5">
             {task.priority ? (
-              <Pill variant={pillVariantFromTone(taskPriorityTone(task.priority))}>
+              <Pill tone={pillVariantFromTone(taskPriorityTone(task.priority))}>
                 {taskPriorityLabel(task.priority)}
               </Pill>
             ) : null}
             {showApproval ? (
-              <Pill variant="accent">{taskApprovalStateLabel(task.approval_state)}</Pill>
+              <Pill tone="accent">{taskApprovalStateLabel(task.approval_state)}</Pill>
             ) : null}
             {isDraft && onPublish ? (
               <button
@@ -115,13 +115,14 @@ export function TaskCard({
               </button>
             ) : null}
             {isBlocked ? (
-              <MonoBadge
+              <Pill
+                mono
                 tone="warning"
                 data-testid={`task-card-blocked-${task.id}`}
                 className="ml-auto"
               >
                 Blocked
-              </MonoBadge>
+              </Pill>
             ) : null}
             {task.status === "failed" && onRetry ? (
               <button

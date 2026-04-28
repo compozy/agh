@@ -23,7 +23,6 @@ const meta: Meta<typeof ToggleGroup> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

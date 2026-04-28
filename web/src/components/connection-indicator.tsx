@@ -1,9 +1,5 @@
-"use client";
-
+import { Pill, type PillTone, cn } from "@agh/ui";
 import * as React from "react";
-
-import { cn } from "../lib/utils";
-import { StatusDot, type StatusDotTone } from "./status-dot";
 
 export type ConnectionStatus = "connected" | "disconnected" | "reconnecting";
 
@@ -14,7 +10,7 @@ export interface ConnectionIndicatorProps extends React.ComponentProps<"div"> {
 }
 
 interface StatusConfig {
-  tone: StatusDotTone;
+  tone: PillTone;
   label: string;
   pulse: boolean;
 }
@@ -26,10 +22,16 @@ const STATUS_CONFIG: Record<ConnectionStatus, StatusConfig> = {
 };
 
 /**
- * StatusDot + mono label composite — one canonical shape for daemon / socket
- * connection state across the operator UI. Mirrors DESIGN.md §4 "Status Indicators".
+ * `Pill.Dot` + monospace label composite — canonical chrome for daemon /
+ * socket connection state across the operator UI. Wraps the dot in an
+ * `aria-live=polite` region so screen readers announce reconnects.
  */
-function ConnectionIndicator({ status, label, className, ...props }: ConnectionIndicatorProps) {
+export function ConnectionIndicator({
+  status,
+  label,
+  className,
+  ...props
+}: ConnectionIndicatorProps) {
   const config = STATUS_CONFIG[status];
   return (
     <div
@@ -40,15 +42,13 @@ function ConnectionIndicator({ status, label, className, ...props }: ConnectionI
       className={cn("inline-flex items-center gap-2", className)}
       {...props}
     >
-      <StatusDot tone={config.tone} pulse={config.pulse} />
+      <Pill.Dot tone={config.tone} pulse={config.pulse} />
       <span
         data-slot="connection-indicator-label"
-        className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-label)]"
+        className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-(--color-text-label)"
       >
         {label ?? config.label}
       </span>
     </div>
   );
 }
-
-export { ConnectionIndicator };

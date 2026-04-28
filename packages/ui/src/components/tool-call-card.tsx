@@ -4,7 +4,7 @@ import { TerminalIcon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../lib/utils";
-import { MonoBadge, type MonoBadgeTone } from "./mono-badge";
+import { Pill, type PillTone } from "./pill";
 
 export type ToolCallStatus = "running" | "done" | "error";
 
@@ -24,7 +24,7 @@ function isIconComponent(value: unknown): value is ToolCallIconComponent {
   return false;
 }
 
-const STATUS_TONE: Record<ToolCallStatus, MonoBadgeTone> = {
+const STATUS_TONE: Record<ToolCallStatus, PillTone> = {
   running: "accent",
   done: "success",
   error: "danger",
@@ -96,13 +96,13 @@ function ToolCallCard({
             {filePath}
           </span>
         ) : null}
-        <MonoBadge
+        <Pill
           tone={STATUS_TONE[status]}
           className="ml-auto shrink-0"
           data-slot="tool-call-card-status"
         >
           {STATUS_LABEL[status]}
-        </MonoBadge>
+        </Pill>
       </div>
       {children ? (
         <div

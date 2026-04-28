@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Radio } from "lucide-react";
 
-import { Metric, MonoBadge, Pill, Section, StatusDot } from "@agh/ui";
+import { Metric, Pill, Section } from "@agh/ui";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 
 import {
@@ -84,16 +84,16 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
         >
           <div className="flex flex-col gap-2 rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
-              <StatusDot tone={activeSignal.tone} pulse={activeSignal.pulse} />
-              <MonoBadge>{activeRun.id}</MonoBadge>
-              <Pill variant={pillVariantFromTone(taskRunStatusTone(activeRun.status))}>
+              <Pill.Dot tone={activeSignal.tone} pulse={activeSignal.pulse} />
+              <Pill mono>{activeRun.id}</Pill>
+              <Pill tone={pillVariantFromTone(taskRunStatusTone(activeRun.status))}>
                 {activeRun.status}
               </Pill>
               {activeChannelLabel ? (
                 <Pill
                   data-testid="tasks-detail-active-run-channel"
                   title="Coordination channel is bound to the active run. Channel messages support coordination only — claim, heartbeat, and terminal status stay in the task service."
-                  variant={pillVariantFromTone("violet")}
+                  tone={pillVariantFromTone("violet")}
                 >
                   <span className="inline-flex items-center gap-1">
                     <Radio className="size-3" aria-hidden="true" />

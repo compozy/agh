@@ -10,6 +10,8 @@ const packagesUiPreview = packagesUiPreviewModule.default;
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packagesUiPreviewPath = resolve(testDir, "../../../packages/ui/.storybook/preview.ts");
 const packagesUiPreviewSource = readFileSync(packagesUiPreviewPath, "utf8");
+const packagesUiPreviewCssPath = resolve(testDir, "../../../packages/ui/.storybook/preview.css");
+const packagesUiPreviewCssSource = readFileSync(packagesUiPreviewCssPath, "utf8");
 
 describe("packages/ui Storybook config", () => {
   it("scopes Storybook to packages/ui stories with the expected addons and framework", () => {
@@ -26,7 +28,8 @@ describe("packages/ui Storybook config", () => {
   });
 
   it("imports shared tokens without pulling in web styling or data-layer providers", () => {
-    expect(packagesUiPreviewSource).toContain('import "@agh/ui/tokens.css";');
+    expect(packagesUiPreviewSource).toContain('import "./preview.css";');
+    expect(packagesUiPreviewCssSource).toContain('@import "@agh/ui/tokens.css";');
     expect(packagesUiPreviewSource).not.toContain("web/src/styles.css");
     expect(packagesUiPreviewSource).not.toContain("msw");
     expect(packagesUiPreviewSource).not.toContain("QueryClient");

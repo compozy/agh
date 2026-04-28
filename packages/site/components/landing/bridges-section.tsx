@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
+import { Pill } from "@agh/ui";
 import {
   DiscordLogo,
   GithubLogo,
@@ -10,7 +11,6 @@ import {
   TelegramLogo,
   WhatsAppLogo,
 } from "@agh/ui/logos";
-import { MonoBadge } from "./primitives/mono-badge";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 
@@ -84,9 +84,13 @@ export function BridgesSection() {
               <div className="flex items-center justify-between self-stretch">
                 <div className="flex h-10 w-10 items-center justify-center">{bridge.logo}</div>
                 {bridge.status === "live" ? (
-                  <MonoBadge tone="success">live</MonoBadge>
+                  <Pill mono tone="success">
+                    live
+                  </Pill>
                 ) : (
-                  <MonoBadge tone="neutral">next</MonoBadge>
+                  <Pill mono tone="neutral">
+                    next
+                  </Pill>
                 )}
               </div>
               <p className="text-[14px] font-medium text-(--color-text-primary)">{bridge.name}</p>
@@ -104,7 +108,9 @@ export function BridgesSection() {
           <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
             How a bridge delivers a session
           </p>
-          <MonoBadge tone="accent">inside the daemon</MonoBadge>
+          <Pill mono tone="accent">
+            inside the daemon
+          </Pill>
         </div>
         <div className="mt-6 grid grid-cols-1 items-center gap-4 md:grid-cols-[auto_1fr_auto_1fr_auto_1fr_auto]">
           <FlowNode title="Platform" sub="slack / discord / tg" />

@@ -2,7 +2,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, Input, Pills } from "@agh/ui";
+import { Button, Input, PillGroup } from "@agh/ui";
 import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
 import type { SettingsGeneralSection } from "@/systems/settings";
 import {
@@ -244,7 +244,7 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
 function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
   return (
     <SettingsSectionCard eyebrow="Permissions" note="tool approval policy">
-      <Pills
+      <PillGroup
         data-testid="settings-page-general-permissions-group"
         aria-label="Tool approval policy"
         value={draft.permissions.mode}

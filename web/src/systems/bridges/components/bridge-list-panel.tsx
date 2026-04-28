@@ -1,7 +1,9 @@
 import { AlertCircle, Loader2, Waypoints } from "lucide-react";
 
-import { Empty, KindChip, MonoBadge, SearchInput, StatusDot, type StatusDotTone } from "@agh/ui";
+import { Empty, Pill, SearchInput, type PillTone } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
+import { KindChip } from "@/systems/network/components/kind-chip";
 
 import {
   bridgeStatusTone,
@@ -28,7 +30,7 @@ interface BridgeListItemProps {
   onSelect: () => void;
 }
 
-function listItemTone(status: BridgeSummary["status"]): StatusDotTone {
+function listItemTone(status: BridgeSummary["status"]): PillTone {
   switch (bridgeStatusTone(status)) {
     case "green":
       return "success";
@@ -71,7 +73,7 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <StatusDot pulse={pulse} tone={tone} />
+          <Pill.Dot pulse={pulse} tone={tone} />
           <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
             {bridge.display_name}
           </span>
@@ -83,7 +85,9 @@ function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItem
 
       <div className="flex flex-wrap items-center gap-1.5">
         <KindChip kind={bridge.platform} />
-        <MonoBadge tone="neutral">{effectiveStatus}</MonoBadge>
+        <Pill mono tone="neutral">
+          {effectiveStatus}
+        </Pill>
         {health?.route_count !== undefined ? (
           <span className="ml-auto font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
             {health.route_count} routes
@@ -206,7 +210,7 @@ export function BridgeListPanel({
                   <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
                     {group.platform}
                   </span>
-                  <MonoBadge>{group.items.length}</MonoBadge>
+                  <Pill mono>{group.items.length}</Pill>
                 </div>
                 {group.items.map(bridge => (
                   <BridgeListItem

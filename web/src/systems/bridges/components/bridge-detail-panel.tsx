@@ -18,11 +18,9 @@ import {
   FieldTitle,
   Input,
   Metric,
-  MonoBadge,
-  type MonoBadgeTone,
+  Pill,
+  type PillTone,
   Section,
-  StatusDot,
-  type StatusDotTone,
   Table,
   TableBody,
   TableCell,
@@ -86,7 +84,7 @@ interface BridgeMetrics {
   successTone: "default" | "accent" | "success" | "warning" | "danger";
 }
 
-function statusToStatusDotTone(status: BridgeStatus): StatusDotTone {
+function statusToStatusDotTone(status: BridgeStatus): PillTone {
   if (status === "disabled") return "danger";
   switch (bridgeStatusTone(status)) {
     case "green":
@@ -102,7 +100,7 @@ function statusToStatusDotTone(status: BridgeStatus): StatusDotTone {
   }
 }
 
-function statusToMonoBadgeTone(status: BridgeStatus): MonoBadgeTone {
+function statusToMonoBadgeTone(status: BridgeStatus): PillTone {
   if (status === "disabled") return "danger";
   switch (bridgeStatusTone(status)) {
     case "green":
@@ -193,12 +191,12 @@ function SecretSlotCard({
         <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-text-primary)]">
           {slot.name}
         </span>
-        <MonoBadge tone={slot.required === false ? "neutral" : "warning"}>
+        <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
           {slot.required === false ? "OPTIONAL" : "REQUIRED"}
-        </MonoBadge>
-        <MonoBadge tone={binding ? "success" : "neutral"}>
+        </Pill>
+        <Pill mono tone={binding ? "success" : "neutral"}>
           {binding ? "BOUND" : "UNBOUND"}
-        </MonoBadge>
+        </Pill>
       </div>
       <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-text-secondary)]">
         {describeBridgeSecretSlot(slot)}
@@ -335,7 +333,7 @@ function BridgeEventStreamSection({
   }
 
   return (
-    <Section label="Event stream" right={<MonoBadge>{routes.length}</MonoBadge>}>
+    <Section label="Event stream" right={<Pill mono>{routes.length}</Pill>}>
       <div
         className="overflow-hidden rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)]"
         data-testid="bridge-routes-table"
@@ -368,8 +366,10 @@ function BridgeEventStreamSection({
               >
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <StatusDot tone="success" />
-                    <MonoBadge tone="success">ACTIVE</MonoBadge>
+                    <Pill.Dot tone="success" />
+                    <Pill mono tone="success">
+                      ACTIVE
+                    </Pill>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -387,9 +387,9 @@ function BridgeEventStreamSection({
                   {describeBridgeRouteTarget(route)}
                 </TableCell>
                 <TableCell>
-                  <MonoBadge tone={route.scope === "workspace" ? "info" : "neutral"}>
+                  <Pill mono tone={route.scope === "workspace" ? "info" : "neutral"}>
                     {route.scope}
-                  </MonoBadge>
+                  </Pill>
                 </TableCell>
                 <TableCell className="font-mono text-[12px] text-[color:var(--color-text-tertiary)]">
                   {formatBridgeRelativeTime(route.last_activity_at)}
@@ -560,14 +560,16 @@ function BridgeDetailHeader({
             >
               <Waypoints className="size-4" />
             </span>
-            <StatusDot pulse={pulse} tone={statusDotTone} />
+            <Pill.Dot pulse={pulse} tone={statusDotTone} />
             <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]">
               {bridge.display_name}
             </h2>
-            <MonoBadge tone={statusBadgeTone}>{effectiveStatus}</MonoBadge>
-            <MonoBadge tone={bridge.scope === "workspace" ? "info" : "neutral"}>
+            <Pill mono tone={statusBadgeTone}>
+              {effectiveStatus}
+            </Pill>
+            <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>
               {bridge.scope}
-            </MonoBadge>
+            </Pill>
           </div>
           <p className="text-[12px] text-[color:var(--color-text-secondary)]">
             {bridge.platform} · {bridge.extension_name}

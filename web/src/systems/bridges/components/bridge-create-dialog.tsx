@@ -14,7 +14,7 @@ import {
   FieldSet,
   FieldTitle,
   Input,
-  MonoBadge,
+  Pill,
   NativeSelect,
   NativeSelectOption,
   Section,
@@ -153,7 +153,7 @@ export function BridgeCreateDialog({
                         <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
                           Secret slots
                         </p>
-                        <MonoBadge>{selectedProvider.secret_slots?.length ?? 0}</MonoBadge>
+                        <Pill mono>{selectedProvider.secret_slots?.length ?? 0}</Pill>
                       </div>
                       {selectedProvider.secret_slots?.length ? (
                         <ul className="mt-3 space-y-2" data-testid="bridge-provider-secret-slots">
@@ -166,9 +166,9 @@ export function BridgeCreateDialog({
                                 <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[color:var(--color-text-primary)]">
                                   {slot.name}
                                 </span>
-                                <MonoBadge tone={slot.required === false ? "neutral" : "warning"}>
+                                <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
                                   {slot.required === false ? "OPTIONAL" : "REQUIRED"}
-                                </MonoBadge>
+                                </Pill>
                               </div>
                               <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-text-secondary)]">
                                 {describeBridgeSecretSlot(slot)}

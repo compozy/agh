@@ -90,7 +90,7 @@ describe("ToolCallCard", () => {
     expect(badge).not.toBeNull();
     expect(badge?.textContent).toBe("RUNNING");
     expect(badge?.getAttribute("data-tone")).toBe("accent");
-    expect(badge?.className).toMatch(/bg-\[color:var\(--color-accent-tint\)\]/);
+    expect(badge?.className).toMatch(/bg-\(--color-accent-tint\)/);
     expect(queryPrimitiveRoot()?.getAttribute("data-status")).toBe("running");
   });
 
@@ -99,7 +99,7 @@ describe("ToolCallCard", () => {
     const badge = queryStatusBadge();
     expect(badge?.textContent).toBe("DONE");
     expect(badge?.getAttribute("data-tone")).toBe("success");
-    expect(badge?.className).toMatch(/bg-\[color:var\(--color-success-tint\)\]/);
+    expect(badge?.className).toMatch(/bg-\(--color-success-tint\)/);
     expect(queryPrimitiveRoot()?.getAttribute("data-status")).toBe("done");
   });
 
@@ -115,7 +115,7 @@ describe("ToolCallCard", () => {
     const badge = queryStatusBadge();
     expect(badge?.textContent).toBe("ERROR");
     expect(badge?.getAttribute("data-tone")).toBe("danger");
-    expect(badge?.className).toMatch(/bg-\[color:var\(--color-danger-tint\)\]/);
+    expect(badge?.className).toMatch(/bg-\(--color-danger-tint\)/);
     const root = queryPrimitiveRoot();
     expect(root?.getAttribute("data-status")).toBe("error");
     expect(root?.className).toContain("data-[status=error]:border-[color:var(--color-danger)]/40");

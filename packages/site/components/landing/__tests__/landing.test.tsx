@@ -37,7 +37,9 @@ import { NetworkSection } from "../network-section";
 import { InstallSection } from "../install-section";
 import { Comparison } from "../comparison";
 import { FinalCta } from "../final-cta";
-import { KindChip, KIND_MEANING, type NetworkKind } from "../primitives/kind-chip";
+import { Pill } from "@agh/ui";
+
+import { KIND_MEANING, type NetworkKind } from "../primitives/network-kinds";
 
 describe("Hero", () => {
   it("leads with the runtime + network headline and drops ACP from the fold", () => {
@@ -339,8 +341,8 @@ describe("FinalCta", () => {
   });
 });
 
-describe("KindChip", () => {
-  it("has a meaning string for every NetworkKind", () => {
+describe("Network kind pill", () => {
+  it("has a meaning string for every NetworkKind and renders inside Pill", () => {
     const kinds: NetworkKind[] = [
       "greet",
       "whois",
@@ -352,7 +354,11 @@ describe("KindChip", () => {
     ];
     for (const kind of kinds) {
       expect(KIND_MEANING[kind]).toBeDefined();
-      render(<KindChip kind={kind} />);
+      render(
+        <Pill mono size="xs" tone="accent" title={KIND_MEANING[kind]}>
+          {kind}
+        </Pill>
+      );
       expect(screen.getAllByText(kind)).toBeDefined();
     }
   });

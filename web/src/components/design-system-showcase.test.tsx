@@ -187,7 +187,7 @@ describe("DesignSystemShowcase", () => {
   });
 
   describe("file content contract", () => {
-    it("imports only from @agh/ui + lucide-react + react (no local UI primitives)", () => {
+    it("imports only from @agh/ui + lucide-react + react + the local helpers that compose @agh/ui Pill primitives", () => {
       const specifierRegex = /from\s+["']([^"']+)["']/g;
       const sources = new Set<string>();
       for (const match of SHOWCASE_SOURCE.matchAll(specifierRegex)) {
@@ -196,7 +196,13 @@ describe("DesignSystemShowcase", () => {
       expect(sources.has("@agh/ui")).toBe(true);
       expect(sources.has("lucide-react")).toBe(true);
       expect(sources.has("react")).toBe(true);
-      const allowed = new Set(["@agh/ui", "lucide-react", "react"]);
+      const allowed = new Set([
+        "@agh/ui",
+        "lucide-react",
+        "react",
+        "@/components/connection-indicator",
+        "@/systems/network/components/kind-chip",
+      ]);
       const forbidden = [...sources].filter(specifier => {
         if (allowed.has(specifier)) return false;
         return true;

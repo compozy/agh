@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { AlertCircle, Loader2, Plus, type LucideIcon } from "lucide-react";
 
-import { Button, Empty, PageHeader, Pills, SplitPane } from "@agh/ui";
+import { Button, Empty, PageHeader, PillGroup, SplitPane } from "@agh/ui";
 
 import { AutomationDetailPanel } from "./automation-detail-panel";
 import { AutomationEditorDialog } from "./automation-editor-dialog";
@@ -87,7 +87,7 @@ export function AutomationOperationsPage({
         <PageHeader
           count={page.currentTotalCount}
           controls={
-            <Pills
+            <PillGroup
               aria-label={`${title} scope`}
               data-testid={`${titlePrefix}-scope-tabs`}
               items={[

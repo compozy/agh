@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, Loader2, Radio } from "lucide-react";
 
-import { Button, CodeBlock, Metric, MonoBadge, Pill, Section, StatusDot } from "@agh/ui";
+import { Button, CodeBlock, Metric, Pill, Section } from "@agh/ui";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 
 import {
@@ -150,39 +150,39 @@ export function TasksDetailPreviewPanel({
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex min-w-0 items-center gap-2">
-            <StatusDot tone={signal.tone} pulse={signal.pulse} />
+            <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
             <h2
               className="truncate text-[1.35rem] font-semibold tracking-[-0.02em] text-[color:var(--color-text-primary)]"
               data-testid="tasks-detail-preview-title"
             >
               {record.title}
             </h2>
-            <MonoBadge>{identifier}</MonoBadge>
+            <Pill mono>{identifier}</Pill>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[13px] text-[color:var(--color-text-secondary)]">
-            <Pill variant={pillVariantFromTone(taskStatusTone(record.status))}>
+            <Pill tone={pillVariantFromTone(taskStatusTone(record.status))}>
               {taskStatusLabel(record.status)}
             </Pill>
             <Pill
               data-testid="tasks-detail-preview-lifecycle"
               title={taskLifecyclePhaseDescription(lifecyclePhase)}
-              variant={pillVariantFromTone(taskLifecyclePhaseTone(lifecyclePhase))}
+              tone={pillVariantFromTone(taskLifecyclePhaseTone(lifecyclePhase))}
             >
               {taskLifecyclePhaseLabel(lifecyclePhase)}
             </Pill>
             {record.priority ? (
-              <Pill variant={pillVariantFromTone(taskPriorityTone(record.priority))}>
+              <Pill tone={pillVariantFromTone(taskPriorityTone(record.priority))}>
                 {taskPriorityLabel(record.priority)}
               </Pill>
             ) : null}
             {taskHasApprovalPending(record) ? (
-              <Pill variant="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
+              <Pill tone="accent">{taskApprovalStateLabel(record.approval_state)}</Pill>
             ) : null}
             {channelLabel ? (
               <Pill
                 data-testid="tasks-detail-preview-coordination"
                 title="Coordination channel is bound to the active run. Channel messages support coordination only — task ownership stays in the task service."
-                variant={pillVariantFromTone("violet")}
+                tone={pillVariantFromTone("violet")}
               >
                 <span className="inline-flex items-center gap-1">
                   <Radio className="size-3" aria-hidden="true" />

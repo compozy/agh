@@ -8,7 +8,7 @@ import {
   Button,
   Empty,
   Input,
-  MonoBadge,
+  Pill,
   NativeSelect,
   NativeSelectOption,
   PageHeader,
@@ -224,7 +224,9 @@ function SandboxRow({
       </TableCell>
       <TableCell>
         <div className="flex flex-col gap-1">
-          <MonoBadge tone={backendTone(profile.backend)}>{profile.backend}</MonoBadge>
+          <Pill mono tone={backendTone(profile.backend)}>
+            {profile.backend}
+          </Pill>
           <span className="text-xs text-[color:var(--color-text-tertiary)]">
             {backendLabel(profile.backend)}
           </span>

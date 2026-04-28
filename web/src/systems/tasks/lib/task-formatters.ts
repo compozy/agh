@@ -1,4 +1,4 @@
-import type { StatusDotTone } from "@agh/ui";
+import type { PillTone } from "@agh/ui";
 
 import type {
   TaskApprovalState,
@@ -15,7 +15,7 @@ import type {
 export type TaskSemanticTone = "accent" | "amber" | "danger" | "green" | "neutral" | "violet";
 
 export interface TaskStatusSignal {
-  tone: StatusDotTone;
+  tone: PillTone;
   pulse?: boolean;
 }
 

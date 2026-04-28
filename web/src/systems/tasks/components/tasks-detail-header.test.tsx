@@ -57,7 +57,7 @@ describe("TasksDetailHeader", () => {
     expect(screen.getByTestId("tasks-detail-meta")).toHaveTextContent("pedro@");
 
     // Status dot rendered alongside title
-    const dot = container.querySelector('[data-slot="status-dot"]');
+    const dot = container.querySelector('[data-slot="pill-dot"]');
     expect(dot).not.toBeNull();
   });
 

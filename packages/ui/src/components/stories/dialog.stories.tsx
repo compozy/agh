@@ -28,7 +28,6 @@ const meta: Meta<typeof Dialog> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

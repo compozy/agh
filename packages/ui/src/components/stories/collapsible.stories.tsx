@@ -17,7 +17,6 @@ const meta: Meta<typeof Collapsible> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

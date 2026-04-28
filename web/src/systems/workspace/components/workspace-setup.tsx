@@ -125,7 +125,7 @@ function WorkspaceSetupContent({
     <SetupOptionCard
       variant={variant}
       eyebrow="Global"
-      right={<Pill variant="accent">{WORKSPACE_SETUP_COPY.global.badge}</Pill>}
+      right={<Pill tone="accent">{WORKSPACE_SETUP_COPY.global.badge}</Pill>}
       icon={<Home className="size-4" />}
       iconTone="accent"
       title={WORKSPACE_SETUP_COPY.global.title}
@@ -260,7 +260,7 @@ function WorkspaceOnboarding({ onWorkspaceResolved }: WorkspaceOnboardingProps) 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,24rem)] lg:gap-8 xl:gap-10">
           <div className="flex flex-col justify-between gap-6">
             <div className="space-y-4">
-              <Pill variant="accent">{copy.eyebrow}</Pill>
+              <Pill tone="accent">{copy.eyebrow}</Pill>
               <div className="space-y-3">
                 <h1 className="max-w-xl text-3xl font-semibold tracking-[-0.03em] text-[color:var(--color-text-primary)] sm:text-4xl">
                   {copy.title}

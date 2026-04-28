@@ -31,21 +31,17 @@ function AppSidebarHarness({
   defaultCollapsed = false,
   defaultWorkspaceId,
   activeWorkspaceId,
-  activeWorkspace,
   ...rest
 }: StoryArgs) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [workspaceId, setWorkspaceId] = useState<string | null>(
     defaultWorkspaceId ?? activeWorkspaceId ?? null
   );
-  const resolvedActive =
-    rest.workspaces?.find(ws => ws.id === workspaceId) ?? activeWorkspace ?? undefined;
 
   return (
     <Frame>
       <AppSidebar
         {...rest}
-        activeWorkspace={resolvedActive}
         activeWorkspaceId={workspaceId}
         onSelectWorkspace={setWorkspaceId}
         collapsed={collapsed}
@@ -64,14 +60,13 @@ const meta: Meta<typeof AppSidebarHarness> = {
     docs: {
       description: {
         component:
-          "Thin composition over `@agh/ui` `Sidebar`. The rail owns the workspace switcher, the header surfaces the active workspace name + search, the nav owns the agent tree and workspace nav, and the footer owns the connection indicator + settings link. The global `agh` wordmark lives in the app-shell header one level up.",
+          "Thin composition over `@agh/ui` `Sidebar`. The rail owns the workspace switcher, the nav owns the agent tree and workspace nav, and the footer owns the connection indicator + settings link. The global `agh` wordmark lives in the app-shell header one level up.",
       },
     },
   },
   args: {
     workspaces: workspaceFixtures,
     activeWorkspaceId: workspaceFixtures[1].id,
-    activeWorkspace: workspaceFixtures[1],
     onAddWorkspace: () => undefined,
     health: { version: "0.4.1" },
     connectionStatus: "connected",
@@ -104,7 +99,6 @@ export const Collapsed: Story = {
 export const NoWorkspaces: Story = {
   args: {
     workspaces: [],
-    activeWorkspace: undefined,
     activeWorkspaceId: null,
     defaultWorkspaceId: null,
     agents: [],

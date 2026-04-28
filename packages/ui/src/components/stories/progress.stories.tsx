@@ -21,7 +21,6 @@ const meta: Meta<typeof Progress> = {
       </div>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

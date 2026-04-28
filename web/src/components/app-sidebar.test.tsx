@@ -85,7 +85,6 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
     collapsed: false,
     onCollapseChange,
     workspaces,
-    activeWorkspace: workspaces[0],
     activeWorkspaceId: "ws_alpha",
     onSelectWorkspace,
     onAddWorkspace,
@@ -109,21 +108,10 @@ describe("AppSidebar", () => {
   });
 
   describe("Header", () => {
-    it("surfaces the active workspace name", () => {
+    it("does not render a sidebar header slot — workspace identity lives in the rail", () => {
       renderSidebar(makeProps());
-      expect(screen.getByTestId("sidebar-workspace-name")).toHaveTextContent("alpha");
-    });
-
-    it("removes the non-functional sidebar search affordances", () => {
-      renderSidebar(makeProps());
-      expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument();
-      expect(screen.queryByText("Search…")).not.toBeInTheDocument();
-    });
-
-    it("no longer carries the wordmark (now owned by the global app shell)", () => {
-      renderSidebar(makeProps());
-      expect(screen.queryByTestId("sidebar-wordmark")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("sidebar-alpha-chip")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("sidebar-workspace-name")).not.toBeInTheDocument();
+      expect(document.querySelector('[data-slot="sidebar-header"]')).toBeNull();
     });
   });
 
@@ -184,9 +172,7 @@ describe("AppSidebar", () => {
     });
 
     it("still renders the + affordance when there are no workspaces", () => {
-      renderSidebar(
-        makeProps({ workspaces: [], activeWorkspace: undefined, activeWorkspaceId: null })
-      );
+      renderSidebar(makeProps({ workspaces: [], activeWorkspaceId: null }));
       expect(screen.getByTestId("add-workspace-btn")).toBeInTheDocument();
       expect(screen.queryByTestId(/^workspace-avatar-/)).not.toBeInTheDocument();
     });

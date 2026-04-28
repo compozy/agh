@@ -8,7 +8,7 @@ import {
   FieldLabel,
   FieldTitle,
   Input,
-  Pills,
+  PillGroup,
   Section,
   Switch,
   Textarea,
@@ -101,7 +101,7 @@ export function AutomationJobForm({
             </Field>
             <Field>
               <FieldTitle>Scope</FieldTitle>
-              <Pills
+              <PillGroup
                 aria-label="Scope"
                 items={[
                   { value: "global", label: "GLOBAL", testId: "job-scope-global" },
@@ -135,7 +135,7 @@ export function AutomationJobForm({
           <div className="space-y-4 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] p-4">
             <Field>
               <FieldTitle>Mode</FieldTitle>
-              <Pills
+              <PillGroup
                 aria-label="Schedule mode"
                 items={[
                   { value: "cron", label: "CRON", testId: "job-schedule-mode-cron" },
@@ -221,7 +221,7 @@ export function AutomationJobForm({
             <div className="grid gap-4 md:grid-cols-3">
               <Field>
                 <FieldTitle>Retry policy</FieldTitle>
-                <Pills
+                <PillGroup
                   aria-label="Retry policy"
                   items={[
                     { value: "none", label: "NONE", testId: "job-retry-strategy-none" },

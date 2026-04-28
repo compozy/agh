@@ -15,7 +15,6 @@ const meta: Meta<typeof CodeBlock> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

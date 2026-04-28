@@ -63,7 +63,7 @@ export function TasksInboxItem({
   // the old StatusDot + accent combination stacked too much color per row.
   const trailing = (
     <>
-      <Pill size="sm" variant={pillVariantFromTone(taskStatusTone(task.status))}>
+      <Pill size="sm" tone={pillVariantFromTone(taskStatusTone(task.status))}>
         {taskStatusLabel(task.status)}
       </Pill>
       {run ? (

@@ -14,7 +14,6 @@ const meta: Meta<typeof DirectionProvider> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

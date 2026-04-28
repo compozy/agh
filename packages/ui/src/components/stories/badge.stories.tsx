@@ -13,7 +13,6 @@ const meta: Meta<typeof Badge> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

@@ -18,7 +18,6 @@ const meta: Meta<typeof ButtonGroup> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

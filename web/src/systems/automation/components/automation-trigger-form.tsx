@@ -10,8 +10,8 @@ import {
   FieldLabel,
   FieldTitle,
   Input,
-  MonoBadge,
-  Pills,
+  Pill,
+  PillGroup,
   Section,
   Switch,
   Textarea,
@@ -125,7 +125,7 @@ export function AutomationTriggerForm({
             </Field>
             <Field>
               <FieldTitle>Scope</FieldTitle>
-              <Pills
+              <PillGroup
                 aria-label="Scope"
                 items={[
                   { value: "global", label: "GLOBAL", testId: "trigger-scope-global" },
@@ -148,7 +148,9 @@ export function AutomationTriggerForm({
             <Field>
               <FieldLabel htmlFor="trigger-prompt">Prompt template</FieldLabel>
               <div className="flex flex-wrap items-center gap-2">
-                <MonoBadge tone="info">GO TEMPLATE</MonoBadge>
+                <Pill mono tone="info">
+                  GO TEMPLATE
+                </Pill>
                 <span className="text-[12px] text-[color:var(--color-text-tertiary)]">
                   Variables: .EventName, .Source, .Data, .Timestamp
                 </span>
@@ -254,7 +256,7 @@ export function AutomationTriggerForm({
               <div className="grid gap-4 md:grid-cols-3">
                 <Field>
                   <FieldTitle>Retry policy</FieldTitle>
-                  <Pills
+                  <PillGroup
                     aria-label="Retry policy"
                     items={[
                       { value: "none", label: "NONE", testId: "trigger-retry-strategy-none" },

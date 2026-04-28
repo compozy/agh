@@ -7,15 +7,13 @@ import {
   FieldDescription,
   FieldLabel,
   Input,
-  MonoBadge,
+  Pill,
   NativeSelect,
   NativeSelectOption,
   PageHeader,
-  Pill,
-  Pills,
+  PillGroup,
   Section,
-  StatusDot,
-  type PillsItem,
+  type PillGroupItem,
   Textarea,
 } from "@agh/ui";
 
@@ -26,7 +24,7 @@ import { TASK_TEMPLATES, type TaskTemplate, type TaskTemplateId } from "../lib/t
 import { taskStatusLabel, taskStatusSignal, taskStatusTone } from "../lib/task-formatters";
 import { useTasksCreateModalForm } from "./use-tasks-create-modal-form";
 
-const PRIORITY_OPTIONS: PillsItem<TaskPriority>[] = [
+const PRIORITY_OPTIONS: PillGroupItem<TaskPriority>[] = [
   { value: "low", label: "Low", testId: "task-editor-priority-low" },
   { value: "medium", label: "Medium", testId: "task-editor-priority-medium" },
   { value: "high", label: "High", testId: "task-editor-priority-high" },
@@ -42,7 +40,7 @@ const OWNER_KIND_OPTIONS: TaskOwnerKind[] = [
   "pool",
 ];
 
-const APPROVAL_OPTIONS: PillsItem<"none" | "manual">[] = [
+const APPROVAL_OPTIONS: PillGroupItem<"none" | "manual">[] = [
   { value: "none", label: "No approval", testId: "task-editor-approval-none" },
   {
     value: "manual",
@@ -51,7 +49,7 @@ const APPROVAL_OPTIONS: PillsItem<"none" | "manual">[] = [
   },
 ];
 
-const ATTEMPT_ITEMS: PillsItem<string>[] = [
+const ATTEMPT_ITEMS: PillGroupItem<string>[] = [
   { value: "1", label: "1", testId: "task-editor-attempts-1" },
   { value: "2", label: "2", testId: "task-editor-attempts-2" },
   { value: "3", label: "3", testId: "task-editor-attempts-3" },
@@ -103,7 +101,7 @@ export function TaskEditorSurface({
           : "This template creates a draft first so you can publish it later."))
       : "Changes are saved directly to the task record and become visible across the list, detail, inbox, and dashboard views.";
 
-  const scopeItems: PillsItem<TaskScope>[] = [
+  const scopeItems: PillGroupItem<TaskScope>[] = [
     {
       value: "workspace",
       label: workspaceName ? `Workspace · ${workspaceName}` : "Workspace",
@@ -112,7 +110,7 @@ export function TaskEditorSurface({
     { value: "global", label: "Global", testId: "task-editor-scope-global" },
   ];
 
-  const templateItems: PillsItem<TaskTemplateId>[] = TASK_TEMPLATES.map(option => ({
+  const templateItems: PillGroupItem<TaskTemplateId>[] = TASK_TEMPLATES.map(option => ({
     value: option.id,
     label: option.label,
     testId: `task-editor-template-${option.id}`,
@@ -123,8 +121,8 @@ export function TaskEditorSurface({
 
   const headerMeta = task ? (
     <div className="flex flex-wrap items-center gap-2 text-[13px] text-[color:var(--color-text-secondary)]">
-      {task.identifier ? <MonoBadge>{task.identifier}</MonoBadge> : null}
-      <Pill variant={pillVariantFromTone(taskStatusTone(task.status))}>
+      {task.identifier ? <Pill mono>{task.identifier}</Pill> : null}
+      <Pill tone={pillVariantFromTone(taskStatusTone(task.status))}>
         {taskStatusLabel(task.status)}
       </Pill>
       <span>Scope {task.scope}</span>
@@ -168,7 +166,7 @@ export function TaskEditorSurface({
         meta={headerMeta}
         title={
           <span className="flex min-w-0 items-center gap-2">
-            {signal ? <StatusDot pulse={signal.pulse} tone={signal.tone} /> : null}
+            {signal ? <Pill.Dot pulse={signal.pulse} tone={signal.tone} /> : null}
             <span
               className="truncate text-[15px] font-semibold text-[color:var(--color-text-primary)]"
               data-testid="task-editor-title"
@@ -192,7 +190,7 @@ export function TaskEditorSurface({
                   {isCreateMode && template && templateId && onTemplateChange ? (
                     <Field>
                       <FieldLabel data-testid="task-editor-template-label">Template</FieldLabel>
-                      <Pills
+                      <PillGroup
                         aria-label="Task template"
                         className="w-full flex-wrap"
                         data-testid="task-editor-template-options"
@@ -254,7 +252,7 @@ export function TaskEditorSurface({
                         {workspaceName ? (
                           <FieldDescription>Workspace default: {workspaceName}</FieldDescription>
                         ) : null}
-                        <Pills
+                        <PillGroup
                           aria-label="Task scope"
                           className="w-full flex-wrap"
                           items={scopeItems}
@@ -266,7 +264,7 @@ export function TaskEditorSurface({
 
                       <Field>
                         <FieldLabel data-testid="task-editor-priority-label">Priority</FieldLabel>
-                        <Pills
+                        <PillGroup
                           aria-label="Task priority"
                           className="w-full flex-wrap"
                           items={PRIORITY_OPTIONS}
@@ -319,7 +317,7 @@ export function TaskEditorSurface({
 
                       <Field>
                         <FieldLabel data-testid="task-editor-attempts-label">Attempts</FieldLabel>
-                        <Pills
+                        <PillGroup
                           aria-label="Max attempts"
                           className="w-full flex-wrap"
                           items={ATTEMPT_ITEMS}
@@ -339,7 +337,7 @@ export function TaskEditorSurface({
                     <div className="grid gap-5 md:grid-cols-2">
                       <Field>
                         <FieldLabel data-testid="task-editor-approval-label">Approval</FieldLabel>
-                        <Pills
+                        <PillGroup
                           aria-label="Approval policy"
                           className="w-full flex-wrap"
                           items={APPROVAL_OPTIONS}
@@ -421,7 +419,7 @@ export function TaskEditorSurface({
                     <>
                       <Field>
                         <FieldLabel data-testid="task-editor-priority-label">Priority</FieldLabel>
-                        <Pills
+                        <PillGroup
                           aria-label="Task priority"
                           className="w-full flex-wrap"
                           items={PRIORITY_OPTIONS}
@@ -433,7 +431,7 @@ export function TaskEditorSurface({
 
                       <Field>
                         <FieldLabel data-testid="task-editor-approval-label">Approval</FieldLabel>
-                        <Pills
+                        <PillGroup
                           aria-label="Approval policy"
                           className="w-full flex-wrap"
                           items={APPROVAL_OPTIONS}
@@ -445,7 +443,7 @@ export function TaskEditorSurface({
 
                       <Field>
                         <FieldLabel data-testid="task-editor-attempts-label">Attempts</FieldLabel>
-                        <Pills
+                        <PillGroup
                           aria-label="Max attempts"
                           className="w-full flex-wrap"
                           items={ATTEMPT_ITEMS}

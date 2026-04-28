@@ -27,7 +27,6 @@ const meta: Meta<typeof Item> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

@@ -22,6 +22,7 @@ No production users exist. Never sacrifice code quality for backward compatibili
 - **`make web-lint` and `make web-typecheck` MUST pass** before completing ANY web task. Zero warnings, zero errors.
 - **Oxlint has zero tolerance** — any warning is a blocking failure
 - **Follow shadcn kebab-case naming** for all files in `web/`
+- **Native DOM wrappers** — if a component’s root is a single native element (`button`, `input`, `a`, …), its props MUST extend that element’s intrinsic type (`React.ComponentProps<"…">`), merge `className`, and spread `{...props}` onto the node (use `forwardRef` when refs apply). CVA + `VariantProps`: follow the `shadcn` skill. Canonical rule: `.agents/skills/react/SKILL.md` → _Extend native element props_.
 - **Never add JS dependencies by hand in `package.json`** — always use `bun add`
 - **Check dependent package APIs** before writing integration code or tests
 - **Local QA against an isolated daemon MUST read `AGH_WEB_API_PROXY_TARGET` from the active bootstrap manifest/env** — never hardcode `http://localhost:2123` when `agh-qa-bootstrap` or another isolated QA envelope is in use.
@@ -30,25 +31,25 @@ No production users exist. Never sacrifice code quality for backward compatibili
 
 Activate skills **before** writing code. Match task domain → activate all required skills:
 
-| Domain                        | Required Skills                                                  | Conditional Skills                                 |
-| ----------------------------- | ---------------------------------------------------------------- | -------------------------------------------------- |
-| React / Web UI                | `react` + `tailwindcss` + `vercel-react-best-practices`          | `shadcn` + `shadcn-ui`                             |
-| Routing                       | `tanstack-router-best-practices`                                 | `tanstack`                                         |
-| Data fetching                 | `tanstack-query-best-practices` + `app-renderer-systems`         |                                                    |
-| State management              | `zustand`                                                        |                                                    |
-| Schema / Validation           | `zod`                                                            | `typescript-advanced`                              |
-| Web testing                   | `vitest` + `react` + `testing-anti-patterns`                     |                                                    |
-| TypeScript (types)            | `typescript-advanced`                                            | `context7`                                         |
-| UI / UX Design (generic)      | `frontend-design` + `design-taste-frontend`                      | `interface-design` + `shadcn-ui` + `minimalist-ui` |
-| **AGH UI / Redesign tasks**   | `agh-design` + `design-taste-frontend` + `minimalist-ui`         | `frontend-design` + `interface-design`             |
-| Storybook / component stories | `storybook-stories`                                              | `shadcn-ui`                                        |
-| Animation / motion            | `motion-react`                                                   | `motion`                                           |
-| Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`    |                                                    |
-| AI / Streaming                | `ai-sdk`                                                         | `tanstack-query-best-practices`                    |
-| Bug fix                       | `systematic-debugging` + `no-workarounds`                        | `testing-anti-patterns`                            |
-| Design polish passes          | `impeccable:polish` + `impeccable:layout` + `impeccable:typeset` | `impeccable:delight` + `impeccable:critique`       |
-| External docs lookup          | `context7` + `find-docs`                                         | `exa-web-search-free`                              |
-| Task completion               | `cy-final-verify`                                                |                                                    |
+| Domain                        | Required Skills                                                  | Conditional Skills                              |
+| ----------------------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
+| React / Web UI                | `react` + `tailwindcss` + `vercel-react-best-practices`          | `shadcn`                                        |
+| Routing                       | `tanstack-router-best-practices`                                 | `tanstack`                                      |
+| Data fetching                 | `tanstack-query-best-practices` + `app-renderer-systems`         |                                                 |
+| State management              | `zustand`                                                        |                                                 |
+| Schema / Validation           | `zod`                                                            | `typescript-advanced`                           |
+| Web testing                   | `vitest` + `react` + `testing-anti-patterns`                     |                                                 |
+| TypeScript (types)            | `typescript-advanced`                                            | `context7`                                      |
+| UI / UX Design (generic)      | `frontend-design` + `design-taste-frontend`                      | `interface-design` + `shadcn` + `minimalist-ui` |
+| **AGH UI / Redesign tasks**   | `agh-design` + `design-taste-frontend` + `minimalist-ui`         | `frontend-design` + `interface-design`          |
+| Storybook / component stories | `storybook-stories`                                              | `shadcn`                                        |
+| Animation / motion            | `motion-react`                                                   | `motion`                                        |
+| Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`    |                                                 |
+| AI / Streaming                | `ai-sdk`                                                         | `tanstack-query-best-practices`                 |
+| Bug fix                       | `systematic-debugging` + `no-workarounds`                        | `testing-anti-patterns`                         |
+| Design polish passes          | `impeccable:polish` + `impeccable:layout` + `impeccable:typeset` | `impeccable:delight` + `impeccable:critique`    |
+| External docs lookup          | `context7` + `find-docs`                                         | `exa-web-search-free`                           |
+| Task completion               | `cy-final-verify`                                                |                                                 |
 
 **Redesign tasks (`.compozy/tasks/redesign/*`)**: you MUST run the `designer` agent in execution mode (not plan mode) AND activate `agh-design` + `design-taste-frontend` + `minimalist-ui` before touching any component. `DESIGN.md` tokens win over anything informal already in the codebase.
 

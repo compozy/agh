@@ -2,62 +2,37 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { Pill, Pills } from "./pills";
+import { PillGroup } from "./pill-group";
 
-describe("Pill", () => {
-  it("Should render a semantic tag with the success tint token as background", () => {
-    render(<Pill variant="success">Live</Pill>);
-    const pill = screen.getByText("Live");
-    expect(pill).toHaveAttribute("data-slot", "pill");
-    expect(pill).toHaveAttribute("data-variant", "success");
-    expect(pill.className).toContain("bg-[color:var(--color-success-tint)]");
-    expect(pill.className).toContain("text-[color:var(--color-success)]");
-  });
-
-  it("Should fall back to the default variant when none is provided", () => {
-    render(<Pill>Neutral</Pill>);
-    const pill = screen.getByText("Neutral");
-    expect(pill).toHaveAttribute("data-variant", "default");
-    expect(pill.className).toContain("border-[color:var(--color-divider)]");
-  });
-
-  it("Should use the md size token when size='md' is requested", () => {
-    render(<Pill size="md">Filter</Pill>);
-    const pill = screen.getByText("Filter");
-    expect(pill).toHaveAttribute("data-size", "md");
-    expect(pill.className).toContain("h-8");
-  });
-});
-
-describe("Pills", () => {
+describe("PillGroup", () => {
   const items = [
     { value: "list", label: "List" },
     { value: "kanban", label: "Kanban" },
     { value: "inbox", label: "Inbox", badge: 3 },
   ] as const;
 
-  it("Should fire onChange with the selected value when an item is clicked", async () => {
+  it("Should fire onChange with the selected value when a non-active item is clicked", async () => {
     const user = userEvent.setup();
     const handle = vi.fn();
-    render(<Pills value="list" onChange={handle} items={items} />);
+    render(<PillGroup value="list" onChange={handle} items={items} />);
 
     await user.click(screen.getByRole("button", { name: /kanban/i }));
 
     expect(handle).toHaveBeenCalledWith("kanban");
   });
 
-  it("Should not fire onChange when the active item is clicked", async () => {
+  it("Should not fire onChange when the active item is re-clicked", async () => {
     const user = userEvent.setup();
     const handle = vi.fn();
-    render(<Pills value="list" onChange={handle} items={items} />);
+    render(<PillGroup value="list" onChange={handle} items={items} />);
 
     await user.click(screen.getByRole("button", { name: /list/i }));
 
     expect(handle).not.toHaveBeenCalled();
   });
 
-  it("Should reflect the active item via aria-pressed + data-active", () => {
-    render(<Pills value="kanban" onChange={() => {}} items={items} />);
+  it("Should reflect the active item via aria-pressed and data-active", () => {
+    render(<PillGroup value="kanban" onChange={() => {}} items={items} />);
     const kanban = screen.getByRole("button", { name: /kanban/i });
     const list = screen.getByRole("button", { name: /list/i });
     expect(kanban).toHaveAttribute("aria-pressed", "true");
@@ -67,18 +42,20 @@ describe("Pills", () => {
   });
 
   it("Should render the badge count next to the item label when badge > 0", () => {
-    render(<Pills value="list" onChange={() => {}} items={items} />);
+    render(<PillGroup value="list" onChange={() => {}} items={items} />);
     const inbox = screen.getByRole("button", { name: /inbox/i });
-    const badge = inbox.querySelector('[data-slot="pills-badge"]');
+    const badge = inbox.querySelector('[data-slot="pill-group-badge"]');
     expect(badge).not.toBeNull();
     expect(badge?.textContent).toBe("3");
+    expect(badge?.className).toContain("bg-(--color-accent)");
+    expect(badge?.className).toContain("text-(--color-accent-ink)");
   });
 
   it("Should not fire onChange for a disabled item", async () => {
     const user = userEvent.setup();
     const handle = vi.fn();
     render(
-      <Pills
+      <PillGroup
         value="list"
         onChange={handle}
         items={[
@@ -97,7 +74,7 @@ describe("Pills", () => {
 
   it("Should expose testId as data-testid when provided", () => {
     render(
-      <Pills
+      <PillGroup
         value="list"
         onChange={() => {}}
         items={[{ value: "list", label: "List", testId: "mode-list" }]}
@@ -107,5 +84,17 @@ describe("Pills", () => {
       "data-testid",
       "mode-list"
     );
+  });
+
+  it("Should render the larger md segments by default and switch to sm when requested", () => {
+    const { container, rerender } = render(
+      <PillGroup value="list" onChange={() => {}} items={items} />
+    );
+    let segments = container.querySelectorAll<HTMLElement>('[data-slot="pill-group-item"]');
+    expect(segments[0]?.className).toContain("h-[22px]");
+
+    rerender(<PillGroup value="list" onChange={() => {}} items={items} size="sm" />);
+    segments = container.querySelectorAll<HTMLElement>('[data-slot="pill-group-item"]');
+    expect(segments[0]?.className).toContain("h-[20px]");
   });
 });

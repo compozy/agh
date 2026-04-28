@@ -27,7 +27,6 @@ const meta: Meta<typeof Combobox> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

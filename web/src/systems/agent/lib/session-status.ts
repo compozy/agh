@@ -1,4 +1,4 @@
-import type { MonoBadgeTone } from "@agh/ui";
+import type { PillTone } from "@agh/ui";
 
 import type { SessionPayload } from "@/systems/session";
 
@@ -7,7 +7,7 @@ export type AgentSessionStatusKind = "active" | "starting" | "stopping" | "faile
 export interface AgentSessionStatus {
   kind: AgentSessionStatusKind;
   label: string;
-  tone: MonoBadgeTone;
+  tone: PillTone;
 }
 
 const ACTIVE_STATUS: AgentSessionStatus = { kind: "active", label: "ACTIVE", tone: "success" };

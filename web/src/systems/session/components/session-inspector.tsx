@@ -6,17 +6,16 @@ import {
   Button,
   Empty,
   Metric,
-  MonoBadge,
+  Pill,
   ScrollArea,
   Sheet,
   SheetContent,
   SheetTrigger,
-  StatusDot,
   Tabs,
   TabsList,
   TabsTrigger,
   cn,
-  type StatusDotTone,
+  type PillTone,
 } from "@agh/ui";
 
 import { isAgentEventPayload, parseToolUseResult } from "../lib/message-parts";
@@ -92,7 +91,7 @@ const SECTION_LABELS = {
 type TopTab = "trace" | "usage";
 type BottomTab = "memory" | "files";
 
-const TRACE_STATUS_TONE: Record<InspectorTraceStatus, StatusDotTone> = {
+const TRACE_STATUS_TONE: Record<InspectorTraceStatus, PillTone> = {
   ok: "success",
   warn: "warning",
   error: "danger",
@@ -564,7 +563,7 @@ function TraceRow({ event }: { event: InspectorTraceEvent }) {
       data-status={event.status}
       className="flex items-start gap-2"
     >
-      <StatusDot
+      <Pill.Dot
         tone={tone}
         size="md"
         pulse={pulse}
@@ -578,13 +577,14 @@ function TraceRow({ event }: { event: InspectorTraceEvent }) {
         >
           {ts}
         </span>
-        <MonoBadge
-          tone={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "default"}
+        <Pill
+          mono
+          tone={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "neutral"}
           className="shrink-0"
           data-testid="session-inspector-trace-kind"
         >
           {TRACE_KIND_LABEL[event.kind]}
-        </MonoBadge>
+        </Pill>
         <span
           data-testid="session-inspector-trace-label"
           className="min-w-0 flex-1 truncate text-[12.5px] text-[color:var(--color-text-primary)]"
@@ -685,9 +685,9 @@ function MemorySection({ docs }: MemorySectionProps) {
               data-testid="session-inspector-memory-row"
               className="flex items-center gap-2 py-2"
             >
-              <MonoBadge tone="info" data-testid="session-inspector-memory-kind">
+              <Pill mono tone="info" data-testid="session-inspector-memory-kind">
                 {doc.kind}
-              </MonoBadge>
+              </Pill>
               <span
                 className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-[color:var(--color-text-primary)]"
                 data-testid="session-inspector-memory-title"

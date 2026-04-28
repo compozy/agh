@@ -59,7 +59,7 @@ describe("NetworkWorkspaceShell", () => {
   ] as const)("maps %s status to a %s header status dot", (status, tone) => {
     const { container } = renderWorkspaceShell({ status });
 
-    const statusDot = container.querySelector('[data-slot="status-dot"]');
+    const statusDot = container.querySelector('[data-slot="pill-dot"]');
 
     expect(statusDot).not.toBeNull();
     expect(statusDot).toHaveAttribute("data-tone", tone);

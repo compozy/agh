@@ -9,9 +9,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  MonoBadge,
-  StatusDot,
-  type StatusDotTone,
+  Pill,
+  type PillTone,
 } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
@@ -30,7 +29,7 @@ export interface ChatHeaderProps {
 }
 
 interface StateSignal {
-  tone: StatusDotTone;
+  tone: PillTone;
   pulse?: boolean;
 }
 
@@ -76,7 +75,7 @@ export function ChatHeader({
           className="flex min-w-0 items-center gap-2 overflow-hidden"
           data-testid="chat-breadcrumb"
         >
-          <StatusDot
+          <Pill.Dot
             size="md"
             tone={signal.tone}
             pulse={signal.pulse}
@@ -106,13 +105,14 @@ export function ChatHeader({
                 aria-hidden="true"
                 className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]"
               />
-              <MonoBadge
+              <Pill
+                mono
                 tone="accent"
                 className="shrink-0 normal-case"
                 data-testid="session-provider-badge"
               >
                 {providerLabel}
-              </MonoBadge>
+              </Pill>
             </>
           ) : null}
 
@@ -122,13 +122,14 @@ export function ChatHeader({
                 aria-hidden="true"
                 className="size-3 shrink-0 text-[color:var(--color-text-tertiary)]"
               />
-              <MonoBadge
-                tone="default"
+              <Pill
+                mono
+                tone="neutral"
                 className="shrink-0 normal-case"
                 data-testid="session-workspace-badge"
               >
                 {workspaceName}
-              </MonoBadge>
+              </Pill>
             </>
           ) : null}
 

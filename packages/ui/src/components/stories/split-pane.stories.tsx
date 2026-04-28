@@ -18,7 +18,6 @@ const meta: Meta<typeof SplitPane> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

@@ -20,7 +20,7 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 }
 
 function getDot(container: HTMLElement): HTMLElement {
-  const dot = container.querySelector('[data-slot="status-dot"]');
+  const dot = container.querySelector('[data-slot="pill-dot"]');
   expect(dot).not.toBeNull();
   return dot as HTMLElement;
 }
@@ -73,14 +73,14 @@ describe("TasksListRow", () => {
   it("renders a MonoBadge showing the identifier when present", () => {
     render(<TasksListRow task={buildTask({ identifier: "TASK-42" })} />);
     const badge = screen.getByText("TASK-42");
-    expect(badge).toHaveAttribute("data-slot", "mono-badge");
+    expect(badge).toHaveAttribute("data-slot", "pill");
   });
 
   it("falls back to the 7-character short id when the identifier is absent", () => {
     render(<TasksListRow task={buildTask({ identifier: undefined })} />);
     // id = "task_abcdef0_tail" → short id "task_ab"
     const badge = screen.getByText("task_ab");
-    expect(badge).toHaveAttribute("data-slot", "mono-badge");
+    expect(badge).toHaveAttribute("data-slot", "pill");
   });
 
   it("invokes onSelect(task.id) when the row is clicked", () => {

@@ -1,7 +1,7 @@
 import { AlertCircle, Loader2, Plus, Waypoints } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Button, Empty, PageHeader, Pills, SplitPane } from "@agh/ui";
+import { Button, Empty, PageHeader, PillGroup, SplitPane } from "@agh/ui";
 import {
   BridgeCreateDialog,
   BridgeDetailPanel,
@@ -64,7 +64,7 @@ function BridgesPage() {
   );
 
   const controls = (
-    <Pills
+    <PillGroup
       aria-label="Bridge scope"
       data-testid="bridge-scope-pills"
       items={[

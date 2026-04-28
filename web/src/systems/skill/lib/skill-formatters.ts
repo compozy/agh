@@ -1,4 +1,4 @@
-import type { MonoBadgeTone } from "@agh/ui";
+import type { PillTone } from "@agh/ui";
 
 import type { SkillPayload } from "../types";
 
@@ -10,7 +10,7 @@ const SOURCE_ORDER: Record<string, number> = {
   additional: 4,
 };
 
-const SOURCE_TONE: Record<string, MonoBadgeTone> = {
+const SOURCE_TONE: Record<string, PillTone> = {
   bundled: "success",
   workspace: "info",
   marketplace: "accent",
@@ -34,7 +34,7 @@ export function compareSkillSource(left: string, right: string): number {
   return (SOURCE_ORDER[left] ?? 99) - (SOURCE_ORDER[right] ?? 99);
 }
 
-export function skillSourceTone(source: string): MonoBadgeTone {
+export function skillSourceTone(source: string): PillTone {
   return SOURCE_TONE[source] ?? "neutral";
 }
 

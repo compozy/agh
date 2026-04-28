@@ -20,7 +20,6 @@ const meta: Meta<typeof Input> = {
       </div>
     ),
   ],
-  tags: ["autodocs"],
 };
 
 export default meta;

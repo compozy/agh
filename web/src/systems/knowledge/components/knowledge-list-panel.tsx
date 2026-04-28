@@ -1,7 +1,7 @@
 import { AlertCircle, BookOpen, Loader2 } from "lucide-react";
 import { useMemo } from "react";
 
-import { Empty, MonoBadge, SearchInput } from "@agh/ui";
+import { Empty, Pill, SearchInput } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import {
@@ -67,12 +67,12 @@ function KnowledgeListItem({ memory, isSelected, onSelect }: KnowledgeListItemPr
         </span>
       ) : null}
       <div className="flex flex-wrap items-center gap-1.5">
-        <MonoBadge data-testid={`type-badge-${memory.type}`} tone={memoryTypeTone(memory.type)}>
+        <Pill mono data-testid={`type-badge-${memory.type}`} tone={memoryTypeTone(memory.type)}>
           {memory.type}
-        </MonoBadge>
-        <MonoBadge data-testid={`scope-badge-${scope}`} tone={memoryScopeTone(scope)}>
+        </Pill>
+        <Pill mono data-testid={`scope-badge-${scope}`} tone={memoryScopeTone(scope)}>
           {scope === "workspace" ? "WS" : "GLOBAL"}
-        </MonoBadge>
+        </Pill>
       </div>
     </button>
   );
@@ -156,7 +156,7 @@ function KnowledgeListPanel({
                   <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
                     {group.label}
                   </span>
-                  <MonoBadge>{group.memories.length}</MonoBadge>
+                  <Pill mono>{group.memories.length}</Pill>
                 </div>
                 {group.memories.map(memory => (
                   <KnowledgeListItem

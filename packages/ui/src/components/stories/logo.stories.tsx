@@ -14,7 +14,6 @@ const meta: Meta<typeof Logo> = {
       },
     },
   },
-  tags: ["autodocs"],
   argTypes: {
     variant: {
       control: "select",

@@ -56,7 +56,8 @@ export const Default: Story = {
 };
 
 /**
- * No live sessions — IDLE chip + meta line still shows the historical session count.
+ * No live sessions — IDLE chip on the title; the count badge after the name still
+ * surfaces the historical session count.
  */
 export const Idle: Story = {
   args: { sessions: idleSessions },

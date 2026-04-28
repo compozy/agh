@@ -15,7 +15,6 @@ const meta: Meta<typeof ToolCallCard> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

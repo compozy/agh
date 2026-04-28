@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Button } from "../button";
-import { Pill } from "../pills";
+import { Pill } from "../pill";
 import { Section } from "../section";
 
 const meta: Meta<typeof Section> = {
@@ -15,7 +15,6 @@ const meta: Meta<typeof Section> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;
@@ -42,7 +41,7 @@ export const WithRightSlot: Story = {
         label="Recent runs"
         right={
           <>
-            <Pill variant="success">Live</Pill>
+            <Pill tone="success">Live</Pill>
             <Button size="xs" variant="outline" type="button">
               View all
             </Button>

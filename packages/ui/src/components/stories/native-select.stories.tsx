@@ -15,7 +15,6 @@ const meta: Meta<typeof NativeSelect> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

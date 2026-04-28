@@ -3,7 +3,7 @@ import { MessageSquare } from "lucide-react";
 
 import {
   Empty,
-  MonoBadge,
+  Pill,
   Skeleton,
   Table,
   TableBody,
@@ -110,9 +110,9 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
         </Link>
       </TableCell>
       <TableCell>
-        <MonoBadge tone={status.tone} data-testid={`agent-session-status-${session.id}`}>
+        <Pill mono tone={status.tone} data-testid={`agent-session-status-${session.id}`}>
           {status.label}
-        </MonoBadge>
+        </Pill>
       </TableCell>
       <TableCell className="text-small-body text-right font-mono text-[color:var(--color-text-secondary)]">
         {formatDuration(session.activity?.elapsed_seconds)}

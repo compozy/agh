@@ -13,8 +13,8 @@ import {
   FieldGroup,
   FieldTitle,
   Input,
-  MonoBadge,
-  type MonoBadgeTone,
+  Pill,
+  type PillTone,
   NativeSelect,
   NativeSelectOption,
   Section,
@@ -34,7 +34,7 @@ interface BridgeTestDeliveryDialogProps {
   result: TestBridgeDeliveryResponse | null;
 }
 
-function resultTone(status: string): MonoBadgeTone {
+function resultTone(status: string): PillTone {
   switch (status) {
     case "resolved":
     case "ready":
@@ -193,7 +193,11 @@ export function BridgeTestDeliveryDialog({
                 <Section
                   data-testid="bridge-test-delivery-result"
                   label="Resolved target"
-                  right={<MonoBadge tone={resultTone(result.status)}>{result.status}</MonoBadge>}
+                  right={
+                    <Pill mono tone={resultTone(result.status)}>
+                      {result.status}
+                    </Pill>
+                  }
                 >
                   <p className="text-[13px] text-[color:var(--color-text-primary)]">
                     {describeBridgeTestTarget(result.delivery_target)}

@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { MonoBadge, Pill, StatusDot } from "@agh/ui";
+import { Pill } from "@agh/ui";
 import { cn } from "@/lib/utils";
 import { pillVariantFromTone } from "@/lib/pill-variant";
 
@@ -97,7 +97,7 @@ function TasksListRow({
       ) : null}
 
       <div className="flex min-w-0 items-center gap-2">
-        <StatusDot tone={signal.tone} pulse={signal.pulse} />
+        <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
         <span
           data-slot="tasks-list-row-title"
           className="min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--color-text-primary)]"
@@ -108,7 +108,7 @@ function TasksListRow({
           <Pill
             data-slot="tasks-list-row-lane"
             size="sm"
-            variant={pillVariantFromTone(taskLaneTone(lane))}
+            tone={pillVariantFromTone(taskLaneTone(lane))}
           >
             {LANE_LABELS[lane] ?? lane}
           </Pill>
@@ -116,7 +116,7 @@ function TasksListRow({
       </div>
 
       <div className="flex min-w-0 items-center gap-2 text-[11px]">
-        <MonoBadge>{identifier}</MonoBadge>
+        <Pill mono>{identifier}</Pill>
         <span
           data-slot="tasks-list-row-timestamp"
           className="font-mono text-[10px] text-[color:var(--color-text-tertiary)]"

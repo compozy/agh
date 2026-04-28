@@ -6,10 +6,8 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-  MonoBadge,
   Pill,
-  StatusDot,
-  type StatusDotTone,
+  type PillTone,
 } from "@agh/ui";
 import type { ReactNode } from "react";
 
@@ -56,7 +54,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
         </div>
         {provider.default ? (
           <CardAction>
-            <Pill variant="accent">DEFAULT</Pill>
+            <Pill tone="accent">DEFAULT</Pill>
           </CardAction>
         ) : null}
       </CardHeader>
@@ -72,12 +70,13 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
           {provider.settings.api_key_env ? (
             <span className="flex flex-wrap items-center gap-1.5">
               <span className="truncate">{provider.settings.api_key_env}</span>
-              <MonoBadge
+              <Pill
+                mono
                 tone={provider.api_key_env_present ? "success" : "warning"}
                 data-testid={`${testId}-api-key-state`}
               >
                 {provider.api_key_env_present ? "SET" : "MISSING"}
-              </MonoBadge>
+              </Pill>
             </span>
           ) : (
             <EmptyValue />
@@ -94,7 +93,7 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
 
       <CardFooter className="justify-between">
         <span className="flex items-center gap-2">
-          <StatusDot
+          <Pill.Dot
             tone={state.tone}
             size="md"
             data-testid={`${testId}-status`}
@@ -162,7 +161,7 @@ function EmptyValue() {
 }
 
 export function providerStateTone(provider: SettingsProviderEntry): {
-  tone: StatusDotTone;
+  tone: PillTone;
   label: string;
 } {
   if (!provider.command_available) {

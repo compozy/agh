@@ -3,10 +3,9 @@ import { AlertCircle, Loader2, Wrench } from "lucide-react";
 import {
   Button,
   Empty,
-  MonoBadge,
+  Pill,
   PageHeader,
   Section,
-  StatusDot,
   Switch,
   Table,
   TableBody,
@@ -44,12 +43,12 @@ function SkillDetailMeta({ skill }: { skill: SkillPayload }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {skill.version ? (
-        <MonoBadge data-testid="detail-version-badge">{`v${skill.version}`}</MonoBadge>
+        <Pill mono data-testid="detail-version-badge">{`v${skill.version}`}</Pill>
       ) : null}
-      {author ? <MonoBadge data-testid="detail-author-badge">{`@${author}`}</MonoBadge> : null}
-      <MonoBadge data-testid="source-badge" tone={skillSourceTone(skill.source)}>
+      {author ? <Pill mono data-testid="detail-author-badge">{`@${author}`}</Pill> : null}
+      <Pill mono data-testid="source-badge" tone={skillSourceTone(skill.source)}>
         {skill.source}
-      </MonoBadge>
+      </Pill>
     </div>
   );
 }
@@ -157,13 +156,14 @@ function SkillCapabilitiesSection({ skill }: { skill: SkillPayload }) {
       ) : (
         <div className="flex flex-wrap items-center gap-1.5" data-testid="skill-capabilities-list">
           {capabilities.map(capability => (
-            <MonoBadge
+            <Pill
+              mono
               data-testid={`skill-capability-${capability}`}
               key={capability}
               uppercase={false}
             >
               {capability}
-            </MonoBadge>
+            </Pill>
           ))}
         </div>
       )}
@@ -204,7 +204,7 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
                   key={`${call.label}-${index}`}
                 >
                   <TableCell>
-                    <StatusDot
+                    <Pill.Dot
                       pulse={call.status === "pending"}
                       tone={
                         call.status === "error"

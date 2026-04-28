@@ -1,7 +1,7 @@
 import { Outlet, createFileRoute, useChildMatches, useNavigate } from "@tanstack/react-router";
 import { ListChecks, Plus } from "lucide-react";
 
-import { Button, Empty, Pills, SplitPane } from "@agh/ui";
+import { Button, Empty, PillGroup, SplitPane } from "@agh/ui";
 import {
   TasksDashboardView,
   TasksDetailPreviewPanel,
@@ -111,7 +111,7 @@ function TasksRoute() {
   return (
     <TasksPageShell
       controls={
-        <Pills
+        <PillGroup
           data-testid="tasks-mode-pills"
           value={surfaceMode}
           onChange={handleModeSelect}

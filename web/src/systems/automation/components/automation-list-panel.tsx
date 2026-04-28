@@ -1,6 +1,6 @@
 import { AlertCircle, Clock3, Loader2, Zap } from "lucide-react";
 
-import { Empty, MonoBadge, SearchInput, StatusDot } from "@agh/ui";
+import { Empty, Pill, SearchInput } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import {
@@ -74,7 +74,7 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <StatusDot tone={enabledTone} />
+          <Pill.Dot tone={enabledTone} />
           <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
             {job.name}
           </span>
@@ -89,10 +89,12 @@ function JobListItem({ isSelected, job, onSelect }: JobListItemProps) {
       </p>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <MonoBadge tone={sourceBadgeTone(job.source)}>
+        <Pill mono tone={sourceBadgeTone(job.source)}>
           {automationSourceLabel(job.source)}
-        </MonoBadge>
-        <MonoBadge tone={scopeBadgeTone(job.scope)}>{automationScopeLabel(job.scope)}</MonoBadge>
+        </Pill>
+        <Pill mono tone={scopeBadgeTone(job.scope)}>
+          {automationScopeLabel(job.scope)}
+        </Pill>
       </div>
     </button>
   );
@@ -130,14 +132,14 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <StatusDot tone={enabledTone} />
+          <Pill.Dot tone={enabledTone} />
           <span className="truncate text-[13px] font-medium text-[color:var(--color-text-primary)]">
             {trigger.name}
           </span>
         </div>
-        <MonoBadge className="shrink-0 normal-case" tone="info">
+        <Pill mono className="shrink-0 normal-case" tone="info">
           {trigger.event}
-        </MonoBadge>
+        </Pill>
       </div>
 
       <p className="line-clamp-2 text-[12px] text-[color:var(--color-text-secondary)]">
@@ -145,12 +147,12 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
       </p>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <MonoBadge tone={sourceBadgeTone(trigger.source)}>
+        <Pill mono tone={sourceBadgeTone(trigger.source)}>
           {automationSourceLabel(trigger.source)}
-        </MonoBadge>
-        <MonoBadge tone={scopeBadgeTone(trigger.scope)}>
+        </Pill>
+        <Pill mono tone={scopeBadgeTone(trigger.scope)}>
           {automationScopeLabel(trigger.scope)}
-        </MonoBadge>
+        </Pill>
       </div>
     </button>
   );

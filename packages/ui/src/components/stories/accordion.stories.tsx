@@ -15,7 +15,6 @@ const meta: Meta<typeof Accordion> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

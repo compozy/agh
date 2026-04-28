@@ -696,11 +696,6 @@
             "sourceType": "github",
             "computedHash": "1f9dd6946d6bb66bd76c5d49d607e5becf7c93ad643070fc4e352d17e426b69d"
         },
-        "shadcn-ui": {
-            "source": "pedronauck/skills",
-            "sourceType": "github",
-            "computedHash": "4c3e54ac47ddcc2c948995c85f6740b78f2f556c769d800e92ddff035d5c7e59"
-        },
         "shape": {
             "source": "pbakaus/impeccable",
             "sourceType": "github",

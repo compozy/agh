@@ -1,6 +1,6 @@
 import { Activity, AlertTriangle, Clock, Wrench } from "lucide-react";
 
-import { MonoBadge, cn } from "@agh/ui";
+import { Pill, cn } from "@agh/ui";
 
 import type { AgentEventPayload, RuntimeActivityPayload } from "../types";
 
@@ -153,9 +153,9 @@ export function SessionActivityInline({ activity }: { activity?: RuntimeActivity
         {detail}
       </span>
       {idle ? (
-        <MonoBadge tone="default" className="shrink-0">
+        <Pill mono tone="neutral" className="shrink-0">
           {idle}
-        </MonoBadge>
+        </Pill>
       ) : null}
     </span>
   );

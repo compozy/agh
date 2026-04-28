@@ -3,9 +3,8 @@ import { Link } from "@tanstack/react-router";
 
 import {
   Empty,
-  MonoBadge,
+  Pill,
   Section,
-  StatusDot,
   Table,
   TableBody,
   TableCell,
@@ -46,7 +45,7 @@ export function AutomationRunHistory({
     <Section
       data-testid="automation-run-history"
       label={title}
-      right={<MonoBadge>{runs.length}</MonoBadge>}
+      right={<Pill mono>{runs.length}</Pill>}
     >
       {isLoading ? (
         <div
@@ -102,8 +101,10 @@ export function AutomationRunHistory({
                   <TableRow key={run.id} data-testid={`automation-run-${run.id}`}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <StatusDot pulse={pulse} tone={tone} />
-                        <MonoBadge tone={tone}>{runStatusLabel(run)}</MonoBadge>
+                        <Pill.Dot pulse={pulse} tone={tone} />
+                        <Pill mono tone={tone}>
+                          {runStatusLabel(run)}
+                        </Pill>
                       </div>
                       {run.error ? (
                         <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--color-danger)]">

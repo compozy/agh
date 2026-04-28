@@ -11,8 +11,8 @@ import {
   CardFooter,
   CardHeader,
   Empty,
-  MonoBadge,
-  Pills,
+  Pill,
+  PillGroup,
   SearchInput,
 } from "@agh/ui";
 
@@ -82,23 +82,24 @@ function MarketplaceCard({ skill, isInstalled, onInstall, isInstalling }: Market
         {tags.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1.5">
             {tags.map(tag => (
-              <MonoBadge
+              <Pill
+                mono
                 data-testid={`marketplace-tag-${skill.name}-${tag}`}
                 key={tag}
                 tone="neutral"
                 uppercase={false}
               >
                 {tag}
-              </MonoBadge>
+              </Pill>
             ))}
           </div>
         ) : null}
       </CardContent>
       <CardFooter className="bg-transparent">
         {isInstalled ? (
-          <MonoBadge data-testid={`installed-pill-${skill.name}`} tone="success">
+          <Pill mono data-testid={`installed-pill-${skill.name}`} tone="success">
             INSTALLED
-          </MonoBadge>
+          </Pill>
         ) : onInstall ? (
           <Button
             data-testid={`install-btn-${skill.name}`}
@@ -115,9 +116,9 @@ function MarketplaceCard({ skill, isInstalled, onInstall, isInstalling }: Market
             className="flex items-center gap-2 text-[11px] text-[color:var(--color-text-secondary)]"
             data-testid={`catalog-state-${skill.name}`}
           >
-            <MonoBadge data-testid={`readonly-pill-${skill.name}`} tone="neutral">
+            <Pill mono data-testid={`readonly-pill-${skill.name}`} tone="neutral">
               READ ONLY
-            </MonoBadge>
+            </Pill>
             <span>Metadata only</span>
           </div>
         )}
@@ -168,7 +169,7 @@ function MarketplaceView({
           }
           value={search}
         />
-        <Pills
+        <PillGroup
           aria-label="Marketplace category"
           data-testid="marketplace-category-pills"
           items={MARKETPLACE_CATEGORIES.map(cat => ({

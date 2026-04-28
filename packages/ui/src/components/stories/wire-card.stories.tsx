@@ -15,7 +15,6 @@ const meta: Meta<typeof WireCard> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

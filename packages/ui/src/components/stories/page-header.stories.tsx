@@ -4,7 +4,7 @@ import { ListChecksIcon, PlusIcon, SparklesIcon } from "lucide-react";
 
 import { Button } from "../button";
 import { PageHeader } from "../page-header";
-import { Pills } from "../pills";
+import { PillGroup } from "../pill-group";
 
 const meta: Meta<typeof PageHeader> = {
   title: "ui/PageHeader",
@@ -14,11 +14,10 @@ const meta: Meta<typeof PageHeader> = {
     docs: {
       description: {
         component:
-          "Top-of-page header — icon + title + count badge on the left, segmented `Pills` controls in the middle, meta/actions on the right.",
+          "Top-of-page header — icon + title + count badge on the left, segmented `PillGroup` controls in the middle, meta/actions on the right.",
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;
@@ -42,7 +41,7 @@ export const WithControlsAndMeta: Story = {
           icon={ListChecksIcon}
           count={42}
           controls={
-            <Pills
+            <PillGroup
               value={mode}
               onChange={setMode}
               items={[

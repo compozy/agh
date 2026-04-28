@@ -11,18 +11,9 @@ import {
   Zap,
 } from "lucide-react";
 
-import {
-  Button,
-  CodeBlock,
-  Empty,
-  KindChip,
-  Metric,
-  MonoBadge,
-  Section,
-  StatusDot,
-  type MetricTone,
-} from "@agh/ui";
+import { Button, CodeBlock, Empty, Metric, Pill, Section, type MetricTone } from "@agh/ui";
 
+import { KindChip } from "@/systems/network/components/kind-chip";
 import { AutomationRunHistory } from "./automation-run-history";
 import {
   automationScopeLabel,
@@ -155,9 +146,9 @@ function JobScheduleSection({ job }: { job: AutomationJob }) {
     <Section
       label="Schedule"
       right={
-        <MonoBadge tone="accent" className="normal-case">
+        <Pill mono tone="accent" className="normal-case">
           {mode}
-        </MonoBadge>
+        </Pill>
       }
     >
       <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-3">
@@ -223,7 +214,9 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
     <Section
       label="Scheduler"
       right={
-        <MonoBadge tone={registeredTone}>{scheduler.registered ? "REGISTERED" : "IDLE"}</MonoBadge>
+        <Pill mono tone={registeredTone}>
+          {scheduler.registered ? "REGISTERED" : "IDLE"}
+        </Pill>
       }
     >
       <div
@@ -287,9 +280,9 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
             Event
           </span>
-          <MonoBadge className="normal-case" tone="info">
+          <Pill mono className="normal-case" tone="info">
             {trigger.event}
-          </MonoBadge>
+          </Pill>
         </div>
         <div className="space-y-1.5">
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--color-text-label)]">
@@ -300,11 +293,12 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
           ) : (
             <div className="flex flex-wrap items-center gap-1.5">
               {filters.map(([key, value]) => (
-                <MonoBadge
+                <Pill
+                  mono
                   className="normal-case"
                   key={`${key}=${value}`}
                   tone="neutral"
-                >{`${key}=${value}`}</MonoBadge>
+                >{`${key}=${value}`}</Pill>
               ))}
             </div>
           )}
@@ -334,9 +328,9 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
           <span className="text-[13px] text-[color:var(--color-text-secondary)]">
             Dispatches to
           </span>
-          <MonoBadge className="normal-case" tone="neutral">
+          <Pill mono className="normal-case" tone="neutral">
             {trigger.agent_name}
-          </MonoBadge>
+          </Pill>
         </div>
       </div>
     </Section>
@@ -349,9 +343,9 @@ function PromptSection({ isTrigger, prompt }: { isTrigger: boolean; prompt: stri
       label={isTrigger ? "Prompt template" : "Prompt"}
       right={
         isTrigger ? (
-          <MonoBadge tone="info" className="normal-case">
+          <Pill mono tone="info" className="normal-case">
             GO TEMPLATE
-          </MonoBadge>
+          </Pill>
         ) : undefined
       }
     >
@@ -467,14 +461,16 @@ export function AutomationDetailPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <StatusDot tone={enabledTone} />
+              <Pill.Dot tone={enabledTone} />
               <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-[color:var(--color-text-primary)]">
                 {item.name}
               </h2>
-              <MonoBadge tone={enabledTone}>{item.enabled ? "ENABLED" : "DISABLED"}</MonoBadge>
-              <MonoBadge tone={item.source === "dynamic" ? "accent" : "neutral"}>
+              <Pill mono tone={enabledTone}>
+                {item.enabled ? "ENABLED" : "DISABLED"}
+              </Pill>
+              <Pill mono tone={item.source === "dynamic" ? "accent" : "neutral"}>
                 {automationSourceLabel(item.source)}
-              </MonoBadge>
+              </Pill>
               {item.source === "config" ? (
                 <Lock
                   aria-hidden="true"

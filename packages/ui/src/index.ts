@@ -160,33 +160,24 @@ export { SplitPane, SPLIT_LIST_WIDTH_DEFAULT, type SplitPaneProps } from "./comp
 export { PageHeader, type PageHeaderProps } from "./components/page-header";
 export {
   Pill,
-  Pills,
+  PillDot,
   pillVariants,
-  pillToggleVariants,
   type PillProps,
-  type PillsProps,
-  type PillsItem,
-  type PillVariant,
+  type PillDotProps,
+  type PillTone,
   type PillSize,
-} from "./components/pills";
+} from "./components/pill";
+export {
+  PillGroup,
+  pillGroupSegmentVariants,
+  type PillGroupProps,
+  type PillGroupItem,
+  type PillGroupSize,
+} from "./components/pill-group";
 export { SearchInput, type SearchInputProps } from "./components/search-input";
 export { Empty, type EmptyProps } from "./components/empty";
 export { Section, type SectionProps } from "./components/section";
 export { Toolbar, type ToolbarProps } from "./components/toolbar";
-export {
-  StatusDot,
-  type StatusDotProps,
-  type StatusDotTone,
-  type StatusDotSize,
-} from "./components/status-dot";
-export {
-  MonoBadge,
-  monoBadgeVariants,
-  type MonoBadgeProps,
-  type MonoBadgeTone,
-} from "./components/mono-badge";
-export { KindChip, KIND_DOT_COLORS, type KindChipProps } from "./components/kind-chip";
-export { WireChip, type WireChipProps } from "./components/wire-chip";
 export {
   WireCard,
   WireCardHead,
@@ -194,7 +185,6 @@ export {
   WireCardFoot,
   type WireCardProps,
 } from "./components/wire-card";
-export { MonoChip, type MonoChipProps } from "./components/mono-chip";
 export { TypingDots, type TypingDotsProps } from "./components/typing-dots";
 export { CodeBlock, type CodeBlockProps } from "./components/code-block";
 export {
@@ -209,11 +199,6 @@ export {
   type ToolCallStatus,
 } from "./components/tool-call-card";
 export { Metric, type MetricProps, type MetricTone } from "./components/metric";
-export {
-  ConnectionIndicator,
-  type ConnectionIndicatorProps,
-  type ConnectionStatus,
-} from "./components/connection-indicator";
 export {
   Avatar,
   AvatarBadge,

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ConnectionStatus } from "@agh/ui";
 
+import type { ConnectionStatus } from "@/components/connection-indicator";
 import type { HealthPayload } from "../types";
 import { daemonHealthOptions } from "../lib/query-options";
 

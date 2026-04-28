@@ -23,7 +23,6 @@ const meta: Meta<typeof Field> = {
       },
     },
   },
-  tags: ["autodocs"],
 };
 
 export default meta;

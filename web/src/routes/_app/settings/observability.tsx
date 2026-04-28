@@ -2,7 +2,7 @@ import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
-import { Button, MonoBadge, Switch } from "@agh/ui";
+import { Button, Pill, Switch } from "@agh/ui";
 import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
 import type { SettingsObservabilitySection } from "@/systems/settings";
 import {
@@ -222,12 +222,13 @@ function CaptureSection({
       eyebrow="Capture"
       note="events, transcripts, logs"
       headerAction={
-        <MonoBadge
+        <Pill
+          mono
           tone={capPercent > 85 ? "warning" : "neutral"}
           data-testid="settings-page-observability-cap-percent"
         >
           {capPercent}% of cap
-        </MonoBadge>
+        </Pill>
       }
     >
       <SettingsFieldRow

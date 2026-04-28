@@ -1,7 +1,7 @@
 import { AlertCircle, Loader2, Wrench } from "lucide-react";
 import { useMemo } from "react";
 
-import { Empty, MonoBadge, SearchInput, StatusDot } from "@agh/ui";
+import { Empty, Pill, SearchInput } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
 import {
@@ -75,7 +75,7 @@ function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
         />
       ) : null}
       <div className="flex items-center gap-2">
-        <StatusDot
+        <Pill.Dot
           data-testid={`skill-status-dot-${skill.name}`}
           tone={skillStatusTone(skill.enabled)}
         />
@@ -170,7 +170,7 @@ function SkillListPanel({
                   <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--color-text-label)]">
                     {group.label}
                   </span>
-                  <MonoBadge>{group.skills.length}</MonoBadge>
+                  <Pill mono>{group.skills.length}</Pill>
                 </div>
                 {group.skills.map(skill => (
                   <SkillListItem

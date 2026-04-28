@@ -1,6 +1,6 @@
 import { AlertTriangle, Loader2, RefreshCw, X } from "lucide-react";
 
-import { Button, MonoBadge } from "@agh/ui";
+import { Button, Pill } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -53,9 +53,9 @@ export function SessionResumeFailure({
               {title}
             </span>
             {hasProviderDetail ? (
-              <MonoBadge data-testid="session-resume-failure-provider" tone="danger">
+              <Pill mono data-testid="session-resume-failure-provider" tone="danger">
                 {normalizedMissingProvider}
-              </MonoBadge>
+              </Pill>
             ) : null}
           </div>
           <p
